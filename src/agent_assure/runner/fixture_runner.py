@@ -24,7 +24,7 @@ from agent_assure.runner.clock import DeterministicClock
 from agent_assure.runner.ids import DeterministicIds
 from agent_assure.runner.registry import get_runner
 from agent_assure.schema.base import StrictModel
-from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode
+from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest, SuiteCase
@@ -188,6 +188,8 @@ def _error_record(
                 policy_id="runtime.fixture",
                 state=GateState.fail,
                 reason_codes=(ReasonCode.RUNTIME_FAILED,),
+                severity=Severity.blocker,
+                message="fixture runner captured an in-process runtime failure",
             ),
         ),
         provenance=_provenance(context),

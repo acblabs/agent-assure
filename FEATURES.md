@@ -19,6 +19,13 @@
   smoke variants.
 - Minimal expense-approval example with independent fixtures, a passing
   baseline, and a deterministic provider-control candidate.
+- Expectation-driven RunSet evaluator with built-in deterministic controls for
+  runtime success, structured output fields, evidence coverage, material claim
+  links, configured tool allowlists, provider review boundaries, human review
+  routing, redaction checks, prompt-boundary cases, gate profiles, and
+  per-finding time-bounded waivers.
+- JSON, Markdown, and Rich console evaluation reports that lead with candidate
+  vs expectations and keep unsupported capabilities marked `not_evaluated`.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.
@@ -27,7 +34,7 @@
 
 ## Planned
 
-- Evaluator, reports, evidence packets, CI gates, and signed release evidence.
+- Comparison engine, evidence packets, CI gates, and signed release evidence.
 - Live stochastic evaluation, provider comparisons, confidence intervals, cost
   distributions, and OpenTelemetry SDK export in a future release.
 

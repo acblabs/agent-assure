@@ -202,6 +202,16 @@
           "title": "Artifact Kind",
           "type": "string"
         },
+        "gate_profile": {
+          "default": "default",
+          "title": "Gate Profile",
+          "type": "string"
+        },
+        "message": {
+          "default": "",
+          "title": "Message",
+          "type": "string"
+        },
         "policy_id": {
           "title": "Policy Id",
           "type": "string"
@@ -219,6 +229,10 @@
           "default": "0.1.0",
           "title": "Schema Version",
           "type": "string"
+        },
+        "severity": {
+          "$ref": "#/$defs/Severity",
+          "default": "info"
         },
         "state": {
           "$ref": "#/$defs/GateState"
@@ -354,6 +368,7 @@
         "REQUIRED_SOURCE_MISSING",
         "POLICY_FAILED",
         "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
         "FORBIDDEN_PROVIDER",
         "FORBIDDEN_TOOL",
         "STRUCTURED_OUTPUT_INVALID",
@@ -368,6 +383,16 @@
         "NOT_EVALUATED"
       ],
       "title": "ReasonCode",
+      "type": "string"
+    },
+    "Severity": {
+      "enum": [
+        "info",
+        "warning",
+        "error",
+        "blocker"
+      ],
+      "title": "Severity",
       "type": "string"
     }
   },

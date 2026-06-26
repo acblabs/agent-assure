@@ -113,6 +113,16 @@
     }
   ],
   "defaults": {
+    "allowed_tools": [
+      "ambiguity_check",
+      "benefit_policy_lookup",
+      "clinical_note_parser",
+      "conflict_check",
+      "coverage_policy_lookup",
+      "documentation_check",
+      "intake_redaction_check",
+      "provider_selection"
+    ],
     "artifact_kind": "suite-defaults",
     "execution_mode": "fixture",
     "fixture_roots": [
@@ -288,7 +298,7 @@
     }
   ],
   "schema_version": "0.1.0",
-  "source_digest": "1e65b3f5e5708892b5d4004640eabc0c069792f69fff1710f601ddfec6f7872d",
+  "source_digest": "fa7de65a8c476e15a78c401bffab374cee0af8043a7a2aa86cd8eea78b5fa156",
   "suite_id": "prior-auth-synthetic",
   "suite_version": "0.1.0"
 }

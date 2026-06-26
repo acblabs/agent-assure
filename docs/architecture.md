@@ -8,11 +8,14 @@ The current implementation establishes the trust core:
 - fixture resolution, manifests, and deterministic local runs in
   `src/agent_assure/fixtures` and `src/agent_assure/runner`;
 - privacy filters in `src/agent_assure/privacy`;
+- expectation resolution, deterministic controls, gate profiles, and waivers in
+  `src/agent_assure/evaluation` and `src/agent_assure/policies`;
+- JSON, Markdown, and Rich console reports in `src/agent_assure/reporting`;
 - OpenTelemetry-aligned span-plan preview in `src/agent_assure/telemetry`.
 
 Bundled deterministic subjects live under `src/agent_assure/examples` so the
 example suites can run from an installed wheel. They are reproducibility
 fixtures, not the stable public extension API; see `docs/api_surface.md`.
 
-Future releases add full evaluation, reporting, comparison, and release evidence
-workflows.
+Future releases add comparison, CI, packet generation, and signed release
+evidence workflows.

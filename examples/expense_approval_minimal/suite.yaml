@@ -8,6 +8,10 @@ defaults:
   required_policy_ids:
     - receipt-evidence
     - provider-selection
+  allowed_tools:
+    - expense_policy_check
+    - provider_selection
+    - receipt_check
 cases:
   - case_id: exp-001
     title: Receipt-backed approval

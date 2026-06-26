@@ -14,7 +14,7 @@ from agent_assure.runner.governance_controls import (
     apply_provider_policy,
     provider_is_allowed,
 )
-from agent_assure.schema.common import GateState, ReasonCode
+from agent_assure.schema.common import GateState, ReasonCode, Severity
 
 EvidenceAssemblyMode = Literal["association_preserving", "catalog_reconstruction"]
 
@@ -68,6 +68,8 @@ def run_prior_auth_app(
                 policy_id="prompt-injection-boundary",
                 state=GateState.warn,
                 reason_codes=(ReasonCode.PROMPT_INJECTION_BOUNDARY,),
+                severity=Severity.warning,
+                message="prompt-boundary signal routed the case to review",
             )
         )
 

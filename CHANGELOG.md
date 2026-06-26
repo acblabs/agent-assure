@@ -25,3 +25,8 @@
 - Kept bundled example modules installable for reproducibility while documenting
   that they are not a stable public extension API, and moved the intentionally
   lossy evidence assembly behavior out of shared framework evidence helpers.
+- Added deterministic RunSet evaluation with expectation resolution, material
+  evidence-link invariants, structured output and configured tool controls,
+  provider review-boundary and human-review controls, gate profiles, disjoint
+  case metrics, per-finding time-bounded waivers, not-evaluated capability
+  reporting, and JSON/Markdown/Rich evaluation reports.

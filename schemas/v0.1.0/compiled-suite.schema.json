@@ -153,6 +153,14 @@
     "SuiteDefaults": {
       "additionalProperties": false,
       "properties": {
+        "allowed_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Tools",
+          "type": "array"
+        },
         "artifact_kind": {
           "const": "suite-defaults",
           "default": "suite-defaults",
@@ -218,6 +226,7 @@
     "defaults": {
       "$ref": "#/$defs/SuiteDefaults",
       "default": {
+        "allowed_tools": [],
         "artifact_kind": "suite-defaults",
         "execution_mode": "fixture",
         "fixture_roots": [

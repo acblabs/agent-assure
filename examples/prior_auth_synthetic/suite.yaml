@@ -8,6 +8,15 @@ defaults:
   required_policy_ids:
     - evidence-linking
     - provider-selection
+  allowed_tools:
+    - ambiguity_check
+    - benefit_policy_lookup
+    - clinical_note_parser
+    - conflict_check
+    - coverage_policy_lookup
+    - documentation_check
+    - intake_redaction_check
+    - provider_selection
 cases:
   - case_id: 00123
     title: Straightforward approval

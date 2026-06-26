@@ -4,6 +4,7 @@ from agent_assure.schema.common import (
     ExecutionMode,
     GateState,
     ReasonCode,
+    Severity,
 )
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
@@ -38,6 +39,7 @@ __all__ = [
     "PolicyResult",
     "ReasonCode",
     "RunSet",
+    "Severity",
     "SpanAttribute",
     "SpanEvent",
     "SpanPlan",

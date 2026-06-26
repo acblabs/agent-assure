@@ -11,6 +11,7 @@ from agent_assure.schema.common import (
     ExecutionMode,
     GateState,
     ReasonCode,
+    Severity,
     coerce_enum,
     coerce_tuple,
 )
@@ -34,11 +35,19 @@ class PolicyResult(PersistedArtifact):
     policy_id: str
     state: GateState
     reason_codes: tuple[ReasonCode, ...] = ()
+    severity: Severity = Severity.info
+    gate_profile: str = "default"
+    message: str = ""
 
     @field_validator("state", mode="before")
     @classmethod
     def _coerce_state(cls, value: object) -> GateState:
         return coerce_enum(GateState, value)
+
+    @field_validator("severity", mode="before")
+    @classmethod
+    def _coerce_severity(cls, value: object) -> Severity:
+        return coerce_enum(Severity, value)
 
     @field_validator("reason_codes", mode="before")
     @classmethod

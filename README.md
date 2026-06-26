@@ -4,11 +4,11 @@
 change-control checks for deterministic AI agent governance pipelines.
 
 The current implementation supports offline schema validation, YAML suite
-compilation, canonical digest generation, privacy-preserving summaries, and an
-offline deterministic fixture runner with fixture manifests across synthetic
-prior-authorization and minimal expense-approval examples. It does not run live
-models, certify safety, validate clinical use, prove regulatory compliance, or
-claim OpenTelemetry adoption.
+compilation, canonical digest generation, privacy-preserving summaries,
+deterministic fixture runs, expectation evaluation, and JSON/Markdown/Rich
+reports across synthetic prior-authorization and minimal expense-approval
+examples. It does not run live models, certify safety, validate clinical use,
+prove regulatory compliance, or claim OpenTelemetry adoption.
 
 ## Five-minute local check
 
@@ -22,6 +22,7 @@ agent-assure validate .tmp/compiled-suite.json --kind compiled-suite
 agent-assure validate .tmp/fixture-manifest.json --kind fixture-manifest
 agent-assure suite run .tmp/compiled-suite.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/fixture-manifest.json --out .tmp/baseline-runset.json
 agent-assure validate .tmp/baseline-runset.json --kind run-set
+agent-assure evaluate .tmp/baseline-runset.json --suite .tmp/compiled-suite.json --out-dir .tmp/baseline-report
 agent-assure otel preview tests/fixtures/run_record.json --out .tmp/span-plan.json
 pytest
 ```
@@ -36,6 +37,7 @@ a benchmark.
 agent-assure suite compile examples/expense_approval_minimal/suite.yaml --out .tmp/expense.compiled.json --manifest .tmp/expense.fixtures.json
 agent-assure suite run .tmp/expense.compiled.json --variant examples/expense_approval_minimal/variants/baseline.yaml --manifest .tmp/expense.fixtures.json --out .tmp/expense.baseline.json
 agent-assure suite run .tmp/expense.compiled.json --variant examples/expense_approval_minimal/variants/candidate_provider_policy.yaml --manifest .tmp/expense.fixtures.json --out .tmp/expense.candidate.json
+agent-assure evaluate .tmp/expense.baseline.json --suite .tmp/expense.compiled.json --out-dir .tmp/expense.baseline-report
 ```
 
 ## Current claim boundary

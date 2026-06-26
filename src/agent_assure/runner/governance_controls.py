@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from agent_assure.schema.common import GateState, ReasonCode
+from agent_assure.schema.common import GateState, ReasonCode, Severity
 
 ProviderPolicyPrecedence = Literal["policy_over_runtime", "runtime_over_policy"]
 
@@ -13,6 +13,8 @@ class PolicyEvent:
     policy_id: str
     state: GateState
     reason_codes: tuple[ReasonCode, ...] = ()
+    severity: Severity = Severity.info
+    message: str = ""
 
 
 @dataclass(frozen=True)
@@ -86,6 +88,8 @@ def provider_policy_event(
         policy_id=policy_id,
         state=GateState.fail,
         reason_codes=(ReasonCode.FORBIDDEN_PROVIDER,),
+        severity=Severity.error,
+        message=f"provider {provider!r} is forbidden by the selected policy bundle",
     )
 
 

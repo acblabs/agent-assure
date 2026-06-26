@@ -12,6 +12,8 @@ class Finding(PersistedArtifact):
     artifact_kind: Literal["finding"] = "finding"
     finding_id: str
     case_id: str
+    control_id: str = ""
+    target: str = ""
     state: GateState
     reason_code: ReasonCode
     message: str

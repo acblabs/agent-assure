@@ -16,3 +16,4 @@ this document is the machine-checked source for documentation alignment.
 | `fixture-example-suites` | The synthetic prior-authorization and minimal expense-approval examples both run from local fixture suites. |
 | `evidence-refactor-regression` | The evidence-normalization candidate preserves ordinary evidence links while exposing the shared-source multi-claim edge case. |
 | `bundled-examples-api-boundary` | Bundled example modules are included for reproducible demos but are not a stable extension API. |
+| `expectation-evaluator-reports` | RunSet evaluation checks expectations and built-in deterministic controls, then writes JSON, Markdown, and Rich console reports. |

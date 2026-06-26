@@ -3,7 +3,7 @@ from __future__ import annotations
 from agent_assure.runner.evidence import EvidenceAssociation, evidence_refs_from_associations
 from agent_assure.runner.fixture_runner import RunnerContext, VariantConfig
 from agent_assure.runner.governance_controls import PolicyEvent
-from agent_assure.schema.common import ExecutionMode
+from agent_assure.schema.common import ExecutionMode, GateState, Severity
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, PolicyResult
 from agent_assure.schema.suite import SuiteCase
@@ -58,6 +58,25 @@ def policy_results_from_events(events: tuple[PolicyEvent, ...]) -> tuple[PolicyR
             policy_id=event.policy_id,
             state=event.state,
             reason_codes=event.reason_codes,
+            severity=event.severity or _severity_for_state(event.state),
+            message=event.message or _message_for_event(event),
         )
         for event in events
     )
+
+
+def _severity_for_state(state: GateState) -> Severity:
+    if state is GateState.fail:
+        return Severity.error
+    if state is GateState.warn:
+        return Severity.warning
+    if state is GateState.not_evaluated:
+        return Severity.info
+    return Severity.info
+
+
+def _message_for_event(event: PolicyEvent) -> str:
+    if event.reason_codes:
+        reason_codes = ", ".join(reason.value for reason in event.reason_codes)
+        return f"{event.policy_id} emitted {reason_codes}"
+    return f"{event.policy_id} state is {event.state.value}"

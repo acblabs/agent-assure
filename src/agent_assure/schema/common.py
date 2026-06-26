@@ -22,6 +22,13 @@ class GateState(StrEnum):
     not_evaluated = "not_evaluated"
 
 
+class Severity(StrEnum):
+    info = "info"
+    warning = "warning"
+    error = "error"
+    blocker = "blocker"
+
+
 class ComparisonClassification(StrEnum):
     equivalent = "equivalent"
     provenance_only = "provenance_only"
@@ -36,6 +43,7 @@ class ReasonCode(StrEnum):
     REQUIRED_SOURCE_MISSING = "REQUIRED_SOURCE_MISSING"
     POLICY_FAILED = "POLICY_FAILED"
     REQUIRED_HUMAN_REVIEW_ABSENT = "REQUIRED_HUMAN_REVIEW_ABSENT"
+    REVIEW_BOUNDARY_FAILED = "REVIEW_BOUNDARY_FAILED"
     FORBIDDEN_PROVIDER = "FORBIDDEN_PROVIDER"
     FORBIDDEN_TOOL = "FORBIDDEN_TOOL"
     STRUCTURED_OUTPUT_INVALID = "STRUCTURED_OUTPUT_INVALID"

@@ -1,1 +1,1 @@
-"""Evidence packet reports reserved for a future release."""
+"""Evidence packet assembly helpers live with the packet command surface."""

@@ -72,3 +72,11 @@ claims:
       tests: [tests/integration/test_offline_suite.py, tests/integration/test_expense_approval_minimal.py]
       docs: [docs/api_surface.md, docs/architecture.md, README.md]
     limitations: A stable adapter or plugin API is outside the current release surface.
+  - id: expectation-evaluator-reports
+    claim: Deterministic RunSet evaluation checks compiled expectations and built-in fixture controls, then writes JSON, Markdown, and Rich console reports.
+    evidence:
+      code: [src/agent_assure/evaluation/evaluator.py, src/agent_assure/policies, src/agent_assure/reporting]
+      tests: [tests/unit/evaluation/test_evaluator.py, tests/integration/test_evaluate_reports.py]
+      commands: [agent-assure evaluate]
+      docs: [docs/cli_contract.md, docs/expectation_authoring.md]
+    limitations: Reports explain deterministic governance verdicts only; they are not model interpretability, safety, compliance, or live quality evidence.

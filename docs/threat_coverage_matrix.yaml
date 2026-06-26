@@ -1,10 +1,81 @@
-threats:
-  - id: raw-sensitive-content
+taxonomies:
+  owasp_snapshot: OWASP Top 10 for LLM Applications 2025
+  nist_ai_rmf_functions: [Govern, Map, Measure, Manage]
+  iso_iec_42001_crosswalk:
+    note: Crosswalk only; not a compliance claim.
+controls:
+  - id: runtime_success_required
+    status: evaluated
+    nist_ai_rmf: [Measure, Manage]
+    iso_iec_42001_areas: [monitoring, accountability]
+    owasp_risks: [LLM08]
+    project_threats: [fixture-runtime-failure]
+  - id: structured_output_required
+    status: evaluated
+    nist_ai_rmf: [Measure]
+    iso_iec_42001_areas: [documentation, monitoring]
+    owasp_risks: [LLM02]
+    project_threats: [invalid-structured-record]
+  - id: evidence_required
+    status: evaluated
+    nist_ai_rmf: [Measure, Govern]
+    iso_iec_42001_areas: [transparency, documentation]
+    owasp_risks: [LLM09]
+    project_threats: [missing-required-evidence]
+  - id: material_claims_have_evidence
+    status: evaluated
+    nist_ai_rmf: [Measure, Govern]
+    iso_iec_42001_areas: [transparency, accountability]
+    owasp_risks: [LLM09]
+    project_threats: [material-claim-link-regression]
+  - id: tool_allowlist
+    status: evaluated_when_configured
+    nist_ai_rmf: [Measure, Manage]
+    iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
+    owasp_risks: [LLM06]
+    project_threats: [unexpected-tool-use]
+  - id: provider_review_boundary
+    status: evaluated
+    nist_ai_rmf: [Measure, Manage]
+    iso_iec_42001_areas: [AI system lifecycle governance, accountability]
+    owasp_risks: [LLM05]
+    project_threats: [forbidden-provider-review-boundary]
+  - id: human_review_required
+    status: evaluated
+    nist_ai_rmf: [Measure, Manage]
+    iso_iec_42001_areas: [human oversight, accountability]
+    owasp_risks: [LLM05]
+    project_threats: [missing-review-route]
+  - id: redaction_required
     status: partially_evaluated
-    reason: Current leak tests cover summaries and span plans.
-  - id: stochastic-model-quality-regression
+    nist_ai_rmf: [Measure, Govern]
+    iso_iec_42001_areas: [transparency, documentation]
+    owasp_risks: [LLM02]
+    project_threats: [summary-sensitive-content]
+  - id: prompt_injection_control_boundary
+    status: evaluated
+    nist_ai_rmf: [Measure, Manage]
+    iso_iec_42001_areas: [human oversight, monitoring]
+    owasp_risks: [LLM01]
+    project_threats: [prompt-boundary-bypass]
+uncovered:
+  - id: raw_payload_persistence_forbidden
     status: not_evaluated
-    reason: v0.1 fixture mode does not run live stochastic model comparisons.
-  - id: production-compliance
+    reason: Strict schemas and privacy validators constrain persisted artifacts, but no evaluator policy inspects raw payload storage.
+    nist_ai_rmf: [Measure, Govern]
+  - id: live-stochastic-model-quality-regression
     status: not_evaluated
-    reason: The project does not certify compliance.
+    reason: Fixture mode does not run live stochastic model comparisons.
+    nist_ai_rmf: [Measure]
+  - id: context-discovery-and-stakeholder-impact-mapping
+    status: not_evaluated
+    reason: The project does not perform Map-function context discovery or impact mapping.
+    nist_ai_rmf: [Map]
+  - id: production-runtime-isolation
+    status: not_evaluated
+    reason: Offline run records do not observe production sandbox isolation.
+    nist_ai_rmf: [Manage]
+  - id: safety-or-regulatory-certification
+    status: not_evaluated
+    reason: Deterministic fixture checks do not certify safety or compliance.
+    nist_ai_rmf: [Govern]

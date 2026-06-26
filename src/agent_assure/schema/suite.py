@@ -16,13 +16,14 @@ class SuiteDefaults(PersistedArtifact):
     runner_id: str = Field(default="prior_auth.synthetic", min_length=1)
     fixture_roots: tuple[str, ...] = ("fixtures/shared",)
     required_policy_ids: tuple[str, ...] = ()
+    allowed_tools: tuple[str, ...] = ()
 
     @field_validator("execution_mode", mode="before")
     @classmethod
     def _coerce_execution_mode(cls, value: object) -> ExecutionMode:
         return coerce_enum(ExecutionMode, value)
 
-    @field_validator("fixture_roots", "required_policy_ids", mode="before")
+    @field_validator("fixture_roots", "required_policy_ids", "allowed_tools", mode="before")
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)

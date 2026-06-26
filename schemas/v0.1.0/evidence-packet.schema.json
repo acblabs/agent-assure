@@ -112,6 +112,11 @@
           "title": "Case Id",
           "type": "string"
         },
+        "control_id": {
+          "default": "",
+          "title": "Control Id",
+          "type": "string"
+        },
         "finding_id": {
           "title": "Finding Id",
           "type": "string"
@@ -131,6 +136,11 @@
         },
         "state": {
           "$ref": "#/$defs/GateState"
+        },
+        "target": {
+          "default": "",
+          "title": "Target",
+          "type": "string"
         }
       },
       "required": [
@@ -161,6 +171,7 @@
         "REQUIRED_SOURCE_MISSING",
         "POLICY_FAILED",
         "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
         "FORBIDDEN_PROVIDER",
         "FORBIDDEN_TOOL",
         "STRUCTURED_OUTPUT_INVALID",
