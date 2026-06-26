@@ -1,0 +1,65 @@
+{
+  "$defs": {
+    "ComparisonClassification": {
+      "enum": [
+        "equivalent",
+        "provenance_only",
+        "behavioral_regression",
+        "invalid_comparison"
+      ],
+      "title": "ComparisonClassification",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/comparison-summary.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "comparison-summary",
+      "default": "comparison-summary",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_runset_id": {
+      "title": "Baseline Runset Id",
+      "type": "string"
+    },
+    "candidate_runset_id": {
+      "title": "Candidate Runset Id",
+      "type": "string"
+    },
+    "classification": {
+      "$ref": "#/$defs/ComparisonClassification"
+    },
+    "provenance_changes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Provenance Changes",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "verdict_findings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Verdict Findings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "baseline_runset_id",
+    "candidate_runset_id",
+    "classification"
+  ],
+  "title": "ComparisonSummary",
+  "type": "object"
+}

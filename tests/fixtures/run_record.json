@@ -1,0 +1,35 @@
+{
+  "artifact_kind": "agent-run-record",
+  "case_id": "case-001",
+  "evidence_refs": [
+    {
+      "artifact_kind": "evidence-ref",
+      "claim_ids": [
+        "claim-001"
+      ],
+      "ref_id": "source-001",
+      "schema_version": "0.1.0",
+      "source_id": "source-001"
+    }
+  ],
+  "execution_mode": "fixture",
+  "human_review_performed": false,
+  "human_review_required": false,
+  "input_summary": "request summary with no sensitive raw payload",
+  "model": "fixture-model",
+  "outcome": "approve",
+  "output_summary": "approval summary with evidence reference",
+  "pipeline_id": "synthetic-pipeline",
+  "policy_results": [],
+  "provider": "fixture-provider",
+  "provenance": {
+    "artifact_kind": "provenance",
+    "schema_version": "0.1.0"
+  },
+  "recommendation": "approve",
+  "run_id": "run-001",
+  "schema_version": "0.1.0",
+  "tools": [
+    "evidence_lookup"
+  ]
+}

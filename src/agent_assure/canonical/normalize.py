@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import unicodedata
+from decimal import Decimal
+from math import isfinite
+from typing import Any
+
+from agent_assure.schema.common import ReasonCode
+
+
+class CanonicalizationError(ValueError):
+    def __init__(self, reason_code: ReasonCode, message: str) -> None:
+        self.reason_code = reason_code
+        super().__init__(message)
+
+
+def normalize_decimal(value: Decimal | str) -> str:
+    decimal = Decimal(str(value))
+    if not decimal.is_finite():
+        raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal is not finite")
+    normalized = decimal.normalize()
+    if normalized == normalized.to_integral():
+        return str(normalized.quantize(Decimal(1)))
+    return format(normalized, "f").rstrip("0").rstrip(".")
+
+
+def ensure_nfc(value: str) -> str:
+    if unicodedata.normalize("NFC", value) != value:
+        raise CanonicalizationError(ReasonCode.NON_NFC_STRING, "string is not NFC-normalized")
+    return value
+
+
+def digest_projection(value: Any) -> Any:
+    if isinstance(value, Decimal):
+        return normalize_decimal(value)
+    if isinstance(value, str):
+        return ensure_nfc(value)
+    if isinstance(value, bool) or value is None or isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not isfinite(value):
+            raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "float is not finite")
+        return value
+    if isinstance(value, tuple | list):
+        return [digest_projection(item) for item in value]
+    if isinstance(value, dict):
+        return {ensure_nfc(str(key)): digest_projection(value[key]) for key in sorted(value)}
+    if hasattr(value, "model_dump"):
+        return digest_projection(value.model_dump(mode="json"))
+    raise TypeError(f"unsupported digest projection type: {type(value).__name__}")

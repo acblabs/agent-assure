@@ -1,0 +1,43 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/expectation-change-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "expectation-change-record",
+      "default": "expectation-change-record",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "change_type": {
+      "enum": [
+        "added",
+        "removed",
+        "modified"
+      ],
+      "title": "Change Type",
+      "type": "string"
+    },
+    "expectation_id": {
+      "title": "Expectation Id",
+      "type": "string"
+    },
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expectation_id",
+    "change_type",
+    "rationale"
+  ],
+  "title": "ExpectationChangeRecord",
+  "type": "object"
+}

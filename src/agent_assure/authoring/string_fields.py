@@ -1,0 +1,11 @@
+SEMANTIC_STRING_FIELDS = {
+    "suite_id",
+    "suite_version",
+    "case_id",
+    "expectation_id",
+    "expected_recommendation",
+    "allowed_outcomes",
+    "forbidden_outcomes",
+    "required_evidence_refs",
+    "material_claim_ids",
+}

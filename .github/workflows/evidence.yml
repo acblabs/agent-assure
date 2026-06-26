@@ -1,0 +1,12 @@
+name: evidence
+on: [workflow_dispatch]
+jobs:
+  preview:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: agent-assure otel preview tests/fixtures/run_record.json --out span-plan.json

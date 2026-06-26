@@ -1,0 +1,4 @@
+snapshot: local
+commit: otel-semconv-genai-snapshot-local
+checksum: 5d57cc08de8fb8f34b648cd8d7c0a5f6ad1a9bdb0faef558f18d0baf59f56a52
+notes: Local compatibility lock for span-plan preview.

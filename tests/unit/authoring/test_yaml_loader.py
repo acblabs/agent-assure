@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import pytest
+from pydantic import ValidationError
+
+from agent_assure.authoring.compiler import compile_suite
+from agent_assure.authoring.yaml_lint import lint_yaml
+
+
+def test_yaml_ambiguous_scalar_preserves_lexeme(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+cases:
+  - case_id: 00123
+    title: Leading zero case
+    expectation:
+      expected_recommendation: approve
+""".lstrip(),
+        encoding="utf-8",
+    )
+    warnings = lint_yaml(suite)
+    compiled = compile_suite(suite)
+    assert compiled.cases[0].case_id == "00123"
+    assert compiled.resolved_expectations[0].case_id == "00123"
+    assert warnings
+    assert "ambiguous scalar preserved as string" in warnings[0].message
+
+
+def test_yaml_lint_warns_on_non_nfc_string(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+cases:
+  - case_id: cafe\u0301
+    title: Non NFC case
+    expectation:
+      expected_recommendation: approve
+""".lstrip(),
+        encoding="utf-8",
+    )
+    warnings = lint_yaml(suite)
+    assert any("not NFC-normalized" in warning.message for warning in warnings)
+
+
+def test_conflicting_expectation_shortcuts_fail(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+cases:
+  - case_id: case-001
+    title: Conflicting shortcuts
+    expectation:
+      expected_recommendation: approve
+      allowed_outcomes:
+        - approve
+""".lstrip(),
+        encoding="utf-8",
+    )
+    with pytest.raises(ValidationError):
+        compile_suite(suite)
+
+
+def test_compiled_suite_has_resolved_expectations_only() -> None:
+    compiled = compile_suite(__import__("pathlib").Path("examples/prior_auth_synthetic/suite.yaml"))
+    dumped = compiled.model_dump(mode="json")
+    assert "resolved_expectations" in dumped
+    assert "expectation" not in dumped["cases"][0]

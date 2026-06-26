@@ -1,0 +1,43 @@
+# agent-assure
+
+`agent-assure` is an early implementation of expectation-driven assurance and
+change-control checks for deterministic AI agent governance pipelines.
+
+The current implementation supports offline schema validation, YAML suite
+compilation, canonical digest generation, privacy-preserving summaries, and an
+OpenTelemetry-aligned span-plan preview. It does not run live models, certify
+safety, validate clinical use, prove regulatory compliance, or claim
+OpenTelemetry adoption.
+
+## Five-minute local check
+
+```bash
+pip install -e ".[dev]"
+agent-assure --help
+agent-assure schema export --out schemas/v0.1.0
+agent-assure suite lint examples/prior_auth_synthetic/suite.yaml
+agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/compiled-suite.json
+agent-assure validate .tmp/compiled-suite.json --kind compiled-suite
+agent-assure otel preview tests/fixtures/run_record.json --out .tmp/span-plan.json
+pytest
+```
+
+## Current claim boundary
+
+The project currently claims only deterministic, offline controls implemented in
+this repository. Public claims are tracked in
+`docs/claims_traceability_matrix.yaml`.
+
+## Development
+
+```bash
+git config core.hooksPath .githooks
+python scripts/check_docs_alignment.py
+ruff check .
+mypy src
+pytest
+python -m build
+```
+
+Dependency locking for release builds is documented in
+`docs/dependency_locking.md`.

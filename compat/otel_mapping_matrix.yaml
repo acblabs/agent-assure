@@ -1,0 +1,20 @@
+snapshot_commit: otel-semconv-genai-snapshot-local
+snapshot_checksum: 5d57cc08de8fb8f34b648cd8d7c0a5f6ad1a9bdb0faef558f18d0baf59f56a52
+mappings:
+  - source: AgentRunRecord.execution_mode
+    attribute: agent_assure.execution_mode
+  - source: AgentRunRecord.run_id
+    attribute: agent_assure.run_id
+  - source: AgentRunRecord.case_id
+    attribute: agent_assure.case_id
+  - source: AgentRunRecord.pipeline_id
+    attribute: agent_assure.pipeline_id
+  - source: AgentRunRecord.provider
+    attribute: gen_ai.system
+  - source: AgentRunRecord.model
+    attribute: gen_ai.request.model
+  - source: fixed
+    attribute: gen_ai.operation.name
+not_emitted:
+  - gen_ai.response.tokens
+  - rpc.method

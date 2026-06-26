@@ -1,0 +1,8 @@
+cff-version: 1.2.0
+title: agent-assure
+message: "If you use this software or its written artifacts, please cite the repository."
+type: software
+authors:
+  - name: ACB Labs
+license: MIT
+version: 0.1.0

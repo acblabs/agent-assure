@@ -1,0 +1,10 @@
+threats:
+  - id: raw-sensitive-content
+    status: partially_evaluated
+    reason: Current leak tests cover summaries and span plans.
+  - id: stochastic-model-quality-regression
+    status: not_evaluated
+    reason: v0.1 fixture mode does not run live stochastic model comparisons.
+  - id: production-compliance
+    status: not_evaluated
+    reason: The project does not certify compliance.

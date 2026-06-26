@@ -1,0 +1,7 @@
+name: agent-assure
+description: Run agent-assure deterministic assurance checks.
+runs:
+  using: composite
+  steps:
+    - run: agent-assure --help
+      shell: bash

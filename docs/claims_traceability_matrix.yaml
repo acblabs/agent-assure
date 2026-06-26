@@ -1,0 +1,53 @@
+claims:
+  - id: offline-fixture-mode
+    claim: Runs current checks offline against fixed local artifacts.
+    evidence:
+      schemas: [compiled-suite, agent-run-record]
+      tests: [tests/integration/test_no_network.py]
+      docs: [README.md, docs/fixture_mode.md]
+    limitations: No fixture runner exists in the current implementation.
+  - id: strict-schemas
+    claim: Persisted artifacts use strict immutable Pydantic models.
+    evidence:
+      schemas: [agent-run-record, run-set, compiled-suite, span-plan]
+      tests: [tests/unit/schema/test_strict_models.py]
+      docs: [docs/schema_reference.md]
+    limitations: Schema stability is pre-release and limited to v0.1.0 artifacts.
+  - id: json-schema-parity
+    claim: Runtime validation and exported JSON Schema agree on the parity corpus.
+    evidence:
+      tests: [tests/integration/test_schema_parity.py]
+      commands: [agent-assure validate, agent-assure schema export]
+    limitations: Parity corpus is intentionally small in the current implementation.
+  - id: yaml-lexeme-preservation
+    claim: YAML authoring preserves ambiguous semantic-string lexemes before conversion.
+    evidence:
+      tests: [tests/unit/authoring/test_yaml_loader.py]
+      commands: [agent-assure suite lint, agent-assure suite compile]
+    limitations: YAML remains an authoring format only.
+  - id: canonical-digests
+    claim: Digests pass through one projection and RFC 8785 JCS byte path.
+    evidence:
+      code: [src/agent_assure/canonical/digests.py]
+      tests: [tests/unit/canonical/test_digests.py]
+      docs: [docs/provenance_and_hashing.md, docs/digest_field_inventory.md]
+    limitations: Hashes are provenance only, not behavioral verdicts.
+  - id: hmac-sensitive-correlation
+    claim: Sensitive low-entropy correlation examples use explicitly keyed HMAC-SHA256.
+    evidence:
+      code: [src/agent_assure/canonical/hmac_tokens.py]
+      tests: [tests/unit/privacy/test_hmac_and_redaction.py]
+    limitations: Tests inject a clearly marked non-production key; production callers must provide their own key.
+  - id: privacy-redaction
+    claim: Author-time summaries can be explicitly redacted before persistence, persisted summaries are checked, and span-plan attributes are filtered before display.
+    evidence:
+      code: [src/agent_assure/privacy/redaction.py, src/agent_assure/telemetry/privacy_filter.py]
+      tests: [tests/unit/privacy/test_hmac_and_redaction.py, tests/unit/telemetry/test_span_plan.py]
+    limitations: This is not production PHI de-identification.
+  - id: otel-span-plan-preview
+    claim: Structured records can be projected into an OpenTelemetry-aligned span plan.
+    evidence:
+      code: [src/agent_assure/telemetry/otel_mapping.py]
+      tests: [tests/unit/telemetry/test_span_plan.py]
+      docs: [docs/otel_alignment.md, docs/standards/otel_genai_gap_analysis.md]
+    limitations: v0.1 emits no SDK spans and performs no OTLP export.

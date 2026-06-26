@@ -1,0 +1,12 @@
+.tmp/
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
+Lib/
+__pycache__/
+*.py[cod]
+agent_assure_final_implementation_plan.md

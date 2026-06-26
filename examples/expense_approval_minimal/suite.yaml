@@ -1,0 +1,9 @@
+suite_id: expense-approval-minimal
+suite_version: 0.1.0
+defaults:
+  execution_mode: fixture
+cases:
+  - case_id: exp-001
+    title: Missing receipt
+    expectation:
+      expected_recommendation: request_receipt
