@@ -29,6 +29,9 @@ def compile_loaded_suite(loaded: LoadedYaml, source_digest: str) -> CompiledSuit
         case = SuiteCase(
             case_id=str(case_map["case_id"]),
             title=str(case_map["title"]),
+            expectation_id=expectation.expectation_id,
+            fixture_id=_optional_string(case_map.get("fixture_id")),
+            tags=tuple(str(tag) for tag in _sequence(case_map.get("tags", ()))),
         )
         cases.append(case)
         expectations.append(expectation)
@@ -52,3 +55,9 @@ def _sequence(value: Any) -> tuple[Any, ...]:
     if not isinstance(value, tuple | list):
         raise TypeError("expected sequence")
     return tuple(value)
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    return str(value)

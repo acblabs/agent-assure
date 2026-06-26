@@ -1,0 +1,137 @@
+{
+  "artifact_kind": "fixture-manifest",
+  "entries": [
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/model_outputs/fake-phi-redaction.json",
+      "schema_version": "0.1.0",
+      "sha256": "21bed4c9b0c18dd1fcecc00e764a027ae8ddb706fd4777054a3a01c88967e62a",
+      "size_bytes": 210
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/model_outputs/forbidden-provider.json",
+      "schema_version": "0.1.0",
+      "sha256": "f9ffc2cf84ddd485f4d5b7a4c6d76a22bdc523188cb3786aa5dee2dbb2fbfddb",
+      "size_bytes": 228
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/model_outputs/prompt-injection-note.json",
+      "schema_version": "0.1.0",
+      "sha256": "7cb873a91d606daff47bc74288c36c519ae5edcb3e3a32746748e6a8e7a30d57",
+      "size_bytes": 224
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/model_outputs/shared-source-multi-claim.json",
+      "schema_version": "0.1.0",
+      "sha256": "21bed4c9b0c18dd1fcecc00e764a027ae8ddb706fd4777054a3a01c88967e62a",
+      "size_bytes": 210
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/model_outputs/straightforward-approval.json",
+      "schema_version": "0.1.0",
+      "sha256": "21bed4c9b0c18dd1fcecc00e764a027ae8ddb706fd4777054a3a01c88967e62a",
+      "size_bytes": 210
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/model_outputs/tool-failure.json",
+      "schema_version": "0.1.0",
+      "sha256": "ac2fe41ce9e6c9dedab4b961ee5058e75abe0dd3e29f33e2a7a321517951fe4d",
+      "size_bytes": 210
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/requests/fake-phi-redaction.json",
+      "schema_version": "0.1.0",
+      "sha256": "2831929085f92bad696b54f143098b82cad3fa8709314cb195ca3195cbe1a0da",
+      "size_bytes": 281
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/requests/forbidden-provider.json",
+      "schema_version": "0.1.0",
+      "sha256": "c0f42189a2ae6ec3cac0d37aa7e36d54239d452ac98dfaaf2216841e16c77e02",
+      "size_bytes": 159
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/requests/prompt-injection-note.json",
+      "schema_version": "0.1.0",
+      "sha256": "cd3561405261f03521a24f1b8a5cefce3235e4f81ed09eba7739686b35c4f3a2",
+      "size_bytes": 158
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/requests/shared-source-multi-claim.json",
+      "schema_version": "0.1.0",
+      "sha256": "2b92cf3b0558350ecd6e64de2cbc4c05ad1acbca4d0756c53df5aa044d07ddf5",
+      "size_bytes": 171
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/requests/straightforward-approval.json",
+      "schema_version": "0.1.0",
+      "sha256": "5717d3ed1cd42ddb03547d26b4f22ebca68cf27621c50145bd325be786499d09",
+      "size_bytes": 147
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/requests/tool-failure.json",
+      "schema_version": "0.1.0",
+      "sha256": "920e32c1abd0d81b3ea9396e81bec236f8dfa94d6267b2e622a66d2e996753a4",
+      "size_bytes": 158
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/tool_outputs/fake-phi-redaction.json",
+      "schema_version": "0.1.0",
+      "sha256": "d5cff5d945b99f223bac4402e99358585631c3a96ffcd61358143165ee8d87bb",
+      "size_bytes": 315
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/tool_outputs/forbidden-provider.json",
+      "schema_version": "0.1.0",
+      "sha256": "a7bce9ba1900ee2d17e4ef603192d281e9fb3362bfbbef312f8b19b938043319",
+      "size_bytes": 313
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/tool_outputs/prompt-injection-note.json",
+      "schema_version": "0.1.0",
+      "sha256": "94b3e58a8c4502c4d1234720202e861f264e246c28c0f3bf6a55330032202f96",
+      "size_bytes": 356
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/tool_outputs/shared-source-multi-claim.json",
+      "schema_version": "0.1.0",
+      "sha256": "465172cb2bde51ba2202dd9e430c4040a86f99506f00548d38a08b6ba5eda5d7",
+      "size_bytes": 592
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/tool_outputs/straightforward-approval.json",
+      "schema_version": "0.1.0",
+      "sha256": "e57365441d698ce76b28220213a6e3e57c1b4330ef21a2a210af63cace4aeb92",
+      "size_bytes": 320
+    },
+    {
+      "artifact_kind": "fixture-manifest-entry",
+      "path": "fixtures/shared/tool_outputs/tool-failure.json",
+      "schema_version": "0.1.0",
+      "sha256": "9c73b0720b1541010c1f691666307717179fdd5b698ec9f9068dd077623b2235",
+      "size_bytes": 314
+    }
+  ],
+  "fixture_roots": [
+    "fixtures/shared"
+  ],
+  "schema_version": "0.1.0",
+  "suite_id": "prior-auth-synthetic",
+  "suite_version": "0.1.0"
+}

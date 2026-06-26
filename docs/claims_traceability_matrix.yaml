@@ -1,15 +1,15 @@
 claims:
   - id: offline-fixture-mode
-    claim: Runs current checks offline against fixed local artifacts.
+    claim: Runs deterministic fixture-mode suites offline against fixed local artifacts.
     evidence:
-      schemas: [compiled-suite, agent-run-record]
-      tests: [tests/integration/test_no_network.py]
+      schemas: [compiled-suite, fixture-manifest, agent-run-record, run-set]
+      tests: [tests/integration/test_no_network.py, tests/integration/test_fixture_equivalence.py]
       docs: [README.md, docs/fixture_mode.md]
-    limitations: No fixture runner exists in the current implementation.
+    limitations: Live providers, subprocess isolation, and catastrophic process-failure capture are outside the current fixture runner.
   - id: strict-schemas
     claim: Persisted artifacts use strict immutable Pydantic models.
     evidence:
-      schemas: [agent-run-record, run-set, compiled-suite, span-plan]
+      schemas: [agent-run-record, run-set, compiled-suite, fixture-manifest, span-plan]
       tests: [tests/unit/schema/test_strict_models.py]
       docs: [docs/schema_reference.md]
     limitations: Schema stability is pre-release and limited to v0.1.0 artifacts.
@@ -42,7 +42,7 @@ claims:
     claim: Author-time summaries can be explicitly redacted before persistence, persisted summaries are checked, and span-plan attributes are filtered before display.
     evidence:
       code: [src/agent_assure/privacy/redaction.py, src/agent_assure/telemetry/privacy_filter.py]
-      tests: [tests/unit/privacy/test_hmac_and_redaction.py, tests/unit/telemetry/test_span_plan.py]
+      tests: [tests/unit/privacy/test_hmac_and_redaction.py, tests/unit/telemetry/test_span_plan.py, tests/integration/test_baseline_passes.py]
     limitations: This is not production PHI de-identification.
   - id: otel-span-plan-preview
     claim: Structured records can be projected into an OpenTelemetry-aligned span plan.

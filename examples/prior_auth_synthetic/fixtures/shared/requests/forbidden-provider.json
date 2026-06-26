@@ -1,0 +1,6 @@
+{
+  "case_id": "forbidden-provider",
+  "member_id": "SYN-MEMBER-003",
+  "requested_service": "specialty medication",
+  "request_type": "prior_authorization"
+}

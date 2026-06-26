@@ -1,1 +1,11 @@
 variant_id: candidate-provider-policy
+pipeline_id: prior-auth-provider-policy
+runner_id: prior_auth.synthetic
+provider_policy:
+  forbidden_providers:
+    - unapproved-prior-auth-model
+  runtime_allowed_providers:
+    - unapproved-prior-auth-model
+behavior:
+  evidence_assembly: association_preserving
+  provider_policy_precedence: runtime_over_policy

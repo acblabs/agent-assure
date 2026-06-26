@@ -1,1 +1,11 @@
 variant_id: baseline
+pipeline_id: prior-auth-baseline
+runner_id: prior_auth.synthetic
+provider_policy:
+  forbidden_providers:
+    - unapproved-prior-auth-model
+  runtime_allowed_providers:
+    - unapproved-prior-auth-model
+behavior:
+  evidence_assembly: association_preserving
+  provider_policy_precedence: policy_over_runtime

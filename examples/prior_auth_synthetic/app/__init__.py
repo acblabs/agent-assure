@@ -1,1 +1,1 @@
-"""Synthetic app placeholder for a future release."""
+"""Small helper modules used by the synthetic prior authorization fixtures."""

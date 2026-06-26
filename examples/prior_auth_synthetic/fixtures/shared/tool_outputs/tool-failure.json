@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-tool-unavailable"
+      ],
+      "content_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+      "ref_id": "ref-tool-status",
+      "source_id": "fixture-tool-status"
+    }
+  ],
+  "tools": [
+    "coverage_policy_lookup"
+  ]
+}

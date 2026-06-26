@@ -72,6 +72,7 @@
         "VALID_RECORD_MISSING",
         "FIXTURE_EQUIVALENCE_FAILED",
         "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
         "NOT_EVALUATED"
       ],
       "title": "ReasonCode",

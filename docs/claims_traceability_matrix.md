@@ -5,7 +5,7 @@ this document is the machine-checked source for documentation alignment.
 
 | Claim ID | Evidence summary |
 | --- | --- |
-| `offline-fixture-mode` | Local CLI commands and schema fixtures run without model or provider calls. |
+| `offline-fixture-mode` | Local CLI commands compile, manifest, and run shared fixtures without model or provider calls. |
 | `strict-schemas` | Persisted Pydantic artifacts are strict, frozen, and versioned. |
 | `json-schema-parity` | Runtime validation and JSON Schema validation share the same parity corpus. |
 | `yaml-lexeme-preservation` | YAML node loading preserves ambiguous scalar lexemes as strings. |

@@ -12,4 +12,5 @@ jobs:
       - run: ruff check .
       - run: mypy src
       - run: pytest
+      - run: python scripts/update_golden.py
       - run: python -m build

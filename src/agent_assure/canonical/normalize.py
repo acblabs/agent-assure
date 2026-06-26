@@ -44,7 +44,15 @@ def digest_projection(value: Any) -> Any:
     if isinstance(value, tuple | list):
         return [digest_projection(item) for item in value]
     if isinstance(value, dict):
-        return {ensure_nfc(str(key)): digest_projection(value[key]) for key in sorted(value)}
+        projected_items: list[tuple[str, Any]] = []
+        seen_keys: set[str] = set()
+        for key, item in value.items():
+            projected_key = ensure_nfc(str(key))
+            if projected_key in seen_keys:
+                raise TypeError(f"duplicate projected object key: {projected_key!r}")
+            seen_keys.add(projected_key)
+            projected_items.append((projected_key, digest_projection(item)))
+        return {key: item for key, item in sorted(projected_items, key=lambda pair: pair[0])}
     if hasattr(value, "model_dump"):
         return digest_projection(value.model_dump(mode="json"))
     raise TypeError(f"unsupported digest projection type: {type(value).__name__}")

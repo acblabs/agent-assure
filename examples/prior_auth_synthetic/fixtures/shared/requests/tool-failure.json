@@ -1,0 +1,6 @@
+{
+  "case_id": "tool-failure",
+  "member_id": "SYN-MEMBER-005",
+  "requested_service": "durable medical equipment",
+  "request_type": "prior_authorization"
+}

@@ -8,4 +8,5 @@ Normative digest path:
 4. SHA-256 or HMAC-SHA256.
 
 Digest-relevant fields include suite authoring content, compiled suite
-artifacts, run records, span plans, and manifest paths.
+artifacts, fixture manifest entries, run records, span plans, and manifest
+paths.

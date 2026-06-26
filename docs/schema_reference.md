@@ -13,6 +13,7 @@ Exported roots:
 - `evidence-packet`
 - `expectation`
 - `expectation-change-record`
+- `fixture-manifest`
 - `run-set`
 - `span-plan`
 

@@ -38,7 +38,7 @@ agent-assure = "agent_assure.cli.main:app"
 packages = ["src/agent_assure"]
 
 [tool.pytest.ini_options]
-addopts = "-q"
+addopts = "-q --disable-socket"
 testpaths = ["tests"]
 
 [tool.ruff]

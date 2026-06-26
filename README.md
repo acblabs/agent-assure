@@ -5,9 +5,9 @@ change-control checks for deterministic AI agent governance pipelines.
 
 The current implementation supports offline schema validation, YAML suite
 compilation, canonical digest generation, privacy-preserving summaries, and an
-OpenTelemetry-aligned span-plan preview. It does not run live models, certify
-safety, validate clinical use, prove regulatory compliance, or claim
-OpenTelemetry adoption.
+offline deterministic fixture runner with fixture manifests. It does not run
+live models, certify safety, validate clinical use, prove regulatory compliance,
+or claim OpenTelemetry adoption.
 
 ## Five-minute local check
 
@@ -16,8 +16,11 @@ pip install -e ".[dev]"
 agent-assure --help
 agent-assure schema export --out schemas/v0.1.0
 agent-assure suite lint examples/prior_auth_synthetic/suite.yaml
-agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/compiled-suite.json
+agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/compiled-suite.json --manifest .tmp/fixture-manifest.json
 agent-assure validate .tmp/compiled-suite.json --kind compiled-suite
+agent-assure validate .tmp/fixture-manifest.json --kind fixture-manifest
+agent-assure suite run .tmp/compiled-suite.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/fixture-manifest.json --out .tmp/baseline-runset.json
+agent-assure validate .tmp/baseline-runset.json --kind run-set
 agent-assure otel preview tests/fixtures/run_record.json --out .tmp/span-plan.json
 pytest
 ```

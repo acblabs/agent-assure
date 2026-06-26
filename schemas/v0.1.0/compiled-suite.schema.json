@@ -104,11 +104,37 @@
           "title": "Case Id",
           "type": "string"
         },
+        "expectation_id": {
+          "minLength": 1,
+          "title": "Expectation Id",
+          "type": "string"
+        },
+        "fixture_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fixture Id"
+        },
         "schema_version": {
           "const": "0.1.0",
           "default": "0.1.0",
           "title": "Schema Version",
           "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
         },
         "title": {
           "minLength": 1,
@@ -118,7 +144,8 @@
       },
       "required": [
         "case_id",
-        "title"
+        "title",
+        "expectation_id"
       ],
       "title": "SuiteCase",
       "type": "object"
@@ -136,6 +163,16 @@
           "$ref": "#/$defs/ExecutionMode",
           "default": "fixture"
         },
+        "fixture_roots": {
+          "default": [
+            "fixtures/shared"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fixture Roots",
+          "type": "array"
+        },
         "required_policy_ids": {
           "default": [],
           "items": {
@@ -143,6 +180,12 @@
           },
           "title": "Required Policy Ids",
           "type": "array"
+        },
+        "runner_id": {
+          "default": "prior_auth.synthetic",
+          "minLength": 1,
+          "title": "Runner Id",
+          "type": "string"
         },
         "schema_version": {
           "const": "0.1.0",
@@ -177,7 +220,11 @@
       "default": {
         "artifact_kind": "suite-defaults",
         "execution_mode": "fixture",
+        "fixture_roots": [
+          "fixtures/shared"
+        ],
         "required_policy_ids": [],
+        "runner_id": "prior_auth.synthetic",
         "schema_version": "0.1.0"
       }
     },

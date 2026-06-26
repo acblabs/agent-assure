@@ -1,0 +1,8 @@
+{
+  "human_review_performed": true,
+  "human_review_required": false,
+  "model": "unapproved-fixture-model-v9",
+  "outcome": "approve_without_review",
+  "provider": "unapproved-prior-auth-model",
+  "recommendation": "approve"
+}

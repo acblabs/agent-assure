@@ -11,7 +11,7 @@ from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
-from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
 
 SchemaModel: TypeAlias = type[BaseModel]
@@ -24,6 +24,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "evidence-packet": EvidencePacket,
     "expectation": Expectation,
     "expectation-change-record": ExpectationChangeRecord,
+    "fixture-manifest": FixtureManifest,
     "run-set": RunSet,
     "span-plan": SpanPlan,
 }

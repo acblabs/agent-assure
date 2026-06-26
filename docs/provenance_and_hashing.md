@@ -10,4 +10,6 @@ Current digest behavior:
 - strings must be NFC-normalized;
 - RFC 8785 JCS bytes are produced by one implementation path;
 - SHA-256 is used for content digests;
+- fixture manifests hash file bytes and use canonical digests for the manifest
+  artifact;
 - HMAC-SHA256 is used for sensitive low-entropy correlations.
