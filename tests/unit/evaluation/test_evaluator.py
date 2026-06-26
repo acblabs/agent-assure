@@ -54,7 +54,7 @@ def test_provider_candidate_fails_provider_policy_control() -> None:
     report = _report(PROVIDER_CANDIDATE)
 
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert ReasonCode.REVIEW_BOUNDARY_FAILED in _reason_codes(
+    assert ReasonCode.FORBIDDEN_PROVIDER in _reason_codes(
         report.candidate_vs_expectations
     )
 
@@ -65,7 +65,7 @@ def test_smoke_candidate_fails_multiple_controls() -> None:
 
     assert report.candidate_vs_expectations.state is GateState.fail
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE in reason_codes
-    assert ReasonCode.REVIEW_BOUNDARY_FAILED in reason_codes
+    assert ReasonCode.FORBIDDEN_PROVIDER in reason_codes
     assert ReasonCode.RUNTIME_FAILED in reason_codes
 
 
@@ -91,6 +91,20 @@ def test_structured_output_failure_is_reachable() -> None:
 
     assert report.candidate_vs_expectations.state is GateState.fail
     assert ReasonCode.STRUCTURED_OUTPUT_INVALID in _reason_codes(
+        report.candidate_vs_expectations
+    )
+
+
+def test_raw_sensitive_summary_is_verdict_bearing_redaction_failure() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    bad_run = first_run.model_copy(update={"input_summary": "patient=Jane ssn: 123-45-6789"})
+    mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    assert ReasonCode.RAW_SENSITIVE_CONTENT in _reason_codes(
         report.candidate_vs_expectations
     )
 

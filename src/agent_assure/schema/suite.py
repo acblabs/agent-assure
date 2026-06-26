@@ -6,7 +6,7 @@ from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
-from agent_assure.schema.common import ExecutionMode, coerce_enum, coerce_tuple
+from agent_assure.schema.common import DigestHex, ExecutionMode, coerce_enum, coerce_tuple
 from agent_assure.schema.expectation import Expectation
 
 
@@ -50,7 +50,7 @@ class CompiledSuite(PersistedArtifact):
     defaults: SuiteDefaults = SuiteDefaults()
     cases: tuple[SuiteCase, ...]
     resolved_expectations: tuple[Expectation, ...]
-    source_digest: str
+    source_digest: DigestHex
 
     @field_validator("cases", "resolved_expectations", mode="before")
     @classmethod
@@ -59,11 +59,24 @@ class CompiledSuite(PersistedArtifact):
 
     @model_validator(mode="after")
     def _expectation_links_are_explicit(self) -> CompiledSuite:
+        case_ids = [case.case_id for case in self.cases]
+        duplicate_case_ids = _duplicates(case_ids)
+        if duplicate_case_ids:
+            raise ValueError(
+                "cases must have unique case_id values: " + ", ".join(duplicate_case_ids)
+            )
         expectation_by_id = {
             expectation.expectation_id: expectation for expectation in self.resolved_expectations
         }
         if len(expectation_by_id) != len(self.resolved_expectations):
             raise ValueError("resolved_expectations must have unique expectation_id values")
+        expectation_case_ids = [expectation.case_id for expectation in self.resolved_expectations]
+        duplicate_expectation_case_ids = _duplicates(expectation_case_ids)
+        if duplicate_expectation_case_ids:
+            raise ValueError(
+                "resolved_expectations must have unique case_id values: "
+                + ", ".join(duplicate_expectation_case_ids)
+            )
         for case in self.cases:
             expectation = expectation_by_id.get(case.expectation_id)
             if expectation is None:
@@ -76,13 +89,19 @@ class CompiledSuite(PersistedArtifact):
                     f"case {case.case_id!r} expectation_id {case.expectation_id!r} "
                     f"points to case_id {expectation.case_id!r}"
                 )
+        extra_expectations = sorted(set(expectation_case_ids) - set(case_ids))
+        if extra_expectations:
+            raise ValueError(
+                "resolved_expectations contains case_id values not present in cases: "
+                + ", ".join(extra_expectations)
+            )
         return self
 
 
 class FixtureManifestEntry(PersistedArtifact):
     artifact_kind: Literal["fixture-manifest-entry"] = "fixture-manifest-entry"
     path: str = Field(min_length=1)
-    sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    sha256: DigestHex
     size_bytes: int = Field(ge=0)
 
 
@@ -97,3 +116,13 @@ class FixtureManifest(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+
+def _duplicates(values: list[str]) -> list[str]:
+    seen: set[str] = set()
+    duplicates: set[str] = set()
+    for value in values:
+        if value in seen:
+            duplicates.add(value)
+        seen.add(value)
+    return sorted(duplicates)

@@ -8,7 +8,7 @@ attributes beyond the pinned snapshot. Project-specific attributes use the
 Known mapping decisions:
 
 - include `gen_ai.operation.name`;
-- include `gen_ai.system` when a provider is present;
+- include `gen_ai.provider.name` when a provider is present;
 - include `gen_ai.request.model` when a model is present;
 - include `agent_assure.run_id` and related local provenance fields;
 - do not emit `gen_ai.response.tokens`;

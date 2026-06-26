@@ -5,9 +5,9 @@ from typing import Literal
 from pydantic import Field
 from pydantic.functional_validators import field_validator
 
-from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
+    DigestHex,
     ExecutionMode,
     GateState,
     ReasonCode,
@@ -28,6 +28,24 @@ class EvidenceRef(PersistedArtifact):
     @classmethod
     def _coerce_claim_ids(cls, value: object) -> object:
         return coerce_tuple(value)
+
+
+class EvidenceItem(PersistedArtifact):
+    artifact_kind: Literal["evidence-item"] = "evidence-item"
+    ref_id: str
+    source_id: str
+    content_digest: DigestHex
+
+
+class ClaimRecord(PersistedArtifact):
+    artifact_kind: Literal["claim-record"] = "claim-record"
+    claim_id: str
+
+
+class ClaimEvidenceLink(PersistedArtifact):
+    artifact_kind: Literal["claim-evidence-link"] = "claim-evidence-link"
+    claim_id: str
+    evidence_ref_id: str
 
 
 class PolicyResult(PersistedArtifact):
@@ -71,6 +89,9 @@ class AgentRunRecord(PersistedArtifact):
     model: str | None = None
     tools: tuple[str, ...] = ()
     evidence_refs: tuple[EvidenceRef, ...] = ()
+    evidence_items: tuple[EvidenceItem, ...] = ()
+    claims: tuple[ClaimRecord, ...] = ()
+    claim_evidence_links: tuple[ClaimEvidenceLink, ...] = ()
     policy_results: tuple[PolicyResult, ...] = ()
     human_review_required: bool = False
     human_review_performed: bool = False
@@ -81,18 +102,22 @@ class AgentRunRecord(PersistedArtifact):
     def _coerce_execution_mode(cls, value: object) -> ExecutionMode:
         return coerce_enum(ExecutionMode, value)
 
-    @field_validator("tools", "evidence_refs", "policy_results", mode="before")
+    @field_validator(
+        "tools",
+        "evidence_refs",
+        "evidence_items",
+        "claims",
+        "claim_evidence_links",
+        "policy_results",
+        mode="before",
+    )
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
 
     @field_validator("input_summary", "output_summary")
     @classmethod
-    def _reject_sensitive_summaries(cls, value: str) -> str:
-        if contains_sensitive_value(value):
-            raise ValueError(
-                "summary contains sensitive-looking content; redact before persistence"
-            )
+    def _validate_summary_type(cls, value: str) -> str:
         return value
 
 
@@ -100,7 +125,16 @@ class RunSet(PersistedArtifact):
     artifact_kind: Literal["run-set"] = "run-set"
     runset_id: str
     suite_id: str
+    suite_version: str
+    suite_digest: DigestHex
+    fixture_manifest_digest: DigestHex
+    execution_mode: ExecutionMode = ExecutionMode.fixture
     runs: tuple[AgentRunRecord, ...]
+
+    @field_validator("execution_mode", mode="before")
+    @classmethod
+    def _coerce_execution_mode(cls, value: object) -> ExecutionMode:
+        return coerce_enum(ExecutionMode, value)
 
     @field_validator("runs", mode="before")
     @classmethod

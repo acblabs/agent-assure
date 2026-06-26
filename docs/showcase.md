@@ -78,16 +78,16 @@ release attestations, SBOMs, or cosign verification material.
 
 | Artifact | SHA-256 |
 | --- | --- |
-| `.tmp/showcase/prior-auth.compiled.json` | `b79f757a5f8fe38c047673eb963fea8215539f05024ebf029db7680efc13f222` |
+| `.tmp/showcase/prior-auth.compiled.json` | `0003e103eb402fc786ed1beb4fd0d985bae1c1e8c5e16daa9a1526faf5a86c46` |
 | `.tmp/showcase/prior-auth.fixtures.json` | `18e66c33492400cc89ed40b318a56e38381a86e88a8d1da9807f2fccc2740eb9` |
-| `.tmp/showcase/prior-auth.baseline.json` | `b308f8a878df7021691a3255711d5b63abf2cc53fdd3ae7781eb18630bedbbea` |
-| `.tmp/showcase/prior-auth.evidence-candidate.json` | `2fded00e50dd3a18929ead461ac2d5e1b9c47a9e8a3b8b05fa8d0e732c2bcbb2` |
+| `.tmp/showcase/prior-auth.baseline.json` | `2287d584967b16db4e60283e97a25e1d74ca90867ea0e9245b2ee8ba5b317e8e` |
+| `.tmp/showcase/prior-auth.evidence-candidate.json` | `3965e2389b9db9b200cf1497a5585e2542859da4495c0bd287eb5bbbc15f2b40` |
 | `.tmp/showcase/baseline-report/evaluation-report.json` | `fc00d73436eeb09d4c038b42719339775fca6aa1c78e2660b65eb9cfabef10bf` |
 | `.tmp/showcase/baseline-report/evaluation-summary.json` | `5c2c77e307077be81cb02a9031bb26054d80787ef23e0960e5ae3ba6a524a3c9` |
 | `.tmp/showcase/evidence-report/evaluation-report.json` | `e782fd54e320a574ab70845c07fe923ecf5d9eef0154345a063786ebd3e2875d` |
 | `.tmp/showcase/evidence-report/evaluation-summary.json` | `04390305879e06b69c69722f393307233814699ed6774957f4287339e55ad5d0` |
-| `.tmp/showcase/comparison-report/comparison-report.json` | `fda229fdb38f2708b7e0bf7f9fa3cb5b45a9f54c3892880b1f3b292ef5a51c17` |
-| `.tmp/showcase/comparison-report/comparison-summary.json` | `e926e69c76eec0d364d121bad06b33e202319a8d071bb1573f8bece88179f17d` |
+| `.tmp/showcase/comparison-report/comparison-report.json` | `76d3caf34c9b6635d68833637fbf5bed41ad07fd6b1981d46dc63cf75293cf9f` |
+| `.tmp/showcase/comparison-report/comparison-summary.json` | `18c3e298f71af91df7d95afd85b7e233310e211d779982b7ec2565ee0de002df` |
 
 ## GitHub Actions Usage
 

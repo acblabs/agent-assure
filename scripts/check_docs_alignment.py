@@ -140,7 +140,7 @@ def _check_otel_mapping() -> list[str]:
         docs_text = docs.read_text(encoding="utf-8")
         for attr in (
             "gen_ai.operation.name",
-            "gen_ai.system",
+            "gen_ai.provider.name",
             "gen_ai.request.model",
             "agent_assure.run_id",
         ):

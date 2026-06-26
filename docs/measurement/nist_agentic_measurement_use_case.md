@@ -48,8 +48,8 @@ expected output fields, workflow snippet, and artifact digests are maintained in
 | --- | --- | ---: | ---: | ---: | --- |
 | Baseline | `pass` | 10 | 0 | 0 | none |
 | Evidence-normalization candidate | `fail` | 9 | 1 | 1 | `MATERIAL_CLAIM_MISSING_EVIDENCE` |
-| Provider-policy candidate | `fail` | 9 | 1 | 4 | `EXPECTED_OUTCOME_MISMATCH`, `FORBIDDEN_OUTCOME`, `REQUIRED_HUMAN_REVIEW_ABSENT`, `REVIEW_BOUNDARY_FAILED` |
-| Smoke candidate | `fail` | 7 | 3 | 7 | `EXPECTED_OUTCOME_MISMATCH`, `FORBIDDEN_OUTCOME`, `MATERIAL_CLAIM_MISSING_EVIDENCE`, `REQUIRED_HUMAN_REVIEW_ABSENT`, `REVIEW_BOUNDARY_FAILED`, `RUNTIME_FAILED` |
+| Provider-policy candidate | `fail` | 9 | 1 | 4 | `EXPECTED_OUTCOME_MISMATCH`, `FORBIDDEN_OUTCOME`, `FORBIDDEN_PROVIDER`, `REQUIRED_HUMAN_REVIEW_ABSENT` |
+| Smoke candidate | `fail` | 7 | 3 | 7 | `EXPECTED_OUTCOME_MISMATCH`, `FORBIDDEN_OUTCOME`, `FORBIDDEN_PROVIDER`, `MATERIAL_CLAIM_MISSING_EVIDENCE`, `REQUIRED_HUMAN_REVIEW_ABSENT`, `RUNTIME_FAILED` |
 
 | Comparison | Classification | Fixture equivalence | Verdict-bearing changes | Provenance changes |
 | --- | --- | --- | ---: | ---: |
@@ -62,7 +62,7 @@ expected output fields, workflow snippet, and artifact digests are maintained in
 | RunSet | Candidate verdict | Passed cases | Failed cases | Blocking findings | Primary reason codes |
 | --- | --- | ---: | ---: | ---: | --- |
 | Baseline | `pass` | 3 | 0 | 0 | none |
-| Provider-policy candidate | `fail` | 2 | 1 | 4 | `EXPECTED_OUTCOME_MISMATCH`, `FORBIDDEN_OUTCOME`, `REQUIRED_HUMAN_REVIEW_ABSENT`, `REVIEW_BOUNDARY_FAILED` |
+| Provider-policy candidate | `fail` | 2 | 1 | 4 | `EXPECTED_OUTCOME_MISMATCH`, `FORBIDDEN_OUTCOME`, `FORBIDDEN_PROVIDER`, `REQUIRED_HUMAN_REVIEW_ABSENT` |
 
 | Comparison | Classification | Fixture equivalence | Verdict-bearing changes | Provenance changes |
 | --- | --- | --- | ---: | ---: |

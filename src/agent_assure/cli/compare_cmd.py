@@ -33,15 +33,27 @@ def compare(
         bool,
         typer.Option("--fail-on-warn", help="Treat warning controls as blocking."),
     ] = False,
+    fail_on_not_evaluated: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-not-evaluated",
+            help="Treat not-evaluated capabilities as blocking.",
+        ),
+    ] = False,
     waiver: Annotated[
         list[Path] | None,
         typer.Option("--waiver", exists=True, readable=True, help="Waiver JSON or YAML file."),
     ] = None,
 ) -> None:
     gate_profile = (
-        DEFAULT_GATE_PROFILE.model_copy(update={"fail_on_warn": True})
-        if fail_on_warn
-        else DEFAULT_GATE_PROFILE
+        DEFAULT_GATE_PROFILE
+        if not fail_on_warn and not fail_on_not_evaluated
+        else DEFAULT_GATE_PROFILE.model_copy(
+            update={
+                "fail_on_warn": fail_on_warn,
+                "fail_on_not_evaluated": fail_on_not_evaluated,
+            }
+        )
     )
     try:
         compiled = load_compiled_suite(suite)

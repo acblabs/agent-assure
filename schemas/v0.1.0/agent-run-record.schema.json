@@ -1,5 +1,99 @@
 {
   "$defs": {
+    "ClaimEvidenceLink": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "claim-evidence-link",
+          "default": "claim-evidence-link",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "evidence_ref_id": {
+          "title": "Evidence Ref Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id",
+        "evidence_ref_id"
+      ],
+      "title": "ClaimEvidenceLink",
+      "type": "object"
+    },
+    "ClaimRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "claim-record",
+          "default": "claim-record",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "claim_id": {
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "claim_id"
+      ],
+      "title": "ClaimRecord",
+      "type": "object"
+    },
+    "EvidenceItem": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "evidence-item",
+          "default": "evidence-item",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "ref_id": {
+          "title": "Ref Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_id": {
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "ref_id",
+        "source_id",
+        "content_digest"
+      ],
+      "title": "EvidenceItem",
+      "type": "object"
+    },
     "EvidenceRef": {
       "additionalProperties": false,
       "properties": {
@@ -121,6 +215,7 @@
         "code_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -133,6 +228,7 @@
         "configuration_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -145,6 +241,7 @@
         "fixture_manifest_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -169,6 +266,7 @@
         "policy_bundle_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -181,6 +279,7 @@
         "prompt_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -193,6 +292,7 @@
         "retrieval_corpus_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -211,6 +311,7 @@
         "tool_schema_digest": {
           "anyOf": [
             {
+              "pattern": "^[a-f0-9]{64}$",
               "type": "string"
             },
             {
@@ -274,6 +375,30 @@
       "minLength": 1,
       "title": "Case Id",
       "type": "string"
+    },
+    "claim_evidence_links": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ClaimEvidenceLink"
+      },
+      "title": "Claim Evidence Links",
+      "type": "array"
+    },
+    "claims": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ClaimRecord"
+      },
+      "title": "Claims",
+      "type": "array"
+    },
+    "evidence_items": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/EvidenceItem"
+      },
+      "title": "Evidence Items",
+      "type": "array"
     },
     "evidence_refs": {
       "default": [],

@@ -66,4 +66,8 @@ def test_redaction_is_idempotent() -> None:
 
 def test_safe_error_redacts_message() -> None:
     err = safe_error("BAD_INPUT", "failed for ssn: 123-45-6789")
-    assert "123-45-6789" not in err.message
+    assert err.safe_category == "BAD_INPUT"
+    assert err.exception_class == "Error"
+    assert "123-45-6789" not in err.redacted_message
+    assert len(err.redacted_stack_digest) == 64
+    assert err.local_debug_reference.startswith("debug-")

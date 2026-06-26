@@ -24,19 +24,4 @@ def evaluate_structured_output(run: AgentRunRecord) -> tuple[ControlResult, ...]
                     message=f"structured output field {field_name!r} is empty",
                 )
             )
-    if any(
-        ReasonCode.STRUCTURED_OUTPUT_INVALID in policy_result.reason_codes
-        for policy_result in run.policy_results
-    ):
-        results.append(
-            ControlResult(
-                control_id="structured_output_required",
-                case_id=run.case_id,
-                state=GateState.fail,
-                reason_code=ReasonCode.STRUCTURED_OUTPUT_INVALID,
-                severity=Severity.error,
-                target="policy_result",
-                message="runner emitted a structured-output-invalid policy result",
-            )
-        )
     return tuple(results)

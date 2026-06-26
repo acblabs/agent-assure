@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from agent_assure.runner.evidence import EvidenceAssociation, evidence_refs_from_associations
+from agent_assure.runner.evidence import (
+    EvidenceAssociation,
+    claim_links_from_associations,
+    claim_records_from_associations,
+    evidence_items_from_associations,
+    evidence_refs_from_associations,
+)
 from agent_assure.runner.fixture_runner import RunnerContext, VariantConfig
 from agent_assure.runner.governance_controls import PolicyEvent
 from agent_assure.schema.common import ExecutionMode, GateState, Severity
@@ -39,6 +45,9 @@ def build_fixture_run_record(
         model=model,
         tools=tools,
         evidence_refs=evidence_refs_from_associations(evidence),
+        evidence_items=evidence_items_from_associations(evidence),
+        claims=claim_records_from_associations(evidence),
+        claim_evidence_links=claim_links_from_associations(evidence),
         policy_results=policy_results_from_events(policy_events),
         human_review_required=human_review_required,
         human_review_performed=human_review_performed,

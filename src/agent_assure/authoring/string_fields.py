@@ -8,4 +8,8 @@ SEMANTIC_STRING_FIELDS = {
     "forbidden_outcomes",
     "required_evidence_refs",
     "material_claim_ids",
+    "allowed_providers",
+    "forbidden_providers",
+    "allowed_tools",
+    "forbidden_tools",
 }

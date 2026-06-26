@@ -13,9 +13,36 @@ def evaluate_provider_boundary(
     case: SuiteCase,
     expectation: Expectation,
 ) -> tuple[ControlResult, ...]:
-    if "provider-policy" not in case.tags:
+    has_provider_policy = (
+        "provider-policy" in case.tags
+        or bool(expectation.allowed_providers)
+        or bool(expectation.forbidden_providers)
+    )
+    if not has_provider_policy:
         return ()
-    if not run.provider or not review_boundary_failed(run, expectation):
+    if not run.provider:
+        return ()
+    provider_allowed = (
+        not expectation.allowed_providers or run.provider in set(expectation.allowed_providers)
+    )
+    provider_forbidden = run.provider in set(expectation.forbidden_providers)
+    unsafe_without_review = review_boundary_failed(run, expectation)
+    if (provider_forbidden or not provider_allowed) and unsafe_without_review:
+        return (
+            ControlResult(
+                control_id="provider_allowlist",
+                case_id=run.case_id,
+                state=GateState.fail,
+                reason_code=ReasonCode.FORBIDDEN_PROVIDER,
+                severity=Severity.error,
+                target=f"provider:{run.provider}",
+                message=(
+                    f"provider {run.provider!r} is not allowed for this case "
+                    "without the required review boundary"
+                ),
+            ),
+        )
+    if not unsafe_without_review:
         return ()
     return (
         ControlResult(

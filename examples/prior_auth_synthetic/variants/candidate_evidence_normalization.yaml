@@ -1,11 +1,10 @@
 variant_id: candidate-evidence-normalization
 pipeline_id: prior-auth-evidence-normalization
-runner_id: prior_auth.synthetic
+runner_id: prior_auth.synthetic_evidence_refactor
 provider_policy:
   forbidden_providers:
     - unapproved-prior-auth-model
   runtime_allowed_providers:
     - unapproved-prior-auth-model
 behavior:
-  evidence_assembly: catalog_reconstruction
   provider_policy_precedence: policy_over_runtime

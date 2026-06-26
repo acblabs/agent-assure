@@ -7,6 +7,8 @@ from typing import Any
 
 from agent_assure.schema.common import ReasonCode
 
+DECIMAL_QUANTUM = Decimal("0.000001")
+
 
 class CanonicalizationError(ValueError):
     def __init__(self, reason_code: ReasonCode, message: str) -> None:
@@ -18,10 +20,7 @@ def normalize_decimal(value: Decimal | str) -> str:
     decimal = Decimal(str(value))
     if not decimal.is_finite():
         raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal is not finite")
-    normalized = decimal.normalize()
-    if normalized == normalized.to_integral():
-        return str(normalized.quantize(Decimal(1)))
-    return format(normalized, "f").rstrip("0").rstrip(".")
+    return format(decimal.quantize(DECIMAL_QUANTUM), "f")
 
 
 def ensure_nfc(value: str) -> str:
@@ -40,7 +39,7 @@ def digest_projection(value: Any) -> Any:
     if isinstance(value, float):
         if not isfinite(value):
             raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "float is not finite")
-        return value
+        raise TypeError("float values must be converted to Decimal before digest projection")
     if isinstance(value, tuple | list):
         return [digest_projection(item) for item in value]
     if isinstance(value, dict):

@@ -1,6 +1,6 @@
 from agent_assure.examples.prior_auth_synthetic.app import (
+    normalize_evidence_by_source_digest,
     preserve_associations,
-    reconstruct_first_association_by_catalog_key,
 )
 
-__all__ = ["preserve_associations", "reconstruct_first_association_by_catalog_key"]
+__all__ = ["normalize_evidence_by_source_digest", "preserve_associations"]

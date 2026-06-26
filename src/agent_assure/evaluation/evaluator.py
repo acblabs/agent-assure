@@ -12,6 +12,7 @@ from pydantic.functional_validators import field_validator
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
 from agent_assure.evaluation.invariants import evaluate_runset_controls
+from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import (
     DEFAULT_GATE_PROFILE,
     ControlResult,
@@ -90,6 +91,18 @@ def evaluate_runset(
         raise ValueError(
             f"run set suite_id {runset.suite_id!r} does not match compiled suite {suite.suite_id!r}"
         )
+    if runset.suite_version != suite.suite_version:
+        raise ValueError(
+            f"run set suite_version {runset.suite_version!r} does not match compiled suite "
+            f"{suite.suite_version!r}"
+        )
+    expected_suite_digest = compiled_suite_digest(suite)
+    if runset.suite_digest != expected_suite_digest:
+        raise ValueError(
+            f"run set suite_digest {runset.suite_digest!r} does not match compiled suite digest "
+            f"{expected_suite_digest!r}"
+        )
+    _verify_run_fixture_binding(runset)
     resolver = ExpectationResolver(suite)
     artifact_digest = runset_digest(runset)
     raw_results = evaluate_runset_controls(
@@ -153,6 +166,16 @@ def _finding_from_result(result: ControlResult) -> Finding:
         reason_code=result.reason_code,
         message=result.message,
     )
+
+
+def _verify_run_fixture_binding(runset: RunSet) -> None:
+    for run in runset.runs:
+        run_digest = run.provenance.fixture_manifest_digest
+        if run_digest != runset.fixture_manifest_digest:
+            raise ValueError(
+                f"run {run.run_id!r} fixture_manifest_digest {run_digest!r} does not match "
+                f"run set fixture_manifest_digest {runset.fixture_manifest_digest!r}"
+            )
 
 
 def _metrics(

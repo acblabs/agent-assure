@@ -9,7 +9,8 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `POLICY_FAILED`: a gate, policy, or waiver control failed outside a case-specific invariant.
 - `REQUIRED_HUMAN_REVIEW_ABSENT`: the result did not route to human review when the expectation required it.
 - `REVIEW_BOUNDARY_FAILED`: an expectation-declared review boundary was not preserved.
-- `FORBIDDEN_PROVIDER`: a runtime provider policy identified a forbidden provider.
+- `FORBIDDEN_PROVIDER`: a provider expectation or runtime provider policy identified
+  a forbidden provider without the required review boundary.
 - `FORBIDDEN_TOOL`: a tool was outside a configured allowlist.
 - `STRUCTURED_OUTPUT_INVALID`: structured output failed validation.
 - `REDACTION_FAILED`: redaction did not satisfy the configured check.

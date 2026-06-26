@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
-from typing import Literal, TypeVar
+from typing import Annotated, Literal, TypeVar
 
 from pydantic import Field
 
@@ -61,6 +61,9 @@ class ReasonCode(StrEnum):
     NOT_EVALUATED = "NOT_EVALUATED"
 
 
+DigestHex = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+
+
 def coerce_enum(enum_type: type[EnumT], value: object) -> EnumT:
     if isinstance(value, enum_type):
         return value
@@ -80,7 +83,7 @@ def coerce_tuple(value: object) -> object:
 class Digest(PersistedArtifact):
     artifact_kind: Literal["digest"] = "digest"
     algorithm: Literal["sha256", "hmac-sha256"] = "sha256"
-    value: str = Field(pattern=r"^[a-f0-9]{64}$")
+    value: DigestHex
 
 
 class SourceLocation(PersistedArtifact):

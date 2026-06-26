@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Hardened post-review contracts: RunSets now bind suite version/digest and
+  fixture manifest digest, evidence records include explicit claim-evidence
+  links, provider expectation failures emit `FORBIDDEN_PROVIDER`, comparison
+  diffs use stable finding identity instead of message text, decimal digest
+  projection uses fixed six-place strings, SafeError carries non-leaking debug
+  metadata, and report/span output is privacy-filtered before display.
 - Added the initial implementation: package skeleton, strict schemas, schema
   export, validator parity, YAML compilation, canonical digests, privacy
   utilities, HMAC tokens, and OpenTelemetry-aligned span-plan preview.

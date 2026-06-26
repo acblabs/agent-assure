@@ -77,7 +77,8 @@ def test_evidence_refactor_has_no_case_id_branch_or_marker() -> None:
     ]
     implementation_text = "\n".join(path.read_text(encoding="utf-8") for path in source_paths)
 
-    assert variant.behavior.evidence_assembly == "catalog_reconstruction"
+    assert variant.runner_id == "prior_auth.synthetic_evidence_refactor"
+    assert variant.behavior.evidence_assembly == "association_preserving"
     assert variant.behavior.runtime_error_case is None
     assert EDGE_CASE_ID not in implementation_text
     assert "claim-duration" not in implementation_text
@@ -104,7 +105,12 @@ def _evidence_claims_by_ref(run: AgentRunRecord) -> dict[str, tuple[str, ...]]:
 
 
 def _missing_material_claims(run: AgentRunRecord, expectation: Expectation) -> tuple[str, ...]:
-    observed = _claim_ids(run)
+    evidence_refs = {item.ref_id for item in run.evidence_items}
+    observed = {
+        link.claim_id
+        for link in run.claim_evidence_links
+        if link.evidence_ref_id in evidence_refs
+    }
     return tuple(
         claim_id for claim_id in expectation.material_claim_ids if claim_id not in observed
     )

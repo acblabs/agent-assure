@@ -39,9 +39,9 @@ def test_agent_run_record_has_no_persisted_otel_attributes() -> None:
     assert "otel_attributes" not in AgentRunRecord.model_fields
 
 
-def test_run_record_rejects_sensitive_summaries_without_mutation() -> None:
-    with pytest.raises(ValidationError, match="redact before persistence"):
-        _record(input_summary="member: [REDACTED]")
+def test_run_record_accepts_sensitive_summaries_for_verdict_evaluation() -> None:
+    record = _record(input_summary="member: Jane")
+    assert record.input_summary == "member: Jane"
 
 
 def test_run_record_payload_redaction_is_explicit_before_persistence() -> None:
@@ -73,6 +73,9 @@ def test_runset_is_first_class_schema() -> None:
         artifact_kind="run-set",
         runset_id="runset-001",
         suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
         runs=(_record(),),
     )
     assert runset.artifact_kind == "run-set"

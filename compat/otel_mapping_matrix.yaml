@@ -10,7 +10,7 @@ mappings:
   - source: AgentRunRecord.pipeline_id
     attribute: agent_assure.pipeline_id
   - source: AgentRunRecord.provider
-    attribute: gen_ai.system
+    attribute: gen_ai.provider.name
   - source: AgentRunRecord.model
     attribute: gen_ai.request.model
   - source: fixed

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from agent_assure.schema.run import EvidenceRef
+from agent_assure.schema.run import ClaimEvidenceLink, ClaimRecord, EvidenceItem, EvidenceRef
 
 
 @dataclass(frozen=True)
@@ -55,4 +55,53 @@ def evidence_refs_from_associations(
             claim_ids=tuple(sorted(claim_ids)),
         )
         for ref_id, (source_id, claim_ids) in sorted(refs.items())
+    )
+
+
+def evidence_items_from_associations(
+    evidence: tuple[EvidenceAssociation, ...],
+) -> tuple[EvidenceItem, ...]:
+    items: dict[str, tuple[str, str]] = {}
+    for item in evidence:
+        existing = items.get(item.ref_id)
+        candidate = (item.source_id, item.content_digest)
+        if existing is not None and existing != candidate:
+            raise ValueError(f"evidence ref_id {item.ref_id!r} has conflicting item material")
+        items[item.ref_id] = candidate
+    return tuple(
+        EvidenceItem(
+            artifact_kind="evidence-item",
+            ref_id=ref_id,
+            source_id=source_id,
+            content_digest=content_digest,
+        )
+        for ref_id, (source_id, content_digest) in sorted(items.items())
+    )
+
+
+def claim_records_from_associations(
+    evidence: tuple[EvidenceAssociation, ...],
+) -> tuple[ClaimRecord, ...]:
+    claim_ids = sorted({claim_id for item in evidence for claim_id in item.claim_ids})
+    return tuple(
+        ClaimRecord(artifact_kind="claim-record", claim_id=claim_id)
+        for claim_id in claim_ids
+    )
+
+
+def claim_links_from_associations(
+    evidence: tuple[EvidenceAssociation, ...],
+) -> tuple[ClaimEvidenceLink, ...]:
+    links = {
+        (claim_id, item.ref_id)
+        for item in evidence
+        for claim_id in item.claim_ids
+    }
+    return tuple(
+        ClaimEvidenceLink(
+            artifact_kind="claim-evidence-link",
+            claim_id=claim_id,
+            evidence_ref_id=ref_id,
+        )
+        for claim_id, ref_id in sorted(links)
     )

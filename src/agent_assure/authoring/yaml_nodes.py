@@ -46,6 +46,12 @@ def _convert_node(node: yaml.Node | None, path: str, warnings: list[YamlWarning]
         result: dict[str, Any] = {}
         for key_node, value_node in node.value:
             key = str(_convert_node(key_node, path, warnings))
+            if key in result:
+                raise ValueError(
+                    f"duplicate YAML mapping key at {path}.{key}: "
+                    f"line {key_node.start_mark.line + 1}, "
+                    f"column {key_node.start_mark.column + 1}"
+                )
             result[key] = _convert_node(value_node, f"{path}.{key}", warnings)
         return result
     if isinstance(node, yaml.SequenceNode):

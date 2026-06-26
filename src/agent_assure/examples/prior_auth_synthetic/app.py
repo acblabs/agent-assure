@@ -16,16 +16,19 @@ from agent_assure.runner.governance_controls import (
 )
 from agent_assure.schema.common import GateState, ReasonCode, Severity
 
-EvidenceAssemblyMode = Literal["association_preserving", "catalog_reconstruction"]
+EvidenceAssemblyMode = Literal[
+    "association_preserving",
+    "source_digest_normalized",
+]
 
 __all__ = [
     "EvidenceAssemblyMode",
     "EvidenceAssociation",
     "assemble_evidence",
+    "normalize_evidence_by_source_digest",
     "evidence_from_tool_output",
     "preserve_associations",
     "provider_is_allowed",
-    "reconstruct_first_association_by_catalog_key",
     "run_prior_auth_app",
 ]
 
@@ -109,7 +112,7 @@ def assemble_evidence(
     associations = evidence_from_tool_output(tool_output)
     if mode == "association_preserving":
         return preserve_associations(associations)
-    return reconstruct_first_association_by_catalog_key(associations)
+    return normalize_evidence_by_source_digest(associations)
 
 
 def preserve_associations(
@@ -118,7 +121,7 @@ def preserve_associations(
     return tuple(sorted(items, key=lambda item: item.ref_id))
 
 
-def reconstruct_first_association_by_catalog_key(
+def normalize_evidence_by_source_digest(
     items: tuple[EvidenceAssociation, ...],
 ) -> tuple[EvidenceAssociation, ...]:
     catalog: dict[tuple[str, str], EvidenceAssociation] = {}

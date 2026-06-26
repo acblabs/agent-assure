@@ -6,10 +6,7 @@ from agent_assure.schema.run import AgentRunRecord
 
 
 def evaluate_runtime_success(run: AgentRunRecord) -> tuple[ControlResult, ...]:
-    runtime_failed = run.outcome == "runtime_error" or any(
-        ReasonCode.RUNTIME_FAILED in policy_result.reason_codes
-        for policy_result in run.policy_results
-    )
+    runtime_failed = run.outcome == "runtime_error"
     if not runtime_failed:
         return ()
     return (

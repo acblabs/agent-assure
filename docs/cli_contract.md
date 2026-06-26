@@ -8,8 +8,8 @@ Current commands:
 - `agent-assure suite lint PATH`
 - `agent-assure suite compile PATH --out PATH [--manifest PATH]`
 - `agent-assure suite run COMPILED_SUITE_JSON --variant VARIANT_YAML --out RUNSET_JSON [--manifest PATH] [--suite-digest DIGEST] [--source SUITE_YAML]`
-- `agent-assure evaluate RUNSET_JSON --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn]`
-- `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn]`
+- `agent-assure evaluate RUNSET_JSON --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
+- `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure otel preview PATH [--out PATH]`
 
 `evaluate` writes `evaluation-report.json`, `evaluation-summary.json`, and
@@ -17,8 +17,8 @@ Current commands:
 console report sections lead with candidate vs expectations. Unsupported live or
 certification-style capabilities are reported as `not_evaluated`; they do not
 fail the default gate profile.
-`--fail-on-warn` makes warning controls blocking; gate profiles may also treat
-`not_evaluated` capabilities as blocking.
+`--fail-on-warn` makes warning controls blocking; `--fail-on-not-evaluated`
+makes unsupported capabilities blocking.
 
 Evaluation metrics distinguish case-level results from global gate failures.
 `evaluated_cases` counts suite cases with exactly one run record.

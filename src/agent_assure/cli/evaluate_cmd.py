@@ -32,6 +32,13 @@ def evaluate(
         bool,
         typer.Option("--fail-on-warn", help="Treat warning controls as blocking."),
     ] = False,
+    fail_on_not_evaluated: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-not-evaluated",
+            help="Treat not-evaluated capabilities as blocking.",
+        ),
+    ] = False,
 ) -> None:
     try:
         compiled = load_compiled_suite(suite)
@@ -39,7 +46,7 @@ def evaluate(
         report = evaluate_runset(
             compiled,
             runset,
-            gate_profile=_gate_profile(fail_on_warn),
+            gate_profile=_gate_profile(fail_on_warn, fail_on_not_evaluated),
             waivers=load_waivers(tuple(waiver or ())),
             today=date.today(),
         )
@@ -66,6 +73,13 @@ def run(
         bool,
         typer.Option("--fail-on-warn", help="Treat warning controls as blocking."),
     ] = False,
+    fail_on_not_evaluated: Annotated[
+        bool,
+        typer.Option(
+            "--fail-on-not-evaluated",
+            help="Treat not-evaluated capabilities as blocking.",
+        ),
+    ] = False,
 ) -> None:
     evaluate(
         runset_path=runset_path,
@@ -73,10 +87,16 @@ def run(
         out_dir=out_dir,
         waiver=waiver,
         fail_on_warn=fail_on_warn,
+        fail_on_not_evaluated=fail_on_not_evaluated,
     )
 
 
-def _gate_profile(fail_on_warn: bool) -> GateProfile:
-    if not fail_on_warn:
+def _gate_profile(fail_on_warn: bool, fail_on_not_evaluated: bool) -> GateProfile:
+    if not fail_on_warn and not fail_on_not_evaluated:
         return DEFAULT_GATE_PROFILE
-    return DEFAULT_GATE_PROFILE.model_copy(update={"fail_on_warn": True})
+    return DEFAULT_GATE_PROFILE.model_copy(
+        update={
+            "fail_on_warn": fail_on_warn,
+            "fail_on_not_evaluated": fail_on_not_evaluated,
+        }
+    )

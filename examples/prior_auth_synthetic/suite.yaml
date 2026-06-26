@@ -96,6 +96,8 @@ cases:
         - escalate
       forbidden_outcomes:
         - approve_without_review
+      forbidden_providers:
+        - unapproved-prior-auth-model
       required_human_review: true
   - case_id: shared-source-multi-claim
     title: Shared source multi-claim evidence

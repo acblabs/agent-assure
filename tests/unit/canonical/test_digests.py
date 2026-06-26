@@ -14,9 +14,9 @@ from agent_assure.schema.common import ReasonCode
 
 
 def test_decimal_variants_project_to_same_string() -> None:
-    assert normalize_decimal(Decimal("0.7")) == "0.7"
-    assert normalize_decimal(Decimal("0.70")) == "0.7"
-    assert digest_projection({"value": Decimal("0.700")}) == {"value": "0.7"}
+    assert normalize_decimal(Decimal("0.7")) == "0.700000"
+    assert normalize_decimal(Decimal("0.70")) == "0.700000"
+    assert digest_projection({"value": Decimal("0.700")}) == {"value": "0.700000"}
     assert sha256_hexdigest({"value": Decimal("0.7")}) == sha256_hexdigest(
         {"value": Decimal("0.700")}
     )
@@ -38,6 +38,11 @@ def test_non_finite_float_fails_with_reason_code() -> None:
     with pytest.raises(CanonicalizationError) as exc_info:
         digest_projection(float("inf"))
     assert exc_info.value.reason_code is ReasonCode.NON_FINITE_NUMBER
+
+
+def test_finite_float_must_be_converted_to_decimal_before_projection() -> None:
+    with pytest.raises(TypeError, match="converted to Decimal"):
+        digest_projection(0.7)
 
 
 def test_canonical_digest_is_order_independent() -> None:

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
+from agent_assure.privacy.redaction import redact_text
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.evaluation import Finding
 
@@ -54,7 +55,8 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
         ]
     )
     lines.extend(
-        f"- `{capability.capability_id}`: `{capability.state.value}` - {capability.reason}"
+        f"- `{capability.capability_id}`: `{capability.state.value}` - "
+        f"{redact_text(capability.reason)}"
         for capability in report.not_evaluated_capabilities
     )
     lines.extend(
@@ -79,7 +81,7 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
             "",
         ]
     )
-    lines.extend(f"- {limitation}" for limitation in report.limitations)
+    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -105,7 +107,7 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         "## Why the Candidate Passed or Failed",
         "",
     ]
-    lines.extend(f"- {line}" for line in report.verdict_explanations)
+    lines.extend(f"- {redact_text(line)}" for line in report.verdict_explanations)
     lines.extend(
         [
             "",
@@ -140,7 +142,7 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
             (
                 f"- `{change.classification.value}` `{change.case_id}` "
                 f"`{change.control_id}` `{change.reason_code.value}` "
-                f"`{change.target}`: {change.message}"
+                f"`{redact_text(change.target)}`: {redact_text(change.message)}"
             )
             for change in report.control_changes
         )
@@ -152,7 +154,8 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         lines.extend(
             (
                 f"- `{change.case_id}` `{change.field}`: "
-                f"`{change.baseline_value}` -> `{change.candidate_value}`"
+                f"`{redact_text(change.baseline_value)}` -> "
+                f"`{redact_text(change.candidate_value)}`"
             )
             for change in report.behavioral_changes
         )
@@ -167,8 +170,8 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         lines.extend(
             (
                 f"- `{change.case_id}` `{change.field}`: "
-                f"`{change.baseline_value or '<unset>'}` -> "
-                f"`{change.candidate_value or '<unset>'}`"
+                f"`{redact_text(change.baseline_value or '<unset>')}` -> "
+                f"`{redact_text(change.candidate_value or '<unset>')}`"
             )
             for change in report.provenance_changes
         )
@@ -182,7 +185,8 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         ]
     )
     lines.extend(
-        f"- `{capability.capability_id}`: `{capability.state.value}` - {capability.reason}"
+        f"- `{capability.capability_id}`: `{capability.state.value}` - "
+        f"{redact_text(capability.reason)}"
         for capability in report.not_evaluated_capabilities
     )
     lines.extend(
@@ -192,7 +196,7 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
             "",
         ]
     )
-    lines.extend(f"- {limitation}" for limitation in report.limitations)
+    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -215,9 +219,9 @@ def _behavioral_change_heading(report: ComparisonReport) -> str:
 def _finding_lines(findings: tuple[Finding, ...]) -> list[str]:
     return [
         (
-            f"- `{finding.case_id}` `{finding.control_id}` `{finding.target}` "
+            f"- `{finding.case_id}` `{finding.control_id}` `{redact_text(finding.target)}` "
             f"`{finding.reason_code.value}` "
-            f"`{finding.state.value}`: {finding.message}"
+            f"`{finding.state.value}`: {redact_text(finding.message)}"
         )
         for finding in findings
     ]

@@ -39,7 +39,7 @@ claims:
       tests: [tests/unit/privacy/test_hmac_and_redaction.py]
     limitations: Tests inject a clearly marked non-production key; production callers must provide their own key.
   - id: privacy-redaction
-    claim: Author-time summaries can be explicitly redacted before persistence, persisted summaries are checked, and span-plan attributes are filtered before display.
+    claim: Author-time summaries can be explicitly redacted before persistence, raw sensitive summaries are verdict-bearing evaluation failures, and span-plan/report attributes are filtered before display.
     evidence:
       code: [src/agent_assure/privacy/redaction.py, src/agent_assure/telemetry/privacy_filter.py]
       tests: [tests/unit/privacy/test_hmac_and_redaction.py, tests/unit/telemetry/test_span_plan.py, tests/integration/test_baseline_passes.py]
@@ -59,7 +59,7 @@ claims:
       docs: [examples/prior_auth_synthetic/README.md, examples/expense_approval_minimal/README.md]
     limitations: These examples are deterministic demonstrations, not live benchmarks or model-quality evaluations.
   - id: evidence-refactor-regression
-    claim: The prior-authorization evidence-normalization candidate preserves ordinary one-source evidence links while exposing a shared-source multi-claim evidence-linking regression.
+    claim: The prior-authorization evidence refactor candidate preserves ordinary one-source evidence links while exposing a shared-source multi-claim evidence-linking regression.
     evidence:
       code: [src/agent_assure/examples/prior_auth_synthetic/app.py]
       tests: [tests/integration/test_evidence_regression.py]

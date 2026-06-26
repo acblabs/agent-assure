@@ -72,3 +72,48 @@ def test_compiled_suite_has_resolved_expectations_only() -> None:
     dumped = compiled.model_dump(mode="json")
     assert "resolved_expectations" in dumped
     assert "expectation" not in dumped["cases"][0]
+
+
+def test_yaml_duplicate_mapping_keys_fail(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_id: duplicate
+suite_version: 0.1.0
+cases: []
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate YAML mapping key"):
+        compile_suite(suite)
+
+
+def test_expectation_defaults_are_resolved_and_digest_recorded(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+defaults:
+  expectation:
+    allowed_outcomes:
+      - approve
+    required_human_review: true
+cases:
+  - case_id: case-001
+    title: Defaulted expectation
+    expectation:
+      required_evidence_refs:
+        - ref-001
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    compiled = compile_suite(suite)
+    expectation = compiled.resolved_expectations[0]
+
+    assert expectation.allowed_outcomes == ("approve",)
+    assert expectation.required_human_review is True
+    assert expectation.expectation_digest is not None

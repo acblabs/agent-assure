@@ -10,7 +10,7 @@ from pydantic import Field
 from pydantic.functional_validators import field_validator
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.fixtures.loader import verify_source_digest
+from agent_assure.fixtures.loader import compiled_suite_digest, verify_source_digest
 from agent_assure.fixtures.manifest import (
     build_fixture_manifest,
     fixture_manifest_digest,
@@ -33,9 +33,10 @@ FIXTURE_HMAC_KEY = b"agent-assure-fixture-mode-example-key"
 
 
 class VariantBehaviorConfig(StrictModel):
-    evidence_assembly: Literal["association_preserving", "catalog_reconstruction"] = (
-        "association_preserving"
-    )
+    evidence_assembly: Literal[
+        "association_preserving",
+        "source_digest_normalized",
+    ] = "association_preserving"
     provider_policy_precedence: Literal["policy_over_runtime", "runtime_over_policy"] = (
         "policy_over_runtime"
     )
@@ -141,6 +142,10 @@ def run_suite(
     return RunSet(
         runset_id=ids.runset_id(compiled.suite_id, variant.variant_id),
         suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest=manifest_digest,
+        execution_mode=ExecutionMode.fixture,
         runs=tuple(runs),
     )
 
@@ -171,7 +176,7 @@ def _error_record(
     exc: Exception,
     index: int,
 ) -> AgentRunRecord:
-    safe = safe_error(ReasonCode.RUNTIME_FAILED.value, str(exc))
+    safe = safe_error("runner_execution_error", str(exc), exc)
     run_id = context.ids.run_id(context.suite.suite_id, context.variant.variant_id, case.case_id)
     return AgentRunRecord(
         artifact_kind="agent-run-record",
@@ -182,7 +187,10 @@ def _error_record(
         recommendation="error",
         outcome="runtime_error",
         input_summary=f"case={case.case_id}; variant={context.variant.variant_id}",
-        output_summary=f"runtime failure captured; code={safe.code}; index={index}",
+        output_summary=(
+            f"runtime failure captured; code={safe.code}; "
+            f"debug_ref={safe.local_debug_reference}; index={index}"
+        ),
         policy_results=(
             PolicyResult(
                 artifact_kind="policy-result",

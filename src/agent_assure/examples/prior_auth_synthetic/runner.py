@@ -42,6 +42,22 @@ def run_prior_auth_case(
     )
 
 
+def run_prior_auth_case_evidence_refactor(
+    case: SuiteCase,
+    fixtures: LoadedFixtures,
+    variant: VariantConfig,
+    context: RunnerContext,
+) -> AgentRunRecord:
+    refactor_variant = variant.model_copy(
+        update={
+            "behavior": variant.behavior.model_copy(
+                update={"evidence_assembly": "source_digest_normalized"}
+            )
+        }
+    )
+    return run_prior_auth_case(case, fixtures, refactor_variant, context)
+
+
 def _input_summary(case: SuiteCase, fixtures: LoadedFixtures, context: RunnerContext) -> str:
     subject_id = fixtures.request.get("member_id")
     subject_token = hmac_sha256_token(str(subject_id or case.case_id), key=context.hmac_key)[:16]

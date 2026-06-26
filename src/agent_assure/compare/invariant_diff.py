@@ -153,11 +153,11 @@ def summarize_control_change(change: ControlChange) -> str:
 
 def _finding_key(finding: Finding) -> tuple[str, str, str, str, str]:
     return (
+        finding.finding_id,
         finding.case_id,
         finding.control_id,
         finding.target,
         finding.reason_code.value,
-        finding.message,
     )
 
 

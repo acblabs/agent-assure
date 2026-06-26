@@ -11,6 +11,22 @@
       "title": "Allowed Outcomes",
       "type": "array"
     },
+    "allowed_providers": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Providers",
+      "type": "array"
+    },
+    "allowed_tools": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Tools",
+      "type": "array"
+    },
     "artifact_kind": {
       "const": "expectation",
       "default": "expectation",
@@ -21,6 +37,19 @@
       "minLength": 1,
       "title": "Case Id",
       "type": "string"
+    },
+    "expectation_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expectation Digest"
     },
     "expectation_id": {
       "minLength": 1,
@@ -45,6 +74,22 @@
         "type": "string"
       },
       "title": "Forbidden Outcomes",
+      "type": "array"
+    },
+    "forbidden_providers": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbidden Providers",
+      "type": "array"
+    },
+    "forbidden_tools": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbidden Tools",
       "type": "array"
     },
     "material_claim_ids": {

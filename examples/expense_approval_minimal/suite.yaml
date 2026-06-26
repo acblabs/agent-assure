@@ -48,6 +48,8 @@ cases:
         - manual_review
       forbidden_outcomes:
         - approve_without_review
+      forbidden_providers:
+        - unapproved-expense-model
       required_evidence_refs:
         - ref-provider-control-exp-003
       material_claim_ids:

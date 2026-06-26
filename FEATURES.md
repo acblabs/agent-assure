@@ -13,16 +13,16 @@
 - Redacted summaries and safe errors for persisted and displayed artifacts.
 - Deterministic offline fixture runner with fixed IDs, typed variant configs,
   safe multi-root fixture resolution, source/manifest verification, registered
-  runners, and in-process failure records.
+  runners, suite/run digest binding, and in-process failure records.
 - Prior-authorization synthetic example with shared fixtures, ten fixed cases,
   and baseline, evidence-normalization, provider-policy, fake-PHI redaction, and
   smoke variants.
 - Minimal expense-approval example with independent fixtures, a passing
   baseline, and a deterministic provider-control candidate.
 - Expectation-driven RunSet evaluator with built-in deterministic controls for
-  runtime success, structured output fields, evidence coverage, material claim
-  links, configured tool allowlists, provider review boundaries, human review
-  routing, redaction checks, prompt-boundary cases, gate profiles, and
+  runtime success, structured output fields, evidence coverage, explicit
+  claim-evidence links, configured tool allowlists, provider review boundaries,
+  human review routing, redaction checks, prompt-boundary cases, gate profiles, and
   per-finding time-bounded waivers.
 - JSON, Markdown, and Rich console evaluation reports that lead with candidate
   vs expectations and keep unsupported capabilities marked `not_evaluated`.

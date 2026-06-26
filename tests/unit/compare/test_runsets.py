@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.compare.invariant_diff import diff_control_findings
 from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
+from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.run import RunSet
@@ -67,6 +69,20 @@ def test_fixture_mismatch_is_invalid_comparison() -> None:
     assert report is not None
     assert report.comparison_summary.classification is ComparisonClassification.invalid_comparison
     assert report.fixture_equivalence.state is GateState.fail
+
+
+def test_control_diff_uses_stable_finding_identity_not_message_text() -> None:
+    compiled = compile_suite(SUITE)
+    candidate = _runset(compiled, EVIDENCE_CANDIDATE)
+    baseline_report = evaluate_runset(compiled, candidate)
+    finding = baseline_report.failed_controls[0]
+    reworded = finding.model_copy(update={"message": "same failure with clearer wording"})
+    candidate_report = baseline_report.model_copy(update={"failed_controls": (reworded,)})
+
+    changes = diff_control_findings(baseline_report, candidate_report)
+
+    assert len(changes) == 1
+    assert changes[0].classification is ComparisonClassification.persistent_failure
 
 
 def _runset(compiled: CompiledSuite, variant_path: Path) -> RunSet:

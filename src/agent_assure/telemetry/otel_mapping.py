@@ -22,13 +22,13 @@ def run_record_to_span_plan(record: AgentRunRecord) -> SpanPlan:
         "agent_assure.human_review_performed": record.human_review_performed,
     }
     if record.provider is not None:
-        attributes["gen_ai.system"] = safe_attribute(record.provider)
+        attributes["gen_ai.provider.name"] = safe_attribute(record.provider)
     if record.model is not None:
         attributes["gen_ai.request.model"] = safe_attribute(record.model)
     events = tuple(
         SpanEvent(
             name="agent_assure.tool_call",
-            attributes=(_attribute("agent_assure.tool.name", safe_attribute(tool_name)),),
+            attributes=(_attribute("gen_ai.tool.name", safe_attribute(tool_name)),),
         )
         for tool_name in record.tools
     )

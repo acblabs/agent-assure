@@ -49,7 +49,13 @@ def evaluate_case(
     results.extend(output_schema.evaluate_structured_output(run))
     results.extend(evidence.evaluate_required_evidence(run, expectation))
     results.extend(evidence.evaluate_material_claim_evidence(run, expectation))
-    results.extend(tools.evaluate_tool_allowlist(run, allowed_tools=allowed_tools))
+    results.extend(
+        tools.evaluate_tool_allowlist(
+            run,
+            allowed_tools=expectation.allowed_tools or allowed_tools,
+            forbidden_tools=expectation.forbidden_tools,
+        )
+    )
     results.extend(human_review.evaluate_human_review_requirement(run, expectation))
     results.extend(providers.evaluate_provider_boundary(run, case_expectation.case, expectation))
     results.extend(injection.evaluate_prompt_boundary(run, case_expectation.case, expectation))

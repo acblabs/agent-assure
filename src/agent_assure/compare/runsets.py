@@ -25,6 +25,7 @@ from agent_assure.evaluation.evaluator import (
     EvaluationReport,
     evaluate_runset,
 )
+from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, ControlResult, GateProfile, Waiver
 from agent_assure.schema.base import PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
@@ -181,7 +182,15 @@ def verify_fixture_equivalence(baseline: RunSet, candidate: RunSet) -> FixtureEq
     baseline_runs = unique_case_map(baseline)
     candidate_runs = unique_case_map(candidate)
     findings: list[Finding] = []
-    digests: set[str] = set()
+    digests: set[str] = {baseline.fixture_manifest_digest, candidate.fixture_manifest_digest}
+    if baseline.fixture_manifest_digest != candidate.fixture_manifest_digest:
+        findings.append(
+            _fixture_finding(
+                "*",
+                "fixture_manifest_digest",
+                "baseline and candidate run-set fixture manifest digests differ",
+            )
+        )
     for case_id in sorted(set(baseline_counts) | set(candidate_counts)):
         if baseline_counts[case_id] != 1 or candidate_counts[case_id] != 1:
             findings.append(
@@ -219,6 +228,22 @@ def verify_fixture_equivalence(baseline: RunSet, candidate: RunSet) -> FixtureEq
                     "baseline and candidate fixture manifest digests differ",
                 )
             )
+        if baseline_digest and baseline_digest != baseline.fixture_manifest_digest:
+            findings.append(
+                _fixture_finding(
+                    case_id,
+                    "baseline.fixture_manifest_digest",
+                    "baseline run fixture digest does not match its run-set digest",
+                )
+            )
+        if candidate_digest and candidate_digest != candidate.fixture_manifest_digest:
+            findings.append(
+                _fixture_finding(
+                    case_id,
+                    "candidate.fixture_manifest_digest",
+                    "candidate run fixture digest does not match its run-set digest",
+                )
+            )
     return FixtureEquivalenceReport(
         state=GateState.fail if findings else GateState.pass_,
         findings=tuple(findings),
@@ -235,6 +260,25 @@ def _verify_suite_identity(suite: CompiledSuite, baseline: RunSet, candidate: Ru
         raise InvalidComparisonError(
             f"run sets reference suite_id {baseline.suite_id!r}, "
             f"but compiled suite is {suite.suite_id!r}"
+        )
+    if baseline.suite_version != candidate.suite_version:
+        raise InvalidComparisonError(
+            "baseline and candidate run sets reference different suite_version values"
+        )
+    if baseline.suite_version != suite.suite_version:
+        raise InvalidComparisonError(
+            f"run sets reference suite_version {baseline.suite_version!r}, "
+            f"but compiled suite is {suite.suite_version!r}"
+        )
+    expected_suite_digest = compiled_suite_digest(suite)
+    if baseline.suite_digest != candidate.suite_digest:
+        raise InvalidComparisonError(
+            "baseline and candidate run sets reference different suite_digest values"
+        )
+    if baseline.suite_digest != expected_suite_digest:
+        raise InvalidComparisonError(
+            f"run sets reference suite_digest {baseline.suite_digest!r}, "
+            f"but compiled suite digest is {expected_suite_digest!r}"
         )
 
 
