@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unicodedata
-from decimal import Decimal
+from decimal import Decimal, localcontext
 from math import isfinite
 from typing import Any
 
@@ -20,7 +20,14 @@ def normalize_decimal(value: Decimal | str) -> str:
     decimal = Decimal(str(value))
     if not decimal.is_finite():
         raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal is not finite")
-    return format(decimal.quantize(DECIMAL_QUANTUM), "f")
+    quantum_exponent = DECIMAL_QUANTUM.as_tuple().exponent
+    if not isinstance(quantum_exponent, int):
+        raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal quantum is not finite")
+    fractional_places = abs(quantum_exponent)
+    integer_digits = max(decimal.adjusted() + 1, 1)
+    with localcontext() as context:
+        context.prec = max(context.prec, integer_digits + fractional_places + 1)
+        return format(decimal.quantize(DECIMAL_QUANTUM), "f")
 
 
 def ensure_nfc(value: str) -> str:

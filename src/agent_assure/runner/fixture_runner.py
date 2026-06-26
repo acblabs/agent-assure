@@ -19,6 +19,7 @@ from agent_assure.fixtures.manifest import (
     verify_fixture_manifest,
 )
 from agent_assure.fixtures.resolver import FixtureResolver
+from agent_assure.privacy.redaction import redact_runset_payload
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.runner.clock import DeterministicClock
 from agent_assure.runner.ids import DeterministicIds
@@ -163,8 +164,10 @@ def load_case_fixtures(case: SuiteCase, context: RunnerContext) -> LoadedFixture
 
 def write_runset(runset: RunSet, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
+    payload = redact_runset_payload(runset.model_dump(mode="json"))
+    RunSet.model_validate(payload)
     path.write_text(
-        json.dumps(runset.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
         newline="\n",
     )

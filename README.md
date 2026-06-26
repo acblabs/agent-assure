@@ -6,9 +6,10 @@ change-control checks for deterministic AI agent governance pipelines.
 The current implementation supports offline schema validation, YAML suite
 compilation, canonical digest generation, privacy-preserving summaries,
 deterministic fixture runs, expectation evaluation, and JSON/Markdown/Rich
-reports across synthetic prior-authorization and minimal expense-approval
-examples. It does not run live models, certify safety, validate clinical use,
-prove regulatory compliance, or claim OpenTelemetry adoption.
+reports, evidence packets, and CI gates across synthetic prior-authorization and
+minimal expense-approval examples. It does not run live models, certify safety,
+validate clinical use, prove regulatory compliance, produce signed attestations,
+or claim OpenTelemetry adoption.
 
 ## Five-minute flagship demo
 
@@ -25,6 +26,7 @@ agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples
 agent-assure evaluate .tmp/showcase/prior-auth.baseline.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/baseline-report
 agent-assure evaluate .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/evidence-report
 agent-assure compare .tmp/showcase/prior-auth.baseline.json .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/comparison-report
+agent-assure ci .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --baseline .tmp/showcase/prior-auth.baseline.json --out-dir .tmp/showcase/ci-report --report-mode full
 ```
 
 The baseline evaluation exits `0` and writes a `pass` summary with ten evaluated
@@ -40,6 +42,19 @@ baseline and candidate both keep `recommendation=approve; outcome=approve`; the
 material regression is the missing `claim-duration` evidence link. See
 `docs/showcase.md` for the expected report fields, GitHub Actions snippet, and
 artifact digest summary.
+
+After reports exist, an evidence packet can also be built and gated from
+summaries:
+
+```bash
+agent-assure packet build .tmp/showcase/evidence-report/evaluation-summary.json --comparison .tmp/showcase/comparison-report/comparison-summary.json --out .tmp/showcase/evidence-packet.json
+agent-assure ci gate .tmp/showcase/evidence-packet.json
+```
+
+For this known failing candidate, both the CI command and packet gate are
+expected to exit `1`. The CI command writes JSON/Markdown reports,
+`evidence-packet.json`, `evidence-packet.md`, `dependency-inventory.json`,
+`release-artifact-manifest.json`, and `ci-diagnostics.json`.
 
 ## Small generic example
 

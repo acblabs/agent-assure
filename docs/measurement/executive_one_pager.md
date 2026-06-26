@@ -6,9 +6,11 @@ changes from behavioral verdicts, and keeps model and tool fixtures fixed.
 
 The current implementation delivers strict schemas, JSON Schema parity, YAML
 suite compilation, canonical digests, redaction utilities, deterministic fixture
-runs, expectation evaluation, comparison reports, and an OpenTelemetry-aligned
-span-plan preview. It does not make safety, compliance, clinical validation,
-endorsement, or live model-quality claims.
+runs, expectation evaluation, comparison reports, evidence packets, CI gates,
+local dependency inventory generation, release artifact manifests, and an
+OpenTelemetry-aligned span-plan preview. It does not make safety, compliance,
+clinical validation, endorsement, signed-attestation, or live model-quality
+claims.
 
 Current deterministic result tables show passing baselines, an evidence-linking
 regression isolated to the shared-source multi-claim case, provider-boundary

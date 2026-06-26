@@ -9,4 +9,11 @@ jobs:
         with:
           python-version: "3.11"
       - run: pip install -e ".[dev]"
-      - run: agent-assure otel preview tests/fixtures/run_record.json --out span-plan.json
+      - uses: ./.github/actions/agent-assure
+        with:
+          suite: examples/prior_auth_synthetic/suite.yaml
+          baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
+          candidate-variant: examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml
+          out-dir: .tmp/release
+          report-mode: full
+      - run: agent-assure otel preview tests/fixtures/run_record.json --out .tmp/release/span-plan.json

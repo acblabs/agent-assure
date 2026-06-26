@@ -37,6 +37,7 @@ from agent_assure.schema.common import (
     coerce_tuple,
 )
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
@@ -78,6 +79,7 @@ class ComparisonReport(PersistedArtifact):
     comparison_summary: ComparisonSummary
     baseline_metrics: EvaluationMetrics
     candidate_metrics: EvaluationMetrics
+    environment: EnvironmentInfo | None = None
     suite_id: str
     suite_version: str
     gate_profile: str

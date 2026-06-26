@@ -9,9 +9,11 @@ from pydantic import BaseModel
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
 from agent_assure.schema.packet import EvidencePacket
+from agent_assure.schema.release import ReleaseArtifactManifest
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
@@ -26,9 +28,11 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "evaluation-report": EvaluationReport,
     "evaluation-summary": EvaluationSummary,
     "evidence-packet": EvidencePacket,
+    "environment-info": EnvironmentInfo,
     "expectation": Expectation,
     "expectation-change-record": ExpectationChangeRecord,
     "fixture-manifest": FixtureManifest,
+    "release-artifact-manifest": ReleaseArtifactManifest,
     "run-set": RunSet,
     "span-plan": SpanPlan,
 }

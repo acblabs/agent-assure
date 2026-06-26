@@ -1,1 +1,1 @@
-"""Small helper modules used by the synthetic prior authorization fixtures."""
+"""Non-packaged helper files for the synthetic prior authorization example."""

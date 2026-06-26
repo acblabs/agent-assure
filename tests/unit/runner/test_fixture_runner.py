@@ -6,8 +6,9 @@ import pytest
 from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
-from agent_assure.runner.fixture_runner import load_variant_config, run_suite
+from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.runner.ids import DeterministicIds
+from agent_assure.schema.run import AgentRunRecord, RunSet
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
 BASELINE = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
@@ -69,3 +70,36 @@ cases: []
             SUITE.parent,
             source_yaml=bad_source,
         )
+
+
+def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    record = AgentRunRecord(
+        artifact_kind="agent-run-record",
+        run_id="run-001",
+        case_id="case-001",
+        execution_mode="fixture",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="patient=Jane ssn: 123-45-6789",
+        output_summary="email jane@example.com",
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-001",
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(record,),
+    )
+    path = tmp_path / "runset.json"
+
+    write_runset(runset, path)
+
+    text = path.read_text(encoding="utf-8")
+    assert "123-45-6789" not in text
+    assert "jane@example.com" not in text
+    loaded = RunSet.model_validate_json(text)
+    assert "[REDACTED]" in loaded.runs[0].input_summary
+    assert "[REDACTED]" in loaded.runs[0].output_summary

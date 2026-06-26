@@ -11,6 +11,7 @@ from agent_assure.schema.common import (
     coerce_enum,
     coerce_tuple,
 )
+from agent_assure.schema.environment import EnvironmentInfo
 
 
 class ComparisonSummary(PersistedArtifact):
@@ -23,6 +24,7 @@ class ComparisonSummary(PersistedArtifact):
     candidate_state: GateState = GateState.not_evaluated
     provenance_changes: tuple[str, ...] = ()
     verdict_findings: tuple[str, ...] = ()
+    environment: EnvironmentInfo | None = None
 
     @field_validator("classification", mode="before")
     @classmethod

@@ -28,6 +28,12 @@
   vs expectations and keep unsupported capabilities marked `not_evaluated`.
 - RunSet comparison reports with fixture-equivalence checks, candidate-first
   verdict explanations, baseline context, and provenance-only change reporting.
+- Evidence packets that bundle evaluation and comparison summaries with
+  interpretation guidance, environment metadata, deterministic input artifact
+  digests, dependency-inventory digest, and release artifact manifest.
+- CI gates for candidate RunSets, optional baseline comparisons, evaluation
+  summaries, comparison summaries, and evidence packets with full/fail-fast
+  report modes and stable pass, fail, and invalid-comparison exit codes.
 - Reproducible flagship showcase commands that demonstrate a stable visible
   answer with a failing material evidence-link invariant under equivalent
   fixtures.
@@ -39,7 +45,7 @@
 
 ## Planned
 
-- Evidence packets, CI gates, and signed release evidence.
+- Cryptographically signed release attestations.
 - Live stochastic evaluation, provider comparisons, confidence intervals, cost
   distributions, and OpenTelemetry SDK export in a future release.
 

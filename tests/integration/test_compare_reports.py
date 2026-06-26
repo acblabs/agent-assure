@@ -41,8 +41,30 @@ def test_compare_cli_writes_candidate_first_reports_for_regression(tmp_path: Pat
     report = json.loads(report_text)
     assert report["schema_version"] == "0.1.0"
     assert report["artifact_kind"] == "comparison-report"
+    assert report["environment"]["artifact_kind"] == "environment-info"
+    assert report["environment"]["dependency_inventory_digest"]
+    assert report["candidate_vs_expectations"]["environment"]["dependency_inventory_digest"]
+    assert report["baseline_vs_expectations"]["environment"]["dependency_inventory_digest"]
     summary = json.loads((out_dir / "comparison-summary.json").read_text(encoding="utf-8"))
     assert summary["classification"] == ComparisonClassification.new_failure.value
+    assert summary["environment"]["dependency_inventory_path"].endswith(
+        "dependency-inventory.json"
+    )
+    assert (out_dir / "dependency-inventory.json").exists()
+    manifest = json.loads(
+        (out_dir / "release-artifact-manifest.json").read_text(encoding="utf-8")
+    )
+    assert {
+        artifact["role"]
+        for artifact in manifest["artifacts"]
+    } == {
+        "compiled-suite",
+        "baseline-runset",
+        "candidate-runset",
+        "comparison-report",
+        "comparison-summary",
+        "dependency-inventory",
+    }
     assert b"\r\n" not in (out_dir / "comparison-report.json").read_bytes()
     assert b"\r\n" not in (out_dir / "comparison-report.md").read_bytes()
     markdown = (out_dir / "comparison-report.md").read_text(encoding="utf-8")
@@ -91,8 +113,12 @@ def test_compare_cli_exits_two_for_invalid_fixture_equivalence(tmp_path: Path) -
     summary = json.loads((out_dir / "comparison-summary.json").read_text(encoding="utf-8"))
     assert summary["classification"] == ComparisonClassification.invalid_comparison.value
     assert summary["fixture_equivalence_state"] == "fail"
+    assert summary["environment"]["dependency_inventory_digest"]
     report = json.loads((out_dir / "comparison-report.json").read_text(encoding="utf-8"))
     assert report["candidate_vs_expectations"]["state"] == "not_evaluated"
+    assert report["environment"]["dependency_inventory_path"].endswith(
+        "dependency-inventory.json"
+    )
     assert report["behavioral_changes"] == []
     assert report["provenance_changes"] == []
 

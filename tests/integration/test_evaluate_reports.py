@@ -43,6 +43,27 @@ def test_evaluate_cli_writes_candidate_first_reports_for_passing_baseline(
     assert report["schema_version"] == "0.1.0"
     assert report["artifact_kind"] == "evaluation-report"
     assert report["candidate_vs_expectations"]["state"] == GateState.pass_.value
+    assert report["environment"]["artifact_kind"] == "environment-info"
+    assert report["environment"]["dependency_inventory_digest"]
+    assert "python_executable" not in report["environment"]
+    summary = json.loads((out_dir / "evaluation-summary.json").read_text(encoding="utf-8"))
+    assert summary["environment"]["dependency_inventory_path"].endswith(
+        "dependency-inventory.json"
+    )
+    assert (out_dir / "dependency-inventory.json").exists()
+    manifest = json.loads(
+        (out_dir / "release-artifact-manifest.json").read_text(encoding="utf-8")
+    )
+    assert {
+        artifact["role"]
+        for artifact in manifest["artifacts"]
+    } == {
+        "compiled-suite",
+        "candidate-runset",
+        "evaluation-report",
+        "evaluation-summary",
+        "dependency-inventory",
+    }
     assert b"\r\n" not in (out_dir / "evaluation-report.json").read_bytes()
     assert b"\r\n" not in (out_dir / "evaluation-report.md").read_bytes()
     markdown = (out_dir / "evaluation-report.md").read_text(encoding="utf-8")

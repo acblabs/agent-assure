@@ -1,7 +1,77 @@
 name: agent-assure
-description: Run agent-assure deterministic assurance checks.
+description: Compile, run, evaluate, packetize, gate, and upload deterministic assurance reports.
+inputs:
+  suite:
+    description: Suite YAML path.
+    required: true
+  candidate-variant:
+    description: Candidate variant YAML path.
+    required: true
+  baseline-variant:
+    description: Optional baseline variant YAML path for comparison.
+    required: false
+    default: ""
+  out-dir:
+    description: Output directory for compiled artifacts, runsets, reports, packet, dependency inventory, and manifest.
+    required: false
+    default: .tmp/agent-assure
+  report-mode:
+    description: Report mode passed to agent-assure ci.
+    required: false
+    default: full
+  upload-name:
+    description: GitHub artifact upload name.
+    required: false
+    default: agent-assure-reports
+  upload-reports:
+    description: Upload reports even when the gate fails.
+    required: false
+    default: "true"
 runs:
   using: composite
   steps:
-    - run: agent-assure --help
+    - name: Compile suite
       shell: bash
+      run: |
+        set -euo pipefail
+        mkdir -p "${{ inputs.out-dir }}"
+        agent-assure suite compile "${{ inputs.suite }}" \
+          --out "${{ inputs.out-dir }}/suite.compiled.json" \
+          --manifest "${{ inputs.out-dir }}/fixtures.json"
+    - name: Run baseline
+      if: inputs.baseline-variant != ''
+      shell: bash
+      run: |
+        set -euo pipefail
+        agent-assure suite run "${{ inputs.out-dir }}/suite.compiled.json" \
+          --variant "${{ inputs.baseline-variant }}" \
+          --manifest "${{ inputs.out-dir }}/fixtures.json" \
+          --out "${{ inputs.out-dir }}/baseline.runset.json"
+    - name: Run candidate
+      shell: bash
+      run: |
+        set -euo pipefail
+        agent-assure suite run "${{ inputs.out-dir }}/suite.compiled.json" \
+          --variant "${{ inputs.candidate-variant }}" \
+          --manifest "${{ inputs.out-dir }}/fixtures.json" \
+          --out "${{ inputs.out-dir }}/candidate.runset.json"
+    - name: Evaluate and gate
+      shell: bash
+      run: |
+        set -euo pipefail
+        args=(
+          agent-assure ci "${{ inputs.out-dir }}/candidate.runset.json"
+          --suite "${{ inputs.out-dir }}/suite.compiled.json"
+          --out-dir "${{ inputs.out-dir }}/reports"
+          --report-mode "${{ inputs.report-mode }}"
+        )
+        if [ -n "${{ inputs.baseline-variant }}" ]; then
+          args+=(--baseline "${{ inputs.out-dir }}/baseline.runset.json")
+        fi
+        "${args[@]}"
+    - name: Upload reports
+      if: always() && inputs.upload-reports == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.upload-name }}
+        path: ${{ inputs.out-dir }}

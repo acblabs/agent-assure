@@ -36,8 +36,8 @@ DEFAULT_NOT_EVALUATED_CAPABILITIES: tuple[CapabilityStatus, ...] = (
         capability_id="raw_payload_persistence_forbidden",
         state=GateState.not_evaluated,
         reason=(
-            "raw payload persistence is constrained by strict artifact schemas and "
-            "privacy validators, not by an evaluator policy"
+            "runset writers redact summary fields and evaluation checks raw summaries, "
+            "but no evaluator policy inspects external raw payload storage"
         ),
     ),
     CapabilityStatus(

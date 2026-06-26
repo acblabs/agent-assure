@@ -1,18 +1,5 @@
 {
   "$defs": {
-    "ComparisonClassification": {
-      "enum": [
-        "new_failure",
-        "resolved_failure",
-        "persistent_failure",
-        "allowed_behavioral_change",
-        "provenance_only_change",
-        "invalid_comparison",
-        "not_evaluated"
-      ],
-      "title": "ComparisonClassification",
-      "type": "string"
-    },
     "EnvironmentInfo": {
       "additionalProperties": false,
       "properties": {
@@ -126,16 +113,6 @@
       "title": "EnvironmentInfo",
       "type": "object"
     },
-    "GateState": {
-      "enum": [
-        "pass",
-        "fail",
-        "warn",
-        "not_evaluated"
-      ],
-      "title": "GateState",
-      "type": "string"
-    },
     "InstalledPackage": {
       "additionalProperties": false,
       "properties": {
@@ -166,80 +143,91 @@
       ],
       "title": "InstalledPackage",
       "type": "object"
+    },
+    "ReleaseArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "release-artifact",
+          "default": "release-artifact",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "path",
+        "sha256"
+      ],
+      "title": "ReleaseArtifact",
+      "type": "object"
     }
   },
-  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/comparison-summary.schema.json",
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/release-artifact-manifest.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
     "artifact_kind": {
-      "const": "comparison-summary",
-      "default": "comparison-summary",
+      "const": "release-artifact-manifest",
+      "default": "release-artifact-manifest",
       "title": "Artifact Kind",
       "type": "string"
     },
-    "baseline_runset_id": {
-      "title": "Baseline Runset Id",
-      "type": "string"
-    },
-    "baseline_state": {
-      "$ref": "#/$defs/GateState",
-      "default": "not_evaluated"
-    },
-    "candidate_runset_id": {
-      "title": "Candidate Runset Id",
-      "type": "string"
-    },
-    "candidate_state": {
-      "$ref": "#/$defs/GateState",
-      "default": "not_evaluated"
-    },
-    "classification": {
-      "$ref": "#/$defs/ComparisonClassification"
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ReleaseArtifact"
+      },
+      "title": "Artifacts",
+      "type": "array"
     },
     "environment": {
-      "anyOf": [
-        {
-          "$ref": "#/$defs/EnvironmentInfo"
-        },
-        {
-          "type": "null"
-        }
+      "$ref": "#/$defs/EnvironmentInfo"
+    },
+    "limitations": {
+      "default": [
+        "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
       ],
-      "default": null
-    },
-    "fixture_equivalence_state": {
-      "$ref": "#/$defs/GateState",
-      "default": "not_evaluated"
-    },
-    "provenance_changes": {
-      "default": [],
       "items": {
         "type": "string"
       },
-      "title": "Provenance Changes",
+      "title": "Limitations",
       "type": "array"
+    },
+    "manifest_id": {
+      "title": "Manifest Id",
+      "type": "string"
     },
     "schema_version": {
       "const": "0.1.0",
       "default": "0.1.0",
       "title": "Schema Version",
       "type": "string"
-    },
-    "verdict_findings": {
-      "default": [],
-      "items": {
-        "type": "string"
-      },
-      "title": "Verdict Findings",
-      "type": "array"
     }
   },
   "required": [
-    "baseline_runset_id",
-    "candidate_runset_id",
-    "classification"
+    "manifest_id",
+    "artifacts",
+    "environment"
   ],
-  "title": "ComparisonSummary",
+  "title": "ReleaseArtifactManifest",
   "type": "object"
 }

@@ -23,6 +23,119 @@
       "title": "CapabilityReport",
       "type": "object"
     },
+    "EnvironmentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "environment-info",
+          "default": "environment-info",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "dependency_inventory_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Digest"
+        },
+        "dependency_inventory_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Path"
+        },
+        "git_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Commit"
+        },
+        "git_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Dirty"
+        },
+        "installed_packages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InstalledPackage"
+          },
+          "title": "Installed Packages",
+          "type": "array"
+        },
+        "lockfile_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Digest"
+        },
+        "lockfile_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Path"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "platform",
+        "python_version"
+      ],
+      "title": "EnvironmentInfo",
+      "type": "object"
+    },
     "EvaluationMetrics": {
       "additionalProperties": false,
       "properties": {
@@ -104,6 +217,17 @@
           "default": "evaluation-summary",
           "title": "Artifact Kind",
           "type": "string"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvironmentInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
         },
         "findings": {
           "default": [],
@@ -198,6 +322,37 @@
       "title": "GateState",
       "type": "string"
     },
+    "InstalledPackage": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "installed-package",
+          "default": "installed-package",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "InstalledPackage",
+      "type": "object"
+    },
     "ReasonCode": {
       "enum": [
         "EXPECTED_OUTCOME_MISMATCH",
@@ -236,6 +391,17 @@
     },
     "candidate_vs_expectations": {
       "$ref": "#/$defs/EvaluationSummary"
+    },
+    "environment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvironmentInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "failed_controls": {
       "default": [],

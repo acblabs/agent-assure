@@ -11,6 +11,8 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `REVIEW_BOUNDARY_FAILED`: an expectation-declared review boundary was not preserved.
 - `FORBIDDEN_PROVIDER`: a provider expectation or runtime provider policy identified
   a forbidden provider without the required review boundary.
+  This is a review-boundary control, not a pure provider allowlist: a forbidden
+  provider routed through the required review boundary does not emit this reason.
 - `FORBIDDEN_TOOL`: a tool was outside a configured allowlist.
 - `STRUCTURED_OUTPUT_INVALID`: structured output failed validation.
 - `REDACTION_FAILED`: redaction did not satisfy the configured check.

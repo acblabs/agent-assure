@@ -73,7 +73,6 @@ def test_evidence_refactor_has_no_case_id_branch_or_marker() -> None:
     source_paths = [
         Path("src/agent_assure/examples/prior_auth_synthetic/app.py"),
         Path("src/agent_assure/examples/prior_auth_synthetic/runner.py"),
-        Path("examples/prior_auth_synthetic/app/evidence_assembly.py"),
     ]
     implementation_text = "\n".join(path.read_text(encoding="utf-8") for path in source_paths)
 

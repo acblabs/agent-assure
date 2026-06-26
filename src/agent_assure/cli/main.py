@@ -22,7 +22,7 @@ app.add_typer(schema_cmd.app, name="schema")
 app.add_typer(suite_cmd.app, name="suite")
 app.command("evaluate")(evaluate_cmd.evaluate)
 app.command("compare")(compare_cmd.compare)
-app.add_typer(ci_cmd.app, name="ci")
+app.command("ci")(ci_cmd.ci)
 app.add_typer(packet_cmd.app, name="packet")
 app.add_typer(otel_cmd.app, name="otel")
 

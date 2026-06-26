@@ -12,10 +12,12 @@ Exported roots:
 - `comparison-summary`
 - `evaluation-report`
 - `evaluation-summary`
+- `environment-info`
 - `evidence-packet`
 - `expectation`
 - `expectation-change-record`
 - `fixture-manifest`
+- `release-artifact-manifest`
 - `run-set`
 - `span-plan`
 

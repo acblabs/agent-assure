@@ -24,6 +24,7 @@ from agent_assure.policies.base import (
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
 from agent_assure.schema.base import PersistedArtifact, StrictModel
 from agent_assure.schema.common import GateState, ReasonCode, Severity, coerce_enum
+from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
@@ -61,6 +62,7 @@ class EvaluationReport(PersistedArtifact):
     suite_version: str
     gate_profile: str
     metrics: EvaluationMetrics
+    environment: EnvironmentInfo | None = None
     failed_controls: tuple[Finding, ...] = ()
     warning_controls: tuple[Finding, ...] = ()
     not_evaluated_capabilities: tuple[CapabilityReport, ...] = ()

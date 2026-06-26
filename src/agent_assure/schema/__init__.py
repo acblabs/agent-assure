@@ -8,9 +8,11 @@ from agent_assure.schema.common import (
     Severity,
 )
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
-from agent_assure.schema.packet import EvidencePacket
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
@@ -38,6 +40,7 @@ __all__ = [
     "ComparisonSummary",
     "DigestHex",
     "EvaluationSummary",
+    "EnvironmentInfo",
     "EvidenceItem",
     "EvidencePacket",
     "EvidenceRef",
@@ -48,9 +51,13 @@ __all__ = [
     "FixtureManifestEntry",
     "Finding",
     "GateState",
+    "InstalledPackage",
     "PersistedArtifact",
+    "PacketArtifactDigest",
     "PolicyResult",
     "ReasonCode",
+    "ReleaseArtifact",
+    "ReleaseArtifactManifest",
     "RunSet",
     "Severity",
     "SpanAttribute",

@@ -22,6 +22,13 @@ def test_decimal_variants_project_to_same_string() -> None:
     )
 
 
+def test_large_decimal_normalization_does_not_depend_on_default_context_precision() -> None:
+    value = Decimal("123456789012345678901234567890.1234564")
+    assert normalize_decimal(value) == "123456789012345678901234567890.123456"
+    carry = Decimal("999999999999999999999999999999.9999996")
+    assert normalize_decimal(carry) == "1000000000000000000000000000000.000000"
+
+
 def test_decomposed_unicode_fails_with_reason_code() -> None:
     with pytest.raises(CanonicalizationError) as exc_info:
         digest_projection("e\u0301")

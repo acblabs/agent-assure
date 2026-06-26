@@ -6,6 +6,7 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import GateState, ReasonCode, coerce_enum, coerce_tuple
+from agent_assure.schema.environment import EnvironmentInfo
 
 
 class Finding(PersistedArtifact):
@@ -34,6 +35,7 @@ class EvaluationSummary(PersistedArtifact):
     runset_id: str
     state: GateState
     findings: tuple[Finding, ...] = ()
+    environment: EnvironmentInfo | None = None
 
     @field_validator("state", mode="before")
     @classmethod

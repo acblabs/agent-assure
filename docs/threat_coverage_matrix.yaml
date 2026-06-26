@@ -61,7 +61,7 @@ controls:
 uncovered:
   - id: raw_payload_persistence_forbidden
     status: not_evaluated
-    reason: Strict schemas and privacy validators constrain persisted artifacts, but no evaluator policy inspects raw payload storage.
+    reason: Runset writers redact summary fields and evaluation checks raw summaries, but no evaluator policy inspects external raw payload storage.
     nist_ai_rmf: [Measure, Govern]
   - id: live-stochastic-model-quality-regression
     status: not_evaluated
