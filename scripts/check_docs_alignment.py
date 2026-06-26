@@ -16,6 +16,7 @@ PUBLIC_DOCS = [
     ROOT / "README.md",
     ROOT / "FEATURES.md",
     ROOT / "CHANGELOG.md",
+    ROOT / "docs" / "showcase.md",
     ROOT / "docs" / "measurement" / "executive_one_pager.md",
     ROOT / "docs" / "standards" / "otel_genai_gap_analysis.md",
 ]
@@ -37,6 +38,7 @@ REQUIRED_CLAIM_IDS = {
     "hmac-sensitive-correlation",
     "privacy-redaction",
     "otel-span-plan-preview",
+    "flagship-showcase-demo",
 }
 
 

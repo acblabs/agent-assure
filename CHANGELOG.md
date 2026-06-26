@@ -33,3 +33,6 @@
 - Added RunSet comparison with fixture-equivalence gating, final comparison
   classifications, provenance-only diffing, candidate-first JSON/Markdown/Rich
   reports, and invalid-comparison exit behavior.
+- Added a public flagship showcase with exact local commands, expected
+  pass/fail output fields, baseline-to-candidate comparison story, GitHub
+  Actions usage snippet, and reproducibility digest summary.

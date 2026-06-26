@@ -16,6 +16,32 @@ suite compile, suite run, evaluate, and compare commands in this repository.
 The prior-authorization suite contains ten fixed cases; the expense-approval
 suite contains three fixed cases.
 
+## Flagship Showcase Draft
+
+The linkable showcase is the prior-authorization evidence-normalization
+candidate. The baseline and candidate use the same compiled suite and fixture
+manifest. The baseline passes all ten fixed cases. The candidate keeps the
+visible answer stable for the shared-source multi-claim case
+(`recommendation=approve; outcome=approve`) but loses the structured evidence
+link for the fixture-declared material claim `claim-duration`.
+
+The expected candidate finding is:
+
+```text
+case_id: shared-source-multi-claim
+control_id: material_claims_have_evidence
+target: claim:claim-duration
+reason_code: MATERIAL_CLAIM_MISSING_EVIDENCE
+```
+
+The baseline-to-candidate comparison report classifies the result as
+`new_failure` with fixture-equivalence state `pass`. The generated report is
+human-reviewable because it shows the failing case, control, target, reason
+code, missing evidence link, fixture-equivalence result, behavioral evidence
+reference change, and separate provenance changes. Reproduction commands,
+expected output fields, workflow snippet, and artifact digests are maintained in
+`docs/showcase.md`.
+
 ### Prior-Authorization Fixture Suite
 
 | RunSet | Candidate verdict | Passed cases | Failed cases | Blocking findings | Primary reason codes |

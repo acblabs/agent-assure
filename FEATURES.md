@@ -28,6 +28,9 @@
   vs expectations and keep unsupported capabilities marked `not_evaluated`.
 - RunSet comparison reports with fixture-equivalence checks, candidate-first
   verdict explanations, baseline context, and provenance-only change reporting.
+- Reproducible flagship showcase commands that demonstrate a stable visible
+  answer with a failing material evidence-link invariant under equivalent
+  fixtures.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.

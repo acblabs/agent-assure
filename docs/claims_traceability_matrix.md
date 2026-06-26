@@ -18,3 +18,4 @@ this document is the machine-checked source for documentation alignment.
 | `bundled-examples-api-boundary` | Bundled example modules are included for reproducible demos but are not a stable extension API. |
 | `expectation-evaluator-reports` | RunSet evaluation checks expectations and built-in deterministic controls, then writes JSON, Markdown, and Rich console reports. |
 | `comparison-reports` | RunSet comparison checks fixture equivalence, classifies deterministic control changes, and reports provenance changes separately from verdicts. |
+| `flagship-showcase-demo` | The README and showcase document reproduce a passing baseline and an evidence-normalization candidate with stable visible output and a missing material evidence link. |

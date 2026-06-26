@@ -88,3 +88,11 @@ claims:
       commands: [agent-assure compare]
       docs: [docs/cli_contract.md, docs/invariant_diffing.md]
     limitations: Comparison is fixture-bound and does not measure stochastic model quality, live provider behavior, safety, or compliance.
+  - id: flagship-showcase-demo
+    claim: The documented flagship showcase reproduces a passing baseline and an evidence-normalization candidate that keeps the visible answer stable while failing a material evidence-link invariant.
+    evidence:
+      tests: [tests/integration/test_evidence_regression.py, tests/integration/test_compare_reports.py]
+      commands: [agent-assure suite compile, agent-assure suite run, agent-assure evaluate, agent-assure compare]
+      reports: [.tmp/showcase/evidence-report/evaluation-report.md, .tmp/showcase/comparison-report/comparison-report.md]
+      docs: [README.md, docs/showcase.md, docs/measurement/nist_agentic_measurement_use_case.md]
+    limitations: The showcase is synthetic, deterministic, and fixture-bound; artifact digests are reproducibility anchors, not signatures or release attestations.

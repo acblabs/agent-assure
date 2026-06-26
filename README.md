@@ -10,23 +10,36 @@ reports across synthetic prior-authorization and minimal expense-approval
 examples. It does not run live models, certify safety, validate clinical use,
 prove regulatory compliance, or claim OpenTelemetry adoption.
 
-## Five-minute local check
+## Five-minute flagship demo
+
+Run these commands one at a time from the repository root. The final two
+commands write reports and are expected to exit `1`; the GitHub Actions snippet
+below shows how to assert those expected failures in `set -e` contexts.
 
 ```bash
 pip install -e ".[dev]"
-agent-assure --help
-agent-assure schema export --out schemas/v0.1.0
-agent-assure suite lint examples/prior_auth_synthetic/suite.yaml
-agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/compiled-suite.json --manifest .tmp/fixture-manifest.json
-agent-assure validate .tmp/compiled-suite.json --kind compiled-suite
-agent-assure validate .tmp/fixture-manifest.json --kind fixture-manifest
-agent-assure suite run .tmp/compiled-suite.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/fixture-manifest.json --out .tmp/baseline-runset.json
-agent-assure validate .tmp/baseline-runset.json --kind run-set
-agent-assure evaluate .tmp/baseline-runset.json --suite .tmp/compiled-suite.json --out-dir .tmp/baseline-report
-agent-assure compare .tmp/baseline-runset.json .tmp/baseline-runset.json --suite .tmp/compiled-suite.json --out-dir .tmp/comparison-report
-agent-assure otel preview tests/fixtures/run_record.json --out .tmp/span-plan.json
-pytest
+mkdir -p .tmp/showcase
+agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/showcase/prior-auth.compiled.json --manifest .tmp/showcase/prior-auth.fixtures.json
+agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.baseline.json
+agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.evidence-candidate.json
+agent-assure evaluate .tmp/showcase/prior-auth.baseline.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/baseline-report
+agent-assure evaluate .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/evidence-report
+agent-assure compare .tmp/showcase/prior-auth.baseline.json .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/comparison-report
 ```
+
+The baseline evaluation exits `0` and writes a `pass` summary with ten evaluated
+cases and zero blocking findings. The candidate evaluation is expected to exit
+`1`; its report contains one blocking finding for
+`shared-source-multi-claim` with reason code
+`MATERIAL_CLAIM_MISSING_EVIDENCE`.
+
+The comparison command is also expected to exit `1`. It writes
+`.tmp/showcase/comparison-report/comparison-report.md` with classification
+`new_failure` and fixture-equivalence state `pass`. For the failing case, the
+baseline and candidate both keep `recommendation=approve; outcome=approve`; the
+material regression is the missing `claim-duration` evidence link. See
+`docs/showcase.md` for the expected report fields, GitHub Actions snippet, and
+artifact digest summary.
 
 ## Small generic example
 
@@ -46,6 +59,51 @@ agent-assure evaluate .tmp/expense.baseline.json --suite .tmp/expense.compiled.j
 The project currently claims only deterministic, offline controls implemented in
 this repository. Public claims are tracked in
 `docs/claims_traceability_matrix.yaml`.
+
+## GitHub Actions snippet
+
+```yaml
+name: agent-assure-showcase
+on: [push, pull_request]
+jobs:
+  flagship:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e ".[dev]"
+      - run: mkdir -p .tmp/showcase
+      - run: agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/showcase/prior-auth.compiled.json --manifest .tmp/showcase/prior-auth.fixtures.json
+      - run: agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.baseline.json
+      - run: agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.evidence-candidate.json
+      - run: agent-assure evaluate .tmp/showcase/prior-auth.baseline.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/baseline-report
+      - name: Evaluate evidence candidate
+        run: |
+          set +e
+          agent-assure evaluate .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/evidence-report
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected exit 1, got $status"
+            exit 1
+          fi
+          grep -q "MATERIAL_CLAIM_MISSING_EVIDENCE" .tmp/showcase/evidence-report/evaluation-report.md
+      - name: Compare baseline to candidate
+        run: |
+          set +e
+          agent-assure compare .tmp/showcase/prior-auth.baseline.json .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/comparison-report
+          status=$?
+          set -e
+          if [ "$status" -ne 1 ]; then
+            echo "expected exit 1, got $status"
+            exit 1
+          fi
+          grep -q 'Classification: `new_failure`' .tmp/showcase/comparison-report/comparison-report.md
+          grep -q 'Fixture-Equivalence Result' .tmp/showcase/comparison-report/comparison-report.md
+          grep -q 'State: `pass`' .tmp/showcase/comparison-report/comparison-report.md
+```
 
 ## Development
 

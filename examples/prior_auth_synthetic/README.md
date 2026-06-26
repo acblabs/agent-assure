@@ -11,6 +11,20 @@ agent-assure suite run .tmp/prior-auth.compiled.json --variant examples/prior_au
 agent-assure suite run .tmp/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_provider_policy.yaml --manifest .tmp/prior-auth.fixtures.json --out .tmp/prior-auth.provider-candidate.json
 ```
 
+To reproduce the flagship evidence-linking failure, evaluate the baseline and
+evidence-normalization candidate, then compare them:
+
+```bash
+agent-assure evaluate .tmp/prior-auth.baseline.json --suite .tmp/prior-auth.compiled.json --out-dir .tmp/prior-auth.baseline-report
+agent-assure evaluate .tmp/prior-auth.evidence-candidate.json --suite .tmp/prior-auth.compiled.json --out-dir .tmp/prior-auth.evidence-report
+agent-assure compare .tmp/prior-auth.baseline.json .tmp/prior-auth.evidence-candidate.json --suite .tmp/prior-auth.compiled.json --out-dir .tmp/prior-auth.comparison-report
+```
+
+The candidate evaluation and comparison are expected to exit `1`. The candidate
+report contains `MATERIAL_CLAIM_MISSING_EVIDENCE` for
+`shared-source-multi-claim` and `claim:claim-duration`; the comparison report
+classifies the change as `new_failure` while fixture equivalence remains `pass`.
+
 The variants share the same request, model-output, and tool-output fixtures. The
 evidence-normalization variant switches from association-preserving evidence
 assembly to catalog reconstruction; for the shared-source case, the visible
