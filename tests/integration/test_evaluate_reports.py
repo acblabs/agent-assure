@@ -39,9 +39,12 @@ def test_evaluate_cli_writes_candidate_first_reports_for_passing_baseline(
 
     assert result.exit_code == 0
     report_text = (out_dir / "evaluation-report.json").read_text(encoding="utf-8")
-    assert report_text.startswith('{\n  "candidate_vs_expectations"')
     report = json.loads(report_text)
+    assert report["schema_version"] == "0.1.0"
+    assert report["artifact_kind"] == "evaluation-report"
     assert report["candidate_vs_expectations"]["state"] == GateState.pass_.value
+    assert b"\r\n" not in (out_dir / "evaluation-report.json").read_bytes()
+    assert b"\r\n" not in (out_dir / "evaluation-report.md").read_bytes()
     markdown = (out_dir / "evaluation-report.md").read_text(encoding="utf-8")
     assert markdown.index("## Candidate vs Expectations") < markdown.index(
         "## Why the Candidate Passed or Failed"

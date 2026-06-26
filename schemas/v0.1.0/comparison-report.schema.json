@@ -1,0 +1,576 @@
+{
+  "$defs": {
+    "BehaviorChange": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_value": {
+          "title": "Baseline Value",
+          "type": "string"
+        },
+        "candidate_value": {
+          "title": "Candidate Value",
+          "type": "string"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "field",
+        "baseline_value",
+        "candidate_value"
+      ],
+      "title": "BehaviorChange",
+      "type": "object"
+    },
+    "CapabilityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "capability_id": {
+          "title": "Capability Id",
+          "type": "string"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        }
+      },
+      "required": [
+        "capability_id",
+        "state",
+        "reason"
+      ],
+      "title": "CapabilityReport",
+      "type": "object"
+    },
+    "ComparisonClassification": {
+      "enum": [
+        "new_failure",
+        "resolved_failure",
+        "persistent_failure",
+        "allowed_behavioral_change",
+        "provenance_only_change",
+        "invalid_comparison",
+        "not_evaluated"
+      ],
+      "title": "ComparisonClassification",
+      "type": "string"
+    },
+    "ComparisonSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "comparison-summary",
+          "default": "comparison-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "baseline_runset_id": {
+          "title": "Baseline Runset Id",
+          "type": "string"
+        },
+        "baseline_state": {
+          "$ref": "#/$defs/GateState",
+          "default": "not_evaluated"
+        },
+        "candidate_runset_id": {
+          "title": "Candidate Runset Id",
+          "type": "string"
+        },
+        "candidate_state": {
+          "$ref": "#/$defs/GateState",
+          "default": "not_evaluated"
+        },
+        "classification": {
+          "$ref": "#/$defs/ComparisonClassification"
+        },
+        "fixture_equivalence_state": {
+          "$ref": "#/$defs/GateState",
+          "default": "not_evaluated"
+        },
+        "provenance_changes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Provenance Changes",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "verdict_findings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Verdict Findings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "baseline_runset_id",
+        "candidate_runset_id",
+        "classification"
+      ],
+      "title": "ComparisonSummary",
+      "type": "object"
+    },
+    "ControlChange": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GateState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_state": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/GateState"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "classification": {
+          "$ref": "#/$defs/ComparisonClassification"
+        },
+        "control_id": {
+          "title": "Control Id",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "target": {
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "classification",
+        "finding_id",
+        "case_id",
+        "control_id",
+        "target",
+        "reason_code",
+        "message"
+      ],
+      "title": "ControlChange",
+      "type": "object"
+    },
+    "EvaluationMetrics": {
+      "additionalProperties": false,
+      "properties": {
+        "blocking_findings": {
+          "minimum": 0,
+          "title": "Blocking Findings",
+          "type": "integer"
+        },
+        "evaluated_cases": {
+          "minimum": 0,
+          "title": "Evaluated Cases",
+          "type": "integer"
+        },
+        "failed_cases": {
+          "minimum": 0,
+          "title": "Failed Cases",
+          "type": "integer"
+        },
+        "findings_by_control": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Findings By Control",
+          "type": "object"
+        },
+        "findings_by_reason": {
+          "additionalProperties": {
+            "type": "integer"
+          },
+          "title": "Findings By Reason",
+          "type": "object"
+        },
+        "global_blocking_findings": {
+          "minimum": 0,
+          "title": "Global Blocking Findings",
+          "type": "integer"
+        },
+        "passed_cases": {
+          "minimum": 0,
+          "title": "Passed Cases",
+          "type": "integer"
+        },
+        "total_cases": {
+          "minimum": 0,
+          "title": "Total Cases",
+          "type": "integer"
+        },
+        "unevaluated_cases": {
+          "minimum": 0,
+          "title": "Unevaluated Cases",
+          "type": "integer"
+        },
+        "warning_findings": {
+          "minimum": 0,
+          "title": "Warning Findings",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "total_cases",
+        "evaluated_cases",
+        "unevaluated_cases",
+        "passed_cases",
+        "failed_cases",
+        "warning_findings",
+        "blocking_findings",
+        "global_blocking_findings",
+        "findings_by_reason",
+        "findings_by_control"
+      ],
+      "title": "EvaluationMetrics",
+      "type": "object"
+    },
+    "EvaluationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "evaluation-summary",
+          "default": "evaluation-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "findings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "runset_id": {
+          "title": "Runset Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        }
+      },
+      "required": [
+        "runset_id",
+        "state"
+      ],
+      "title": "EvaluationSummary",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "finding",
+          "default": "finding",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "control_id": {
+          "default": "",
+          "title": "Control Id",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        },
+        "target": {
+          "default": "",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "case_id",
+        "state",
+        "reason_code",
+        "message"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "FixtureEquivalenceReport": {
+      "additionalProperties": false,
+      "properties": {
+        "compared_digests": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Compared Digests",
+          "type": "array"
+        },
+        "findings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        }
+      },
+      "required": [
+        "state"
+      ],
+      "title": "FixtureEquivalenceReport",
+      "type": "object"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "ProvenanceChange": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Value"
+        },
+        "candidate_value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Candidate Value"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "field": {
+          "title": "Field",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "field"
+      ],
+      "title": "ProvenanceChange",
+      "type": "object"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/comparison-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "comparison-report",
+      "default": "comparison-report",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_metrics": {
+      "$ref": "#/$defs/EvaluationMetrics"
+    },
+    "baseline_vs_expectations": {
+      "$ref": "#/$defs/EvaluationSummary"
+    },
+    "behavioral_changes": {
+      "items": {
+        "$ref": "#/$defs/BehaviorChange"
+      },
+      "title": "Behavioral Changes",
+      "type": "array"
+    },
+    "candidate_metrics": {
+      "$ref": "#/$defs/EvaluationMetrics"
+    },
+    "candidate_vs_expectations": {
+      "$ref": "#/$defs/EvaluationSummary"
+    },
+    "comparison_summary": {
+      "$ref": "#/$defs/ComparisonSummary"
+    },
+    "control_changes": {
+      "items": {
+        "$ref": "#/$defs/ControlChange"
+      },
+      "title": "Control Changes",
+      "type": "array"
+    },
+    "fixture_equivalence": {
+      "$ref": "#/$defs/FixtureEquivalenceReport"
+    },
+    "gate_profile": {
+      "title": "Gate Profile",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "not_evaluated_capabilities": {
+      "items": {
+        "$ref": "#/$defs/CapabilityReport"
+      },
+      "title": "Not Evaluated Capabilities",
+      "type": "array"
+    },
+    "provenance_changes": {
+      "items": {
+        "$ref": "#/$defs/ProvenanceChange"
+      },
+      "title": "Provenance Changes",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "suite_id": {
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "suite_version": {
+      "title": "Suite Version",
+      "type": "string"
+    },
+    "verdict_explanations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Verdict Explanations",
+      "type": "array"
+    }
+  },
+  "required": [
+    "candidate_vs_expectations",
+    "verdict_explanations",
+    "fixture_equivalence",
+    "baseline_vs_expectations",
+    "control_changes",
+    "behavioral_changes",
+    "provenance_changes",
+    "not_evaluated_capabilities",
+    "limitations",
+    "comparison_summary",
+    "baseline_metrics",
+    "candidate_metrics",
+    "suite_id",
+    "suite_version",
+    "gate_profile"
+  ],
+  "title": "ComparisonReport",
+  "type": "object"
+}

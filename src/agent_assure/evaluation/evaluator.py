@@ -4,6 +4,7 @@ import json
 from collections import Counter
 from datetime import date
 from pathlib import Path
+from typing import Literal
 
 from pydantic import Field
 from pydantic.functional_validators import field_validator
@@ -20,7 +21,7 @@ from agent_assure.policies.base import (
     rollup_state,
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
-from agent_assure.schema.base import StrictModel
+from agent_assure.schema.base import PersistedArtifact, StrictModel
 from agent_assure.schema.common import GateState, ReasonCode, Severity, coerce_enum
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.run import RunSet
@@ -51,7 +52,8 @@ class CapabilityReport(StrictModel):
         return coerce_enum(GateState, value)
 
 
-class EvaluationReport(StrictModel):
+class EvaluationReport(PersistedArtifact):
+    artifact_kind: Literal["evaluation-report"] = "evaluation-report"
     candidate_vs_expectations: EvaluationSummary
     runset_id: str
     suite_id: str

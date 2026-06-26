@@ -30,3 +30,6 @@
   provider review-boundary and human-review controls, gate profiles, disjoint
   case metrics, per-finding time-bounded waivers, not-evaluated capability
   reporting, and JSON/Markdown/Rich evaluation reports.
+- Added RunSet comparison with fixture-equivalence gating, final comparison
+  classifications, provenance-only diffing, candidate-first JSON/Markdown/Rich
+  reports, and invalid-comparison exit behavior.

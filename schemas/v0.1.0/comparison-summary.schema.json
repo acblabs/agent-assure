@@ -2,12 +2,25 @@
   "$defs": {
     "ComparisonClassification": {
       "enum": [
-        "equivalent",
-        "provenance_only",
-        "behavioral_regression",
-        "invalid_comparison"
+        "new_failure",
+        "resolved_failure",
+        "persistent_failure",
+        "allowed_behavioral_change",
+        "provenance_only_change",
+        "invalid_comparison",
+        "not_evaluated"
       ],
       "title": "ComparisonClassification",
+      "type": "string"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
       "type": "string"
     }
   },
@@ -25,12 +38,24 @@
       "title": "Baseline Runset Id",
       "type": "string"
     },
+    "baseline_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
     "candidate_runset_id": {
       "title": "Candidate Runset Id",
       "type": "string"
     },
+    "candidate_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
     "classification": {
       "$ref": "#/$defs/ComparisonClassification"
+    },
+    "fixture_equivalence_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
     },
     "provenance_changes": {
       "default": [],

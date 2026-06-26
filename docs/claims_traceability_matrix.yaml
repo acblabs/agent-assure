@@ -80,3 +80,11 @@ claims:
       commands: [agent-assure evaluate]
       docs: [docs/cli_contract.md, docs/expectation_authoring.md]
     limitations: Reports explain deterministic governance verdicts only; they are not model interpretability, safety, compliance, or live quality evidence.
+  - id: comparison-reports
+    claim: RunSet comparison checks fixture equivalence, classifies deterministic baseline-to-candidate control changes, and reports provenance differences separately from verdicts.
+    evidence:
+      code: [src/agent_assure/compare/runsets.py, src/agent_assure/compare/invariant_diff.py, src/agent_assure/compare/provenance_diff.py, src/agent_assure/reporting]
+      tests: [tests/unit/compare/test_runsets.py, tests/integration/test_compare_reports.py]
+      commands: [agent-assure compare]
+      docs: [docs/cli_contract.md, docs/invariant_diffing.md]
+    limitations: Comparison is fixture-bound and does not measure stochastic model quality, live provider behavior, safety, or compliance.

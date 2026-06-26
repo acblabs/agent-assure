@@ -23,6 +23,7 @@ agent-assure validate .tmp/fixture-manifest.json --kind fixture-manifest
 agent-assure suite run .tmp/compiled-suite.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/fixture-manifest.json --out .tmp/baseline-runset.json
 agent-assure validate .tmp/baseline-runset.json --kind run-set
 agent-assure evaluate .tmp/baseline-runset.json --suite .tmp/compiled-suite.json --out-dir .tmp/baseline-report
+agent-assure compare .tmp/baseline-runset.json .tmp/baseline-runset.json --suite .tmp/compiled-suite.json --out-dir .tmp/comparison-report
 agent-assure otel preview tests/fixtures/run_record.json --out .tmp/span-plan.json
 pytest
 ```

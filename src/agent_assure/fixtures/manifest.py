@@ -37,6 +37,7 @@ def write_fixture_manifest(manifest: FixtureManifest, path: Path) -> None:
     path.write_text(
         json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 

@@ -19,7 +19,7 @@ def test_evidence_packet_schema_exists() -> None:
             artifact_kind="comparison-summary",
             baseline_runset_id="baseline",
             candidate_runset_id="candidate",
-            classification=ComparisonClassification.provenance_only,
+            classification=ComparisonClassification.provenance_only_change,
         ),
         limitations=("packet generation is reserved for a future release",),
     )

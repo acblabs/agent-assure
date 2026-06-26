@@ -34,5 +34,5 @@ def preview(
         console.print(payload)
         return
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(payload, encoding="utf-8")
+    out.write_text(payload, encoding="utf-8", newline="\n")
     console.print(f"span plan: {out}")

@@ -6,6 +6,8 @@ from typing import TypeAlias
 
 from pydantic import BaseModel
 
+from agent_assure.compare.runsets import ComparisonReport
+from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
@@ -19,7 +21,9 @@ SchemaModel: TypeAlias = type[BaseModel]
 SCHEMA_MODELS: dict[str, SchemaModel] = {
     "agent-run-record": AgentRunRecord,
     "compiled-suite": CompiledSuite,
+    "comparison-report": ComparisonReport,
     "comparison-summary": ComparisonSummary,
+    "evaluation-report": EvaluationReport,
     "evaluation-summary": EvaluationSummary,
     "evidence-packet": EvidencePacket,
     "expectation": Expectation,
@@ -47,6 +51,10 @@ def export_json_schemas(out_dir: Path) -> list[Path]:
         schema["$id"] = f"https://acblabs.github.io/agent-assure/schemas/v0.1.0/{kind}.schema.json"
         schema.setdefault("properties", {})
         path = out_dir / f"{kind}.schema.json"
-        path.write_text(json.dumps(schema, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        path.write_text(
+            json.dumps(schema, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+            newline="\n",
+        )
         written.append(path)
     return written

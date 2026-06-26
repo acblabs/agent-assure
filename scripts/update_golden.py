@@ -40,7 +40,7 @@ def main() -> int:
         generated = _json_text(factory())
         if args.update_golden:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(generated, encoding="utf-8")
+            path.write_text(generated, encoding="utf-8", newline="\n")
             continue
         if not path.exists():
             failures.append(f"missing golden file: {path.relative_to(ROOT)}")

@@ -5,12 +5,12 @@ from pathlib import Path
 from typing import Annotated
 
 import typer
-import yaml
 from rich.console import Console
 
+from agent_assure.cli.waivers import load_waivers
 from agent_assure.evaluation.evaluator import evaluate_runset, load_runset
 from agent_assure.fixtures.loader import load_compiled_suite
-from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
+from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
 from agent_assure.reporting.console import render_evaluation_console
 from agent_assure.reporting.json_report import write_evaluation_json
 from agent_assure.reporting.markdown import write_evaluation_markdown
@@ -40,7 +40,7 @@ def evaluate(
             compiled,
             runset,
             gate_profile=_gate_profile(fail_on_warn),
-            waivers=_load_waivers(tuple(waiver or ())),
+            waivers=load_waivers(tuple(waiver or ())),
             today=date.today(),
         )
     except ValueError as exc:
@@ -80,19 +80,3 @@ def _gate_profile(fail_on_warn: bool) -> GateProfile:
     if not fail_on_warn:
         return DEFAULT_GATE_PROFILE
     return DEFAULT_GATE_PROFILE.model_copy(update={"fail_on_warn": True})
-
-
-def _load_waivers(paths: tuple[Path, ...]) -> tuple[Waiver, ...]:
-    waivers: list[Waiver] = []
-    for path in paths:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
-        if isinstance(payload, dict) and "waivers" in payload:
-            raw_waivers = payload["waivers"]
-        else:
-            raw_waivers = payload
-        if isinstance(raw_waivers, dict):
-            raw_waivers = [raw_waivers]
-        if not isinstance(raw_waivers, list):
-            raise typer.BadParameter(f"waiver file must contain an object or list: {path}")
-        waivers.extend(Waiver.model_validate(item) for item in raw_waivers)
-    return tuple(waivers)

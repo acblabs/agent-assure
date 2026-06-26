@@ -17,3 +17,4 @@ this document is the machine-checked source for documentation alignment.
 | `evidence-refactor-regression` | The evidence-normalization candidate preserves ordinary evidence links while exposing the shared-source multi-claim edge case. |
 | `bundled-examples-api-boundary` | Bundled example modules are included for reproducible demos but are not a stable extension API. |
 | `expectation-evaluator-reports` | RunSet evaluation checks expectations and built-in deterministic controls, then writes JSON, Markdown, and Rich console reports. |
+| `comparison-reports` | RunSet comparison checks fixture equivalence, classifies deterministic control changes, and reports provenance changes separately from verdicts. |

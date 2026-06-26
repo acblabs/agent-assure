@@ -26,6 +26,8 @@
   per-finding time-bounded waivers.
 - JSON, Markdown, and Rich console evaluation reports that lead with candidate
   vs expectations and keep unsupported capabilities marked `not_evaluated`.
+- RunSet comparison reports with fixture-equivalence checks, candidate-first
+  verdict explanations, baseline context, and provenance-only change reporting.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.
@@ -34,7 +36,7 @@
 
 ## Planned
 
-- Comparison engine, evidence packets, CI gates, and signed release evidence.
+- Evidence packets, CI gates, and signed release evidence.
 - Live stochastic evaluation, provider comparisons, confidence intervals, cost
   distributions, and OpenTelemetry SDK export in a future release.
 

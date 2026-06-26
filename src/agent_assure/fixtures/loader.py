@@ -25,6 +25,7 @@ def write_compiled_suite(compiled: CompiledSuite, path: Path) -> None:
     path.write_text(
         json.dumps(compiled.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
+        newline="\n",
     )
 
 

@@ -8,7 +8,9 @@ Exported roots:
 
 - `agent-run-record`
 - `compiled-suite`
+- `comparison-report`
 - `comparison-summary`
+- `evaluation-report`
 - `evaluation-summary`
 - `evidence-packet`
 - `expectation`

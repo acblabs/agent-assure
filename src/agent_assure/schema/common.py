@@ -30,10 +30,13 @@ class Severity(StrEnum):
 
 
 class ComparisonClassification(StrEnum):
-    equivalent = "equivalent"
-    provenance_only = "provenance_only"
-    behavioral_regression = "behavioral_regression"
+    new_failure = "new_failure"
+    resolved_failure = "resolved_failure"
+    persistent_failure = "persistent_failure"
+    allowed_behavioral_change = "allowed_behavioral_change"
+    provenance_only_change = "provenance_only_change"
     invalid_comparison = "invalid_comparison"
+    not_evaluated = "not_evaluated"
 
 
 class ReasonCode(StrEnum):
