@@ -1,3 +1,3 @@
-from agent_assure.runner.prior_auth_app import EvidenceAssociation
+from agent_assure.examples.prior_auth_synthetic.app import EvidenceAssociation
 
 __all__ = ["EvidenceAssociation"]

@@ -35,4 +35,4 @@ def test_fixture_run_does_not_open_socket(monkeypatch) -> None:  # type: ignore[
     monkeypatch.setattr(socket.socket, "connect", fail_connect)
     compiled = compile_suite(SUITE)
     runset = run_suite(compiled, load_variant_config(BASELINE), SUITE.parent)
-    assert len(runset.runs) == 6
+    assert len(runset.runs) == 10

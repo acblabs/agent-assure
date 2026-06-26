@@ -14,17 +14,20 @@
 - Deterministic offline fixture runner with fixed IDs, typed variant configs,
   safe multi-root fixture resolution, source/manifest verification, registered
   runners, and in-process failure records.
-- Prior-authorization synthetic example with shared fixtures and baseline,
-  evidence-normalization, provider-policy, fake-PHI redaction, and smoke
-  variants.
+- Prior-authorization synthetic example with shared fixtures, ten fixed cases,
+  and baseline, evidence-normalization, provider-policy, fake-PHI redaction, and
+  smoke variants.
+- Minimal expense-approval example with independent fixtures, a passing
+  baseline, and a deterministic provider-control candidate.
+- Bundled example modules included for reproducible local demos, with public API
+  boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.
 - OpenTelemetry-aligned span-plan preview from structured run records.
 - Documentation-alignment checks for conservative public claims.
 
 ## Planned
 
-- Evaluator, reports, evidence packets, CI gates, signed release evidence, and
-  additional complete example suites.
+- Evaluator, reports, evidence packets, CI gates, and signed release evidence.
 - Live stochastic evaluation, provider comparisons, confidence intervals, cost
   distributions, and OpenTelemetry SDK export in a future release.
 

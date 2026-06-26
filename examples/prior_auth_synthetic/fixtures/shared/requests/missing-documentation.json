@@ -1,0 +1,6 @@
+{
+  "case_id": "missing-documentation",
+  "member_id": "SYN-MEMBER-008",
+  "requested_service": "durable medical equipment",
+  "request_type": "prior_authorization"
+}

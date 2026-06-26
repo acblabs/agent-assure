@@ -13,3 +13,6 @@ this document is the machine-checked source for documentation alignment.
 | `hmac-sensitive-correlation` | Sensitive correlation examples use HMAC-SHA256 with a test-only key. |
 | `privacy-redaction` | Author-time summaries can be redacted before persistence; persisted summaries are checked and span-plan attributes are filtered. |
 | `otel-span-plan-preview` | Span plans are derived from structured records and pinned to a snapshot. |
+| `fixture-example-suites` | The synthetic prior-authorization and minimal expense-approval examples both run from local fixture suites. |
+| `evidence-refactor-regression` | The evidence-normalization candidate preserves ordinary evidence links while exposing the shared-source multi-claim edge case. |
+| `bundled-examples-api-boundary` | Bundled example modules are included for reproducible demos but are not a stable extension API. |

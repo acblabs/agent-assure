@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-documentation-gap"
+      ],
+      "content_digest": "8888888888888888888888888888888888888888888888888888888888888888",
+      "ref_id": "ref-documentation-gap",
+      "source_id": "documentation-checklist-2026"
+    }
+  ],
+  "tools": [
+    "documentation_check"
+  ]
+}

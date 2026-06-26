@@ -15,3 +15,13 @@
   source/content associations during catalog reconstruction, modeled provider
   selection as layered configuration precedence, added a fake-PHI redaction
   fixture case, and enabled socket-disabled pytest runs.
+- Expanded the prior authorization evidence fixtures to cover nine ordinary
+  one-source/one-claim cases plus the shared-source edge case, added a
+  blind-review release-evidence rubric, and added a minimal expense-approval
+  example with baseline and provider-control candidate variants.
+- Moved bundled example subject logic under an explicit package examples
+  namespace, merged duplicate evidence references before persistence, and
+  removed unused split-case YAML placeholders.
+- Kept bundled example modules installable for reproducibility while documenting
+  that they are not a stable public extension API, and moved the intentionally
+  lossy evidence assembly behavior out of shared framework evidence helpers.

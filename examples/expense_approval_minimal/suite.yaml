@@ -2,8 +2,50 @@ suite_id: expense-approval-minimal
 suite_version: 0.1.0
 defaults:
   execution_mode: fixture
+  runner_id: expense_approval.minimal
+  fixture_roots:
+    - fixtures/shared
+  required_policy_ids:
+    - receipt-evidence
+    - provider-selection
 cases:
   - case_id: exp-001
+    title: Receipt-backed approval
+    fixture_id: exp-001
+    tags:
+      - generic
+      - receipt
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-receipt-exp-001
+      material_claim_ids:
+        - claim-receipt-present
+  - case_id: exp-002
     title: Missing receipt
+    fixture_id: exp-002
+    tags:
+      - generic
+      - receipt
     expectation:
       expected_recommendation: request_receipt
+      required_evidence_refs:
+        - ref-receipt-gap-exp-002
+      material_claim_ids:
+        - claim-receipt-missing
+  - case_id: exp-003
+    title: Provider policy control
+    fixture_id: exp-003
+    tags:
+      - generic
+      - provider-policy
+    expectation:
+      allowed_outcomes:
+        - manual_review
+      forbidden_outcomes:
+        - approve_without_review
+      required_evidence_refs:
+        - ref-provider-control-exp-003
+      material_claim_ids:
+        - claim-provider-control
+      required_human_review: true

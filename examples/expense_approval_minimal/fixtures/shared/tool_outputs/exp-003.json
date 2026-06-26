@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-provider-control"
+      ],
+      "content_digest": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "ref_id": "ref-provider-control-exp-003",
+      "source_id": "expense-provider-policy"
+    }
+  ],
+  "tools": [
+    "expense_policy_check"
+  ]
+}

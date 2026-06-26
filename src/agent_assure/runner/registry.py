@@ -42,7 +42,9 @@ def register_builtin_runners() -> None:
     global _BUILTINS_REGISTERED
     if _BUILTINS_REGISTERED:
         return
-    from agent_assure.runner.prior_auth_synthetic import run_prior_auth_case
+    from agent_assure.examples.expense_approval_minimal.runner import run_expense_case
+    from agent_assure.examples.prior_auth_synthetic.runner import run_prior_auth_case
 
+    register_runner("expense_approval.minimal", run_expense_case)
     register_runner("prior_auth.synthetic", run_prior_auth_case)
     _BUILTINS_REGISTERED = True

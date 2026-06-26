@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-receipt-missing"
+      ],
+      "content_digest": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "ref_id": "ref-receipt-gap-exp-002",
+      "source_id": "receipt-check-exp-002"
+    }
+  ],
+  "tools": [
+    "receipt_check"
+  ]
+}

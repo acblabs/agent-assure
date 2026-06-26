@@ -10,5 +10,9 @@ The current implementation establishes the trust core:
 - privacy filters in `src/agent_assure/privacy`;
 - OpenTelemetry-aligned span-plan preview in `src/agent_assure/telemetry`.
 
+Bundled deterministic subjects live under `src/agent_assure/examples` so the
+example suites can run from an installed wheel. They are reproducibility
+fixtures, not the stable public extension API; see `docs/api_surface.md`.
+
 Future releases add full evaluation, reporting, comparison, and release evidence
 workflows.

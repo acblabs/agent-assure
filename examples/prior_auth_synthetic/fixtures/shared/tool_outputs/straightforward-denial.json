@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-benefit-exclusion"
+      ],
+      "content_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+      "ref_id": "ref-benefit-exclusion",
+      "source_id": "benefit-exclusion-policy-2026"
+    }
+  ],
+  "tools": [
+    "benefit_policy_lookup"
+  ]
+}

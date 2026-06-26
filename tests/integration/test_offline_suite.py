@@ -18,7 +18,7 @@ def test_prior_auth_suite_compiles_offline() -> None:
     compiled = compile_suite(SUITE)
     assert compiled.suite_id == "prior-auth-synthetic"
     assert compiled.defaults.fixture_roots == ("fixtures/shared",)
-    assert len(compiled.resolved_expectations) == 6
+    assert len(compiled.resolved_expectations) == 10
     expectations = {
         expectation.expectation_id: expectation for expectation in compiled.resolved_expectations
     }
@@ -30,8 +30,13 @@ def test_prior_auth_baseline_runs_offline() -> None:
     compiled = compile_suite(SUITE)
     runset = run_suite(compiled, load_variant_config(BASELINE), SUITE.parent)
     assert runset.suite_id == "prior-auth-synthetic"
-    assert len(runset.runs) == 6
-    assert {run.outcome for run in runset.runs} == {"approve", "escalate"}
+    assert len(runset.runs) == 10
+    assert {run.outcome for run in runset.runs} == {
+        "approve",
+        "deny",
+        "escalate",
+        "request_more_info",
+    }
 
 
 def test_suite_run_cli_checks_expected_compiled_suite_digest(tmp_path) -> None:  # type: ignore[no-untyped-def]

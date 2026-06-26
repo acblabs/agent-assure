@@ -51,3 +51,24 @@ claims:
       tests: [tests/unit/telemetry/test_span_plan.py]
       docs: [docs/otel_alignment.md, docs/standards/otel_genai_gap_analysis.md]
     limitations: v0.1 emits no SDK spans and performs no OTLP export.
+  - id: fixture-example-suites
+    claim: The repository includes synthetic prior-authorization and minimal expense-approval fixture suites that run independently in fixture mode.
+    evidence:
+      code: [src/agent_assure/examples/prior_auth_synthetic/runner.py, src/agent_assure/examples/expense_approval_minimal/runner.py]
+      tests: [tests/integration/test_offline_suite.py, tests/integration/test_expense_approval_minimal.py]
+      docs: [examples/prior_auth_synthetic/README.md, examples/expense_approval_minimal/README.md]
+    limitations: These examples are deterministic demonstrations, not live benchmarks or model-quality evaluations.
+  - id: evidence-refactor-regression
+    claim: The prior-authorization evidence-normalization candidate preserves ordinary one-source evidence links while exposing a shared-source multi-claim evidence-linking regression.
+    evidence:
+      code: [src/agent_assure/examples/prior_auth_synthetic/app.py]
+      tests: [tests/integration/test_evidence_regression.py]
+      docs: [docs/measurement/blind_review_release_evidence.md]
+    limitations: The regression is synthetic and fixture-bound; it does not measure clinical quality or live model behavior.
+  - id: bundled-examples-api-boundary
+    claim: Bundled example modules are installable for reproducible local demos but are not a stable extension API.
+    evidence:
+      code: [src/agent_assure/examples]
+      tests: [tests/integration/test_offline_suite.py, tests/integration/test_expense_approval_minimal.py]
+      docs: [docs/api_surface.md, docs/architecture.md, README.md]
+    limitations: A stable adapter or plugin API is outside the current release surface.

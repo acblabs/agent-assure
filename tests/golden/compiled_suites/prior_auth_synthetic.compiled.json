@@ -14,6 +14,50 @@
     },
     {
       "artifact_kind": "suite-case",
+      "case_id": "straightforward-denial",
+      "expectation_id": "straightforward-denial:expectation",
+      "fixture_id": "straightforward-denial",
+      "schema_version": "0.1.0",
+      "tags": [
+        "ordinary"
+      ],
+      "title": "Straightforward denial"
+    },
+    {
+      "artifact_kind": "suite-case",
+      "case_id": "missing-documentation",
+      "expectation_id": "missing-documentation:expectation",
+      "fixture_id": "missing-documentation",
+      "schema_version": "0.1.0",
+      "tags": [
+        "ordinary"
+      ],
+      "title": "Missing documentation"
+    },
+    {
+      "artifact_kind": "suite-case",
+      "case_id": "conflicting-evidence",
+      "expectation_id": "conflicting-evidence:expectation",
+      "fixture_id": "conflicting-evidence",
+      "schema_version": "0.1.0",
+      "tags": [
+        "ordinary"
+      ],
+      "title": "Conflicting evidence"
+    },
+    {
+      "artifact_kind": "suite-case",
+      "case_id": "ambiguous-case",
+      "expectation_id": "ambiguous-case:expectation",
+      "fixture_id": "ambiguous-case",
+      "schema_version": "0.1.0",
+      "tags": [
+        "ordinary"
+      ],
+      "title": "Ambiguous case"
+    },
+    {
+      "artifact_kind": "suite-case",
       "case_id": "prompt-injection-note",
       "expectation_id": "prompt-injection-note:expectation",
       "fixture_id": "prompt-injection-note",
@@ -99,6 +143,70 @@
       "schema_version": "0.1.0"
     },
     {
+      "allowed_outcomes": [],
+      "artifact_kind": "expectation",
+      "case_id": "straightforward-denial",
+      "expectation_id": "straightforward-denial:expectation",
+      "expected_recommendation": "deny",
+      "forbidden_outcomes": [],
+      "material_claim_ids": [
+        "claim-benefit-exclusion"
+      ],
+      "required_evidence_refs": [
+        "ref-benefit-exclusion"
+      ],
+      "required_human_review": false,
+      "schema_version": "0.1.0"
+    },
+    {
+      "allowed_outcomes": [],
+      "artifact_kind": "expectation",
+      "case_id": "missing-documentation",
+      "expectation_id": "missing-documentation:expectation",
+      "expected_recommendation": "request_more_info",
+      "forbidden_outcomes": [],
+      "material_claim_ids": [
+        "claim-documentation-gap"
+      ],
+      "required_evidence_refs": [
+        "ref-documentation-gap"
+      ],
+      "required_human_review": false,
+      "schema_version": "0.1.0"
+    },
+    {
+      "allowed_outcomes": [],
+      "artifact_kind": "expectation",
+      "case_id": "conflicting-evidence",
+      "expectation_id": "conflicting-evidence:expectation",
+      "expected_recommendation": "escalate",
+      "forbidden_outcomes": [],
+      "material_claim_ids": [
+        "claim-conflict-present"
+      ],
+      "required_evidence_refs": [
+        "ref-conflict-summary"
+      ],
+      "required_human_review": true,
+      "schema_version": "0.1.0"
+    },
+    {
+      "allowed_outcomes": [],
+      "artifact_kind": "expectation",
+      "case_id": "ambiguous-case",
+      "expectation_id": "ambiguous-case:expectation",
+      "expected_recommendation": "escalate",
+      "forbidden_outcomes": [],
+      "material_claim_ids": [
+        "claim-ambiguity-present"
+      ],
+      "required_evidence_refs": [
+        "ref-ambiguity-summary"
+      ],
+      "required_human_review": true,
+      "schema_version": "0.1.0"
+    },
+    {
       "allowed_outcomes": [
         "escalate"
       ],
@@ -180,7 +288,7 @@
     }
   ],
   "schema_version": "0.1.0",
-  "source_digest": "d9ed32849c95b10935ac705642fce56d8358ab6a3ec9e3efdc4a9861efe7d97e",
+  "source_digest": "1e65b3f5e5708892b5d4004640eabc0c069792f69fff1710f601ddfec6f7872d",
   "suite_id": "prior-auth-synthetic",
   "suite_version": "0.1.0"
 }

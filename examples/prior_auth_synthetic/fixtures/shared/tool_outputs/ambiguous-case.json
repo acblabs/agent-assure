@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-ambiguity-present"
+      ],
+      "content_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "ref_id": "ref-ambiguity-summary",
+      "source_id": "benefit-rule-ambiguity-check"
+    }
+  ],
+  "tools": [
+    "ambiguity_check"
+  ]
+}
