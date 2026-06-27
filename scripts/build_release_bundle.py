@@ -36,7 +36,7 @@ DEFAULT_OUT = ROOT / ".tmp" / "release"
 
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description="Build the v0.1 release evidence, SBOM, distribution, and replay bundle."
+        description="Build release evidence, SBOM, distribution, and replay artifacts."
     )
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--write-digests", type=Path, default=None)

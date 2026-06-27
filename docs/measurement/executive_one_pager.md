@@ -74,9 +74,9 @@ The repository includes:
 ## Boundaries
 
 The project currently does not evaluate live stochastic models, compare
-providers, estimate confidence intervals, certify safety, prove regulatory
-compliance, validate clinical use, or claim OpenTelemetry adoption. Unsupported
-capabilities are surfaced as `not_evaluated`.
+providers, estimate confidence intervals, establish safety assurance, prove
+regulatory compliance, validate clinical use, or claim OpenTelemetry adoption.
+Unsupported capabilities are surfaced as `not_evaluated`.
 
 Release signatures verify exact workflow identity and blob bytes. They are not
 safety, compliance, clinical-validity, or standards-acceptance claims.

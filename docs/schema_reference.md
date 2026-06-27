@@ -33,3 +33,9 @@ timestamps, model-call records, tool-call records, retrieval records, token
 usage, observed metrics, risk tags, variant names, or capability inventories.
 Future live/stochastic releases must add those fields through explicit schema
 evolution and digest-projection tests.
+
+External `AgentRunRecord` producers must also follow
+`agent-run-record-producer-contract/v1`, documented in
+`docs/schema_evolution.md`. In particular, material claim coverage is satisfied
+only by explicit `claim_evidence_links` that point to present evidence
+references.

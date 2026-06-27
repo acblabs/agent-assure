@@ -36,6 +36,8 @@ run sets, reports, fixture manifest, and dependency inventory.
 ## Reproduce From a Tag
 
 From a clean checkout of the tagged commit and the downloaded release bundle:
+the commands below show the v0.1.0 release; substitute the target tag,
+artifact filenames, and source ref for later releases.
 
 ```bash
 git checkout v0.1.0
@@ -131,5 +133,6 @@ bytes. The SBOM records the local release build environment and distribution
 file hashes; it is not a vulnerability assessment or supply-chain attestation.
 Replay cross-checks manifest-listed digests when the files are available under
 the artifact root, but it is still not a signature and does not replace cosign
-verification. Signed release evidence does not certify safety, compliance,
-clinical validity, live model quality, or OpenTelemetry adoption.
+verification. Signed release evidence does not establish safety assurance,
+compliance status, clinical validity, live model quality, or OpenTelemetry
+adoption.

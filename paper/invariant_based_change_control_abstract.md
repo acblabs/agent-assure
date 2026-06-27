@@ -16,5 +16,6 @@ visible recommendation and outcome for a shared-source case while losing the
 material `claim-duration` evidence link; the invariant failure is reproducible
 under equivalent fixtures and classified as a new failure. The approach is
 deliberately scoped to offline fixture-mode assurance. It does not evaluate live
-stochastic models, estimate model-quality rates, certify safety, prove
-regulatory compliance, validate clinical use, or claim standards adoption.
+stochastic models, estimate model-quality rates, establish safety assurance,
+prove regulatory compliance, validate clinical use, or claim standards
+adoption.

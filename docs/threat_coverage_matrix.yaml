@@ -77,5 +77,5 @@ uncovered:
     nist_ai_rmf: [Manage]
   - id: safety-or-regulatory-certification
     status: not_evaluated
-    reason: Deterministic fixture checks do not certify safety or compliance.
+    reason: Deterministic fixture checks do not establish safety assurance or compliance status.
     nist_ai_rmf: [Govern]

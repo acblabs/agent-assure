@@ -46,7 +46,8 @@ underlying language model. The repository examples exercise:
 
 The current implementation does not run live providers, estimate stochastic
 quality rates, compute confidence intervals, measure production cost or latency,
-certify safety, prove regulatory compliance, or validate clinical workflows.
+establish safety assurance, prove regulatory compliance, or validate clinical
+workflows.
 
 ## Measurement Method
 

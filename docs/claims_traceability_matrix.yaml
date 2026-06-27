@@ -128,3 +128,9 @@ claims:
       tests: [tests/unit/telemetry/test_span_plan.py]
       compat: [compat/otel_genai_semconv.lock, compat/otel_mapping_matrix.yaml]
     limitations: External OpenTelemetry conventions may change after the recorded review; the current implementation is a span-plan preview and does not emit SDK spans or OTLP telemetry.
+  - id: live-statistical-protocol
+    claim: A pre-live statistical protocol defines required baseline handling modes, hypotheses, sample-size planning, confidence intervals, interim-look rules, retry and exclusion rules, provider-version capture, rate-limit handling, cost budgets, live-run ethics and safety limits, and the future machine-readable protocol record requirement before any live stochastic evaluation.
+    evidence:
+      docs: [docs/measurement/experiment_protocol.md, docs/live_mode_roadmap.md, docs/limitations.md, docs/schema_evolution.md]
+      checks: [scripts/check_docs_alignment.py]
+    limitations: The protocol is a planning and review artifact only. The current CLI does not run live providers, compare stochastic providers, estimate live model quality, or emit OpenTelemetry SDK spans.

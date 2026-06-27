@@ -13,8 +13,12 @@ human review, runtime failures, fixture equivalence, provenance diffing, and
 CI/report gates.
 
 This scope does not evaluate live models, compare stochastic providers, estimate
-model-quality rates, certify safety, prove regulatory compliance, validate
-clinical workflows, or provide production PHI de-identification.
+model-quality rates, establish safety assurance, prove regulatory compliance,
+validate clinical workflows, or provide production PHI de-identification.
+
+A pre-live statistical protocol now exists for future stochastic work. It is a
+planning and review boundary, not evidence that live evaluation has been
+implemented.
 
 ## Measurement Boundary
 

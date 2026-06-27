@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added and tightened a pre-live statistical protocol for future stochastic
+  evaluation, covering baseline handling modes, hypotheses, reproducible
+  sample-size planning, confidence intervals, interim-look rules, retry and
+  exclusion rules, provider-version capture, rate-limit handling, cost budgets,
+  live-run ethics and safety limits, and the future machine-readable protocol
+  record requirement. Live execution remains unsupported.
+- Documented `agent-run-record-producer-contract/v1` so external
+  `AgentRunRecord` producers have a versioned contract for explicit material
+  claim-evidence links.
+- Hardened documentation-alignment checks so required Markdown sections ignore
+  fenced-code headings, missing protocol sections are covered by tests, and
+  conservative public-claim wording conventions are documented.
 - Hardened release replay so release manifests cross-check recorded artifact
   digests against regenerated files, including manifest-listed SBOM and
   distribution bytes, instead of treating manifest `sha256` values as

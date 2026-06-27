@@ -45,6 +45,11 @@
 - Publishable measurement, executive, technical-report, standards, and
   reproducibility documents with traceability to deterministic fixture evidence
   and explicit limitation boundaries.
+- Pre-live statistical protocol for future stochastic evaluation, covering
+  baseline handling modes, hypotheses, sample-size planning, confidence
+  intervals, interim-look rules, retry/exclusion rules, provider-version
+  capture, rate-limit handling, cost budgets, live-run ethics and safety
+  limits, and the future machine-readable protocol record requirement.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.
@@ -53,8 +58,9 @@
 
 ## Planned
 
-- Live stochastic evaluation, provider comparisons, confidence intervals, cost
-  distributions, and OpenTelemetry SDK export in a future release.
+- Live stochastic execution, provider adapters, provider comparisons, repeated
+  RunSets, stochastic outcome-rate evaluation, cost/latency distributions, and
+  OpenTelemetry SDK export in a future release.
 
 ## Explicitly unsupported in v0.1
 

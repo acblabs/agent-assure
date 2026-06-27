@@ -18,7 +18,9 @@ PUBLIC_DOCS = [
     ROOT / "CHANGELOG.md",
     ROOT / "docs" / "showcase.md",
     ROOT / "docs" / "limitations.md",
+    ROOT / "docs" / "live_mode_roadmap.md",
     ROOT / "docs" / "measurement" / "executive_one_pager.md",
+    ROOT / "docs" / "measurement" / "experiment_protocol.md",
     ROOT / "docs" / "measurement" / "measurement_brief_abstract.md",
     ROOT / "docs" / "measurement" / "nist_agentic_measurement_use_case.md",
     ROOT / "docs" / "standards" / "freshness_checklist.md",
@@ -32,10 +34,32 @@ PUBLIC_DOCS = [
 FORBIDDEN_POSITIVE_PATTERNS = [
     re.compile(r"\bNIST[- ]endorsed\b", re.IGNORECASE),
     re.compile(r"\bOpenTelemetry[- ]native\b", re.IGNORECASE),
-    re.compile(r"\bcertif(?:ies|ied|ication) (?:safety|compliance)\b", re.IGNORECASE),
+    re.compile(
+        r"\bcertif(?:y|ies|ied|ication)\s+(?:regulatory\s+)?(?:safety|compliance)\b",
+        re.IGNORECASE,
+    ),
     re.compile(r"\bclinical(?:ly)? validated\b", re.IGNORECASE),
     re.compile(r"\bregulatory compliance certified\b", re.IGNORECASE),
 ]
+
+REQUIRED_LIVE_PROTOCOL_SECTIONS = (
+    "## Scope",
+    "## Experimental Unit",
+    "## Baseline Handling",
+    "## Hypotheses",
+    "## Endpoints",
+    "## Sample-Size Plan",
+    "## Confidence-Interval Method",
+    "## Interim Looks and Stopping Rules",
+    "## Retry and Exclusion Rules",
+    "## Provider-Version Capture",
+    "## Rate-Limit Handling",
+    "## Cost Budgets",
+    "## Live-Run Ethics and Safety Limits",
+    "## Machine-Readable Protocol Record",
+    "## Required Artifacts Before Execution",
+    "## Interpretation Boundary",
+)
 
 REQUIRED_CLAIM_IDS = {
     "offline-fixture-mode",
@@ -49,6 +73,7 @@ REQUIRED_CLAIM_IDS = {
     "flagship-showcase-demo",
     "publishable-review-artifacts",
     "standards-freshness-review",
+    "live-statistical-protocol",
 }
 
 
@@ -61,6 +86,7 @@ def main() -> int:
     failures.extend(_check_schema_reference())
     failures.extend(_check_reason_codes())
     failures.extend(_check_otel_mapping())
+    failures.extend(_check_live_protocol())
     failures.extend(_check_standards_freshness())
     if failures:
         for failure in failures:
@@ -164,6 +190,97 @@ def _check_otel_mapping() -> list[str]:
         ):
             failures.append("OTel docs must document gen_ai.operation.name as not emitted")
     return failures
+
+
+def _check_live_protocol() -> list[str]:
+    protocol = ROOT / "docs" / "measurement" / "experiment_protocol.md"
+    roadmap = ROOT / "docs" / "live_mode_roadmap.md"
+    failures: list[str] = []
+    if not protocol.exists():
+        return failures
+    protocol_text = protocol.read_text(encoding="utf-8")
+    has_status = (
+        "Protocol status:" in protocol_text
+        and "pre-live statistical protocol" in protocol_text
+    )
+    if not has_status:
+        failures.append("live statistical protocol missing status line")
+    failures.extend(
+        _check_required_markdown_sections(
+            protocol_text,
+            REQUIRED_LIVE_PROTOCOL_SECTIONS,
+            document_name="live statistical protocol",
+            min_content_chars=80,
+        )
+    )
+    if roadmap.exists():
+        roadmap_text = roadmap.read_text(encoding="utf-8")
+        if "docs/measurement/experiment_protocol.md" not in roadmap_text:
+            failures.append("live roadmap missing protocol document link")
+    return failures
+
+
+def _check_required_markdown_sections(
+    text: str,
+    sections: tuple[str, ...],
+    *,
+    document_name: str,
+    min_content_chars: int,
+) -> list[str]:
+    failures: list[str] = []
+    for section in sections:
+        content = _markdown_section_content(text, section)
+        if content is None:
+            failures.append(f"{document_name} missing section: {section}")
+            continue
+        compact_content = re.sub(r"\s+", "", content)
+        if len(compact_content) < min_content_chars:
+            failures.append(f"{document_name} section is too short: {section}")
+    return failures
+
+
+def _markdown_section_content(text: str, section: str) -> str | None:
+    headings = _markdown_level2_headings(text)
+    section_index = next(
+        (index for index, heading in enumerate(headings) if heading[0] == section),
+        None,
+    )
+    if section_index is None:
+        return None
+    content_start = headings[section_index][2]
+    content_end = (
+        headings[section_index + 1][1]
+        if section_index + 1 < len(headings)
+        else len(text)
+    )
+    return text[content_start:content_end].strip()
+
+
+def _markdown_level2_headings(text: str) -> list[tuple[str, int, int]]:
+    headings: list[tuple[str, int, int]] = []
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    offset = 0
+    for line in text.splitlines(keepends=True):
+        stripped_line = line.rstrip("\r\n")
+        fence = re.match(r"^[ \t]{0,3}([`~]{3,})", stripped_line)
+        if fence:
+            marker = fence.group(1)
+            if not in_fence:
+                in_fence = True
+                fence_char = marker[0]
+                fence_len = len(marker)
+            elif marker[0] == fence_char and len(marker) >= fence_len:
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            offset += len(line)
+            continue
+        if not in_fence and re.match(r"^##\s+\S", stripped_line):
+            headings.append((stripped_line.strip(), offset, offset + len(line)))
+        offset += len(line)
+    return headings
 
 
 def _check_standards_freshness() -> list[str]:
