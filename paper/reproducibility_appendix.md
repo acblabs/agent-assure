@@ -103,14 +103,16 @@ raw payloads and does not emit `gen_ai.response.tokens` or generic
 ## Release Replay
 
 ```bash
-python scripts/reproduce_release.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 
 Release replay uses raw file digests for stable source artifacts and stable JSON
-projection digests for environment-bearing review artifacts. Digest replay is a
-reproducibility check, not a cryptographic signature. Cosign verification of
-workflow-signed release blobs is documented in `docs/release_evidence.md`.
+projection digests for environment-bearing review artifacts. The release bundle
+also records an SBOM plus Python wheel and source distribution assets in the
+release manifest. Digest replay is a reproducibility check, not a
+cryptographic signature. Cosign verification of workflow-signed release blobs
+is documented in `docs/release_evidence.md`.
 
 ## Test And Quality Checks
 

@@ -1,12 +1,145 @@
 name: release
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+  id-token: write
+
+env:
+  PYTHON_VERSION: "3.11"
+  COSIGN_VERSION: "v3.0.6"
+
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Resolve release labels
+        id: release-labels
+        shell: bash
+        run: |
+          set -euo pipefail
+          safe_ref_name="${GITHUB_REF_NAME//\//-}"
+          bundle_name="agent-assure-${safe_ref_name}-release-bundle"
+          notes_file="docs/release_notes/${GITHUB_REF_NAME#v}.md"
+          echo "RELEASE_BUNDLE_NAME=${bundle_name}" >> "${GITHUB_ENV}"
+          echo "RELEASE_NOTES_FILE=${notes_file}" >> "${GITHUB_ENV}"
+          echo "bundle_name=${bundle_name}" >> "${GITHUB_OUTPUT}"
       - run: pip install -e ".[dev]"
-      - run: python -m build
+      - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/')
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(python -c 'import agent_assure; print(agent_assure.__version__)')"
+          if [ "${GITHUB_REF_NAME}" != "v${version}" ]; then
+            echo "tag ${GITHUB_REF_NAME} does not match package version ${version}"
+            exit 1
+          fi
+          grep -Fq "## ${version} -" CHANGELOG.md
+      - run: python scripts/check_docs_alignment.py
+      - run: ruff check .
+      - run: mypy src
+      - run: pytest
+      - run: python scripts/update_golden.py
+      - run: agent-assure schema export --out schemas/v0.1.0
+      - run: git diff --exit-code -- schemas/v0.1.0
+      - name: Build release bundle
+        run: >
+          python scripts/build_release_bundle.py
+          --out .tmp/release
+          --write-digests .tmp/release/release-digest-replay.json
+          --source-ref "${GITHUB_REF}"
+      - name: Replay release digests
+        run: >
+          agent-assure release replay .tmp/release/release-digest-replay.json
+          --artifact-root .
+          --expect-ref "${GITHUB_REF}"
+          --require-current-commit
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.0.0
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      - name: Sign release bundle
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifacts=(
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/release-digest-replay.json
+            .tmp/release/sbom.cdx.json
+          )
+          while IFS= read -r artifact; do
+            artifacts+=("${artifact}")
+          done < <(find .tmp/release/dist -type f | sort)
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --yes --bundle "${artifact}.bundle" "${artifact}"
+          done
+      - name: Verify release bundle signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
+          issuer="https://token.actions.githubusercontent.com"
+          artifacts=(
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/release-digest-replay.json
+            .tmp/release/sbom.cdx.json
+          )
+          while IFS= read -r artifact; do
+            artifacts+=("${artifact}")
+          done < <(find .tmp/release/dist -type f | sort)
+          for artifact in "${artifacts[@]}"; do
+            cosign verify-blob "${artifact}" \
+              --bundle "${artifact}.bundle" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}"
+          done
+      - name: Upload release bundle artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.release-labels.outputs.bundle_name }}
+          path: .tmp/release
+      - name: Publish GitHub release assets
+        if: startsWith(github.ref, 'refs/tags/')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          assets=(
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/evidence-packet.json.bundle
+            .tmp/release/reports/evidence-packet.md
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/reports/release-artifact-manifest.json.bundle
+            .tmp/release/release-digest-replay.json
+            .tmp/release/release-digest-replay.json.bundle
+            .tmp/release/sbom.cdx.json
+            .tmp/release/sbom.cdx.json.bundle
+          )
+          while IFS= read -r artifact; do
+            assets+=("${artifact}")
+            assets+=("${artifact}.bundle")
+          done < <(find .tmp/release/dist -type f | sort)
+          if [ ! -f "${RELEASE_NOTES_FILE}" ]; then
+            echo "release notes file is missing: ${RELEASE_NOTES_FILE}"
+            exit 1
+          fi
+          if ! gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
+            gh release create "${GITHUB_REF_NAME}" \
+              --title "agent-assure ${GITHUB_REF_NAME}" \
+              --notes-file "${RELEASE_NOTES_FILE}"
+          fi
+          gh release upload "${GITHUB_REF_NAME}" "${assets[@]}" --clobber

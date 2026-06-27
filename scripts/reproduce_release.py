@@ -47,7 +47,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    for command, expected_exit in _commands(
+    for command, expected_exit in release_commands(
         out,
         suite=args.suite,
         baseline_variant=args.baseline_variant,
@@ -64,7 +64,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return result.returncode or 3
 
     replay = build_digest_replay(
-        _release_artifacts(out, artifact_prefix=args.artifact_prefix),
+        release_artifacts(out, artifact_prefix=args.artifact_prefix),
         project_root=ROOT,
         source_ref=args.source_ref or os.environ.get("GITHUB_REF"),
     )
@@ -111,7 +111,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _commands(
+def release_commands(
     out: Path,
     *,
     suite: str,
@@ -187,7 +187,7 @@ def _commands(
     )
 
 
-def _release_artifacts(out: Path, *, artifact_prefix: str) -> tuple[tuple[str, Path], ...]:
+def release_artifacts(out: Path, *, artifact_prefix: str) -> tuple[tuple[str, Path], ...]:
     return (
         ("compiled-suite", out / f"{artifact_prefix}.compiled.json"),
         ("fixture-manifest", out / f"{artifact_prefix}.fixtures.json"),

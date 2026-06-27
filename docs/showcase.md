@@ -74,8 +74,7 @@ provenance changes.
 
 These SHA-256 file digests are for stable LF-normalized JSON artifacts emitted
 by the command sequence above. They are reproducibility anchors, not signatures,
-release attestations, standards-conformant SBOMs, or cosign verification
-material.
+release attestations, release SBOMs, or cosign verification material.
 
 | Artifact | SHA-256 |
 | --- | --- |

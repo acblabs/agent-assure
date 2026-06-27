@@ -1,4 +1,4 @@
-.PHONY: test lint type build docs-align schemas schema-check
+.PHONY: test lint type build docs-align schemas schema-check release-bundle
 
 test:
 	pytest
@@ -11,6 +11,9 @@ type:
 
 build:
 	python -m build
+
+release-bundle:
+	python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 
 docs-align:
 	python scripts/check_docs_alignment.py

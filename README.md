@@ -62,16 +62,19 @@ expected to exit `1`. The CI command writes JSON/Markdown reports,
 `evidence-packet.json`, `evidence-packet.md`, `dependency-inventory.json`,
 `release-artifact-manifest.json`, and `ci-diagnostics.json`.
 
-Release evidence can be replayed from raw digests for stable source artifacts
-and stable JSON projection digests for environment-bearing packet artifacts:
+Release evidence can be bundled and replayed from raw digests for stable source
+artifacts and stable JSON projection digests for environment-bearing packet
+artifacts:
 
 ```bash
-python scripts/reproduce_release.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 
-For keyless cosign verification of workflow-signed release blobs, see
-`docs/release_evidence.md`.
+The release bundle includes the evidence packet, release manifest, replay file,
+SBOM, source distribution, wheel, and exact cosign-verifiable blobs when built
+by the release workflow. For keyless cosign verification of workflow-signed
+release blobs, see `docs/release_evidence.md`.
 
 ## What the demo shows
 
@@ -162,8 +165,8 @@ python -m build
 ```
 
 Dependency locking for release builds is documented in
-`docs/dependency_locking.md`. Release evidence reproduction and cosign
-verification are documented in `docs/release_evidence.md`.
+`docs/dependency_locking.md`. Release bundle reproduction, SBOM generation, and
+cosign verification are documented in `docs/release_evidence.md`.
 
 The installed package includes bundled deterministic examples for reproducible
 local demos. They are not a stable extension API; see `docs/api_surface.md`.

@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.1.0 - 2026-06-27
+
+- Finalized the v0.1.0 release bundle workflow with release tag validation,
+  documentation alignment, test/schema gates, SBOM generation, Python source
+  distribution and wheel assets, replay verification, keyless cosign signing,
+  and GitHub release asset upload. Hardened bundle assembly to use one
+  environment snapshot for the manifest and SBOM, normalized project package
+  names in SBOM component filtering, and documented that replay does not verify
+  release-only SBOM or distribution bytes without the signed manifest and blob
+  signatures.
 - Hardened release digest replay by separating replay source-commit/source-ref
   validation from current-checkout validation, centralizing role digest-mode
   policy, rejecting artifact paths that escape the replay root, and adding CI

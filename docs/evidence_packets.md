@@ -21,8 +21,10 @@ JSON packet unless explicit output paths are provided. For a known failing
 candidate, the CI gate is expected to exit `1` after reading the packet.
 
 The dependency inventory is a best-effort runtime package listing generated
-from the active Python environment. It is not a CycloneDX-conformant SBOM and
-does not include package URLs, wheel hashes, licenses, or a dependency graph.
+from the active Python environment. Release bundles additionally write an SBOM
+that records package URLs for installed packages and SHA-256 hashes for the
+built wheel and source distribution. Neither artifact is a vulnerability
+assessment or supply-chain attestation.
 
 Packet artifact digests, dependency-inventory digests, and release-manifest
 digests are raw SHA-256 hashes over the LF-normalized JSON files that were
@@ -34,8 +36,8 @@ limitations; it intentionally excludes exact-file digests and the release
 manifest.
 
 Release evidence can attach keyless cosign bundles to the packet, release
-artifact manifest, and digest replay file. Those signatures verify the exact
-bytes and workflow identity that signed them; they do not turn packet contents
-into safety, compliance, clinical-validation, live model-quality, or standards
-adoption evidence. See `docs/release_evidence.md` for exact verification
-commands.
+artifact manifest, digest replay file, SBOM, wheel, and source distribution.
+Those signatures verify the exact bytes and workflow identity that signed them;
+they do not turn packet contents into safety, compliance, clinical-validation,
+live model-quality, or standards adoption evidence. See
+`docs/release_evidence.md` for exact verification commands.

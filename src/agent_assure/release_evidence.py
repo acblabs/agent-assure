@@ -36,6 +36,10 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
 }
 NON_REPLAYED_ROLE_DIGEST_MODES: dict[str, Literal["not-replayed"]] = {
     "dependency-inventory": "not-replayed",
+    "python-distribution": "not-replayed",
+    "python-wheel": "not-replayed",
+    "sbom": "not-replayed",
+    "source-distribution": "not-replayed",
 }
 
 

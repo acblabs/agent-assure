@@ -6,10 +6,12 @@ from pathlib import Path
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset, runset_digest
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver
+from agent_assure.policies.evidence import evaluate_material_claim_evidence
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import GateState, ReasonCode, Severity
 from agent_assure.schema.evaluation import EvaluationSummary
-from agent_assure.schema.run import RunSet
+from agent_assure.schema.expectation import Expectation
+from agent_assure.schema.run import AgentRunRecord, EvidenceRef, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -210,6 +212,41 @@ def test_finding_id_is_stable_across_message_rewording() -> None:
     )
 
     assert first.finding_id == second.finding_id
+
+
+def test_material_claim_fallback_without_explicit_links_preserves_reason_code() -> None:
+    run = AgentRunRecord(
+        artifact_kind="agent-run-record",
+        run_id="run-no-links",
+        case_id="case-no-links",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="redacted input",
+        output_summary="redacted output",
+        evidence_refs=(
+            EvidenceRef(
+                artifact_kind="evidence-ref",
+                ref_id="evidence-1",
+                source_id="source-1",
+                claim_ids=("claim-present",),
+            ),
+        ),
+        claim_evidence_links=(),
+    )
+    expectation = Expectation(
+        artifact_kind="expectation",
+        expectation_id="expect-no-links",
+        case_id="case-no-links",
+        material_claim_ids=("claim-present", "claim-missing"),
+    )
+
+    findings = evaluate_material_claim_evidence(run, expectation)
+
+    assert len(findings) == 1
+    assert findings[0].control_id == "material_claims_have_evidence"
+    assert findings[0].target == "claim:claim-missing"
+    assert findings[0].reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
 
 
 def _report(variant: Path) -> EvaluationReport:

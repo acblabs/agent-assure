@@ -146,6 +146,57 @@ def test_release_digest_replay_ignores_manifest_summary_and_dependency_drift(
     assert verification.ok
 
 
+def test_release_digest_replay_records_but_does_not_replay_release_only_artifacts(
+    tmp_path: Path,
+) -> None:
+    artifacts = _write_core_artifacts(tmp_path)
+    _write_json(
+        tmp_path / "sbom.cdx.json",
+        {"bomFormat": "CycloneDX", "specVersion": "1.5", "components": []},
+    )
+    (tmp_path / "agent_assure-0.1.0-py3-none-any.whl").write_bytes(b"wheel-v1")
+    manifest = json.loads((tmp_path / "release-artifact-manifest.json").read_text())
+    manifest["artifacts"].extend(
+        [
+            _manifest_artifact("sbom", tmp_path / "sbom.cdx.json", tmp_path),
+            _manifest_artifact(
+                "python-wheel",
+                tmp_path / "agent_assure-0.1.0-py3-none-any.whl",
+                tmp_path,
+            ),
+        ]
+    )
+    _write_json(tmp_path / "release-artifact-manifest.json", manifest)
+    replay = build_digest_replay(artifacts, project_root=tmp_path)
+    _write_json(
+        tmp_path / "sbom.cdx.json",
+        {
+            "bomFormat": "CycloneDX",
+            "specVersion": "1.5",
+            "components": [{"name": "local-drift"}],
+        },
+    )
+    (tmp_path / "agent_assure-0.1.0-py3-none-any.whl").write_bytes(b"wheel-v2")
+
+    verification = verify_digest_replay(
+        replay,
+        artifact_root=tmp_path,
+        required_roles=CORE_RELEASE_ROLES,
+    )
+
+    assert verification.ok
+
+
+def test_release_digest_replay_rejects_release_only_artifacts_as_top_level_replay(
+    tmp_path: Path,
+) -> None:
+    sbom = tmp_path / "sbom.cdx.json"
+    _write_json(sbom, {"bomFormat": "CycloneDX", "specVersion": "1.5"})
+
+    with pytest.raises(ValueError, match="recorded but not replayed"):
+        build_digest_replay((("sbom", sbom),), project_root=tmp_path)
+
+
 def test_release_digest_replay_detects_manifest_raw_child_drift(tmp_path: Path) -> None:
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)

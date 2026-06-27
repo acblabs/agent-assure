@@ -96,15 +96,15 @@ claims:
       tests: [tests/integration/test_evidence_packet.py, tests/integration/test_ci_gate.py, tests/unit/release/test_release_evidence.py]
       commands: [agent-assure ci, agent-assure packet build, agent-assure ci gate, agent-assure release replay]
       docs: [docs/cli_contract.md, docs/evidence_packets.md, docs/release_evidence.md]
-    limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and remains separate from cryptographic signatures, standards-conformant SBOMs, or attestations.
+    limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and remains separate from cryptographic signatures or attestations.
   - id: signed-release-evidence
-    claim: Release evidence blobs can be signed keylessly in GitHub Actions and verified against the exact workflow identity and blob bytes.
+    claim: Release evidence, SBOM, wheel, and source distribution blobs can be signed keylessly in GitHub Actions and verified against the exact workflow identity and blob bytes.
     evidence:
-      code: [.github/workflows/evidence.yml, scripts/reproduce_release.py]
-      tests: [tests/unit/release/test_release_evidence.py]
+      code: [.github/workflows/release.yml, .github/workflows/evidence.yml, scripts/build_release_bundle.py, scripts/reproduce_release.py, src/agent_assure/reporting/sbom.py]
+      tests: [tests/unit/release/test_release_evidence.py, tests/unit/release/test_sbom.py]
       commands: [cosign sign-blob, cosign verify-blob, agent-assure release replay]
       docs: [docs/release_evidence.md, README.md]
-    limitations: Signatures verify exact bytes and workflow identity only; they do not certify safety, compliance, clinical validity, live model quality, or OpenTelemetry adoption.
+    limitations: Signatures verify exact bytes and workflow identity only; the SBOM records the local release build environment and distribution hashes but is not a vulnerability assessment or supply-chain attestation.
   - id: flagship-showcase-demo
     claim: The documented flagship showcase reproduces a passing baseline and an evidence-normalization candidate that keeps the visible answer stable while failing a material evidence-link invariant.
     evidence:
