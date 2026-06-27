@@ -98,12 +98,12 @@ release bundle:
 ```bash
 REPO=acblabs/agent-assure
 TAG=v0.1.0
-IDENTITY="https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}"
+IDENTITY="^https://github[.]com/${REPO}/[.]github/workflows/release[.]yml@refs/tags/${TAG}$"
 ISSUER="https://token.actions.githubusercontent.com"
 
 cosign verify-blob evidence-packet.json \
   --bundle evidence-packet.json.bundle \
-  --certificate-identity "${IDENTITY}" \
+  --certificate-identity-regexp "${IDENTITY}" \
   --certificate-oidc-issuer "${ISSUER}"
 ```
 

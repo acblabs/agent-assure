@@ -60,8 +60,23 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/evidence.yml@${GITHUB_REF}"
+          identity_regexp="^https://github[.]com/${GITHUB_REPOSITORY}/[.]github/workflows/evidence[.]yml@${GITHUB_REF}$"
           issuer="https://token.actions.githubusercontent.com"
+          verify_blob() {
+            local artifact="$1"
+            local attempt
+            for attempt in 1 2 3 4 5; do
+              echo "verifying ${artifact} with ${identity_regexp} (attempt ${attempt})"
+              if cosign verify-blob "${artifact}" \
+                --bundle "${artifact}.bundle" \
+                --certificate-identity-regexp "${identity_regexp}" \
+                --certificate-oidc-issuer "${issuer}"; then
+                return 0
+              fi
+              sleep "$((attempt * 2))"
+            done
+            return 1
+          }
           artifacts=(
             .tmp/release/reports/evidence-packet.json
             .tmp/release/reports/release-artifact-manifest.json
@@ -72,16 +87,13 @@ jobs:
             artifacts+=("${artifact}")
           done < <(find .tmp/release/dist -type f | sort)
           for artifact in "${artifacts[@]}"; do
-            cosign verify-blob "${artifact}" \
-              --bundle "${artifact}.bundle" \
-              --certificate-identity "${identity}" \
-              --certificate-oidc-issuer "${issuer}"
+            verify_blob "${artifact}"
           done
       - name: Assert modified packet verification fails
         shell: bash
         run: |
           set -euo pipefail
-          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/evidence.yml@${GITHUB_REF}"
+          identity_regexp="^https://github[.]com/${GITHUB_REPOSITORY}/[.]github/workflows/evidence[.]yml@${GITHUB_REF}$"
           issuer="https://token.actions.githubusercontent.com"
           packet=.tmp/release/reports/evidence-packet.json
           packet_bundle="${packet}.bundle"
@@ -90,7 +102,7 @@ jobs:
           printf '\nmodified\n' >> "${modified_packet}"
           if cosign verify-blob "${modified_packet}" \
             --bundle "${packet_bundle}" \
-            --certificate-identity "${identity}" \
+            --certificate-identity-regexp "${identity_regexp}" \
             --certificate-oidc-issuer "${issuer}"; then
             echo "modified packet unexpectedly verified"
             exit 1
