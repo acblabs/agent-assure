@@ -18,6 +18,7 @@ Exported roots:
 - `expectation-change-record`
 - `fixture-manifest`
 - `release-artifact-manifest`
+- `release-digest-replay`
 - `run-set`
 - `span-plan`
 

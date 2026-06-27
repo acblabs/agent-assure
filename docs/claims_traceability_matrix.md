@@ -18,5 +18,6 @@ this document is the machine-checked source for documentation alignment.
 | `bundled-examples-api-boundary` | Bundled example modules are included for reproducible demos but are not a stable extension API. |
 | `expectation-evaluator-reports` | RunSet evaluation checks expectations and built-in deterministic controls, then writes JSON, Markdown, and Rich console reports. |
 | `comparison-reports` | RunSet comparison checks fixture equivalence, classifies deterministic control changes, and reports provenance changes separately from verdicts. |
-| `evidence-packets-ci-gates` | Evidence packets bundle deterministic summaries with interpretation guidance, environment provenance, dependency-inventory and manifest digests; CI gates provide full/fail-fast exits over candidate RunSets, summaries, and packets. |
+| `evidence-packets-ci-gates` | Evidence packets bundle deterministic summaries with interpretation guidance, environment provenance, dependency-inventory, manifest, and replay-stable digests; CI gates provide full/fail-fast exits over candidate RunSets, summaries, and packets. |
+| `signed-release-evidence` | Release evidence blobs can be signed keylessly in GitHub Actions and verified against exact workflow identity and blob bytes. |
 | `flagship-showcase-demo` | The README and showcase document reproduce a passing baseline and an evidence-normalization candidate with stable visible output and a missing material evidence link. |

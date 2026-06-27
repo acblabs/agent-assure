@@ -8,8 +8,10 @@ compilation, canonical digest generation, privacy-preserving summaries,
 deterministic fixture runs, expectation evaluation, and JSON/Markdown/Rich
 reports, evidence packets, and CI gates across synthetic prior-authorization and
 minimal expense-approval examples. It does not run live models, certify safety,
-validate clinical use, prove regulatory compliance, produce signed attestations,
-or claim OpenTelemetry adoption.
+validate clinical use, prove regulatory compliance, or claim OpenTelemetry
+adoption. Release evidence can be signed and verified for exact workflow
+identity; that signature is not a safety, compliance, or clinical-validity
+claim.
 
 ## Five-minute flagship demo
 
@@ -55,6 +57,17 @@ For this known failing candidate, both the CI command and packet gate are
 expected to exit `1`. The CI command writes JSON/Markdown reports,
 `evidence-packet.json`, `evidence-packet.md`, `dependency-inventory.json`,
 `release-artifact-manifest.json`, and `ci-diagnostics.json`.
+
+Release evidence can be replayed from raw digests for stable source artifacts
+and stable JSON projection digests for environment-bearing packet artifacts:
+
+```bash
+python scripts/reproduce_release.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
+```
+
+For keyless cosign verification of workflow-signed release blobs, see
+`docs/release_evidence.md`.
 
 ## Small generic example
 
@@ -132,7 +145,8 @@ python -m build
 ```
 
 Dependency locking for release builds is documented in
-`docs/dependency_locking.md`.
+`docs/dependency_locking.md`. Release evidence reproduction and cosign
+verification are documented in `docs/release_evidence.md`.
 
 The installed package includes bundled deterministic examples for reproducible
 local demos. They are not a stable extension API; see `docs/api_surface.md`.

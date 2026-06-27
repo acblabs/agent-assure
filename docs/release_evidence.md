@@ -1,0 +1,86 @@
+# Release Evidence
+
+Release evidence consists of the flagship fixture-mode outputs, an evidence
+packet, a release artifact manifest, a digest replay file, and optional keyless
+cosign bundles created by the GitHub Actions evidence workflow.
+
+The digest replay file records raw SHA-256 file digests for replay-stable
+source artifacts, such as the compiled suite and fixture manifest. For
+environment-bearing review artifacts, such as the evidence packet and release
+artifact manifest, it records a stable JSON projection digest that excludes
+volatile local environment fields while keeping deterministic verdict content.
+It is a reproducibility check, not a signature. Cosign bundles are the
+cryptographic verification material for byte-exact signed blobs.
+
+## Reproduce From a Tag
+
+From a clean checkout of the tagged commit:
+
+```bash
+git checkout v0.1.0
+pip install -e ".[dev]"
+python scripts/reproduce_release.py --out .tmp/release --expected-digests release-digest-replay.json
+```
+
+The script reruns the flagship suite and checks the published digest replay
+against regenerated local files. It fails if the checkout commit differs from
+the commit recorded in the replay file, a required release artifact is missing,
+or any regenerated replay digest differs. If the current git commit cannot be
+determined, commit-bound replay fails closed.
+
+For an already generated artifact directory:
+
+```bash
+agent-assure release replay release-digest-replay.json --artifact-root . --require-current-commit
+```
+
+Standalone replay follows the artifact paths inside the release artifact
+manifest projection. Keep the full generated artifact tree available under
+`--artifact-root`, including run sets, summaries, and dependency inventory; a
+reports-only directory is not sufficient.
+
+## Sign Blobs
+
+The evidence workflow signs these blobs with GitHub Actions OIDC identity:
+
+```bash
+cosign sign-blob --yes --bundle evidence-packet.json.bundle evidence-packet.json
+cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
+cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
+```
+
+The repository workflow pins the cosign binary to `v3.0.6` through the
+`cosign-release` installer input.
+
+## Verify Workflow Identity
+
+Use the exact repository, workflow path, and tag ref that produced the release
+evidence:
+
+```bash
+REPO=acblabs/agent-assure
+TAG=v0.1.0
+IDENTITY="https://github.com/${REPO}/.github/workflows/evidence.yml@refs/tags/${TAG}"
+ISSUER="https://token.actions.githubusercontent.com"
+
+cosign verify-blob evidence-packet.json \
+  --bundle evidence-packet.json.bundle \
+  --certificate-identity "${IDENTITY}" \
+  --certificate-oidc-issuer "${ISSUER}"
+```
+
+Repeat the same verification command for `release-artifact-manifest.json` and
+`release-digest-replay.json` with their matching `.bundle` files. Cosign
+verification is byte-exact: changing the packet after signing invalidates the
+signature. This is separate from digest replay, which uses stable projections
+for environment-bearing JSON artifacts.
+
+Sigstore documents keyless blob signing and GitHub Actions OIDC signing at
+https://docs.sigstore.dev/cosign/signing/signing_with_blobs/ and
+https://docs.sigstore.dev/quickstart/quickstart-ci/.
+
+## Limits
+
+Signed release evidence says that a specific workflow identity signed exact
+bytes. It does not certify safety, compliance, clinical validity, live model
+quality, or OpenTelemetry adoption.

@@ -10,6 +10,7 @@ from agent_assure.cli import (
     init_cmd,
     otel_cmd,
     packet_cmd,
+    release_cmd,
     schema_cmd,
     suite_cmd,
     validate_cmd,
@@ -24,6 +25,7 @@ app.command("evaluate")(evaluate_cmd.evaluate)
 app.command("compare")(compare_cmd.compare)
 app.command("ci")(ci_cmd.ci)
 app.add_typer(packet_cmd.app, name="packet")
+app.add_typer(release_cmd.app, name="release")
 app.add_typer(otel_cmd.app, name="otel")
 
 

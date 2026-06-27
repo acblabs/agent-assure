@@ -1,19 +1,114 @@
 name: evidence
-on: [workflow_dispatch]
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  PYTHON_VERSION: "3.11"
+  COSIGN_VERSION: "v3.0.6"
+
 jobs:
-  preview:
+  publish:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ env.PYTHON_VERSION }}
       - run: pip install -e ".[dev]"
-      - uses: ./.github/actions/agent-assure
+      - name: Reproduce release evidence
+        run: >
+          python scripts/reproduce_release.py
+          --out .tmp/release
+          --write-digests .tmp/release/release-digest-replay.json
+          --source-ref "${GITHUB_REF}"
+      - name: Replay release digests
+        run: >
+          agent-assure release replay .tmp/release/release-digest-replay.json
+          --artifact-root .
+          --require-current-commit
+      - name: Render span-plan preview
+        run: agent-assure otel preview tests/fixtures/run_record.json --out .tmp/release/span-plan.json
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v4.0.0
         with:
-          suite: examples/prior_auth_synthetic/suite.yaml
-          baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
-          candidate-variant: examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml
-          out-dir: .tmp/release
-          report-mode: full
-      - run: agent-assure otel preview tests/fixtures/run_record.json --out .tmp/release/span-plan.json
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      - name: Sign release evidence blobs
+        shell: bash
+        run: |
+          set -euo pipefail
+          artifacts=(
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/release-digest-replay.json
+          )
+          for artifact in "${artifacts[@]}"; do
+            cosign sign-blob --yes --bundle "${artifact}.bundle" "${artifact}"
+          done
+      - name: Verify workflow identity signatures
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/evidence.yml@${GITHUB_REF}"
+          issuer="https://token.actions.githubusercontent.com"
+          artifacts=(
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/release-digest-replay.json
+          )
+          for artifact in "${artifacts[@]}"; do
+            cosign verify-blob "${artifact}" \
+              --bundle "${artifact}.bundle" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}"
+          done
+      - name: Assert modified packet verification fails
+        shell: bash
+        run: |
+          set -euo pipefail
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/evidence.yml@${GITHUB_REF}"
+          issuer="https://token.actions.githubusercontent.com"
+          packet=.tmp/release/reports/evidence-packet.json
+          packet_bundle="${packet}.bundle"
+          modified_packet=.tmp/release/reports/evidence-packet.modified.json
+          cp "${packet}" "${modified_packet}"
+          printf '\nmodified\n' >> "${modified_packet}"
+          if cosign verify-blob "${modified_packet}" \
+            --bundle "${packet_bundle}" \
+            --certificate-identity "${identity}" \
+            --certificate-oidc-issuer "${issuer}"; then
+            echo "modified packet unexpectedly verified"
+            exit 1
+          fi
+          rm -f "${modified_packet}"
+      - name: Upload signed release evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-assure-release-evidence
+          path: .tmp/release
+
+  reproduce:
+    runs-on: ubuntu-latest
+    needs: publish
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: pip install -e ".[dev]"
+      - uses: actions/download-artifact@v4
+        with:
+          name: agent-assure-release-evidence
+          path: .tmp/published
+      - name: Replay published digests from a fresh checkout
+        run: >
+          python scripts/reproduce_release.py
+          --out .tmp/release
+          --expected-digests .tmp/published/release-digest-replay.json
+          --source-ref "${GITHUB_REF}"

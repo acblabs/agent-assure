@@ -5,8 +5,9 @@
 - Added CI orchestration over candidate RunSets with optional baseline
   comparison, full/fail-fast report modes, structured diagnostics, evidence
   packet generation, Markdown packets, environment provenance, local dependency
-  inventory generation, and release artifact manifests while signed attestations
-  remain outside the current claim boundary.
+  inventory generation, release artifact manifests, replay-stable release
+  digest checks, and keyless cosign signing/verification workflow support for
+  exact release evidence blobs.
 - Hardened post-review contracts: RunSets now bind suite version/digest and
   fixture manifest digest, evidence records include explicit claim-evidence
   links, provider expectation failures emit `FORBIDDEN_PROVIDER`, comparison

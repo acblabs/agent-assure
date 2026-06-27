@@ -31,5 +31,11 @@ cross-platform-stable JCS content digests used for suites, fixture manifests,
 and runset provenance. `packet_id` is derived from the redacted summaries after
 local environment metadata is excluded, plus interpretation text and
 limitations; it intentionally excludes exact-file digests and the release
-manifest. Cryptographically signed attestations remain outside the current claim
-boundary.
+manifest.
+
+Release evidence can attach keyless cosign bundles to the packet, release
+artifact manifest, and digest replay file. Those signatures verify the exact
+bytes and workflow identity that signed them; they do not turn packet contents
+into safety, compliance, clinical-validation, live model-quality, or standards
+adoption evidence. See `docs/release_evidence.md` for exact verification
+commands.

@@ -87,7 +87,7 @@ def ci(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     if result.decision.exit_code:
-        console.print(json.dumps(result.decision.model_dump(), sort_keys=True))
+        typer.echo(json.dumps(result.decision.model_dump(), sort_keys=True))
         raise typer.Exit(result.decision.exit_code)
     console.print(result.decision.message)
 

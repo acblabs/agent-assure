@@ -31,6 +31,9 @@
 - Evidence packets that bundle evaluation and comparison summaries with
   interpretation guidance, environment metadata, deterministic input artifact
   digests, dependency-inventory digest, and release artifact manifest.
+- Release digest replay with stable projections for environment-bearing review
+  artifacts, plus keyless cosign workflow signing for exact packet, manifest,
+  and replay-file verification by GitHub Actions workflow identity.
 - CI gates for candidate RunSets, optional baseline comparisons, evaluation
   summaries, comparison summaries, and evidence packets with full/fail-fast
   report modes and stable pass, fail, and invalid-comparison exit codes.
@@ -45,7 +48,6 @@
 
 ## Planned
 
-- Cryptographically signed release attestations.
 - Live stochastic evaluation, provider comparisons, confidence intervals, cost
   distributions, and OpenTelemetry SDK export in a future release.
 

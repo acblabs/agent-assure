@@ -13,7 +13,7 @@ from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
 from agent_assure.schema.packet import EvidencePacket
-from agent_assure.schema.release import ReleaseArtifactManifest
+from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
@@ -33,6 +33,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "expectation-change-record": ExpectationChangeRecord,
     "fixture-manifest": FixtureManifest,
     "release-artifact-manifest": ReleaseArtifactManifest,
+    "release-digest-replay": ReleaseDigestReplay,
     "run-set": RunSet,
     "span-plan": SpanPlan,
 }

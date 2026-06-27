@@ -1,0 +1,113 @@
+{
+  "$defs": {
+    "ReleaseReplayArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "release-replay-artifact",
+          "default": "release-replay-artifact",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "digest_mode": {
+          "default": "raw-sha256",
+          "enum": [
+            "raw-sha256",
+            "replay-stable-json-sha256"
+          ],
+          "title": "Digest Mode",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.1.0",
+          "default": "0.1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "path",
+        "sha256"
+      ],
+      "title": "ReleaseReplayArtifact",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/release-digest-replay.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "release-digest-replay",
+      "default": "release-digest-replay",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/ReleaseReplayArtifact"
+      },
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "limitations": {
+      "default": [
+        "release digest replay records raw file digests for replay-stable source artifacts and stable JSON projection digests for environment-bearing review artifacts; it is not a signature, attestation, safety certification, or compliance certification"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Commit"
+    },
+    "source_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Ref"
+    }
+  },
+  "required": [
+    "artifacts"
+  ],
+  "title": "ReleaseDigestReplay",
+  "type": "object"
+}

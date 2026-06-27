@@ -12,7 +12,12 @@ from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
-from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
+from agent_assure.schema.release import (
+    ReleaseArtifact,
+    ReleaseArtifactManifest,
+    ReleaseDigestReplay,
+    ReleaseReplayArtifact,
+)
 from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
@@ -58,6 +63,8 @@ __all__ = [
     "ReasonCode",
     "ReleaseArtifact",
     "ReleaseArtifactManifest",
+    "ReleaseDigestReplay",
+    "ReleaseReplayArtifact",
     "RunSet",
     "Severity",
     "SpanAttribute",

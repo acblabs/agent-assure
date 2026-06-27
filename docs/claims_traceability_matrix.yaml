@@ -91,12 +91,20 @@ claims:
   - id: evidence-packets-ci-gates
     claim: Evidence packets bundle deterministic report summaries with interpretation guidance, environment provenance, dependency-inventory digest, release manifest, and input digests; CI gates provide full/fail-fast report modes and stable pass/fail/invalid exit codes over candidate RunSets, summaries, and packets.
     evidence:
-      schemas: [evidence-packet, environment-info, release-artifact-manifest]
-      code: [src/agent_assure/reporting/packet.py, src/agent_assure/reporting/environment.py, src/agent_assure/ci.py, src/agent_assure/cli/packet_cmd.py, src/agent_assure/cli/ci_cmd.py]
-      tests: [tests/integration/test_evidence_packet.py, tests/integration/test_ci_gate.py]
-      commands: [agent-assure ci, agent-assure packet build, agent-assure ci gate]
-      docs: [docs/cli_contract.md, docs/evidence_packets.md]
-    limitations: Packet, dependency-inventory, and manifest digests are reproducibility anchors, not cryptographic signatures, standards-conformant SBOMs, or attestations.
+      schemas: [evidence-packet, environment-info, release-artifact-manifest, release-digest-replay]
+      code: [src/agent_assure/reporting/packet.py, src/agent_assure/reporting/environment.py, src/agent_assure/ci.py, src/agent_assure/release_evidence.py, src/agent_assure/cli/packet_cmd.py, src/agent_assure/cli/ci_cmd.py, src/agent_assure/cli/release_cmd.py]
+      tests: [tests/integration/test_evidence_packet.py, tests/integration/test_ci_gate.py, tests/unit/release/test_release_evidence.py]
+      commands: [agent-assure ci, agent-assure packet build, agent-assure ci gate, agent-assure release replay]
+      docs: [docs/cli_contract.md, docs/evidence_packets.md, docs/release_evidence.md]
+    limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and remains separate from cryptographic signatures, standards-conformant SBOMs, or attestations.
+  - id: signed-release-evidence
+    claim: Release evidence blobs can be signed keylessly in GitHub Actions and verified against the exact workflow identity and blob bytes.
+    evidence:
+      code: [.github/workflows/evidence.yml, scripts/reproduce_release.py]
+      tests: [tests/unit/release/test_release_evidence.py]
+      commands: [cosign sign-blob, cosign verify-blob, agent-assure release replay]
+      docs: [docs/release_evidence.md, README.md]
+    limitations: Signatures verify exact bytes and workflow identity only; they do not certify safety, compliance, clinical validity, live model quality, or OpenTelemetry adoption.
   - id: flagship-showcase-demo
     claim: The documented flagship showcase reproduces a passing baseline and an evidence-normalization candidate that keeps the visible answer stable while failing a material evidence-link invariant.
     evidence:

@@ -13,6 +13,7 @@ Current commands:
 - `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
+- `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
 
 `evaluate` writes `evaluation-report.json`, `evaluation-summary.json`,
@@ -67,6 +68,18 @@ nonzero exit it writes `ci-diagnostics.json` with exit code, reason code,
 artifact path, validator, and report paths, and prints the same decision as
 structured JSON. `ci gate` remains available for post-hoc gating of an existing
 `evaluation-summary`, `comparison-summary`, or `evidence-packet`.
+
+`release replay` validates a `release-digest-replay` artifact under
+`--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable
+source artifacts and stable JSON projection digests for environment-bearing
+review artifacts. By default it requires the compiled-suite, fixture-manifest,
+evidence-packet, and release-artifact-manifest roles. `--require-current-commit`
+requires the current git checkout to match the replay file's `source_commit`;
+`--expect-commit` checks an explicit commit value. Digest mismatches, missing
+release artifacts, commit mismatches, or unavailable git commit metadata when
+commit checking is requested exit `1`; malformed replay artifacts exit `2`
+through Typer validation. Keyless cosign signature verification remains an
+external `cosign verify-blob` operation documented in `docs/release_evidence.md`.
 
 Exit-code mapping:
 
