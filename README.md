@@ -9,13 +9,18 @@ local fixtures.
 
 The current implementation supports offline schema validation, YAML suite
 compilation, canonical digest generation, privacy-preserving summaries,
-deterministic fixture runs, expectation evaluation, and JSON/Markdown/Rich
-reports, evidence packets, and CI gates across synthetic prior-authorization and
-minimal expense-approval examples. It does not run live models, establish
-safety assurance, validate clinical use, prove regulatory compliance, or claim
-OpenTelemetry adoption. Release evidence can be signed and verified for exact
-workflow identity; that signature is not a safety, compliance, or
-clinical-validity claim.
+deterministic fixture runs, expectation evaluation, JSON/Markdown/Rich reports,
+evidence packets, and CI gates across synthetic prior-authorization and minimal
+expense-approval examples. The development branch also includes explicit
+live-adapter commands for protocol-bound repeated provider observations,
+cluster-aware stochastic rates, paired or fixed-reference live comparisons,
+completion/provenance checks, and cost/latency reports. Live reports are
+time-bound operational evidence for
+declared provider/model/configuration windows; they do not establish safety
+assurance, validate clinical use, prove regulatory compliance, provide general
+provider-quality evidence, or claim OpenTelemetry adoption. Release evidence
+can be signed and verified for exact workflow identity; that signature is not a
+safety, compliance, or clinical-validity claim.
 
 ## Five-minute flagship demo
 
@@ -109,10 +114,15 @@ The project currently claims only deterministic, offline controls implemented in
 this repository. Public claims are tracked in
 `docs/claims_traceability_matrix.yaml`.
 
-A pre-live statistical protocol is documented in
-`docs/measurement/experiment_protocol.md` for future live stochastic
-evaluation. That protocol is a planning and review artifact; the current CLI
-still does not run live providers or make stochastic model-quality claims.
+A statistical protocol is documented in
+`docs/measurement/experiment_protocol.md` for live stochastic evaluation. The
+`agent-assure live` commands require a machine-readable protocol, run
+explicitly configured adapters, and analyze repeated observations with
+cluster-aware rates, protocol-declared comparison methods, and exploratory
+guardrails for low cluster counts. Live results remain bounded by the declared
+protocol, data boundary, provider/model configuration, and execution window.
+They are not general model-quality, safety, compliance, or clinical-validation
+claims.
 
 ## GitHub Actions snippet
 

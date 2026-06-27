@@ -64,7 +64,14 @@ def test_run_record_payload_redaction_is_explicit_before_persistence() -> None:
 
 
 def test_live_mode_is_schema_recognized() -> None:
-    record = _record(execution_mode="live")
+    record = _record(
+        execution_mode="live",
+        observation_id="obs-001",
+        repetition_index=0,
+        schedule_index=0,
+        cluster_id="case-001",
+        adapter_id="static-jsonl",
+    )
     assert record.execution_mode is ExecutionMode.live
 
 

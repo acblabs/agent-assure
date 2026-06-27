@@ -69,14 +69,18 @@ The repository includes:
 - CI gates with pass/fail/invalid-comparison exit behavior;
 - evidence packets, dependency inventory, release manifests, digest replay, and
   keyless cosign workflow verification for exact signed blobs;
-- OpenTelemetry-aligned span-plan preview from structured run records.
+- OpenTelemetry-aligned span-plan preview from structured run records;
+- explicit live-adapter commands for protocol-bound repeated observations,
+  cluster-aware expectation-pass rates, provider/model group summaries,
+  protocol-declared comparisons, and cost/latency distributions.
 
 ## Boundaries
 
-The project currently does not evaluate live stochastic models, compare
-providers, estimate confidence intervals, establish safety assurance, prove
-regulatory compliance, validate clinical use, or claim OpenTelemetry adoption.
-Unsupported capabilities are surfaced as `not_evaluated`.
+Live reports are time-bound to declared provider/model/configuration windows
+and approved data boundaries. The project does not establish safety assurance,
+prove regulatory compliance, validate clinical use, certify provider quality,
+or claim OpenTelemetry adoption. Unsupported capabilities are surfaced as
+`not_evaluated`.
 
 Release signatures verify exact workflow identity and blob bytes. They are not
 safety, compliance, clinical-validity, or standards-acceptance claims.

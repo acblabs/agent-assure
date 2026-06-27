@@ -1,8 +1,13 @@
 from __future__ import annotations
 
+import sys
 from pathlib import Path
 
-import scripts.check_docs_alignment as docs_alignment
+ROOT = Path(__file__).resolve().parents[3]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+import scripts.check_docs_alignment as docs_alignment  # noqa: E402
 
 
 def test_forbidden_patterns_catch_affirmative_certify_claims() -> None:
@@ -122,5 +127,5 @@ def _protocol_fixture(
             else full_section
         )
         sections.append(f"{heading}\n\n{content}")
-    header = "# Experiment Protocol\n\nProtocol status: pre-live statistical protocol.\n\n"
+    header = "# Experiment Protocol\n\nProtocol status: live statistical protocol.\n\n"
     return header + "\n\n".join(sections)

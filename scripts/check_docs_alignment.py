@@ -74,6 +74,7 @@ REQUIRED_CLAIM_IDS = {
     "publishable-review-artifacts",
     "standards-freshness-review",
     "live-statistical-protocol",
+    "live-stochastic-evaluation",
 }
 
 
@@ -199,10 +200,7 @@ def _check_live_protocol() -> list[str]:
     if not protocol.exists():
         return failures
     protocol_text = protocol.read_text(encoding="utf-8")
-    has_status = (
-        "Protocol status:" in protocol_text
-        and "pre-live statistical protocol" in protocol_text
-    )
+    has_status = "Protocol status:" in protocol_text and "statistical protocol" in protocol_text
     if not has_status:
         failures.append("live statistical protocol missing status line")
     failures.extend(
@@ -213,6 +211,18 @@ def _check_live_protocol() -> list[str]:
             min_content_chars=80,
         )
     )
+    for needle in (
+        "DEFF = 1 + (m - 1) * rho",
+        "effective_n = planned_observations / DEFF",
+        "`confidence_level = 0.950000`",
+        "tool-schema digest",
+        "policy-bundle digest",
+        "tokens-per-minute cap",
+        "fewer than 30",
+        "at least 50",
+    ):
+        if needle not in protocol_text:
+            failures.append(f"live statistical protocol missing required content: {needle}")
     if roadmap.exists():
         roadmap_text = roadmap.read_text(encoding="utf-8")
         if "docs/measurement/experiment_protocol.md" not in roadmap_text:

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
@@ -85,8 +85,35 @@ class AgentRunRecord(PersistedArtifact):
     outcome: str
     input_summary: str
     output_summary: str
+    observation_status: Literal["included", "excluded"] = "included"
+    observation_id: str | None = None
+    repetition_index: int | None = Field(default=None, ge=0)
+    schedule_index: int | None = Field(default=None, ge=0)
+    randomization_block_id: str | None = None
+    cluster_id: str | None = None
+    source_group_id: str | None = None
+    adapter_id: str | None = None
     provider: str | None = None
     model: str | None = None
+    resolved_model: str | None = None
+    provider_api_version: str | None = None
+    provider_sdk: str | None = None
+    provider_region: str | None = None
+    provider_response_id: str | None = None
+    started_at_utc: str | None = None
+    completed_at_utc: str | None = None
+    latency_ms: int | None = Field(default=None, ge=0)
+    attempt_count: int | None = Field(default=None, ge=1)
+    retry_count: int | None = Field(default=None, ge=0)
+    rate_limit_events: int | None = Field(default=None, ge=0)
+    exclusion_reason: str | None = None
+    prompt_tokens: int | None = Field(default=None, ge=0)
+    completion_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    estimated_cost_usd: str | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
     tools: tuple[str, ...] = ()
     evidence_refs: tuple[EvidenceRef, ...] = ()
     evidence_items: tuple[EvidenceItem, ...] = ()
@@ -120,6 +147,31 @@ class AgentRunRecord(PersistedArtifact):
     def _validate_summary_type(cls, value: str) -> str:
         return value
 
+    @model_validator(mode="after")
+    def _validate_live_metadata(self) -> AgentRunRecord:
+        if self.execution_mode is ExecutionMode.fixture:
+            return self
+        missing = [
+            field_name
+            for field_name in (
+                "observation_id",
+                "repetition_index",
+                "schedule_index",
+                "adapter_id",
+                "cluster_id",
+            )
+            if getattr(self, field_name) is None
+        ]
+        if missing:
+            raise ValueError("live run records require: " + ", ".join(missing))
+        if self.observation_status == "excluded" and not self.exclusion_reason:
+            raise ValueError("excluded live run records require exclusion_reason")
+        if self.total_tokens is not None:
+            component_total = (self.prompt_tokens or 0) + (self.completion_tokens or 0)
+            if component_total and component_total != self.total_tokens:
+                raise ValueError("total_tokens must equal prompt_tokens + completion_tokens")
+        return self
+
 
 class RunSet(PersistedArtifact):
     artifact_kind: Literal["run-set"] = "run-set"
@@ -129,6 +181,10 @@ class RunSet(PersistedArtifact):
     suite_digest: DigestHex
     fixture_manifest_digest: DigestHex
     execution_mode: ExecutionMode = ExecutionMode.fixture
+    protocol_id: str | None = None
+    protocol_digest: DigestHex | None = None
+    completion_status: Literal["complete", "incomplete"] = "complete"
+    stop_reasons: tuple[str, ...] = ()
     runs: tuple[AgentRunRecord, ...]
 
     @field_validator("execution_mode", mode="before")
@@ -136,7 +192,25 @@ class RunSet(PersistedArtifact):
     def _coerce_execution_mode(cls, value: object) -> ExecutionMode:
         return coerce_enum(ExecutionMode, value)
 
-    @field_validator("runs", mode="before")
+    @field_validator("runs", "stop_reasons", mode="before")
     @classmethod
-    def _coerce_runs(cls, value: object) -> object:
+    def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_live_protocol_binding(self) -> RunSet:
+        if self.execution_mode is not ExecutionMode.live:
+            return self
+        missing = [
+            field_name
+            for field_name in ("protocol_id", "protocol_digest")
+            if getattr(self, field_name) is None
+        ]
+        if missing:
+            raise ValueError("live run sets require: " + ", ".join(missing))
+        if self.completion_status == "incomplete" and not self.stop_reasons:
+            raise ValueError("incomplete live run sets require stop_reasons")
+        for run in self.runs:
+            if run.execution_mode is not ExecutionMode.live:
+                raise ValueError("live run sets may contain only live run records")
+        return self

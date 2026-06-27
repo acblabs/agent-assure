@@ -3,11 +3,36 @@
     "AgentRunRecord": {
       "additionalProperties": false,
       "properties": {
+        "adapter_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adapter Id"
+        },
         "artifact_kind": {
           "const": "agent-run-record",
           "default": "agent-run-record",
           "title": "Artifact Kind",
           "type": "string"
+        },
+        "attempt_count": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Count"
         },
         "case_id": {
           "minLength": 1,
@@ -30,6 +55,56 @@
           "title": "Claims",
           "type": "array"
         },
+        "cluster_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cluster Id"
+        },
+        "completed_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At Utc"
+        },
+        "completion_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completion Tokens"
+        },
+        "estimated_cost_usd": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Usd"
+        },
         "evidence_items": {
           "default": [],
           "items": {
@@ -45,6 +120,18 @@
           },
           "title": "Evidence Refs",
           "type": "array"
+        },
+        "exclusion_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclusion Reason"
         },
         "execution_mode": {
           "$ref": "#/$defs/ExecutionMode",
@@ -64,6 +151,19 @@
           "title": "Input Summary",
           "type": "string"
         },
+        "latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Latency Ms"
+        },
         "model": {
           "anyOf": [
             {
@@ -75,6 +175,27 @@
           ],
           "default": null,
           "title": "Model"
+        },
+        "observation_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observation Id"
+        },
+        "observation_status": {
+          "default": "included",
+          "enum": [
+            "included",
+            "excluded"
+          ],
+          "title": "Observation Status",
+          "type": "string"
         },
         "outcome": {
           "title": "Outcome",
@@ -96,6 +217,19 @@
           },
           "title": "Policy Results",
           "type": "array"
+        },
+        "prompt_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Tokens"
         },
         "provenance": {
           "$ref": "#/$defs/Provenance",
@@ -124,20 +258,168 @@
           "default": null,
           "title": "Provider"
         },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_response_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Id"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "randomization_block_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Randomization Block Id"
+        },
+        "rate_limit_events": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate Limit Events"
+        },
         "recommendation": {
           "title": "Recommendation",
           "type": "string"
+        },
+        "repetition_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Repetition Index"
+        },
+        "resolved_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Model"
+        },
+        "retry_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry Count"
         },
         "run_id": {
           "minLength": 1,
           "title": "Run Id",
           "type": "string"
         },
+        "schedule_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schedule Index"
+        },
         "schema_version": {
           "const": "0.1.0",
           "default": "0.1.0",
           "title": "Schema Version",
           "type": "string"
+        },
+        "source_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Group Id"
+        },
+        "started_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At Utc"
         },
         "tools": {
           "default": [],
@@ -146,6 +428,19 @@
           },
           "title": "Tools",
           "type": "array"
+        },
+        "total_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens"
         }
       },
       "required": [
@@ -531,6 +826,15 @@
       "title": "Artifact Kind",
       "type": "string"
     },
+    "completion_status": {
+      "default": "complete",
+      "enum": [
+        "complete",
+        "incomplete"
+      ],
+      "title": "Completion Status",
+      "type": "string"
+    },
     "execution_mode": {
       "$ref": "#/$defs/ExecutionMode",
       "default": "fixture"
@@ -539,6 +843,31 @@
       "pattern": "^[a-f0-9]{64}$",
       "title": "Fixture Manifest Digest",
       "type": "string"
+    },
+    "protocol_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Protocol Digest"
+    },
+    "protocol_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Protocol Id"
     },
     "runs": {
       "items": {
@@ -556,6 +885,14 @@
       "default": "0.1.0",
       "title": "Schema Version",
       "type": "string"
+    },
+    "stop_reasons": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Stop Reasons",
+      "type": "array"
     },
     "suite_digest": {
       "pattern": "^[a-f0-9]{64}$",

@@ -1,11 +1,11 @@
 # Experiment Protocol
 
-Protocol status: pre-live statistical protocol. This document defines the
-minimum statistical, operational, and safety controls required before any live
-stochastic evaluation is run. It does not authorize live execution; live
-provider adapters, repeated RunSets, provider comparisons, cost and latency
-reports, OpenTelemetry SDK spans, and OTLP export remain future implementation
-work.
+Protocol status: live statistical protocol. This document defines the minimum
+statistical, operational, and safety controls required before interpreting a
+live stochastic evaluation. It does not authorize broad model-quality,
+safety-assurance, compliance, or clinical-validity claims. Runtime isolation,
+OpenTelemetry SDK spans, runtime context propagation, and OTLP export remain
+future implementation work.
 
 The protocol is intentionally conservative. A live result must be interpreted
 as time-bound evidence about a declared provider/model/configuration/date
@@ -158,14 +158,17 @@ and observed effective sample size after clustering.
 
 ## Confidence-Interval Method
 
-Primary binary endpoints must report 95 percent confidence intervals. For
-the default concurrent paired design, use paired cluster-level inference. The
+Primary binary endpoints must report 95 percent confidence intervals. The
+v0.1 implementation accepts only `confidence_level = 0.950000`; protocols that
+need 90 percent or 99 percent intervals require a schema and critical-value
+update before execution. For the default concurrent paired design, use paired
+cluster-level inference. The
 preferred large-sample method is a paired, cluster-stratified bootstrap that
 resamples independence clusters and keeps all planned baseline/candidate
 observations for each sampled cluster. For fixed-reference threshold mode, use a
 one-sample interval or test against the declared constant; paired methods are
-not valid in that mode. For per-arm descriptive rates, Wilson intervals may be
-reported as supporting context.
+not valid in that mode. Per-arm descriptive rates must use cluster-aware
+metadata and must not treat repeated observations as independent.
 
 Percentile cluster bootstrap intervals are acceptable only with at least 50
 independent clusters. With 30 to 49 independent clusters, the confirmatory
@@ -173,6 +176,11 @@ interval must be a t-interval over cluster-level paired differences or a
 predeclared BCa bootstrap with a small-cluster caveat. Fewer than 30
 independent clusters is exploratory only unless an external statistical review
 approves a different exact or randomization method before execution.
+
+Per-arm descriptive rates may report a pooled observation rate together with a
+cluster-mean rate. When cluster sizes are unequal, the pooled rate and the
+cluster-centered confidence interval can have different centers; reports must
+show enough metadata for reviewers to see that distinction.
 
 For rare critical events, including sensitive-content leaks or forbidden
 tool/provider use, an observed count of zero must be reported with an upper
@@ -210,7 +218,9 @@ reasons.
 Retries must never be used to improve a model answer. A retry is allowed only
 when no usable provider response was accepted, such as a transient transport
 failure, timeout before response receipt, or provider-side 5xx error. The
-default maximum is two retries with exponential backoff and jitter.
+default maximum is two retries with exponential backoff. Production protocols
+may add jitter; deterministic review fixtures may declare jitter-free backoff
+so replay timing remains predictable.
 
 The following outcomes are included rather than excluded:
 
@@ -258,6 +268,11 @@ The runner must honor `Retry-After` or equivalent provider guidance when it is
 available. It must not use parallelism, account rotation, or region rotation to
 bypass limits. If rate-limit failures exceed the predeclared threshold, the run
 must stop cleanly and be marked incomplete or inconclusive.
+
+When a tokens-per-minute cap is declared, the live configuration must provide a
+maximum generated-token reservation. The runner paces requests using the prompt
+character count plus that reservation before each provider call, then reconciles
+the window with observed token usage when the provider reports it.
 
 Rate-limit events are operational findings. They must be reported with redacted
 metadata and included in reliability summaries.
@@ -311,17 +326,22 @@ reported as an unresolved limitation.
 
 ## Machine-Readable Protocol Record
 
-Before live execution is implemented, this prose protocol must be paired with a
-strict, frozen JSON protocol record. The record must have its own artifact kind,
-schema version, canonical digest, and schema evolution path. A live RunSet and
-evidence packet must reference that digest so reviewers can verify that the run
-was executed under the declared hypotheses, baseline mode, sample-size plan,
-retry/exclusion policy, rate-limit policy, cost budget, provider-version
-capture plan, and safety limits.
+This prose protocol is paired with a strict JSON `live-protocol-record`
+artifact. The record has its own artifact kind, schema version, canonical
+digest path, and schema evolution path. A live evaluation report can reference
+that digest so reviewers can verify that the run was executed under the
+declared hypotheses, baseline mode, sample-size plan, retry/exclusion policy,
+rate-limit policy, cost budget, provider-version capture plan, and safety
+limits.
 
-The first live-capable schema release must include this protocol record as a
-persisted artifact. Until that exists, live execution remains unsupported even
-though the statistical protocol is documented.
+The machine-readable protocol record must include the tool-schema digest and
+policy-bundle digest. Each live observation's provenance must carry matching
+digests; mismatches make the RunSet invalid for live evaluation.
+
+The live protocol record is necessary but not sufficient for interpretation.
+Reports must still show whether the executed RunSet matched the approved
+configuration, whether exclusions and retries were handled as declared, and
+whether any budget, rate-limit, privacy, or safety stop condition was reached.
 
 ## Required Artifacts Before Execution
 

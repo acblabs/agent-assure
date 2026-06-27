@@ -11,6 +11,15 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
+from agent_assure.schema.live import (
+    LiveComparisonReport,
+    LiveDistribution,
+    LiveEvaluationReport,
+    LiveGroupSummary,
+    LiveObservationResult,
+    LiveProtocolRecord,
+    LiveRate,
+)
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import (
     ReleaseArtifact,
@@ -57,6 +66,13 @@ __all__ = [
     "Finding",
     "GateState",
     "InstalledPackage",
+    "LiveComparisonReport",
+    "LiveDistribution",
+    "LiveEvaluationReport",
+    "LiveGroupSummary",
+    "LiveObservationResult",
+    "LiveProtocolRecord",
+    "LiveRate",
     "PersistedArtifact",
     "PacketArtifactDigest",
     "PolicyResult",

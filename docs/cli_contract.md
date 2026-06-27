@@ -13,6 +13,10 @@ Current commands:
 - `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
+- `agent-assure live adapters`
+- `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON`
+- `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
+- `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
 
@@ -68,6 +72,53 @@ nonzero exit it writes `ci-diagnostics.json` with exit code, reason code,
 artifact path, validator, and report paths, and prints the same decision as
 structured JSON. `ci gate` remains available for post-hoc gating of an existing
 `evaluation-summary`, `comparison-summary`, or `evidence-packet`.
+
+`live adapters` lists installed live adapter identifiers. `live run` consumes a
+compiled suite, live run configuration, and `live-protocol-record`. The command
+checks that the config matches the frozen protocol ID, digest, planned
+repetitions, tool-schema and policy-bundle digests, request budget, cost
+budget, retry policy, and rate-limit caps, then writes a `run-set` with
+`execution_mode` `live` and protocol binding. When `tokens_per_minute` is
+declared, the adapter must declare `max_output_tokens`; the runner reserves the
+prompt character count plus max generated tokens before each provider call. The
+static JSONL adapter is intended for offline tests and fixtures; the
+OpenAI-compatible chat-completions adapter requires explicit `allow_network:
+true` in the live config and an API key environment variable. Live run records
+store redacted summaries, provider/model labels, resolved provider-version
+metadata when required by the protocol, observation IDs, cluster/source-group
+IDs, repetition and schedule indexes, attempt/retry/rate-limit counters,
+inclusion or exclusion state, timestamps, token counts when available,
+estimated cost, latency, and provenance digests. They do not persist raw
+prompts or raw provider outputs.
+
+`live evaluate` evaluates each included live observation against the compiled
+expectation for its case, checks actual observations against the protocol
+binding, then writes `live-evaluation-report.json` and
+`live-evaluation-report.md`. The report includes completion status, stop
+reasons, budget-exhaustion status, cluster-aware
+expectation-pass rates, outcome rates, reason-code rates, exclusion rates,
+pooled and cluster-mean rates, cluster counts, design effects, effective sample
+sizes, largest-cluster sensitivity values, per-observation tool-schema and
+policy-bundle provenance digests, exploratory flags, provider/model group
+summaries, latency distributions, estimated-cost distributions,
+observation-level findings, and limitations. It exits `1` when any included
+observation has a blocking
+expectation/policy finding or protocol exclusion limits are exceeded.
+
+`live compare` compares two protocol-bound live evaluation reports. Group IDs,
+baseline mode, non-inferiority margin, and confidence level come from the
+`live-protocol-record`, not CLI flags. `concurrent_paired` mode uses matched
+cluster-level pass-rate differences with the protocol-declared paired cluster
+t-interval or paired cluster percentile bootstrap. `fixed_reference` mode
+compares candidate cluster rates with the frozen reference rate and does not
+use paired language. The command writes `live-comparison-report.json` and
+`live-comparison-report.md`, including baseline/candidate pass rates,
+pass-rate difference, a cluster-level interval, compared-cluster count,
+effective sample size, exploratory status, p50 latency delta, and total-cost
+delta. Comparisons with fewer than 30 compared clusters, or percentile
+bootstrap comparisons with fewer than 50 compared clusters, cannot produce a
+confirmatory pass. The comparison is time-bound to the reports being compared
+and is not a general provider-quality claim.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable

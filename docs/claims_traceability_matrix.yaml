@@ -129,8 +129,18 @@ claims:
       compat: [compat/otel_genai_semconv.lock, compat/otel_mapping_matrix.yaml]
     limitations: External OpenTelemetry conventions may change after the recorded review; the current implementation is a span-plan preview and does not emit SDK spans or OTLP telemetry.
   - id: live-statistical-protocol
-    claim: A pre-live statistical protocol defines required baseline handling modes, hypotheses, sample-size planning, confidence intervals, interim-look rules, retry and exclusion rules, provider-version capture, rate-limit handling, cost budgets, live-run ethics and safety limits, and the future machine-readable protocol record requirement before any live stochastic evaluation.
+    claim: A statistical protocol defines required baseline handling modes, hypotheses, sample-size planning, 95 percent confidence intervals, cluster-count guardrails, retry and exclusion rules, provider-version and provenance capture, rate-limit handling, cost budgets, live-run ethics, safety limits, and the machine-readable protocol record used by live reports.
     evidence:
       docs: [docs/measurement/experiment_protocol.md, docs/live_mode_roadmap.md, docs/limitations.md, docs/schema_evolution.md]
       checks: [scripts/check_docs_alignment.py]
-    limitations: The protocol is a planning and review artifact only. The current CLI does not run live providers, compare stochastic providers, estimate live model quality, or emit OpenTelemetry SDK spans.
+      schemas: [live-protocol-record]
+    limitations: The protocol is a planning and review boundary. It does not by itself establish safety, compliance, clinical validity, provider quality, or OpenTelemetry adoption.
+  - id: live-stochastic-evaluation
+    claim: Explicit live commands require a frozen live protocol, run configured provider adapters, produce protocol-bound repeated live RunSets, aggregate cluster-aware expectation-pass, outcome, reason-code, and exclusion rates, report pooled and cluster-mean rates with design effects and effective sample sizes, account for incomplete stops and provenance digests, summarize provider/model groups, compare live reports using protocol-declared paired or fixed-reference methods with exploratory guardrails, and report cost/latency distributions.
+    evidence:
+      schemas: [agent-run-record, run-set, live-evaluation-report, live-comparison-report]
+      code: [src/agent_assure/live, src/agent_assure/cli/live_cmd.py, src/agent_assure/reporting/live.py]
+      tests: [tests/unit/evaluation/test_live_statistics.py, tests/integration/test_live_cli.py]
+      commands: [agent-assure live adapters, agent-assure live run, agent-assure live evaluate, agent-assure live compare]
+      docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/schema_reference.md]
+    limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. Runtime isolation, process emergency records, OpenTelemetry SDK spans, and OTLP export remain future work. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.

@@ -44,10 +44,11 @@ underlying language model. The repository examples exercise:
 - runtime failure capture;
 - fixture equivalence and provenance diffing.
 
-The current implementation does not run live providers, estimate stochastic
-quality rates, compute confidence intervals, measure production cost or latency,
-establish safety assurance, prove regulatory compliance, or validate clinical
-workflows.
+The current implementation includes explicit live-adapter commands for
+protocol-bound repeated observations and operational rate, cost, and latency
+reports. These reports do not establish safety assurance, prove regulatory
+compliance, validate clinical workflows, provide general provider-quality
+evidence, or support general stochastic model-quality claims.
 
 ## Measurement Method
 

@@ -37,15 +37,18 @@ This contract is behavioral, not merely syntactic. A record can validate
 against schema version `0.1.0` and still fail deterministic evaluation if it
 omits explicit material claim-evidence links.
 
-## Next Live-Capable Schema Release
+## Live-Capable Schema Additions
 
-The first release that executes live stochastic evaluations must add a
-machine-readable live protocol record as a persisted artifact. RunSets and
-evidence packets for live execution must reference the protocol record digest so
-reviewers can verify that the run used the declared hypotheses, baseline mode,
-sample-size plan, retry/exclusion rules, provider-version capture, rate-limit
-policy, cost budget, and safety limits.
+Live-capable development adds `live-protocol-record`,
+`live-evaluation-report`, and `live-comparison-report` persisted artifacts.
+Live reports may reference the protocol record digest so reviewers can verify
+that the run used the declared hypotheses, baseline mode, sample-size plan,
+retry/exclusion rules, provider-version capture, rate-limit policy, cost
+budget, tool-schema digest, policy-bundle digest, and safety limits. Live
+RunSets and reports can also record incomplete execution, stop reasons,
+cluster-mean rates, and exploratory comparison status so low-power or
+budget-constrained runs are not interpreted as confirmatory evidence.
 
-That release must either add a new schema directory and update JSON Schema
-`$id` values, or explicitly document why the persisted shape remains compatible
-while publishing a new producer-contract version.
+The next public schema release must either add a new schema directory and
+update JSON Schema `$id` values, or explicitly document why the persisted shape
+remains compatible while publishing a new producer-contract version.

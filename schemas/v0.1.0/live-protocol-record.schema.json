@@ -1,0 +1,353 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.1.0/live-protocol-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowed_exclusion_reasons": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Exclusion Reasons",
+      "type": "array"
+    },
+    "analysis_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Analysis Digest",
+      "type": "string"
+    },
+    "analysis_method": {
+      "default": "paired_cluster_t_interval",
+      "enum": [
+        "paired_cluster_t_interval",
+        "paired_cluster_bootstrap_percentile",
+        "fixed_reference_cluster_t_interval",
+        "cluster_t_interval",
+        "exploratory"
+      ],
+      "title": "Analysis Method",
+      "type": "string"
+    },
+    "approved_data_boundary": {
+      "minLength": 1,
+      "title": "Approved Data Boundary",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "const": "live-protocol-record",
+      "default": "live-protocol-record",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "assumed_intraclass_correlation": {
+      "pattern": "^0\\.[0-9]{6}$",
+      "title": "Assumed Intraclass Correlation",
+      "type": "string"
+    },
+    "baseline_group_id": {
+      "default": "overall",
+      "title": "Baseline Group Id",
+      "type": "string"
+    },
+    "baseline_mode": {
+      "default": "concurrent_paired",
+      "enum": [
+        "concurrent_paired",
+        "fixed_reference"
+      ],
+      "title": "Baseline Mode",
+      "type": "string"
+    },
+    "candidate_group_id": {
+      "default": "overall",
+      "title": "Candidate Group Id",
+      "type": "string"
+    },
+    "cluster_by": {
+      "default": "case_id",
+      "enum": [
+        "case_id",
+        "source_group_id"
+      ],
+      "title": "Cluster By",
+      "type": "string"
+    },
+    "confidence_level": {
+      "const": "0.950000",
+      "default": "0.950000",
+      "title": "Confidence Level",
+      "type": "string"
+    },
+    "design_effect": {
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Design Effect",
+      "type": "string"
+    },
+    "exclusion_policy": {
+      "minLength": 1,
+      "title": "Exclusion Policy",
+      "type": "string"
+    },
+    "fixed_reference_pass_rate": {
+      "anyOf": [
+        {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fixed Reference Pass Rate"
+    },
+    "hypothesis_family": {
+      "default": "governance_control_non_inferiority",
+      "enum": [
+        "governance_control_non_inferiority",
+        "provider_model_comparison",
+        "regression_detection"
+      ],
+      "title": "Hypothesis Family",
+      "type": "string"
+    },
+    "max_cost_per_observation_usd": {
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Max Cost Per Observation Usd",
+      "type": "string"
+    },
+    "max_exclusion_rate": {
+      "default": "0.000000",
+      "pattern": "^0\\.[0-9]{6}$",
+      "title": "Max Exclusion Rate",
+      "type": "string"
+    },
+    "max_generated_tokens": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Generated Tokens"
+    },
+    "max_rate_limit_events": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Max Rate Limit Events",
+      "type": "integer"
+    },
+    "max_requests": {
+      "minimum": 1,
+      "title": "Max Requests",
+      "type": "integer"
+    },
+    "max_retries": {
+      "default": 2,
+      "minimum": 0,
+      "title": "Max Retries",
+      "type": "integer"
+    },
+    "max_total_cost_usd": {
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Max Total Cost Usd",
+      "type": "string"
+    },
+    "max_total_tokens": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Max Total Tokens"
+    },
+    "non_inferiority_margin": {
+      "pattern": "^0\\.[0-9]{6}$",
+      "title": "Non Inferiority Margin",
+      "type": "string"
+    },
+    "planned_clusters": {
+      "minimum": 1,
+      "title": "Planned Clusters",
+      "type": "integer"
+    },
+    "planned_effective_n": {
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Planned Effective N",
+      "type": "string"
+    },
+    "planned_observations": {
+      "minimum": 1,
+      "title": "Planned Observations",
+      "type": "integer"
+    },
+    "planned_observations_per_cluster": {
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Planned Observations Per Cluster",
+      "type": "string"
+    },
+    "planned_repetitions": {
+      "minimum": 1,
+      "title": "Planned Repetitions",
+      "type": "integer"
+    },
+    "policy_bundle_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Policy Bundle Digest",
+      "type": "string"
+    },
+    "primary_endpoint": {
+      "default": "expectation_pass_rate",
+      "enum": [
+        "expectation_pass_rate",
+        "reason_code_rate"
+      ],
+      "title": "Primary Endpoint",
+      "type": "string"
+    },
+    "protocol_id": {
+      "minLength": 1,
+      "title": "Protocol Id",
+      "type": "string"
+    },
+    "provider_version_capture": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Provider Version Capture",
+      "type": "array"
+    },
+    "randomization_blocking": {
+      "const": "balanced_case_blocks",
+      "default": "balanced_case_blocks",
+      "title": "Randomization Blocking",
+      "type": "string"
+    },
+    "randomization_seed": {
+      "minimum": 0,
+      "title": "Randomization Seed",
+      "type": "integer"
+    },
+    "requests_per_minute": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Requests Per Minute"
+    },
+    "retry_initial_backoff_seconds": {
+      "default": "1.000000",
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Retry Initial Backoff Seconds",
+      "type": "string"
+    },
+    "retry_max_backoff_seconds": {
+      "default": "8.000000",
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Retry Max Backoff Seconds",
+      "type": "string"
+    },
+    "safety_limits": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Safety Limits",
+      "type": "array"
+    },
+    "sample_size_rationale": {
+      "minLength": 1,
+      "title": "Sample Size Rationale",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "stopping_rules": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Stopping Rules",
+      "type": "array"
+    },
+    "suite_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Suite Digest",
+      "type": "string"
+    },
+    "suite_id": {
+      "minLength": 1,
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "suite_version": {
+      "minLength": 1,
+      "title": "Suite Version",
+      "type": "string"
+    },
+    "tokens_per_minute": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tokens Per Minute"
+    },
+    "tool_schema_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Tool Schema Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_id",
+    "suite_id",
+    "suite_version",
+    "suite_digest",
+    "non_inferiority_margin",
+    "planned_observations",
+    "planned_clusters",
+    "planned_observations_per_cluster",
+    "assumed_intraclass_correlation",
+    "design_effect",
+    "planned_effective_n",
+    "sample_size_rationale",
+    "planned_repetitions",
+    "randomization_seed",
+    "max_requests",
+    "max_total_cost_usd",
+    "max_cost_per_observation_usd",
+    "exclusion_policy",
+    "tool_schema_digest",
+    "policy_bundle_digest",
+    "analysis_digest",
+    "approved_data_boundary"
+  ],
+  "title": "LiveProtocolRecord",
+  "type": "object"
+}

@@ -18,7 +18,7 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `REDACTION_FAILED`: redaction did not satisfy the configured check.
 - `RAW_SENSITIVE_CONTENT`: persisted summaries contain sensitive-looking content.
 - `PROMPT_INJECTION_BOUNDARY`: a runtime prompt-boundary signal was emitted or captured.
-- `RUNTIME_FAILED`: fixture execution produced a runtime error record.
+- `RUNTIME_FAILED`: execution produced a runtime error record.
 - `VALID_RECORD_MISSING`: a suite case is missing a valid run record or has duplicate records.
 - `FIXTURE_EQUIVALENCE_FAILED`: compared runs do not share equivalent fixture material.
 - `NON_NFC_STRING`: canonicalization rejected a non-NFC string.

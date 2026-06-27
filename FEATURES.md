@@ -45,11 +45,23 @@
 - Publishable measurement, executive, technical-report, standards, and
   reproducibility documents with traceability to deterministic fixture evidence
   and explicit limitation boundaries.
-- Pre-live statistical protocol for future stochastic evaluation, covering
+- Statistical protocol for live stochastic evaluation, covering
   baseline handling modes, hypotheses, sample-size planning, confidence
   intervals, interim-look rules, retry/exclusion rules, provider-version
   capture, rate-limit handling, cost budgets, live-run ethics and safety
-  limits, and the future machine-readable protocol record requirement.
+  limits, and machine-readable protocol records.
+- Live protocol, live-evaluation, and live-comparison persisted schemas;
+  explicit live provider adapters including a static JSONL adapter for offline
+  tests and an OpenAI-compatible chat-completions adapter requiring network
+  opt-in; protocol-bound repeated live RunSets; cluster-aware
+  expectation-pass, outcome, reason-code, and exclusion rates; pooled and
+  cluster-mean rate reporting; design-effect and effective-sample-size
+  reporting with largest-cluster sensitivity; paired cluster comparisons for
+  concurrent baselines; fixed-reference comparisons for threshold protocols;
+  low-cluster exploratory guardrails; provider-version and tool/policy
+  provenance checks;
+  retry/rate-limit/token-pacing/budget enforcement fields; incomplete-run
+  status; provider/model group summaries; and cost/latency distributions.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.
@@ -58,9 +70,8 @@
 
 ## Planned
 
-- Live stochastic execution, provider adapters, provider comparisons, repeated
-  RunSets, stochastic outcome-rate evaluation, cost/latency distributions, and
-  OpenTelemetry SDK export in a future release.
+- Runtime isolation, external subprocess harnesses, OpenTelemetry SDK spans,
+  runtime context propagation, and OTLP export in a future release.
 
 ## Explicitly unsupported in v0.1
 
@@ -69,4 +80,5 @@
 - Clinical validation.
 - NIST endorsement.
 - OpenTelemetry adoption or standards compliance.
-- Live model-quality regression detection.
+- General live model-quality regression detection beyond declared,
+  time-bound live protocol analyses.

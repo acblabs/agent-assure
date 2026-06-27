@@ -2,12 +2,24 @@
 
 ## Unreleased
 
-- Added and tightened a pre-live statistical protocol for future stochastic
+- Added initial live evaluation support: strict live protocol/report schemas,
+  explicit live provider adapters, protocol-bound repeated live RunSets,
+  cluster-aware expectation-pass/outcome/reason-code/exclusion rates,
+  pooled and cluster-mean rate reporting, design-effect and
+  effective-sample-size reporting with largest-cluster sensitivity,
+  protocol-declared paired-cluster t or bootstrap and fixed-reference live
+  comparison reports with exploratory cluster-count guardrails, provider-version
+  and tool/policy provenance checks, retry/rate-limit/token-pacing/budget
+  metadata, incomplete-run status, cost/latency distributions, and
+  `agent-assure live` CLI commands. The static JSONL adapter keeps the live
+  path testable without sockets; the OpenAI-compatible adapter requires
+  explicit network opt-in.
+- Added and tightened a statistical protocol for live stochastic
   evaluation, covering baseline handling modes, hypotheses, reproducible
   sample-size planning, confidence intervals, interim-look rules, retry and
   exclusion rules, provider-version capture, rate-limit handling, cost budgets,
-  live-run ethics and safety limits, and the future machine-readable protocol
-  record requirement. Live execution remains unsupported.
+  live-run ethics and safety limits, and the machine-readable protocol
+  record requirement.
 - Documented `agent-run-record-producer-contract/v1` so external
   `AgentRunRecord` producers have a versioned contract for explicit material
   claim-evidence links.

@@ -17,6 +17,6 @@ def evaluate_runtime_success(run: AgentRunRecord) -> tuple[ControlResult, ...]:
             reason_code=ReasonCode.RUNTIME_FAILED,
             severity=Severity.blocker,
             target=run.run_id,
-            message="run produced a fixture-mode runtime error record",
+            message="run produced a runtime error record",
         ),
     )

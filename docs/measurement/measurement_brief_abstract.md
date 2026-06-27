@@ -16,6 +16,6 @@ material evidence link; the report fails the candidate with
 not a live model-quality benchmark. It is a bounded assurance pattern for
 deterministic governance-pipeline change review, where unsupported capabilities
 remain `not_evaluated` and provenance digests are separated from behavioral
-verdicts. The method does not compare stochastic providers, establish safety
-assurance, validate clinical workflows, prove regulatory compliance, or claim
-standards adoption.
+verdicts. The fixture-mode result does not compare stochastic providers,
+establish safety assurance, validate clinical workflows, prove regulatory
+compliance, or claim standards adoption.
