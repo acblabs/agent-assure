@@ -52,7 +52,7 @@ jobs:
           )
           while IFS= read -r artifact; do
             artifacts+=("${artifact}")
-          done < <(find .tmp/release/dist -type f | sort)
+          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
           for artifact in "${artifacts[@]}"; do
             cosign sign-blob --yes --bundle "${artifact}.bundle" "${artifact}"
           done
@@ -90,7 +90,7 @@ jobs:
           )
           while IFS= read -r artifact; do
             artifacts+=("${artifact}")
-          done < <(find .tmp/release/dist -type f | sort)
+          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
           for artifact in "${artifacts[@]}"; do
             verify_blob "${artifact}"
           done

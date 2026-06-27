@@ -82,7 +82,7 @@ jobs:
           )
           while IFS= read -r artifact; do
             artifacts+=("${artifact}")
-          done < <(find .tmp/release/dist -type f | sort)
+          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
           for artifact in "${artifacts[@]}"; do
             cosign sign-blob --yes --bundle "${artifact}.bundle" "${artifact}"
           done
@@ -120,7 +120,7 @@ jobs:
           )
           while IFS= read -r artifact; do
             artifacts+=("${artifact}")
-          done < <(find .tmp/release/dist -type f | sort)
+          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
           for artifact in "${artifacts[@]}"; do
             verify_blob "${artifact}"
           done
@@ -150,7 +150,7 @@ jobs:
           while IFS= read -r artifact; do
             assets+=("${artifact}")
             assets+=("${artifact}.bundle")
-          done < <(find .tmp/release/dist -type f | sort)
+          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
           if [ ! -f "${RELEASE_NOTES_FILE}" ]; then
             echo "release notes file is missing: ${RELEASE_NOTES_FILE}"
             exit 1
