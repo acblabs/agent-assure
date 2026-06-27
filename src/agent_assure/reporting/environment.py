@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import platform
-import subprocess
 from importlib import metadata
 from pathlib import Path
 
+from agent_assure.artifact_io import file_sha256, git_output
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
@@ -33,10 +32,10 @@ def collect_environment(
         artifact_kind="environment-info",
         platform=platform.platform(),
         python_version=_python_version(),
-        git_commit=_git_output(project_root, "rev-parse", "HEAD"),
+        git_commit=git_output(project_root, "rev-parse", "HEAD"),
         git_dirty=_git_dirty(project_root),
         lockfile_path=_relative_path(lockfile, project_root) if lockfile else None,
-        lockfile_digest=_file_sha256(lockfile) if lockfile else None,
+        lockfile_digest=file_sha256(lockfile) if lockfile else None,
         dependency_inventory_path=(
             _relative_path(dependency_inventory_path, project_root)
             if dependency_inventory_path
@@ -67,7 +66,7 @@ def write_dependency_inventory(environment: EnvironmentInfo, path: Path) -> str:
         ],
     }
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return _file_sha256(path)
+    return file_sha256(path)
 
 
 def environment_with_dependency_inventory(project_root: Path, out_dir: Path) -> EnvironmentInfo:
@@ -118,7 +117,7 @@ def release_artifact(
         artifact_kind="release-artifact",
         role=role,
         path=_relative_path(path, project_root),
-        sha256=_file_sha256(path),
+        sha256=file_sha256(path),
     )
 
 
@@ -170,25 +169,8 @@ def _package_name(dist: metadata.Distribution) -> str:
     return name if name else "unknown"
 
 
-def _git_output(project_root: Path, *args: str) -> str | None:
-    try:
-        result = subprocess.run(
-            ["git", *args],
-            cwd=project_root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
-
-
 def _git_dirty(project_root: Path) -> bool | None:
-    output = _git_output(project_root, "status", "--porcelain")
+    output = git_output(project_root, "status", "--porcelain")
     if output is None:
         return None
     return bool(output)
@@ -207,7 +189,3 @@ def _relative_path(path: Path, root: Path) -> str:
         return path.resolve().relative_to(root.resolve()).as_posix()
     except ValueError:
         return path.as_posix()
-
-
-def _file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()

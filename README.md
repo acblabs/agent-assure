@@ -1,7 +1,11 @@
 # agent-assure
 
 `agent-assure` is an early implementation of expectation-driven assurance and
-change-control checks for deterministic AI agent governance pipelines.
+change-control checks for deterministic AI agent governance pipelines. It is
+designed for reviewers who need to know whether a candidate pipeline preserved
+explicit expectations, material evidence links, provider/tool boundaries,
+redaction behavior, escalation logic, and human-review routing under fixed
+local fixtures.
 
 The current implementation supports offline schema validation, YAML suite
 compilation, canonical digest generation, privacy-preserving summaries,
@@ -69,6 +73,14 @@ agent-assure release replay .tmp/release/release-digest-replay.json --artifact-r
 For keyless cosign verification of workflow-signed release blobs, see
 `docs/release_evidence.md`.
 
+## What the demo shows
+
+The flagship demo is intentionally narrow. It shows that a candidate can keep
+the same visible answer while losing a material evidence link, and that the
+evaluation report identifies the failing invariant under equivalent fixtures.
+It does not show live model quality, safety, compliance, clinical validity, or
+standards acceptance.
+
 ## Small generic example
 
 The expense-approval example is a compact non-healthcare suite that uses the
@@ -80,7 +92,12 @@ agent-assure suite compile examples/expense_approval_minimal/suite.yaml --out .t
 agent-assure suite run .tmp/expense.compiled.json --variant examples/expense_approval_minimal/variants/baseline.yaml --manifest .tmp/expense.fixtures.json --out .tmp/expense.baseline.json
 agent-assure suite run .tmp/expense.compiled.json --variant examples/expense_approval_minimal/variants/candidate_provider_policy.yaml --manifest .tmp/expense.fixtures.json --out .tmp/expense.candidate.json
 agent-assure evaluate .tmp/expense.baseline.json --suite .tmp/expense.compiled.json --out-dir .tmp/expense.baseline-report
+agent-assure evaluate .tmp/expense.candidate.json --suite .tmp/expense.compiled.json --out-dir .tmp/expense.candidate-report
 ```
+
+The baseline evaluation exits `0`. The provider-policy candidate is expected to
+exit `1` with deterministic provider, outcome, and human-review control
+findings.
 
 ## Current claim boundary
 

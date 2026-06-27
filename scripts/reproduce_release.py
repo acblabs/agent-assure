@@ -92,8 +92,8 @@ def main(argv: Sequence[str] | None = None) -> int:
                             {
                                 "role": finding.role,
                                 "path": finding.path,
-                                "expected_sha256": finding.expected_sha256,
-                                "actual_sha256": finding.actual_sha256,
+                                "expected": finding.expected,
+                                "actual": finding.actual,
                                 "message": finding.message,
                             }
                             for finding in verification.findings

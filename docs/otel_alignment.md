@@ -1,16 +1,28 @@
 # OpenTelemetry Alignment
 
 The current implementation produces an OpenTelemetry-aligned span-plan preview.
-It does not emit runtime SDK spans and does not claim adoption by the
-OpenTelemetry project.
+It does not emit runtime SDK spans, export OTLP data, propagate runtime context,
+or claim adoption by the OpenTelemetry project.
 
-Mapped attributes include:
+The preview is derived from structured `AgentRunRecord` fields. Run records do
+not persist an `otel_attributes` dictionary.
+
+Mapped preview attributes include:
 
 - `gen_ai.operation.name`
 - `gen_ai.provider.name`
 - `gen_ai.request.model`
+- `gen_ai.tool.name` on local tool-call preview events
 - `agent_assure.run_id`
 - `agent_assure.case_id`
+- `agent_assure.pipeline_id`
+- `agent_assure.execution_mode`
 
-The preview intentionally does not emit `gen_ai.response.tokens`. Generic tool
-call events use `gen_ai.tool.name` and do not emit `rpc.method`.
+The preview intentionally does not emit `gen_ai.response.tokens`. Generic local
+fixture tool events do not emit `rpc.method`.
+
+Project-specific provenance remains under the `agent_assure.*` namespace. The
+current gap assessment and contribution stance are documented in
+`docs/standards/otel_genai_gap_analysis.md`,
+`docs/standards/otel_contribution_candidate.md`, and
+`docs/standards/freshness_checklist.md`.

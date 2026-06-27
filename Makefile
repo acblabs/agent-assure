@@ -1,4 +1,4 @@
-.PHONY: test lint type build docs-align schemas
+.PHONY: test lint type build docs-align schemas schema-check
 
 test:
 	pytest
@@ -17,3 +17,7 @@ docs-align:
 
 schemas:
 	agent-assure schema export --out schemas/v0.1.0
+
+schema-check:
+	agent-assure schema export --out schemas/v0.1.0
+	git diff --exit-code -- schemas/v0.1.0

@@ -40,6 +40,9 @@
 - Reproducible flagship showcase commands that demonstrate a stable visible
   answer with a failing material evidence-link invariant under equivalent
   fixtures.
+- Publishable measurement, executive, technical-report, standards, and
+  reproducibility documents with traceability to deterministic fixture evidence
+  and explicit limitation boundaries.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.

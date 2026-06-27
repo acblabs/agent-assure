@@ -13,6 +13,8 @@ mappings:
     attribute: gen_ai.provider.name
   - source: AgentRunRecord.model
     attribute: gen_ai.request.model
+  - source: AgentRunRecord.tools
+    attribute: gen_ai.tool.name
   - source: fixed
     attribute: gen_ai.operation.name
 not_emitted:

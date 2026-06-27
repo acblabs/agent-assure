@@ -72,8 +72,8 @@ provenance changes.
 
 ## Artifact Digest Summary
 
-These SHA-256 file digests are for the LF-normalized JSON artifacts emitted by
-the command sequence above. They are reproducibility anchors, not signatures,
+These SHA-256 file digests are for stable LF-normalized JSON artifacts emitted
+by the command sequence above. They are reproducibility anchors, not signatures,
 release attestations, standards-conformant SBOMs, or cosign verification
 material.
 
@@ -83,12 +83,13 @@ material.
 | `.tmp/showcase/prior-auth.fixtures.json` | `18e66c33492400cc89ed40b318a56e38381a86e88a8d1da9807f2fccc2740eb9` |
 | `.tmp/showcase/prior-auth.baseline.json` | `2287d584967b16db4e60283e97a25e1d74ca90867ea0e9245b2ee8ba5b317e8e` |
 | `.tmp/showcase/prior-auth.evidence-candidate.json` | `3965e2389b9db9b200cf1497a5585e2542859da4495c0bd287eb5bbbc15f2b40` |
-| `.tmp/showcase/baseline-report/evaluation-report.json` | `fc00d73436eeb09d4c038b42719339775fca6aa1c78e2660b65eb9cfabef10bf` |
-| `.tmp/showcase/baseline-report/evaluation-summary.json` | `5c2c77e307077be81cb02a9031bb26054d80787ef23e0960e5ae3ba6a524a3c9` |
-| `.tmp/showcase/evidence-report/evaluation-report.json` | `e782fd54e320a574ab70845c07fe923ecf5d9eef0154345a063786ebd3e2875d` |
-| `.tmp/showcase/evidence-report/evaluation-summary.json` | `04390305879e06b69c69722f393307233814699ed6774957f4287339e55ad5d0` |
-| `.tmp/showcase/comparison-report/comparison-report.json` | `76d3caf34c9b6635d68833637fbf5bed41ad07fd6b1981d46dc63cf75293cf9f` |
-| `.tmp/showcase/comparison-report/comparison-summary.json` | `18c3e298f71af91df7d95afd85b7e233310e211d779982b7ec2565ee0de002df` |
+
+Evaluation reports, comparison reports, evidence packets, dependency
+inventories, and release manifests include local environment metadata such as
+installed package versions, platform, Python version, dependency-inventory
+path, and commit state. Raw file digests for those artifacts may differ across
+machines. Release replay handles those environment-bearing artifacts with stable
+JSON projections; see `docs/release_evidence.md`.
 
 ## GitHub Actions Usage
 

@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Hardened release digest replay by separating replay source-commit/source-ref
+  validation from current-checkout validation, centralizing role digest-mode
+  policy, rejecting artifact paths that escape the replay root, and adding CI
+  schema-export drift checks. Replay findings now report generic `expected` and
+  `actual` values because findings may compare digests, commits, refs, or path
+  state.
+- Expanded public review artifacts: measurement use-case brief,
+  executive one-pager, citable abstracts, technical report, reproducibility
+  appendix, OpenTelemetry gap analysis, deferred contribution candidate,
+  standards freshness checklist, and traceability coverage for those public
+  claims.
 - Added CI orchestration over candidate RunSets with optional baseline
   comparison, full/fail-fast report modes, structured diagnostics, evidence
   packet generation, Markdown packets, environment provenance, local dependency

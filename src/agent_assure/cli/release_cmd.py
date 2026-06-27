@@ -46,6 +46,10 @@ def replay(
         str | None,
         typer.Option("--expect-commit", help="Expected source commit for this replay file."),
     ] = None,
+    expect_ref: Annotated[
+        str | None,
+        typer.Option("--expect-ref", help="Expected source ref for this replay file."),
+    ] = None,
     require_current_commit: Annotated[
         bool,
         typer.Option(
@@ -73,6 +77,7 @@ def replay(
         artifact_root=artifact_root,
         required_roles=required_roles,
         expect_commit=expect_commit,
+        expect_ref=expect_ref,
         require_current_commit=require_current_commit,
     )
     if not verification.ok:
@@ -83,8 +88,8 @@ def replay(
                 {
                     "role": finding.role,
                     "path": finding.path,
-                    "expected_sha256": finding.expected_sha256,
-                    "actual_sha256": finding.actual_sha256,
+                    "expected": finding.expected,
+                    "actual": finding.actual,
                     "message": finding.message,
                 }
                 for finding in verification.findings

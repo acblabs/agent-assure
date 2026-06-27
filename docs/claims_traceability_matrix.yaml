@@ -113,3 +113,18 @@ claims:
       reports: [.tmp/showcase/evidence-report/evaluation-report.md, .tmp/showcase/comparison-report/comparison-report.md]
       docs: [README.md, docs/showcase.md, docs/measurement/nist_agentic_measurement_use_case.md]
     limitations: The showcase is synthetic, deterministic, and fixture-bound; artifact digests are reproducibility anchors, not signatures or release attestations.
+  - id: publishable-review-artifacts
+    claim: The repository includes public measurement, executive, technical-report, standards, and reproducibility artifacts aligned to deterministic fixture evidence.
+    evidence:
+      docs: [docs/measurement/nist_agentic_measurement_use_case.md, docs/measurement/executive_one_pager.md, docs/measurement/measurement_brief_abstract.md, paper/invariant_based_change_control.md, paper/invariant_based_change_control_abstract.md, paper/reproducibility_appendix.md, docs/limitations.md]
+      tests: [tests/integration/test_showcase_demo.py, tests/integration/test_evidence_regression.py, tests/integration/test_compare_reports.py]
+      commands: [agent-assure suite compile, agent-assure suite run, agent-assure evaluate, agent-assure compare, agent-assure ci, agent-assure packet build, agent-assure release replay]
+    limitations: These artifacts are not peer review, safety certification, regulatory compliance, clinical validation, NIST endorsement, OpenTelemetry adoption, or standards acceptance.
+  - id: standards-freshness-review
+    claim: OpenTelemetry-facing documentation is tied to a documented freshness review, local compatibility lock, and mapping matrix, with upstream contribution deferred until SDK/export evidence exists.
+    evidence:
+      docs: [docs/standards/freshness_checklist.md, docs/standards/otel_genai_gap_analysis.md, docs/standards/otel_contribution_candidate.md, docs/standards/upstream_issue_inventory.md, docs/otel_alignment.md]
+      code: [src/agent_assure/telemetry/otel_mapping.py, src/agent_assure/telemetry/privacy_filter.py]
+      tests: [tests/unit/telemetry/test_span_plan.py]
+      compat: [compat/otel_genai_semconv.lock, compat/otel_mapping_matrix.yaml]
+    limitations: External OpenTelemetry conventions may change after the recorded review; the current implementation is a span-plan preview and does not emit SDK spans or OTLP telemetry.

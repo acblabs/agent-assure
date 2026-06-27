@@ -21,3 +21,5 @@ this document is the machine-checked source for documentation alignment.
 | `evidence-packets-ci-gates` | Evidence packets bundle deterministic summaries with interpretation guidance, environment provenance, dependency-inventory, manifest, and replay-stable digests; CI gates provide full/fail-fast exits over candidate RunSets, summaries, and packets. |
 | `signed-release-evidence` | Release evidence blobs can be signed keylessly in GitHub Actions and verified against exact workflow identity and blob bytes. |
 | `flagship-showcase-demo` | The README and showcase document reproduce a passing baseline and an evidence-normalization candidate with stable visible output and a missing material evidence link. |
+| `publishable-review-artifacts` | Measurement, executive, technical-report, standards, and reproducibility artifacts are aligned to deterministic fixture evidence and conservative claim boundaries. |
+| `standards-freshness-review` | OpenTelemetry-facing documentation records a freshness review, local compatibility lock, mapping matrix, and deferred contribution stance. |

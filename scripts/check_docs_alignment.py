@@ -17,8 +17,16 @@ PUBLIC_DOCS = [
     ROOT / "FEATURES.md",
     ROOT / "CHANGELOG.md",
     ROOT / "docs" / "showcase.md",
+    ROOT / "docs" / "limitations.md",
     ROOT / "docs" / "measurement" / "executive_one_pager.md",
+    ROOT / "docs" / "measurement" / "measurement_brief_abstract.md",
+    ROOT / "docs" / "measurement" / "nist_agentic_measurement_use_case.md",
+    ROOT / "docs" / "standards" / "freshness_checklist.md",
+    ROOT / "docs" / "standards" / "otel_contribution_candidate.md",
     ROOT / "docs" / "standards" / "otel_genai_gap_analysis.md",
+    ROOT / "paper" / "invariant_based_change_control.md",
+    ROOT / "paper" / "invariant_based_change_control_abstract.md",
+    ROOT / "paper" / "reproducibility_appendix.md",
 ]
 
 FORBIDDEN_POSITIVE_PATTERNS = [
@@ -39,6 +47,8 @@ REQUIRED_CLAIM_IDS = {
     "privacy-redaction",
     "otel-span-plan-preview",
     "flagship-showcase-demo",
+    "publishable-review-artifacts",
+    "standards-freshness-review",
 }
 
 
@@ -51,6 +61,7 @@ def main() -> int:
     failures.extend(_check_schema_reference())
     failures.extend(_check_reason_codes())
     failures.extend(_check_otel_mapping())
+    failures.extend(_check_standards_freshness())
     if failures:
         for failure in failures:
             print(f"docs-alignment: {failure}", file=sys.stderr)
@@ -142,10 +153,53 @@ def _check_otel_mapping() -> list[str]:
             "gen_ai.operation.name",
             "gen_ai.provider.name",
             "gen_ai.request.model",
+            "gen_ai.tool.name",
             "agent_assure.run_id",
         ):
             if attr not in matrix_text or attr not in docs_text:
                 failures.append(f"OTel mapping missing documented attribute: {attr}")
+    return failures
+
+
+def _check_standards_freshness() -> list[str]:
+    checklist = ROOT / "docs" / "standards" / "freshness_checklist.md"
+    gap = ROOT / "docs" / "standards" / "otel_genai_gap_analysis.md"
+    candidate = ROOT / "docs" / "standards" / "otel_contribution_candidate.md"
+    lock = ROOT / "compat" / "otel_genai_semconv.lock"
+    failures: list[str] = []
+    if not checklist.exists():
+        return ["missing docs/standards/freshness_checklist.md"]
+    checklist_text = checklist.read_text(encoding="utf-8")
+    for needle in (
+        "Freshness status: complete",
+        "Last manual review:",
+        "compat/otel_genai_semconv.lock",
+        "compat/otel_mapping_matrix.yaml",
+        "OpenTelemetry GenAI",
+    ):
+        if needle not in checklist_text:
+            failures.append(f"standards freshness checklist missing: {needle}")
+    if "placeholder" in checklist_text.lower():
+        failures.append("standards freshness checklist still contains placeholder language")
+    if lock.exists():
+        lock_text = lock.read_text(encoding="utf-8")
+        for pattern in (r"commit:\s*(\S+)", r"checksum:\s*(\S+)"):
+            match = re.search(pattern, lock_text)
+            if match and match.group(1) not in checklist_text:
+                failures.append(
+                    "standards freshness checklist does not cite "
+                    f"lock value: {match.group(1)}"
+                )
+    if candidate.exists():
+        candidate_text = candidate.read_text(encoding="utf-8")
+        if "Candidate status: deferred" not in candidate_text:
+            failures.append("OTel contribution candidate must state deferred status")
+    if gap.exists():
+        gap_text = gap.read_text(encoding="utf-8")
+        if "Freshness status: complete" not in gap_text:
+            failures.append("OTel gap analysis must state freshness status")
+        if "Current readiness: defer upstream contribution" not in gap_text:
+            failures.append("OTel gap analysis must defer upstream contribution")
     return failures
 
 

@@ -39,6 +39,12 @@ manifest projection. Keep the full generated artifact tree available under
 `--artifact-root`, including run sets, summaries, and dependency inventory; a
 reports-only directory is not sufficient.
 
+Replay artifact paths must be relative to `--artifact-root` and cannot include
+parent-directory segments. `--expect-commit` validates the replay file's
+`source_commit`; `--expect-ref` validates the replay file's `source_ref`.
+`--require-current-commit` separately checks the current checkout against the
+replay file's `source_commit`.
+
 ## Sign Blobs
 
 The evidence workflow signs these blobs with GitHub Actions OIDC identity:

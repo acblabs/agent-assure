@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import json
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Literal, cast
 
+from agent_assure.artifact_io import file_sha256, git_output
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.reporting.environment import release_artifact
 from agent_assure.schema.release import (
@@ -21,17 +21,30 @@ CORE_RELEASE_ROLES = (
     "evidence-packet",
     "release-artifact-manifest",
 )
-STABLE_JSON_REPLAY_ROLES = frozenset({"evidence-packet", "release-artifact-manifest"})
-SUMMARY_REPLAY_ROLES = frozenset({"evaluation-summary", "comparison-summary"})
-NON_REPLAYED_MANIFEST_ROLES = frozenset({"dependency-inventory"})
+ManifestDigestMode = Literal["raw-sha256", "replay-stable-json-sha256", "not-replayed"]
+ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
+    "baseline-runset": "raw-sha256",
+    "candidate-runset": "raw-sha256",
+    "compiled-suite": "raw-sha256",
+    "comparison-report": "replay-stable-json-sha256",
+    "comparison-summary": "replay-stable-json-sha256",
+    "evaluation-report": "replay-stable-json-sha256",
+    "evaluation-summary": "replay-stable-json-sha256",
+    "evidence-packet": "replay-stable-json-sha256",
+    "fixture-manifest": "raw-sha256",
+    "release-artifact-manifest": "replay-stable-json-sha256",
+}
+NON_REPLAYED_ROLE_DIGEST_MODES: dict[str, Literal["not-replayed"]] = {
+    "dependency-inventory": "not-replayed",
+}
 
 
 @dataclass(frozen=True)
 class DigestReplayFinding:
     role: str
     path: str
-    expected_sha256: str
-    actual_sha256: str | None
+    expected: str
+    actual: str | None
     message: str
 
 
@@ -54,7 +67,7 @@ def build_digest_replay(
 ) -> ReleaseDigestReplay:
     root = project_root.resolve()
     resolved_commit = (
-        source_commit if source_commit is not None else _git_output(root, "rev-parse", "HEAD")
+        source_commit if source_commit is not None else git_output(root, "rev-parse", "HEAD")
     )
     return ReleaseDigestReplay(
         artifact_kind="release-digest-replay",
@@ -83,6 +96,7 @@ def verify_digest_replay(
     artifact_root: Path,
     required_roles: tuple[str, ...] = (),
     expect_commit: str | None = None,
+    expect_ref: str | None = None,
     require_current_commit: bool = False,
 ) -> DigestReplayVerification:
     findings: list[DigestReplayFinding] = []
@@ -92,6 +106,7 @@ def verify_digest_replay(
             replay,
             project_root=root,
             expect_commit=expect_commit,
+            expect_ref=expect_ref,
             require_current_commit=require_current_commit,
         )
     )
@@ -102,20 +117,32 @@ def verify_digest_replay(
                 DigestReplayFinding(
                     role=role,
                     path="",
-                    expected_sha256="",
-                    actual_sha256=None,
+                    expected="",
+                    actual=None,
                     message=f"required release artifact role is missing: {role}",
                 )
             )
     for artifact in replay.artifacts:
-        expected_digest_mode = _default_digest_mode(artifact.role)
+        try:
+            expected_digest_mode = digest_mode_for_role(artifact.role)
+        except ValueError as exc:
+            findings.append(
+                DigestReplayFinding(
+                    role=artifact.role,
+                    path=artifact.path,
+                    expected=artifact.sha256,
+                    actual=None,
+                    message=str(exc),
+                )
+            )
+            continue
         if artifact.digest_mode != expected_digest_mode:
             findings.append(
                 DigestReplayFinding(
                     role=artifact.role,
                     path=artifact.path,
-                    expected_sha256=artifact.sha256,
-                    actual_sha256=None,
+                    expected=artifact.sha256,
+                    actual=None,
                     message=(
                         "release artifact digest_mode mismatch: "
                         f"{artifact.path} declares {artifact.digest_mode}, "
@@ -124,14 +151,26 @@ def verify_digest_replay(
                 )
             )
             continue
-        path = _resolve_replay_path(root, artifact.path)
+        try:
+            path = _resolve_replay_path(root, artifact.path)
+        except ValueError as exc:
+            findings.append(
+                DigestReplayFinding(
+                    role=artifact.role,
+                    path=artifact.path,
+                    expected=artifact.sha256,
+                    actual=None,
+                    message=f"release artifact path is invalid: {exc}",
+                )
+            )
+            continue
         if not path.exists() or not path.is_file():
             findings.append(
                 DigestReplayFinding(
                     role=artifact.role,
                     path=artifact.path,
-                    expected_sha256=artifact.sha256,
-                    actual_sha256=None,
+                    expected=artifact.sha256,
+                    actual=None,
                     message=f"release artifact is missing: {artifact.path}",
                 )
             )
@@ -148,8 +187,8 @@ def verify_digest_replay(
                 DigestReplayFinding(
                     role=artifact.role,
                     path=artifact.path,
-                    expected_sha256=artifact.sha256,
-                    actual_sha256=None,
+                    expected=artifact.sha256,
+                    actual=None,
                     message=f"release artifact could not be replayed: {exc}",
                 )
             )
@@ -159,8 +198,8 @@ def verify_digest_replay(
                 DigestReplayFinding(
                     role=artifact.role,
                     path=artifact.path,
-                    expected_sha256=artifact.sha256,
-                    actual_sha256=actual,
+                    expected=artifact.sha256,
+                    actual=actual,
                     message=f"release artifact digest mismatch: {artifact.path}",
                 )
             )
@@ -169,7 +208,7 @@ def verify_digest_replay(
 
 def _replay_artifact(role: str, path: Path, project_root: Path) -> ReleaseReplayArtifact:
     raw_artifact = release_artifact(role, path, project_root=project_root)
-    digest_mode = _default_digest_mode(role)
+    digest_mode = digest_mode_for_role(role)
     return ReleaseReplayArtifact(
         artifact_kind="release-replay-artifact",
         role=raw_artifact.role,
@@ -200,52 +239,117 @@ def _commit_findings(
     *,
     project_root: Path,
     expect_commit: str | None,
+    expect_ref: str | None,
     require_current_commit: bool,
 ) -> tuple[DigestReplayFinding, ...]:
-    expected = expect_commit or (replay.source_commit if require_current_commit else None)
-    if expected is None:
-        if require_current_commit:
-            return (
+    findings: list[DigestReplayFinding] = []
+    if expect_commit is not None:
+        if replay.source_commit is None:
+            findings.append(
                 DigestReplayFinding(
                     role="source-commit",
                     path="",
-                    expected_sha256="",
-                    actual_sha256=None,
+                    expected=expect_commit,
+                    actual=None,
                     message="release digest replay does not record source_commit",
+                )
+            )
+        elif replay.source_commit != expect_commit:
+            findings.append(
+                DigestReplayFinding(
+                    role="source-commit",
+                    path="",
+                    expected=expect_commit,
+                    actual=replay.source_commit,
+                    message=(
+                        "release digest replay source_commit mismatch: "
+                        f"expected {expect_commit}, got {replay.source_commit}"
+                    ),
+                )
+            )
+    if expect_ref is not None:
+        if replay.source_ref is None:
+            findings.append(
+                DigestReplayFinding(
+                    role="source-ref",
+                    path="",
+                    expected=expect_ref,
+                    actual=None,
+                    message="release digest replay does not record source_ref",
+                )
+            )
+        elif replay.source_ref != expect_ref:
+            findings.append(
+                DigestReplayFinding(
+                    role="source-ref",
+                    path="",
+                    expected=expect_ref,
+                    actual=replay.source_ref,
+                    message=(
+                        "release digest replay source_ref mismatch: "
+                        f"expected {expect_ref}, got {replay.source_ref}"
+                    ),
+                )
+            )
+    if not require_current_commit:
+        return tuple(findings)
+    if replay.source_commit is None:
+        findings.append(
+            DigestReplayFinding(
+                role="source-commit",
+                path="",
+                expected="",
+                actual=None,
+                message="release digest replay does not record source_commit",
+            )
+        )
+        return tuple(findings)
+    current = git_output(project_root, "rev-parse", "HEAD")
+    if current is None:
+        findings.append(
+            DigestReplayFinding(
+                role="source-commit",
+                path="",
+                expected=replay.source_commit,
+                actual=None,
+                message="current git commit could not be determined",
+            )
+        )
+        return tuple(findings)
+    if current != replay.source_commit:
+        findings.append(
+            DigestReplayFinding(
+                role="source-commit",
+                path="",
+                expected=replay.source_commit,
+                actual=current,
+                message=(
+                    "current checkout commit mismatch: release digest replay "
+                    f"source_commit is {replay.source_commit}, but current checkout is {current}"
                 ),
             )
-        return ()
-    current = _git_output(project_root, "rev-parse", "HEAD")
-    if current is None:
-        return (
-            DigestReplayFinding(
-                role="source-commit",
-                path="",
-                expected_sha256="",
-                actual_sha256=None,
-                message="current git commit could not be determined",
-            ),
         )
-    if current != expected:
-        return (
-            DigestReplayFinding(
-                role="source-commit",
-                path="",
-                expected_sha256="",
-                actual_sha256=current,
-                message=(
-                    "release digest replay was produced from commit "
-                    f"{expected}, but current checkout is {current}"
-                ),
-            ),
-        )
-    return ()
+    return tuple(findings)
 
 
-def _default_digest_mode(role: str) -> ReplayDigestMode:
-    if role in STABLE_JSON_REPLAY_ROLES:
-        return "replay-stable-json-sha256"
-    return "raw-sha256"
+def digest_mode_for_role(role: str) -> ReplayDigestMode:
+    try:
+        return ROLE_DIGEST_MODES[role]
+    except KeyError as exc:
+        if role in NON_REPLAYED_ROLE_DIGEST_MODES:
+            raise ValueError(
+                f"release artifact role is recorded but not replayed: {role}"
+            ) from exc
+        known = ", ".join(sorted((*ROLE_DIGEST_MODES, *NON_REPLAYED_ROLE_DIGEST_MODES)))
+        raise ValueError(
+            f"unknown release artifact role: {role}; expected one of: {known}"
+        ) from exc
+
+
+def manifest_digest_mode_for_role(role: str) -> ManifestDigestMode:
+    if role in NON_REPLAYED_ROLE_DIGEST_MODES:
+        return NON_REPLAYED_ROLE_DIGEST_MODES[role]
+    return digest_mode_for_role(role)
 
 
 def _digest_for_artifact(
@@ -256,7 +360,7 @@ def _digest_for_artifact(
     digest_mode: ReplayDigestMode,
 ) -> str:
     if digest_mode == "raw-sha256":
-        return _file_sha256(path)
+        return file_sha256(path)
     if digest_mode == "replay-stable-json-sha256":
         return sha256_hexdigest(_stable_json_projection(role, path, project_root))
     raise ValueError(f"unsupported release replay digest mode: {digest_mode}")
@@ -268,9 +372,7 @@ def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[s
         return _stable_packet_projection(payload)
     if role == "release-artifact-manifest":
         return _stable_manifest_projection(payload, project_root)
-    if role in SUMMARY_REPLAY_ROLES:
-        return _without_environment(payload)
-    return payload
+    return _without_environment_payload(payload)
 
 
 def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
@@ -281,10 +383,10 @@ def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
     }
     evaluation = projected.get("evaluation")
     if isinstance(evaluation, dict):
-        projected["evaluation"] = _without_environment(evaluation)
+        projected["evaluation"] = _without_environment_recursive(evaluation)
     comparison = projected.get("comparison")
     if isinstance(comparison, dict):
-        projected["comparison"] = _without_environment(comparison)
+        projected["comparison"] = _without_environment_recursive(comparison)
     return projected
 
 
@@ -313,13 +415,10 @@ def _stable_manifest_artifact_projection(
     role = str(artifact.get("role", ""))
     path = str(artifact.get("path", ""))
     projection: dict[str, object] = {"role": role, "path": path}
-    if role in NON_REPLAYED_MANIFEST_ROLES:
-        projection["digest_mode"] = "not-replayed"
-        return projection
-    digest_mode: ReplayDigestMode = (
-        "replay-stable-json-sha256" if role in SUMMARY_REPLAY_ROLES else "raw-sha256"
-    )
+    digest_mode = manifest_digest_mode_for_role(role)
     projection["digest_mode"] = digest_mode
+    if digest_mode == "not-replayed":
+        return projection
     projection["sha256"] = _digest_for_artifact(
         role=role,
         path=_resolve_replay_path(project_root, path),
@@ -329,33 +428,35 @@ def _stable_manifest_artifact_projection(
     return projection
 
 
-def _without_environment(payload: dict[str, object]) -> dict[str, object]:
-    return {key: value for key, value in payload.items() if key != "environment"}
+def _without_environment_payload(payload: dict[str, object]) -> dict[str, object]:
+    return cast(dict[str, object], _without_environment_recursive(payload))
+
+
+def _without_environment_recursive(payload: object) -> object:
+    # Current persisted report and packet schemas reserve "environment" for
+    # local provenance only. If a future schema uses that key for verdict-bearing
+    # content, it must define a role-specific projection instead of this helper.
+    if isinstance(payload, dict):
+        return {
+            key: _without_environment_recursive(value)
+            for key, value in payload.items()
+            if key != "environment"
+        }
+    if isinstance(payload, list):
+        return [_without_environment_recursive(item) for item in payload]
+    return payload
 
 
 def _resolve_replay_path(root: Path, path: str) -> Path:
     candidate = Path(path)
     if candidate.is_absolute():
-        return candidate
-    return root / candidate
-
-
-def _file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def _git_output(project_root: Path, *args: str) -> str | None:
+        raise ValueError(f"absolute paths are not allowed: {path}")
+    if ".." in candidate.parts:
+        raise ValueError(f"parent-directory segments are not allowed: {path}")
+    resolved_root = root.resolve()
+    resolved = (resolved_root / candidate).resolve()
     try:
-        result = subprocess.run(
-            ["git", *args],
-            cwd=project_root,
-            check=False,
-            capture_output=True,
-            text=True,
-            timeout=5,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip() or None
+        resolved.relative_to(resolved_root)
+    except ValueError as exc:
+        raise ValueError(f"path escapes artifact root: {path}") from exc
+    return resolved
