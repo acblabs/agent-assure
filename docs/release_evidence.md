@@ -10,13 +10,14 @@ source artifacts, such as the compiled suite and fixture manifest. For
 environment-bearing review artifacts, such as the evidence packet and release
 artifact manifest, it records a stable JSON projection digest that excludes
 volatile local environment fields while keeping deterministic verdict content.
-It is a reproducibility check, not a signature. The SBOM and Python
-distributions are recorded in the manifest as exact release bytes and signed,
-but they are not deterministic replay inputs. A replay file alone does not
-prove that SBOM or distribution files are present, signed, or unchanged;
-consumers who need those assets must verify the signed release manifest and the
-matching blob signatures. Cosign bundles are the cryptographic verification
-material for byte-exact signed blobs.
+It is a reproducibility check, not a signature. When replay verifies the release
+artifact manifest, it also cross-checks each manifest-listed `sha256` against
+the available artifact bytes, including SBOM and Python distribution entries.
+For environment-bearing child artifacts, replay still uses stable child
+projections when computing the release-manifest replay digest. The top-level
+packet, manifest, and replay-file blobs are still exact release artifacts and
+must be verified with their matching cosign bundles when cryptographic workflow
+identity is required.
 
 ## Build a Release Bundle
 
@@ -57,9 +58,15 @@ agent-assure release replay release-digest-replay.json --artifact-root . --requi
 ```
 
 Standalone replay follows the artifact paths inside the release artifact
-manifest projection. Keep the full generated artifact tree available under
-`--artifact-root`, including run sets, summaries, and dependency inventory; a
+manifest projection and enforces the manifest's recorded child digests. Keep the
+full generated artifact tree available under `--artifact-root`, including run
+sets, summaries, dependency inventory, SBOM, wheel, and source distribution; a
 reports-only directory is not sufficient.
+
+The evidence workflow also compares published and rebuilt distribution entries
+before replay. If a wheel or source distribution stops being byte-reproducible,
+that check reports the specific distribution filename and digest pair before
+the broader release-manifest replay check runs.
 
 Replay artifact paths must be relative to `--artifact-root` and cannot include
 parent-directory segments. `--expect-commit` validates the replay file's
@@ -118,5 +125,7 @@ https://docs.sigstore.dev/quickstart/quickstart-ci/.
 Signed release evidence says that a specific workflow identity signed exact
 bytes. The SBOM records the local release build environment and distribution
 file hashes; it is not a vulnerability assessment or supply-chain attestation.
-Signed release evidence does not certify safety, compliance, clinical validity,
-live model quality, or OpenTelemetry adoption.
+Replay cross-checks manifest-listed digests when the files are available under
+the artifact root, but it is still not a signature and does not replace cosign
+verification. Signed release evidence does not certify safety, compliance,
+clinical validity, live model quality, or OpenTelemetry adoption.

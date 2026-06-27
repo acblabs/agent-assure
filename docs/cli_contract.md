@@ -72,9 +72,15 @@ structured JSON. `ci gate` remains available for post-hoc gating of an existing
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable
 source artifacts and stable JSON projection digests for environment-bearing
-review artifacts. By default it requires the compiled-suite, fixture-manifest,
-evidence-packet, and release-artifact-manifest roles. `--require-current-commit`
-requires the current git checkout to match the replay file's `source_commit`;
+review artifacts. When replay verifies the release artifact manifest, it also
+cross-checks each manifest-listed `sha256` against the available artifact
+bytes, including SBOM, wheel, source distribution, and dependency inventory
+entries.
+For environment-bearing manifest children, the raw manifest hash is checked
+against bytes and the manifest replay projection uses the child's stable digest.
+By default it requires the compiled-suite, fixture-manifest, evidence-packet,
+and release-artifact-manifest roles. `--require-current-commit` requires the
+current git checkout to match the replay file's `source_commit`;
 `--expect-commit` checks the replay file's `source_commit` value without reading
 the current checkout; `--expect-ref` checks the replay file's `source_ref`.
 Replay artifact paths must be relative to `--artifact-root` and cannot contain

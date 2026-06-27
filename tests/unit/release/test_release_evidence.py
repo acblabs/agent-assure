@@ -110,28 +110,11 @@ def test_release_digest_replay_ignores_packet_environment_drift(tmp_path: Path) 
     assert verification.ok
 
 
-def test_release_digest_replay_ignores_manifest_summary_and_dependency_drift(
+def test_release_digest_replay_ignores_manifest_environment_and_id_drift(
     tmp_path: Path,
 ) -> None:
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)
-    _write_json(
-        tmp_path / "evaluation-summary.json",
-        {
-            "artifact_kind": "evaluation-summary",
-            "schema_version": "0.1.0",
-            "runset_id": "candidate",
-            "state": "fail",
-            "environment": {"platform": "changed"},
-        },
-    )
-    _write_json(
-        tmp_path / "dependency-inventory.json",
-        {
-            "artifact_kind": "dependency-inventory",
-            "components": [{"name": "new-local-package", "version": "1.2.3"}],
-        },
-    )
     manifest = json.loads((tmp_path / "release-artifact-manifest.json").read_text())
     manifest["environment"] = {"platform": "changed"}
     manifest["manifest_id"] = "manifest-changed"
@@ -146,7 +129,28 @@ def test_release_digest_replay_ignores_manifest_summary_and_dependency_drift(
     assert verification.ok
 
 
-def test_release_digest_replay_records_but_does_not_replay_release_only_artifacts(
+def test_release_digest_replay_detects_manifest_recorded_digest_mismatch(
+    tmp_path: Path,
+) -> None:
+    artifacts = _write_core_artifacts(tmp_path)
+    replay = build_digest_replay(artifacts, project_root=tmp_path)
+    manifest = json.loads((tmp_path / "release-artifact-manifest.json").read_text())
+    manifest["artifacts"][0]["sha256"] = "f" * 64
+    _write_json(tmp_path / "release-artifact-manifest.json", manifest)
+
+    verification = verify_digest_replay(
+        replay,
+        artifact_root=tmp_path,
+        required_roles=CORE_RELEASE_ROLES,
+    )
+
+    assert not verification.ok
+    finding = verification.findings[0]
+    assert finding.role == "release-artifact-manifest"
+    assert "recorded digest mismatch" in finding.message
+
+
+def test_release_digest_replay_detects_manifest_referenced_release_only_drift(
     tmp_path: Path,
 ) -> None:
     artifacts = _write_core_artifacts(tmp_path)
@@ -184,7 +188,10 @@ def test_release_digest_replay_records_but_does_not_replay_release_only_artifact
         required_roles=CORE_RELEASE_ROLES,
     )
 
-    assert verification.ok
+    assert not verification.ok
+    finding = verification.findings[0]
+    assert finding.role == "release-artifact-manifest"
+    assert "recorded digest mismatch" in finding.message
 
 
 def test_release_digest_replay_rejects_release_only_artifacts_as_top_level_replay(

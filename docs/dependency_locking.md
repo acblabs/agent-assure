@@ -2,14 +2,21 @@
 
 Release bundles include environment provenance, a dependency inventory, and an
 SBOM that records the local release build environment and distribution file
-hashes. If a checked-in lockfile exists, its path and digest are also captured
-in the evidence packet environment section.
+hashes. The release workflows install from the checked-in `requirements.lock`
+with `pip install --require-hashes` before installing the package with
+`--no-deps`. The lockfile path and digest are captured in the evidence packet
+environment section.
 
-A hash-pinned dependency lock should be generated with one of these approved
-paths before using release evidence as a long-lived supply-chain reference:
+`requirements.lock` is generated from `pyproject.toml` with Python 3.14 and
+`pip-compile --all-build-deps --extra=dev --generate-hashes`. The canonical
+release environment is the Python 3.14 Ubuntu workflow environment until a
+cross-OS reproducibility matrix exists.
 
-- `uv lock` plus a hash-verified export for CI installation;
-- `pip-compile --generate-hashes` for a checked-in requirements lock.
+To refresh the lockfile:
+
+```bash
+pip-compile pyproject.toml --extra dev --all-build-deps --generate-hashes --output-file requirements.lock
+```
 
 The RFC 8785 dependency is part of the digest trust core and is pinned exactly in
 `pyproject.toml`.

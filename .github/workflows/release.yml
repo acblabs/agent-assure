@@ -10,7 +10,7 @@ permissions:
   id-token: write
 
 env:
-  PYTHON_VERSION: "3.11"
+  PYTHON_VERSION: "3.14"
   COSIGN_VERSION: "v3.0.6"
 
 jobs:
@@ -34,7 +34,8 @@ jobs:
           echo "RELEASE_BUNDLE_NAME=${bundle_name}" >> "${GITHUB_ENV}"
           echo "RELEASE_NOTES_FILE=${notes_file}" >> "${GITHUB_ENV}"
           echo "bundle_name=${bundle_name}" >> "${GITHUB_OUTPUT}"
-      - run: pip install -e ".[dev]"
+      - run: pip install --require-hashes -r requirements.lock
+      - run: pip install --no-deps --no-build-isolation -e .
       - name: Validate release tag
         if: startsWith(github.ref, 'refs/tags/')
         shell: bash

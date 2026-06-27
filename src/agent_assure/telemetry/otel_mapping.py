@@ -8,8 +8,8 @@ from agent_assure.telemetry.semconv_lock import SEMCONV_CHECKSUM, SEMCONV_COMMIT
 
 def run_record_to_span_plan(record: AgentRunRecord) -> SpanPlan:
     attributes: dict[str, str | int | bool] = {
-        "gen_ai.operation.name": "agent_assure.fixture_evaluation",
         "agent_assure.schema_version": record.schema_version,
+        "agent_assure.operation.name": "fixture_evaluation",
         "agent_assure.run_id": record.run_id,
         "agent_assure.case_id": record.case_id,
         "agent_assure.pipeline_id": record.pipeline_id,

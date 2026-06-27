@@ -214,7 +214,7 @@ def test_finding_id_is_stable_across_message_rewording() -> None:
     assert first.finding_id == second.finding_id
 
 
-def test_material_claim_fallback_without_explicit_links_preserves_reason_code() -> None:
+def test_material_claims_require_explicit_claim_evidence_links() -> None:
     run = AgentRunRecord(
         artifact_kind="agent-run-record",
         run_id="run-no-links",
@@ -243,10 +243,15 @@ def test_material_claim_fallback_without_explicit_links_preserves_reason_code() 
 
     findings = evaluate_material_claim_evidence(run, expectation)
 
-    assert len(findings) == 1
-    assert findings[0].control_id == "material_claims_have_evidence"
-    assert findings[0].target == "claim:claim-missing"
-    assert findings[0].reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
+    assert {finding.target for finding in findings} == {
+        "claim:claim-present",
+        "claim:claim-missing",
+    }
+    assert all(finding.control_id == "material_claims_have_evidence" for finding in findings)
+    assert all(
+        finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
+        for finding in findings
+    )
 
 
 def _report(variant: Path) -> EvaluationReport:

@@ -9,17 +9,18 @@ not persist an `otel_attributes` dictionary.
 
 Mapped preview attributes include:
 
-- `gen_ai.operation.name`
 - `gen_ai.provider.name`
 - `gen_ai.request.model`
 - `gen_ai.tool.name` on local tool-call preview events
+- `agent_assure.operation.name`
 - `agent_assure.run_id`
 - `agent_assure.case_id`
 - `agent_assure.pipeline_id`
 - `agent_assure.execution_mode`
 
-The preview intentionally does not emit `gen_ai.response.tokens`. Generic local
-fixture tool events do not emit `rpc.method`.
+The preview intentionally does not emit `gen_ai.operation.name`,
+`gen_ai.response.tokens`, or `rpc.method`. The local fixture evaluation
+operation is project-specific and remains under the `agent_assure.*` namespace.
 
 Project-specific provenance remains under the `agent_assure.*` namespace. The
 current gap assessment and contribution stance are documented in

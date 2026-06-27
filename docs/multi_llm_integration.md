@@ -3,3 +3,8 @@
 `agent-assure` is framework-neutral. Future integration work may adapt
 deterministic `multi_llm` artifacts into `AgentRunRecord`, `RunSet`, and
 evidence-packet artifacts after the generic APIs stabilize.
+
+Any adapter that produces `AgentRunRecord` artifacts must populate
+`claim_evidence_links` for material-claim evidence. `evidence_refs[].claim_ids`
+is display/compatibility context only and does not satisfy
+`material_claims_have_evidence`.

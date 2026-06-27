@@ -26,6 +26,10 @@ that records package URLs for installed packages and SHA-256 hashes for the
 built wheel and source distribution. Neither artifact is a vulnerability
 assessment or supply-chain attestation.
 
+Release replay cross-checks manifest-listed artifact digests when the referenced
+files are available under the replay artifact root. That reproducibility check
+is separate from cosign verification of exact workflow-signed blobs.
+
 Packet artifact digests, dependency-inventory digests, and release-manifest
 digests are raw SHA-256 hashes over the LF-normalized JSON files that were
 written locally. They are environment-bound exact-artifact anchors, not the

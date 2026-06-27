@@ -9,7 +9,7 @@ this document is the machine-checked source for documentation alignment.
 | `strict-schemas` | Persisted Pydantic artifacts are strict, frozen, and versioned. |
 | `json-schema-parity` | Runtime validation and JSON Schema validation share the same parity corpus. |
 | `yaml-lexeme-preservation` | YAML node loading preserves ambiguous scalar lexemes as strings. |
-| `canonical-digests` | Digest inputs use one projection path and RFC 8785 JCS bytes. |
+| `canonical-digests` | Digest inputs use one projection path and RFC 8785 JCS bytes; the v0.1 persisted schema is intentionally lean and future observed-value separation is not yet exercised by persisted metric/timestamp fields. |
 | `hmac-sensitive-correlation` | Sensitive correlation examples use HMAC-SHA256 with a test-only key. |
 | `privacy-redaction` | Author-time summaries and runset writes can be redacted before persistence; raw sensitive summaries fail evaluation and span-plan/report attributes are filtered. |
 | `otel-span-plan-preview` | Span plans are derived from structured records and pinned to a snapshot. |
@@ -18,8 +18,8 @@ this document is the machine-checked source for documentation alignment.
 | `bundled-examples-api-boundary` | Bundled example modules are included for reproducible demos but are not a stable extension API. |
 | `expectation-evaluator-reports` | RunSet evaluation checks expectations and built-in deterministic controls, then writes JSON, Markdown, and Rich console reports. |
 | `comparison-reports` | RunSet comparison checks fixture equivalence, classifies deterministic control changes, and reports provenance changes separately from verdicts. |
-| `evidence-packets-ci-gates` | Evidence packets bundle deterministic summaries with interpretation guidance, environment provenance, dependency-inventory, manifest, and replay-stable digests; CI gates provide full/fail-fast exits over candidate RunSets, summaries, and packets. |
-| `signed-release-evidence` | Release evidence, SBOM, wheel, and source distribution blobs can be signed keylessly in GitHub Actions and verified against exact workflow identity and blob bytes. |
+| `evidence-packets-ci-gates` | Evidence packets bundle deterministic summaries with interpretation guidance, environment provenance, dependency-inventory, manifest, replay-stable digests, and manifest-listed digest cross-checks; CI gates provide full/fail-fast exits over candidate RunSets, summaries, and packets. |
+| `signed-release-evidence` | Release evidence, SBOM, wheel, and source distribution blobs can be signed keylessly in GitHub Actions and verified against exact workflow identity and blob bytes; replay also checks manifest-listed hashes when files are present. |
 | `flagship-showcase-demo` | The README and showcase document reproduce a passing baseline and an evidence-normalization candidate with stable visible output and a missing material evidence link. |
 | `publishable-review-artifacts` | Measurement, executive, technical-report, standards, and reproducibility artifacts are aligned to deterministic fixture evidence and conservative claim boundaries. |
 | `standards-freshness-review` | OpenTelemetry-facing documentation records a freshness review, local compatibility lock, mapping matrix, and deferred contribution stance. |

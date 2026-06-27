@@ -42,7 +42,7 @@ matrix. Project-specific fields use the `agent_assure.*` namespace.
 
 | Structured source | Emitted preview attribute | Decision |
 | --- | --- | --- |
-| fixed operation value | `gen_ai.operation.name` | Use the pinned GenAI operation attribute for the preview span. |
+| fixed local operation value | `agent_assure.operation.name` | Keep the fixture-evaluation operation project-local. |
 | `AgentRunRecord.provider` | `gen_ai.provider.name` | Emit only when the run record has a provider. |
 | `AgentRunRecord.model` | `gen_ai.request.model` | Emit only when the run record has a model. |
 | `AgentRunRecord.tools` | `gen_ai.tool.name` | Emit on local tool-call preview events. |
@@ -55,6 +55,9 @@ The preview deliberately does not emit:
 
 - `gen_ai.response.tokens`, because the local mapping matrix does not include
   that attribute and the v0.1 fixture runner does not measure token usage;
+- `gen_ai.operation.name`, because v0.1 has no upstream GenAI operation value
+  for offline fixture evaluation and does not put project-specific values in
+  standard attributes;
 - `rpc.method` for generic tool calls, because fixture-mode tool outputs are
   local artifacts rather than RPC invocations;
 - raw prompts, raw outputs, tool arguments, sensitive identifiers, or

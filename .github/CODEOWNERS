@@ -1,0 +1,11 @@
+# Assurance-sensitive surfaces should require maintainer review when branch
+# protection enables CODEOWNER enforcement.
+
+/examples/** @acblabs/agent-assure-maintainers
+/src/agent_assure/examples/** @acblabs/agent-assure-maintainers
+/src/agent_assure/policies/** @acblabs/agent-assure-maintainers
+/src/agent_assure/release_evidence.py @acblabs/agent-assure-maintainers
+/scripts/build_release_bundle.py @acblabs/agent-assure-maintainers
+/schemas/** @acblabs/agent-assure-maintainers
+/docs/claims_traceability_matrix.* @acblabs/agent-assure-maintainers
+/docs/threat_coverage_matrix.yaml @acblabs/agent-assure-maintainers

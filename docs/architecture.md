@@ -20,5 +20,5 @@ Bundled deterministic subjects live under `src/agent_assure/examples` so the
 example suites can run from an installed wheel. They are reproducibility
 fixtures, not the stable public extension API; see `docs/api_surface.md`.
 
-Future releases add cryptographically signed release evidence workflows and live
-stochastic evaluation protocols.
+Future releases add live stochastic evaluation protocols, SDK telemetry export,
+and hardened external-runner extension surfaces.

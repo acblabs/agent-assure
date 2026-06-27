@@ -2,7 +2,21 @@
 
 ## Unreleased
 
-- No unreleased changes.
+- Hardened release replay so release manifests cross-check recorded artifact
+  digests against regenerated files, including manifest-listed SBOM and
+  distribution bytes, instead of treating manifest `sha256` values as
+  informational.
+- Moved the fixture-evaluation operation name out of `gen_ai.operation.name`
+  and into the project namespace; `gen_ai.operation.name` is now documented as
+  intentionally not emitted in v0.1.
+- Tightened material-claim evidence evaluation so only explicit
+  `ClaimEvidenceLink` records pointing to present evidence satisfy the
+  invariant.
+- Added hash-pinned release dependency installation via `requirements.lock`,
+  plus documentation for the lean persisted schema and release replay boundary.
+- Added an explicit distribution reproducibility check for the evidence
+  reproduce job and documented the claim-evidence-link contract for external
+  `AgentRunRecord` producers.
 
 ## 0.1.0 - 2026-06-27
 
@@ -11,9 +25,9 @@
   distribution and wheel assets, replay verification, keyless cosign signing,
   and GitHub release asset upload. Hardened bundle assembly to use one
   environment snapshot for the manifest and SBOM, normalized project package
-  names in SBOM component filtering, and documented that replay does not verify
-  release-only SBOM or distribution bytes without the signed manifest and blob
-  signatures.
+  names in SBOM component filtering, and documented that manifest-listed SBOM
+  and distribution bytes are cross-checked during replay while exact release
+  blobs remain cosign-verifiable workflow-signed artifacts.
 - Hardened release digest replay by separating replay source-commit/source-ref
   validation from current-checkout validation, centralizing role digest-mode
   policy, rejecting artifact paths that escape the replay root, and adding CI

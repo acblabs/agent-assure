@@ -31,7 +31,7 @@ claims:
       code: [src/agent_assure/canonical/digests.py]
       tests: [tests/unit/canonical/test_digests.py]
       docs: [docs/provenance_and_hashing.md, docs/digest_field_inventory.md]
-    limitations: Hashes are provenance only, not behavioral verdicts.
+    limitations: Hashes are provenance only, not behavioral verdicts. The v0.1 persisted schema is lean; decimal normalization and future observed-value separation are unit-tested but not exercised by persisted Decimal, float, timestamp, or metric fields.
   - id: hmac-sensitive-correlation
     claim: Sensitive low-entropy correlation examples use explicitly keyed HMAC-SHA256.
     evidence:
@@ -96,7 +96,7 @@ claims:
       tests: [tests/integration/test_evidence_packet.py, tests/integration/test_ci_gate.py, tests/unit/release/test_release_evidence.py]
       commands: [agent-assure ci, agent-assure packet build, agent-assure ci gate, agent-assure release replay]
       docs: [docs/cli_contract.md, docs/evidence_packets.md, docs/release_evidence.md]
-    limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and remains separate from cryptographic signatures or attestations.
+    limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and cross-checks manifest-listed child digests when files are available, but remains separate from cryptographic signatures or attestations.
   - id: signed-release-evidence
     claim: Release evidence, SBOM, wheel, and source distribution blobs can be signed keylessly in GitHub Actions and verified against the exact workflow identity and blob bytes.
     evidence:
@@ -104,7 +104,7 @@ claims:
       tests: [tests/unit/release/test_release_evidence.py, tests/unit/release/test_sbom.py]
       commands: [cosign sign-blob, cosign verify-blob, agent-assure release replay]
       docs: [docs/release_evidence.md, README.md]
-    limitations: Signatures verify exact bytes and workflow identity only; the SBOM records the local release build environment and distribution hashes but is not a vulnerability assessment or supply-chain attestation.
+    limitations: Signatures verify exact bytes and workflow identity only; replay cross-checks manifest-listed SBOM and distribution hashes when those files are available, but the SBOM is not a vulnerability assessment or supply-chain attestation.
   - id: flagship-showcase-demo
     claim: The documented flagship showcase reproduces a passing baseline and an evidence-normalization candidate that keeps the visible answer stable while failing a material evidence-link invariant.
     evidence:

@@ -32,9 +32,10 @@
   interpretation guidance, environment metadata, deterministic input artifact
   digests, dependency-inventory digest, and release artifact manifest.
 - Release digest replay with stable projections for environment-bearing review
-  artifacts, release-bundle SBOM generation, and keyless cosign workflow
-  signing for exact packet, manifest, replay-file, SBOM, wheel, and source
-  distribution verification by GitHub Actions workflow identity.
+  artifacts, manifest-listed digest cross-checks, release-bundle SBOM
+  generation, hash-pinned release dependency installation, and keyless cosign
+  workflow signing for exact packet, manifest, replay-file, SBOM, wheel, and
+  source distribution verification by GitHub Actions workflow identity.
 - CI gates for candidate RunSets, optional baseline comparisons, evaluation
   summaries, comparison summaries, and evidence packets with full/fail-fast
   report modes and stable pass, fail, and invalid-comparison exit codes.

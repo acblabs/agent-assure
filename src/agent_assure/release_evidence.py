@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Literal
 
 from agent_assure.artifact_io import file_sha256, git_output
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -376,7 +376,13 @@ def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[s
         return _stable_packet_projection(payload)
     if role == "release-artifact-manifest":
         return _stable_manifest_projection(payload, project_root)
-    return _without_environment_payload(payload)
+    if role in {"evaluation-summary", "comparison-summary"}:
+        return _without_keys(payload, {"environment"})
+    if role == "evaluation-report":
+        return _stable_evaluation_report_projection(payload)
+    if role == "comparison-report":
+        return _stable_comparison_report_projection(payload)
+    return payload
 
 
 def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
@@ -385,12 +391,22 @@ def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
         for key, value in payload.items()
         if key not in {"artifact_digests", "environment", "release_manifest"}
     }
-    evaluation = projected.get("evaluation")
-    if isinstance(evaluation, dict):
-        projected["evaluation"] = _without_environment_recursive(evaluation)
-    comparison = projected.get("comparison")
-    if isinstance(comparison, dict):
-        projected["comparison"] = _without_environment_recursive(comparison)
+    _drop_nested_keys(projected, "evaluation", {"environment"})
+    _drop_nested_keys(projected, "comparison", {"environment"})
+    return projected
+
+
+def _stable_evaluation_report_projection(payload: dict[str, object]) -> dict[str, object]:
+    projected = _without_keys(payload, {"environment"})
+    _drop_nested_keys(projected, "candidate_vs_expectations", {"environment"})
+    return projected
+
+
+def _stable_comparison_report_projection(payload: dict[str, object]) -> dict[str, object]:
+    projected = _without_keys(payload, {"environment"})
+    _drop_nested_keys(projected, "candidate_vs_expectations", {"environment"})
+    _drop_nested_keys(projected, "baseline_vs_expectations", {"environment"})
+    _drop_nested_keys(projected, "comparison_summary", {"environment"})
     return projected
 
 
@@ -418,37 +434,42 @@ def _stable_manifest_artifact_projection(
         raise ValueError("release artifact manifest entry must be an object")
     role = str(artifact.get("role", ""))
     path = str(artifact.get("path", ""))
+    recorded_sha256 = artifact.get("sha256")
+    if not isinstance(recorded_sha256, str):
+        raise ValueError(
+            f"release artifact manifest entry for {role!r} must record sha256"
+        )
     projection: dict[str, object] = {"role": role, "path": path}
+    resolved_path = _resolve_replay_path(project_root, path)
+    actual_raw_digest = file_sha256(resolved_path)
+    if recorded_sha256 != actual_raw_digest:
+        raise ValueError(
+            "release artifact manifest recorded digest mismatch: "
+            f"{path} declares {recorded_sha256}, actual raw-sha256 {actual_raw_digest}"
+        )
     digest_mode = manifest_digest_mode_for_role(role)
     projection["digest_mode"] = digest_mode
     if digest_mode == "not-replayed":
+        projection["sha256"] = recorded_sha256
         return projection
-    projection["sha256"] = _digest_for_artifact(
+    actual_digest = _digest_for_artifact(
         role=role,
-        path=_resolve_replay_path(project_root, path),
+        path=resolved_path,
         project_root=project_root,
         digest_mode=digest_mode,
     )
+    projection["sha256"] = actual_digest
     return projection
 
 
-def _without_environment_payload(payload: dict[str, object]) -> dict[str, object]:
-    return cast(dict[str, object], _without_environment_recursive(payload))
+def _without_keys(payload: dict[str, object], keys: set[str]) -> dict[str, object]:
+    return {key: value for key, value in payload.items() if key not in keys}
 
 
-def _without_environment_recursive(payload: object) -> object:
-    # Current persisted report and packet schemas reserve "environment" for
-    # local provenance only. If a future schema uses that key for verdict-bearing
-    # content, it must define a role-specific projection instead of this helper.
-    if isinstance(payload, dict):
-        return {
-            key: _without_environment_recursive(value)
-            for key, value in payload.items()
-            if key != "environment"
-        }
-    if isinstance(payload, list):
-        return [_without_environment_recursive(item) for item in payload]
-    return payload
+def _drop_nested_keys(payload: dict[str, object], field: str, keys: set[str]) -> None:
+    value = payload.get(field)
+    if isinstance(value, dict):
+        payload[field] = _without_keys(value, keys)
 
 
 def _resolve_replay_path(root: Path, path: str) -> Path:

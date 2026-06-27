@@ -72,9 +72,10 @@ agent-assure release replay .tmp/release/release-digest-replay.json --artifact-r
 ```
 
 The release bundle includes the evidence packet, release manifest, replay file,
-SBOM, source distribution, wheel, and exact cosign-verifiable blobs when built
-by the release workflow. For keyless cosign verification of workflow-signed
-release blobs, see `docs/release_evidence.md`.
+SBOM, source distribution, wheel, manifest-listed digest cross-checks, and
+exact cosign-verifiable blobs when built by the release workflow. For keyless
+cosign verification of workflow-signed release blobs, see
+`docs/release_evidence.md`.
 
 ## What the demo shows
 

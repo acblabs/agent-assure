@@ -150,14 +150,19 @@ def _check_otel_mapping() -> list[str]:
         matrix_text = matrix.read_text(encoding="utf-8")
         docs_text = docs.read_text(encoding="utf-8")
         for attr in (
-            "gen_ai.operation.name",
             "gen_ai.provider.name",
             "gen_ai.request.model",
             "gen_ai.tool.name",
+            "agent_assure.operation.name",
             "agent_assure.run_id",
         ):
             if attr not in matrix_text or attr not in docs_text:
                 failures.append(f"OTel mapping missing documented attribute: {attr}")
+        if (
+            "gen_ai.operation.name" not in matrix_text
+            or "gen_ai.operation.name" not in docs_text
+        ):
+            failures.append("OTel docs must document gen_ai.operation.name as not emitted")
     return failures
 
 

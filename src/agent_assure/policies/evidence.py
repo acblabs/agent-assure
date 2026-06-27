@@ -36,8 +36,6 @@ def evaluate_material_claim_evidence(
         for link in run.claim_evidence_links
         if link.evidence_ref_id in existing_refs
     }
-    if not run.claim_evidence_links:
-        linked_claims = {claim_id for ref in run.evidence_refs for claim_id in ref.claim_ids}
     return tuple(
         ControlResult(
             control_id="material_claims_have_evidence",

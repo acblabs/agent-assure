@@ -18,7 +18,8 @@ def test_span_plan_omits_unsupported_attributes() -> None:
     dumped = json.dumps(plan.model_dump(mode="json"))
     assert "gen_ai.response.tokens" not in dumped
     assert "rpc.method" not in dumped
-    assert any(attribute.key == "gen_ai.operation.name" for attribute in plan.attributes)
+    assert "gen_ai.operation.name" not in dumped
+    assert any(attribute.key == "agent_assure.operation.name" for attribute in plan.attributes)
 
 
 def test_span_plan_redacts_summaries() -> None:

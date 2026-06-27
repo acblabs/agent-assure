@@ -145,7 +145,8 @@ Release evidence connects the deterministic results to reproducible artifacts:
 - environment metadata records installed packages, Python version, platform,
   dependency-inventory digest, and optional lockfile digest;
 - release replay uses stable projections for environment-bearing JSON artifacts
-  and raw file digests for stable source artifacts;
+  and raw file digests for stable source artifacts, then cross-checks
+  manifest-listed child artifact hashes when those files are available;
 - keyless cosign workflow signing can verify exact blob bytes and GitHub
   Actions workflow identity.
 

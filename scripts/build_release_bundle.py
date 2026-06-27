@@ -84,6 +84,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             return build_exit
     extra_artifacts = _write_release_sbom_and_manifest(
         out,
+        artifact_prefix=args.artifact_prefix,
         distribution_paths=distribution_paths,
     )
     replay = build_digest_replay(
@@ -103,7 +104,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 def _build_distributions(dist_dir: Path) -> tuple[int, tuple[Path, ...]]:
     dist_dir.mkdir(parents=True, exist_ok=True)
     result = subprocess.run(
-        [sys.executable, "-m", "build", "--outdir", str(dist_dir)],
+        [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(dist_dir)],
         cwd=ROOT,
         check=False,
     )
@@ -115,6 +116,7 @@ def _build_distributions(dist_dir: Path) -> tuple[int, tuple[Path, ...]]:
 def _write_release_sbom_and_manifest(
     out: Path,
     *,
+    artifact_prefix: str,
     distribution_paths: tuple[Path, ...],
 ) -> tuple[ReleaseArtifact, ...]:
     reports = out / "reports"
@@ -133,6 +135,7 @@ def _write_release_sbom_and_manifest(
         sbom_path,
     )
     extra_artifacts = (
+        *tuple(_existing_release_artifacts(out, artifact_prefix=artifact_prefix)),
         release_artifact("sbom", sbom_path, project_root=ROOT),
         *(
             release_artifact(_distribution_role(path), path, project_root=ROOT)
@@ -148,6 +151,19 @@ def _write_release_sbom_and_manifest(
     write_evidence_packet(packet, packet_path)
     write_evidence_packet_markdown(packet, packet_markdown_path)
     return extra_artifacts
+
+
+def _existing_release_artifacts(out: Path, *, artifact_prefix: str) -> tuple[ReleaseArtifact, ...]:
+    paths = (
+        ("fixture-manifest", out / f"{artifact_prefix}.fixtures.json"),
+        ("evaluation-report", out / "reports" / "evaluation-report.json"),
+        ("comparison-report", out / "reports" / "comparison-report.json"),
+    )
+    return tuple(
+        release_artifact(role, path, project_root=ROOT)
+        for role, path in paths
+        if path.exists()
+    )
 
 
 def _distribution_role(path: Path) -> str:

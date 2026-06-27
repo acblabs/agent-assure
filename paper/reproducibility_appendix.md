@@ -6,7 +6,8 @@ and do not require provider API keys for the bundled examples.
 
 ## Environment
 
-Use Python 3.11 or newer and install the project in editable mode:
+Use Python 3.11 or newer for local development. Release workflows use Python
+3.14 with the checked-in hash-pinned `requirements.lock`:
 
 ```bash
 pip install -e ".[dev]"
@@ -110,9 +111,10 @@ agent-assure release replay .tmp/release/release-digest-replay.json --artifact-r
 Release replay uses raw file digests for stable source artifacts and stable JSON
 projection digests for environment-bearing review artifacts. The release bundle
 also records an SBOM plus Python wheel and source distribution assets in the
-release manifest. Digest replay is a reproducibility check, not a
-cryptographic signature. Cosign verification of workflow-signed release blobs
-is documented in `docs/release_evidence.md`.
+release manifest. Replay cross-checks manifest-listed digests when those files
+are available under the artifact root. Digest replay is a reproducibility
+check, not a cryptographic signature. Cosign verification of workflow-signed
+release blobs is documented in `docs/release_evidence.md`.
 
 ## Test And Quality Checks
 
@@ -132,5 +134,6 @@ claim that bundled examples run without live network access.
 Stable source artifacts such as compiled suites, fixture manifests, and RunSets
 can be compared by raw SHA-256 file digest after canonical writes. Reports,
 packets, dependency inventories, and manifests include local environment
-metadata that may differ across machines; release replay uses stable projections
-for those environment-bearing artifacts.
+metadata that may differ across machines; release replay uses role-specific
+stable projections for environment-bearing review artifacts and raw digests for
+manifest-listed exact release bytes.
