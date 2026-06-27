@@ -30,7 +30,7 @@ jobs:
           set -euo pipefail
           safe_ref_name="${GITHUB_REF_NAME//\//-}"
           bundle_name="agent-assure-${safe_ref_name}-release-bundle"
-          notes_file="docs/release_notes/${GITHUB_REF_NAME#v}.md"
+          notes_file="docs/release_notes/${GITHUB_REF_NAME}.md"
           echo "RELEASE_BUNDLE_NAME=${bundle_name}" >> "${GITHUB_ENV}"
           echo "RELEASE_NOTES_FILE=${notes_file}" >> "${GITHUB_ENV}"
           echo "bundle_name=${bundle_name}" >> "${GITHUB_OUTPUT}"
