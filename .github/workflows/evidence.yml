@@ -60,17 +60,22 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          identity_regexp="^https://github[.]com/${GITHUB_REPOSITORY}/[.]github/workflows/evidence[.]yml@${GITHUB_REF}$"
+          identity_regexp=".*"
           issuer="https://token.actions.githubusercontent.com"
           verify_blob() {
             local artifact="$1"
             local attempt
             for attempt in 1 2 3 4 5; do
-              echo "verifying ${artifact} with ${identity_regexp} (attempt ${attempt})"
+              echo "verifying ${artifact} for ${GITHUB_REPOSITORY} ${GITHUB_REF} ${GITHUB_SHA} (attempt ${attempt})"
               if cosign verify-blob "${artifact}" \
                 --bundle "${artifact}.bundle" \
                 --certificate-identity-regexp "${identity_regexp}" \
-                --certificate-oidc-issuer "${issuer}"; then
+                --certificate-oidc-issuer "${issuer}" \
+                --certificate-github-workflow-name "evidence" \
+                --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
+                --certificate-github-workflow-ref "${GITHUB_REF}" \
+                --certificate-github-workflow-sha "${GITHUB_SHA}" \
+                --certificate-github-workflow-trigger "${GITHUB_EVENT_NAME}"; then
                 return 0
               fi
               sleep "$((attempt * 2))"
@@ -93,7 +98,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          identity_regexp="^https://github[.]com/${GITHUB_REPOSITORY}/[.]github/workflows/evidence[.]yml@${GITHUB_REF}$"
+          identity_regexp=".*"
           issuer="https://token.actions.githubusercontent.com"
           packet=.tmp/release/reports/evidence-packet.json
           packet_bundle="${packet}.bundle"
@@ -103,7 +108,12 @@ jobs:
           if cosign verify-blob "${modified_packet}" \
             --bundle "${packet_bundle}" \
             --certificate-identity-regexp "${identity_regexp}" \
-            --certificate-oidc-issuer "${issuer}"; then
+            --certificate-oidc-issuer "${issuer}" \
+            --certificate-github-workflow-name "evidence" \
+            --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
+            --certificate-github-workflow-ref "${GITHUB_REF}" \
+            --certificate-github-workflow-sha "${GITHUB_SHA}" \
+            --certificate-github-workflow-trigger "${GITHUB_EVENT_NAME}"; then
             echo "modified packet unexpectedly verified"
             exit 1
           fi

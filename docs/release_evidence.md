@@ -92,29 +92,33 @@ The repository workflow pins the cosign binary to `v3.0.6` through the
 
 ## Verify Workflow Identity
 
-Use the exact repository, workflow path, and tag ref that produced the signed
-release bundle:
+Use the exact repository, workflow name, tag ref, release commit, and trigger
+that produced the signed release bundle:
 
 ```bash
 REPO=acblabs/agent-assure
 TAG=v0.1.0
-IDENTITY="^https://github[.]com/${REPO}/[.]github/workflows/release[.]yml@refs/tags/${TAG}$"
+SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
 
 cosign verify-blob evidence-packet.json \
   --bundle evidence-packet.json.bundle \
-  --certificate-identity-regexp "${IDENTITY}" \
-  --certificate-oidc-issuer "${ISSUER}"
+  --certificate-identity-regexp ".*" \
+  --certificate-oidc-issuer "${ISSUER}" \
+  --certificate-github-workflow-name "release" \
+  --certificate-github-workflow-repository "${REPO}" \
+  --certificate-github-workflow-ref "refs/tags/${TAG}" \
+  --certificate-github-workflow-sha "${SHA}" \
+  --certificate-github-workflow-trigger "push"
 ```
 
 Repeat the same verification command for `release-artifact-manifest.json`,
 `release-digest-replay.json`, `sbom.cdx.json`, the wheel, and the source
 distribution with their matching `.bundle` files. The evidence workflow may
-also produce signed evidence blobs; for those artifacts, use
-`.github/workflows/evidence.yml` in the certificate identity. Cosign
-verification is byte-exact: changing a signed file invalidates the signature.
-This is separate from digest replay, which uses stable projections for
-environment-bearing JSON artifacts.
+also produce signed evidence blobs; for those artifacts, use workflow name
+`evidence`. Cosign verification is byte-exact: changing a signed file
+invalidates the signature. This is separate from digest replay, which uses
+stable projections for environment-bearing JSON artifacts.
 
 Sigstore documents keyless blob signing and GitHub Actions OIDC signing at
 https://docs.sigstore.dev/cosign/signing/signing_with_blobs/ and
