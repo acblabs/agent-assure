@@ -28,12 +28,13 @@ sensitivity, boundary intervals, paired t intervals, bootstrap path selection,
 fixed-reference comparisons, incomplete stops, exclusions, and budget-stop
 status.
 
-Advanced endpoint tests cover rare-event Poisson upper bounds, zero-event
-interpretation, observed cluster-correlation summaries with uncertainty,
-Bonferroni rejection of unadjusted multiple confirmatory endpoints,
-deterministic SHA-256-derived resampling seeds, and exact paired-permutation
-null behavior. Low-cluster, mismatched-pairing, unsupported-confidence, and
-inconsistent-design-effect cases fail closed or remain exploratory.
+Advanced endpoint tests cover rare-event Poisson upper bounds, one-sided
+sidedness labeling, zero-event interpretation, observed cluster-correlation
+summaries with uncertainty, Bonferroni rejection of unadjusted multiple
+confirmatory endpoints, deterministic SHA-256-derived resampling seeds, and
+exact paired-permutation null behavior. Low-cluster, mismatched-pairing,
+unsupported-confidence, inconsistent-design-effect, and incompatible primary
+endpoint cases fail closed or remain exploratory.
 
 ## Drift Checks
 

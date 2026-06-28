@@ -890,6 +890,12 @@
           "title": "Exposure Unit",
           "type": "string"
         },
+        "interval_sidedness": {
+          "const": "one_sided_upper",
+          "default": "one_sided_upper",
+          "title": "Interval Sidedness",
+          "type": "string"
+        },
         "label": {
           "minLength": 1,
           "title": "Label",

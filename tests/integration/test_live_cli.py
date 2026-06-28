@@ -178,6 +178,7 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
     assert any(
         invariant.invariant_id == "claim-evidence-before-approval"
         and invariant.affected_observations == 1
+        and invariant.state is GateState.fail
         for invariant in trajectory_report.invariants
     )
     assert (trajectory_dir / "live-trajectory-report.md").exists()

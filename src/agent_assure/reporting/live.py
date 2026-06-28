@@ -141,7 +141,7 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
             if invariant.rare_event_bound is not None:
                 bound = invariant.rare_event_bound
                 lines.append(
-                    f"  - upper `{bound.confidence_level}` bound: "
+                    f"  - `{bound.interval_sidedness}` `{bound.confidence_level}` bound: "
                     f"events=`{bound.observed_events}` exposure=`{bound.exposure}` "
                     f"upper_rate=`{bound.upper_rate_bound}`"
                 )

@@ -348,7 +348,7 @@ def _group(report: LiveEvaluationReport, group_id: str) -> LiveGroupSummary:
 def _difference(candidate: str | None, baseline: str | None) -> str | None:
     if candidate is None or baseline is None:
         return None
-    return signed_unit_decimal_string(Decimal(candidate) - Decimal(baseline))
+    return decimal_string(Decimal(candidate) - Decimal(baseline))
 
 
 def _comparison_state(

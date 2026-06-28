@@ -204,7 +204,15 @@ def run_live_suite(
                 config.max_generated_tokens is not None
                 and generated_tokens_spent > config.max_generated_tokens
             ):
-                raise ValueError("configured generated-token budget was exceeded")
+                raise LiveBudgetExceededError(
+                    "generated_token_budget_exceeded_after_response",
+                    "configured generated-token budget was exceeded after response",
+                )
+            if config.max_total_tokens is not None and total_tokens_spent > config.max_total_tokens:
+                raise LiveBudgetExceededError(
+                    "token_budget_exceeded_after_response",
+                    "configured total-token budget was exceeded after response",
+                )
         except Exception as exc:
             emergency = emergency_from_exception(exc)
             if emergency is not None:

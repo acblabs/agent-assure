@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from decimal import Decimal
 from enum import StrEnum
 from typing import Annotated, Literal, TypeVar
 
@@ -62,6 +63,17 @@ class ReasonCode(StrEnum):
 
 
 DigestHex = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
+_SIX_DECIMAL_PLACES = Decimal("0.000001")
+
+
+def decimal_string(value: Decimal | str | int) -> str:
+    projected = Decimal(str(value))
+    if projected == Decimal("-0"):
+        projected = Decimal("0")
+    quantized = projected.quantize(_SIX_DECIMAL_PLACES)
+    if quantized == Decimal("-0.000000"):
+        quantized = Decimal("0.000000")
+    return f"{quantized:f}"
 
 
 def coerce_enum(enum_type: type[EnumT], value: object) -> EnumT:

@@ -146,9 +146,9 @@ Each advanced endpoint must be interpreted under its declared prerequisites:
 
 | Method | Minimum design information | Confirmatory status |
 | --- | --- | --- |
-| `poisson_upper_bound` | event count, exposure count, exposure unit, and predeclared event family | allowed for rare-event upper bounds when exposure is nonzero and endpoint prerequisites are met |
+| `poisson_upper_bound` | event count, exposure count, exposure unit, and predeclared event family | allowed for one-sided rare-event upper bounds when exposure is nonzero and endpoint prerequisites are met |
 | `hierarchical_binomial_summary` or `beta_binomial_cluster_summary` | binary endpoint values, cluster IDs, observation counts, and planned intraclass correlation | descriptive for observed cluster correlation unless observed-ICC confirmatory use is predeclared by large-cluster threshold or external review |
-| `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed when exact enumeration is feasible and the endpoint threshold is met |
+| `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed when exact enumeration is feasible under the implementation cap and the endpoint threshold is met |
 | `paired_cluster_permutation_monte_carlo` | the exact-test requirements plus a deterministic integer seed derived from the protocol digest | allowed when the protocol predeclares Monte Carlo randomization and the endpoint threshold is met |
 
 Confirmatory interpretation is limited to endpoints whose prerequisite status is
@@ -357,11 +357,17 @@ from the first 128 bits of SHA-256 over the protocol-bound seed material. This
 keeps replayed statistical artifacts independent of Python string-seeding
 details while remaining reproducible for review.
 
+Exact paired permutation enumerates sign assignments and is capped by the
+implementation before evaluation. Protocols that need larger paired designs
+should predeclare the Monte Carlo randomization method rather than relying on an
+exact test that is invalid above the cap.
+
 For rare critical events, including sensitive-content leaks or forbidden
 tool/provider use, an observed count of zero must be reported with an upper
-confidence bound, not as proof of absence. The rule-of-three approximation is
-acceptable for a quick upper bound; exact binomial intervals are preferred in
-final reports.
+one-sided confidence bound, not as proof of absence. Reports expose
+`interval_sidedness=one_sided_upper` on rare-event bound artifacts so this
+result is not confused with the two-sided rate intervals elsewhere in the live
+report.
 
 Latency and cost summaries should use bootstrap intervals for medians and tail
 quantiles. Normal approximations are not acceptable for skewed operational

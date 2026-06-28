@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import Field, model_validator
@@ -13,12 +13,12 @@ from agent_assure.schema.common import (
     ReasonCode,
     coerce_enum,
     coerce_tuple,
+    decimal_string,
 )
 from agent_assure.schema.evaluation import Finding
 
 DecimalString = str
 SignedDecimalString = str
-_SIX_PLACES = Decimal("0.000001")
 
 AnalysisMethod = Literal[
     "paired_cluster_t_interval",
@@ -123,7 +123,7 @@ def _decimal(value: str | int) -> Decimal:
 
 
 def _decimal_string(value: Decimal) -> str:
-    return f"{value.quantize(_SIX_PLACES, rounding=ROUND_HALF_UP):f}"
+    return decimal_string(value)
 
 
 class StatisticalEndpointPlan(PersistedArtifact):
@@ -424,6 +424,7 @@ class RareEventUpperBound(PersistedArtifact):
     upper_count_bound: DecimalString = Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
     upper_rate_bound: DecimalString = Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
     confidence_level: Literal["0.950000"] = "0.950000"
+    interval_sidedness: Literal["one_sided_upper"] = "one_sided_upper"
     analysis_method: Literal["poisson_upper_bound"] = "poisson_upper_bound"
     zero_events: bool = False
     limitations: tuple[str, ...] = ()
@@ -685,6 +686,11 @@ class LiveProtocolRecord(PersistedArtifact):
                 raise ValueError(
                     "paired permutation primary analysis requires a predeclared "
                     "baseline_candidate_relabeling exchangeability assumption"
+                )
+            if primary.endpoint_kind != "expectation_pass_rate":
+                raise ValueError(
+                    "paired permutation comparison currently supports only an "
+                    "expectation_pass_rate primary endpoint"
                 )
         for endpoint in self.advanced_analysis_plan.endpoints:
             if (

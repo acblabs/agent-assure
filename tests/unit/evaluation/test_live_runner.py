@@ -167,6 +167,58 @@ def test_live_runner_records_post_response_budget_stop(tmp_path: Path) -> None:
     assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.POLICY_FAILED,)
 
 
+def test_live_runner_records_cumulative_total_token_budget_stop(tmp_path: Path) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    responses = tmp_path / "responses.jsonl"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    rows = []
+    for repetition_index in range(2):
+        rows.append(
+            {
+                "case_id": "exp-001",
+                "repetition_index": repetition_index,
+                "record": {
+                    "recommendation": "approve",
+                    "outcome": "approve",
+                    "output_summary": "receipt-backed approval",
+                },
+                "provider": "static",
+                "model": "model",
+                "prompt_tokens": 12,
+                "completion_tokens": 18,
+                "total_tokens": 30,
+                "estimated_cost_usd": "0.000000",
+            }
+        )
+    responses.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for row in rows) + "\n",
+        encoding="utf-8",
+    )
+    payload = _protocol_payload(compiled)
+    payload.update(
+        {
+            "planned_observations": 2,
+            "planned_repetitions": 2,
+            "planned_observations_per_cluster": "2.000000",
+            "design_effect": "1.200000",
+            "planned_effective_n": "1.666667",
+            "max_requests": 2,
+            "max_total_tokens": 50,
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(payload)
+    protocol_digest = sha256_hexdigest(protocol)
+    config = _static_config(prompt, responses, protocol, protocol_digest)
+
+    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert runset.completion_status == "incomplete"
+    assert runset.stop_reasons == ("token_budget_exceeded_after_response",)
+    assert runset.runs[0].outcome == "approve"
+    assert runset.runs[1].policy_results[0].reason_codes == (ReasonCode.POLICY_FAILED,)
+
+
 def _config(*, tokens_per_minute: int, max_output_tokens: int) -> LiveRunConfig:
     return LiveRunConfig(
         variant_id="static-live",
@@ -215,9 +267,12 @@ def _static_config(
                 input_summary="expense request",
             ),
         ),
-        max_requests=1,
+        repetitions=protocol.planned_repetitions or 1,
+        max_requests=protocol.max_requests,
         max_total_cost_usd=protocol.max_total_cost_usd,
         max_cost_per_observation_usd=protocol.max_cost_per_observation_usd,
+        max_total_tokens=protocol.max_total_tokens,
+        max_generated_tokens=protocol.max_generated_tokens,
         max_retries=0,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,

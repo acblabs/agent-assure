@@ -16,9 +16,17 @@ from agent_assure.live.comparison import (
 )
 from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.intervals import difference_t_interval, stable_seed_int, t_critical_95
+from agent_assure.live.primitives import decimal_string as live_decimal_string
 from agent_assure.live.statistics import _rate_from_values, evaluate_live_runset
 from agent_assure.live.trajectory import build_live_trajectory_report
-from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode
+from agent_assure.schema.common import (
+    ExecutionMode,
+    GateState,
+    ReasonCode,
+)
+from agent_assure.schema.common import (
+    decimal_string as schema_decimal_string,
+)
 from agent_assure.schema.live import (
     LiveProtocolRecord,
     LiveTrajectoryReport,
@@ -28,6 +36,13 @@ from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, RunSet
 
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
+
+
+def test_live_decimal_rendering_uses_one_schema_helper() -> None:
+    exact_half = Decimal("1.2345665")
+
+    assert schema_decimal_string(exact_half) == "1.234566"
+    assert live_decimal_string(exact_half) == schema_decimal_string(exact_half)
 
 
 def test_live_statistics_aggregate_repeated_observations() -> None:
@@ -207,7 +222,12 @@ def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> N
     assert rare.rare_event_bound is not None
     assert rare.rare_event_bound.observed_events == 0
     assert rare.rare_event_bound.zero_events is True
+    assert rare.rare_event_bound.interval_sidedness == "one_sided_upper"
     assert Decimal(rare.rare_event_bound.upper_rate_bound) > Decimal("0.000000")
+    assert any(
+        "one-sided upper" in limitation
+        for limitation in rare.rare_event_bound.limitations
+    )
     assert any(
         "not proof" in limitation for limitation in rare.rare_event_bound.limitations
     )
@@ -477,6 +497,36 @@ def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None
     assert report.budget_exceeded is True
 
 
+def test_live_statistics_rejects_cumulative_total_token_budget_violation() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        max_total_tokens=10,
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-total-token-overrun",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(repetition_index=0, linked=True, total_tokens=6),
+            _record(repetition_index=1, linked=True, total_tokens=6),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="total_tokens exceeds protocol max_total_tokens"):
+        evaluate_live_runset(compiled, runset, protocol=protocol)
+
+
 def test_live_comparison_reports_pass_rate_difference() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
@@ -534,6 +584,69 @@ def test_live_comparison_reports_pass_rate_difference() -> None:
     assert comparison.effective_n == "1.666667"
     assert comparison.baseline_pass_rate.rate == "1.000000"
     assert comparison.candidate_pass_rate.rate == "0.500000"
+
+
+def test_live_comparison_reports_unclamped_latency_and_cost_differences() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        max_cost_per_observation_usd="5.000000",
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    baseline = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="baseline-live",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="1" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=(
+                _record(
+                    repetition_index=0,
+                    linked=True,
+                    latency_ms=100,
+                    cost="0.500000",
+                ),
+            ),
+        ),
+        protocol=protocol,
+    )
+    candidate = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="candidate-live",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="2" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=(
+                _record(
+                    repetition_index=0,
+                    linked=True,
+                    latency_ms=1500,
+                    cost="3.000000",
+                ),
+            ),
+        ),
+        protocol=protocol,
+    )
+
+    comparison = compare_live_reports(baseline, candidate, protocol=protocol)
+
+    assert comparison.latency_p50_difference_ms == "1400.000000"
+    assert comparison.cost_total_difference_usd == "2.500000"
 
 
 def test_live_comparison_honors_paired_bootstrap_protocol_method() -> None:
@@ -654,6 +767,44 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
     assert test.adjusted_p_value == "0.031250"
     assert test.exhaustive is True
     assert test.resamples == 32
+
+
+def test_paired_randomization_rejects_non_pass_rate_primary_endpoint() -> None:
+    compiled = compile_suite(SUITE)
+    payload = _protocol(
+        compiled,
+        observations=5,
+        clusters=5,
+        repetitions=5,
+    ).model_dump(mode="json")
+    payload["analysis_method"] = "paired_cluster_permutation_exact"
+    payload["primary_endpoint"] = "reason_code_rate"
+    payload["advanced_analysis_plan"] = {
+        "artifact_kind": "advanced-analysis-plan",
+        "schema_version": "0.2.0",
+        "multiplicity_method": "single_endpoint",
+        "familywise_alpha": "0.050000",
+        "observed_icc_confirmatory_use": "disabled",
+        "endpoints": [
+            {
+                "artifact_kind": "statistical-endpoint-plan",
+                "schema_version": "0.2.0",
+                "endpoint_id": "material-evidence-failure",
+                "label": "Material evidence failures",
+                "endpoint_kind": "reason_code_rate",
+                "role": "primary",
+                "interpretation": "confirmatory",
+                "analysis_method": "descriptive_rate",
+                "reason_codes": [ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value],
+                "minimum_clusters": 5,
+                "minimum_observations": 5,
+                "exchangeability_assumption": "baseline_candidate_relabeling",
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError, match="supports only an expectation_pass_rate"):
+        LiveProtocolRecord.model_validate(payload)
 
 
 def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> None:
@@ -1563,6 +1714,9 @@ def _record(
     attempt_count: int = 1,
     retry_count: int = 0,
     rate_limit_events: int = 0,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
+    total_tokens: int | None = None,
     human_review_required: bool = False,
     human_review_performed: bool = False,
 ) -> AgentRunRecord:
@@ -1605,6 +1759,9 @@ def _record(
             "retry_count": retry_count,
             "rate_limit_events": rate_limit_events,
             "exclusion_reason": exclusion_reason,
+            "prompt_tokens": prompt_tokens,
+            "completion_tokens": completion_tokens,
+            "total_tokens": total_tokens,
             "estimated_cost_usd": cost,
             "estimated_cost_source": "adapter_reported",
             "tools": ["expense_policy_check", "receipt_check"],
@@ -1655,6 +1812,9 @@ def _protocol(
     max_exclusion_rate: str = "0.000000",
     max_retries: int = 0,
     max_rate_limit_events: int = 0,
+    max_cost_per_observation_usd: str = "1.000000",
+    max_total_tokens: int | None = None,
+    max_generated_tokens: int | None = None,
     advanced_analysis_plan: dict[str, object] | None = None,
     drift_monitoring_plan: dict[str, object] | None = None,
     trajectory_analysis_plan: dict[str, object] | None = None,
@@ -1696,7 +1856,9 @@ def _protocol(
         randomization_blocking="balanced_case_blocks",
         max_requests=observations,
         max_total_cost_usd="10.000000",
-        max_cost_per_observation_usd="1.000000",
+        max_cost_per_observation_usd=max_cost_per_observation_usd,
+        max_total_tokens=max_total_tokens,
+        max_generated_tokens=max_generated_tokens,
         max_retries=max_retries,
         exclusion_policy="only pre-provider local configuration exclusions are allowed",
         allowed_exclusion_reasons=allowed_exclusion_reasons,

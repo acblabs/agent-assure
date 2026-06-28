@@ -59,6 +59,13 @@
   boundary intervals, using the declared cluster bootstrap method for
   descriptive per-arm rates when applicable, and rejecting paired comparisons
   whose included cluster or case/repetition sets do not match.
+- Hardened v0.2 live pre-release review issues by unifying six-place decimal
+  rendering for protocol and report calculations, enforcing cumulative total
+  and generated token budgets after live responses, preserving unclamped
+  latency and cost comparison deltas, exposing rare-event Poisson bound
+  sidedness, adding a Poisson bisection tolerance, and rejecting paired
+  randomization protocols whose primary endpoint is not the expectation pass
+  rate actually tested by the comparison path.
 - Hardened live response handling with a strict structured-output contract,
   malformed-output emergency records, post-response budget-stop records,
   estimated-cost source metadata, redacted live summaries before record

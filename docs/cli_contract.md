@@ -125,9 +125,10 @@ flags, provider/model group summaries, latency distributions, estimated-cost
 distributions,
 observation-level findings, optional protocol-declared statistical-invariant
 results, and limitations. Statistical-invariant results can include rare-event
-Poisson upper bounds at the protocol confidence level and observed
-cluster-correlation summaries with uncertainty; zero observed critical events are reported as bounded evidence,
-not proof of absence. Degenerate per-arm cluster intervals are labeled as a
+one-sided Poisson upper bounds at the protocol confidence level and observed
+cluster-correlation summaries with uncertainty; zero observed critical events
+are reported as bounded evidence, not proof of absence. Degenerate per-arm
+cluster intervals are labeled as a
 boundary heuristic rather than an ordinary t interval. It exits `1` when any included
 observation has a blocking
 expectation/policy finding or protocol exclusion limits are exceeded.

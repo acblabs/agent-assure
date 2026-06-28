@@ -49,8 +49,10 @@ Wilson analysis.
 Advanced live endpoint plans add rare-event upper bounds, observed
 cluster-correlation summaries, and paired randomization tests only when those
 analyses are declared in the frozen protocol. Zero observed critical events are
-reported with an upper confidence bound rather than as proof that the event
-cannot occur. Observed intraclass correlation is descriptive unless the
+reported with a one-sided upper confidence bound rather than as proof that the
+event cannot occur. Rare-event bound artifacts expose `interval_sidedness` so
+reviewers do not read them as the two-sided intervals used for live rate
+summaries. Observed intraclass correlation is descriptive unless the
 protocol predeclares a large-cluster threshold or external statistical-review
 allowance; low-cluster observed ICC estimates do not narrow confirmatory
 interpretation below the planned-ICC analysis. Paired randomization tests check

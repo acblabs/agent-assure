@@ -181,6 +181,16 @@ def _verify_protocol_obligations(runset: RunSet, protocol: LiveProtocolRecord) -
     total_cost = sum(Decimal(run.estimated_cost_usd or "0.000000") for run in runset.runs)
     if total_cost > Decimal(protocol.max_total_cost_usd):
         raise ValueError("live RunSet cost exceeds protocol max_total_cost_usd")
+    if protocol.max_total_tokens is not None:
+        total_tokens = sum(run.total_tokens or 0 for run in runset.runs)
+        if total_tokens > protocol.max_total_tokens:
+            raise ValueError("live RunSet total_tokens exceeds protocol max_total_tokens")
+    if protocol.max_generated_tokens is not None:
+        generated_tokens = sum(run.completion_tokens or 0 for run in runset.runs)
+        if generated_tokens > protocol.max_generated_tokens:
+            raise ValueError(
+                "live RunSet completion_tokens exceeds protocol max_generated_tokens"
+            )
 
 
 def _evaluate_observation(

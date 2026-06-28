@@ -32,6 +32,7 @@ from agent_assure.schema.run import AgentRunRecord
 _MAX_EXACT_PERMUTATION_CLUSTERS = 20
 _MONTE_CARLO_RESAMPLES = 10000
 _ICC_BOOTSTRAP_ITERATIONS = 1000
+_POISSON_BOUND_TOLERANCE = Decimal("0.000000000001")
 _RandomizationMethod = Literal[
     "paired_cluster_permutation_exact",
     "paired_cluster_permutation_monte_carlo",
@@ -367,6 +368,10 @@ def _rare_event_bound(
         )
         upper_rate = upper_count / Decimal(exposure)
     limitations = []
+    limitations.append(
+        "rare-event Poisson bound is a one-sided upper bound at the protocol "
+        "confidence level"
+    )
     if observed_events == 0:
         limitations.append(
             "zero observed events produce an upper bound, not proof that the event is absent"
@@ -382,6 +387,7 @@ def _rare_event_bound(
         upper_count_bound=decimal_string(upper_count),
         upper_rate_bound=decimal_string(upper_rate),
         confidence_level=protocol.confidence_level,
+        interval_sidedness="one_sided_upper",
         analysis_method="poisson_upper_bound",
         zero_events=observed_events == 0,
         limitations=tuple(limitations),
@@ -555,6 +561,8 @@ def _poisson_upper_count_bound(events: int, *, alpha: Decimal) -> Decimal:
     while _poisson_cdf(events, high) > alpha:
         high *= Decimal("2")
     for _ in range(80):
+        if high - low < _POISSON_BOUND_TOLERANCE:
+            break
         midpoint = (low + high) / Decimal("2")
         if _poisson_cdf(events, midpoint) > alpha:
             low = midpoint

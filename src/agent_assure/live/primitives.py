@@ -3,17 +3,11 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-_SIX_PLACES = Decimal("0.000001")
+from agent_assure.schema.common import decimal_string as schema_decimal_string
 
 
 def decimal_string(value: Decimal | str | int) -> str:
-    projected = Decimal(str(value))
-    if projected == Decimal("-0"):
-        projected = Decimal("0")
-    quantized = projected.quantize(_SIX_PLACES)
-    if quantized == Decimal("-0.000000"):
-        quantized = Decimal("0.000000")
-    return f"{quantized:f}"
+    return schema_decimal_string(value)
 
 
 def probability_string(value: Decimal | str | int) -> str:
