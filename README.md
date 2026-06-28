@@ -153,6 +153,52 @@ evaluation report identifies the failing invariant under equivalent fixtures.
 It does not show live model quality, safety, compliance, clinical validity, or
 standards acceptance.
 
+### Flagship regression at a glance
+
+The key idea: ordinary output comparison can miss governance regressions. In the
+flagship fixture, the candidate keeps the same visible recommendation and
+outcome as the baseline, but drops a material evidence link. `agent-assure`
+catches the missing evidence invariant and classifies the baseline-to-candidate
+comparison as a `new_failure` under passing fixture equivalence.
+
+```mermaid
+flowchart LR
+    subgraph OutputCheck["Ordinary visible-output check"]
+        BOut["Baseline output<br/>recommendation=approve<br/>outcome=approve"]
+        COut["Candidate output<br/>recommendation=approve<br/>outcome=approve"]
+        Same["Visible answer unchanged"]
+        BOut --> Same
+        COut --> Same
+    end
+
+    subgraph InvariantCheck["agent-assure invariant check"]
+        BEv["Baseline evidence<br/>claim-duration linked"]
+        CEv["Candidate evidence<br/>claim-duration missing link"]
+        Pass["Baseline evaluation: pass"]
+        Fail["Candidate evaluation: fail<br/>MATERIAL_CLAIM_MISSING_EVIDENCE"]
+        BEv --> Pass
+        CEv --> Fail
+    end
+
+    Same --> Tension["Output unchanged<br/>but governance invariant regressed"]
+    Equiv["Fixture equivalence: pass"] --> Compare["Baseline-to-candidate comparison"]
+    Pass --> Compare
+    Fail --> Compare
+    Tension --> Compare
+
+    Compare --> NewFailure["Classification: new_failure"]
+
+    classDef pass fill:#e5f5ff,stroke:#0072b2,color:#003b5c;
+    classDef fail fill:#fff1e0,stroke:#d55e00,color:#5c2a00;
+    classDef neutral fill:#eef3ff,stroke:#3f51b5,color:#1a237e;
+    classDef warn fill:#fff8e1,stroke:#f9a825,color:#5d4037;
+
+    class Pass,Equiv pass;
+    class Fail,NewFailure fail;
+    class Same,Compare neutral;
+    class Tension warn;
+```
+
 ## Architecture
 
 This is the full toolkit shape. The five-minute demo exercises the fixture-mode

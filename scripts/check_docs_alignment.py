@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -9,8 +10,17 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from agent_assure.schema.common import ReasonCode  # noqa: E402
+from agent_assure.authoring.compiler import compile_suite  # noqa: E402
+from agent_assure.compare.runsets import compare_runsets  # noqa: E402
+from agent_assure.evaluation.evaluator import evaluate_runset  # noqa: E402
+from agent_assure.runner.fixture_runner import load_variant_config, run_suite  # noqa: E402
+from agent_assure.schema.common import (  # noqa: E402
+    ComparisonClassification,
+    GateState,
+    ReasonCode,
+)
 from agent_assure.schema.export import SCHEMA_MODELS  # noqa: E402
+from agent_assure.schema.run import AgentRunRecord  # noqa: E402
 
 PUBLIC_DOCS = [
     ROOT / "README.md",
@@ -83,6 +93,38 @@ REQUIRED_CLAIM_IDS = {
     "live-trajectory-analysis",
 }
 
+FLAGSHIP_README_DIAGRAM_HEADING = "### Flagship regression at a glance"
+FLAGSHIP_SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
+FLAGSHIP_BASELINE_VARIANT = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
+FLAGSHIP_CANDIDATE_VARIANT = Path(
+    "examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml"
+)
+FLAGSHIP_CASE_ID = "shared-source-multi-claim"
+FLAGSHIP_README_DIAGRAM_REQUIRED_EDGES = (
+    (
+        r'\bEquiv\b\["Fixture equivalence: pass"\]\s*-->\s*'
+        r'\bCompare\b\["Baseline-to-candidate comparison"\]'
+    ),
+    r"\bPass\b\s*-->\s*\bCompare\b",
+    r"\bFail\b\s*-->\s*\bCompare\b",
+    r"\bTension\b\s*-->\s*\bCompare\b",
+    r"\bCompare\b\s*-->\s*\bNewFailure\b",
+)
+
+
+@dataclass(frozen=True)
+class FlagshipShowcaseFacts:
+    baseline_recommendation: str
+    baseline_outcome: str
+    candidate_recommendation: str
+    candidate_outcome: str
+    missing_claim_id: str
+    baseline_state: GateState
+    candidate_state: GateState
+    candidate_reason_code: ReasonCode
+    classification: ComparisonClassification
+    fixture_equivalence_state: GateState
+
 
 def main() -> int:
     failures: list[str] = []
@@ -92,6 +134,7 @@ def main() -> int:
     failures.extend(_check_claim_traceability())
     failures.extend(_check_schema_reference())
     failures.extend(_check_reason_codes())
+    failures.extend(_check_flagship_readme_diagram())
     failures.extend(_check_otel_mapping())
     failures.extend(_check_live_protocol())
     failures.extend(_check_standards_freshness())
@@ -169,6 +212,146 @@ def _check_reason_codes() -> list[str]:
         for reason in ReasonCode
         if f"`{reason.value}`" not in text
     ]
+
+
+def _check_flagship_readme_diagram() -> list[str]:
+    path = ROOT / "README.md"
+    if not path.exists():
+        return []
+    text = path.read_text(encoding="utf-8")
+    section = _markdown_heading_content(text, FLAGSHIP_README_DIAGRAM_HEADING)
+    if section is None:
+        return ["README.md missing flagship regression diagram section"]
+    diagram = _first_fenced_block(section, "mermaid")
+    if diagram is None:
+        return ["README.md flagship regression section missing mermaid diagram"]
+
+    try:
+        required_snippets = _flagship_readme_diagram_required_snippets()
+    except Exception as exc:
+        return [f"could not derive flagship showcase facts for README diagram: {exc}"]
+
+    failures = [
+        f"README.md flagship diagram missing expected fact: {snippet}"
+        for snippet in required_snippets
+        if snippet not in diagram
+    ]
+    failures.extend(
+        f"README.md flagship diagram missing expected causal edge: {pattern}"
+        for pattern in FLAGSHIP_README_DIAGRAM_REQUIRED_EDGES
+        if re.search(pattern, diagram) is None
+    )
+    if re.search(r"\bCompare\b\s*-->\s*\bEquiv\b", diagram):
+        failures.append(
+            "README.md flagship diagram must show fixture equivalence gating "
+            "comparison, not comparison producing fixture equivalence"
+        )
+    return failures
+
+
+def _flagship_readme_diagram_required_snippets() -> tuple[str, ...]:
+    facts = _derive_flagship_showcase_facts()
+    return (
+        (
+            "Baseline output<br/>"
+            f"recommendation={facts.baseline_recommendation}<br/>"
+            f"outcome={facts.baseline_outcome}"
+        ),
+        (
+            "Candidate output<br/>"
+            f"recommendation={facts.candidate_recommendation}<br/>"
+            f"outcome={facts.candidate_outcome}"
+        ),
+        "Visible answer unchanged",
+        f"Baseline evidence<br/>{facts.missing_claim_id} linked",
+        f"Candidate evidence<br/>{facts.missing_claim_id} missing link",
+        f"Baseline evaluation: {facts.baseline_state.value}",
+        f"Candidate evaluation: {facts.candidate_state.value}",
+        facts.candidate_reason_code.value,
+        "Output unchanged<br/>but governance invariant regressed",
+        f"Classification: {facts.classification.value}",
+        f"Fixture equivalence: {facts.fixture_equivalence_state.value}",
+    )
+
+
+def _derive_flagship_showcase_facts() -> FlagshipShowcaseFacts:
+    suite_path = ROOT / FLAGSHIP_SUITE
+    baseline_variant_path = ROOT / FLAGSHIP_BASELINE_VARIANT
+    candidate_variant_path = ROOT / FLAGSHIP_CANDIDATE_VARIANT
+    compiled = compile_suite(suite_path)
+    baseline = run_suite(
+        compiled,
+        load_variant_config(baseline_variant_path),
+        suite_path.parent,
+    )
+    candidate = run_suite(
+        compiled,
+        load_variant_config(candidate_variant_path),
+        suite_path.parent,
+    )
+    baseline_report = evaluate_runset(compiled, baseline)
+    candidate_report = evaluate_runset(compiled, candidate)
+    comparison_report = compare_runsets(compiled, baseline, candidate)
+    baseline_run = _run_by_case(baseline.runs, FLAGSHIP_CASE_ID)
+    candidate_run = _run_by_case(candidate.runs, FLAGSHIP_CASE_ID)
+
+    if (
+        baseline_run.recommendation != candidate_run.recommendation
+        or baseline_run.outcome != candidate_run.outcome
+    ):
+        raise ValueError("flagship visible output is no longer unchanged")
+
+    baseline_claim_ids = _claim_ids(baseline_run)
+    candidate_claim_ids = _claim_ids(candidate_run)
+    missing_claim_ids = baseline_claim_ids - candidate_claim_ids
+    if len(missing_claim_ids) != 1:
+        raise ValueError(
+            "flagship candidate must drop exactly one baseline evidence claim; "
+            f"found {sorted(missing_claim_ids)}"
+        )
+    missing_claim_id = next(iter(missing_claim_ids))
+
+    candidate_findings = candidate_report.candidate_vs_expectations.findings
+    if len(candidate_findings) != 1:
+        raise ValueError(
+            "flagship candidate must produce exactly one finding; "
+            f"found {len(candidate_findings)}"
+        )
+    finding = candidate_findings[0]
+    if finding.target != f"claim:{missing_claim_id}":
+        raise ValueError(
+            "flagship candidate finding target does not match the missing claim: "
+            f"{finding.target}"
+        )
+
+    return FlagshipShowcaseFacts(
+        baseline_recommendation=baseline_run.recommendation,
+        baseline_outcome=baseline_run.outcome,
+        candidate_recommendation=candidate_run.recommendation,
+        candidate_outcome=candidate_run.outcome,
+        missing_claim_id=missing_claim_id,
+        baseline_state=baseline_report.candidate_vs_expectations.state,
+        candidate_state=candidate_report.candidate_vs_expectations.state,
+        candidate_reason_code=finding.reason_code,
+        classification=comparison_report.comparison_summary.classification,
+        fixture_equivalence_state=(
+            comparison_report.comparison_summary.fixture_equivalence_state
+        ),
+    )
+
+
+def _run_by_case(
+    runs: tuple[AgentRunRecord, ...],
+    case_id: str,
+) -> AgentRunRecord:
+    for run in runs:
+        if run.case_id == case_id:
+            return run
+    raise ValueError(f"flagship run set missing case: {case_id}")
+
+
+def _claim_ids(run: AgentRunRecord) -> set[str]:
+    return {claim_id for ref in run.evidence_refs for claim_id in ref.claim_ids}
 
 
 def _check_otel_mapping() -> list[str]:
@@ -272,8 +455,44 @@ def _markdown_section_content(text: str, section: str) -> str | None:
     return text[content_start:content_end].strip()
 
 
+def _markdown_heading_content(text: str, heading: str) -> str | None:
+    headings = _markdown_headings(text)
+    section_index = next(
+        (index for index, current in enumerate(headings) if current[0] == heading),
+        None,
+    )
+    if section_index is None:
+        return None
+    _, _, content_start, level = headings[section_index]
+    content_end = len(text)
+    for _, heading_start, _, next_level in headings[section_index + 1 :]:
+        if next_level <= level:
+            content_end = heading_start
+            break
+    return text[content_start:content_end].strip()
+
+
+def _first_fenced_block(text: str, info_string: str) -> str | None:
+    pattern = re.compile(
+        rf"^[ \t]*```{re.escape(info_string)}[ \t]*\r?\n"
+        r"(.*?)"
+        r"^[ \t]*```[ \t]*$",
+        re.MULTILINE | re.DOTALL,
+    )
+    match = pattern.search(text)
+    return match.group(1).strip() if match else None
+
+
 def _markdown_level2_headings(text: str) -> list[tuple[str, int, int]]:
-    headings: list[tuple[str, int, int]] = []
+    return [
+        (heading, heading_start, content_start)
+        for heading, heading_start, content_start, level in _markdown_headings(text)
+        if level == 2
+    ]
+
+
+def _markdown_headings(text: str) -> list[tuple[str, int, int, int]]:
+    headings: list[tuple[str, int, int, int]] = []
     in_fence = False
     fence_char = ""
     fence_len = 0
@@ -293,8 +512,17 @@ def _markdown_level2_headings(text: str) -> list[tuple[str, int, int]]:
                 fence_len = 0
             offset += len(line)
             continue
-        if not in_fence and re.match(r"^##\s+\S", stripped_line):
-            headings.append((stripped_line.strip(), offset, offset + len(line)))
+        if not in_fence:
+            heading = re.match(r"^(#{1,6})\s+\S", stripped_line)
+            if heading:
+                headings.append(
+                    (
+                        stripped_line.strip(),
+                        offset,
+                        offset + len(line),
+                        len(heading.group(1)),
+                    )
+                )
         offset += len(line)
     return headings
 
