@@ -61,7 +61,7 @@
   largest-cluster sensitivity; paired cluster comparisons for concurrent
   baselines; fixed-reference comparisons for threshold protocols;
   optional advanced statistical endpoint plans with rare-event upper bounds,
-  observed cluster-correlation summaries, endpoint multiplicity controls,
+  observed cluster-correlation summaries, Bonferroni endpoint multiplicity controls,
   and paired exact or Monte Carlo randomization tests with structural pairing
   checks and stable integer seeds; low-cluster exploratory
   guardrails; provider-version and tool/policy
@@ -71,6 +71,11 @@
   diagnostics, EWMA governance-health/control-reliability summaries, timestamp
   order checks, and method-specific minimum-window gates labeled as review
   signals by default;
+  derived trajectory reports with privacy-filtered observable state paths,
+  canonical transition profiles, explicit history-dependent checks, sequence invariants
+  that separate governance-control findings from operational reliability
+  warnings, and event-process summaries for retries, rate limits, exclusions,
+  malformed outputs, runtime failures, emergency records, and budget stops;
   retry/rate-limit/token-pacing/budget enforcement fields; incomplete-run
   status; provider/model group summaries; and cost/latency distributions.
 - Runtime isolation for configured external scripts through a no-shell

@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Added protocol-bound live trajectory reports with a new
+  `live-trajectory-report` schema and `agent-assure live trajectory` command.
+  Reports derive privacy-filtered observable state paths from structured live
+  RunSets, evaluation reports, and emergency records; summarize observable
+  transition profiles; make history-dependent checks explicit; separate
+  governance-control trajectory findings from operational reliability warnings;
+  and report retry, rate-limit, exclusion, malformed-output, runtime-failure,
+  emergency-process, and budget-stop event streams with exploratory burst
+  signals under declared event-count, exposure, timestamp, and transition
+  support prerequisites.
 - Added protocol-bound cross-window live drift monitoring with a new
   `live-drift-report` schema and `agent-assure live drift` command. Reports
   check suite/protocol, baseline-mode, analysis-method, tool-schema, and
@@ -11,7 +21,7 @@
   summaries as exploratory review signals by default once method-specific
   minimum-window prerequisites are met.
 - Added optional protocol-bound advanced live statistical endpoints with
-  confirmatory/exploratory labels, multiplicity validation, rare-event Poisson
+  confirmatory/exploratory labels, Bonferroni multiplicity validation, rare-event Poisson
   upper bounds, observed cluster-correlation summaries with bootstrap
   uncertainty, and paired exact or Monte Carlo randomization tests that fail
   closed when structural pairing, exchangeability, or enumeration prerequisites

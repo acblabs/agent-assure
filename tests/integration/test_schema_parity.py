@@ -99,6 +99,35 @@ def test_live_protocol_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
                 },
             ],
         },
+        "trajectory_analysis_plan": {
+            "artifact_kind": "trajectory-analysis-plan",
+            "schema_version": "0.2.0",
+            "plan_id": "trajectory-schema-parity",
+            "interpretation": "exploratory",
+            "analysis_methods": [
+                "observable_transition_profile",
+                "sequence_invariant_check",
+                "event_process_summary",
+                "burst_window_count",
+            ],
+            "minimum_observations": 1,
+            "minimum_transition_support": 1,
+            "minimum_event_count": 3,
+            "minimum_event_exposure": 1,
+            "burst_window_seconds": 60,
+            "burst_count_threshold": 3,
+            "invariants": [
+                {
+                    "artifact_kind": "trajectory-invariant-plan",
+                    "schema_version": "0.2.0",
+                    "invariant_id": "claim-evidence-before-approval",
+                    "label": "Approval verdicts retain explicit claim evidence links",
+                    "invariant_type": "claim_evidence_before_approval",
+                    "category": "governance_control_failure",
+                    "interpretation": "exploratory",
+                }
+            ],
+        },
         "approved_data_boundary": "synthetic local prompts only",
         "safety_limits": ["stop if sensitive content is persisted"],
     }
@@ -240,6 +269,119 @@ def test_live_drift_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  #
     path = tmp_path / "live-drift.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     assert validate_artifact(path, "live-drift-report") == "pydantic+jsonschema"
+
+
+def test_live_trajectory_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    payload = {
+        "artifact_kind": "live-trajectory-report",
+        "schema_version": "0.2.0",
+        "report_id": "live-trajectory-schema-parity",
+        "runset_id": "runset-live-trajectory",
+        "evaluation_report_id": "runset-live-trajectory:live-evaluation-report",
+        "protocol_id": "protocol-live-001",
+        "protocol_digest": "1" * 64,
+        "trajectory_plan_id": "trajectory-plan-001",
+        "suite_id": "expense-approval-minimal",
+        "suite_version": "0.1.0",
+        "interpretation": "exploratory",
+        "state": "not_evaluated",
+        "trajectory_status": "exploratory",
+        "transition_assumption": "canonical_observable_order",
+        "transition_assumption_status": "met",
+        "observations": 1,
+        "included_observations": 1,
+        "excluded_observations": 0,
+        "paths": [
+            {
+                "artifact_kind": "trajectory-path-summary",
+                "schema_version": "0.2.0",
+                "observation_id": "obs-live-0",
+                "run_id": "run-live-0",
+                "case_id": "exp-001",
+                "repetition_index": 0,
+                "cluster_id": "exp-001",
+                "terminal_state": "verdict",
+                "states": [
+                    "start",
+                    "request_assembly",
+                    "provider_call",
+                    "tool_call",
+                    "evidence_check",
+                    "verdict",
+                ],
+                "transition_count": 5,
+                "tool_count": 2,
+                "claim_count": 1,
+                "evidence_ref_count": 1,
+                "claim_evidence_link_count": 1,
+                "policy_result_count": 0,
+                "human_review_required": False,
+                "human_review_performed": False,
+                "has_ordered_timestamps": True,
+            }
+        ],
+        "transitions": [
+            {
+                "artifact_kind": "trajectory-transition-summary",
+                "schema_version": "0.2.0",
+                "from_state": "provider_call",
+                "to_state": "tool_call",
+                "count": 1,
+                "from_state_count": 1,
+                "conditional_frequency": "1.000000",
+                "prerequisite_status": "met",
+            }
+        ],
+        "invariants": [
+            {
+                "artifact_kind": "trajectory-invariant-result",
+                "schema_version": "0.2.0",
+                "invariant_id": "claim-evidence-before-approval",
+                "label": "Approval verdicts retain explicit claim evidence links",
+                "invariant_type": "claim_evidence_before_approval",
+                "category": "governance_control_failure",
+                "interpretation": "exploratory",
+                "prerequisite_status": "met",
+                "affected_observations": 0,
+                "evaluated_observations": 1,
+                "state": "not_evaluated",
+            }
+        ],
+        "history_dependent_checks": [
+            {
+                "artifact_kind": "history-dependent-trajectory-check",
+                "schema_version": "0.2.0",
+                "check_id": "claim-evidence-history",
+                "dependency": "approval eligibility depends on complete claim evidence links",
+                "prerequisite_status": "met",
+                "affected_observations": 0,
+            }
+        ],
+        "event_processes": [
+            {
+                "artifact_kind": "operational-event-process-summary",
+                "schema_version": "0.2.0",
+                "event_type": "retry",
+                "observed_events": 0,
+                "exposure": 1,
+                "exposure_unit": "observation",
+                "event_rate": "0.000000",
+                "analysis_method": "burst_window_count",
+                "prerequisite_status": "exploratory",
+                "timestamped_events": 0,
+                "missing_timestamp_events": 0,
+                "max_events_in_burst_window": 0,
+                "burst_window_seconds": 60,
+                "burst_signal": "none",
+            }
+        ],
+    }
+    model = SCHEMA_MODELS["live-trajectory-report"]
+    model.model_validate(payload)
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+    path = tmp_path / "live-trajectory.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert validate_artifact(path, "live-trajectory-report") == "pydantic+jsonschema"
 
 
 def test_emergency_process_record_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]

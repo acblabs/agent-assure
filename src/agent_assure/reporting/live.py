@@ -8,7 +8,12 @@ from agent_assure.privacy.redaction import (
     redact_artifact_payload,
     redact_text,
 )
-from agent_assure.schema.live import LiveComparisonReport, LiveDriftReport, LiveEvaluationReport
+from agent_assure.schema.live import (
+    LiveComparisonReport,
+    LiveDriftReport,
+    LiveEvaluationReport,
+    LiveTrajectoryReport,
+)
 
 
 def write_live_evaluation_json(report: LiveEvaluationReport, out_dir: Path) -> Path:
@@ -32,6 +37,13 @@ def write_live_drift_json(report: LiveDriftReport, out_dir: Path) -> Path:
     return path
 
 
+def write_live_trajectory_json(report: LiveTrajectoryReport, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "live-trajectory-report.json"
+    _write_json(report.model_dump(mode="json"), path)
+    return path
+
+
 def write_live_evaluation_markdown(report: LiveEvaluationReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-evaluation-report.md"
@@ -50,6 +62,13 @@ def write_live_drift_markdown(report: LiveDriftReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-drift-report.md"
     path.write_text(render_live_drift_markdown(report), encoding="utf-8", newline="\n")
+    return path
+
+
+def write_live_trajectory_markdown(report: LiveTrajectoryReport, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "live-trajectory-report.md"
+    path.write_text(render_live_trajectory_markdown(report), encoding="utf-8", newline="\n")
     return path
 
 
@@ -281,6 +300,76 @@ def render_live_drift_markdown(report: LiveDriftReport) -> str:
     if report.comparability.failures:
         lines.extend(["", "## Comparability Failures", ""])
         lines.extend(f"- {redact_text(failure)}" for failure in report.comparability.failures)
+    return "\n".join(lines) + "\n"
+
+
+def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
+    lines = [
+        "# Live Trajectory Report",
+        "",
+        "## Summary",
+        "",
+        f"- State: `{report.state.value}`",
+        f"- Trajectory status: `{report.trajectory_status}`",
+        f"- Interpretation: `{report.interpretation}`",
+        f"- Run set: `{report.runset_id}`",
+        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
+        f"- Protocol: `{report.protocol_id or 'not_evaluated'}`",
+        f"- Trajectory plan: `{redact_text(report.trajectory_plan_id or 'default')}`",
+        f"- Observations: `{report.observations}`",
+        f"- Included: `{report.included_observations}`",
+        f"- Excluded: `{report.excluded_observations}`",
+        f"- Transition assumption: `{report.transition_assumption}` "
+        f"`{report.transition_assumption_status}`",
+        "",
+        "## Paths",
+        "",
+    ]
+    for path in report.paths:
+        lines.append(
+            f"- `{path.case_id}` repetition=`{path.repetition_index}` "
+            f"terminal=`{path.terminal_state}` transitions=`{path.transition_count}` "
+            f"states=`{' -> '.join(path.states)}` "
+            f"tools=`{path.tool_count}` claims=`{path.claim_count}` "
+            f"links=`{path.claim_evidence_link_count}` "
+            f"review_required=`{str(path.human_review_required).lower()}` "
+            f"review_performed=`{str(path.human_review_performed).lower()}`"
+        )
+    lines.extend(["", "## Transition Summary", ""])
+    for transition in report.transitions:
+        lines.append(
+            f"- `{transition.from_state}` -> `{transition.to_state}` "
+            f"count=`{transition.count}` from_state_count=`{transition.from_state_count}` "
+            f"frequency=`{transition.conditional_frequency}` "
+            f"`{transition.prerequisite_status}`"
+        )
+    lines.extend(["", "## Trajectory Invariants", ""])
+    for invariant in report.invariants:
+        lines.append(
+            f"- `{redact_text(invariant.invariant_id)}` "
+            f"`{invariant.category}` `{invariant.prerequisite_status}` "
+            f"state=`{invariant.state.value}` affected="
+            f"`{invariant.affected_observations}` / `{invariant.evaluated_observations}`"
+        )
+    lines.extend(["", "## History-Dependent Checks", ""])
+    for check in report.history_dependent_checks:
+        lines.append(
+            f"- `{redact_text(check.check_id)}` `{check.prerequisite_status}` "
+            f"affected=`{check.affected_observations}` dependency="
+            f"{redact_text(check.dependency)}"
+        )
+    lines.extend(["", "## Operational Event Processes", ""])
+    for process in report.event_processes:
+        lines.append(
+            f"- `{process.event_type}` events=`{process.observed_events}` "
+            f"exposure=`{process.exposure}` rate=`{process.event_rate}` "
+            f"`{process.prerequisite_status}` burst=`{process.burst_signal}` "
+            f"max_window_count=`{process.max_events_in_burst_window}` "
+            f"timestamped=`{process.timestamped_events}` "
+            f"missing_timestamps=`{process.missing_timestamp_events}`"
+        )
+    lines.extend(["", "## Limitations", ""])
+    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 

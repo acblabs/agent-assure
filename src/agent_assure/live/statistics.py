@@ -13,6 +13,11 @@ from agent_assure.live.intervals import (
     cluster_t_interval,
     nearest_rank_percentile,
 )
+from agent_assure.live.primitives import (
+    decimal_string,
+    live_record_group_id,
+    probability_string,
+)
 from agent_assure.policies.base import (
     DEFAULT_GATE_PROFILE,
     ControlResult,
@@ -97,7 +102,7 @@ def evaluate_live_runset(
         completion_status=completion_status,
         stop_reasons=stop_reasons,
         budget_exceeded=bool(BUDGET_STOP_REASONS & set(stop_reasons)),
-        state=_report_state(observations, overall, gate_profile, protocol, stop_reasons),
+        state=_report_state(observations, overall, protocol, stop_reasons),
         confidence_level=protocol.confidence_level,
         observations=observations,
         overall=overall,
@@ -376,23 +381,12 @@ def _groups(
     run_groups: dict[str, list[AgentRunRecord]] = defaultdict(list)
     observation_groups: dict[str, list[LiveObservationResult]] = defaultdict(list)
     for run, observation in zip(runs, observations, strict=True):
-        group_id = _group_id(run)
+        group_id = live_record_group_id(run)
         run_groups[group_id].append(run)
         observation_groups[group_id].append(observation)
     return tuple(
         (group_id, tuple(run_groups[group_id]), tuple(observation_groups[group_id]))
         for group_id in sorted(run_groups)
-    )
-
-
-def _group_id(run: AgentRunRecord) -> str:
-    return "|".join(
-        (
-            f"provider={run.provider or 'unknown'}",
-            f"model={run.model or 'unknown'}",
-            f"adapter={run.adapter_id or 'unknown'}",
-            f"pipeline={run.pipeline_id}",
-        )
     )
 
 
@@ -452,21 +446,21 @@ def _rate_from_values(
         numerator=numerator,
         denominator=denominator,
         cluster_count=cluster_count,
-        effective_n=_decimal(effective_n),
-        design_effect=_decimal(design_effect),
+        effective_n=decimal_string(effective_n),
+        design_effect=decimal_string(design_effect),
         largest_cluster_size=largest_cluster_size,
-        largest_cluster_design_effect=_decimal(largest_cluster_design_effect),
-        largest_cluster_effective_n=_decimal(largest_cluster_effective_n),
+        largest_cluster_design_effect=decimal_string(largest_cluster_design_effect),
+        largest_cluster_effective_n=decimal_string(largest_cluster_effective_n),
         assumed_intraclass_correlation=protocol.assumed_intraclass_correlation,
         analysis_method=reported_analysis_method,
         exploratory=_rate_exploratory(cluster_count, analysis_method),
-        rate=_probability(Decimal(numerator) / Decimal(denominator)),
-        cluster_mean_rate=_probability(cluster_mean),
+        rate=probability_string(Decimal(numerator) / Decimal(denominator)),
+        cluster_mean_rate=probability_string(cluster_mean),
         interval_center="cluster_mean_rate",
-        interval_center_value=_probability(cluster_mean),
+        interval_center_value=probability_string(cluster_mean),
         confidence_level=protocol.confidence_level,
-        ci_lower=_probability(lower),
-        ci_upper=_probability(upper),
+        ci_lower=probability_string(lower),
+        ci_upper=probability_string(upper),
     )
 
 
@@ -525,12 +519,12 @@ def _distribution(
         artifact_kind="live-distribution",
         metric=metric,
         count=len(ordered),
-        min=_decimal(ordered[0]),
-        p50=_decimal(_median(ordered)),
-        p95=_decimal(nearest_rank_percentile(ordered, Decimal("0.95"))),
-        max=_decimal(ordered[-1]),
-        mean=_decimal(total / Decimal(len(ordered))),
-        total=_decimal(total),
+        min=decimal_string(ordered[0]),
+        p50=decimal_string(_median(ordered)),
+        p95=decimal_string(nearest_rank_percentile(ordered, Decimal("0.95"))),
+        max=decimal_string(ordered[-1]),
+        mean=decimal_string(total / Decimal(len(ordered))),
+        total=decimal_string(total),
     )
 
 
@@ -544,11 +538,9 @@ def _median(values: tuple[Decimal, ...]) -> Decimal:
 def _report_state(
     observations: tuple[LiveObservationResult, ...],
     overall: LiveGroupSummary,
-    gate_profile: GateProfile,
     protocol: LiveProtocolRecord,
     stop_reasons: tuple[str, ...],
 ) -> GateState:
-    del gate_profile
     included = tuple(
         observation for observation in observations if observation.observation_status == "included"
     )
@@ -584,20 +576,6 @@ def _required_digest(value: str | None, field_name: str) -> str:
     if value is None:
         raise ValueError(f"live observation missing provenance {field_name}")
     return value
-
-
-def _probability(value: Decimal) -> str:
-    return _decimal(min(Decimal("1"), max(Decimal("0"), value)))
-
-
-def _decimal(value: Decimal | str | int) -> str:
-    projected = Decimal(str(value))
-    if projected == Decimal("-0"):
-        projected = Decimal("0")
-    text = f"{projected.quantize(Decimal('0.000001')):f}"
-    if text == "-0.000000":
-        return "0.000000"
-    return text
 
 
 def _rate_analysis_method(protocol: LiveProtocolRecord) -> str:

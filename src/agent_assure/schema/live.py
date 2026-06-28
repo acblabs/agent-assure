@@ -48,7 +48,7 @@ EndpointKind = Literal[
 EndpointInterpretation = Literal["confirmatory", "exploratory"]
 EndpointRole = Literal["primary", "secondary", "diagnostic"]
 EndpointPrerequisiteStatus = Literal["met", "exploratory", "invalid"]
-MultiplicityMethod = Literal["none", "single_endpoint", "fixed_sequence", "holm_bonferroni"]
+MultiplicityMethod = Literal["none", "single_endpoint", "bonferroni"]
 ObservedIccUse = Literal["disabled", "large_cluster_threshold", "external_review"]
 DriftMetric = Literal[
     "expectation_pass_rate",
@@ -75,6 +75,47 @@ DriftOrderingVariable = Literal[
     "provider_version_window",
 ]
 DriftStationaritySignal = Literal["none", "review", "invalid"]
+TrajectoryState = Literal[
+    "start",
+    "request_assembly",
+    "provider_call",
+    "tool_call",
+    "evidence_check",
+    "policy_check",
+    "redaction_check",
+    "human_review",
+    "verdict",
+    "excluded",
+    "emergency",
+]
+TrajectoryAnalysisMethod = Literal[
+    "observable_transition_profile",
+    "sequence_invariant_check",
+    "event_process_summary",
+    "burst_window_count",
+]
+TrajectoryInterpretation = Literal["exploratory", "confirmatory"]
+TrajectoryPrerequisiteStatus = Literal["met", "exploratory", "invalid"]
+TrajectoryInvariantCategory = Literal[
+    "governance_control_failure",
+    "operational_reliability_warning",
+]
+TrajectoryInvariantType = Literal[
+    "forbidden_state",
+    "required_review_for_approval",
+    "claim_evidence_before_approval",
+    "attempt_retry_consistency",
+]
+OperationalEventType = Literal[
+    "retry",
+    "rate_limit",
+    "exclusion",
+    "runtime_failure",
+    "malformed_output",
+    "emergency_process",
+    "budget_stop",
+]
+OperationalBurstSignal = Literal["none", "review", "invalid"]
 
 
 def _decimal(value: str | int) -> Decimal:
@@ -176,23 +217,17 @@ class AdvancedAnalysisPlan(PersistedArtifact):
             return self
         if len(confirmatory) == 1 and self.multiplicity_method == "none":
             raise ValueError(
-                "a confirmatory endpoint requires single_endpoint, fixed_sequence, "
-                "or holm_bonferroni multiplicity_method"
+                "a confirmatory endpoint requires single_endpoint or bonferroni "
+                "multiplicity_method"
             )
-        if len(confirmatory) > 1 and self.multiplicity_method not in {
-            "fixed_sequence",
-            "holm_bonferroni",
-        }:
+        if len(confirmatory) > 1 and self.multiplicity_method != "bonferroni":
             raise ValueError(
-                "multiple confirmatory endpoints require a fixed_sequence or "
-                "holm_bonferroni multiplicity_method"
+                "multiple confirmatory endpoints require bonferroni multiplicity_method"
             )
-        if self.multiplicity_method == "fixed_sequence":
-            ranks = [endpoint.hierarchy_rank for endpoint in confirmatory]
-            if any(rank is None for rank in ranks) or len(ranks) != len(set(ranks)):
-                raise ValueError(
-                    "fixed_sequence confirmatory endpoints require unique hierarchy_rank values"
-                )
+        if any(endpoint.hierarchy_rank is not None for endpoint in confirmatory):
+            raise ValueError(
+                "hierarchy_rank is reserved for a future fixed-sequence method"
+            )
         return self
 
 
@@ -293,6 +328,88 @@ class DriftMonitoringPlan(PersistedArtifact):
                 raise ValueError(
                     "confirmatory drift metrics require a confirmatory monitoring plan"
                 )
+        return self
+
+
+class TrajectoryInvariantPlan(PersistedArtifact):
+    artifact_kind: Literal["trajectory-invariant-plan"] = "trajectory-invariant-plan"
+    invariant_id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    invariant_type: TrajectoryInvariantType
+    category: TrajectoryInvariantCategory = "governance_control_failure"
+    interpretation: TrajectoryInterpretation = "exploratory"
+    forbidden_states: tuple[TrajectoryState, ...] = ()
+    required_state: TrajectoryState | None = None
+    before_state: TrajectoryState | None = None
+    minimum_observations: int = Field(default=1, ge=1)
+
+    @field_validator("forbidden_states", mode="before")
+    @classmethod
+    def _coerce_forbidden_states(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_invariant(self) -> TrajectoryInvariantPlan:
+        if self.invariant_type == "forbidden_state":
+            if not self.forbidden_states:
+                raise ValueError("forbidden_state invariants require forbidden_states")
+        elif self.forbidden_states:
+            raise ValueError("forbidden_states are only valid for forbidden_state invariants")
+        if self.invariant_type == "required_review_for_approval":
+            if self.required_state is None:
+                raise ValueError(
+                    "required_review_for_approval invariants require required_state"
+                )
+            if self.before_state is not None:
+                raise ValueError(
+                    "required_review_for_approval does not support measured ordering; "
+                    "before_state is reserved for future ordered event data"
+                )
+        elif self.required_state is not None or self.before_state is not None:
+            raise ValueError(
+                "required_state and before_state are only valid for "
+                "required_review_for_approval invariants"
+            )
+        return self
+
+
+class TrajectoryAnalysisPlan(PersistedArtifact):
+    artifact_kind: Literal["trajectory-analysis-plan"] = "trajectory-analysis-plan"
+    plan_id: str = Field(min_length=1)
+    interpretation: TrajectoryInterpretation = "exploratory"
+    analysis_methods: tuple[TrajectoryAnalysisMethod, ...] = (
+        "observable_transition_profile",
+        "sequence_invariant_check",
+        "event_process_summary",
+        "burst_window_count",
+    )
+    minimum_observations: int = Field(default=1, ge=1)
+    minimum_transition_support: int = Field(default=1, ge=1)
+    minimum_event_count: int = Field(default=3, ge=0)
+    minimum_event_exposure: int = Field(default=1, ge=1)
+    burst_window_seconds: int = Field(default=60, ge=1)
+    burst_count_threshold: int = Field(default=3, ge=2)
+    invariants: tuple[TrajectoryInvariantPlan, ...] = ()
+
+    @field_validator("analysis_methods", "invariants", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_plan(self) -> TrajectoryAnalysisPlan:
+        if len(self.analysis_methods) != len(set(self.analysis_methods)):
+            raise ValueError("trajectory analysis_methods values must be unique")
+        invariant_ids = [invariant.invariant_id for invariant in self.invariants]
+        if len(invariant_ids) != len(set(invariant_ids)):
+            raise ValueError("trajectory invariant_id values must be unique")
+        if (
+            self.interpretation == "confirmatory"
+            and "sequence_invariant_check" not in self.analysis_methods
+        ):
+            raise ValueError(
+                "confirmatory trajectory plans must include sequence_invariant_check"
+            )
         return self
 
 
@@ -481,6 +598,7 @@ class LiveProtocolRecord(PersistedArtifact):
     analysis_digest: DigestHex
     advanced_analysis_plan: AdvancedAnalysisPlan | None = None
     drift_monitoring_plan: DriftMonitoringPlan | None = None
+    trajectory_analysis_plan: TrajectoryAnalysisPlan | None = None
     approved_data_boundary: str = Field(min_length=1)
     safety_limits: tuple[str, ...] = ()
 
@@ -1008,6 +1126,179 @@ class LiveDriftReport(PersistedArtifact):
         return coerce_enum(GateState, value)
 
     @field_validator("windows", "diagnostics", "limitations", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class TrajectoryPathSummary(PersistedArtifact):
+    artifact_kind: Literal["trajectory-path-summary"] = "trajectory-path-summary"
+    observation_id: str = Field(min_length=1)
+    run_id: str = Field(min_length=1)
+    case_id: str = Field(min_length=1)
+    repetition_index: int = Field(ge=0)
+    cluster_id: str = Field(min_length=1)
+    terminal_state: TrajectoryState
+    states: tuple[TrajectoryState, ...] = Field(min_length=2)
+    transition_count: int = Field(ge=1)
+    tool_count: int = Field(ge=0)
+    claim_count: int = Field(ge=0)
+    evidence_ref_count: int = Field(ge=0)
+    claim_evidence_link_count: int = Field(ge=0)
+    policy_result_count: int = Field(ge=0)
+    human_review_required: bool = False
+    human_review_performed: bool = False
+    has_ordered_timestamps: bool = False
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("states", "limitations", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class TrajectoryTransitionSummary(PersistedArtifact):
+    artifact_kind: Literal["trajectory-transition-summary"] = (
+        "trajectory-transition-summary"
+    )
+    from_state: TrajectoryState
+    to_state: TrajectoryState
+    count: int = Field(ge=0)
+    from_state_count: int = Field(ge=0)
+    conditional_frequency: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
+    prerequisite_status: TrajectoryPrerequisiteStatus
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("limitations", mode="before")
+    @classmethod
+    def _coerce_limitations(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class TrajectoryInvariantResult(PersistedArtifact):
+    artifact_kind: Literal["trajectory-invariant-result"] = "trajectory-invariant-result"
+    invariant_id: str = Field(min_length=1)
+    label: str = Field(min_length=1)
+    invariant_type: TrajectoryInvariantType
+    category: TrajectoryInvariantCategory
+    interpretation: TrajectoryInterpretation
+    prerequisite_status: TrajectoryPrerequisiteStatus
+    affected_observations: int = Field(ge=0)
+    evaluated_observations: int = Field(ge=0)
+    affected_observation_ids: tuple[str, ...] = ()
+    state: GateState = GateState.not_evaluated
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, value: object) -> GateState:
+        return coerce_enum(GateState, value)
+
+    @field_validator("affected_observation_ids", "limitations", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class HistoryDependentTrajectoryCheck(PersistedArtifact):
+    artifact_kind: Literal["history-dependent-trajectory-check"] = (
+        "history-dependent-trajectory-check"
+    )
+    check_id: str = Field(min_length=1)
+    dependency: str = Field(min_length=1)
+    prerequisite_status: TrajectoryPrerequisiteStatus
+    affected_observations: int = Field(ge=0)
+    affected_observation_ids: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("affected_observation_ids", "limitations", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class OperationalEventProcessSummary(PersistedArtifact):
+    artifact_kind: Literal["operational-event-process-summary"] = (
+        "operational-event-process-summary"
+    )
+    event_type: OperationalEventType
+    observed_events: int = Field(ge=0)
+    exposure: int = Field(ge=0)
+    exposure_unit: str = Field(default="observation", min_length=1)
+    event_rate: DecimalString = Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
+    analysis_method: Literal[
+        "poisson_rate",
+        "renewal_gap_summary",
+        "burst_window_count",
+    ]
+    prerequisite_status: TrajectoryPrerequisiteStatus
+    timestamped_events: int = Field(ge=0)
+    missing_timestamp_events: int = Field(ge=0)
+    observation_window_seconds: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    mean_interarrival_seconds: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    max_events_in_burst_window: int = Field(ge=0)
+    burst_window_seconds: int = Field(ge=1)
+    burst_signal: OperationalBurstSignal = "none"
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("limitations", mode="before")
+    @classmethod
+    def _coerce_limitations(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class LiveTrajectoryReport(PersistedArtifact):
+    artifact_kind: Literal["live-trajectory-report"] = "live-trajectory-report"
+    report_id: str = Field(min_length=1)
+    runset_id: str = Field(min_length=1)
+    evaluation_report_id: str = Field(min_length=1)
+    protocol_id: str | None = None
+    protocol_digest: DigestHex | None = None
+    trajectory_plan_id: str | None = None
+    suite_id: str = Field(min_length=1)
+    suite_version: str = Field(min_length=1)
+    interpretation: TrajectoryInterpretation = "exploratory"
+    state: GateState = GateState.not_evaluated
+    trajectory_status: Literal["valid", "exploratory", "invalid"]
+    transition_assumption: Literal["canonical_observable_order"] = (
+        "canonical_observable_order"
+    )
+    transition_assumption_status: TrajectoryPrerequisiteStatus
+    observations: int = Field(ge=0)
+    included_observations: int = Field(ge=0)
+    excluded_observations: int = Field(ge=0)
+    paths: tuple[TrajectoryPathSummary, ...]
+    transitions: tuple[TrajectoryTransitionSummary, ...]
+    invariants: tuple[TrajectoryInvariantResult, ...]
+    history_dependent_checks: tuple[HistoryDependentTrajectoryCheck, ...]
+    event_processes: tuple[OperationalEventProcessSummary, ...]
+    limitations: tuple[str, ...] = (
+        "trajectory analysis is derived from privacy-filtered structured artifacts",
+        "trajectory and event-process outputs are review signals and are not "
+        "release-verdict gates",
+        "path coverage over observed records is not proof that unsafe paths are impossible",
+    )
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, value: object) -> GateState:
+        return coerce_enum(GateState, value)
+
+    @field_validator(
+        "paths",
+        "transitions",
+        "invariants",
+        "history_dependent_checks",
+        "event_processes",
+        "limitations",
+        mode="before",
+    )
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)

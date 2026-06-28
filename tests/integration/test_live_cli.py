@@ -9,7 +9,12 @@ from typer.testing import CliRunner
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.cli.main import app
 from agent_assure.schema.common import GateState
-from agent_assure.schema.live import LiveDriftReport, LiveEvaluationReport, LiveProtocolRecord
+from agent_assure.schema.live import (
+    LiveDriftReport,
+    LiveEvaluationReport,
+    LiveProtocolRecord,
+    LiveTrajectoryReport,
+)
 from agent_assure.schema.run import RunSet
 
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
@@ -21,6 +26,7 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
     runset_path = tmp_path / "expense.live.json"
     report_dir = tmp_path / "live-report"
     drift_dir = tmp_path / "live-drift"
+    trajectory_dir = tmp_path / "live-trajectory"
     prompt_path = tmp_path / "prompt-exp-001.txt"
     responses_path = tmp_path / "responses.jsonl"
     config_path = tmp_path / "live.yaml"
@@ -148,6 +154,33 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
     assert drift_report.state is GateState.not_evaluated
     assert drift_report.comparability.status == "pass"
     assert (drift_dir / "live-drift-report.md").exists()
+
+    trajectory_result = RUNNER.invoke(
+        app,
+        [
+            "live",
+            "trajectory",
+            str(runset_path),
+            "--report",
+            str(report_dir / "live-evaluation-report.json"),
+            "--protocol",
+            str(protocol_path),
+            "--out-dir",
+            str(trajectory_dir),
+        ],
+    )
+    assert trajectory_result.exit_code == 0, trajectory_result.output
+    trajectory_report = LiveTrajectoryReport.model_validate_json(
+        (trajectory_dir / "live-trajectory-report.json").read_text(encoding="utf-8")
+    )
+    assert trajectory_report.state is GateState.not_evaluated
+    assert trajectory_report.trajectory_status == "exploratory"
+    assert any(
+        invariant.invariant_id == "claim-evidence-before-approval"
+        and invariant.affected_observations == 1
+        for invariant in trajectory_report.invariants
+    )
+    assert (trajectory_dir / "live-trajectory-report.md").exists()
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

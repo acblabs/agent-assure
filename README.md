@@ -14,7 +14,8 @@ evidence packets, and CI gates across synthetic prior-authorization and minimal
 expense-approval examples. The development branch also includes explicit
 live-adapter commands for protocol-bound repeated provider observations,
 cluster-aware stochastic rates, paired or fixed-reference live comparisons,
-cross-window drift monitoring review signals, completion/provenance checks,
+cross-window drift monitoring review signals, derived observable trajectory and
+operational event-process reports, completion/provenance checks,
 external-script subprocess execution with emergency process records, runtime
 trace-context propagation, optional OpenTelemetry SDK span emission, optional
 OTLP export, cost/latency reports, and optional protocol-declared advanced
@@ -126,9 +127,12 @@ A statistical protocol is documented in
 explicitly configured adapters, and analyze repeated observations with
 cluster-aware rates, protocol-declared comparison methods, and exploratory
 guardrails for low cluster counts. Optional advanced endpoint plans bind
-confirmatory/exploratory labels, multiplicity controls, rare-event upper
+confirmatory/exploratory labels, Bonferroni multiplicity controls, rare-event upper
 bounds, observed cluster-correlation summaries, and paired randomization-test
-prerequisites to the protocol digest. Live results remain bounded by the declared
+prerequisites to the protocol digest. Optional trajectory reports derive
+privacy-filtered observable state paths, canonical transition profiles,
+sequence invariants, and operational event-process summaries from structured
+run artifacts. Live results remain bounded by the declared
 protocol, data boundary, provider/model configuration, and execution window.
 They are not general model-quality, safety, compliance, or clinical-validation
 claims.

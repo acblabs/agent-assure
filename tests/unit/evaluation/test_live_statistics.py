@@ -17,8 +17,13 @@ from agent_assure.live.comparison import (
 from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.intervals import difference_t_interval, stable_seed_int, t_critical_95
 from agent_assure.live.statistics import _rate_from_values, evaluate_live_runset
+from agent_assure.live.trajectory import build_live_trajectory_report
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode
-from agent_assure.schema.live import LiveProtocolRecord
+from agent_assure.schema.live import (
+    LiveProtocolRecord,
+    LiveTrajectoryReport,
+    OperationalEventType,
+)
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, RunSet
 
@@ -250,6 +255,84 @@ def test_advanced_plan_rejects_unadjusted_multiple_confirmatory_endpoints() -> N
 
     with pytest.raises(ValueError, match="multiple confirmatory endpoints"):
         LiveProtocolRecord.model_validate(payload)
+
+
+def test_advanced_plan_accepts_bonferroni_multiple_confirmatory_endpoints() -> None:
+    compiled = compile_suite(SUITE)
+
+    protocol = _protocol(
+        compiled,
+        observations=6,
+        clusters=3,
+        repetitions=6,
+        advanced_analysis_plan=_advanced_plan(
+            multiplicity_method="bonferroni",
+            primary_minimum_clusters=3,
+            secondary_interpretation="confirmatory",
+        ),
+    )
+
+    assert protocol.advanced_analysis_plan is not None
+    assert protocol.advanced_analysis_plan.multiplicity_method == "bonferroni"
+
+
+def test_advanced_plan_rejects_reserved_endpoint_hierarchy() -> None:
+    compiled = compile_suite(SUITE)
+    payload = _protocol(
+        compiled,
+        observations=6,
+        clusters=3,
+        repetitions=6,
+    ).model_dump(mode="json")
+    payload["advanced_analysis_plan"] = _advanced_plan(
+        multiplicity_method="bonferroni",
+        primary_minimum_clusters=3,
+    )
+    payload["advanced_analysis_plan"]["endpoints"][0]["hierarchy_rank"] = 1
+
+    with pytest.raises(ValueError, match="hierarchy_rank is reserved"):
+        LiveProtocolRecord.model_validate(payload)
+
+
+def test_rare_event_poisson_bound_uses_protocol_confidence_not_familywise_alpha() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        advanced_analysis_plan=_advanced_plan(
+            familywise_alpha="0.100000",
+            primary_minimum_clusters=1,
+        ),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-alpha-bound",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(repetition_index=0, linked=True),
+        ),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+    rare = next(
+        invariant
+        for invariant in report.statistical_invariants
+        if invariant.endpoint_id == "critical-sensitive-content"
+    )
+
+    assert rare.adjusted_alpha == "0.100000"
+    assert rare.rare_event_bound is not None
+    assert rare.rare_event_bound.confidence_level == "0.950000"
+    assert rare.rare_event_bound.upper_count_bound == "2.995732"
 
 
 def test_t_critical_lookup_rounds_down_to_conservative_bucket() -> None:
@@ -1133,6 +1216,235 @@ def test_live_drift_reports_multiple_timestamp_ordering_failures() -> None:
     )
 
 
+def test_live_trajectory_reports_transition_paths_and_invariants() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-trajectory",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=True,
+                started_at_utc="2026-06-27T00:00:00Z",
+                completed_at_utc="2026-06-27T00:00:01Z",
+            ),
+            _record(
+                repetition_index=1,
+                linked=True,
+                started_at_utc="2026-06-27T00:00:10Z",
+                completed_at_utc="2026-06-27T00:00:11Z",
+            ),
+        ),
+    )
+    evaluation = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    report = build_live_trajectory_report(runset, evaluation, protocol=protocol)
+
+    assert report.state is GateState.not_evaluated
+    assert report.trajectory_status == "exploratory"
+    assert report.paths[0].states == (
+        "start",
+        "request_assembly",
+        "provider_call",
+        "tool_call",
+        "evidence_check",
+        "verdict",
+    )
+    assert report.transition_assumption == "canonical_observable_order"
+    assert any(
+        transition.from_state == "provider_call"
+        and transition.to_state == "tool_call"
+        and transition.conditional_frequency == "1.000000"
+        for transition in report.transitions
+    )
+    evidence = _trajectory_invariant(report, "claim-evidence-before-approval")
+    assert evidence.affected_observations == 0
+    assert evidence.state is GateState.not_evaluated
+
+
+def test_live_trajectory_flags_history_dependent_governance_failures() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-trajectory-failure",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=False,
+                human_review_required=True,
+                human_review_performed=False,
+            ),
+        ),
+    )
+    evaluation = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    report = build_live_trajectory_report(runset, evaluation, protocol=protocol)
+
+    review = _trajectory_invariant(report, "required-review-for-approval")
+    evidence = _trajectory_invariant(report, "claim-evidence-before-approval")
+    assert review.state is GateState.fail
+    assert review.affected_observation_ids == ("obs-live-0",)
+    assert evidence.state is GateState.fail
+    assert evidence.affected_observation_ids == ("obs-live-0",)
+    assert report.state is GateState.not_evaluated
+    assert any(
+        check.check_id == "claim-evidence-history" and check.affected_observations == 1
+        for check in report.history_dependent_checks
+    )
+
+
+def test_live_trajectory_event_process_detects_retry_burst() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=4,
+        clusters=1,
+        repetitions=4,
+        max_retries=1,
+        trajectory_analysis_plan=_trajectory_plan(
+            minimum_event_count=3,
+            burst_window_seconds=60,
+            burst_count_threshold=3,
+        ),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-trajectory-burst",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=tuple(
+            _record(
+                repetition_index=index,
+                linked=True,
+                attempt_count=2,
+                retry_count=1,
+                started_at_utc=f"2026-06-27T00:00:{index:02d}Z",
+                completed_at_utc=f"2026-06-27T00:00:{index + 1:02d}Z",
+            )
+            for index in range(4)
+        ),
+    )
+    evaluation = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    report = build_live_trajectory_report(runset, evaluation, protocol=protocol)
+    retry_process = _event_process(report, "retry")
+
+    assert retry_process.observed_events == 4
+    assert retry_process.prerequisite_status == "met"
+    assert retry_process.burst_signal == "review"
+    assert retry_process.max_events_in_burst_window == 4
+    assert retry_process.mean_interarrival_seconds == "1.000000"
+
+
+def test_live_trajectory_event_process_marks_missing_timestamps_exploratory() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        max_retries=1,
+        trajectory_analysis_plan=_trajectory_plan(minimum_event_count=1),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-trajectory-missing-time",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=True,
+                attempt_count=2,
+                retry_count=1,
+            ),
+        ),
+    )
+    evaluation = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    report = build_live_trajectory_report(runset, evaluation, protocol=protocol)
+    retry_process = _event_process(report, "retry")
+
+    assert retry_process.prerequisite_status == "exploratory"
+    assert retry_process.burst_signal == "invalid"
+    assert retry_process.missing_timestamp_events == 1
+    assert any("timestamps" in limitation for limitation in retry_process.limitations)
+
+
+def test_live_trajectory_counted_retry_events_do_not_invent_timestamps() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        max_retries=3,
+        trajectory_analysis_plan=_trajectory_plan(minimum_event_count=1),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-trajectory-counted-retries",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=True,
+                attempt_count=4,
+                retry_count=3,
+                started_at_utc="2026-06-27T00:00:00Z",
+                completed_at_utc="2026-06-27T00:00:01Z",
+            ),
+        ),
+    )
+    evaluation = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    report = build_live_trajectory_report(runset, evaluation, protocol=protocol)
+    retry_process = _event_process(report, "retry")
+
+    assert retry_process.observed_events == 3
+    assert retry_process.timestamped_events == 1
+    assert retry_process.missing_timestamp_events == 2
+    assert retry_process.prerequisite_status == "exploratory"
+    assert retry_process.burst_signal == "invalid"
+
+
 def test_live_protocol_rejects_inconsistent_design_effect() -> None:
     compiled = compile_suite(SUITE)
 
@@ -1175,6 +1487,11 @@ def _record(
     cluster_id: str = "exp-001",
     started_at_utc: str | None = None,
     completed_at_utc: str | None = None,
+    attempt_count: int = 1,
+    retry_count: int = 0,
+    rate_limit_events: int = 0,
+    human_review_required: bool = False,
+    human_review_performed: bool = False,
 ) -> AgentRunRecord:
     links: list[dict[str, str]] = []
     if linked:
@@ -1211,9 +1528,9 @@ def _record(
             "started_at_utc": started_at_utc,
             "completed_at_utc": completed_at_utc,
             "latency_ms": latency_ms,
-            "attempt_count": 1,
-            "retry_count": 0,
-            "rate_limit_events": 0,
+            "attempt_count": attempt_count,
+            "retry_count": retry_count,
+            "rate_limit_events": rate_limit_events,
             "exclusion_reason": exclusion_reason,
             "estimated_cost_usd": cost,
             "estimated_cost_source": "adapter_reported",
@@ -1233,6 +1550,8 @@ def _record(
                 }
             ],
             "claim_evidence_links": links,
+            "human_review_required": human_review_required,
+            "human_review_performed": human_review_performed,
             "provenance": Provenance(
                 artifact_kind="provenance",
                 prompt_digest="3" * 64,
@@ -1261,8 +1580,11 @@ def _protocol(
         "generated_token_budget_exhausted",
     ),
     max_exclusion_rate: str = "0.000000",
+    max_retries: int = 0,
+    max_rate_limit_events: int = 0,
     advanced_analysis_plan: dict[str, object] | None = None,
     drift_monitoring_plan: dict[str, object] | None = None,
+    trajectory_analysis_plan: dict[str, object] | None = None,
     non_inferiority_margin: str = "0.050000",
 ) -> LiveProtocolRecord:  # type: ignore[no-untyped-def]
     planned_observations_per_cluster = Decimal(observations) / Decimal(clusters)
@@ -1302,10 +1624,11 @@ def _protocol(
         max_requests=observations,
         max_total_cost_usd="10.000000",
         max_cost_per_observation_usd="1.000000",
-        max_retries=0,
+        max_retries=max_retries,
         exclusion_policy="only pre-provider local configuration exclusions are allowed",
         allowed_exclusion_reasons=allowed_exclusion_reasons,
         max_exclusion_rate=max_exclusion_rate,
+        max_rate_limit_events=max_rate_limit_events,
         provider_version_capture=("resolved_model", "provider_api_version", "provider_sdk"),
         stopping_rules=("stop on sensitive persistence",),
         tool_schema_digest="6" * 64,
@@ -1313,6 +1636,7 @@ def _protocol(
         analysis_digest="5" * 64,
         advanced_analysis_plan=advanced_analysis_plan,
         drift_monitoring_plan=drift_monitoring_plan,
+        trajectory_analysis_plan=trajectory_analysis_plan,
         approved_data_boundary="synthetic local test prompts",
         safety_limits=("no raw sensitive content",),
     )
@@ -1321,6 +1645,7 @@ def _protocol(
 def _advanced_plan(
     *,
     multiplicity_method: str = "single_endpoint",
+    familywise_alpha: str = "0.050000",
     primary_minimum_clusters: int = 30,
     secondary_interpretation: str = "exploratory",
     rare_reason_codes: list[str] | None = None,
@@ -1329,7 +1654,7 @@ def _advanced_plan(
         "artifact_kind": "advanced-analysis-plan",
         "schema_version": "0.2.0",
         "multiplicity_method": multiplicity_method,
-        "familywise_alpha": "0.050000",
+        "familywise_alpha": familywise_alpha,
         "observed_icc_confirmatory_use": "disabled",
         "endpoints": [
             {
@@ -1404,6 +1729,76 @@ def _drift_plan(
             }
         ],
     }
+
+
+def _trajectory_plan(
+    *,
+    minimum_event_count: int = 3,
+    burst_window_seconds: int = 60,
+    burst_count_threshold: int = 3,
+) -> dict[str, object]:
+    return {
+        "artifact_kind": "trajectory-analysis-plan",
+        "schema_version": "0.2.0",
+        "plan_id": "trajectory-test-plan",
+        "interpretation": "exploratory",
+        "analysis_methods": [
+            "observable_transition_profile",
+            "sequence_invariant_check",
+            "event_process_summary",
+            "burst_window_count",
+        ],
+        "minimum_observations": 1,
+        "minimum_transition_support": 1,
+        "minimum_event_count": minimum_event_count,
+        "minimum_event_exposure": 1,
+        "burst_window_seconds": burst_window_seconds,
+        "burst_count_threshold": burst_count_threshold,
+        "invariants": [
+            {
+                "artifact_kind": "trajectory-invariant-plan",
+                "schema_version": "0.2.0",
+                "invariant_id": "required-review-for-approval",
+                "label": "Required review occurs before approval verdicts",
+                "invariant_type": "required_review_for_approval",
+                "category": "governance_control_failure",
+                "interpretation": "exploratory",
+                "required_state": "human_review",
+            },
+            {
+                "artifact_kind": "trajectory-invariant-plan",
+                "schema_version": "0.2.0",
+                "invariant_id": "claim-evidence-before-approval",
+                "label": "Approval verdicts retain explicit claim evidence links",
+                "invariant_type": "claim_evidence_before_approval",
+                "category": "governance_control_failure",
+                "interpretation": "exploratory",
+            },
+            {
+                "artifact_kind": "trajectory-invariant-plan",
+                "schema_version": "0.2.0",
+                "invariant_id": "attempt-retry-consistency",
+                "label": "Attempt counters remain consistent with retry counters",
+                "invariant_type": "attempt_retry_consistency",
+                "category": "operational_reliability_warning",
+                "interpretation": "exploratory",
+            },
+        ],
+    }
+
+
+def _trajectory_invariant(report: LiveTrajectoryReport, invariant_id: str):
+    for invariant in report.invariants:
+        if invariant.invariant_id == invariant_id:
+            return invariant
+    raise AssertionError(f"missing trajectory invariant {invariant_id!r}")
+
+
+def _event_process(report: LiveTrajectoryReport, event_type: OperationalEventType):
+    for process in report.event_processes:
+        if process.event_type == event_type:
+            return process
+    raise AssertionError(f"missing event process {event_type!r}")
 
 
 def _decimal_string(value: Decimal) -> str:

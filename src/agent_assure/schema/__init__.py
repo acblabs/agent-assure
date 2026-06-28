@@ -20,6 +20,7 @@ from agent_assure.schema.live import (
     LiveObservationResult,
     LiveProtocolRecord,
     LiveRate,
+    LiveTrajectoryReport,
 )
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import (
@@ -77,6 +78,7 @@ __all__ = [
     "LiveObservationResult",
     "LiveProtocolRecord",
     "LiveRate",
+    "LiveTrajectoryReport",
     "PersistedArtifact",
     "PacketArtifactDigest",
     "PolicyResult",

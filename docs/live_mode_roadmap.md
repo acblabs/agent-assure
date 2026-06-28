@@ -35,7 +35,7 @@ Implemented live-mode pieces include:
 - optional advanced statistical endpoint plans bound into the live protocol
   digest, with confirmatory/exploratory endpoint labels, rare-event Poisson
   upper bounds, observed cluster-correlation summaries with uncertainty,
-  multiplicity controls, and paired exact or Monte Carlo randomization tests
+  Bonferroni multiplicity controls, and paired exact or Monte Carlo randomization tests
   with structural pairing checks and deterministic integer resampling seeds
   when exchangeability is predeclared;
 - protocol-declared paired-cluster and fixed-reference live comparison reports
@@ -47,6 +47,12 @@ Implemented live-mode pieces include:
   diagnostics, and EWMA governance-health or control-reliability summaries with
   method-specific minimum-window gates and exploratory review-signal labeling
   by default;
+- derived live trajectory reports with privacy-filtered observable state paths,
+  observable transition profiles, explicit history-dependent checks,
+  sequence invariants that separate governance-control
+  failures from operational reliability warnings, and event-process summaries
+  for retries, rate limits, exclusions, malformed outputs, runtime failures,
+  emergency records, and budget stops;
 - latency and estimated-cost distributions;
 - optional OpenTelemetry SDK span emission and OTLP HTTP export from
   privacy-filtered span plans when `agent-assure[otel]` is installed.

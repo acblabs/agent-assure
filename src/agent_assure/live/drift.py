@@ -7,6 +7,13 @@ from itertools import pairwise
 from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.live.primitives import (
+    decimal_string,
+    mean_decimal,
+    parse_timestamp,
+    rate_decimal,
+    signed_unit_decimal_string,
+)
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
     DriftAnalysisMethod,
@@ -28,7 +35,6 @@ from agent_assure.schema.live import (
     LiveProtocolRecord,
 )
 
-_SIX_PLACES = Decimal("0.000001")
 _MetricSource = Literal[
     "pooled_rate",
     "observation_rate",
@@ -293,7 +299,7 @@ def _metric_value(
         denominator = len(included)
         return _window_metric(
             metric_plan,
-            value=_rate_decimal(numerator, denominator),
+            value=rate_decimal(numerator, denominator),
             numerator=numerator,
             denominator=denominator,
             source="reason_code_rate",
@@ -303,7 +309,7 @@ def _metric_value(
         denominator = len(report.observations)
         return _window_metric(
             metric_plan,
-            value=_rate_decimal(numerator, denominator),
+            value=rate_decimal(numerator, denominator),
             numerator=numerator,
             denominator=denominator,
             source="observation_rate",
@@ -315,7 +321,7 @@ def _metric_value(
         denominator = len(report.observations)
         return _window_metric(
             metric_plan,
-            value=_rate_decimal(numerator, denominator),
+            value=rate_decimal(numerator, denominator),
             numerator=numerator,
             denominator=denominator,
             source="observation_rate",
@@ -362,7 +368,7 @@ def _window_metric(
         metric=metric_plan.metric,
         label=metric_plan.label,
         reason_codes=metric_plan.reason_codes,
-        value=_decimal(value) if value is not None else None,
+        value=decimal_string(value) if value is not None else None,
         numerator=numerator,
         denominator=denominator,
         source=source,
@@ -487,7 +493,7 @@ def _ordering_findings(
         if timestamp is None:
             missing_windows.append(window.window_id)
             continue
-        parsed = _parse_timestamp(timestamp)
+        parsed = parse_timestamp(timestamp)
         if parsed is None:
             invalid_windows.append(window.window_id)
             continue
@@ -612,15 +618,19 @@ def _diagnostic(
         windows=len(values),
         observations=observations,
         missing_windows=missing_windows,
-        first_value=_decimal(series_values[0]) if series_values else None,
-        last_value=_decimal(series_values[-1]) if series_values else None,
-        mean_value=_decimal(_mean(series_values)) if series_values else None,
-        slope_per_window=_decimal(slope) if slope is not None else None,
-        max_step_change=_decimal(max_step) if max_step is not None else None,
-        lag1_autocorrelation=_signed_unit_decimal(lag1) if lag1 is not None else None,
-        ar1_phi=_signed_unit_decimal(ar1_phi) if ar1_phi is not None else None,
-        ar1_intercept=_decimal(ar1_intercept) if ar1_intercept is not None else None,
-        ar1_innovation_variance=_decimal(ar1_variance) if ar1_variance is not None else None,
+        first_value=decimal_string(series_values[0]) if series_values else None,
+        last_value=decimal_string(series_values[-1]) if series_values else None,
+        mean_value=decimal_string(mean_decimal(series_values)) if series_values else None,
+        slope_per_window=decimal_string(slope) if slope is not None else None,
+        max_step_change=decimal_string(max_step) if max_step is not None else None,
+        lag1_autocorrelation=(
+            signed_unit_decimal_string(lag1) if lag1 is not None else None
+        ),
+        ar1_phi=signed_unit_decimal_string(ar1_phi) if ar1_phi is not None else None,
+        ar1_intercept=decimal_string(ar1_intercept) if ar1_intercept is not None else None,
+        ar1_innovation_variance=(
+            decimal_string(ar1_variance) if ar1_variance is not None else None
+        ),
         stationarity_signal=stationarity_signal,
         dependence_signal=dependence_signal,
         review_reasons=review_reasons,
@@ -722,8 +732,8 @@ def _slope(values: tuple[tuple[int, Decimal, int], ...]) -> Decimal | None:
         return None
     xs = tuple(Decimal(index) for index, _, _ in values)
     ys = tuple(value for _, value, _ in values)
-    mean_x = _mean(xs)
-    mean_y = _mean(ys)
+    mean_x = mean_decimal(xs)
+    mean_y = mean_decimal(ys)
     denominator = sum((x - mean_x) ** 2 for x in xs)
     if denominator == 0:
         return None
@@ -740,7 +750,7 @@ def _max_step(values: tuple[Decimal, ...]) -> Decimal | None:
 def _lag1_autocorrelation(values: tuple[Decimal, ...]) -> Decimal | None:
     if len(values) < 3:
         return None
-    mean_value = _mean(values)
+    mean_value = mean_decimal(values)
     denominator = sum((value - mean_value) ** 2 for value in values)
     if denominator == 0:
         return None
@@ -756,10 +766,13 @@ def _ar1_summary(
 ) -> tuple[Decimal | None, Decimal | None, Decimal | None]:
     if len(values) < 4:
         return None, None, None
+    # Descriptive AR(1) screen only: lag and lead means are estimated separately,
+    # and residual variance is a simple mean-square diagnostic rather than a
+    # formal small-sample time-series estimator.
     previous = values[:-1]
     current = values[1:]
-    mean_previous = _mean(previous)
-    mean_current = _mean(current)
+    mean_previous = mean_decimal(previous)
+    mean_current = mean_decimal(current)
     denominator = sum((value - mean_previous) ** 2 for value in previous)
     if denominator == 0:
         return None, None, None
@@ -773,7 +786,7 @@ def _ar1_summary(
         curr - (intercept + phi * prev)
         for prev, curr in zip(previous, current, strict=True)
     )
-    variance = _mean(tuple(residual * residual for residual in residuals))
+    variance = mean_decimal(tuple(residual * residual for residual in residuals))
     return phi, intercept, variance
 
 
@@ -796,17 +809,17 @@ def _state_estimate(
         level = alpha * value + (Decimal("1") - alpha) * level
         previous_level = level
     drift = level - previous_smoothed
-    variance = _mean(tuple(residual * residual for residual in residuals))
+    variance = mean_decimal(tuple(residual * residual for residual in residuals))
     return DriftStateEstimate(
         artifact_kind="drift-state-estimate",
         state_name=_state_name(metric_plan.metric),
         metric=metric_plan.metric,
         label=metric_plan.label,
         prerequisite_status=prerequisite_status,
-        smoothing_alpha=_decimal(alpha),
-        latest_level=_decimal(level),
-        latest_drift_per_window=_decimal(drift),
-        innovation_variance=_decimal(variance),
+        smoothing_alpha=decimal_string(alpha),
+        latest_level=decimal_string(level),
+        latest_drift_per_window=decimal_string(drift),
+        innovation_variance=decimal_string(variance),
         limitations=(
             "EWMA state is an observable governance-control summary and is not a hidden "
             "model-state or intent claim",
@@ -836,25 +849,13 @@ def _monitoring_status(
     return "valid"
 
 
-def _rate_decimal(numerator: int, denominator: int) -> Decimal:
-    if denominator == 0:
-        return Decimal("0")
-    return Decimal(numerator) / Decimal(denominator)
-
-
-def _mean(values: tuple[Decimal, ...]) -> Decimal:
-    if not values:
-        return Decimal("0")
-    return sum(values, Decimal("0")) / Decimal(len(values))
-
-
 def _timestamp_bound(values: tuple[str, ...], *, pick: Literal["min", "max"]) -> str | None:
     if not values:
         return None
     parsed_rows = tuple(
         (parsed, value)
         for value in values
-        if (parsed := _parse_timestamp(value)) is not None
+        if (parsed := parse_timestamp(value)) is not None
     )
     if len(parsed_rows) != len(values):
         return None
@@ -863,26 +864,3 @@ def _timestamp_bound(values: tuple[str, ...], *, pick: Literal["min", "max"]) ->
         key=lambda row: row[0],
     )
     return selected[1]
-
-
-def _parse_timestamp(value: str) -> datetime | None:
-    text = value.replace("Z", "+00:00") if value.endswith("Z") else value
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return None
-    return parsed
-
-
-def _decimal(value: Decimal | str | int) -> str:
-    projected = Decimal(str(value))
-    quantized = projected.quantize(_SIX_PLACES)
-    if quantized == Decimal("-0.000000"):
-        quantized = Decimal("0.000000")
-    return f"{quantized:f}"
-
-
-def _signed_unit_decimal(value: Decimal) -> str:
-    return _decimal(max(Decimal("-1"), min(Decimal("1"), value)))

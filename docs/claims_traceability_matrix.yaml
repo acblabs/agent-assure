@@ -146,7 +146,7 @@ claims:
       docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/schema_reference.md]
     limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
   - id: live-advanced-statistics
-    claim: Optional advanced live endpoint plans bind confirmatory or exploratory statistical endpoints to the frozen protocol digest, report rare-event Poisson upper bounds, observed cluster-correlation summaries with uncertainty, multiplicity controls for confirmatory endpoint families, deterministic integer-seeded resampling, and paired exact or Monte Carlo randomization tests only when structural pairing checks and declared design prerequisites are met.
+    claim: Optional advanced live endpoint plans bind confirmatory or exploratory statistical endpoints to the frozen protocol digest, report rare-event Poisson upper bounds at the protocol confidence level, observed cluster-correlation summaries with uncertainty, Bonferroni multiplicity controls for confirmatory endpoint families, deterministic integer-seeded resampling, and paired exact or Monte Carlo randomization tests only when structural pairing checks and declared design prerequisites are met.
     evidence:
       schemas: [live-protocol-record, live-evaluation-report, live-comparison-report]
       code: [src/agent_assure/live/advanced.py, src/agent_assure/live/statistics.py, src/agent_assure/live/comparison.py, src/agent_assure/reporting/live.py]
@@ -163,6 +163,15 @@ claims:
       commands: [agent-assure live drift]
       docs: [docs/measurement/experiment_protocol.md, docs/schema_reference.md, docs/limitations.md, docs/live_mode_roadmap.md, docs/cli_contract.md]
     limitations: Drift monitoring is review surveillance over observable live report fields. It is not a release-verdict gate, does not infer model intent or hidden reasoning, and does not establish safety, compliance, clinical validity, provider quality, or general model-quality regression.
+  - id: live-trajectory-analysis
+    claim: Live trajectory analysis derives privacy-filtered observable state paths from protocol-bound RunSets and live evaluation reports, summarizes canonical observable transition profiles, reports explicit history-dependent checks, separates governance-control sequence findings from operational reliability warnings, and summarizes retry, rate-limit, exclusion, malformed-output, runtime-failure, emergency-process, and budget-stop event streams under declared observation, transition-support, event-count, exposure, timestamp, and burst-window prerequisites.
+    evidence:
+      schemas: [live-protocol-record, run-set, live-evaluation-report, live-trajectory-report, emergency-process-record]
+      code: [src/agent_assure/live/trajectory.py, src/agent_assure/cli/live_cmd.py, src/agent_assure/reporting/live.py]
+      tests: [tests/unit/evaluation/test_live_statistics.py, tests/integration/test_live_cli.py, tests/integration/test_schema_parity.py]
+      commands: [agent-assure live trajectory]
+      docs: [docs/measurement/experiment_protocol.md, docs/schema_reference.md, docs/limitations.md, docs/live_mode_roadmap.md, docs/cli_contract.md]
+    limitations: Trajectory reports are review artifacts with `not_evaluated` gate state. They do not persist raw prompts, raw outputs, tool arguments, sensitive identifiers, or unredacted summaries; event-process burst signals are operational warnings rather than governance pass/fail verdicts; and observed path coverage is not proof that unsafe paths are impossible.
   - id: runtime-isolation-otel-export
     claim: Live execution can run configured external scripts through a no-shell subprocess harness, capture redacted emergency process records for process failures, propagate W3C trace context, and export privacy-filtered span plans through optional OpenTelemetry SDK/OTLP support.
     evidence:

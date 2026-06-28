@@ -74,6 +74,20 @@ rates. EWMA state labels such as governance health, control reliability, and dri
 only to observable governance records; they are not claims about model intent,
 reasoning, consciousness, or hidden mental state.
 
+Live trajectory reports are also review artifacts. They derive observable path
+summaries from structured run, evaluation, and emergency-process records, then
+report canonical state-transition profiles, sequence invariants, history-dependent
+checks, and operational event-process summaries. They do not persist raw
+prompts, raw outputs, tool arguments, sensitive identifiers, raw stdout/stderr,
+or unredacted summaries. A trajectory invariant can identify a governance
+control review finding, and an event-process burst can identify an operational
+reliability warning, but the report itself uses `not_evaluated` gate state and
+does not replace expectation, policy, invariant, or configured comparison
+gates. Low observation counts, low event counts, missing timestamps, missing
+ordering metadata, or weak transition support make trajectory and event-process
+outputs exploratory or invalid. Observed path coverage is sampled evidence over
+the declared run, not proof that unsafe paths are impossible.
+
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
 

@@ -15,6 +15,7 @@ from agent_assure.live.config import load_live_run_config
 from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.runner import run_live_suite
 from agent_assure.live.statistics import evaluate_live_runset
+from agent_assure.live.trajectory import build_live_trajectory_report
 from agent_assure.reporting.live import (
     write_live_comparison_json,
     write_live_comparison_markdown,
@@ -22,6 +23,8 @@ from agent_assure.reporting.live import (
     write_live_drift_markdown,
     write_live_evaluation_json,
     write_live_evaluation_markdown,
+    write_live_trajectory_json,
+    write_live_trajectory_markdown,
 )
 from agent_assure.runner.fixture_runner import write_runset
 from agent_assure.schema.common import GateState
@@ -124,6 +127,46 @@ def drift(
         f"comparability={report.comparability.status}"
     )
     if report.monitoring_status == "invalid":
+        raise typer.Exit(1)
+
+
+@app.command("trajectory")
+def trajectory(
+    runset_path: Annotated[Path, typer.Argument(exists=True, readable=True)],
+    report_path: Annotated[
+        Path,
+        typer.Option(
+            "--report",
+            exists=True,
+            readable=True,
+            help="Live evaluation report JSON.",
+        ),
+    ],
+    protocol_path: Annotated[
+        Path,
+        typer.Option("--protocol", exists=True, readable=True, help="Live protocol JSON."),
+    ],
+    out_dir: Annotated[Path, typer.Option("--out-dir", help="Report output directory.")],
+) -> None:
+    try:
+        runset = load_runset(runset_path)
+        evaluation_report = load_live_evaluation_report(report_path)
+        protocol_record = _load_protocol(protocol_path)
+        report = build_live_trajectory_report(
+            runset,
+            evaluation_report,
+            protocol=protocol_record,
+        )
+    except (KeyError, ValueError, TypeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    write_live_trajectory_json(report, out_dir)
+    write_live_trajectory_markdown(report, out_dir)
+    console.print(
+        "live trajectory: "
+        f"status={report.trajectory_status} observations={report.observations} "
+        f"transitions={len(report.transitions)}"
+    )
+    if report.trajectory_status == "invalid":
         raise typer.Exit(1)
 
 

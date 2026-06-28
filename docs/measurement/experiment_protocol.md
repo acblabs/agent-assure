@@ -137,7 +137,10 @@ plan is optional, but when present it is part of the frozen protocol digest and
 must be reviewed before execution. It declares endpoint IDs, endpoint roles,
 confirmatory or exploratory interpretation, analysis methods, prerequisite
 counts, reason-code families, outcome labels, exchangeability assumptions, and
-the multiplicity method for confirmatory endpoint families.
+the multiplicity method for confirmatory endpoint families. The implemented
+family-wise method is single-step Bonferroni; step-down Holm and fixed-sequence
+gatekeeping require joint endpoint decision logic and are not accepted by the
+current schema.
 
 Each advanced endpoint must be interpreted under its declared prerequisites:
 
@@ -153,8 +156,8 @@ Confirmatory interpretation is limited to endpoints whose prerequisite status is
 `exploratory` or `invalid` in reports, even when the numerical result is
 favorable.
 
-Multiple confirmatory endpoints require either a fixed endpoint sequence or a
-family-wise method such as Holm-Bonferroni. A protocol that expands endpoints
+Multiple confirmatory endpoints require a family-wise method such as
+Bonferroni. A protocol that expands endpoints
 without a declared multiplicity method can still report those endpoints as
 exploratory diagnostics, but it must not treat them as confirmatory evidence.
 
@@ -212,6 +215,62 @@ calibrated null false-positive rates, and they remain non-gating unless a
 reviewed protocol separately predeclares calibrated confirmatory treatment. The
 same live results must not be reused for a different drift claim unless that
 reuse was declared before execution.
+
+## Trajectory and Event Processes
+
+Live RunSets may also be projected into observable governance trajectories.
+The trajectory projection is derived from structured, privacy-filtered fields
+already present in run records, evaluation reports, and emergency process
+records: request assembly metadata, provider-call metadata, tool identifiers,
+evidence reference/link counts, policy results, redaction findings, review
+flags, inclusion/exclusion state, timestamps, retry and rate-limit counters,
+and redacted emergency process records. It must not persist raw prompts, raw
+provider outputs, tool arguments, sensitive identifiers, raw stdout/stderr, or
+unredacted summaries.
+
+A trajectory plan can be included in the machine-readable protocol record. The
+plan declares the interpretation, supported analysis methods, minimum
+observation count, minimum transition support, event-count and exposure
+thresholds, burst-window settings, and any explicit sequence invariants. When
+the plan is absent, the implementation uses a conservative exploratory default
+that reports canonical observable transition profiles, sequence-invariant
+checks, history-dependent checks, and operational event-process summaries.
+
+Transition profiles are built from a canonical order over observable
+governance states already present in structured records. They are state-path
+profiles rather than measured internal agent dynamics. The report states
+whether path support and observation-count prerequisites were met. Conditions
+whose expected state depends on longer history, such as required human-review
+flags, complete claim-to-evidence link history, or retry counters after
+previous provider-call attempts, are represented as separate history-dependent
+checks.
+
+Trajectory invariants may identify governance-control review findings, such as
+an approval trajectory that lacks a required human-review state or reaches final
+approval without complete material claim evidence links. They may also identify
+operational reliability warnings, such as emergency process states or
+inconsistent retry/attempt counters. These outputs are reported separately
+from aggregate pass-rate statistics. The trajectory report itself uses
+`not_evaluated` gate state so the existing expectation, invariant, policy, and
+configured comparison gates remain the release-verdict mechanisms.
+
+Retry cascades, rate-limit storms, exclusions, malformed outputs, runtime
+failures, emergency process records, and budget stops can be summarized as
+operational event streams. The current implementation reports event counts,
+exposure-normalized rates, timestamp coverage, interarrival summaries when
+timestamps are available, and an exploratory burst-window count based on the
+declared event-count threshold and burst window. When multiple events are
+reported only as a count on one observation, only one timestamp is treated as
+observed and the remaining event times are marked missing. Event-process outputs
+are invalid or exploratory when exposure, event count, timestamp coverage, or
+ordering metadata are insufficient. A burst signal is a reliability review
+signal, not a direct governance pass/fail verdict.
+
+Path coverage metrics describe only observed structured trajectories in the
+declared run. They are sampled evidence, not proof that unsafe paths are
+impossible. Public documentation must not use literal path-integral branding
+unless a separate reviewed sequential Monte Carlo method and claim boundary
+exist.
 
 ## Sample-Size Plan
 
@@ -310,8 +369,9 @@ metrics unless justified by diagnostics.
 
 If multiple confirmatory endpoints, reason-code families, provider/model
 comparisons, or subgroup claims are run, adjust p-values or confidence
-decisions with a declared family-wise method such as Holm-Bonferroni, or
-declare a hierarchy that controls which findings are confirmatory.
+decisions with the declared family-wise method. The current implementation
+supports single-step Bonferroni for confirmatory endpoint families; step-down
+Holm and fixed-sequence gatekeeping are not currently implemented.
 Exploratory comparisons must remain labeled exploratory.
 
 ## Interim Looks and Stopping Rules

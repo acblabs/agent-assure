@@ -1056,8 +1056,7 @@
           "enum": [
             "none",
             "single_endpoint",
-            "fixed_sequence",
-            "holm_bonferroni"
+            "bonferroni"
           ],
           "title": "Multiplicity Method",
           "type": "string"

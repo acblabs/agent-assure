@@ -48,6 +48,9 @@ REQUIRED_LIVE_PROTOCOL_SECTIONS = (
     "## Baseline Handling",
     "## Hypotheses",
     "## Endpoints",
+    "## Advanced Statistical Endpoint Plans",
+    "## Cross-Window Monitoring",
+    "## Trajectory and Event Processes",
     "## Sample-Size Plan",
     "## Confidence-Interval Method",
     "## Interim Looks and Stopping Rules",
@@ -77,6 +80,7 @@ REQUIRED_CLAIM_IDS = {
     "live-stochastic-evaluation",
     "live-advanced-statistics",
     "live-drift-monitoring",
+    "live-trajectory-analysis",
 }
 
 

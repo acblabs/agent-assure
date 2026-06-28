@@ -22,6 +22,7 @@ Exported roots:
 - `live-drift-report`
 - `live-evaluation-report`
 - `live-protocol-record`
+- `live-trajectory-report`
 - `release-artifact-manifest`
 - `release-digest-replay`
 - `run-set`
@@ -54,14 +55,17 @@ Live-specific root artifacts:
   policy, rate-limit caps, provider-version capture plan, request/token/cost
   limits, stopping rules, tool-schema digest, policy-bundle digest, analysis
   digest, optional advanced statistical endpoint plan, optional drift
-  monitoring plan, approved data boundary, and safety limits. Advanced endpoint
-  plans declare endpoint IDs, roles, confirmatory or exploratory
-  interpretation, prerequisite counts, reason-code families, rare-event
-  exposure units, exchangeability assumptions, and multiplicity controls. Drift
-  monitoring plans declare ordered-window metrics, comparability mode,
-  exploratory or confirmatory interpretation, prerequisite window and
-  observation counts, dependence and state-summary minimum window counts,
-  review thresholds, and EWMA smoothing factors.
+  monitoring plan, optional trajectory analysis plan, approved data boundary,
+  and safety limits. Advanced endpoint plans declare endpoint IDs, roles,
+  confirmatory or exploratory interpretation, prerequisite counts, reason-code
+  families, rare-event exposure units, exchangeability assumptions, and
+  Bonferroni multiplicity controls. Drift monitoring plans declare ordered-window metrics,
+  comparability mode, exploratory or confirmatory interpretation, prerequisite
+  window and observation counts, dependence and state-summary minimum window
+  counts, review thresholds, and EWMA smoothing factors. Trajectory analysis
+  plans declare observable transition and event methods, observation and
+  transition support thresholds, event-count and exposure thresholds,
+  burst-window settings, and explicit sequence invariants.
 - `live-evaluation-report` records per-observation expectation results,
   inclusion/exclusion accounting, aggregate pass rates, outcome rates,
   reason-code rates, pooled and cluster-mean rates, cluster counts, design
@@ -102,6 +106,22 @@ Live-specific root artifacts:
   exploratory by default, use `not_evaluated` gate state, and keep drift signals separate from
   release-verdict evidence unless a reviewed protocol separately predeclares a
   stronger interpretation.
+- `live-trajectory-report` records derived observable governance trajectories
+  from a protocol-bound RunSet and its live evaluation report. It includes
+  privacy-filtered path summaries over generic states such as request assembly,
+  provider call, tool call, evidence check, policy check, redaction check,
+  human review, verdict, exclusion, and emergency; observable transition
+  profile frequencies with declared support status; sequence-invariant results that
+  separate governance-control failures from operational reliability warnings;
+  explicit history-dependent checks for conditions that depend on run history; and operational
+  event-process summaries for retries, rate limits, exclusions, malformed
+  outputs, runtime failures, emergency records, and budget stops. Event-process
+  summaries report exposure-normalized rates, timestamp coverage, interarrival
+  summaries when available, and exploratory burst signals. The report uses
+  `not_evaluated` gate state, does not persist raw prompts, raw outputs, tool
+  arguments, sensitive identifiers, or unredacted summaries, and treats path
+  coverage as sampled review evidence rather than proof that unsafe paths are
+  impossible.
 - `emergency-process-record` records redacted subprocess failure metadata for
   configured external scripts, including failure kind, command digest,
   executable/script names, working-directory digest, observation/run/case

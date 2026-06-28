@@ -40,6 +40,15 @@ their declared window-count prerequisites are met. These diagnostics are review
 evidence derived from protocol-bound live evaluation reports; they are not
 independent provenance roots and are not release-verdict shortcuts.
 
+Optional live trajectory-analysis plans are part of `live-protocol-record` and
+therefore change the protocol digest. Derived `live-trajectory-report`
+artifacts carry privacy-filtered path summaries, transition summaries,
+sequence-invariant results, history-dependent checks, and operational
+event-process summaries. They are review evidence derived from structured
+protocol-bound live artifacts; they do not persist raw prompts, raw outputs,
+tool arguments, sensitive identifiers, or unredacted summaries, and they are
+not independent provenance roots or release-verdict shortcuts.
+
 RunSet `runset_digest` is an exact artifact digest used for waiver scoping and
 local reproducibility. Release replay uses role-specific stable projections for
 environment-bearing reports, packets, and manifests, and excludes only the

@@ -18,6 +18,7 @@ Current commands:
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
 - `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure live drift LIVE_EVALUATION_REPORT_JSON... --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
+- `agent-assure live trajectory LIVE_RUNSET_JSON --report LIVE_EVALUATION_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
@@ -124,8 +125,8 @@ flags, provider/model group summaries, latency distributions, estimated-cost
 distributions,
 observation-level findings, optional protocol-declared statistical-invariant
 results, and limitations. Statistical-invariant results can include rare-event
-Poisson upper bounds and observed cluster-correlation summaries with
-uncertainty; zero observed critical events are reported as bounded evidence,
+Poisson upper bounds at the protocol confidence level and observed
+cluster-correlation summaries with uncertainty; zero observed critical events are reported as bounded evidence,
 not proof of absence. Degenerate per-arm cluster intervals are labeled as a
 boundary heuristic rather than an ordinary t interval. It exits `1` when any included
 observation has a blocking
@@ -168,6 +169,22 @@ threshold is met. Drift reports use
 not establish safety, compliance, clinical validity, provider quality, model
 intent, or general model-quality regression. An invalid comparability result
 writes the report and exits `1`.
+
+`live trajectory` consumes a protocol-bound `run-set`, its
+`live-evaluation-report`, and the matching `live-protocol-record`, then writes
+`live-trajectory-report.json` and `live-trajectory-report.md`. The report
+derives privacy-filtered observable state paths from structured run,
+evaluation, and emergency-process records; summarizes observable transition
+profiles over canonical state order; reports sequence invariants; surfaces
+history-dependent checks; and summarizes operational event processes for
+retries, rate limits, exclusions, malformed outputs, runtime failures,
+emergency process records, and budget stops. Governance-control trajectory
+findings and operational reliability warnings are reported separately. The
+report uses `not_evaluated` gate state and is a review artifact; path coverage
+does not prove unsafe paths are impossible. Missing timestamps, low event
+counts, low exposure, weak transition support, or incompatible protocol binding
+mark the affected outputs exploratory or invalid. An invalid trajectory report
+writes the report when it can and exits `1`.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable

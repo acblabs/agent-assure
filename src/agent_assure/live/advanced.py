@@ -1,13 +1,18 @@
 from __future__ import annotations
 
-import math
 from collections import defaultdict
-from decimal import Decimal
-from statistics import mean
+from decimal import Decimal, localcontext
 from typing import Literal, cast
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.live.intervals import percentile_interval, seeded_random, stable_seed_int
+from agent_assure.live.primitives import (
+    decimal_string,
+    mean_decimal,
+    probability_string,
+    rate_string,
+    signed_unit_decimal_string,
+)
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
     AdvancedAnalysisPlan,
@@ -22,7 +27,6 @@ from agent_assure.schema.live import (
 )
 from agent_assure.schema.run import AgentRunRecord
 
-_SIX_PLACES = Decimal("0.000001")
 _MAX_EXACT_PERMUTATION_CLUSTERS = 20
 _MONTE_CARLO_RESAMPLES = 10000
 _ICC_BOOTSTRAP_ITERATIONS = 1000
@@ -78,7 +82,7 @@ def evaluate_paired_randomization_test(
     if plan is None:
         return None
     endpoint = next(endpoint for endpoint in plan.endpoints if endpoint.role == "primary")
-    observed = _mean(differences)
+    observed = mean_decimal(differences)
     margin = Decimal(protocol.non_inferiority_margin)
     seed_material = f"{protocol.protocol_id}:{protocol.analysis_digest}:paired-permutation"
     if prerequisite_status == "met":
@@ -107,10 +111,12 @@ def evaluate_paired_randomization_test(
         prerequisite_status=prerequisite_status,
         exchangeability_assumption=endpoint.exchangeability_assumption,
         compared_clusters=len(differences),
-        observed_difference=_signed_decimal(observed),
-        non_inferiority_margin=_decimal(margin),
-        p_value=_probability(p_value) if p_value is not None else None,
-        adjusted_p_value=_probability(adjusted_p_value) if adjusted_p_value is not None else None,
+        observed_difference=signed_unit_decimal_string(observed),
+        non_inferiority_margin=decimal_string(margin),
+        p_value=probability_string(p_value) if p_value is not None else None,
+        adjusted_p_value=(
+            probability_string(adjusted_p_value) if adjusted_p_value is not None else None
+        ),
         exhaustive=exhaustive,
         resamples=resamples,
         seed=str(stable_seed_int(seed_material)) if not exhaustive else None,
@@ -196,7 +202,7 @@ def _evaluate_endpoint(
             endpoint,
             observed_events=numerator,
             exposure=denominator,
-            confidence_alpha=adjusted_alpha,
+            confidence_alpha=_confidence_alpha(protocol.confidence_level),
             protocol=protocol,
         )
         limitations.extend(rare_event_bound.limitations)
@@ -216,11 +222,11 @@ def _evaluate_endpoint(
         analysis_method=endpoint.analysis_method,
         prerequisite_status=prerequisite_status,
         multiplicity_method=plan.multiplicity_method,
-        adjusted_alpha=_decimal(adjusted_alpha),
+        adjusted_alpha=decimal_string(adjusted_alpha),
         numerator=numerator,
         denominator=denominator,
         cluster_count=cluster_count,
-        rate=_rate(numerator, denominator),
+        rate=rate_string(numerator, denominator),
         reason_codes=endpoint.reason_codes,
         outcome=endpoint.outcome,
         rare_event_bound=rare_event_bound,
@@ -295,7 +301,7 @@ def _endpoint_alpha(
     alpha = Decimal(plan.familywise_alpha)
     if endpoint.interpretation != "confirmatory":
         return alpha
-    if plan.multiplicity_method == "holm_bonferroni" and confirmatory_count > 1:
+    if plan.multiplicity_method == "bonferroni" and confirmatory_count > 1:
         return alpha / Decimal(confirmatory_count)
     return alpha
 
@@ -308,7 +314,7 @@ def _adjust_p_value(
 ) -> Decimal:
     if endpoint.interpretation != "confirmatory":
         return p_value
-    if plan.multiplicity_method == "holm_bonferroni":
+    if plan.multiplicity_method == "bonferroni":
         confirmatory_count = sum(
             1 for candidate in plan.endpoints if candidate.interpretation == "confirmatory"
         )
@@ -370,9 +376,9 @@ def _rare_event_bound(
         observed_events=observed_events,
         exposure=exposure,
         exposure_unit=endpoint.exposure_unit,
-        event_rate=_rate(observed_events, exposure),
-        upper_count_bound=_decimal(upper_count),
-        upper_rate_bound=_decimal(upper_rate),
+        event_rate=rate_string(observed_events, exposure),
+        upper_count_bound=decimal_string(upper_count),
+        upper_rate_bound=decimal_string(upper_rate),
         confidence_level=protocol.confidence_level,
         analysis_method="poisson_upper_bound",
         zero_events=observed_events == 0,
@@ -435,11 +441,11 @@ def _cluster_correlation_summary(
         observation_count=observation_count,
         planned_intraclass_correlation=protocol.assumed_intraclass_correlation,
         observed_intraclass_correlation=(
-            _signed_decimal(observed_icc) if observed_icc is not None else None
+            signed_unit_decimal_string(observed_icc) if observed_icc is not None else None
         ),
         uncertainty_method=uncertainty_method,
-        ci_lower=_signed_decimal(lower) if lower is not None else None,
-        ci_upper=_signed_decimal(upper) if upper is not None else None,
+        ci_lower=signed_unit_decimal_string(lower) if lower is not None else None,
+        ci_upper=signed_unit_decimal_string(upper) if upper is not None else None,
         bootstrap_iterations=iterations,
         confirmatory_use=confirmatory_use,
         confirmatory_interval_uses_planned_icc=True,
@@ -512,7 +518,7 @@ def _permutation_p_value(
     seed: str,
 ) -> tuple[Decimal, int, bool]:
     shifted = tuple(difference + margin for difference in differences)
-    observed = _mean(shifted)
+    observed = mean_decimal(shifted)
     if not shifted:
         return Decimal("1"), 0, False
     if method == "paired_cluster_permutation_exact":
@@ -542,54 +548,31 @@ def _permutation_p_value(
 
 
 def _poisson_upper_count_bound(events: int, *, alpha: Decimal) -> Decimal:
-    alpha_float = float(alpha)
-    low = 0.0
-    high = max(1.0, float(events + 1))
-    while _poisson_cdf(events, high) > alpha_float:
-        high *= 2.0
+    low = Decimal("0")
+    high = max(Decimal("1"), Decimal(events + 1))
+    while _poisson_cdf(events, high) > alpha:
+        high *= Decimal("2")
     for _ in range(80):
-        midpoint = (low + high) / 2.0
-        if _poisson_cdf(events, midpoint) > alpha_float:
+        midpoint = (low + high) / Decimal("2")
+        if _poisson_cdf(events, midpoint) > alpha:
             low = midpoint
         else:
             high = midpoint
-    return Decimal(str(high))
+    return high
 
 
-def _poisson_cdf(events: int, rate: float) -> float:
-    term = math.exp(-rate)
-    total = term
-    for index in range(1, events + 1):
-        term *= rate / index
-        total += term
-    return total
+def _poisson_cdf(events: int, rate: Decimal) -> Decimal:
+    with localcontext() as context:
+        context.prec = max(50, len(str(events)) + 30)
+        rate = +rate
+        term = (-rate).exp()
+        total = term
+        for index in range(1, events + 1):
+            term *= rate / Decimal(index)
+            total += term
+        return +total
 
 
-def _mean(values: tuple[Decimal, ...]) -> Decimal:
-    if not values:
-        return Decimal("0")
-    return Decimal(str(mean(values)))
+def _confidence_alpha(confidence_level: str) -> Decimal:
+    return Decimal("1") - Decimal(confidence_level)
 
-
-def _rate(numerator: int, denominator: int) -> str:
-    if denominator == 0:
-        return "0.000000"
-    return _probability(Decimal(numerator) / Decimal(denominator))
-
-
-def _probability(value: Decimal) -> str:
-    return _decimal(min(Decimal("1"), max(Decimal("0"), value)))
-
-
-def _signed_decimal(value: Decimal) -> str:
-    return _decimal(max(Decimal("-1"), min(Decimal("1"), value)))
-
-
-def _decimal(value: Decimal | str | int) -> str:
-    projected = Decimal(str(value))
-    if projected == Decimal("-0"):
-        projected = Decimal("0")
-    quantized = projected.quantize(_SIX_PLACES)
-    if quantized == Decimal("-0.000000"):
-        quantized = Decimal("0.000000")
-    return f"{quantized:f}"

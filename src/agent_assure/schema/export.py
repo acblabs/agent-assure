@@ -18,6 +18,7 @@ from agent_assure.schema.live import (
     LiveDriftReport,
     LiveEvaluationReport,
     LiveProtocolRecord,
+    LiveTrajectoryReport,
 )
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
@@ -45,6 +46,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "live-drift-report": LiveDriftReport,
     "live-evaluation-report": LiveEvaluationReport,
     "live-protocol-record": LiveProtocolRecord,
+    "live-trajectory-report": LiveTrajectoryReport,
     "release-artifact-manifest": ReleaseArtifactManifest,
     "release-digest-replay": ReleaseDigestReplay,
     "run-set": RunSet,
