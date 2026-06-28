@@ -96,6 +96,34 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         )
     else:
         lines.append("No reason-code findings were observed.")
+    lines.extend(["", "## Statistical Invariants", ""])
+    if report.statistical_invariants:
+        for invariant in report.statistical_invariants:
+            lines.append(
+                f"- `{redact_text(invariant.endpoint_id)}` "
+                f"`{invariant.interpretation}` `{invariant.prerequisite_status}` "
+                f"rate=`{invariant.rate}` clusters=`{invariant.cluster_count}` "
+                f"method=`{invariant.analysis_method}`"
+            )
+            if invariant.rare_event_bound is not None:
+                bound = invariant.rare_event_bound
+                lines.append(
+                    f"  - upper `{bound.confidence_level}` bound: "
+                    f"events=`{bound.observed_events}` exposure=`{bound.exposure}` "
+                    f"upper_rate=`{bound.upper_rate_bound}`"
+                )
+            if invariant.cluster_correlation is not None:
+                correlation = invariant.cluster_correlation
+                lines.append(
+                    "  - cluster correlation: "
+                    f"planned=`{correlation.planned_intraclass_correlation}` "
+                    f"observed=`{correlation.observed_intraclass_correlation or 'not_evaluated'}` "
+                    f"ci=`{correlation.ci_lower or 'not_evaluated'}`.."
+                    f"`{correlation.ci_upper or 'not_evaluated'}` "
+                    f"confirmatory_use=`{correlation.confirmatory_use}`"
+                )
+    else:
+        lines.append("No advanced statistical endpoints were declared.")
     lines.extend(["", "## Observation Findings", ""])
     failing = [observation for observation in report.observations if observation.findings]
     if failing:
@@ -140,9 +168,26 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
         f"- p50 latency difference ms: `{report.latency_p50_difference_ms or 'not_evaluated'}`",
         f"- total cost difference USD: `{report.cost_total_difference_usd or 'not_evaluated'}`",
         "",
-        "## Limitations",
+        "## Randomization Tests",
         "",
     ]
+    if report.randomization_tests:
+        for test in report.randomization_tests:
+            lines.append(
+                f"- `{redact_text(test.endpoint_id)}` `{test.analysis_method}` "
+                f"`{test.prerequisite_status}` p=`{test.p_value or 'not_evaluated'}` "
+                f"adjusted_p=`{test.adjusted_p_value or 'not_evaluated'}` "
+                f"clusters=`{test.compared_clusters}` resamples=`{test.resamples}`"
+            )
+    else:
+        lines.append("No paired randomization test was declared.")
+    lines.extend(
+        [
+            "",
+            "## Limitations",
+            "",
+        ]
+    )
     lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 

@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added optional protocol-bound advanced live statistical endpoints with
+  confirmatory/exploratory labels, multiplicity validation, rare-event Poisson
+  upper bounds, observed cluster-correlation summaries with bootstrap
+  uncertainty, and paired exact or Monte Carlo randomization tests that fail
+  closed when structural pairing, exchangeability, or enumeration prerequisites
+  are not met. Bootstrap and Monte Carlo paths now use stable SHA-256-derived
+  integer seeds, and degenerate per-arm cluster intervals are labeled as
+  boundary heuristics.
 - Added runtime isolation and OpenTelemetry export support for live execution:
   an `external-script` live adapter backed by a no-shell subprocess harness,
   redacted `emergency-process-record` artifacts for subprocess crashes,
@@ -28,7 +36,7 @@
   confidence-interval centers explicitly, avoiding spuriously exact zero-width
   boundary intervals, using the declared cluster bootstrap method for
   descriptive per-arm rates when applicable, and rejecting paired comparisons
-  whose included cluster sets do not match.
+  whose included cluster or case/repetition sets do not match.
 - Hardened live response handling with a strict structured-output contract,
   malformed-output emergency records, post-response budget-stop records,
   estimated-cost source metadata, redacted live summaries before record

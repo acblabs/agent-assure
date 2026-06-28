@@ -121,7 +121,12 @@ whether a confidence interval is around a cluster mean or pooled rate,
 per-observation tool-schema and policy-bundle provenance digests, exploratory
 flags, provider/model group summaries, latency distributions, estimated-cost
 distributions,
-observation-level findings, and limitations. It exits `1` when any included
+observation-level findings, optional protocol-declared statistical-invariant
+results, and limitations. Statistical-invariant results can include rare-event
+Poisson upper bounds and observed cluster-correlation summaries with
+uncertainty; zero observed critical events are reported as bounded evidence,
+not proof of absence. Degenerate per-arm cluster intervals are labeled as a
+boundary heuristic rather than an ordinary t interval. It exits `1` when any included
 observation has a blocking
 expectation/policy finding or protocol exclusion limits are exceeded.
 
@@ -129,18 +134,24 @@ expectation/policy finding or protocol exclusion limits are exceeded.
 baseline mode, non-inferiority margin, and confidence level come from the
 `live-protocol-record`, not CLI flags. `concurrent_paired` mode uses matched
 cluster-level pass-rate differences with the protocol-declared paired cluster
-t-interval or paired cluster percentile bootstrap. `fixed_reference` mode
-compares candidate cluster rates with the frozen reference rate and does not
-use paired language. The command writes `live-comparison-report.json` and
-`live-comparison-report.md`, including baseline/candidate pass rates,
-pass-rate difference, a cluster-level interval, compared-cluster count,
-effective sample size, exploratory status, p50 latency delta, and total-cost
-delta. Comparisons with fewer than 30 compared clusters, or percentile
-bootstrap comparisons with fewer than 50 compared clusters, cannot produce a
-confirmatory pass. When all paired cluster differences are identical, the
-limitations section labels the zero-width empirical interval as degenerate. The
-comparison is time-bound to the reports being compared and is not a general
-provider-quality claim.
+t-interval, paired cluster percentile bootstrap, or paired randomization test.
+`fixed_reference` mode compares candidate cluster rates with the frozen
+reference rate and does not use paired language. The command writes
+`live-comparison-report.json` and `live-comparison-report.md`, including
+baseline/candidate pass rates, pass-rate difference, a cluster-level interval,
+compared-cluster count, effective sample size, exploratory status, p50 latency
+delta, total-cost delta, and optional paired randomization test results.
+Comparisons with fewer than 30 compared clusters, percentile bootstrap
+comparisons with fewer than 50 compared clusters, or paired randomization tests
+whose exchangeability declaration, identical included cluster sets, identical
+included case/repetition sets within clusters, or exact-enumeration
+prerequisites are not met cannot produce a confirmatory pass. When all paired
+cluster differences are identical, the limitations section labels the
+zero-width empirical interval as degenerate. A non-inferiority gate failure
+means the interval did not rule out a drop larger than the margin; it is a
+fail-closed gate result, not proof of candidate inferiority. The comparison is
+time-bound to the reports being compared and is not a general provider-quality
+claim.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable

@@ -16,8 +16,10 @@ live-adapter commands for protocol-bound repeated provider observations,
 cluster-aware stochastic rates, paired or fixed-reference live comparisons,
 completion/provenance checks, external-script subprocess execution with
 emergency process records, runtime trace-context propagation, optional
-OpenTelemetry SDK span emission, optional OTLP export, and cost/latency
-reports. Live reports label whether a confidence interval is centered on pooled
+OpenTelemetry SDK span emission, optional OTLP export, cost/latency reports,
+and optional protocol-declared advanced statistical endpoints for rare-event
+upper bounds, observed cluster-correlation summaries, and paired randomization
+tests. Live reports label whether a confidence interval is centered on pooled
 rate or cluster mean rate. Live reports are time-bound operational evidence for
 declared provider/model/configuration windows; they do not establish safety
 assurance, validate clinical use, prove regulatory compliance, provide general
@@ -122,7 +124,10 @@ A statistical protocol is documented in
 `agent-assure live` commands require a machine-readable protocol, run
 explicitly configured adapters, and analyze repeated observations with
 cluster-aware rates, protocol-declared comparison methods, and exploratory
-guardrails for low cluster counts. Live results remain bounded by the declared
+guardrails for low cluster counts. Optional advanced endpoint plans bind
+confirmatory/exploratory labels, multiplicity controls, rare-event upper
+bounds, observed cluster-correlation summaries, and paired randomization-test
+prerequisites to the protocol digest. Live results remain bounded by the declared
 protocol, data boundary, provider/model configuration, and execution window.
 They are not general model-quality, safety, compliance, or clinical-validation
 claims.

@@ -52,7 +52,11 @@ Live-specific root artifacts:
   size, planned repetitions, randomization blocking, retry policy, exclusion
   policy, rate-limit caps, provider-version capture plan, request/token/cost
   limits, stopping rules, tool-schema digest, policy-bundle digest, analysis
-  digest, approved data boundary, and safety limits.
+  digest, optional advanced statistical endpoint plan, approved data boundary,
+  and safety limits. Advanced endpoint plans declare endpoint IDs, roles,
+  confirmatory or exploratory interpretation, prerequisite counts, reason-code
+  families, rare-event exposure units, exchangeability assumptions, and
+  multiplicity controls.
 - `live-evaluation-report` records per-observation expectation results,
   inclusion/exclusion accounting, aggregate pass rates, outcome rates,
   reason-code rates, pooled and cluster-mean rates, cluster counts, design
@@ -60,14 +64,25 @@ Live-specific root artifacts:
   confidence interval center metadata, estimated-cost source metadata,
   per-observation tool-schema and policy-bundle provenance digests, completion
   status, stop reasons, budget-exhaustion status, provider/model group
-  summaries, latency distributions, estimated-cost distributions, and
-  interpretation limitations.
+  summaries, latency distributions, estimated-cost distributions, optional
+  statistical-invariant results, and interpretation limitations. Statistical
+  invariant results can include rare-event Poisson upper bounds and observed
+  cluster-correlation summaries with bootstrap uncertainty; zero observed
+  critical events are represented as bounded evidence, not absence proofs.
+  Degenerate per-arm cluster intervals are labeled as boundary heuristics rather
+  than ordinary cluster t intervals.
 - `live-comparison-report` records a baseline-to-candidate live report
   comparison with protocol binding, baseline mode, cluster-level analysis
   method, pass-rate difference, paired cluster t or percentile bootstrap
   interval when declared, fixed-reference interval when declared, margin,
   compared-cluster count, effective sample size, exploratory status, latency
-  delta, cost delta, and limitations.
+  delta, cost delta, optional paired randomization test results, and
+  limitations. Paired randomization tests are emitted only for protocol-declared
+  concurrent paired designs and report prerequisite status, p-value,
+  adjusted p-value, exact or Monte Carlo resampling count, and exchangeability
+  assumption. Monte Carlo seeds are deterministic integers derived from
+  protocol-bound seed material; the report cannot prove exchangeability beyond
+  the declared assumption and structural pairing checks.
 - `emergency-process-record` records redacted subprocess failure metadata for
   configured external scripts, including failure kind, command digest,
   executable/script names, working-directory digest, observation/run/case

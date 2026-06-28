@@ -146,6 +146,151 @@
       ],
       "title": "LiveRate",
       "type": "object"
+    },
+    "PairedRandomizationTestResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_p_value": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adjusted P Value"
+        },
+        "analysis_method": {
+          "enum": [
+            "paired_cluster_permutation_exact",
+            "paired_cluster_permutation_monte_carlo"
+          ],
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "paired-randomization-test-result",
+          "default": "paired-randomization-test-result",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "compared_clusters": {
+          "minimum": 0,
+          "title": "Compared Clusters",
+          "type": "integer"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "enum": [
+            "baseline_candidate_relabeling",
+            "not_applicable"
+          ],
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "exhaustive": {
+          "default": false,
+          "title": "Exhaustive",
+          "type": "boolean"
+        },
+        "interpretation": {
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "non_inferiority_margin": {
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Non Inferiority Margin",
+          "type": "string"
+        },
+        "observed_difference": {
+          "pattern": "^-?(0|1)\\.[0-9]{6}$",
+          "title": "Observed Difference",
+          "type": "string"
+        },
+        "p_value": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P Value"
+        },
+        "prerequisite_status": {
+          "enum": [
+            "met",
+            "exploratory",
+            "invalid"
+          ],
+          "title": "Prerequisite Status",
+          "type": "string"
+        },
+        "resamples": {
+          "minimum": 0,
+          "title": "Resamples",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "interpretation",
+        "analysis_method",
+        "prerequisite_status",
+        "exchangeability_assumption",
+        "compared_clusters",
+        "observed_difference",
+        "non_inferiority_margin",
+        "resamples"
+      ],
+      "title": "PairedRandomizationTestResult",
+      "type": "object"
     }
   },
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.2.0/live-comparison-report.schema.json",
@@ -296,6 +441,14 @@
       "minLength": 1,
       "title": "Protocol Id",
       "type": "string"
+    },
+    "randomization_tests": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PairedRandomizationTestResult"
+      },
+      "title": "Randomization Tests",
+      "type": "array"
     },
     "schema_version": {
       "const": "0.2.0",

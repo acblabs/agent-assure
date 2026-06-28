@@ -75,6 +75,7 @@ REQUIRED_CLAIM_IDS = {
     "standards-freshness-review",
     "live-statistical-protocol",
     "live-stochastic-evaluation",
+    "live-advanced-statistics",
 }
 
 

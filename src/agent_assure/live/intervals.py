@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import random
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from statistics import mean
@@ -41,6 +42,15 @@ TWO_SIDED_95_T_CRITICALS: dict[int, str] = {
 }
 
 
+def stable_seed_int(seed: str) -> int:
+    digest = hashlib.sha256(seed.encode("utf-8")).digest()
+    return int.from_bytes(digest[:16], byteorder="big", signed=False)
+
+
+def seeded_random(seed: str) -> random.Random:
+    return random.Random(stable_seed_int(seed))
+
+
 def t_critical_95(confidence_level: str, degrees_of_freedom: int) -> Decimal:
     if confidence_level != "0.950000":
         raise ValueError(f"unsupported live confidence_level: {confidence_level}")
@@ -66,7 +76,7 @@ def cluster_t_interval(
     variance = sum((value - center) ** 2 for value in values) / Decimal(len(values) - 1)
     standard_error = (variance / Decimal(len(values))).sqrt()
     if standard_error == 0:
-        lower, upper = wilson_score_interval(
+        lower, upper = degenerate_cluster_boundary_interval(
             center * Decimal(len(values)),
             len(values),
             confidence_level,
@@ -114,7 +124,7 @@ def bootstrap_mean_interval(
     center = Decimal(str(mean(values)))
     if len(values) == 1:
         return center, Decimal("0"), Decimal("1")
-    rng = random.Random(seed)
+    rng = seeded_random(seed)
     sample_size = len(values)
     bootstrap_means: list[Decimal] = []
     for _ in range(iterations):
@@ -141,7 +151,7 @@ def difference_bootstrap_interval(
     center = Decimal(str(mean(differences)))
     if len(differences) == 1:
         return center, Decimal("-1"), Decimal("1"), 1
-    rng = random.Random(seed)
+    rng = seeded_random(seed)
     sample_size = len(differences)
     bootstrap_means: list[Decimal] = []
     for _ in range(iterations):
@@ -176,6 +186,20 @@ def percentile_interval(
         ordered[max(0, min(len(ordered) - 1, lower_index))],
         ordered[max(0, min(len(ordered) - 1, upper_index))],
     )
+
+
+def nearest_rank_percentile(values: tuple[Decimal, ...], percentile: Decimal) -> Decimal:
+    raw_rank = int((percentile * Decimal(len(values))).to_integral_value(rounding=ROUND_CEILING))
+    index = max(0, min(len(values) - 1, raw_rank - 1))
+    return values[index]
+
+
+def degenerate_cluster_boundary_interval(
+    successes: Decimal,
+    trials: int,
+    confidence_level: str,
+) -> tuple[Decimal, Decimal]:
+    return wilson_score_interval(successes, trials, confidence_level)
 
 
 def wilson_score_interval(

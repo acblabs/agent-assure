@@ -1,8 +1,272 @@
 {
+  "$defs": {
+    "AdvancedAnalysisPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "advanced-analysis-plan",
+          "default": "advanced-analysis-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "endpoints": {
+          "items": {
+            "$ref": "#/$defs/StatisticalEndpointPlan"
+          },
+          "minItems": 1,
+          "title": "Endpoints",
+          "type": "array"
+        },
+        "familywise_alpha": {
+          "default": "0.050000",
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "multiplicity_method": {
+          "default": "none",
+          "enum": [
+            "none",
+            "single_endpoint",
+            "fixed_sequence",
+            "holm_bonferroni"
+          ],
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "observed_icc_confirmatory_use": {
+          "default": "disabled",
+          "enum": [
+            "disabled",
+            "large_cluster_threshold",
+            "external_review"
+          ],
+          "title": "Observed Icc Confirmatory Use",
+          "type": "string"
+        },
+        "observed_icc_large_cluster_threshold": {
+          "anyOf": [
+            {
+              "minimum": 30,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Icc Large Cluster Threshold"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoints"
+      ],
+      "title": "AdvancedAnalysisPlan",
+      "type": "object"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "StatisticalEndpointPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_method": {
+          "default": "descriptive_rate",
+          "enum": [
+            "cluster_t_interval",
+            "cluster_bootstrap_percentile",
+            "poisson_upper_bound",
+            "hierarchical_binomial_summary",
+            "beta_binomial_cluster_summary",
+            "descriptive_rate"
+          ],
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "statistical-endpoint-plan",
+          "default": "statistical-endpoint-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "endpoint_kind": {
+          "enum": [
+            "expectation_pass_rate",
+            "reason_code_rate",
+            "critical_event_rate",
+            "exclusion_rate",
+            "outcome_rate"
+          ],
+          "title": "Endpoint Kind",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "default": "not_applicable",
+          "enum": [
+            "not_applicable",
+            "baseline_candidate_relabeling"
+          ],
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "exposure_unit": {
+          "default": "observation",
+          "minLength": 1,
+          "title": "Exposure Unit",
+          "type": "string"
+        },
+        "family_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family Id"
+        },
+        "hierarchy_rank": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hierarchy Rank"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "minimum_clusters": {
+          "default": 30,
+          "minimum": 1,
+          "title": "Minimum Clusters",
+          "type": "integer"
+        },
+        "minimum_events": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Minimum Events",
+          "type": "integer"
+        },
+        "minimum_observations": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Observations",
+          "type": "integer"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outcome"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "role": {
+          "default": "secondary",
+          "enum": [
+            "primary",
+            "secondary",
+            "diagnostic"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "endpoint_kind"
+      ],
+      "title": "StatisticalEndpointPlan",
+      "type": "object"
+    }
+  },
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.2.0/live-protocol-record.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
   "properties": {
+    "advanced_analysis_plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AdvancedAnalysisPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "allowed_exclusion_reasons": {
       "default": [],
       "items": {
@@ -21,6 +285,8 @@
       "enum": [
         "paired_cluster_t_interval",
         "paired_cluster_bootstrap_percentile",
+        "paired_cluster_permutation_exact",
+        "paired_cluster_permutation_monte_carlo",
         "fixed_reference_cluster_t_interval",
         "cluster_t_interval",
         "exploratory"

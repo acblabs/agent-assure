@@ -6,12 +6,17 @@ from decimal import Decimal
 from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.live.advanced import (
+    evaluate_paired_randomization_test,
+    paired_randomization_prerequisites,
+)
 from agent_assure.live.intervals import difference_bootstrap_interval, difference_t_interval
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
     LiveComparisonReport,
     LiveEvaluationReport,
     LiveGroupSummary,
+    LiveObservationResult,
     LiveProtocolRecord,
     LiveRate,
 )
@@ -37,16 +42,65 @@ def compare_live_reports(
             protocol,
         )
         baseline_rate = _fixed_reference_rate(protocol)
+        differences: tuple[Decimal, ...] = ()
     else:
-        difference, lower, upper, compared_clusters = _paired_cluster_difference(
+        differences = _paired_cluster_differences(
             baseline,
             candidate,
             protocol,
         )
+        difference, lower, upper, compared_clusters = _paired_cluster_difference_from_values(
+            differences,
+            protocol,
+        )
         baseline_rate = baseline_group.expectation_pass_rate
     margin = Decimal(protocol.non_inferiority_margin)
-    exploratory = _comparison_exploratory(protocol, compared_clusters)
-    state = _comparison_state(lower, margin, compared_clusters, exploratory)
+    randomization_test = None
+    if protocol.analysis_method in {
+        "paired_cluster_permutation_exact",
+        "paired_cluster_permutation_monte_carlo",
+    }:
+        prerequisite_status, prerequisite_limitations = paired_randomization_prerequisites(
+            protocol=protocol,
+            compared_clusters=compared_clusters,
+        )
+        randomization_test = evaluate_paired_randomization_test(
+            differences,
+            protocol=protocol,
+            prerequisite_status=prerequisite_status,
+            limitations=prerequisite_limitations,
+        )
+        exploratory = (
+            randomization_test is None
+            or randomization_test.prerequisite_status != "met"
+            or randomization_test.interpretation == "exploratory"
+        )
+        state = _randomization_comparison_state(
+            difference,
+            margin,
+            randomization_test,
+            protocol,
+        )
+    else:
+        exploratory = _comparison_exploratory(protocol, compared_clusters)
+        state = _comparison_state(lower, margin, compared_clusters, exploratory)
+    limitations = list(
+        _comparison_limitations(
+            protocol,
+            compared_clusters,
+            exploratory,
+            difference,
+            lower,
+            upper,
+        )
+    )
+    if randomization_test is not None:
+        limitations.extend(randomization_test.limitations)
+        if randomization_test.prerequisite_status == "met":
+            limitations.append(
+                "paired randomization p-value is one-sided for the declared "
+                "non-inferiority margin"
+            )
     return LiveComparisonReport(
         artifact_kind="live-comparison-report",
         baseline_runset_id=baseline.runset_id,
@@ -79,14 +133,8 @@ def compare_live_reports(
             candidate_group.estimated_cost_usd.total,
             baseline_group.estimated_cost_usd.total,
         ),
-        limitations=_comparison_limitations(
-            protocol,
-            compared_clusters,
-            exploratory,
-            difference,
-            lower,
-            upper,
-        ),
+        randomization_tests=() if randomization_test is None else (randomization_test,),
+        limitations=tuple(dict.fromkeys(limitations)),
     )
 
 
@@ -105,18 +153,25 @@ def _verify_report_binding(
             raise ValueError(f"{label} live report protocol binding does not match protocol")
 
 
-def _paired_cluster_difference(
+def _paired_cluster_differences(
     baseline: LiveEvaluationReport,
     candidate: LiveEvaluationReport,
     protocol: LiveProtocolRecord,
-) -> tuple[Decimal, Decimal, Decimal, int]:
+) -> tuple[Decimal, ...]:
+    _validate_paired_observation_sets(baseline, candidate, protocol)
     baseline_rates = _cluster_pass_rates(baseline, protocol.baseline_group_id)
     candidate_rates = _cluster_pass_rates(candidate, protocol.candidate_group_id)
     _validate_paired_cluster_sets(baseline_rates, candidate_rates)
     common_clusters = sorted(baseline_rates)
-    differences = tuple(
+    return tuple(
         candidate_rates[cluster] - baseline_rates[cluster] for cluster in common_clusters
     )
+
+
+def _paired_cluster_difference_from_values(
+    differences: tuple[Decimal, ...],
+    protocol: LiveProtocolRecord,
+) -> tuple[Decimal, Decimal, Decimal, int]:
     if protocol.analysis_method == "paired_cluster_bootstrap_percentile":
         return _bootstrap_difference_interval(differences, protocol)
     return _difference_interval(differences, protocol.confidence_level)
@@ -163,6 +218,67 @@ def _validate_paired_cluster_sets(
             "paired live comparison requires identical included cluster sets; "
             f"baseline_only={baseline_only or []}; candidate_only={candidate_only or []}"
         )
+
+
+def _validate_paired_observation_sets(
+    baseline: LiveEvaluationReport,
+    candidate: LiveEvaluationReport,
+    protocol: LiveProtocolRecord,
+) -> None:
+    baseline_sets = _paired_observation_sets(baseline, protocol.baseline_group_id)
+    candidate_sets = _paired_observation_sets(candidate, protocol.candidate_group_id)
+    if baseline_sets == candidate_sets:
+        return
+    baseline_only = _observation_set_delta(baseline_sets, candidate_sets)
+    candidate_only = _observation_set_delta(candidate_sets, baseline_sets)
+    raise ValueError(
+        "paired live comparison requires identical included case/repetition sets "
+        "within each cluster; "
+        f"baseline_only={baseline_only or []}; candidate_only={candidate_only or []}"
+    )
+
+
+def _paired_observation_sets(
+    report: LiveEvaluationReport,
+    group_id: str,
+) -> dict[str, set[tuple[str, int]]]:
+    observations = _included_group_observations(report, group_id)
+    paired: dict[str, set[tuple[str, int]]] = defaultdict(set)
+    for observation in observations:
+        paired[observation.cluster_id].add(
+            (observation.case_id, observation.repetition_index)
+        )
+    return dict(paired)
+
+
+def _included_group_observations(
+    report: LiveEvaluationReport,
+    group_id: str,
+) -> tuple[LiveObservationResult, ...]:
+    if group_id == "overall":
+        observations = report.observations
+    else:
+        observations = tuple(
+            observation
+            for observation in report.observations
+            if _observation_group_id(observation) == group_id
+        )
+    return tuple(
+        observation
+        for observation in observations
+        if observation.observation_status == "included"
+    )
+
+
+def _observation_set_delta(
+    left: dict[str, set[tuple[str, int]]],
+    right: dict[str, set[tuple[str, int]]],
+) -> list[str]:
+    delta: list[str] = []
+    for cluster_id in sorted(set(left) | set(right)):
+        missing = sorted(left.get(cluster_id, set()) - right.get(cluster_id, set()))
+        delta.extend(f"{cluster_id}:{case_id}:{repetition}" for case_id, repetition in missing)
+    return delta
 
 
 def _cluster_pass_rates(report: LiveEvaluationReport, group_id: str) -> dict[str, Decimal]:
@@ -264,6 +380,28 @@ def _comparison_state(
     return GateState.pass_
 
 
+def _randomization_comparison_state(
+    difference: Decimal,
+    margin: Decimal,
+    randomization_test: object,
+    protocol: LiveProtocolRecord,
+) -> GateState:
+    if randomization_test is None:
+        return GateState.not_evaluated
+    p_value = getattr(randomization_test, "adjusted_p_value", None)
+    prerequisite_status = getattr(randomization_test, "prerequisite_status", None)
+    interpretation = getattr(randomization_test, "interpretation", None)
+    if difference < -margin:
+        return GateState.fail
+    if prerequisite_status != "met" or interpretation == "exploratory" or p_value is None:
+        return GateState.not_evaluated
+    plan = protocol.advanced_analysis_plan
+    alpha = Decimal(plan.familywise_alpha if plan is not None else "0.050000")
+    if Decimal(p_value) <= alpha:
+        return GateState.pass_
+    return GateState.not_evaluated
+
+
 def _comparison_exploratory(protocol: LiveProtocolRecord, compared_clusters: int) -> bool:
     if compared_clusters < 30:
         return True
@@ -309,6 +447,11 @@ def _comparison_limitations(
             "all compared cluster differences were identical; the empirical difference "
             "interval collapsed to zero width and should be interpreted as a degenerate "
             "descriptive interval"
+        )
+    if compared_clusters > 0 and lower < -Decimal(protocol.non_inferiority_margin):
+        limitations.append(
+            "the gate fails closed because the lower interval bound crosses the "
+            "non-inferiority margin; this does not prove candidate inferiority"
         )
     if exploratory:
         if compared_clusters < 30:

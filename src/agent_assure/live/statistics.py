@@ -1,13 +1,18 @@
 from __future__ import annotations
 
 from collections import Counter, defaultdict
-from decimal import ROUND_CEILING, Decimal
+from decimal import Decimal
 from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
 from agent_assure.evaluation.invariants import evaluate_case
-from agent_assure.live.intervals import bootstrap_mean_interval, cluster_t_interval
+from agent_assure.live.advanced import evaluate_statistical_invariants
+from agent_assure.live.intervals import (
+    bootstrap_mean_interval,
+    cluster_t_interval,
+    nearest_rank_percentile,
+)
 from agent_assure.policies.base import (
     DEFAULT_GATE_PROFILE,
     ControlResult,
@@ -97,6 +102,11 @@ def evaluate_live_runset(
         observations=observations,
         overall=overall,
         groups=groups,
+        statistical_invariants=evaluate_statistical_invariants(
+            tuple(runset.runs),
+            observations,
+            protocol,
+        ),
     )
 
 
@@ -429,6 +439,7 @@ def _rate_from_values(
         protocol=protocol,
         analysis_method=analysis_method,
     )
+    reported_analysis_method = _reported_rate_analysis_method(analysis_method, cluster_rates)
     return LiveRate(
         artifact_kind="live-rate",
         label=label,
@@ -441,7 +452,7 @@ def _rate_from_values(
         largest_cluster_design_effect=_decimal(largest_cluster_design_effect),
         largest_cluster_effective_n=_decimal(largest_cluster_effective_n),
         assumed_intraclass_correlation=protocol.assumed_intraclass_correlation,
-        analysis_method=analysis_method,
+        analysis_method=reported_analysis_method,
         exploratory=_rate_exploratory(cluster_count, analysis_method),
         rate=_probability(Decimal(numerator) / Decimal(denominator)),
         cluster_mean_rate=_probability(cluster_mean),
@@ -510,17 +521,11 @@ def _distribution(
         count=len(ordered),
         min=_decimal(ordered[0]),
         p50=_decimal(_median(ordered)),
-        p95=_decimal(_nearest_rank(ordered, Decimal("0.95"))),
+        p95=_decimal(nearest_rank_percentile(ordered, Decimal("0.95"))),
         max=_decimal(ordered[-1]),
         mean=_decimal(total / Decimal(len(ordered))),
         total=_decimal(total),
     )
-
-
-def _nearest_rank(values: tuple[Decimal, ...], percentile: Decimal) -> Decimal:
-    raw_rank = int((percentile * Decimal(len(values))).to_integral_value(rounding=ROUND_CEILING))
-    index = max(0, min(len(values) - 1, raw_rank - 1))
-    return values[index]
 
 
 def _median(values: tuple[Decimal, ...]) -> Decimal:
@@ -592,9 +597,26 @@ def _decimal(value: Decimal | str | int) -> str:
 def _rate_analysis_method(protocol: LiveProtocolRecord) -> str:
     if protocol.analysis_method == "paired_cluster_bootstrap_percentile":
         return "descriptive_cluster_bootstrap_percentile"
+    if protocol.analysis_method in {
+        "paired_cluster_permutation_exact",
+        "paired_cluster_permutation_monte_carlo",
+    }:
+        return "descriptive_cluster_t_interval"
     if protocol.analysis_method == "exploratory":
         return "exploratory_cluster_t_interval"
     return "descriptive_cluster_t_interval"
+
+
+def _reported_rate_analysis_method(
+    analysis_method: str,
+    cluster_rates: tuple[Decimal, ...],
+) -> str:
+    if len(cluster_rates) > 1 and len(set(cluster_rates)) == 1:
+        if analysis_method == "exploratory_cluster_t_interval":
+            return "exploratory_degenerate_boundary_interval"
+        if analysis_method == "descriptive_cluster_t_interval":
+            return "descriptive_degenerate_boundary_interval"
+    return analysis_method
 
 
 def _rate_exploratory(cluster_count: int, analysis_method: str) -> bool:

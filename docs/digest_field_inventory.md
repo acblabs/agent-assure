@@ -19,6 +19,12 @@ and adds optional live operational fields for protocol-bound observations. It
 does not persist raw model-call payloads, raw tool arguments, retrieval records,
 risk tags, or capability inventories. Persisted numeric operational values use
 strings or integers rather than Python Decimal, float, or datetime objects.
+Optional live advanced-analysis endpoint plans are part of
+`live-protocol-record` and therefore change the protocol digest. Derived
+statistical-invariant results, rare-event bounds, observed cluster-correlation
+summaries, and paired randomization test outputs are persisted report fields;
+they are review evidence bound to the protocol digest rather than independent
+provenance roots.
 
 RunSet `runset_digest` is an exact artifact digest used for waiver scoping and
 local reproducibility. Release replay uses role-specific stable projections for

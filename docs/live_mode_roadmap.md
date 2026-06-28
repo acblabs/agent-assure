@@ -32,6 +32,12 @@ Implemented live-mode pieces include:
   with pooled rate, cluster-mean rate, design-effect, and
   effective-sample-size reporting, interval-center metadata, and
   largest-cluster sensitivity;
+- optional advanced statistical endpoint plans bound into the live protocol
+  digest, with confirmatory/exploratory endpoint labels, rare-event Poisson
+  upper bounds, observed cluster-correlation summaries with uncertainty,
+  multiplicity controls, and paired exact or Monte Carlo randomization tests
+  with structural pairing checks and deterministic integer resampling seeds
+  when exchangeability is predeclared;
 - protocol-declared paired-cluster and fixed-reference live comparison reports
   with exploratory guardrails for low cluster counts;
 - latency and estimated-cost distributions;

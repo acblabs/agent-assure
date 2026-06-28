@@ -145,6 +145,15 @@ claims:
       commands: [agent-assure live adapters, agent-assure live run, agent-assure live evaluate, agent-assure live compare]
       docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/schema_reference.md]
     limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
+  - id: live-advanced-statistics
+    claim: Optional advanced live endpoint plans bind confirmatory or exploratory statistical endpoints to the frozen protocol digest, report rare-event Poisson upper bounds, observed cluster-correlation summaries with uncertainty, multiplicity controls for confirmatory endpoint families, deterministic integer-seeded resampling, and paired exact or Monte Carlo randomization tests only when structural pairing checks and declared design prerequisites are met.
+    evidence:
+      schemas: [live-protocol-record, live-evaluation-report, live-comparison-report]
+      code: [src/agent_assure/live/advanced.py, src/agent_assure/live/statistics.py, src/agent_assure/live/comparison.py, src/agent_assure/reporting/live.py]
+      tests: [tests/unit/evaluation/test_live_statistics.py, tests/integration/test_schema_parity.py]
+      commands: [agent-assure live evaluate, agent-assure live compare]
+      docs: [docs/measurement/experiment_protocol.md, docs/schema_reference.md, docs/limitations.md, docs/live_mode_roadmap.md]
+    limitations: Advanced statistical outputs remain protocol-bound review evidence. Zero observed critical events are upper-bound results rather than absence proofs, observed ICC is descriptive unless the protocol predeclares stricter use, exchangeability remains a reviewed design assumption, and invalid or low-data designs are labeled exploratory or not evaluated.
   - id: runtime-isolation-otel-export
     claim: Live execution can run configured external scripts through a no-shell subprocess harness, capture redacted emergency process records for process failures, propagate W3C trace context, and export privacy-filtered span plans through optional OpenTelemetry SDK/OTLP support.
     evidence:

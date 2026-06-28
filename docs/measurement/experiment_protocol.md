@@ -76,6 +76,12 @@ paired bootstrap, paired t-intervals, or paired regression language. Reports
 must label the mode as fixed-reference and state that provider drift between
 the historical reference and current candidate is not controlled by pairing.
 
+For paired designs, the implementation checks structural pairing before
+analysis: included clusters must match, and the included `(case_id,
+repetition_index)` set within each cluster must match across baseline and
+candidate reports. This does not prove exchangeability. Exchangeability remains
+a reviewed design assumption that must be declared before execution.
+
 ## Hypotheses
 
 Each live run must declare one primary hypothesis family before execution.
@@ -123,6 +129,46 @@ case-level live observation. Secondary endpoints may include:
 Cost and latency are operational measurements. They are not evidence of model
 quality unless a protocol instance explicitly defines and justifies such a
 claim.
+
+## Advanced Statistical Endpoint Plans
+
+The machine-readable protocol may include an `advanced_analysis_plan`. This
+plan is optional, but when present it is part of the frozen protocol digest and
+must be reviewed before execution. It declares endpoint IDs, endpoint roles,
+confirmatory or exploratory interpretation, analysis methods, prerequisite
+counts, reason-code families, outcome labels, exchangeability assumptions, and
+the multiplicity method for confirmatory endpoint families.
+
+Each advanced endpoint must be interpreted under its declared prerequisites:
+
+| Method | Minimum design information | Confirmatory status |
+| --- | --- | --- |
+| `poisson_upper_bound` | event count, exposure count, exposure unit, and predeclared event family | allowed for rare-event upper bounds when exposure is nonzero and endpoint prerequisites are met |
+| `hierarchical_binomial_summary` or `beta_binomial_cluster_summary` | binary endpoint values, cluster IDs, observation counts, and planned intraclass correlation | descriptive for observed cluster correlation unless observed-ICC confirmatory use is predeclared by large-cluster threshold or external review |
+| `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed when exact enumeration is feasible and the endpoint threshold is met |
+| `paired_cluster_permutation_monte_carlo` | the exact-test requirements plus a deterministic integer seed derived from the protocol digest | allowed when the protocol predeclares Monte Carlo randomization and the endpoint threshold is met |
+
+Confirmatory interpretation is limited to endpoints whose prerequisite status is
+`met`. Sparse, unbalanced, missing, or low-cluster endpoints are labeled
+`exploratory` or `invalid` in reports, even when the numerical result is
+favorable.
+
+Multiple confirmatory endpoints require either a fixed endpoint sequence or a
+family-wise method such as Holm-Bonferroni. A protocol that expands endpoints
+without a declared multiplicity method can still report those endpoints as
+exploratory diagnostics, but it must not treat them as confirmatory evidence.
+
+Reason-code families are predeclared endpoint inputs. Reports may still display
+observed reason-code rates for review, but confirmatory reason-code-family
+claims require the relevant reason codes to be listed in the frozen protocol.
+
+Observed intraclass correlation is reported as observed evidence with bootstrap
+uncertainty when enough clusters exist. It does not replace the planned
+intraclass correlation in confirmatory interval interpretation unless the
+protocol predeclares a large-cluster threshold or records an external
+statistical-review allowance. In low-cluster regimes, observed ICC estimates
+must not narrow the confirmatory interval below the conservative planned-ICC
+analysis.
 
 ## Sample-Size Plan
 
@@ -197,6 +243,17 @@ If all paired cluster differences are identical, the empirical difference
 interval can collapse to zero width. Reports label that case as a degenerate
 descriptive interval rather than applying a Wilson-style correction, which is
 not defined for paired differences on `[-1, 1]`.
+
+If all per-arm cluster rates are identical, the reported per-arm boundary
+interval uses a conservative degenerate-boundary heuristic to avoid presenting a
+zero-width interval at rates near 0 or 1. This heuristic is labeled separately
+in report metadata and should not be read as an ordinary t interval over
+variable cluster means or as an observation-level Wilson interval.
+
+Bootstrap and Monte Carlo resampling use a deterministic integer seed derived
+from the first 128 bits of SHA-256 over the protocol-bound seed material. This
+keeps replayed statistical artifacts independent of Python string-seeding
+details while remaining reproducible for review.
 
 For rare critical events, including sensitive-content leaks or forbidden
 tool/provider use, an observed count of zero must be reported with an upper

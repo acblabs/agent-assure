@@ -60,7 +60,11 @@
   metadata; design-effect and effective-sample-size reporting with
   largest-cluster sensitivity; paired cluster comparisons for concurrent
   baselines; fixed-reference comparisons for threshold protocols;
-  low-cluster exploratory guardrails; provider-version and tool/policy
+  optional advanced statistical endpoint plans with rare-event upper bounds,
+  observed cluster-correlation summaries, endpoint multiplicity controls,
+  and paired exact or Monte Carlo randomization tests with structural pairing
+  checks and stable integer seeds; low-cluster exploratory
+  guardrails; provider-version and tool/policy
   provenance checks;
   retry/rate-limit/token-pacing/budget enforcement fields; incomplete-run
   status; provider/model group summaries; and cost/latency distributions.

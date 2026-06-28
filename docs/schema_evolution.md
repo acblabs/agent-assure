@@ -49,6 +49,13 @@ budget, tool-schema digest, policy-bundle digest, and safety limits. Live
 RunSets and reports can also record incomplete execution, stop reasons,
 cluster-mean rates, and exploratory comparison status so low-power or
 budget-constrained runs are not interpreted as confirmatory evidence.
+The live protocol can also carry an optional advanced statistical endpoint plan.
+Those nested endpoint declarations are persisted schema fields and are included
+in the protocol digest. Live evaluation reports can persist statistical
+invariant results, rare-event upper bounds, and observed cluster-correlation
+summaries; live comparison reports can persist paired randomization test
+results. These fields are review evidence and do not change deterministic
+fixture-mode producer obligations.
 
 The v0.2 schema release adds `schemas/v0.2.0`, updates JSON Schema `$id`
 values, and keeps the v0.1 release schemas in `schemas/v0.1.0` for replay of

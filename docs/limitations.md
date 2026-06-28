@@ -41,7 +41,22 @@ the live protocol. Design-effect and effective-sample-size fields are planning
 and sensitivity metadata; the reported cluster intervals are computed from
 empirical cluster-rate values, not from `effective_n`. Paired-difference
 intervals with zero between-cluster variance can collapse to zero width and are
-labeled as degenerate descriptive intervals.
+labeled as degenerate descriptive intervals. Per-arm rates with identical
+cluster values use a labeled degenerate-boundary heuristic; that heuristic is a
+conservative display aid, not an ordinary t interval or an observation-level
+Wilson analysis.
+
+Advanced live endpoint plans add rare-event upper bounds, observed
+cluster-correlation summaries, and paired randomization tests only when those
+analyses are declared in the frozen protocol. Zero observed critical events are
+reported with an upper confidence bound rather than as proof that the event
+cannot occur. Observed intraclass correlation is descriptive unless the
+protocol predeclares a large-cluster threshold or external statistical-review
+allowance; low-cluster observed ICC estimates do not narrow confirmatory
+interpretation below the planned-ICC analysis. Paired randomization tests check
+that included clusters and included case/repetition sets match, but the
+exchangeability assumption remains a reviewed design assumption rather than a
+property the tool can prove.
 
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
