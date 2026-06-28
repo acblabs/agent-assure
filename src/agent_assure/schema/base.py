@@ -4,8 +4,8 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-SCHEMA_VERSION = "0.1.0"
-SchemaVersion = Literal["0.1.0"]
+SCHEMA_VERSION = "0.2.0"
+SchemaVersion = Literal["0.2.0"]
 
 
 class StrictModel(BaseModel):
@@ -31,7 +31,7 @@ class PersistedArtifact(StrictModel):
         hide_input_in_errors=True,
     )
 
-    schema_version: SchemaVersion = "0.1.0"
+    schema_version: SchemaVersion = "0.2.0"
 
 
 class RootArtifact(PersistedArtifact):

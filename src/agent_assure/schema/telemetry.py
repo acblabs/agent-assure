@@ -2,10 +2,12 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import Field
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import coerce_tuple
+from agent_assure.telemetry.context import TRACEPARENT_FIELD_PATTERN, validate_traceparent
 
 
 class SpanAttribute(PersistedArtifact):
@@ -28,6 +30,8 @@ class SpanEvent(PersistedArtifact):
 class SpanPlan(PersistedArtifact):
     artifact_kind: Literal["span-plan"] = "span-plan"
     span_name: str
+    traceparent: str | None = Field(default=None, pattern=TRACEPARENT_FIELD_PATTERN)
+    tracestate: str | None = None
     attributes: tuple[SpanAttribute, ...]
     events: tuple[SpanEvent, ...] = ()
     semconv_commit: str
@@ -37,3 +41,10 @@ class SpanPlan(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @field_validator("traceparent")
+    @classmethod
+    def _validate_traceparent(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_traceparent(value)

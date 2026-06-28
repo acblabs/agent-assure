@@ -16,6 +16,8 @@ from agent_assure.schema.common import (
     coerce_tuple,
 )
 from agent_assure.schema.provenance import Provenance
+from agent_assure.schema.runtime import EmergencyProcessRecord
+from agent_assure.telemetry.context import TRACEPARENT_FIELD_PATTERN, validate_traceparent
 
 
 class EvidenceRef(PersistedArtifact):
@@ -100,6 +102,8 @@ class AgentRunRecord(PersistedArtifact):
     provider_sdk: str | None = None
     provider_region: str | None = None
     provider_response_id: str | None = None
+    traceparent: str | None = Field(default=None, pattern=TRACEPARENT_FIELD_PATTERN)
+    tracestate: str | None = None
     started_at_utc: str | None = None
     completed_at_utc: str | None = None
     latency_ms: int | None = Field(default=None, ge=0)
@@ -114,6 +118,12 @@ class AgentRunRecord(PersistedArtifact):
         default=None,
         pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
     )
+    estimated_cost_source: Literal[
+        "adapter_reported",
+        "local_estimate",
+        "not_reported",
+        "provider_reported",
+    ] | None = None
     tools: tuple[str, ...] = ()
     evidence_refs: tuple[EvidenceRef, ...] = ()
     evidence_items: tuple[EvidenceItem, ...] = ()
@@ -141,6 +151,13 @@ class AgentRunRecord(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @field_validator("traceparent")
+    @classmethod
+    def _validate_traceparent(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_traceparent(value)
 
     @field_validator("input_summary", "output_summary")
     @classmethod
@@ -185,6 +202,10 @@ class RunSet(PersistedArtifact):
     protocol_digest: DigestHex | None = None
     completion_status: Literal["complete", "incomplete"] = "complete"
     stop_reasons: tuple[str, ...] = ()
+    emergency_records: tuple[EmergencyProcessRecord, ...] = Field(
+        default=(),
+        exclude_if=lambda value: len(value) == 0,
+    )
     runs: tuple[AgentRunRecord, ...]
 
     @field_validator("execution_mode", mode="before")
@@ -192,7 +213,7 @@ class RunSet(PersistedArtifact):
     def _coerce_execution_mode(cls, value: object) -> ExecutionMode:
         return coerce_enum(ExecutionMode, value)
 
-    @field_validator("runs", "stop_reasons", mode="before")
+    @field_validator("runs", "stop_reasons", "emergency_records", mode="before")
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)

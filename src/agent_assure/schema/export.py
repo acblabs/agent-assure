@@ -8,6 +8,7 @@ from pydantic import BaseModel
 
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -16,6 +17,7 @@ from agent_assure.schema.live import LiveComparisonReport, LiveEvaluationReport,
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
 
@@ -28,6 +30,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "comparison-summary": ComparisonSummary,
     "evaluation-report": EvaluationReport,
     "evaluation-summary": EvaluationSummary,
+    "emergency-process-record": EmergencyProcessRecord,
     "evidence-packet": EvidencePacket,
     "environment-info": EnvironmentInfo,
     "expectation": Expectation,
@@ -57,7 +60,10 @@ def export_json_schemas(out_dir: Path) -> list[Path]:
     for kind, model in sorted(SCHEMA_MODELS.items()):
         schema = model.model_json_schema(mode="validation")
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
-        schema["$id"] = f"https://acblabs.github.io/agent-assure/schemas/v0.1.0/{kind}.schema.json"
+        schema["$id"] = (
+            f"https://acblabs.github.io/agent-assure/schemas/v{SCHEMA_VERSION}/"
+            f"{kind}.schema.json"
+        )
         schema.setdefault("properties", {})
         path = out_dir / f"{kind}.schema.json"
         path.write_text(

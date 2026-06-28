@@ -14,8 +14,11 @@ evidence packets, and CI gates across synthetic prior-authorization and minimal
 expense-approval examples. The development branch also includes explicit
 live-adapter commands for protocol-bound repeated provider observations,
 cluster-aware stochastic rates, paired or fixed-reference live comparisons,
-completion/provenance checks, and cost/latency reports. Live reports are
-time-bound operational evidence for
+completion/provenance checks, external-script subprocess execution with
+emergency process records, runtime trace-context propagation, optional
+OpenTelemetry SDK span emission, optional OTLP export, and cost/latency
+reports. Live reports label whether a confidence interval is centered on pooled
+rate or cluster mean rate. Live reports are time-bound operational evidence for
 declared provider/model/configuration windows; they do not establish safety
 assurance, validate clinical use, prove regulatory compliance, provide general
 provider-quality evidence, or claim OpenTelemetry adoption. Release evidence
@@ -123,6 +126,21 @@ guardrails for low cluster counts. Live results remain bounded by the declared
 protocol, data boundary, provider/model configuration, and execution window.
 They are not general model-quality, safety, compliance, or clinical-validation
 claims.
+
+The `external-script` live adapter runs configured scripts through a no-shell
+subprocess harness and records redacted `emergency-process-record` artifacts
+for process failures. It passes only declared environment allowlist entries,
+explicit config variables, and runner-injected trace/request variables.
+OpenTelemetry export is optional:
+
+```bash
+pip install -e ".[otel]"
+agent-assure otel export RUNSET_OR_RECORD_OR_SPAN_PLAN.json --protocol otlp-http --endpoint http://localhost:4318/v1/traces
+```
+
+Exported spans are derived from span plans and structured run records, not live
+SDK instrumentation of provider calls; raw prompts, raw outputs, tool
+arguments, and unredacted summaries are not emitted.
 
 ## GitHub Actions snippet
 

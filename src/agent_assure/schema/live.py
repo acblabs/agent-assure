@@ -177,6 +177,8 @@ class LiveRate(PersistedArtifact):
     exploratory: bool = False
     rate: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
     cluster_mean_rate: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
+    interval_center: Literal["cluster_mean_rate", "pooled_rate"] = "cluster_mean_rate"
+    interval_center_value: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
     confidence_level: Literal["0.950000"] = "0.950000"
     ci_lower: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
     ci_upper: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
@@ -287,6 +289,8 @@ class LiveEvaluationReport(PersistedArtifact):
         "configuration, and execution window",
         "aggregate rates do not certify safety, compliance, clinical validity, or provider "
         "superiority in general",
+        "design-effect and effective-n fields are planning and sensitivity metadata; "
+        "cluster intervals use the declared empirical cluster-rate method",
     )
 
     @field_validator("observations", "groups", "limitations", "stop_reasons", mode="before")

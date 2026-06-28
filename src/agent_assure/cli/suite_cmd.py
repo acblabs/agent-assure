@@ -45,7 +45,7 @@ def compile_cmd(
     compiled = compile_suite(path)
     if compiled.defaults.execution_mode is ExecutionMode.live:
         raise typer.BadParameter(
-            "live execution mode is schema-recognized but command-rejected in v0.1"
+            "live execution mode is handled by the agent-assure live command namespace"
         )
     write_compiled_suite(compiled, out)
     console.print(f"compiled suite: {out}")
@@ -80,7 +80,9 @@ def run_cmd(
 ) -> None:
     execution_mode = coerce_enum(ExecutionMode, mode)
     if execution_mode is ExecutionMode.live:
-        raise typer.BadParameter("live execution is schema-recognized but command-rejected in v0.1")
+        raise typer.BadParameter(
+            "live execution mode is handled by the agent-assure live command namespace"
+        )
     compiled = load_compiled_suite(compiled_suite, expected_digest=suite_digest)
     variant_config = load_variant_config(variant)
     root = suite_root or _infer_suite_root(compiled_suite, variant)

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
-import random
 from collections import defaultdict
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from decimal import Decimal
 from pathlib import Path
-from statistics import mean
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.live.intervals import difference_bootstrap_interval, difference_t_interval
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
     LiveComparisonReport,
@@ -80,7 +79,14 @@ def compare_live_reports(
             candidate_group.estimated_cost_usd.total,
             baseline_group.estimated_cost_usd.total,
         ),
-        limitations=_comparison_limitations(protocol, compared_clusters, exploratory),
+        limitations=_comparison_limitations(
+            protocol,
+            compared_clusters,
+            exploratory,
+            difference,
+            lower,
+            upper,
+        ),
     )
 
 
@@ -106,7 +112,8 @@ def _paired_cluster_difference(
 ) -> tuple[Decimal, Decimal, Decimal, int]:
     baseline_rates = _cluster_pass_rates(baseline, protocol.baseline_group_id)
     candidate_rates = _cluster_pass_rates(candidate, protocol.candidate_group_id)
-    common_clusters = sorted(set(baseline_rates) & set(candidate_rates))
+    _validate_paired_cluster_sets(baseline_rates, candidate_rates)
+    common_clusters = sorted(baseline_rates)
     differences = tuple(
         candidate_rates[cluster] - baseline_rates[cluster] for cluster in common_clusters
     )
@@ -131,58 +138,31 @@ def _difference_interval(
     differences: tuple[Decimal, ...],
     confidence_level: str,
 ) -> tuple[Decimal, Decimal, Decimal, int]:
-    if not differences:
-        return Decimal("0"), Decimal("0"), Decimal("0"), 0
-    center = Decimal(str(mean(differences)))
-    if len(differences) == 1:
-        return center, Decimal("-1"), Decimal("1"), 1
-    variance = sum((value - center) ** 2 for value in differences) / Decimal(
-        len(differences) - 1
-    )
-    standard_error = (variance / Decimal(len(differences))).sqrt()
-    half_width = _critical_value(confidence_level, len(differences) - 1) * standard_error
-    return (
-        center,
-        max(Decimal("-1"), center - half_width),
-        min(Decimal("1"), center + half_width),
-        len(differences),
-    )
+    return difference_t_interval(differences, confidence_level)
 
 
 def _bootstrap_difference_interval(
     differences: tuple[Decimal, ...],
     protocol: LiveProtocolRecord,
 ) -> tuple[Decimal, Decimal, Decimal, int]:
-    if not differences:
-        return Decimal("0"), Decimal("0"), Decimal("0"), 0
-    center = Decimal(str(mean(differences)))
-    if len(differences) == 1:
-        return center, Decimal("-1"), Decimal("1"), 1
-    iterations = 2000
-    rng = random.Random(
-        f"{protocol.protocol_id}:{protocol.analysis_digest}:paired_cluster_bootstrap"
+    return difference_bootstrap_interval(
+        differences,
+        confidence_level=protocol.confidence_level,
+        seed=f"{protocol.protocol_id}:{protocol.analysis_digest}:paired_cluster_bootstrap",
     )
-    sample_size = len(differences)
-    bootstrap_means = []
-    for _ in range(iterations):
-        total = sum(
-            (differences[rng.randrange(sample_size)] for _ in range(sample_size)),
-            Decimal("0"),
+
+
+def _validate_paired_cluster_sets(
+    baseline_rates: dict[str, Decimal],
+    candidate_rates: dict[str, Decimal],
+) -> None:
+    baseline_only = sorted(set(baseline_rates) - set(candidate_rates))
+    candidate_only = sorted(set(candidate_rates) - set(baseline_rates))
+    if baseline_only or candidate_only:
+        raise ValueError(
+            "paired live comparison requires identical included cluster sets; "
+            f"baseline_only={baseline_only or []}; candidate_only={candidate_only or []}"
         )
-        bootstrap_means.append(total / Decimal(sample_size))
-    ordered = tuple(sorted(bootstrap_means))
-    alpha = (Decimal("1") - Decimal(protocol.confidence_level)) / Decimal("2")
-    lower_index = int(
-        (alpha * Decimal(iterations)).to_integral_value(rounding=ROUND_FLOOR)
-    )
-    upper_index = int(
-        ((Decimal("1") - alpha) * Decimal(iterations)).to_integral_value(
-            rounding=ROUND_CEILING
-        )
-    ) - 1
-    lower = ordered[max(0, min(iterations - 1, lower_index))]
-    upper = ordered[max(0, min(iterations - 1, upper_index))]
-    return center, max(Decimal("-1"), lower), min(Decimal("1"), upper), sample_size
 
 
 def _cluster_pass_rates(report: LiveEvaluationReport, group_id: str) -> dict[str, Decimal]:
@@ -234,6 +214,8 @@ def _fixed_reference_rate(protocol: LiveProtocolRecord) -> LiveRate:
         exploratory=False,
         rate=rate,
         cluster_mean_rate=rate,
+        interval_center="pooled_rate",
+        interval_center_value=rate,
         confidence_level=protocol.confidence_level,
         ci_lower=rate,
         ci_upper=rate,
@@ -314,11 +296,20 @@ def _comparison_limitations(
     protocol: LiveProtocolRecord,
     compared_clusters: int,
     exploratory: bool,
+    difference: Decimal,
+    lower: Decimal,
+    upper: Decimal,
 ) -> tuple[str, ...]:
     limitations = [
         "live comparison intervals are descriptive unless the protocol predeclares the "
         "comparison as confirmatory",
     ]
+    if compared_clusters > 1 and lower == upper == difference:
+        limitations.append(
+            "all compared cluster differences were identical; the empirical difference "
+            "interval collapsed to zero width and should be interpreted as a degenerate "
+            "descriptive interval"
+        )
     if exploratory:
         if compared_clusters < 30:
             limitations.append(
@@ -330,30 +321,3 @@ def _comparison_limitations(
                 "for confirmatory interpretation"
             )
     return tuple(limitations)
-
-
-def _critical_value(confidence_level: str, degrees_of_freedom: int) -> Decimal:
-    if confidence_level != "0.950000":
-        raise ValueError(f"unsupported live confidence_level: {confidence_level}")
-    table = {
-        1: "12.706205",
-        2: "4.302653",
-        3: "3.182446",
-        4: "2.776445",
-        5: "2.570582",
-        10: "2.228139",
-        20: "2.085963",
-        30: "2.042272",
-        60: "2.000298",
-    }
-    if degrees_of_freedom in table:
-        return Decimal(table[degrees_of_freedom])
-    if degrees_of_freedom < 10:
-        return Decimal(table[5])
-    if degrees_of_freedom < 20:
-        return Decimal(table[10])
-    if degrees_of_freedom < 30:
-        return Decimal(table[20])
-    if degrees_of_freedom < 60:
-        return Decimal(table[30])
-    return Decimal("1.959964")

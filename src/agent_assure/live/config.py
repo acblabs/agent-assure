@@ -15,6 +15,11 @@ USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 
 
+class LiveScriptEnvVar(StrictModel):
+    name: str = Field(min_length=1, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    value: str
+
+
 class LiveAdapterConfig(StrictModel):
     adapter_id: str = Field(min_length=1)
     provider: str = Field(min_length=1)
@@ -22,8 +27,14 @@ class LiveAdapterConfig(StrictModel):
     endpoint_url: str | None = None
     api_key_env: str | None = None
     response_jsonl_path: str | None = None
+    script_path: str | None = None
+    script_executable: str | None = None
+    script_args: tuple[str, ...] = ()
+    script_cwd: str | None = None
+    script_env: tuple[LiveScriptEnvVar, ...] = ()
+    script_env_allowlist: tuple[str, ...] = ()
     timeout_seconds: int = Field(default=60, ge=1)
-    temperature: str = Field(default="0.000000", pattern=r"^(0|1|2)\.[0-9]{6}$")
+    temperature: str = Field(default="0.700000", pattern=r"^(0|1|2)\.[0-9]{6}$")
     max_output_tokens: int | None = Field(default=None, ge=1)
     allow_network: bool = False
     cost_per_1k_prompt_tokens_usd: str | None = Field(default=None, pattern=USD_PATTERN)
@@ -40,6 +51,11 @@ class LiveAdapterConfig(StrictModel):
         if decimal < Decimal("0") or decimal > Decimal("2"):
             raise ValueError("temperature must be between 0.000000 and 2.000000")
         return value
+
+    @field_validator("script_args", "script_env", "script_env_allowlist", mode="before")
+    @classmethod
+    def _coerce_script_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
 
 
 class LivePromptCase(StrictModel):

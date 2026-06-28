@@ -39,7 +39,7 @@ def test_compare_cli_writes_candidate_first_reports_for_regression(tmp_path: Pat
     assert result.exit_code == 1
     report_text = (out_dir / "comparison-report.json").read_text(encoding="utf-8")
     report = json.loads(report_text)
-    assert report["schema_version"] == "0.1.0"
+    assert report["schema_version"] == "0.2.0"
     assert report["artifact_kind"] == "comparison-report"
     assert report["environment"]["artifact_kind"] == "environment-info"
     assert report["environment"]["dependency_inventory_digest"]

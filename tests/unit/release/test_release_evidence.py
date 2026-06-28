@@ -80,12 +80,12 @@ def test_release_digest_replay_ignores_packet_environment_drift(tmp_path: Path) 
         json.dumps(
             {
                 "artifact_kind": "evidence-packet",
-                "schema_version": "0.1.0",
+                "schema_version": "0.2.0",
                 "packet_id": "packet-demo",
                 "interpretation": ["read candidate state first"],
                 "evaluation": {
                     "artifact_kind": "evaluation-summary",
-                    "schema_version": "0.1.0",
+                    "schema_version": "0.2.0",
                     "runset_id": "candidate",
                     "state": "fail",
                     "environment": {"platform": "different"},
@@ -442,7 +442,7 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
         evaluation_summary,
         {
             "artifact_kind": "evaluation-summary",
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "runset_id": "candidate",
             "state": "fail",
             "environment": {"platform": "original"},
@@ -452,7 +452,7 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
         comparison_summary,
         {
             "artifact_kind": "comparison-summary",
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "baseline_runset_id": "baseline",
             "candidate_runset_id": "candidate",
             "classification": "new_failure",
@@ -468,7 +468,7 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
     )
     manifest_payload = {
         "artifact_kind": "release-artifact-manifest",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "manifest_id": "manifest-original",
         "environment": {"platform": "original"},
         "artifacts": [
@@ -485,12 +485,12 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
         evidence_packet,
         {
             "artifact_kind": "evidence-packet",
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "packet_id": "packet-demo",
             "interpretation": ["read candidate state first"],
             "evaluation": {
                 "artifact_kind": "evaluation-summary",
-                "schema_version": "0.1.0",
+                "schema_version": "0.2.0",
                 "runset_id": "candidate",
                 "state": "fail",
                 "environment": {"platform": "original"},

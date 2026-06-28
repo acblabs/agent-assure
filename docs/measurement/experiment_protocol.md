@@ -3,9 +3,10 @@
 Protocol status: live statistical protocol. This document defines the minimum
 statistical, operational, and safety controls required before interpreting a
 live stochastic evaluation. It does not authorize broad model-quality,
-safety-assurance, compliance, or clinical-validity claims. Runtime isolation,
-OpenTelemetry SDK spans, runtime context propagation, and OTLP export remain
-future implementation work.
+safety-assurance, compliance, or clinical-validity claims. External-script
+runtime isolation, emergency process records, runtime context propagation, and
+optional OpenTelemetry SDK/OTLP export are implementation support for reviewed
+live runs, not a basis for broader assurance or standards-adoption claims.
 
 The protocol is intentionally conservative. A live result must be interpreted
 as time-bound evidence about a declared provider/model/configuration/date
@@ -32,6 +33,12 @@ A protocol instance must be frozen before execution and must identify:
 
 The same live results cannot be reused for a different claim unless that reuse
 was declared before execution.
+
+When the purpose is stochastic outcome-rate evaluation, the frozen run
+configuration should use a nonzero sampling temperature or another
+provider-specific stochasticity control. A deterministic temperature can be
+valid for live plumbing checks, but it re-measures determinism rather than
+sampling variability.
 
 ## Experimental Unit
 
@@ -159,16 +166,18 @@ and observed effective sample size after clustering.
 ## Confidence-Interval Method
 
 Primary binary endpoints must report 95 percent confidence intervals. The
-v0.1 implementation accepts only `confidence_level = 0.950000`; protocols that
-need 90 percent or 99 percent intervals require a schema and critical-value
-update before execution. For the default concurrent paired design, use paired
-cluster-level inference. The
-preferred large-sample method is a paired, cluster-stratified bootstrap that
-resamples independence clusters and keeps all planned baseline/candidate
-observations for each sampled cluster. For fixed-reference threshold mode, use a
-one-sample interval or test against the declared constant; paired methods are
-not valid in that mode. Per-arm descriptive rates must use cluster-aware
-metadata and must not treat repeated observations as independent.
+current implementation accepts only `confidence_level = 0.950000`; protocols
+that need 90 percent or 99 percent intervals require a schema and
+critical-value update before execution. Sparse t-critical table lookups round
+down to the nearest available degrees-of-freedom bucket so the interval remains
+conservative. For the default concurrent paired design, use paired
+cluster-level inference. The preferred large-sample method is a paired,
+cluster-stratified bootstrap that resamples independence clusters and keeps all
+planned baseline/candidate observations for each sampled cluster. For
+fixed-reference threshold mode, use a one-sample interval or test against the
+declared constant; paired methods are not valid in that mode. Per-arm
+descriptive rates must use cluster-aware metadata and must not treat repeated
+observations as independent.
 
 Percentile cluster bootstrap intervals are acceptable only with at least 50
 independent clusters. With 30 to 49 independent clusters, the confirmatory
@@ -180,7 +189,14 @@ approves a different exact or randomization method before execution.
 Per-arm descriptive rates may report a pooled observation rate together with a
 cluster-mean rate. When cluster sizes are unequal, the pooled rate and the
 cluster-centered confidence interval can have different centers; reports must
-show enough metadata for reviewers to see that distinction.
+show enough metadata for reviewers to see that distinction. Design-effect and
+effective-sample-size values are planning and sensitivity metadata; they do not
+drive the empirical cluster-rate interval.
+
+If all paired cluster differences are identical, the empirical difference
+interval can collapse to zero width. Reports label that case as a degenerate
+descriptive interval rather than applying a Wilson-style correction, which is
+not defined for paired differences on `[-1, 1]`.
 
 For rare critical events, including sensitive-content leaks or forbidden
 tool/provider use, an observed count of zero must be reported with an upper
@@ -269,6 +285,10 @@ available. It must not use parallelism, account rotation, or region rotation to
 bypass limits. If rate-limit failures exceed the predeclared threshold, the run
 must stop cleanly and be marked incomplete or inconclusive.
 
+The default live configuration treats the first rate-limit event as fatal unless
+`max_rate_limit_events` is explicitly raised. Protocols that intend to exercise
+backoff and `Retry-After` handling must declare that allowance before execution.
+
 When a tokens-per-minute cap is declared, the live configuration must provide a
 maximum generated-token reservation. The runner paces requests using the prompt
 character count plus that reservation before each provider call, then reconciles
@@ -287,11 +307,14 @@ Every live protocol instance must define hard budgets before execution:
 - warning threshold and stop threshold;
 - policy for incomplete analysis when the budget is exhausted.
 
-Budget thresholds must be enforced mechanically. A run must stop before
-exceeding the hard budget, and budget increases are not allowed after any
-operational telemetry or interim analysis is reviewed. Reports must separate
-estimated cost, provider-reported cost, and cost inferred from token pricing
-tables.
+Budget thresholds must be enforced mechanically. The runner must stop before
+dispatch when known budget reservations would exceed a hard limit, and must
+also reconcile cost and token usage after an accepted provider response. If a
+response pushes a run over budget after reconciliation, the run must be marked
+incomplete and stop before the next observation. Budget increases are not
+allowed after any operational telemetry or interim analysis is reviewed.
+Reports must separate estimated cost, provider-reported cost, and cost inferred
+from token pricing tables.
 
 Cost measurements are time-bound to the provider pricing information recorded
 with the run. They are not production cost projections unless a separate

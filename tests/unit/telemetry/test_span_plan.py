@@ -20,6 +20,8 @@ def test_span_plan_omits_unsupported_attributes() -> None:
     assert "rpc.method" not in dumped
     assert "gen_ai.operation.name" not in dumped
     assert any(attribute.key == "agent_assure.operation.name" for attribute in plan.attributes)
+    assert plan.traceparent is not None
+    assert plan.traceparent.startswith("00-")
 
 
 def test_span_plan_redacts_summaries() -> None:

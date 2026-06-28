@@ -36,6 +36,7 @@ from agent_assure.schema.run import (
     PolicyResult,
     RunSet,
 )
+from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.suite import (
     CompiledSuite,
     FixtureManifest,
@@ -53,6 +54,7 @@ __all__ = [
     "ComparisonClassification",
     "ComparisonSummary",
     "DigestHex",
+    "EmergencyProcessRecord",
     "EvaluationSummary",
     "EnvironmentInfo",
     "EvidenceItem",

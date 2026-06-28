@@ -181,7 +181,7 @@ def _response(*, repetition_index: int, linked: bool) -> dict[str, object]:
 def _protocol_payload(suite_digest: str) -> dict[str, object]:
     return {
         "artifact_kind": "live-protocol-record",
-        "schema_version": "0.1.0",
+        "schema_version": "0.2.0",
         "protocol_id": "protocol-cli-live",
         "suite_id": "expense-approval-minimal",
         "suite_version": "0.1.0",

@@ -60,7 +60,10 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         f"`{report.overall.expectation_pass_rate.largest_cluster_design_effect}` "
         "effective_n="
         f"`{report.overall.expectation_pass_rate.largest_cluster_effective_n}`",
-        f"- Confidence interval: `{report.overall.expectation_pass_rate.ci_lower}` to "
+        "- Confidence interval around "
+        f"`{report.overall.expectation_pass_rate.interval_center}` "
+        f"(`{report.overall.expectation_pass_rate.interval_center_value}`): "
+        f"`{report.overall.expectation_pass_rate.ci_lower}` to "
         f"`{report.overall.expectation_pass_rate.ci_upper}`",
         "",
         "## Provider And Model Groups",
@@ -72,6 +75,7 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
                 f"- `{redact_text(group.group_id)}` observations=`{group.observations}` "
                 f"pass_rate=`{group.expectation_pass_rate.rate}` "
                 f"cluster_mean=`{group.expectation_pass_rate.cluster_mean_rate}` "
+                f"ci_center=`{group.expectation_pass_rate.interval_center}` "
                 f"largest_cluster_size=`{group.expectation_pass_rate.largest_cluster_size}` "
                 f"latency_p50_ms=`{group.latency_ms.p50 or 'not_evaluated'}` "
                 f"cost_total_usd=`{group.estimated_cost_usd.total or 'not_evaluated'}`",

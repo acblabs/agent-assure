@@ -40,7 +40,7 @@ def test_evaluate_cli_writes_candidate_first_reports_for_passing_baseline(
     assert result.exit_code == 0
     report_text = (out_dir / "evaluation-report.json").read_text(encoding="utf-8")
     report = json.loads(report_text)
-    assert report["schema_version"] == "0.1.0"
+    assert report["schema_version"] == "0.2.0"
     assert report["artifact_kind"] == "evaluation-report"
     assert report["candidate_vs_expectations"]["state"] == GateState.pass_.value
     assert report["environment"]["artifact_kind"] == "environment-info"

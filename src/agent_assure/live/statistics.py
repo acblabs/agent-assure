@@ -2,12 +2,12 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from decimal import ROUND_CEILING, Decimal
-from statistics import mean
 from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
 from agent_assure.evaluation.invariants import evaluate_case
+from agent_assure.live.intervals import bootstrap_mean_interval, cluster_t_interval
 from agent_assure.policies.base import (
     DEFAULT_GATE_PROFILE,
     ControlResult,
@@ -29,6 +29,9 @@ from agent_assure.schema.suite import CompiledSuite
 
 BUDGET_STOP_REASONS = {
     "budget_exhausted",
+    "cost_budget_exceeded_after_response",
+    "generated_token_budget_exceeded_after_response",
+    "token_budget_exceeded_after_response",
     "token_budget_exhausted",
     "generated_token_budget_exhausted",
 }
@@ -403,6 +406,8 @@ def _rate_from_values(
             exploratory=True,
             rate="0.000000",
             cluster_mean_rate="0.000000",
+            interval_center="cluster_mean_rate",
+            interval_center_value="0.000000",
             confidence_level=protocol.confidence_level,
             ci_lower="0.000000",
             ci_upper="0.000000",
@@ -418,8 +423,12 @@ def _rate_from_values(
     largest_cluster_size = max(cluster_denominator for _, cluster_denominator in clustered.values())
     largest_cluster_design_effect = _design_effect_for_size(largest_cluster_size, protocol)
     largest_cluster_effective_n = Decimal(denominator) / largest_cluster_design_effect
-    cluster_mean = Decimal(str(mean(cluster_rates)))
-    lower, upper = _cluster_interval(cluster_rates, protocol.confidence_level)
+    cluster_mean, lower, upper = _rate_interval(
+        label,
+        cluster_rates,
+        protocol=protocol,
+        analysis_method=analysis_method,
+    )
     return LiveRate(
         artifact_kind="live-rate",
         label=label,
@@ -433,9 +442,11 @@ def _rate_from_values(
         largest_cluster_effective_n=_decimal(largest_cluster_effective_n),
         assumed_intraclass_correlation=protocol.assumed_intraclass_correlation,
         analysis_method=analysis_method,
-        exploratory=cluster_count < 30,
+        exploratory=_rate_exploratory(cluster_count, analysis_method),
         rate=_probability(Decimal(numerator) / Decimal(denominator)),
         cluster_mean_rate=_probability(cluster_mean),
+        interval_center="cluster_mean_rate",
+        interval_center_value=_probability(cluster_mean),
         confidence_level=protocol.confidence_level,
         ci_lower=_probability(lower),
         ci_upper=_probability(upper),
@@ -469,21 +480,20 @@ def _design_effect_for_size(
     return Decimal("1") + (Decimal(cluster_size) - Decimal("1")) * rho
 
 
-def _cluster_interval(
+def _rate_interval(
+    label: str,
     cluster_rates: tuple[Decimal, ...],
-    confidence_level: str,
-) -> tuple[Decimal, Decimal]:
-    if not cluster_rates:
-        return Decimal("0"), Decimal("0")
-    if len(cluster_rates) == 1:
-        return Decimal("0"), Decimal("1")
-    center = Decimal(str(mean(cluster_rates)))
-    variance = sum((value - center) ** 2 for value in cluster_rates) / Decimal(
-        len(cluster_rates) - 1
-    )
-    standard_error = (variance / Decimal(len(cluster_rates))).sqrt()
-    half_width = _critical_value(confidence_level, len(cluster_rates) - 1) * standard_error
-    return max(Decimal("0"), center - half_width), min(Decimal("1"), center + half_width)
+    *,
+    protocol: LiveProtocolRecord,
+    analysis_method: str,
+) -> tuple[Decimal, Decimal, Decimal]:
+    if analysis_method == "descriptive_cluster_bootstrap_percentile":
+        return bootstrap_mean_interval(
+            cluster_rates,
+            confidence_level=protocol.confidence_level,
+            seed=f"{protocol.protocol_id}:{protocol.analysis_digest}:{label}:rate-bootstrap",
+        )
+    return cluster_t_interval(cluster_rates, protocol.confidence_level)
 
 
 def _distribution(
@@ -579,45 +589,18 @@ def _decimal(value: Decimal | str | int) -> str:
     return text
 
 
-def _critical_value(confidence_level: str, degrees_of_freedom: int) -> Decimal:
-    if confidence_level != "0.950000":
-        raise ValueError(f"unsupported live confidence_level: {confidence_level}")
-    table = {
-        1: "12.706205",
-        2: "4.302653",
-        3: "3.182446",
-        4: "2.776445",
-        5: "2.570582",
-        6: "2.446912",
-        7: "2.364624",
-        8: "2.306004",
-        9: "2.262157",
-        10: "2.228139",
-        15: "2.131450",
-        20: "2.085963",
-        30: "2.042272",
-        40: "2.021075",
-        60: "2.000298",
-    }
-    if degrees_of_freedom in table:
-        return Decimal(table[degrees_of_freedom])
-    if degrees_of_freedom < 15:
-        return Decimal(table[10])
-    if degrees_of_freedom < 20:
-        return Decimal(table[15])
-    if degrees_of_freedom < 30:
-        return Decimal(table[20])
-    if degrees_of_freedom < 40:
-        return Decimal(table[30])
-    if degrees_of_freedom < 60:
-        return Decimal(table[40])
-    return Decimal("1.959964")
-
-
 def _rate_analysis_method(protocol: LiveProtocolRecord) -> str:
+    if protocol.analysis_method == "paired_cluster_bootstrap_percentile":
+        return "descriptive_cluster_bootstrap_percentile"
     if protocol.analysis_method == "exploratory":
         return "exploratory_cluster_t_interval"
     return "descriptive_cluster_t_interval"
+
+
+def _rate_exploratory(cluster_count: int, analysis_method: str) -> bool:
+    if cluster_count < 30:
+        return True
+    return analysis_method == "descriptive_cluster_bootstrap_percentile" and cluster_count < 50
 
 
 def _stop_reasons(runset: RunSet) -> tuple[str, ...]:

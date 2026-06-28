@@ -2,16 +2,16 @@
 
 Candidate status: deferred.
 
-No upstream issue or specification change is proposed for the current v0.1
+No upstream issue or specification change is proposed for the current
 implementation. `agent-assure` produces an OpenTelemetry-aligned span-plan
-preview, not OpenTelemetry SDK spans or OTLP exports. The preview is useful
-implementation evidence for local review, but it is not enough to justify new
-vendor-neutral attributes.
+preview and can emit optional SDK/OTLP spans from those plans. That local
+implementation evidence is useful for review, but it is not enough by itself
+to justify new vendor-neutral attributes.
 
 ## Narrow Candidate
 
-If future SDK/export work shows that a gap remains, the narrowest upstream
-candidate is a discussion issue with this question:
+If reviewed exported span examples show that a gap remains, the narrowest
+upstream candidate is a discussion issue with this question:
 
 ```text
 Do the current GenAI semantic conventions intend to cover offline deterministic
@@ -28,7 +28,8 @@ real exported span data demonstrates the gap.
 
 Before any upstream discussion, the project should have:
 
-- actual OpenTelemetry SDK spans, not only span-plan previews;
+- reviewed exported OpenTelemetry SDK span examples, not only span-plan
+  previews;
 - runtime context propagation for the evaluated workflow;
 - examples showing how evaluation artifacts relate to agent, model, and tool
   spans without including raw prompts, outputs, tool arguments, or sensitive
@@ -60,6 +61,6 @@ The future discussion should be short and evidence-backed:
 4. Ask whether examples or guidance are sufficient.
 5. Propose no new attribute unless the gap is confirmed.
 
-Until that evidence exists, the repository should continue to document the
-preview as OpenTelemetry-aligned and keep all project-local provenance under the
-`agent_assure.*` namespace.
+Until an actual gap is confirmed, the repository should continue to document
+the telemetry path as OpenTelemetry-aligned and keep all project-local
+provenance under the `agent_assure.*` namespace.

@@ -17,6 +17,14 @@ mappings:
     attribute: gen_ai.request.model
   - source: AgentRunRecord.tools
     attribute: gen_ai.tool.name
+  - source: AgentRunRecord.observation_id
+    attribute: agent_assure.observation_id
+  - source: AgentRunRecord.adapter_id
+    attribute: agent_assure.adapter_id
+  - source: AgentRunRecord.latency_ms
+    attribute: agent_assure.latency_ms
+  - source: AgentRunRecord.traceparent
+    attribute: span context parent
 not_emitted:
   - gen_ai.operation.name
   - gen_ai.response.tokens

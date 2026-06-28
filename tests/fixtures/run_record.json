@@ -8,7 +8,7 @@
         "claim-001"
       ],
       "ref_id": "source-001",
-      "schema_version": "0.1.0",
+      "schema_version": "0.2.0",
       "source_id": "source-001"
     }
   ],
@@ -24,11 +24,11 @@
   "provider": "fixture-provider",
   "provenance": {
     "artifact_kind": "provenance",
-    "schema_version": "0.1.0"
+    "schema_version": "0.2.0"
   },
   "recommendation": "approve",
   "run_id": "run-001",
-  "schema_version": "0.1.0",
+  "schema_version": "0.2.0",
   "tools": [
     "evidence_lookup"
   ]

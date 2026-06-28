@@ -2,27 +2,45 @@ from __future__ import annotations
 
 import json
 import os
+import sys
 import time
 import urllib.error
 import urllib.request
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Literal, Protocol, cast
 
 from pydantic import Field
 
 from agent_assure.canonical.normalize import normalize_decimal
 from agent_assure.live.config import LiveAdapterConfig
-from agent_assure.schema.base import StrictModel
+from agent_assure.live.output_contract import validate_live_structured_content
+from agent_assure.runner.subprocess_harness import (
+    ExternalScriptError,
+    ExternalScriptInvocation,
+    invalid_output_emergency,
+    run_external_script,
+)
+from agent_assure.schema.base import SCHEMA_VERSION, StrictModel
+
+EstimatedCostSource = Literal[
+    "adapter_reported",
+    "local_estimate",
+    "not_reported",
+    "provider_reported",
+]
 
 
 class LiveProviderRequest(StrictModel):
+    run_id: str = Field(min_length=1)
     observation_id: str = Field(min_length=1)
     case_id: str = Field(min_length=1)
     repetition_index: int = Field(ge=0)
     prompt: str = Field(min_length=1)
     provider: str = Field(min_length=1)
     model: str = Field(min_length=1)
+    traceparent: str | None = None
+    tracestate: str | None = None
 
 
 class LiveProviderResponse(StrictModel):
@@ -40,6 +58,7 @@ class LiveProviderResponse(StrictModel):
     completion_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
     estimated_cost_usd: str = Field(default="0.000000", pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
+    estimated_cost_source: EstimatedCostSource = "adapter_reported"
 
 
 class LiveProviderAdapter(Protocol):
@@ -116,6 +135,7 @@ class StaticJsonlAdapter:
             completion_tokens=_optional_int(payload.get("completion_tokens")),
             total_tokens=_optional_int(payload.get("total_tokens")),
             estimated_cost_usd=_normal_cost(payload.get("estimated_cost_usd", "0.000000")),
+            estimated_cost_source=_cost_source(payload.get("estimated_cost_source")),
         )
 
 
@@ -144,13 +164,18 @@ class OpenAIChatCompletionsAdapter:
         }
         if self._config.max_output_tokens is not None:
             body["max_tokens"] = self._config.max_output_tokens
+        headers = {
+            "Authorization": f"Bearer {self._api_key}",
+            "Content-Type": "application/json",
+        }
+        if request.traceparent is not None:
+            headers["traceparent"] = request.traceparent
+        if request.tracestate:
+            headers["tracestate"] = request.tracestate
         http_request = urllib.request.Request(
             self._config.endpoint_url or "",
             data=json.dumps(body).encode("utf-8"),
-            headers={
-                "Authorization": f"Bearer {self._api_key}",
-                "Content-Type": "application/json",
-            },
+            headers=headers,
             method="POST",
         )
         try:
@@ -173,17 +198,110 @@ class OpenAIChatCompletionsAdapter:
         return _openai_response(payload, self._config)
 
 
+class ExternalScriptAdapter:
+    adapter_id = "external-script"
+
+    def __init__(self, config: LiveAdapterConfig, *, base_dir: Path) -> None:
+        if config.script_path is None:
+            raise ValueError("external-script adapter requires script_path")
+        self._config = config
+        self._script = _resolve_relative(base_dir, config.script_path).resolve()
+        if not self._script.exists():
+            raise ValueError(f"external script does not exist: {config.script_path}")
+        self._cwd = (
+            _resolve_relative(base_dir, config.script_cwd).resolve()
+            if config.script_cwd is not None
+            else self._script.parent
+        )
+        if not self._cwd.exists() or not self._cwd.is_dir():
+            raise ValueError(f"external script cwd is not a directory: {self._cwd}")
+        self._argv = _script_argv(config, self._script)
+        self._environment = tuple((item.name, item.value) for item in config.script_env)
+        self._environment_allowlist = tuple(config.script_env_allowlist)
+
+    def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
+        payload: dict[str, object] = {
+            "artifact_kind": "external-script-request",
+            "schema_version": SCHEMA_VERSION,
+            "run_id": request.run_id,
+            "observation_id": request.observation_id,
+            "case_id": request.case_id,
+            "repetition_index": request.repetition_index,
+            "prompt": request.prompt,
+            "provider": request.provider,
+            "model": request.model,
+            "trace_context": {
+                "traceparent": request.traceparent,
+                "tracestate": request.tracestate,
+            },
+        }
+        invocation = ExternalScriptInvocation(
+            argv=self._argv,
+            cwd=self._cwd,
+            timeout_seconds=self._config.timeout_seconds,
+            request_payload=payload,
+            observation_id=request.observation_id,
+            run_id=request.run_id,
+            case_id=request.case_id,
+            adapter_id=self.adapter_id,
+            environment=self._environment,
+            environment_allowlist=self._environment_allowlist,
+            traceparent=request.traceparent,
+            tracestate=request.tracestate,
+        )
+        completed = run_external_script(invocation)
+        try:
+            loaded = json.loads(completed.stdout)
+        except json.JSONDecodeError as exc:
+            emergency = invalid_output_emergency(
+                invocation,
+                completed,
+                "external script stdout was not valid JSON",
+                exc,
+            )
+            raise ExternalScriptError(
+                "external script stdout was not valid JSON",
+                emergency,
+            ) from exc
+        if not isinstance(loaded, dict):
+            emergency = invalid_output_emergency(
+                invocation,
+                completed,
+                "external script stdout JSON root was not an object",
+            )
+            raise ExternalScriptError("external script stdout JSON root was invalid", emergency)
+        try:
+            return _script_response(loaded, self._config)
+        except (TypeError, ValueError) as exc:
+            emergency = invalid_output_emergency(
+                invocation,
+                completed,
+                "external script stdout did not match the live provider response contract",
+                exc,
+            )
+            raise ExternalScriptError(
+                "external script stdout did not match the live provider response contract",
+                emergency,
+            ) from exc
+
+
 def build_adapter(config: LiveAdapterConfig, *, base_dir: Path) -> LiveProviderAdapter:
     if config.adapter_id == StaticJsonlAdapter.adapter_id:
         return StaticJsonlAdapter(config, base_dir=base_dir)
     if config.adapter_id == OpenAIChatCompletionsAdapter.adapter_id:
         return OpenAIChatCompletionsAdapter(config, base_dir=base_dir)
+    if config.adapter_id == ExternalScriptAdapter.adapter_id:
+        return ExternalScriptAdapter(config, base_dir=base_dir)
     known = ", ".join(adapter_ids())
     raise KeyError(f"unknown live adapter {config.adapter_id!r}; expected one of: {known}")
 
 
 def adapter_ids() -> tuple[str, ...]:
-    return (StaticJsonlAdapter.adapter_id, OpenAIChatCompletionsAdapter.adapter_id)
+    return (
+        StaticJsonlAdapter.adapter_id,
+        OpenAIChatCompletionsAdapter.adapter_id,
+        ExternalScriptAdapter.adapter_id,
+    )
 
 
 def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> LiveProviderResponse:
@@ -215,6 +333,7 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,
         estimated_cost_usd=_estimate_cost(config, prompt_tokens, completion_tokens),
+        estimated_cost_source=_openai_cost_source(config),
     )
 
 
@@ -252,6 +371,44 @@ def _load_jsonl_responses(path: Path) -> dict[tuple[str, int | None], dict[str, 
     return responses
 
 
+def _script_response(payload: dict[str, Any], config: LiveAdapterConfig) -> LiveProviderResponse:
+    content = payload.get("content")
+    if content is None and isinstance(payload.get("record"), dict):
+        content = json.dumps(payload["record"], sort_keys=True)
+    if not isinstance(content, str):
+        raise ValueError("external script response must contain content or record")
+    validate_live_structured_content(content)
+    return LiveProviderResponse(
+        content=content,
+        provider=_string(payload.get("provider"), config.provider),
+        model=_string(payload.get("model"), config.model),
+        resolved_model=_optional_string(payload.get("resolved_model"), config.model),
+        provider_api_version=_optional_string(
+            payload.get("provider_api_version"),
+            config.api_version,
+        ),
+        provider_sdk=_optional_string(payload.get("provider_sdk"), _sdk_label(config)),
+        provider_region=_optional_string(payload.get("provider_region"), config.region),
+        provider_response_id=_optional_string(payload.get("provider_response_id")),
+        observation_status=_string(payload.get("observation_status"), "included"),
+        exclusion_reason=_optional_string(payload.get("exclusion_reason")),
+        prompt_tokens=_optional_int(payload.get("prompt_tokens")),
+        completion_tokens=_optional_int(payload.get("completion_tokens")),
+        total_tokens=_optional_int(payload.get("total_tokens")),
+        estimated_cost_usd=_normal_cost(payload.get("estimated_cost_usd", "0.000000")),
+        estimated_cost_source=_cost_source(payload.get("estimated_cost_source")),
+    )
+
+
+def _script_argv(config: LiveAdapterConfig, script: Path) -> tuple[str, ...]:
+    args = tuple(config.script_args)
+    if config.script_executable is not None:
+        return (config.script_executable, str(script), *args)
+    if script.suffix.lower() == ".py":
+        return (sys.executable, str(script), *args)
+    return (str(script), *args)
+
+
 def _resolve_relative(base_dir: Path, value: str) -> Path:
     path = Path(value)
     if path.is_absolute():
@@ -281,6 +438,21 @@ def _normal_cost(value: object) -> str:
     if isinstance(value, int | str):
         return normalize_decimal(Decimal(str(value)))
     return "0.000000"
+
+
+def _cost_source(value: object) -> EstimatedCostSource:
+    if value in {"adapter_reported", "local_estimate", "not_reported", "provider_reported"}:
+        return cast(EstimatedCostSource, value)
+    return "adapter_reported"
+
+
+def _openai_cost_source(config: LiveAdapterConfig) -> EstimatedCostSource:
+    if (
+        config.cost_per_1k_prompt_tokens_usd is None
+        and config.cost_per_1k_completion_tokens_usd is None
+    ):
+        return "not_reported"
+    return "local_estimate"
 
 
 def monotonic_ms(start: float) -> int:

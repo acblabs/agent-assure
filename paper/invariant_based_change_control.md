@@ -132,9 +132,14 @@ Fixture authors declare materiality in v0.1. The evaluator does not infer
 materiality from rationale text. This keeps the oracle explicit, but it also
 means suite quality depends on expectation authoring.
 
-The runner captures ordinary in-process Python exceptions. Catastrophic process
-termination, external subprocess isolation, live provider version drift, rate
-limits, cost distributions, and latency distributions are future scope.
+The fixture runner captures ordinary in-process Python exceptions. Live
+execution can also run configured external scripts through a no-shell
+subprocess harness and record redacted emergency process metadata for local
+process failures. Catastrophic host termination, malicious-script containment,
+and production workload isolation remain out of scope. Live provider version
+drift, rate limits, cost distributions, and latency distributions are handled
+only inside declared live protocols and are not part of the deterministic
+fixture result table above.
 
 ## Release Evidence
 

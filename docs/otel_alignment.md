@@ -1,8 +1,9 @@
 # OpenTelemetry Alignment
 
 The current implementation produces an OpenTelemetry-aligned span-plan preview.
-It does not emit runtime SDK spans, export OTLP data, propagate runtime context,
-or claim adoption by the OpenTelemetry project.
+It can also emit OpenTelemetry SDK spans and export OTLP HTTP data when the
+optional `agent-assure[otel]` dependencies are installed. This remains an
+implementation feature, not a claim of adoption by the OpenTelemetry project.
 
 The preview is derived from structured `AgentRunRecord` fields. Run records do
 not persist an `otel_attributes` dictionary.
@@ -17,10 +18,24 @@ Mapped preview attributes include:
 - `agent_assure.case_id`
 - `agent_assure.pipeline_id`
 - `agent_assure.execution_mode`
+- `agent_assure.observation_id` for live observations
+- `agent_assure.adapter_id` for live observations
+- `agent_assure.latency_ms` for live observations
 
 The preview intentionally does not emit `gen_ai.operation.name`,
 `gen_ai.response.tokens`, or `rpc.method`. The local fixture evaluation
 operation is project-specific and remains under the `agent_assure.*` namespace.
+
+Span plans may include W3C `traceparent` context. Live execution propagates that
+context to adapters and external scripts, and `agent-assure otel export` extracts
+it as the parent context for emitted SDK spans. The exporter accepts an
+`agent-run-record`, a `run-set`, or a precomputed `span-plan` artifact and emits
+only privacy-filtered attributes and events derived from the span plan.
+
+This is projection from persisted artifacts, not live instrumentation of the
+adapter HTTP request or external subprocess lifecycle. Span timing and latency
+attributes therefore reflect recorded run metadata rather than SDK spans opened
+around provider calls or child processes.
 
 Project-specific provenance remains under the `agent_assure.*` namespace. The
 current gap assessment and contribution stance are documented in

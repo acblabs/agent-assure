@@ -14,12 +14,11 @@ plans, and manifest paths.
 
 Configuration decimals use fixed six-place strings, for example `0.700000`.
 
-The v0.1 persisted run schema is intentionally lean for deterministic fixture
-mode. It does not persist live timestamps, status transitions, model-call or
-tool-call records, retrieval records, observed metrics, risk tags, variants, or
-capability inventories. No current persisted model carries a Decimal, float, or
-timestamp field; decimal normalization is unit-tested support for future
-digest-relevant configuration rather than an exercised integration path.
+The persisted run schema is intentionally lean for deterministic fixture mode
+and adds optional live operational fields for protocol-bound observations. It
+does not persist raw model-call payloads, raw tool arguments, retrieval records,
+risk tags, or capability inventories. Persisted numeric operational values use
+strings or integers rather than Python Decimal, float, or datetime objects.
 
 RunSet `runset_digest` is an exact artifact digest used for waiver scoping and
 local reproducibility. Release replay uses role-specific stable projections for

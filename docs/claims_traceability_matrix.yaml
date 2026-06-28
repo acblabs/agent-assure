@@ -5,14 +5,14 @@ claims:
       schemas: [compiled-suite, fixture-manifest, agent-run-record, run-set]
       tests: [tests/integration/test_no_network.py, tests/integration/test_fixture_equivalence.py]
       docs: [README.md, docs/fixture_mode.md]
-    limitations: Live providers, subprocess isolation, and catastrophic process-failure capture are outside the current fixture runner.
+    limitations: Live providers and subprocess isolation are separate live-mode paths; catastrophic host failures outside the subprocess boundary remain out of scope.
   - id: strict-schemas
     claim: Persisted artifacts use strict immutable Pydantic models.
     evidence:
       schemas: [agent-run-record, run-set, compiled-suite, fixture-manifest, span-plan]
       tests: [tests/unit/schema/test_strict_models.py]
       docs: [docs/schema_reference.md]
-    limitations: Schema stability is pre-release and limited to v0.1.0 artifacts.
+    limitations: Schema stability is pre-release and versioned by exported schema directory.
   - id: json-schema-parity
     claim: Runtime validation and exported JSON Schema agree on the parity corpus.
     evidence:
@@ -31,7 +31,7 @@ claims:
       code: [src/agent_assure/canonical/digests.py]
       tests: [tests/unit/canonical/test_digests.py]
       docs: [docs/provenance_and_hashing.md, docs/digest_field_inventory.md]
-    limitations: Hashes are provenance only, not behavioral verdicts. The v0.1 persisted schema is lean; decimal normalization and future observed-value separation are unit-tested but not exercised by persisted Decimal, float, timestamp, or metric fields.
+    limitations: Hashes are provenance only, not behavioral verdicts. Persisted operational values use schema-normalized strings and integers rather than Python Decimal, float, or datetime objects; release replay uses separate stable projections for environment-bearing artifacts.
   - id: hmac-sensitive-correlation
     claim: Sensitive low-entropy correlation examples use explicitly keyed HMAC-SHA256.
     evidence:
@@ -45,12 +45,13 @@ claims:
       tests: [tests/unit/privacy/test_hmac_and_redaction.py, tests/unit/runner/test_fixture_runner.py, tests/unit/telemetry/test_span_plan.py, tests/integration/test_baseline_passes.py]
     limitations: This is not production PHI de-identification.
   - id: otel-span-plan-preview
-    claim: Structured records can be projected into an OpenTelemetry-aligned span plan.
+    claim: Structured records can be projected into an OpenTelemetry-aligned span plan, and span plans can be emitted as SDK spans or OTLP HTTP data when optional OpenTelemetry dependencies are installed.
     evidence:
-      code: [src/agent_assure/telemetry/otel_mapping.py]
-      tests: [tests/unit/telemetry/test_span_plan.py]
+      code: [src/agent_assure/telemetry/otel_mapping.py, src/agent_assure/telemetry/otel_sdk.py]
+      tests: [tests/unit/telemetry/test_span_plan.py, tests/unit/telemetry/test_otel_sdk.py]
+      commands: [agent-assure otel preview, agent-assure otel export]
       docs: [docs/otel_alignment.md, docs/standards/otel_genai_gap_analysis.md]
-    limitations: v0.1 emits no SDK spans and performs no OTLP export.
+    limitations: SDK/OTLP export is optional and derived from local span plans. It is not an OpenTelemetry adoption, conformance, acceptance, safety, compliance, or clinical-validity claim.
   - id: fixture-example-suites
     claim: The repository includes synthetic prior-authorization and minimal expense-approval fixture suites that run independently in fixture mode.
     evidence:
@@ -121,13 +122,13 @@ claims:
       commands: [agent-assure suite compile, agent-assure suite run, agent-assure evaluate, agent-assure compare, agent-assure ci, agent-assure packet build, agent-assure release replay]
     limitations: These artifacts are not peer review, safety certification, regulatory compliance, clinical validation, NIST endorsement, OpenTelemetry adoption, or standards acceptance.
   - id: standards-freshness-review
-    claim: OpenTelemetry-facing documentation is tied to a documented freshness review, local compatibility lock, and mapping matrix, with upstream contribution deferred until SDK/export evidence exists.
+    claim: OpenTelemetry-facing documentation is tied to a documented freshness review, local compatibility lock, mapping matrix, and deferred upstream contribution stance pending confirmation of an actual gap.
     evidence:
       docs: [docs/standards/freshness_checklist.md, docs/standards/otel_genai_gap_analysis.md, docs/standards/otel_contribution_candidate.md, docs/standards/upstream_issue_inventory.md, docs/otel_alignment.md]
       code: [src/agent_assure/telemetry/otel_mapping.py, src/agent_assure/telemetry/privacy_filter.py]
       tests: [tests/unit/telemetry/test_span_plan.py]
       compat: [compat/otel_genai_semconv.lock, compat/otel_mapping_matrix.yaml]
-    limitations: External OpenTelemetry conventions may change after the recorded review; the current implementation is a span-plan preview and does not emit SDK spans or OTLP telemetry.
+    limitations: External OpenTelemetry conventions may change after the recorded review; local SDK/OTLP export is implementation evidence only and does not establish an upstream standards gap.
   - id: live-statistical-protocol
     claim: A statistical protocol defines required baseline handling modes, hypotheses, sample-size planning, 95 percent confidence intervals, cluster-count guardrails, retry and exclusion rules, provider-version and provenance capture, rate-limit handling, cost budgets, live-run ethics, safety limits, and the machine-readable protocol record used by live reports.
     evidence:
@@ -136,11 +137,20 @@ claims:
       schemas: [live-protocol-record]
     limitations: The protocol is a planning and review boundary. It does not by itself establish safety, compliance, clinical validity, provider quality, or OpenTelemetry adoption.
   - id: live-stochastic-evaluation
-    claim: Explicit live commands require a frozen live protocol, run configured provider adapters, produce protocol-bound repeated live RunSets, aggregate cluster-aware expectation-pass, outcome, reason-code, and exclusion rates, report pooled and cluster-mean rates with design effects and effective sample sizes, account for incomplete stops and provenance digests, summarize provider/model groups, compare live reports using protocol-declared paired or fixed-reference methods with exploratory guardrails, and report cost/latency distributions.
+    claim: Explicit live commands require a frozen live protocol, run configured provider adapters, produce protocol-bound repeated live RunSets, aggregate cluster-aware expectation-pass, outcome, reason-code, and exclusion rates, report pooled and cluster-mean rates with explicit interval-center metadata, account for incomplete stops and provenance digests, summarize provider/model groups, compare live reports using protocol-declared paired or fixed-reference methods with exploratory guardrails, and report cost/latency distributions.
     evidence:
       schemas: [agent-run-record, run-set, live-evaluation-report, live-comparison-report]
       code: [src/agent_assure/live, src/agent_assure/cli/live_cmd.py, src/agent_assure/reporting/live.py]
-      tests: [tests/unit/evaluation/test_live_statistics.py, tests/integration/test_live_cli.py]
+      tests: [tests/unit/evaluation/test_live_statistics.py, tests/unit/evaluation/test_live_runner.py, tests/integration/test_live_cli.py]
       commands: [agent-assure live adapters, agent-assure live run, agent-assure live evaluate, agent-assure live compare]
       docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/schema_reference.md]
-    limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. Runtime isolation, process emergency records, OpenTelemetry SDK spans, and OTLP export remain future work. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
+    limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
+  - id: runtime-isolation-otel-export
+    claim: Live execution can run configured external scripts through a no-shell subprocess harness, capture redacted emergency process records for process failures, propagate W3C trace context, and export privacy-filtered span plans through optional OpenTelemetry SDK/OTLP support.
+    evidence:
+      schemas: [emergency-process-record, run-set, span-plan]
+      code: [src/agent_assure/runner/subprocess_harness.py, src/agent_assure/live/adapters.py, src/agent_assure/live/runner.py, src/agent_assure/telemetry/context.py, src/agent_assure/telemetry/otel_sdk.py, src/agent_assure/cli/otel_cmd.py]
+      tests: [tests/unit/runner/test_subprocess_harness.py, tests/unit/evaluation/test_live_runner.py, tests/unit/telemetry/test_otel_sdk.py, tests/integration/test_schema_parity.py]
+      commands: [agent-assure live run, agent-assure otel export]
+      docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/otel_alignment.md, docs/schema_reference.md]
+    limitations: The external-script adapter is an execution boundary, not a sandbox against a malicious local script; it sends the declared live request payload to the configured script and passes only declared environment variables plus runner-injected context. SDK/OTLP export is optional, derived from persisted span plans rather than live provider-call instrumentation, and may require network access depending on endpoint configuration.

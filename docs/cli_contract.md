@@ -19,6 +19,7 @@ Current commands:
 - `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
+- `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
 
 `evaluate` writes `evaluation-report.json`, `evaluation-summary.json`,
 `evaluation-report.md`, `dependency-inventory.json`, and
@@ -81,15 +82,32 @@ budget, retry policy, and rate-limit caps, then writes a `run-set` with
 `execution_mode` `live` and protocol binding. When `tokens_per_minute` is
 declared, the adapter must declare `max_output_tokens`; the runner reserves the
 prompt character count plus max generated tokens before each provider call. The
-static JSONL adapter is intended for offline tests and fixtures; the
-OpenAI-compatible chat-completions adapter requires explicit `allow_network:
-true` in the live config and an API key environment variable. Live run records
-store redacted summaries, provider/model labels, resolved provider-version
-metadata when required by the protocol, observation IDs, cluster/source-group
+static JSONL adapter is intended for offline tests and fixtures. The
+`external-script` adapter invokes a configured script through a no-shell
+subprocess harness, sends the live request as JSON on stdin, propagates W3C
+trace context through environment variables and request JSON, enforces the
+configured timeout, and expects JSON stdout containing either `content` or a
+structured `record`. Scripts do not inherit the full parent environment by
+default; only names in `script_env_allowlist`, explicit `script_env` entries,
+and runner-injected trace/request variables are passed. The live request
+payload includes the original prompt text. Subprocess spawn failures, timeouts,
+nonzero exits, invalid stdout, and stdout that fails the structured output
+contract create redacted `emergency-process-record` artifacts on the RunSet and
+a structured-output or runtime-failure live record. The OpenAI-compatible
+chat-completions adapter requires explicit `allow_network: true` in the live
+config and an API key environment variable. OpenAI cost is recorded as a local
+estimate when token pricing is configured and as not reported otherwise; it is
+not a billing assertion. Live run records store redacted
+summaries, provider/model labels, resolved provider-version metadata when
+required by the protocol, observation IDs, trace context, cluster/source-group
 IDs, repetition and schedule indexes, attempt/retry/rate-limit counters,
 inclusion or exclusion state, timestamps, token counts when available,
-estimated cost, latency, and provenance digests. They do not persist raw
-prompts or raw provider outputs.
+estimated cost, estimated-cost source, latency, and provenance digests. They do
+not persist raw prompts or raw provider outputs.
+
+The default `max_rate_limit_events` value is `0`, so the first rate-limit
+response stops the run unless the frozen live configuration and protocol allow
+rate-limit events.
 
 `live evaluate` evaluates each included live observation against the compiled
 expectation for its case, checks actual observations against the protocol
@@ -98,9 +116,11 @@ binding, then writes `live-evaluation-report.json` and
 reasons, budget-exhaustion status, cluster-aware
 expectation-pass rates, outcome rates, reason-code rates, exclusion rates,
 pooled and cluster-mean rates, cluster counts, design effects, effective sample
-sizes, largest-cluster sensitivity values, per-observation tool-schema and
-policy-bundle provenance digests, exploratory flags, provider/model group
-summaries, latency distributions, estimated-cost distributions,
+sizes, largest-cluster sensitivity values, interval-center metadata that states
+whether a confidence interval is around a cluster mean or pooled rate,
+per-observation tool-schema and policy-bundle provenance digests, exploratory
+flags, provider/model group summaries, latency distributions, estimated-cost
+distributions,
 observation-level findings, and limitations. It exits `1` when any included
 observation has a blocking
 expectation/policy finding or protocol exclusion limits are exceeded.
@@ -117,8 +137,10 @@ pass-rate difference, a cluster-level interval, compared-cluster count,
 effective sample size, exploratory status, p50 latency delta, and total-cost
 delta. Comparisons with fewer than 30 compared clusters, or percentile
 bootstrap comparisons with fewer than 50 compared clusters, cannot produce a
-confirmatory pass. The comparison is time-bound to the reports being compared
-and is not a general provider-quality claim.
+confirmatory pass. When all paired cluster differences are identical, the
+limitations section labels the zero-width empirical interval as degenerate. The
+comparison is time-bound to the reports being compared and is not a general
+provider-quality claim.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable
@@ -140,6 +162,19 @@ commit/ref mismatches, or unavailable git commit metadata when current-checkout
 checking is requested exit `1`; malformed replay artifacts exit `2` through
 Typer validation. Keyless cosign signature verification remains an external
 `cosign verify-blob` operation documented in `docs/release_evidence.md`.
+
+`otel preview` writes the privacy-filtered `span-plan` derived from a single
+`agent-run-record`. `otel export` accepts an `agent-run-record`, `run-set`, or
+precomputed `span-plan`, derives span plans where needed, and emits
+OpenTelemetry SDK spans using either the console exporter or OTLP HTTP exporter.
+OTLP export requires installing the optional `agent-assure[otel]` dependencies.
+The exporter extracts any span-plan `traceparent` as parent context and emits
+only attributes and events already present in the span plan. It is projection
+from persisted span plans, not live instrumentation of the adapter HTTP request
+or external subprocess lifecycle; provider-call timing remains the recorded
+run metadata rather than SDK span timing. The exporter does not emit raw
+prompts, raw outputs, tool arguments, unredacted summaries,
+`gen_ai.response.tokens`, `gen_ai.operation.name`, or `rpc.method`.
 
 Exit-code mapping:
 

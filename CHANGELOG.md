@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Added runtime isolation and OpenTelemetry export support for live execution:
+  an `external-script` live adapter backed by a no-shell subprocess harness,
+  redacted `emergency-process-record` artifacts for subprocess crashes,
+  timeouts, nonzero exits, and invalid output, W3C trace-context propagation
+  into live adapters and external scripts, trace-bearing span plans, and
+  optional `agent-assure[otel]` SDK/OTLP export via `agent-assure otel export`.
 - Added initial live evaluation support: strict live protocol/report schemas,
   explicit live provider adapters, protocol-bound repeated live RunSets,
   cluster-aware expectation-pass/outcome/reason-code/exclusion rates,
@@ -14,6 +20,25 @@
   `agent-assure live` CLI commands. The static JSONL adapter keeps the live
   path testable without sockets; the OpenAI-compatible adapter requires
   explicit network opt-in.
+- Bumped persisted artifact and package version metadata to `0.2.0`, exported
+  current JSON Schemas under `schemas/v0.2.0`, and retained the v0.1 release
+  schema set for historical replay.
+- Hardened live statistical reporting by sharing one t-critical/interval
+  implementation across evaluation and comparison paths, labeling per-arm
+  confidence-interval centers explicitly, avoiding spuriously exact zero-width
+  boundary intervals, using the declared cluster bootstrap method for
+  descriptive per-arm rates when applicable, and rejecting paired comparisons
+  whose included cluster sets do not match.
+- Hardened live response handling with a strict structured-output contract,
+  malformed-output emergency records, post-response budget-stop records,
+  estimated-cost source metadata, redacted live summaries before record
+  construction, and explicit tests for malformed JSON, budget exhaustion,
+  cluster-edge cases, paired-cluster mismatches, and subprocess environment
+  isolation.
+- Narrowed the external-script adapter environment boundary so scripts receive
+  only declared allowlisted variables, explicit config overlays, and
+  runner-injected trace/request variables rather than the full parent
+  environment.
 - Added and tightened a statistical protocol for live stochastic
   evaluation, covering baseline handling modes, hypotheses, reproducible
   sample-size planning, confidence intervals, interim-look rules, retry and
@@ -32,7 +57,7 @@
   informational.
 - Moved the fixture-evaluation operation name out of `gen_ai.operation.name`
   and into the project namespace; `gen_ai.operation.name` is now documented as
-  intentionally not emitted in v0.1.
+  intentionally not emitted.
 - Tightened material-claim evidence evaluation so only explicit
   `ClaimEvidenceLink` records pointing to present evidence satisfy the
   invariant.

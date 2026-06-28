@@ -17,7 +17,7 @@ from agent_assure.schema.common import (
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.run import RunSet
 
-# Structural record fields used for v0.1 behavioral context. This is a deliberate
+# Structural record fields used for behavioral context. This is a deliberate
 # projection, not a semantic diff of every nested evidence or policy shape.
 BEHAVIOR_FIELDS = (
     "recommendation",

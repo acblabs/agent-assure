@@ -8,7 +8,12 @@ import pytest
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.loader import compiled_suite_digest
-from agent_assure.live.comparison import _comparison_state, compare_live_reports
+from agent_assure.live.comparison import (
+    _comparison_limitations,
+    _comparison_state,
+    compare_live_reports,
+)
+from agent_assure.live.intervals import difference_t_interval, t_critical_95
 from agent_assure.live.statistics import _rate_from_values, evaluate_live_runset
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode
 from agent_assure.schema.live import LiveProtocolRecord
@@ -50,6 +55,8 @@ def test_live_statistics_aggregate_repeated_observations() -> None:
     assert report.overall.expectation_pass_rate.exploratory is True
     assert report.overall.expectation_pass_rate.rate == "0.500000"
     assert report.overall.expectation_pass_rate.cluster_mean_rate == "0.500000"
+    assert report.overall.expectation_pass_rate.interval_center == "cluster_mean_rate"
+    assert report.overall.expectation_pass_rate.interval_center_value == "0.500000"
     assert report.overall.expectation_pass_rate.analysis_method == (
         "descriptive_cluster_t_interval"
     )
@@ -78,6 +85,100 @@ def test_live_rate_reports_largest_cluster_sensitivity() -> None:
     assert rate.largest_cluster_size == 2
     assert rate.largest_cluster_design_effect == "1.200000"
     assert rate.largest_cluster_effective_n == "2.500000"
+
+
+def test_live_rate_labels_cluster_interval_when_pooled_rate_differs() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=5, clusters=2, repetitions=5)
+
+    rate = _rate_from_values(
+        "expectation_pass",
+        (
+            ("large-cluster", True),
+            ("large-cluster", True),
+            ("large-cluster", True),
+            ("large-cluster", False),
+            ("small-cluster", False),
+        ),
+        protocol=protocol,
+        analysis_method="descriptive_cluster_t_interval",
+    )
+
+    assert rate.rate == "0.600000"
+    assert rate.cluster_mean_rate == "0.375000"
+    assert rate.interval_center == "cluster_mean_rate"
+    assert rate.interval_center_value == rate.cluster_mean_rate
+
+
+def test_degenerate_all_pass_rate_interval_is_not_spuriously_exact() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=3, clusters=3, repetitions=1)
+
+    rate = _rate_from_values(
+        "expectation_pass",
+        (("a", True), ("b", True), ("c", True)),
+        protocol=protocol,
+        analysis_method="descriptive_cluster_t_interval",
+    )
+
+    assert rate.rate == "1.000000"
+    assert rate.cluster_mean_rate == "1.000000"
+    assert Decimal(rate.ci_lower) < Decimal("1.000000")
+    assert rate.ci_upper == "1.000000"
+    assert rate.exploratory is True
+
+
+def test_bootstrap_rate_method_is_used_for_bootstrap_protocols() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=4,
+        clusters=4,
+        repetitions=1,
+        analysis_method="paired_cluster_bootstrap_percentile",
+    )
+
+    rate = _rate_from_values(
+        "expectation_pass",
+        (("a", True), ("b", True), ("c", False), ("d", False)),
+        protocol=protocol,
+        analysis_method="descriptive_cluster_bootstrap_percentile",
+    )
+
+    assert rate.analysis_method == "descriptive_cluster_bootstrap_percentile"
+    assert rate.interval_center == "cluster_mean_rate"
+    assert rate.exploratory is True
+
+
+def test_t_critical_lookup_rounds_down_to_conservative_bucket() -> None:
+    assert t_critical_95("0.950000", 31) == Decimal("2.042272")
+    assert t_critical_95("0.950000", 35) == Decimal("2.042272")
+    assert t_critical_95("0.950000", 59) == Decimal("2.021075")
+    assert t_critical_95("0.950000", 61) == Decimal("2.000298")
+    assert t_critical_95("0.950000", 121) == Decimal("1.979930")
+
+
+def test_zero_width_difference_interval_is_labeled_as_degenerate() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=30, clusters=30, repetitions=1)
+    center, lower, upper, compared_clusters = difference_t_interval(
+        (Decimal("0.100000"),) * 30,
+        protocol.confidence_level,
+    )
+
+    limitations = _comparison_limitations(
+        protocol,
+        compared_clusters,
+        False,
+        center,
+        lower,
+        upper,
+    )
+
+    assert center == Decimal("0.100000")
+    assert lower == center
+    assert upper == center
+    assert any("collapsed to zero width" in limitation for limitation in limitations)
 
 
 def test_live_statistics_accounts_for_declared_exclusions() -> None:
@@ -157,6 +258,37 @@ def test_live_statistics_marks_budget_stop_as_incomplete() -> None:
     assert report.state is GateState.not_evaluated
     assert report.completion_status == "incomplete"
     assert report.stop_reasons == ("budget_exhausted",)
+    assert report.budget_exceeded is True
+
+
+def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-budget-after-response",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        completion_status="incomplete",
+        stop_reasons=("cost_budget_exceeded_after_response",),
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=True,
+                cost="0.000000",
+            ),
+        ),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    assert report.state is GateState.not_evaluated
     assert report.budget_exceeded is True
 
 
@@ -334,6 +466,53 @@ def test_live_comparison_uses_fixed_reference_protocol_mode() -> None:
     assert comparison.fixed_reference_pass_rate == "0.750000"
 
 
+def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=2, clusters=2, repetitions=2)
+    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    baseline = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="baseline-live",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="1" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=(
+                _record(repetition_index=0, linked=True, cluster_id="shared"),
+                _record(repetition_index=1, linked=True, cluster_id="baseline-only"),
+            ),
+        ),
+        protocol=protocol,
+    )
+    candidate = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="candidate-live",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="2" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=(
+                _record(repetition_index=0, linked=True, cluster_id="shared"),
+                _record(repetition_index=1, linked=True, cluster_id="candidate-only"),
+            ),
+        ),
+        protocol=protocol,
+    )
+
+    with pytest.raises(ValueError, match="identical included cluster sets"):
+        compare_live_reports(baseline, candidate, protocol=protocol)
+
+
 def test_live_protocol_rejects_inconsistent_design_effect() -> None:
     compiled = compile_suite(SUITE)
 
@@ -373,6 +552,7 @@ def _record(
     latency_ms: int = 100,
     cost: str = "0.000000",
     exclusion_reason: str | None = None,
+    cluster_id: str = "exp-001",
 ) -> AgentRunRecord:
     links: list[dict[str, str]] = []
     if linked:
@@ -399,7 +579,7 @@ def _record(
             "repetition_index": repetition_index,
             "schedule_index": repetition_index,
             "randomization_block_id": f"repetition:{repetition_index}",
-            "cluster_id": "exp-001",
+            "cluster_id": cluster_id,
             "adapter_id": "static-jsonl",
             "provider": "static-provider",
             "model": "static-model",
@@ -412,6 +592,7 @@ def _record(
             "rate_limit_events": 0,
             "exclusion_reason": exclusion_reason,
             "estimated_cost_usd": cost,
+            "estimated_cost_source": "adapter_reported",
             "tools": ["expense_policy_check", "receipt_check"],
             "evidence_refs": [
                 {

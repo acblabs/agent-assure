@@ -20,7 +20,7 @@ launcher with `PYTHONPATH=src`.
 ## Schema Export And Validation
 
 ```bash
-agent-assure schema export --out schemas/v0.1.0
+agent-assure schema export --out schemas/v0.2.0
 agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/repro/prior-auth.compiled.json --manifest .tmp/repro/prior-auth.fixtures.json
 agent-assure validate .tmp/repro/prior-auth.compiled.json --kind compiled-suite
 agent-assure validate .tmp/repro/prior-auth.fixtures.json --kind fixture-manifest

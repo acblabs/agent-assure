@@ -1,6 +1,6 @@
 # Schema Evolution
 
-Released schema version: `0.1.0`.
+Released schema version: `0.2.0`.
 
 The package version, persisted artifact `schema_version`, exported schema
 directory, JSON Schema `$id`, and producer contracts are related but not
@@ -34,13 +34,14 @@ link must point to a present `evidence_refs[].ref_id` in the same run record.
 not satisfy `material_claims_have_evidence`.
 
 This contract is behavioral, not merely syntactic. A record can validate
-against schema version `0.1.0` and still fail deterministic evaluation if it
+against schema version `0.2.0` and still fail deterministic evaluation if it
 omits explicit material claim-evidence links.
 
 ## Live-Capable Schema Additions
 
 Live-capable development adds `live-protocol-record`,
-`live-evaluation-report`, and `live-comparison-report` persisted artifacts.
+`live-evaluation-report`, `live-comparison-report`, and
+`emergency-process-record` persisted artifacts.
 Live reports may reference the protocol record digest so reviewers can verify
 that the run used the declared hypotheses, baseline mode, sample-size plan,
 retry/exclusion rules, provider-version capture, rate-limit policy, cost
@@ -49,6 +50,6 @@ RunSets and reports can also record incomplete execution, stop reasons,
 cluster-mean rates, and exploratory comparison status so low-power or
 budget-constrained runs are not interpreted as confirmatory evidence.
 
-The next public schema release must either add a new schema directory and
-update JSON Schema `$id` values, or explicitly document why the persisted shape
-remains compatible while publishing a new producer-contract version.
+The v0.2 schema release adds `schemas/v0.2.0`, updates JSON Schema `$id`
+values, and keeps the v0.1 release schemas in `schemas/v0.1.0` for replay of
+the earlier release surface.

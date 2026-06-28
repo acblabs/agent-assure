@@ -1,12 +1,10 @@
 from __future__ import annotations
 
-import json
 import random
 import time
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -18,13 +16,27 @@ from agent_assure.live.adapters import (
     monotonic_ms,
 )
 from agent_assure.live.config import LivePromptCase, LiveRunConfig
+from agent_assure.live.output_contract import (
+    LiveOutputContractError,
+    parse_live_structured_content,
+)
+from agent_assure.privacy.redaction import redact_text
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
+from agent_assure.runner.subprocess_harness import emergency_from_exception
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
+from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
+
+
+class LiveBudgetExceededError(ValueError):
+    def __init__(self, stop_reason: str, message: str) -> None:
+        super().__init__(message)
+        self.stop_reason = stop_reason
 
 
 def run_live_suite(
@@ -54,7 +66,21 @@ def run_live_suite(
     tokens_window_reserved = 0
     stop_reasons: set[str] = set()
     runs: list[AgentRunRecord] = []
+    emergency_records: list[EmergencyProcessRecord] = []
     for schedule_index, prompt_case, repetition_index in schedule:
+        run_id = _run_id(
+            compiled.suite_id,
+            config.variant_id,
+            prompt_case.case_id,
+            repetition_index,
+        )
+        observation_id = _observation_id(
+            compiled.suite_id,
+            config.variant_id,
+            prompt_case.case_id,
+            repetition_index,
+        )
+        trace_context = trace_context_for_seed(observation_id)
         if cost_budget is not None and spent + max_observation_cost > cost_budget:
             stop_reasons.add("budget_exhausted")
             runs.append(
@@ -69,6 +95,7 @@ def run_live_suite(
                     "configured live cost budget would be exceeded before this observation",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="budget_exhausted",
+                    trace_context=trace_context,
                 )
             )
             continue
@@ -86,6 +113,7 @@ def run_live_suite(
                     "configured live token budget was exhausted before this observation",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="token_budget_exhausted",
+                    trace_context=trace_context,
                 )
             )
             continue
@@ -108,24 +136,22 @@ def run_live_suite(
                     "configured generated-token budget would be exceeded before this observation",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="generated_token_budget_exhausted",
+                    trace_context=trace_context,
                 )
             )
             continue
         prompt = _read_prompt(config_dir, prompt_case.prompt_path)
         prompt_digest = sha256_hexdigest({"prompt": prompt})
-        observation_id = _observation_id(
-            compiled.suite_id,
-            config.variant_id,
-            prompt_case.case_id,
-            repetition_index,
-        )
         request = LiveProviderRequest(
+            run_id=run_id,
             observation_id=observation_id,
             case_id=prompt_case.case_id,
             repetition_index=repetition_index,
             prompt=prompt,
             provider=config.adapter.provider,
             model=config.adapter.model,
+            traceparent=trace_context.traceparent,
+            tracestate=trace_context.tracestate,
         )
         token_reservation = _token_reservation(prompt, config)
         token_window_started, tokens_window_reserved = _pace_request(
@@ -167,6 +193,7 @@ def run_live_suite(
                 started_at_utc=started,
                 completed_at_utc=completed,
                 latency_ms=latency_ms,
+                trace_context=trace_context,
             )
             spent += Decimal(record.estimated_cost_usd or "0.000000")
             total_tokens_spent += record.total_tokens or 0
@@ -179,6 +206,25 @@ def run_live_suite(
             ):
                 raise ValueError("configured generated-token budget was exceeded")
         except Exception as exc:
+            emergency = emergency_from_exception(exc)
+            if emergency is not None:
+                emergency_records.append(emergency)
+            if isinstance(exc, LiveBudgetExceededError):
+                stop_reasons.add(exc.stop_reason)
+            reason_code = (
+                ReasonCode.STRUCTURED_OUTPUT_INVALID
+                if isinstance(exc, LiveOutputContractError)
+                else ReasonCode.POLICY_FAILED
+                if isinstance(exc, LiveBudgetExceededError)
+                else ReasonCode.RUNTIME_FAILED
+            )
+            category = (
+                "live_structured_output_invalid"
+                if isinstance(exc, LiveOutputContractError)
+                else "live_budget_exceeded_after_response"
+                if isinstance(exc, LiveBudgetExceededError)
+                else "live_adapter_error"
+            )
             latency_ms = monotonic_ms(start)
             completed = _utc_now()
             record = _error_record(
@@ -188,7 +234,7 @@ def run_live_suite(
                 repetition_index,
                 schedule_index,
                 configuration_digest,
-                "live_adapter_error",
+                category,
                 str(exc),
                 cluster_by=protocol.cluster_by,
                 prompt_digest=prompt_digest,
@@ -198,6 +244,8 @@ def run_live_suite(
                 started_at_utc=started,
                 completed_at_utc=completed,
                 latency_ms=latency_ms,
+                trace_context=trace_context,
+                reason_code=reason_code,
                 exc=exc,
             )
         runs.append(record)
@@ -213,6 +261,7 @@ def run_live_suite(
         protocol_digest=protocol_digest,
         completion_status="incomplete" if stop_reasons else "complete",
         stop_reasons=tuple(sorted(stop_reasons)),
+        emergency_records=tuple(emergency_records),
         runs=tuple(runs),
     )
 
@@ -234,8 +283,9 @@ def _record_from_response(
     started_at_utc: str,
     completed_at_utc: str,
     latency_ms: int,
+    trace_context: RuntimeTraceContext,
 ) -> AgentRunRecord:
-    payload = _parse_structured_record(response.content)
+    payload = parse_live_structured_content(response.content)
     total_tokens = response.total_tokens
     if total_tokens is None and (
         response.prompt_tokens is not None or response.completion_tokens is not None
@@ -259,10 +309,10 @@ def _record_from_response(
             "case_id": prompt_case.case_id,
             "execution_mode": ExecutionMode.live.value,
             "pipeline_id": config.pipeline_id,
-            "recommendation": _required_string(payload, "recommendation"),
-            "outcome": _required_string(payload, "outcome"),
-            "input_summary": prompt_case.input_summary,
-            "output_summary": _required_string(payload, "output_summary"),
+            "recommendation": payload.recommendation,
+            "outcome": payload.outcome,
+            "input_summary": redact_text(prompt_case.input_summary),
+            "output_summary": redact_text(payload.output_summary),
             "observation_status": response.observation_status,
             "observation_id": observation_id,
             "repetition_index": repetition_index,
@@ -278,6 +328,8 @@ def _record_from_response(
             "provider_sdk": response.provider_sdk,
             "provider_region": response.provider_region,
             "provider_response_id": response.provider_response_id,
+            "traceparent": trace_context.traceparent,
+            "tracestate": trace_context.tracestate,
             "started_at_utc": started_at_utc,
             "completed_at_utc": completed_at_utc,
             "latency_ms": latency_ms,
@@ -289,14 +341,15 @@ def _record_from_response(
             "completion_tokens": response.completion_tokens,
             "total_tokens": total_tokens,
             "estimated_cost_usd": response.estimated_cost_usd,
-            "tools": _sequence(payload.get("tools", ())),
-            "evidence_refs": _sequence(payload.get("evidence_refs", ())),
-            "evidence_items": _sequence(payload.get("evidence_items", ())),
-            "claims": _sequence(payload.get("claims", ())),
-            "claim_evidence_links": _sequence(payload.get("claim_evidence_links", ())),
-            "policy_results": _sequence(payload.get("policy_results", ())),
-            "human_review_required": bool(payload.get("human_review_required", False)),
-            "human_review_performed": bool(payload.get("human_review_performed", False)),
+            "estimated_cost_source": response.estimated_cost_source,
+            "tools": payload.tools,
+            "evidence_refs": payload.evidence_refs,
+            "evidence_items": payload.evidence_items,
+            "claims": payload.claims,
+            "claim_evidence_links": payload.claim_evidence_links,
+            "policy_results": payload.policy_results,
+            "human_review_required": payload.human_review_required,
+            "human_review_performed": payload.human_review_performed,
             "provenance": _provenance(
                 config,
                 configuration_digest,
@@ -326,9 +379,19 @@ def _error_record(
     started_at_utc: str | None = None,
     completed_at_utc: str | None = None,
     latency_ms: int | None = None,
+    trace_context: RuntimeTraceContext | None = None,
+    reason_code: ReasonCode = ReasonCode.RUNTIME_FAILED,
     exc: Exception | None = None,
 ) -> AgentRunRecord:
     safe = safe_error(category, message, exc)
+    trace_context = trace_context or trace_context_for_seed(
+        _observation_id(
+            compiled.suite_id,
+            config.variant_id,
+            prompt_case.case_id,
+            repetition_index,
+        )
+    )
     return AgentRunRecord(
         artifact_kind="agent-run-record",
         run_id=_run_id(
@@ -342,7 +405,7 @@ def _error_record(
         pipeline_id=config.pipeline_id,
         recommendation="error",
         outcome="excluded" if exclusion_reason else "runtime_error",
-        input_summary=prompt_case.input_summary,
+        input_summary=redact_text(prompt_case.input_summary),
         output_summary=(
             f"live observation failed; code={safe.code}; "
             f"debug_ref={safe.local_debug_reference}"
@@ -366,6 +429,8 @@ def _error_record(
         provider_api_version=config.adapter.api_version,
         provider_sdk=_sdk_label(config),
         provider_region=config.adapter.region,
+        traceparent=trace_context.traceparent,
+        tracestate=trace_context.tracestate,
         started_at_utc=started_at_utc,
         completed_at_utc=completed_at_utc,
         latency_ms=latency_ms,
@@ -374,14 +439,21 @@ def _error_record(
         rate_limit_events=rate_limit_events,
         exclusion_reason=exclusion_reason,
         estimated_cost_usd="0.000000",
+        estimated_cost_source="not_reported",
         policy_results=(
             PolicyResult(
                 artifact_kind="policy-result",
                 policy_id="runtime.live",
                 state=GateState.fail,
-                reason_codes=(ReasonCode.RUNTIME_FAILED,),
+                reason_codes=(reason_code,),
                 severity=Severity.blocker,
-                message="live adapter failed before a valid structured record was accepted",
+                message=(
+                    "live response failed the structured output contract"
+                    if reason_code is ReasonCode.STRUCTURED_OUTPUT_INVALID
+                    else "live response exceeded the configured budget policy"
+                    if reason_code is ReasonCode.POLICY_FAILED
+                    else "live adapter failed before a valid structured record was accepted"
+                ),
             ),
         ),
         provenance=_provenance(
@@ -590,19 +662,28 @@ def _token_reservation(prompt: str, config: LiveRunConfig) -> int:
 
 def _verify_response_budgets(response: LiveProviderResponse, config: LiveRunConfig) -> None:
     if Decimal(response.estimated_cost_usd) > Decimal(config.max_cost_per_observation_usd):
-        raise ValueError("provider response exceeded max_cost_per_observation_usd")
+        raise LiveBudgetExceededError(
+            "cost_budget_exceeded_after_response",
+            "provider response exceeded max_cost_per_observation_usd",
+        )
     if (
         config.max_total_tokens is not None
         and response.total_tokens is not None
         and response.total_tokens > config.max_total_tokens
     ):
-        raise ValueError("provider response exceeded max_total_tokens")
+        raise LiveBudgetExceededError(
+            "token_budget_exceeded_after_response",
+            "provider response exceeded max_total_tokens",
+        )
     if (
         config.max_generated_tokens is not None
         and response.completion_tokens is not None
         and response.completion_tokens > config.max_generated_tokens
     ):
-        raise ValueError("provider response exceeded max_generated_tokens")
+        raise LiveBudgetExceededError(
+            "generated_token_budget_exceeded_after_response",
+            "provider response exceeded max_generated_tokens",
+        )
 
 
 def _is_rate_limit_error(exc: Exception) -> bool:
@@ -622,35 +703,6 @@ def _read_prompt(config_dir: Path, prompt_path: str) -> str:
     if not text.strip():
         raise ValueError(f"prompt file is empty: {prompt_path}")
     return text
-
-
-def _parse_structured_record(content: str) -> dict[str, Any]:
-    text = content.strip()
-    if text.startswith("```"):
-        lines = text.splitlines()
-        if len(lines) >= 3 and lines[-1].strip().startswith("```"):
-            text = "\n".join(lines[1:-1]).strip()
-            if text.startswith("json"):
-                text = text[4:].strip()
-    payload = json.loads(text)
-    if not isinstance(payload, dict):
-        raise ValueError("provider response JSON root must be an object")
-    return payload
-
-
-def _required_string(payload: dict[str, Any], field_name: str) -> str:
-    value = payload.get(field_name)
-    if not isinstance(value, str) or not value:
-        raise ValueError(f"provider response missing string field {field_name!r}")
-    return value
-
-
-def _sequence(value: Any) -> tuple[Any, ...]:
-    if isinstance(value, tuple):
-        return value
-    if isinstance(value, list):
-        return tuple(value)
-    raise ValueError("provider response sequence field must be a list")
 
 
 def _provenance(

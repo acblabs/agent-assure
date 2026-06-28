@@ -52,28 +52,36 @@
   limits, and machine-readable protocol records.
 - Live protocol, live-evaluation, and live-comparison persisted schemas;
   explicit live provider adapters including a static JSONL adapter for offline
-  tests and an OpenAI-compatible chat-completions adapter requiring network
-  opt-in; protocol-bound repeated live RunSets; cluster-aware
+  tests, an external-script subprocess adapter, and an OpenAI-compatible
+  chat-completions adapter requiring network opt-in; protocol-bound repeated
+  live RunSets; cluster-aware
   expectation-pass, outcome, reason-code, and exclusion rates; pooled and
-  cluster-mean rate reporting; design-effect and effective-sample-size
-  reporting with largest-cluster sensitivity; paired cluster comparisons for
-  concurrent baselines; fixed-reference comparisons for threshold protocols;
+  cluster-mean rate reporting with explicit confidence-interval center
+  metadata; design-effect and effective-sample-size reporting with
+  largest-cluster sensitivity; paired cluster comparisons for concurrent
+  baselines; fixed-reference comparisons for threshold protocols;
   low-cluster exploratory guardrails; provider-version and tool/policy
   provenance checks;
   retry/rate-limit/token-pacing/budget enforcement fields; incomplete-run
   status; provider/model group summaries; and cost/latency distributions.
+- Runtime isolation for configured external scripts through a no-shell
+  subprocess harness with timeout handling, declared environment allowlists,
+  redacted emergency process records, structured-output validation, and
+  trace-context propagation through environment variables and request JSON.
 - Bundled example modules included for reproducible local demos, with public API
   boundaries documented separately.
 - Socket-disabled pytest configuration for offline fixture-mode tests.
-- OpenTelemetry-aligned span-plan preview from structured run records.
+- OpenTelemetry-aligned span-plan preview from structured run records, plus
+  optional OpenTelemetry SDK span emission and OTLP HTTP export when
+  `agent-assure[otel]` is installed.
 - Documentation-alignment checks for conservative public claims.
 
 ## Planned
 
-- Runtime isolation, external subprocess harnesses, OpenTelemetry SDK spans,
-  runtime context propagation, and OTLP export in a future release.
+- Hardened external-runner extension APIs and broader live provider adapter
+  ergonomics.
 
-## Explicitly unsupported in v0.1
+## Explicitly unsupported
 
 - Safety certification.
 - Regulatory compliance certification.

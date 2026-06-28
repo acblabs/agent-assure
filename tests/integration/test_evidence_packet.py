@@ -42,7 +42,7 @@ def test_evidence_packet_schema_exists() -> None:
         ),
         limitations=("packet summarizes deterministic fixture-mode evidence",),
     )
-    assert packet.schema_version == "0.1.0"
+    assert packet.schema_version == "0.2.0"
 
 
 def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: Path) -> None:
@@ -92,13 +92,13 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
         {
             "artifact_kind": "packet-artifact-digest",
             "role": "evaluation-summary",
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "sha256": _file_sha256(evaluation_path),
         },
         {
             "artifact_kind": "packet-artifact-digest",
             "role": "comparison-summary",
-            "schema_version": "0.1.0",
+            "schema_version": "0.2.0",
             "sha256": _file_sha256(comparison_path),
         },
     ]

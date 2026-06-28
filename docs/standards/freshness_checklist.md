@@ -1,6 +1,6 @@
 # Standards Freshness Checklist
 
-Freshness status: complete for the current v0.1 documentation set.
+Freshness status: complete for the current documentation set.
 
 Last manual review: 2026-06-27.
 
@@ -12,7 +12,7 @@ Last manual review: 2026-06-27.
 | `compat/otel_mapping_matrix.yaml` | Present; lists emitted and deliberately not emitted attributes. |
 | `docs/otel_alignment.md` | Present; documents local mapping boundaries. |
 | `docs/standards/otel_genai_gap_analysis.md` | Present; records the current gap assessment and reviewed sources. |
-| `docs/standards/otel_contribution_candidate.md` | Present; defers upstream contribution until SDK/export evidence exists. |
+| `docs/standards/otel_contribution_candidate.md` | Present; defers upstream contribution until an actual gap is confirmed from reviewed exported span examples. |
 | OpenTelemetry GenAI docs | Reviewed at https://opentelemetry.io/docs/specs/semconv/gen-ai/. |
 | OpenTelemetry semantic-conventions-genai repository | Reviewed at https://github.com/open-telemetry/semantic-conventions-genai. |
 
@@ -28,15 +28,16 @@ Before opening an upstream issue or making a stronger interoperability claim:
 - update this checklist with the review date, external source references, and
   local lock/checksum status;
 - keep contribution language narrow and evidence-backed;
-- keep v0.1 public wording at "OpenTelemetry-aligned" unless a future upstream
+- keep public wording at "OpenTelemetry-aligned" unless a future upstream
   process creates a stronger basis.
 
 ## Current Decision
 
-The current decision is to defer upstream contribution. The local preview maps
-structured fields to the pinned compatibility matrix and uses project-local
-`agent_assure.*` attributes for local provenance. That is sufficient for v0.1.
+The current decision is to defer upstream contribution. The local preview and
+optional SDK/OTLP exporter map structured fields to the pinned compatibility
+matrix and use project-local `agent_assure.*` attributes for local provenance.
+That is sufficient for the current implementation.
 
-The next review should happen before any v0.2 SDK/export implementation is
-presented as interoperable telemetry or before any public upstream discussion is
-opened.
+The next review should happen before the exported telemetry is presented as
+interoperable beyond this local mapping or before any public upstream
+discussion is opened.

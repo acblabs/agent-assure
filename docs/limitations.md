@@ -9,10 +9,9 @@ evidence.
 
 ## Deliberate Scope
 
-`agent-assure` v0.1 focuses on fixture-mode assurance for governance controls:
-expectations, evidence links, provider/tool boundaries, redaction, escalation,
-human review, runtime failures, fixture equivalence, provenance diffing, and
-CI/report gates.
+The fixture path focuses on assurance for governance controls: expectations,
+evidence links, provider/tool boundaries, redaction, escalation, human review,
+runtime failures, fixture equivalence, provenance diffing, and CI/report gates.
 
 This scope does not establish safety assurance, prove regulatory compliance,
 validate clinical workflows, certify provider quality, or provide production
@@ -35,9 +34,14 @@ or stochastic performance claims. Live reports do provide confidence intervals
 and operational distributions, but only for their declared live observation
 window. Per-arm live rates report both pooled observation rates and cluster
 mean rates because unequal cluster sizes can make the confidence-interval
-center differ from the pooled point estimate. Reports also include
-largest-cluster sensitivity metadata for design-effect and effective-sample
-review.
+center differ from the pooled point estimate. Reports label the interval center
+explicitly. Low-cluster analyses are marked exploratory by protocol guardrails,
+and boundary rates near 0 or 1 should be read with the small-sample caveats in
+the live protocol. Design-effect and effective-sample-size fields are planning
+and sensitivity metadata; the reported cluster intervals are computed from
+empirical cluster-rate values, not from `effective_n`. Paired-difference
+intervals with zero between-cluster variance can collapse to zero width and are
+labeled as degenerate descriptive intervals.
 
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
@@ -55,9 +59,25 @@ digest changes are not verdict-bearing shortcuts.
 
 In-process fixture runs capture ordinary Python exceptions and produce failure
 records. Live adapters capture accepted provider metadata when available and
-record retry/rate-limit/exclusion counters, but catastrophic process
-termination, external subprocess isolation, production runtime isolation, and
-distributed tracing are future scope.
+record retry/rate-limit/exclusion counters. Configured external scripts run
+through a no-shell subprocess harness that records redacted emergency process
+metadata for spawn failures, timeouts, nonzero exits, and invalid stdout.
+
+This boundary is not a hardened sandbox against malicious local scripts. The
+external-script adapter sends the full live request payload, including the
+original prompt text, to the configured script. Script executable, argv, and
+working-directory resolution happen in the calling process; compromise of the
+configured script or its allowed environment can affect the host. Scripts do
+not inherit the full parent environment by default, but any variable named in
+`script_env_allowlist` or supplied through `script_env` is intentionally passed
+through.
+
+Optional OpenTelemetry export is a projection from persisted, privacy-filtered
+span plans. It is useful for correlation, but it is not live SDK
+instrumentation of adapter HTTP calls or external subprocess execution.
+Catastrophic host termination, production workload isolation, and distributed
+tracing beyond the local W3C context propagated by the live runner remain out
+of scope.
 
 ## Release-Evidence Boundary
 

@@ -52,8 +52,8 @@ jobs:
       - run: mypy src
       - run: pytest
       - run: python scripts/update_golden.py
-      - run: agent-assure schema export --out schemas/v0.1.0
-      - run: git diff --exit-code -- schemas/v0.1.0
+      - run: agent-assure schema export --out schemas/v0.2.0
+      - run: git diff --exit-code -- schemas/v0.2.0
       - name: Build release bundle
         run: >
           python scripts/build_release_bundle.py
