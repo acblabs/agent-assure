@@ -40,7 +40,7 @@ omits explicit material claim-evidence links.
 ## Live-Capable Schema Additions
 
 Live-capable development adds `live-protocol-record`,
-`live-evaluation-report`, `live-comparison-report`, and
+`live-evaluation-report`, `live-comparison-report`, `live-drift-report`, and
 `emergency-process-record` persisted artifacts.
 Live reports may reference the protocol record digest so reviewers can verify
 that the run used the declared hypotheses, baseline mode, sample-size plan,
@@ -56,6 +56,13 @@ invariant results, rare-event upper bounds, and observed cluster-correlation
 summaries; live comparison reports can persist paired randomization test
 results. These fields are review evidence and do not change deterministic
 fixture-mode producer obligations.
+The live protocol can also carry an optional drift monitoring plan. Those
+metric declarations are included in the protocol digest. `live-drift-report`
+artifacts persist cross-window comparability results, ordered-window summaries,
+trend, adjacent-step, separate serial-dependence, AR(1), and EWMA monitoring
+diagnostics when their declared window-count prerequisites are met. Drift
+report fields are derived review evidence and do not make drift signals release
+verdicts or deterministic fixture-mode obligations.
 
 The v0.2 schema release adds `schemas/v0.2.0`, updates JSON Schema `$id`
 values, and keeps the v0.1 release schemas in `schemas/v0.1.0` for replay of

@@ -170,6 +170,49 @@ statistical-review allowance. In low-cluster regimes, observed ICC estimates
 must not narrow the confirmatory interval below the conservative planned-ICC
 analysis.
 
+## Cross-Window Monitoring
+
+Live evaluation reports may be monitored across ordered windows such as
+repetitions, release windows, or provider-version windows. Cross-window
+monitoring is exploratory by default. A monitoring plan can be included in the
+machine-readable protocol record to declare ordered metrics, prerequisite
+window counts, observation thresholds, comparability mode, review thresholds,
+minimum dependence/state-summary window counts, and the supported diagnostic
+methods.
+
+The implementation treats drift monitoring as surveillance evidence. It checks
+window comparability before interpreting a series: suite identity, baseline
+mode, analysis method, protocol digest, tool-schema digest, and policy-bundle
+digest must match. When observation-window start timestamps are present, the
+ordered input must also be nondecreasing by those timestamps; protocols that
+declare `window_start_utc` ordering require timestamps for every window.
+Windows that do not pass these checks are invalid for cross-window drift
+inference, unless a reviewed monitoring plan explicitly allows a bounded
+exploratory sensitivity review over matching material fields.
+
+Supported monitoring outputs include descriptive ordered trends,
+adjacent-window step changes, lag-1 autocorrelation, low-order AR(1) summaries
+when enough ordered windows exist, and EWMA state summaries named as
+governance health, control reliability, or drift state. Autocorrelation and
+AR(1) are dependence diagnostics, not stationarity tests. They are reported
+only when the declared minimum dependence window count is met; that count must
+be at least eight ordered windows. EWMA state summaries are reported only when
+the declared state-summary window count is met; that count must be at least
+six ordered windows. These state summaries are calculated from observable pass/fail,
+reason-code, exclusion, retry, rate-limit, latency, and cost records. They are
+not claims about model intent, reasoning, consciousness, or hidden mental
+state, and they are not gate inputs in the current implementation.
+
+A stationarity, dependence, or drift review signal means a declared operational
+metric changed enough, or exhibited enough serial dependence, to warrant
+governance review. It does not establish safety, compliance, clinical validity,
+provider quality, or general model-quality regression. The default
+autocorrelation and AR(1) review thresholds are governance heuristics, not
+calibrated null false-positive rates, and they remain non-gating unless a
+reviewed protocol separately predeclares calibrated confirmatory treatment. The
+same live results must not be reused for a different drift claim unless that
+reuse was declared before execution.
+
 ## Sample-Size Plan
 
 A protocol instance must include a sample-size calculation before execution.

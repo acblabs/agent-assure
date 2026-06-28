@@ -487,6 +487,18 @@
           "title": "Cluster Id",
           "type": "string"
         },
+        "completed_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At Utc"
+        },
         "exclusion_reason": {
           "anyOf": [
             {
@@ -555,6 +567,42 @@
           "default": null,
           "title": "Provider"
         },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
         "rate_limit_events": {
           "anyOf": [
             {
@@ -580,6 +628,18 @@
           "minimum": 0,
           "title": "Repetition Index",
           "type": "integer"
+        },
+        "resolved_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Model"
         },
         "retry_count": {
           "anyOf": [
@@ -616,6 +676,18 @@
           ],
           "default": null,
           "title": "Source Group Id"
+        },
+        "started_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At Utc"
         },
         "state": {
           "$ref": "#/$defs/GateState"

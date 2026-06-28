@@ -76,6 +76,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             )
             return result.returncode or 3
 
+    distribution_paths: tuple[Path, ...]
     if args.skip_build:
         distribution_paths = ()
     else:

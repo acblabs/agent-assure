@@ -66,6 +66,11 @@
   checks and stable integer seeds; low-cluster exploratory
   guardrails; provider-version and tool/policy
   provenance checks;
+  cross-window drift monitoring reports with comparability checks, ordered
+  trend, adjacent-step, separate lag-1 autocorrelation and AR(1) dependence
+  diagnostics, EWMA governance-health/control-reliability summaries, timestamp
+  order checks, and method-specific minimum-window gates labeled as review
+  signals by default;
   retry/rate-limit/token-pacing/budget enforcement fields; incomplete-run
   status; provider/model group summaries; and cost/latency distributions.
 - Runtime isolation for configured external scripts through a no-shell

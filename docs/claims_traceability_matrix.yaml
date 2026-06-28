@@ -151,9 +151,18 @@ claims:
       schemas: [live-protocol-record, live-evaluation-report, live-comparison-report]
       code: [src/agent_assure/live/advanced.py, src/agent_assure/live/statistics.py, src/agent_assure/live/comparison.py, src/agent_assure/reporting/live.py]
       tests: [tests/unit/evaluation/test_live_statistics.py, tests/integration/test_schema_parity.py]
-      commands: [agent-assure live evaluate, agent-assure live compare]
-      docs: [docs/measurement/experiment_protocol.md, docs/schema_reference.md, docs/limitations.md, docs/live_mode_roadmap.md]
+    commands: [agent-assure live evaluate, agent-assure live compare]
+    docs: [docs/measurement/experiment_protocol.md, docs/schema_reference.md, docs/limitations.md, docs/live_mode_roadmap.md]
     limitations: Advanced statistical outputs remain protocol-bound review evidence. Zero observed critical events are upper-bound results rather than absence proofs, observed ICC is descriptive unless the protocol predeclares stricter use, exchangeability remains a reviewed design assumption, and invalid or low-data designs are labeled exploratory or not evaluated.
+  - id: live-drift-monitoring
+    claim: Cross-window live drift monitoring consumes ordered live evaluation reports, checks suite/protocol, baseline-mode, analysis-method, tool-schema, policy-bundle, and timestamp-order comparability, and reports ordered trend, adjacent-step, separate serial-dependence, and EWMA governance-health or control-reliability diagnostics as exploratory review signals by default when their window-count prerequisites are met.
+    evidence:
+      schemas: [live-protocol-record, live-evaluation-report, live-drift-report]
+      code: [src/agent_assure/live/drift.py, src/agent_assure/cli/live_cmd.py, src/agent_assure/reporting/live.py]
+      tests: [tests/unit/evaluation/test_live_statistics.py, tests/integration/test_live_cli.py, tests/integration/test_schema_parity.py]
+      commands: [agent-assure live drift]
+      docs: [docs/measurement/experiment_protocol.md, docs/schema_reference.md, docs/limitations.md, docs/live_mode_roadmap.md, docs/cli_contract.md]
+    limitations: Drift monitoring is review surveillance over observable live report fields. It is not a release-verdict gate, does not infer model intent or hidden reasoning, and does not establish safety, compliance, clinical validity, provider quality, or general model-quality regression.
   - id: runtime-isolation-otel-export
     claim: Live execution can run configured external scripts through a no-shell subprocess harness, capture redacted emergency process records for process failures, propagate W3C trace context, and export privacy-filtered span plans through optional OpenTelemetry SDK/OTLP support.
     evidence:

@@ -87,7 +87,7 @@ def evaluate_live_runset(
         suite_id=suite.suite_id,
         suite_version=suite.suite_version,
         protocol_id=protocol.protocol_id,
-        protocol_digest=sha256_hexdigest(protocol.model_dump(mode="json")),
+        protocol_digest=sha256_hexdigest(protocol),
         baseline_mode=protocol.baseline_mode,
         analysis_method=protocol.analysis_method,
         cluster_by=protocol.cluster_by,
@@ -126,7 +126,7 @@ def _verify_live_binding(
         )
     if runset.execution_mode.value != "live":
         raise ValueError("live evaluation requires a RunSet with execution_mode='live'")
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     if runset.protocol_id != protocol.protocol_id or runset.protocol_digest != protocol_digest:
         raise ValueError("live RunSet protocol binding does not match protocol")
     _verify_protocol_obligations(runset, protocol)
@@ -247,10 +247,16 @@ def _observation_result(
         repetition_index=run.repetition_index or 0,
         provider=run.provider,
         model=run.model,
+        resolved_model=run.resolved_model,
+        provider_api_version=run.provider_api_version,
+        provider_sdk=run.provider_sdk,
+        provider_region=run.provider_region,
         adapter_id=run.adapter_id,
         pipeline_id=run.pipeline_id,
         cluster_id=run.cluster_id or run.case_id,
         source_group_id=run.source_group_id,
+        started_at_utc=run.started_at_utc,
+        completed_at_utc=run.completed_at_utc,
         observation_status=run.observation_status,
         exclusion_reason=run.exclusion_reason,
         attempt_count=run.attempt_count,

@@ -54,3 +54,8 @@ def test_finite_float_must_be_converted_to_decimal_before_projection() -> None:
 
 def test_canonical_digest_is_order_independent() -> None:
     assert sha256_hexdigest({"b": 2, "a": 1}) == sha256_hexdigest({"a": 1, "b": 2})
+
+
+def test_none_is_preserved_as_digest_identity_data() -> None:
+    assert digest_projection({"optional": None}) == {"optional": None}
+    assert sha256_hexdigest({"optional": None}) != sha256_hexdigest({})

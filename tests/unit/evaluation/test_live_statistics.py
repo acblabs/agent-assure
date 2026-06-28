@@ -14,6 +14,7 @@ from agent_assure.live.comparison import (
     _comparison_state,
     compare_live_reports,
 )
+from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.intervals import difference_t_interval, stable_seed_int, t_critical_95
 from agent_assure.live.statistics import _rate_from_values, evaluate_live_runset
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode
@@ -27,7 +28,7 @@ SUITE = Path("examples/expense_approval_minimal/suite.yaml")
 def test_live_statistics_aggregate_repeated_observations() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-live",
@@ -164,7 +165,7 @@ def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> N
             rare_reason_codes=[ReasonCode.RAW_SENSITIVE_CONTENT.value],
         ),
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-live-advanced",
@@ -292,7 +293,7 @@ def test_live_statistics_accounts_for_declared_exclusions() -> None:
         allowed_exclusion_reasons=("provider_incident",),
         max_exclusion_rate="0.600000",
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-live-exclusions",
@@ -331,7 +332,7 @@ def test_live_statistics_marks_budget_stop_as_incomplete() -> None:
         repetitions=2,
         max_exclusion_rate="0.600000",
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-live-budget",
@@ -365,7 +366,7 @@ def test_live_statistics_marks_budget_stop_as_incomplete() -> None:
 def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-live-budget-after-response",
@@ -396,7 +397,7 @@ def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None
 def test_live_comparison_reports_pass_rate_difference() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -461,7 +462,7 @@ def test_live_comparison_honors_paired_bootstrap_protocol_method() -> None:
         repetitions=2,
         analysis_method="paired_cluster_bootstrap_percentile",
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -518,7 +519,7 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
         analysis_method="paired_cluster_permutation_exact",
         advanced_analysis_plan=_advanced_plan(primary_minimum_clusters=5),
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -582,7 +583,7 @@ def test_exact_paired_randomization_fails_closed_above_enumeration_limit() -> No
         analysis_method="paired_cluster_permutation_exact",
         advanced_analysis_plan=_advanced_plan(primary_minimum_clusters=21),
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -633,7 +634,7 @@ def test_exact_paired_randomization_fails_closed_above_enumeration_limit() -> No
 def test_live_comparison_rejects_mismatched_paired_case_repetition_sets() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -688,7 +689,7 @@ def test_live_comparison_uses_fixed_reference_protocol_mode() -> None:
         analysis_method="fixed_reference_cluster_t_interval",
         fixed_reference_pass_rate="0.750000",
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -739,7 +740,7 @@ def test_live_comparison_uses_fixed_reference_protocol_mode() -> None:
 def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=2, repetitions=2)
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
         RunSet(
@@ -783,6 +784,355 @@ def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
         compare_live_reports(baseline, candidate, protocol=protocol)
 
 
+def test_live_drift_monitor_reports_ordered_review_signal() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        drift_monitoring_plan=_drift_plan(minimum_windows=4),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    pass_patterns = (
+        (True, True),
+        (True, True),
+        (True, False),
+        (True, False),
+        (False, False),
+        (False, False),
+    )
+    reports = tuple(
+        evaluate_live_runset(
+            compiled,
+            RunSet(
+                artifact_kind="run-set",
+                runset_id=f"runset-live-window-{index}",
+                suite_id=compiled.suite_id,
+                suite_version=compiled.suite_version,
+                suite_digest=compiled_suite_digest(compiled),
+                fixture_manifest_digest=f"{index + 1}" * 64,
+                execution_mode=ExecutionMode.live,
+                protocol_id=protocol.protocol_id,
+                protocol_digest=protocol_digest,
+                runs=tuple(
+                    _record(
+                        repetition_index=repetition,
+                        linked=linked,
+                        started_at_utc=f"2026-06-27T0{index}:0{repetition}:00Z",
+                        completed_at_utc=f"2026-06-27T0{index}:0{repetition}:01Z",
+                    )
+                    for repetition, linked in enumerate(pattern)
+                ),
+            ),
+            protocol=protocol,
+        )
+        for index, pattern in enumerate(pass_patterns)
+    )
+
+    report = build_live_drift_report(reports, protocol=protocol)
+
+    assert report.state is GateState.not_evaluated
+    assert report.monitoring_status == "exploratory"
+    assert report.comparability.status == "pass"
+    assert report.observation_window_start_utc == "2026-06-27T00:00:00Z"
+    diagnostic = report.diagnostics[0]
+    assert diagnostic.metric == "expectation_pass_rate"
+    assert diagnostic.prerequisite_status == "met"
+    assert diagnostic.stationarity_signal == "review"
+    assert diagnostic.dependence_signal == "none"
+    assert diagnostic.slope_per_window == "-0.228571"
+    assert diagnostic.state_estimate is not None
+    assert diagnostic.state_estimate.state_name == "governance_health"
+    assert any("review signal" in limitation for limitation in report.limitations)
+
+
+def test_live_drift_comparability_is_invalid_for_changed_analysis_digest() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        drift_monitoring_plan=_drift_plan(minimum_windows=2),
+    )
+    changed_payload = protocol.model_dump(mode="json")
+    changed_payload["analysis_digest"] = "9" * 64
+    changed_protocol = LiveProtocolRecord.model_validate(changed_payload)
+    first_digest = sha256_hexdigest(protocol)
+    changed_digest = sha256_hexdigest(changed_protocol)
+    first = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="runset-live-window-a",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="1" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=first_digest,
+            runs=(
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=True),
+            ),
+        ),
+        protocol=protocol,
+    )
+    second = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="runset-live-window-b",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="2" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=changed_protocol.protocol_id,
+            protocol_digest=changed_digest,
+            runs=(
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=False),
+            ),
+        ),
+        protocol=changed_protocol,
+    )
+
+    report = build_live_drift_report((first, second), protocol=protocol)
+
+    assert report.monitoring_status == "invalid"
+    assert report.comparability.status == "invalid"
+    assert report.comparability.material_fields_match is True
+    assert report.diagnostics[0].prerequisite_status == "invalid"
+    assert report.diagnostics[0].stationarity_signal == "invalid"
+    assert any("reference protocol digest" in failure for failure in report.comparability.failures)
+
+
+def test_live_drift_marks_dependence_signal_separately_from_stationarity() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=50,
+        clusters=50,
+        repetitions=50,
+        drift_monitoring_plan=_drift_plan(
+            minimum_windows=8,
+            minimum_dependence_windows=8,
+            minimum_state_space_windows=8,
+        ),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    success_counts = (20, 21, 22, 23, 24, 25, 26, 27)
+    reports = tuple(
+        evaluate_live_runset(
+            compiled,
+            RunSet(
+                artifact_kind="run-set",
+                runset_id=f"runset-live-dependence-{index}",
+                suite_id=compiled.suite_id,
+                suite_version=compiled.suite_version,
+                suite_digest=compiled_suite_digest(compiled),
+                fixture_manifest_digest=f"{index + 1}" * 64,
+                execution_mode=ExecutionMode.live,
+                protocol_id=protocol.protocol_id,
+                protocol_digest=protocol_digest,
+                runs=tuple(
+                    _record(
+                        repetition_index=repetition,
+                        linked=repetition < success_count,
+                        cluster_id=f"cluster-{repetition:03d}",
+                        started_at_utc=f"2026-06-{20 + index:02d}T00:00:00Z",
+                        completed_at_utc=f"2026-06-{20 + index:02d}T00:00:01Z",
+                    )
+                    for repetition in range(50)
+                ),
+            ),
+            protocol=protocol,
+        )
+        for index, success_count in enumerate(success_counts)
+    )
+
+    report = build_live_drift_report(reports, protocol=protocol)
+    diagnostic = report.diagnostics[0]
+
+    assert diagnostic.stationarity_signal == "none"
+    assert diagnostic.dependence_signal == "review"
+    assert diagnostic.lag1_autocorrelation is not None
+    assert any("lag-1" in reason for reason in diagnostic.review_reasons)
+
+
+def test_live_drift_suppresses_low_window_dependence_and_state_estimates() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        drift_monitoring_plan=_drift_plan(
+            minimum_windows=2,
+            minimum_dependence_windows=8,
+            minimum_state_space_windows=6,
+        ),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    reports = tuple(
+        evaluate_live_runset(
+            compiled,
+            RunSet(
+                artifact_kind="run-set",
+                runset_id=f"runset-live-low-window-{index}",
+                suite_id=compiled.suite_id,
+                suite_version=compiled.suite_version,
+                suite_digest=compiled_suite_digest(compiled),
+                fixture_manifest_digest=f"{index + 1}" * 64,
+                execution_mode=ExecutionMode.live,
+                protocol_id=protocol.protocol_id,
+                protocol_digest=protocol_digest,
+                runs=(
+                    _record(repetition_index=0, linked=True),
+                    _record(repetition_index=1, linked=index == 0),
+                ),
+            ),
+            protocol=protocol,
+        )
+        for index in range(2)
+    )
+
+    report = build_live_drift_report(reports, protocol=protocol)
+    diagnostic = report.diagnostics[0]
+
+    assert diagnostic.prerequisite_status == "met"
+    assert diagnostic.lag1_autocorrelation is None
+    assert diagnostic.ar1_phi is None
+    assert diagnostic.state_estimate is None
+    assert diagnostic.dependence_signal == "none"
+    assert any("requires at least 8" in limitation for limitation in diagnostic.limitations)
+    assert any("requires at least 6" in limitation for limitation in diagnostic.limitations)
+
+
+def test_live_drift_rejects_nonmonotonic_timestamp_ordering() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        drift_monitoring_plan=_drift_plan(minimum_windows=2),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    reports = tuple(
+        evaluate_live_runset(
+            compiled,
+            RunSet(
+                artifact_kind="run-set",
+                runset_id=f"runset-live-out-of-order-{index}",
+                suite_id=compiled.suite_id,
+                suite_version=compiled.suite_version,
+                suite_digest=compiled_suite_digest(compiled),
+                fixture_manifest_digest=f"{index + 1}" * 64,
+                execution_mode=ExecutionMode.live,
+                protocol_id=protocol.protocol_id,
+                protocol_digest=protocol_digest,
+                runs=(
+                    _record(
+                        repetition_index=0,
+                        linked=True,
+                        started_at_utc=start,
+                        completed_at_utc=end,
+                    ),
+                    _record(
+                        repetition_index=1,
+                        linked=True,
+                        started_at_utc=start,
+                        completed_at_utc=end,
+                    ),
+                ),
+            ),
+            protocol=protocol,
+        )
+        for index, (start, end) in enumerate(
+            (
+                ("2026-06-27T02:00:00+02:00", "2026-06-27T02:00:01+02:00"),
+                ("2026-06-26T23:00:00Z", "2026-06-26T23:00:01Z"),
+            )
+        )
+    )
+
+    report = build_live_drift_report(reports, protocol=protocol)
+
+    assert report.monitoring_status == "invalid"
+    assert report.comparability.status == "invalid"
+    assert any("nondecreasing" in failure for failure in report.comparability.failures)
+
+
+def test_live_drift_reports_multiple_timestamp_ordering_failures() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        drift_monitoring_plan=_drift_plan(
+            minimum_windows=2,
+            ordering_variable="window_start_utc",
+        ),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    reports = tuple(
+        evaluate_live_runset(
+            compiled,
+            RunSet(
+                artifact_kind="run-set",
+                runset_id=f"runset-live-ordering-aggregate-{index}",
+                suite_id=compiled.suite_id,
+                suite_version=compiled.suite_version,
+                suite_digest=compiled_suite_digest(compiled),
+                fixture_manifest_digest=f"{index + 1}" * 64,
+                execution_mode=ExecutionMode.live,
+                protocol_id=protocol.protocol_id,
+                protocol_digest=protocol_digest,
+                runs=(
+                    _record(
+                        repetition_index=0,
+                        linked=True,
+                        started_at_utc=start,
+                        completed_at_utc=start,
+                    ),
+                    _record(
+                        repetition_index=1,
+                        linked=True,
+                        started_at_utc=start,
+                        completed_at_utc=start,
+                    ),
+                ),
+            ),
+            protocol=protocol,
+        )
+        for index, start in enumerate(
+            (
+                "2026-06-27T02:00:00Z",
+                None,
+                "2026-06-27T01:00:00Z",
+            )
+        )
+    )
+
+    report = build_live_drift_report(reports, protocol=protocol)
+
+    assert report.monitoring_status == "invalid"
+    assert report.comparability.status == "invalid"
+    assert any(
+        "missing windows: window-0001" in failure
+        for failure in report.comparability.failures
+    )
+    assert any(
+        "between window-0000 and window-0002" in failure
+        for failure in report.comparability.failures
+    )
+
+
 def test_live_protocol_rejects_inconsistent_design_effect() -> None:
     compiled = compile_suite(SUITE)
 
@@ -823,6 +1173,8 @@ def _record(
     cost: str = "0.000000",
     exclusion_reason: str | None = None,
     cluster_id: str = "exp-001",
+    started_at_utc: str | None = None,
+    completed_at_utc: str | None = None,
 ) -> AgentRunRecord:
     links: list[dict[str, str]] = []
     if linked:
@@ -856,6 +1208,8 @@ def _record(
             "resolved_model": "static-model-2026-06-27",
             "provider_api_version": "2026-06-27",
             "provider_sdk": "static-sdk@1.0.0",
+            "started_at_utc": started_at_utc,
+            "completed_at_utc": completed_at_utc,
             "latency_ms": latency_ms,
             "attempt_count": 1,
             "retry_count": 0,
@@ -908,6 +1262,7 @@ def _protocol(
     ),
     max_exclusion_rate: str = "0.000000",
     advanced_analysis_plan: dict[str, object] | None = None,
+    drift_monitoring_plan: dict[str, object] | None = None,
     non_inferiority_margin: str = "0.050000",
 ) -> LiveProtocolRecord:  # type: ignore[no-untyped-def]
     planned_observations_per_cluster = Decimal(observations) / Decimal(clusters)
@@ -957,6 +1312,7 @@ def _protocol(
         policy_bundle_digest="7" * 64,
         analysis_digest="5" * 64,
         advanced_analysis_plan=advanced_analysis_plan,
+        drift_monitoring_plan=drift_monitoring_plan,
         approved_data_boundary="synthetic local test prompts",
         safety_limits=("no raw sensitive content",),
     )
@@ -1003,6 +1359,49 @@ def _advanced_plan(
                 "minimum_clusters": 1,
                 "minimum_observations": 1,
             },
+        ],
+    }
+
+
+def _drift_plan(
+    *,
+    minimum_windows: int = 3,
+    minimum_dependence_windows: int | None = None,
+    minimum_state_space_windows: int | None = None,
+    ordering_variable: str = "window_index",
+) -> dict[str, object]:
+    dependence_windows = minimum_dependence_windows or 8
+    state_space_windows = minimum_state_space_windows or 6
+    return {
+        "artifact_kind": "drift-monitoring-plan",
+        "schema_version": "0.2.0",
+        "plan_id": "drift-test-plan",
+        "interpretation": "exploratory",
+        "ordering_variable": ordering_variable,
+        "comparability_mode": "strict_protocol_digest",
+        "metrics": [
+            {
+                "artifact_kind": "drift-metric-plan",
+                "schema_version": "0.2.0",
+                "metric": "expectation_pass_rate",
+                "label": "Expectation pass rate",
+                "interpretation": "exploratory",
+                "analysis_methods": [
+                    "descriptive_trend",
+                    "lag1_autocorrelation",
+                    "ar1_summary",
+                    "state_space_ewma",
+                ],
+                "minimum_windows": minimum_windows,
+                "minimum_dependence_windows": dependence_windows,
+                "minimum_state_space_windows": state_space_windows,
+                "minimum_observations_per_window": 1,
+                "slope_review_threshold": "0.050000",
+                "step_review_threshold": "0.100000",
+                "autocorrelation_review_threshold": "0.500000",
+                "ar1_review_threshold": "0.500000",
+                "state_space_alpha": "0.300000",
+            }
         ],
     }
 

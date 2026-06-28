@@ -110,7 +110,7 @@ def compare_live_reports(
         baseline_group_id=protocol.baseline_group_id,
         candidate_group_id=protocol.candidate_group_id,
         protocol_id=protocol.protocol_id,
-        protocol_digest=sha256_hexdigest(protocol.model_dump(mode="json")),
+        protocol_digest=sha256_hexdigest(protocol),
         baseline_mode=protocol.baseline_mode,
         analysis_method=protocol.analysis_method,
         exploratory=exploratory,
@@ -147,7 +147,7 @@ def _verify_report_binding(
         raise ValueError("live reports reference different suite_id values")
     if baseline.suite_version != candidate.suite_version:
         raise ValueError("live reports reference different suite_version values")
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     for label, report in (("baseline", baseline), ("candidate", candidate)):
         if report.protocol_id != protocol.protocol_id or report.protocol_digest != protocol_digest:
             raise ValueError(f"{label} live report protocol binding does not match protocol")

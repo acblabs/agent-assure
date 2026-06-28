@@ -17,6 +17,7 @@ Current commands:
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
 - `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
+- `agent-assure live drift LIVE_EVALUATION_REPORT_JSON... --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
@@ -152,6 +153,21 @@ means the interval did not rule out a drop larger than the margin; it is a
 fail-closed gate result, not proof of candidate inferiority. The comparison is
 time-bound to the reports being compared and is not a general provider-quality
 claim.
+
+`live drift` consumes ordered `live-evaluation-report` JSON artifacts and a
+`live-protocol-record`, then writes `live-drift-report.json` and
+`live-drift-report.md`. The report first checks cross-window comparability for
+suite identity, baseline mode, analysis method, protocol digest, tool-schema
+digest, policy-bundle digest, and timestamp order when timestamps are present.
+Comparable series can report ordered trend, adjacent-window step changes,
+separate dependence diagnostics from lag-1 autocorrelation and AR(1) summaries
+when enough ordered windows exist, and EWMA state summaries named as governance
+health, control reliability, or drift state when their declared window
+threshold is met. Drift reports use
+`not_evaluated` gate state and are exploratory by default; review signals do
+not establish safety, compliance, clinical validity, provider quality, model
+intent, or general model-quality regression. An invalid comparability result
+writes the report and exits `1`.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable

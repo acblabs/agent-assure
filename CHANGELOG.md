@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+- Added protocol-bound cross-window live drift monitoring with a new
+  `live-drift-report` schema and `agent-assure live drift` command. Reports
+  check suite/protocol, baseline-mode, analysis-method, tool-schema, and
+  policy-bundle comparability, validate timestamp order when available, and
+  emit ordered trend, adjacent-step, separate lag-1 autocorrelation and AR(1)
+  dependence diagnostics, and EWMA governance-health or control-reliability
+  summaries as exploratory review signals by default once method-specific
+  minimum-window prerequisites are met.
 - Added optional protocol-bound advanced live statistical endpoints with
   confirmatory/exploratory labels, multiplicity validation, rare-event Poisson
   upper bounds, observed cluster-correlation summaries with bootstrap

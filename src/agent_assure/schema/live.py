@@ -50,6 +50,31 @@ EndpointRole = Literal["primary", "secondary", "diagnostic"]
 EndpointPrerequisiteStatus = Literal["met", "exploratory", "invalid"]
 MultiplicityMethod = Literal["none", "single_endpoint", "fixed_sequence", "holm_bonferroni"]
 ObservedIccUse = Literal["disabled", "large_cluster_threshold", "external_review"]
+DriftMetric = Literal[
+    "expectation_pass_rate",
+    "reason_code_rate",
+    "exclusion_rate",
+    "retry_rate",
+    "rate_limit_rate",
+    "latency_p50_ms",
+    "cost_total_usd",
+]
+DriftAnalysisMethod = Literal[
+    "descriptive_trend",
+    "lag1_autocorrelation",
+    "ar1_summary",
+    "state_space_ewma",
+]
+DriftInterpretation = Literal["confirmatory", "exploratory"]
+DriftComparabilityStatus = Literal["pass", "exploratory", "invalid"]
+DriftMonitoringStatus = Literal["valid", "exploratory", "invalid"]
+DriftOrderingVariable = Literal[
+    "window_index",
+    "window_start_utc",
+    "release_sequence",
+    "provider_version_window",
+]
+DriftStationaritySignal = Literal["none", "review", "invalid"]
 
 
 def _decimal(value: str | int) -> Decimal:
@@ -167,6 +192,106 @@ class AdvancedAnalysisPlan(PersistedArtifact):
             if any(rank is None for rank in ranks) or len(ranks) != len(set(ranks)):
                 raise ValueError(
                     "fixed_sequence confirmatory endpoints require unique hierarchy_rank values"
+                )
+        return self
+
+
+class DriftMetricPlan(PersistedArtifact):
+    artifact_kind: Literal["drift-metric-plan"] = "drift-metric-plan"
+    metric: DriftMetric
+    label: str = Field(min_length=1)
+    interpretation: DriftInterpretation = "exploratory"
+    analysis_methods: tuple[DriftAnalysisMethod, ...] = ("descriptive_trend",)
+    reason_codes: tuple[ReasonCode, ...] = ()
+    minimum_windows: int = Field(default=6, ge=2)
+    minimum_dependence_windows: int = Field(default=8, ge=8)
+    minimum_state_space_windows: int = Field(default=6, ge=6)
+    minimum_observations_per_window: int = Field(default=1, ge=1)
+    slope_review_threshold: DecimalString = Field(
+        default="0.050000",
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    step_review_threshold: DecimalString = Field(
+        default="0.100000",
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    autocorrelation_review_threshold: DecimalString = Field(
+        default="0.500000",
+        pattern=r"^(0|1)\.[0-9]{6}$",
+    )
+    ar1_review_threshold: DecimalString = Field(
+        default="0.500000",
+        pattern=r"^(0|1)\.[0-9]{6}$",
+    )
+    state_space_alpha: DecimalString = Field(
+        default="0.300000",
+        pattern=r"^(0|1)\.[0-9]{6}$",
+    )
+
+    @field_validator("analysis_methods", mode="before")
+    @classmethod
+    def _coerce_analysis_methods(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @field_validator("reason_codes", mode="before")
+    @classmethod
+    def _coerce_reason_codes(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            return tuple(coerce_enum(ReasonCode, item) for item in value)
+        return value
+
+    @model_validator(mode="after")
+    def _validate_metric_plan(self) -> DriftMetricPlan:
+        if len(self.analysis_methods) != len(set(self.analysis_methods)):
+            raise ValueError("drift analysis_methods values must be unique")
+        if self.metric == "reason_code_rate":
+            if not self.reason_codes:
+                raise ValueError("reason_code_rate drift metrics require reason_codes")
+        elif self.reason_codes:
+            raise ValueError("reason_codes are only valid for reason_code_rate drift metrics")
+        alpha = _decimal(self.state_space_alpha)
+        if alpha <= Decimal("0") or alpha > Decimal("1"):
+            raise ValueError("state_space_alpha must be greater than 0 and no more than 1")
+        return self
+
+
+class DriftMonitoringPlan(PersistedArtifact):
+    artifact_kind: Literal["drift-monitoring-plan"] = "drift-monitoring-plan"
+    plan_id: str = Field(min_length=1)
+    interpretation: DriftInterpretation = "exploratory"
+    ordering_variable: DriftOrderingVariable = "window_index"
+    comparability_mode: Literal["strict_protocol_digest", "material_fields"] = (
+        "strict_protocol_digest"
+    )
+    allow_bounded_sensitivity_on_comparability_failure: bool = False
+    drift_hypothesis: str | None = Field(default=None, min_length=1)
+    metrics: tuple[DriftMetricPlan, ...] = Field(min_length=1)
+    known_provider_version_unknowns: tuple[str, ...] = ()
+
+    @field_validator("metrics", "known_provider_version_unknowns", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_monitoring_plan(self) -> DriftMonitoringPlan:
+        metric_keys = [
+            (metric.metric, tuple(reason.value for reason in metric.reason_codes))
+            for metric in self.metrics
+        ]
+        if len(metric_keys) != len(set(metric_keys)):
+            raise ValueError("drift monitoring metrics must be unique by metric and reason codes")
+        confirmatory_metrics = [
+            metric for metric in self.metrics if metric.interpretation == "confirmatory"
+        ]
+        if self.interpretation == "confirmatory" or confirmatory_metrics:
+            if self.drift_hypothesis is None:
+                raise ValueError(
+                    "confirmatory drift monitoring requires a predeclared drift_hypothesis"
+                )
+            if self.interpretation != "confirmatory":
+                raise ValueError(
+                    "confirmatory drift metrics require a confirmatory monitoring plan"
                 )
         return self
 
@@ -355,6 +480,7 @@ class LiveProtocolRecord(PersistedArtifact):
     policy_bundle_digest: DigestHex
     analysis_digest: DigestHex
     advanced_analysis_plan: AdvancedAnalysisPlan | None = None
+    drift_monitoring_plan: DriftMonitoringPlan | None = None
     approved_data_boundary: str = Field(min_length=1)
     safety_limits: tuple[str, ...] = ()
 
@@ -501,10 +627,16 @@ class LiveObservationResult(PersistedArtifact):
     repetition_index: int = Field(ge=0)
     provider: str | None = None
     model: str | None = None
+    resolved_model: str | None = None
+    provider_api_version: str | None = None
+    provider_sdk: str | None = None
+    provider_region: str | None = None
     adapter_id: str | None = None
     pipeline_id: str = Field(min_length=1)
     cluster_id: str = Field(min_length=1)
     source_group_id: str | None = None
+    started_at_utc: str | None = None
+    completed_at_utc: str | None = None
     observation_status: Literal["included", "excluded"] = "included"
     exclusion_reason: str | None = None
     attempt_count: int | None = Field(default=None, ge=1)
@@ -656,6 +788,226 @@ class LiveComparisonReport(PersistedArtifact):
         return coerce_enum(GateState, value)
 
     @field_validator("randomization_tests", "limitations", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class DriftWindowMetric(PersistedArtifact):
+    artifact_kind: Literal["drift-window-metric"] = "drift-window-metric"
+    metric: DriftMetric
+    label: str = Field(min_length=1)
+    reason_codes: tuple[ReasonCode, ...] = ()
+    value: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    numerator: int | None = Field(default=None, ge=0)
+    denominator: int | None = Field(default=None, ge=0)
+    source: Literal[
+        "pooled_rate",
+        "observation_rate",
+        "distribution_p50",
+        "distribution_total",
+        "reason_code_rate",
+    ]
+
+    @field_validator("reason_codes", mode="before")
+    @classmethod
+    def _coerce_reason_codes(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            return tuple(coerce_enum(ReasonCode, item) for item in value)
+        return value
+
+
+class DriftWindowSummary(PersistedArtifact):
+    artifact_kind: Literal["drift-window-summary"] = "drift-window-summary"
+    window_id: str = Field(min_length=1)
+    window_index: int = Field(ge=0)
+    runset_id: str = Field(min_length=1)
+    suite_id: str = Field(min_length=1)
+    suite_version: str = Field(min_length=1)
+    protocol_id: str | None = None
+    protocol_digest: DigestHex | None = None
+    baseline_mode: Literal["concurrent_paired", "fixed_reference"] | None = None
+    analysis_method: str = Field(min_length=1)
+    observation_window_start_utc: str | None = None
+    observation_window_end_utc: str | None = None
+    observations: int = Field(ge=0)
+    included_observations: int = Field(ge=0)
+    excluded_observations: int = Field(ge=0)
+    provider_version_unknown: bool = False
+    provider_version_keys: tuple[str, ...] = ()
+    tool_schema_digests: tuple[DigestHex, ...] = ()
+    policy_bundle_digests: tuple[DigestHex, ...] = ()
+    metrics: tuple[DriftWindowMetric, ...] = ()
+
+    @field_validator(
+        "provider_version_keys",
+        "tool_schema_digests",
+        "policy_bundle_digests",
+        "metrics",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class DriftComparabilityResult(PersistedArtifact):
+    artifact_kind: Literal["drift-comparability-result"] = "drift-comparability-result"
+    status: DriftComparabilityStatus
+    compared_windows: int = Field(ge=0)
+    suite_matches: bool
+    baseline_mode_matches: bool
+    analysis_method_matches: bool
+    protocol_digest_matches: bool
+    material_fields_match: bool
+    tool_schema_digest_matches: bool
+    policy_bundle_digest_matches: bool
+    reference_protocol_digest: DigestHex | None = None
+    suite_id: str | None = None
+    suite_version: str | None = None
+    baseline_mode: str | None = None
+    analysis_method: str | None = None
+    failures: tuple[str, ...] = ()
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("failures", "limitations", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class DriftStateEstimate(PersistedArtifact):
+    artifact_kind: Literal["drift-state-estimate"] = "drift-state-estimate"
+    state_name: Literal["governance_health", "control_reliability", "drift_state"]
+    metric: DriftMetric
+    label: str = Field(min_length=1)
+    prerequisite_status: EndpointPrerequisiteStatus
+    smoothing_alpha: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
+    latest_level: DecimalString | None = Field(
+        default=None,
+        pattern=r"^-?(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    latest_drift_per_window: DecimalString | None = Field(
+        default=None,
+        pattern=r"^-?(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    innovation_variance: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("limitations", mode="before")
+    @classmethod
+    def _coerce_limitations(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class DriftMetricDiagnostic(PersistedArtifact):
+    artifact_kind: Literal["drift-metric-diagnostic"] = "drift-metric-diagnostic"
+    metric: DriftMetric
+    label: str = Field(min_length=1)
+    reason_codes: tuple[ReasonCode, ...] = ()
+    interpretation: DriftInterpretation
+    analysis_methods: tuple[DriftAnalysisMethod, ...]
+    prerequisite_status: EndpointPrerequisiteStatus
+    windows: int = Field(ge=0)
+    observations: int = Field(ge=0)
+    missing_windows: int = Field(ge=0)
+    first_value: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    last_value: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    mean_value: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    slope_per_window: DecimalString | None = Field(
+        default=None,
+        pattern=r"^-?(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    max_step_change: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    lag1_autocorrelation: SignedDecimalString | None = Field(
+        default=None,
+        pattern=r"^-?(0|1)\.[0-9]{6}$",
+    )
+    ar1_phi: SignedDecimalString | None = Field(
+        default=None,
+        pattern=r"^-?(0|1)\.[0-9]{6}$",
+    )
+    ar1_intercept: DecimalString | None = Field(
+        default=None,
+        pattern=r"^-?(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    ar1_innovation_variance: DecimalString | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+    )
+    stationarity_signal: DriftStationaritySignal = "none"
+    dependence_signal: DriftStationaritySignal = "none"
+    review_reasons: tuple[str, ...] = ()
+    state_estimate: DriftStateEstimate | None = None
+    limitations: tuple[str, ...] = ()
+
+    @field_validator("reason_codes", mode="before")
+    @classmethod
+    def _coerce_reason_codes(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            return tuple(coerce_enum(ReasonCode, item) for item in value)
+        return value
+
+    @field_validator(
+        "analysis_methods",
+        "review_reasons",
+        "limitations",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+
+class LiveDriftReport(PersistedArtifact):
+    artifact_kind: Literal["live-drift-report"] = "live-drift-report"
+    report_id: str = Field(min_length=1)
+    protocol_id: str | None = None
+    protocol_digest: DigestHex | None = None
+    drift_plan_id: str | None = None
+    suite_id: str = Field(min_length=1)
+    suite_version: str = Field(min_length=1)
+    ordering_variable: DriftOrderingVariable = "window_index"
+    interpretation: DriftInterpretation = "exploratory"
+    state: GateState = GateState.not_evaluated
+    monitoring_status: DriftMonitoringStatus
+    observation_window_start_utc: str | None = None
+    observation_window_end_utc: str | None = None
+    comparability: DriftComparabilityResult
+    windows: tuple[DriftWindowSummary, ...]
+    diagnostics: tuple[DriftMetricDiagnostic, ...]
+    limitations: tuple[str, ...] = (
+        "cross-window monitoring is a review signal and is not a release-verdict gate",
+        "stationarity or drift signals do not establish safety, compliance, clinical "
+        "validity, provider quality, or model intent",
+        "latent-state summaries describe governance health, control reliability, or drift "
+        "state from observable records only",
+    )
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, value: object) -> GateState:
+        return coerce_enum(GateState, value)
+
+    @field_validator("windows", "diagnostics", "limitations", mode="before")
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)

@@ -76,6 +76,7 @@ REQUIRED_CLAIM_IDS = {
     "live-statistical-protocol",
     "live-stochastic-evaluation",
     "live-advanced-statistics",
+    "live-drift-monitoring",
 }
 
 

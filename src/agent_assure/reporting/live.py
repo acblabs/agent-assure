@@ -8,7 +8,7 @@ from agent_assure.privacy.redaction import (
     redact_artifact_payload,
     redact_text,
 )
-from agent_assure.schema.live import LiveComparisonReport, LiveEvaluationReport
+from agent_assure.schema.live import LiveComparisonReport, LiveDriftReport, LiveEvaluationReport
 
 
 def write_live_evaluation_json(report: LiveEvaluationReport, out_dir: Path) -> Path:
@@ -25,6 +25,13 @@ def write_live_comparison_json(report: LiveComparisonReport, out_dir: Path) -> P
     return path
 
 
+def write_live_drift_json(report: LiveDriftReport, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "live-drift-report.json"
+    _write_json(report.model_dump(mode="json"), path)
+    return path
+
+
 def write_live_evaluation_markdown(report: LiveEvaluationReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-evaluation-report.md"
@@ -36,6 +43,13 @@ def write_live_comparison_markdown(report: LiveComparisonReport, out_dir: Path) 
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-comparison-report.md"
     path.write_text(render_live_comparison_markdown(report), encoding="utf-8", newline="\n")
+    return path
+
+
+def write_live_drift_markdown(report: LiveDriftReport, out_dir: Path) -> Path:
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / "live-drift-report.md"
+    path.write_text(render_live_drift_markdown(report), encoding="utf-8", newline="\n")
     return path
 
 
@@ -189,6 +203,84 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
         ]
     )
     lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    return "\n".join(lines) + "\n"
+
+
+def render_live_drift_markdown(report: LiveDriftReport) -> str:
+    lines = [
+        "# Live Drift Report",
+        "",
+        "## Summary",
+        "",
+        f"- State: `{report.state.value}`",
+        f"- Monitoring status: `{report.monitoring_status}`",
+        f"- Interpretation: `{report.interpretation}`",
+        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
+        f"- Protocol: `{report.protocol_id or 'not_evaluated'}`",
+        f"- Drift plan: `{redact_text(report.drift_plan_id or 'default')}`",
+        f"- Ordering variable: `{report.ordering_variable}`",
+        f"- Observation window: `{report.observation_window_start_utc or 'unknown'}` to "
+        f"`{report.observation_window_end_utc or 'unknown'}`",
+        "",
+        "## Comparability",
+        "",
+        f"- Status: `{report.comparability.status}`",
+        f"- Windows: `{report.comparability.compared_windows}`",
+        f"- Suite matches: `{str(report.comparability.suite_matches).lower()}`",
+        f"- Baseline mode matches: "
+        f"`{str(report.comparability.baseline_mode_matches).lower()}`",
+        f"- Analysis method matches: "
+        f"`{str(report.comparability.analysis_method_matches).lower()}`",
+        f"- Protocol digest matches: "
+        f"`{str(report.comparability.protocol_digest_matches).lower()}`",
+        f"- Material fields match: "
+        f"`{str(report.comparability.material_fields_match).lower()}`",
+        f"- Tool-schema digest matches: "
+        f"`{str(report.comparability.tool_schema_digest_matches).lower()}`",
+        f"- Policy-bundle digest matches: "
+        f"`{str(report.comparability.policy_bundle_digest_matches).lower()}`",
+        "",
+        "## Windows",
+        "",
+    ]
+    for window in report.windows:
+        lines.append(
+            f"- `{window.window_id}` runset=`{window.runset_id}` "
+            f"observations=`{window.observations}` "
+            f"included=`{window.included_observations}` "
+            f"excluded=`{window.excluded_observations}` "
+            f"start=`{window.observation_window_start_utc or 'unknown'}` "
+            f"end=`{window.observation_window_end_utc or 'unknown'}` "
+            f"provider_version_unknown=`{str(window.provider_version_unknown).lower()}`"
+        )
+    lines.extend(["", "## Metric Diagnostics", ""])
+    for diagnostic in report.diagnostics:
+        lines.append(
+            f"- `{diagnostic.label}` metric=`{diagnostic.metric}` "
+            f"`{diagnostic.interpretation}` `{diagnostic.prerequisite_status}` "
+            f"windows=`{diagnostic.windows}` missing=`{diagnostic.missing_windows}` "
+            f"first=`{diagnostic.first_value or 'not_evaluated'}` "
+            f"last=`{diagnostic.last_value or 'not_evaluated'}` "
+            f"slope=`{diagnostic.slope_per_window or 'not_evaluated'}` "
+            f"max_step=`{diagnostic.max_step_change or 'not_evaluated'}` "
+            f"stationarity=`{diagnostic.stationarity_signal}` "
+            f"dependence=`{diagnostic.dependence_signal}`"
+        )
+        if diagnostic.state_estimate is not None:
+            estimate = diagnostic.state_estimate
+            lines.append(
+                f"  - `{estimate.state_name}` level="
+                f"`{estimate.latest_level or 'not_evaluated'}` drift="
+                f"`{estimate.latest_drift_per_window or 'not_evaluated'}` "
+                f"alpha=`{estimate.smoothing_alpha}`"
+            )
+        for reason in diagnostic.review_reasons:
+            lines.append(f"  - review signal: {redact_text(reason)}")
+    lines.extend(["", "## Limitations", ""])
+    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    if report.comparability.failures:
+        lines.extend(["", "## Comparability Failures", ""])
+        lines.extend(f"- {redact_text(failure)}" for failure in report.comparability.failures)
     return "\n".join(lines) + "\n"
 
 

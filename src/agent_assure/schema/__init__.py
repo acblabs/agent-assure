@@ -14,6 +14,7 @@ from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
 from agent_assure.schema.live import (
     LiveComparisonReport,
     LiveDistribution,
+    LiveDriftReport,
     LiveEvaluationReport,
     LiveGroupSummary,
     LiveObservationResult,
@@ -69,6 +70,7 @@ __all__ = [
     "GateState",
     "InstalledPackage",
     "LiveComparisonReport",
+    "LiveDriftReport",
     "LiveDistribution",
     "LiveEvaluationReport",
     "LiveGroupSummary",

@@ -110,6 +110,138 @@ def test_live_protocol_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     assert validate_artifact(path, "live-protocol-record") == "pydantic+jsonschema"
 
 
+def test_live_drift_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    metric = {
+        "artifact_kind": "drift-window-metric",
+        "schema_version": "0.2.0",
+        "metric": "expectation_pass_rate",
+        "label": "Expectation pass rate",
+        "value": "0.750000",
+        "numerator": 3,
+        "denominator": 4,
+        "source": "pooled_rate",
+    }
+    payload = {
+        "artifact_kind": "live-drift-report",
+        "schema_version": "0.2.0",
+        "report_id": "live-drift-schema-parity",
+        "protocol_id": "protocol-live-001",
+        "protocol_digest": "1" * 64,
+        "drift_plan_id": "drift-plan-001",
+        "suite_id": "expense-approval-minimal",
+        "suite_version": "0.1.0",
+        "ordering_variable": "window_index",
+        "interpretation": "exploratory",
+        "state": "not_evaluated",
+        "monitoring_status": "exploratory",
+        "comparability": {
+            "artifact_kind": "drift-comparability-result",
+            "schema_version": "0.2.0",
+            "status": "pass",
+            "compared_windows": 2,
+            "suite_matches": True,
+            "baseline_mode_matches": True,
+            "analysis_method_matches": True,
+            "protocol_digest_matches": True,
+            "material_fields_match": True,
+            "tool_schema_digest_matches": True,
+            "policy_bundle_digest_matches": True,
+            "reference_protocol_digest": "1" * 64,
+            "suite_id": "expense-approval-minimal",
+            "suite_version": "0.1.0",
+            "baseline_mode": "concurrent_paired",
+            "analysis_method": "paired_cluster_t_interval",
+        },
+        "windows": [
+            {
+                "artifact_kind": "drift-window-summary",
+                "schema_version": "0.2.0",
+                "window_id": "window-0000",
+                "window_index": 0,
+                "runset_id": "runset-window-0",
+                "suite_id": "expense-approval-minimal",
+                "suite_version": "0.1.0",
+                "protocol_id": "protocol-live-001",
+                "protocol_digest": "1" * 64,
+                "baseline_mode": "concurrent_paired",
+                "analysis_method": "paired_cluster_t_interval",
+                "observations": 4,
+                "included_observations": 4,
+                "excluded_observations": 0,
+                "provider_version_unknown": False,
+                "provider_version_keys": [
+                    "provider=static|model=model|resolved=model-2026|api=2026|sdk=sdk|region=unknown"
+                ],
+                "tool_schema_digests": ["2" * 64],
+                "policy_bundle_digests": ["3" * 64],
+                "metrics": [metric],
+            },
+            {
+                "artifact_kind": "drift-window-summary",
+                "schema_version": "0.2.0",
+                "window_id": "window-0001",
+                "window_index": 1,
+                "runset_id": "runset-window-1",
+                "suite_id": "expense-approval-minimal",
+                "suite_version": "0.1.0",
+                "protocol_id": "protocol-live-001",
+                "protocol_digest": "1" * 64,
+                "baseline_mode": "concurrent_paired",
+                "analysis_method": "paired_cluster_t_interval",
+                "observations": 4,
+                "included_observations": 4,
+                "excluded_observations": 0,
+                "provider_version_unknown": False,
+                "provider_version_keys": [
+                    "provider=static|model=model|resolved=model-2026|api=2026|sdk=sdk|region=unknown"
+                ],
+                "tool_schema_digests": ["2" * 64],
+                "policy_bundle_digests": ["3" * 64],
+                "metrics": [metric],
+            },
+        ],
+        "diagnostics": [
+            {
+                "artifact_kind": "drift-metric-diagnostic",
+                "schema_version": "0.2.0",
+                "metric": "expectation_pass_rate",
+                "label": "Expectation pass rate",
+                "interpretation": "exploratory",
+                "analysis_methods": ["descriptive_trend", "state_space_ewma"],
+                "prerequisite_status": "met",
+                "windows": 2,
+                "observations": 8,
+                "missing_windows": 0,
+                "first_value": "0.750000",
+                "last_value": "0.750000",
+                "mean_value": "0.750000",
+                "slope_per_window": "0.000000",
+                "max_step_change": "0.000000",
+                "stationarity_signal": "none",
+                "dependence_signal": "none",
+                "state_estimate": {
+                    "artifact_kind": "drift-state-estimate",
+                    "schema_version": "0.2.0",
+                    "state_name": "governance_health",
+                    "metric": "expectation_pass_rate",
+                    "label": "Expectation pass rate",
+                    "prerequisite_status": "met",
+                    "smoothing_alpha": "0.300000",
+                    "latest_level": "0.750000",
+                    "latest_drift_per_window": "0.000000",
+                    "innovation_variance": "0.000000",
+                },
+            }
+        ],
+    }
+    model = SCHEMA_MODELS["live-drift-report"]
+    model.model_validate(payload)
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+    path = tmp_path / "live-drift.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert validate_artifact(path, "live-drift-report") == "pydantic+jsonschema"
+
+
 def test_emergency_process_record_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
     payload = {
         "artifact_kind": "emergency-process-record",

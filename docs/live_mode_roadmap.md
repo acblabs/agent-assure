@@ -40,6 +40,13 @@ Implemented live-mode pieces include:
   when exchangeability is predeclared;
 - protocol-declared paired-cluster and fixed-reference live comparison reports
   with exploratory guardrails for low cluster counts;
+- protocol-bound cross-window drift monitoring reports with suite/protocol,
+  tool-schema, policy-bundle, baseline-mode, and analysis-method
+  comparability checks; timestamp-order validation; ordered trend,
+  adjacent-step, separate lag-1 autocorrelation and AR(1) dependence
+  diagnostics, and EWMA governance-health or control-reliability summaries with
+  method-specific minimum-window gates and exploratory review-signal labeling
+  by default;
 - latency and estimated-cost distributions;
 - optional OpenTelemetry SDK span emission and OTLP HTTP export from
   privacy-filtered span plans when `agent-assure[otel]` is installed.

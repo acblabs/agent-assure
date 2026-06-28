@@ -55,7 +55,7 @@ def run_live_suite(
         )
     adapter = build_adapter(config.adapter, base_dir=config_dir)
     configuration_digest = _configuration_digest(compiled, config)
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     spent = Decimal("0")
     total_tokens_spent = 0
     generated_tokens_spent = 0
@@ -484,7 +484,7 @@ def _validate_protocol_config(
     protocol: LiveProtocolRecord,
 ) -> None:
     suite_digest = sha256_hexdigest(compiled.model_dump(mode="json"))
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     if protocol.suite_id != compiled.suite_id:
         raise ValueError("live protocol suite_id does not match compiled suite")
     if protocol.suite_version != compiled.suite_version:

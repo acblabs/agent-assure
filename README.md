@@ -14,13 +14,14 @@ evidence packets, and CI gates across synthetic prior-authorization and minimal
 expense-approval examples. The development branch also includes explicit
 live-adapter commands for protocol-bound repeated provider observations,
 cluster-aware stochastic rates, paired or fixed-reference live comparisons,
-completion/provenance checks, external-script subprocess execution with
-emergency process records, runtime trace-context propagation, optional
-OpenTelemetry SDK span emission, optional OTLP export, cost/latency reports,
-and optional protocol-declared advanced statistical endpoints for rare-event
-upper bounds, observed cluster-correlation summaries, and paired randomization
-tests. Live reports label whether a confidence interval is centered on pooled
-rate or cluster mean rate. Live reports are time-bound operational evidence for
+cross-window drift monitoring review signals, completion/provenance checks,
+external-script subprocess execution with emergency process records, runtime
+trace-context propagation, optional OpenTelemetry SDK span emission, optional
+OTLP export, cost/latency reports, and optional protocol-declared advanced
+statistical endpoints for rare-event upper bounds, observed
+cluster-correlation summaries, and paired randomization tests. Live reports
+label whether a confidence interval is centered on pooled rate or cluster mean
+rate. Live reports are time-bound operational evidence for
 declared provider/model/configuration windows; they do not establish safety
 assurance, validate clinical use, prove regulatory compliance, provide general
 provider-quality evidence, or claim OpenTelemetry adoption. Release evidence

@@ -68,7 +68,7 @@ raise SystemExit(9)
         encoding="utf-8",
     )
     protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     config = LiveRunConfig(
         variant_id="external-live",
         pipeline_id="expense-live",
@@ -122,7 +122,7 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
         encoding="utf-8",
     )
     protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     config = _static_config(prompt, responses, protocol, protocol_digest)
 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
@@ -157,7 +157,7 @@ def test_live_runner_records_post_response_budget_stop(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     config = _static_config(prompt, responses, protocol, protocol_digest)
 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)

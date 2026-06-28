@@ -12,11 +12,14 @@ from agent_assure.fixtures.loader import compiled_suite_digest, load_compiled_su
 from agent_assure.live.adapters import adapter_ids
 from agent_assure.live.comparison import compare_live_reports, load_live_evaluation_report
 from agent_assure.live.config import load_live_run_config
+from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.runner import run_live_suite
 from agent_assure.live.statistics import evaluate_live_runset
 from agent_assure.reporting.live import (
     write_live_comparison_json,
     write_live_comparison_markdown,
+    write_live_drift_json,
+    write_live_drift_markdown,
     write_live_evaluation_json,
     write_live_evaluation_markdown,
 )
@@ -92,6 +95,35 @@ def evaluate(
         f"pass_rate={report.overall.expectation_pass_rate.rate}"
     )
     if report.state is GateState.fail:
+        raise typer.Exit(1)
+
+
+@app.command("drift")
+def drift(
+    report_paths: Annotated[
+        list[Path],
+        typer.Argument(exists=True, readable=True, help="Ordered live evaluation reports."),
+    ],
+    protocol_path: Annotated[
+        Path,
+        typer.Option("--protocol", exists=True, readable=True, help="Live protocol JSON."),
+    ],
+    out_dir: Annotated[Path, typer.Option("--out-dir", help="Report output directory.")],
+) -> None:
+    try:
+        reports = tuple(load_live_evaluation_report(path) for path in report_paths)
+        protocol_record = _load_protocol(protocol_path)
+        report = build_live_drift_report(reports, protocol=protocol_record)
+    except (KeyError, ValueError, TypeError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    write_live_drift_json(report, out_dir)
+    write_live_drift_markdown(report, out_dir)
+    console.print(
+        "live drift: "
+        f"status={report.monitoring_status} windows={len(report.windows)} "
+        f"comparability={report.comparability.status}"
+    )
+    if report.monitoring_status == "invalid":
         raise typer.Exit(1)
 
 

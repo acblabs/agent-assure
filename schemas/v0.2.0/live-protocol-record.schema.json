@@ -70,6 +70,225 @@
       "title": "AdvancedAnalysisPlan",
       "type": "object"
     },
+    "DriftMetricPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_methods": {
+          "default": [
+            "descriptive_trend"
+          ],
+          "items": {
+            "enum": [
+              "descriptive_trend",
+              "lag1_autocorrelation",
+              "ar1_summary",
+              "state_space_ewma"
+            ],
+            "type": "string"
+          },
+          "title": "Analysis Methods",
+          "type": "array"
+        },
+        "ar1_review_threshold": {
+          "default": "0.500000",
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Ar1 Review Threshold",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "drift-metric-plan",
+          "default": "drift-metric-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "autocorrelation_review_threshold": {
+          "default": "0.500000",
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Autocorrelation Review Threshold",
+          "type": "string"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "metric": {
+          "enum": [
+            "expectation_pass_rate",
+            "reason_code_rate",
+            "exclusion_rate",
+            "retry_rate",
+            "rate_limit_rate",
+            "latency_p50_ms",
+            "cost_total_usd"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "minimum_dependence_windows": {
+          "default": 8,
+          "minimum": 8,
+          "title": "Minimum Dependence Windows",
+          "type": "integer"
+        },
+        "minimum_observations_per_window": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Observations Per Window",
+          "type": "integer"
+        },
+        "minimum_state_space_windows": {
+          "default": 6,
+          "minimum": 6,
+          "title": "Minimum State Space Windows",
+          "type": "integer"
+        },
+        "minimum_windows": {
+          "default": 6,
+          "minimum": 2,
+          "title": "Minimum Windows",
+          "type": "integer"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "slope_review_threshold": {
+          "default": "0.050000",
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Slope Review Threshold",
+          "type": "string"
+        },
+        "state_space_alpha": {
+          "default": "0.300000",
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "State Space Alpha",
+          "type": "string"
+        },
+        "step_review_threshold": {
+          "default": "0.100000",
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Step Review Threshold",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "label"
+      ],
+      "title": "DriftMetricPlan",
+      "type": "object"
+    },
+    "DriftMonitoringPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "allow_bounded_sensitivity_on_comparability_failure": {
+          "default": false,
+          "title": "Allow Bounded Sensitivity On Comparability Failure",
+          "type": "boolean"
+        },
+        "artifact_kind": {
+          "const": "drift-monitoring-plan",
+          "default": "drift-monitoring-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "comparability_mode": {
+          "default": "strict_protocol_digest",
+          "enum": [
+            "strict_protocol_digest",
+            "material_fields"
+          ],
+          "title": "Comparability Mode",
+          "type": "string"
+        },
+        "drift_hypothesis": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Drift Hypothesis"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "known_provider_version_unknowns": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Provider Version Unknowns",
+          "type": "array"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/DriftMetricPlan"
+          },
+          "minItems": 1,
+          "title": "Metrics",
+          "type": "array"
+        },
+        "ordering_variable": {
+          "default": "window_index",
+          "enum": [
+            "window_index",
+            "window_start_utc",
+            "release_sequence",
+            "provider_version_window"
+          ],
+          "title": "Ordering Variable",
+          "type": "string"
+        },
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "metrics"
+      ],
+      "title": "DriftMonitoringPlan",
+      "type": "object"
+    },
     "ReasonCode": {
       "enum": [
         "EXPECTED_OUTCOME_MISMATCH",
@@ -348,6 +567,17 @@
       "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
       "title": "Design Effect",
       "type": "string"
+    },
+    "drift_monitoring_plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DriftMonitoringPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "exclusion_policy": {
       "minLength": 1,

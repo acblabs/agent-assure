@@ -13,7 +13,12 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
-from agent_assure.schema.live import LiveComparisonReport, LiveEvaluationReport, LiveProtocolRecord
+from agent_assure.schema.live import (
+    LiveComparisonReport,
+    LiveDriftReport,
+    LiveEvaluationReport,
+    LiveProtocolRecord,
+)
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
 from agent_assure.schema.run import AgentRunRecord, RunSet
@@ -37,6 +42,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "expectation-change-record": ExpectationChangeRecord,
     "fixture-manifest": FixtureManifest,
     "live-comparison-report": LiveComparisonReport,
+    "live-drift-report": LiveDriftReport,
     "live-evaluation-report": LiveEvaluationReport,
     "live-protocol-record": LiveProtocolRecord,
     "release-artifact-manifest": ReleaseArtifactManifest,

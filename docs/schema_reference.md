@@ -19,6 +19,7 @@ Exported roots:
 - `expectation-change-record`
 - `fixture-manifest`
 - `live-comparison-report`
+- `live-drift-report`
 - `live-evaluation-report`
 - `live-protocol-record`
 - `release-artifact-manifest`
@@ -52,11 +53,15 @@ Live-specific root artifacts:
   size, planned repetitions, randomization blocking, retry policy, exclusion
   policy, rate-limit caps, provider-version capture plan, request/token/cost
   limits, stopping rules, tool-schema digest, policy-bundle digest, analysis
-  digest, optional advanced statistical endpoint plan, approved data boundary,
-  and safety limits. Advanced endpoint plans declare endpoint IDs, roles,
-  confirmatory or exploratory interpretation, prerequisite counts, reason-code
-  families, rare-event exposure units, exchangeability assumptions, and
-  multiplicity controls.
+  digest, optional advanced statistical endpoint plan, optional drift
+  monitoring plan, approved data boundary, and safety limits. Advanced endpoint
+  plans declare endpoint IDs, roles, confirmatory or exploratory
+  interpretation, prerequisite counts, reason-code families, rare-event
+  exposure units, exchangeability assumptions, and multiplicity controls. Drift
+  monitoring plans declare ordered-window metrics, comparability mode,
+  exploratory or confirmatory interpretation, prerequisite window and
+  observation counts, dependence and state-summary minimum window counts,
+  review thresholds, and EWMA smoothing factors.
 - `live-evaluation-report` records per-observation expectation results,
   inclusion/exclusion accounting, aggregate pass rates, outcome rates,
   reason-code rates, pooled and cluster-mean rates, cluster counts, design
@@ -83,6 +88,20 @@ Live-specific root artifacts:
   assumption. Monte Carlo seeds are deterministic integers derived from
   protocol-bound seed material; the report cannot prove exchangeability beyond
   the declared assumption and structural pairing checks.
+- `live-drift-report` records ordered cross-window monitoring over live
+  evaluation reports. It includes a comparability result for suite identity,
+  baseline mode, analysis method, protocol digest, material field match,
+  tool-schema digest, policy-bundle digest, and timestamp-order validity;
+  per-window observation counts, provider-version metadata availability,
+  observation-window timestamps when available, and metric values; and
+  per-metric diagnostics for trend, adjacent-window step changes, separate
+  dependence signals from lag-1 autocorrelation and optional AR(1) summaries,
+  and EWMA governance-health or control-reliability state estimates when their
+  declared window thresholds are met. Dependence thresholds have an eight-window
+  floor and EWMA state thresholds have a six-window floor. Drift reports are
+  exploratory by default, use `not_evaluated` gate state, and keep drift signals separate from
+  release-verdict evidence unless a reviewed protocol separately predeclares a
+  stronger interpretation.
 - `emergency-process-record` records redacted subprocess failure metadata for
   configured external scripts, including failure kind, command digest,
   executable/script names, working-directory digest, observation/run/case

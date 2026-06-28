@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -17,7 +18,7 @@ from agent_assure.fixtures.manifest import build_fixture_manifest  # noqa: E402
 SUITE_YAML = ROOT / "examples" / "prior_auth_synthetic" / "suite.yaml"
 SUITE_ROOT = SUITE_YAML.parent
 GOLDEN_ROOT = ROOT / "tests" / "golden" / "compiled_suites"
-GOLDENS = {
+GOLDENS: dict[Path, Callable[[], Any]] = {
     GOLDEN_ROOT / "prior_auth_synthetic.compiled.json": lambda: compile_suite(
         SUITE_YAML
     ).model_dump(mode="json"),

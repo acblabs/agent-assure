@@ -37,6 +37,12 @@ def ensure_nfc(value: str) -> str:
 
 
 def digest_projection(value: Any) -> Any:
+    """Project typed values into deterministic canonical digest material.
+
+    Explicit ``None`` values are preserved as identity data. Digest roles that
+    need missing fields and null fields to be equivalent must apply a
+    role-specific projection before using this generic path.
+    """
     if isinstance(value, Decimal):
         return normalize_decimal(value)
     if isinstance(value, str):

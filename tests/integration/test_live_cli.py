@@ -9,7 +9,7 @@ from typer.testing import CliRunner
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.cli.main import app
 from agent_assure.schema.common import GateState
-from agent_assure.schema.live import LiveEvaluationReport, LiveProtocolRecord
+from agent_assure.schema.live import LiveDriftReport, LiveEvaluationReport, LiveProtocolRecord
 from agent_assure.schema.run import RunSet
 
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
@@ -20,6 +20,7 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
     compiled_path = tmp_path / "expense.compiled.json"
     runset_path = tmp_path / "expense.live.json"
     report_dir = tmp_path / "live-report"
+    drift_dir = tmp_path / "live-drift"
     prompt_path = tmp_path / "prompt-exp-001.txt"
     responses_path = tmp_path / "responses.jsonl"
     config_path = tmp_path / "live.yaml"
@@ -46,7 +47,7 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
         json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
-    protocol_digest = sha256_hexdigest(protocol.model_dump(mode="json"))
+    protocol_digest = sha256_hexdigest(protocol)
     config_path.write_text(
         yaml.safe_dump(
             {
@@ -126,6 +127,27 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
     assert report.overall.expectation_pass_rate.rate == "0.500000"
     assert report.overall.expectation_pass_rate.effective_n == "1.666667"
     assert (report_dir / "live-evaluation-report.md").exists()
+
+    drift_result = RUNNER.invoke(
+        app,
+        [
+            "live",
+            "drift",
+            str(report_dir / "live-evaluation-report.json"),
+            str(report_dir / "live-evaluation-report.json"),
+            "--protocol",
+            str(protocol_path),
+            "--out-dir",
+            str(drift_dir),
+        ],
+    )
+    assert drift_result.exit_code == 0, drift_result.output
+    drift_report = LiveDriftReport.model_validate_json(
+        (drift_dir / "live-drift-report.json").read_text(encoding="utf-8")
+    )
+    assert drift_report.state is GateState.not_evaluated
+    assert drift_report.comparability.status == "pass"
+    assert (drift_dir / "live-drift-report.md").exists()
 
 
 def _write_jsonl(path: Path, rows: list[dict[str, object]]) -> None:

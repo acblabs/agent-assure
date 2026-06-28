@@ -58,6 +58,22 @@ that included clusters and included case/repetition sets match, but the
 exchangeability assumption remains a reviewed design assumption rather than a
 property the tool can prove.
 
+Cross-window live drift reports are monitoring artifacts. They compare ordered
+live evaluation windows only after a comparability check over suite identity,
+baseline mode, analysis method, protocol digest, tool-schema digest, and
+policy-bundle digest, and they reject nonmonotonic timestamp order when window
+timestamps are available. Trend and adjacent-step diagnostics are separate from
+serial-dependence diagnostics such as lag-1 autocorrelation and AR(1).
+Autocorrelation, AR(1), and EWMA state summaries are suppressed until their
+declared ordered-window thresholds are met; dependence and AR(1) summaries
+require at least eight ordered windows, and EWMA state summaries require at
+least six. All of these outputs are exploratory by default and are review
+signals, not release verdicts. The default autocorrelation and AR(1) review
+thresholds are governance heuristics rather than calibrated null false-positive
+rates. EWMA state labels such as governance health, control reliability, and drift state refer
+only to observable governance records; they are not claims about model intent,
+reasoning, consciousness, or hidden mental state.
+
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
 
