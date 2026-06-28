@@ -54,6 +54,11 @@ separation of governance-control findings from operational reliability
 warnings, retry burst detection, missing-timestamp labeling, and counted-event
 handling that does not invent timestamps.
 
+These checks cover Markov-style adjacent-state summaries,
+history-dependent/non-Markov sequence conditions, and burst-window reliability
+signals. They do not calibrate a fitted Hawkes or other point-process intensity
+model.
+
 `tests/integration/test_live_cli.py` exercises the CLI path end to end with the
 static adapter: live run, live evaluate, live drift, and live trajectory all
 write schema-valid JSON and Markdown reports from synthetic local inputs.

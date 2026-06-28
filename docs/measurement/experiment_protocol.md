@@ -142,6 +142,12 @@ family-wise method is single-step Bonferroni; step-down Holm and fixed-sequence
 gatekeeping require joint endpoint decision logic and are not accepted by the
 current schema.
 
+These methods are included because live agent observations are probabilistic,
+clustered, and often non-repeatable at the individual-call level. The protocol
+therefore favors predeclared endpoint families, distribution-free paired tests
+when the design permits them, explicit multiplicity control, and one-sided
+rare-event bounds over ad hoc post-hoc interpretation.
+
 Each advanced endpoint must be interpreted under its declared prerequisites:
 
 | Method | Minimum design information | Confirmatory status |
@@ -245,6 +251,13 @@ flags, complete claim-to-evidence link history, or retry counters after
 previous provider-call attempts, are represented as separate history-dependent
 checks.
 
+This gives reviewers a state-space view of observable execution paths. Simple
+transition summaries can be read as Markov-style descriptions of adjacent
+states, while the explicit history-dependent checks capture non-Markov
+conditions whose validity depends on the prior path. This is transition-path
+accounting over persisted artifacts, not a literal physics path-integral claim
+or a claim about hidden model state.
+
 Trajectory invariants may identify governance-control review findings, such as
 an approval trajectory that lacks a required human-review state or reaches final
 approval without complete material claim evidence links. They may also identify
@@ -265,6 +278,11 @@ observed and the remaining event times are marked missing. Event-process outputs
 are invalid or exploratory when exposure, event count, timestamp coverage, or
 ordering metadata are insufficient. A burst signal is a reliability review
 signal, not a direct governance pass/fail verdict.
+
+Burst-window screens are conceptually related to self-exciting point-process
+surveillance because retries and rate limits can cascade. The current
+implementation reports bounded review signals rather than fitting a Hawkes or
+other point-process intensity model.
 
 Path coverage metrics describe only observed structured trajectories in the
 declared run. They are sampled evidence, not proof that unsafe paths are
@@ -368,6 +386,10 @@ one-sided confidence bound, not as proof of absence. Reports expose
 `interval_sidedness=one_sided_upper` on rare-event bound artifacts so this
 result is not confused with the two-sided rate intervals elsewhere in the live
 report.
+
+At 95 percent confidence, the common zero-event approximation is about
+`3 / exposure`; reports should still use the implemented Poisson bound artifact
+and should not describe zero observed events as a `0% failure rate`.
 
 Latency and cost summaries should use bootstrap intervals for medians and tail
 quantiles. Normal approximations are not acceptable for skewed operational

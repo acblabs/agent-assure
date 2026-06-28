@@ -1,9 +1,10 @@
 # Executive One Pager
 
-`agent-assure` is a reproducible assurance substrate for deterministic AI agent
-governance pipelines. It helps teams review whether a change preserved
+`agent-assure` is a local, reproducible assurance and measurement substrate for
+AI agent governance pipelines. It helps teams review whether a change preserved
 expectations, evidence links, provider/tool controls, redaction boundaries,
-escalation behavior, and human-review routing under fixed local fixtures.
+escalation behavior, human-review routing, and declared live-protocol
+assumptions without adopting a hosted governance platform.
 
 ## The Problem
 
@@ -15,21 +16,31 @@ human-review requirement, or leaking sensitive summary content.
 Raw output hashes do not solve this. A hash can prove that material changed, but
 it cannot decide whether the change violated an expectation.
 
+Live agent behavior adds another measurement problem: repeated observations are
+often correlated by case, source document, provider window, retry pattern, or
+tool path. Treating every call as an independent pass/fail sample can overstate
+confidence and hide operational burst behavior.
+
 ## The Method
 
-`agent-assure` treats expectations as the primary oracle:
+`agent-assure` treats expectations as the primary oracle and protocols as the
+boundary for live interpretation:
 
 - compile labeled YAML suites into strict JSON artifacts;
 - run baseline and candidate variants against identical local fixtures;
 - evaluate the candidate against expectations and deterministic controls;
 - compare baseline and candidate only after fixture equivalence passes;
 - report provenance changes separately from verdict-bearing findings;
+- run live observations only through declared adapters and frozen statistical
+  protocols;
+- preserve cluster structure, interval-center metadata, retry/exclusion status,
+  provider/model provenance, cost, and latency;
 - package summaries, environment metadata, digests, and interpretation guidance
   into reviewable evidence packets.
 
-The current implementation is offline and deterministic. It does not require a
-model-provider API key, live network calls, or token spend for the included
-examples.
+The included fixture examples are offline and deterministic. They do not
+require a model-provider API key, live network calls, or token spend. Live mode
+is explicit, protocol-bound, and opt-in.
 
 ## Flagship Result
 
@@ -73,6 +84,18 @@ The repository includes:
 - explicit live-adapter commands for protocol-bound repeated observations,
   cluster-aware expectation-pass rates, provider/model group summaries,
   protocol-declared comparisons, and cost/latency distributions.
+- optional advanced live endpoints for rare-event Poisson upper bounds,
+  observed intraclass-correlation summaries, Bonferroni-controlled endpoint
+  families, and paired exact or Monte Carlo randomization tests when design
+  prerequisites are met;
+- trajectory, drift, and operational event-process reports that surface
+  observable state paths, history-dependent sequence checks, retry/rate-limit
+  cascades, and burst-window reliability review signals;
+- static JSONL, no-shell external-script, and OpenAI-compatible
+  chat-completions adapters, with the OpenAI adapter implemented using Python
+  standard-library HTTP support;
+- optional OpenTelemetry SDK span emission and OTLP HTTP export from
+  privacy-filtered span plans when `agent-assure[otel]` is installed.
 
 ## Boundaries
 

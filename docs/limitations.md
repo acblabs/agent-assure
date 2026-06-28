@@ -90,6 +90,14 @@ ordering metadata, or weak transition support make trajectory and event-process
 outputs exploratory or invalid. Observed path coverage is sampled evidence over
 the declared run, not proof that unsafe paths are impossible.
 
+Statistical, state-space, and event-process language in this repository refers
+to bounded analyses over observable artifacts. Markov-style transition
+summaries describe adjacent structured states; history-dependent checks cover
+non-Markov sequence conditions; burst-window event-process screens identify
+operational reliability review signals. The current implementation does not fit
+a Hawkes intensity model, infer hidden model state, or make literal physics
+path-integral claims.
+
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
 

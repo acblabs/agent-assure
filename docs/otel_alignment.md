@@ -5,6 +5,19 @@ It can also emit OpenTelemetry SDK spans and export OTLP HTTP data when the
 optional `agent-assure[otel]` dependencies are installed. This remains an
 implementation feature, not a claim of adoption by the OpenTelemetry project.
 
+The implemented trace path is intentionally narrow and auditable:
+
+- live runs create or accept W3C `traceparent` context;
+- the static JSONL, external-script, and OpenAI-compatible adapters receive
+  that context through their declared request surfaces;
+- the OpenAI-compatible adapter forwards `traceparent` and `tracestate` on the
+  standard-library `urllib.request` HTTP request when present;
+- external scripts receive trace context in request JSON and runner-injected
+  environment variables;
+- persisted run records and span plans carry the filtered context needed to
+  correlate artifacts without storing raw prompts, raw outputs, or an OTel
+  attribute bag.
+
 The preview is derived from structured `AgentRunRecord` fields. Run records do
 not persist an `otel_attributes` dictionary.
 
@@ -36,6 +49,10 @@ This is projection from persisted artifacts, not live instrumentation of the
 adapter HTTP request or external subprocess lifecycle. Span timing and latency
 attributes therefore reflect recorded run metadata rather than SDK spans opened
 around provider calls or child processes.
+
+For this reason, public documentation should describe the project as
+OpenTelemetry-aligned, with optional SDK/OTLP export, rather than
+OpenTelemetry adoption, conformance, or standards acceptance.
 
 Project-specific provenance remains under the `agent_assure.*` namespace. The
 current gap assessment and contribution stance are documented in

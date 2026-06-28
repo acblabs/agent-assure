@@ -15,7 +15,9 @@ flagship fixture suite, an evidence-normalization candidate preserves the
 visible recommendation and outcome for a shared-source case while losing the
 material `claim-duration` evidence link; the invariant failure is reproducible
 under equivalent fixtures and classified as a new failure. The approach is
-deliberately scoped to offline fixture-mode assurance. It does not use the
-repository's live-adapter path, estimate live model-quality rates, establish
-safety assurance, prove regulatory compliance, validate clinical use, or claim
-standards adoption.
+deliberately scoped to offline fixture-mode assurance. The broader repository
+also includes a separately scoped, protocol-bound live evaluation path, but
+those live statistical, drift, trajectory, and event-process reports are
+outside this paper's empirical contribution. This report does not estimate live
+model-quality rates, establish safety assurance, prove regulatory compliance,
+validate clinical use, or claim standards adoption.

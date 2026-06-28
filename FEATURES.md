@@ -1,5 +1,34 @@
 # Features
 
+## Differentiators
+
+- Local-first assurance: commands run from a `pip` install and write review
+  artifacts in the caller's workspace without a hosted governance platform.
+- Offline fixture assurance: included fixture demos and CI gates run without a
+  provider API key, network call, or token spend.
+- Expectation-driven measurement: candidate behavior is judged against labeled
+  expectations, policy controls, and invariants before baseline comparison or
+  provenance diffs are interpreted.
+- Protocol-bound stochastic evaluation: live reports preserve clustering,
+  distinguish pooled and cluster-mean rates, expose design-effect and
+  effective-sample metadata, and keep low-data analyses exploratory.
+- Advanced statistical review aids: optional endpoint plans support rare-event
+  Poisson upper bounds, observed intraclass-correlation summaries,
+  Bonferroni-controlled confirmatory endpoint families, and paired exact or
+  Monte Carlo randomization tests when design prerequisites are declared and
+  met.
+- Observable trajectory and event-process analysis: live trajectory reports
+  summarize state paths, transition profiles, history-dependent sequence
+  checks, retry/rate-limit/failure event streams, and burst-window review
+  signals from privacy-filtered structured artifacts.
+- Thin integration surface: live execution includes static JSONL,
+  external-script, and OpenAI-compatible chat-completions adapters; the OpenAI
+  adapter uses Python standard-library HTTP support rather than an additional
+  provider SDK dependency.
+- OpenTelemetry-aligned evidence: W3C `traceparent` context can flow through
+  live runs and into privacy-filtered span plans, with optional SDK span
+  emission and OTLP HTTP export when `agent-assure[otel]` is installed.
+
 ## Implemented
 
 - Offline package and CLI skeleton.

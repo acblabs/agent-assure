@@ -45,6 +45,12 @@ external-script subprocess failures. They still do not persist raw prompts,
 raw provider outputs, tool arguments, retrieval records, risk tags, or
 capability inventories.
 
+The implemented live adapter IDs include `static-jsonl`,
+`openai-chat-completions`, and `external-script`. The OpenAI-compatible adapter
+is configured through the live adapter schema, requires explicit network opt-in
+and HTTPS endpoint allowlisting, and is implemented through Python
+standard-library HTTP support rather than a provider SDK dependency.
+
 Live-specific root artifacts:
 
 - `live-protocol-record` records the declared protocol identity, suite digest,
@@ -128,6 +134,10 @@ Live-specific root artifacts:
   arguments, sensitive identifiers, or unredacted summaries, and treats path
   coverage as sampled review evidence rather than proof that unsafe paths are
   impossible.
+  Transition profiles are adjacent-state summaries over observable structured
+  artifacts, while history-dependent checks capture non-Markov sequence
+  conditions. Burst-window event-process outputs are reliability review signals,
+  not fitted Hawkes intensity estimates.
 - `emergency-process-record` records redacted subprocess failure metadata for
   configured external scripts, including failure kind, command digest,
   executable/script names, working-directory digest, observation/run/case

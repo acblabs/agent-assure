@@ -137,14 +137,14 @@ claims:
       schemas: [live-protocol-record]
     limitations: The protocol is a planning and review boundary. It does not by itself establish safety, compliance, clinical validity, provider quality, or OpenTelemetry adoption.
   - id: live-stochastic-evaluation
-    claim: Explicit live commands require a frozen live protocol, run configured provider adapters, produce protocol-bound repeated live RunSets, aggregate cluster-aware expectation-pass, outcome, reason-code, and exclusion rates, report pooled and cluster-mean rates with explicit interval-center metadata, account for incomplete stops and provenance digests, summarize provider/model groups, compare live reports using protocol-declared paired or fixed-reference methods with exploratory guardrails, and report cost/latency distributions.
+    claim: Explicit live commands require a frozen live protocol, run configured provider adapters including static JSONL, no-shell external-script, and standard-library-HTTP OpenAI-compatible chat-completions adapters, produce protocol-bound repeated live RunSets, aggregate cluster-aware expectation-pass, outcome, reason-code, and exclusion rates, report pooled and cluster-mean rates with explicit interval-center metadata, account for incomplete stops and provenance digests, summarize provider/model groups, compare live reports using protocol-declared paired or fixed-reference methods with exploratory guardrails, and report cost/latency distributions.
     evidence:
       schemas: [agent-run-record, run-set, live-evaluation-report, live-comparison-report]
       code: [src/agent_assure/live, src/agent_assure/cli/live_cmd.py, src/agent_assure/reporting/live.py]
       tests: [tests/unit/evaluation/test_live_statistics.py, tests/unit/evaluation/test_live_runner.py, tests/integration/test_live_cli.py]
       commands: [agent-assure live adapters, agent-assure live run, agent-assure live evaluate, agent-assure live compare]
       docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/schema_reference.md, docs/live_calibration.md]
-    limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
+    limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. The OpenAI-compatible adapter requires explicit network opt-in, HTTPS, an API key environment variable, and endpoint-host allowlisting. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
   - id: live-advanced-statistics
     claim: Optional advanced live endpoint plans bind confirmatory or exploratory statistical endpoints to the frozen protocol digest, report rare-event Poisson upper bounds at the protocol confidence level, observed cluster-correlation summaries with uncertainty, Bonferroni multiplicity controls for confirmatory endpoint families, deterministic integer-seeded resampling, and paired exact or Monte Carlo randomization tests only when structural pairing checks and declared design prerequisites are met.
     evidence:

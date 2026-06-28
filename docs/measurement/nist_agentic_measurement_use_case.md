@@ -1,15 +1,18 @@
 # Agentic Measurement Use Case
 
-This brief frames a narrow, reproducible measurement problem for AI agent
-governance pipelines: a candidate implementation can preserve the visible task
-answer while regressing the evidence, policy, redaction, escalation, or review
-logic around that answer.
+This brief frames a reproducible measurement problem for AI agent governance
+pipelines: a candidate implementation can preserve the visible task answer
+while regressing the evidence, policy, redaction, escalation, review, live
+protocol, or observable trajectory behavior around that answer.
 
-The method is intentionally deterministic. `agent-assure` holds model outputs,
-tool outputs, requests, expectations, and fixture manifests fixed, then
-evaluates the candidate RunSet against labeled expectations and built-in
+The fixture method is intentionally deterministic. `agent-assure` holds model
+outputs, tool outputs, requests, expectations, and fixture manifests fixed,
+then evaluates the candidate RunSet against labeled expectations and built-in
 governance controls. Baseline comparison is secondary context. Hashes and
-digests describe provenance; they are not behavioral verdicts.
+digests describe provenance; they are not behavioral verdicts. The live method
+is intentionally protocol-bound: repeated stochastic observations are
+interpreted only under declared provider/model windows, clustering assumptions,
+comparison methods, retry/exclusion rules, budgets, and data boundaries.
 
 This is a NIST-style measurement use case because it is written for test,
 evaluation, verification, validation, and assurance review audiences. It is not
@@ -21,13 +24,22 @@ validation claim.
 Can a deterministic fixture-mode assurance harness detect governance-pipeline
 regressions that are missed by raw answer comparison or provenance hashing?
 
-The specific v0.1 question is narrower:
+The deterministic fixture-mode question is narrower:
 
 ```text
 Given a fixed fixture suite and compiled labeled expectations, does the
 candidate RunSet violate any expected outcome, material evidence-link invariant,
 provider/tool policy, redaction boundary, prompt-boundary rule, escalation rule,
 or human-review control?
+```
+
+The live stochastic question is:
+
+```text
+Given a frozen live protocol, do repeated observations preserve declared
+expectation-pass, reason-code, outcome, exclusion, cost, latency, trajectory,
+and operational event-process bounds under the stated clustering and
+comparability assumptions?
 ```
 
 ## Unit Under Test
@@ -49,6 +61,12 @@ protocol-bound repeated observations and operational rate, cost, and latency
 reports. These reports do not establish safety assurance, prove regulatory
 compliance, validate clinical workflows, provide general provider-quality
 evidence, or support general stochastic model-quality claims.
+
+For live reports, the unit under test also includes the declared adapter and
+execution boundary. The implementation provides static JSONL, no-shell
+external-script, and OpenAI-compatible chat-completions adapters. The
+OpenAI-compatible adapter uses Python standard-library HTTP support, requires
+explicit network opt-in, and enforces HTTPS plus endpoint-host allowlisting.
 
 ## Measurement Method
 

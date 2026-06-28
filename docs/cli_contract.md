@@ -96,10 +96,12 @@ payload includes the original prompt text. Subprocess spawn failures, timeouts,
 nonzero exits, invalid stdout, and stdout that fails the structured output
 contract create redacted `emergency-process-record` artifacts on the RunSet and
 a structured-output or runtime-failure live record. The OpenAI-compatible
-chat-completions adapter requires explicit `allow_network: true` in the live
-config and an API key environment variable. OpenAI cost is recorded as a local
-estimate when token pricing is configured and as not reported otherwise; it is
-not a billing assertion. Live run records store redacted
+chat-completions adapter uses Python standard-library HTTP support, requires
+explicit `allow_network: true` in the live config, requires HTTPS and an API key
+environment variable, and validates non-default endpoint hosts against the
+declared allowlist. OpenAI cost is recorded as a local estimate when token
+pricing is configured and as not reported otherwise; it is not a billing
+assertion. Live run records store redacted
 summaries, provider/model labels, resolved provider-version metadata when
 required by the protocol, observation IDs, trace context, cluster/source-group
 IDs, repetition and schedule indexes, attempt/retry/rate-limit counters,
@@ -186,6 +188,12 @@ does not prove unsafe paths are impossible. Missing timestamps, low event
 counts, low exposure, weak transition support, or incompatible protocol binding
 mark the affected outputs exploratory or invalid. An invalid trajectory report
 writes the report when it can and exits `1`.
+
+Transition profiles are Markov-style summaries over observable adjacent states;
+history-dependent checks cover non-Markov conditions such as required review
+before approval or complete claim-evidence history across retries.
+Burst-window event-process screens are reliability review signals and do not
+claim a fitted Hawkes or other point-process intensity model.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable
