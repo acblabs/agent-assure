@@ -69,14 +69,17 @@ safety, compliance, or clinical-validity claim.
 
 ## Install
 
-Install a published release with:
+`agent-assure` is not currently published on PyPI. Install it from a local
+repository checkout instead.
+
+For normal local CLI use:
 
 ```bash
-pip install agent-assure
+pip install -e .
 ```
 
-From a repository checkout, use the editable development install for the
-flagship demo and local validation checks:
+For the flagship demo and local validation checks, install the development
+extras:
 
 ```bash
 pip install -e ".[dev]"
