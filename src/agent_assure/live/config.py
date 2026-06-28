@@ -26,6 +26,7 @@ class LiveAdapterConfig(StrictModel):
     model: str = Field(min_length=1)
     endpoint_url: str | None = None
     api_key_env: str | None = None
+    allowed_endpoint_hosts: tuple[str, ...] = ()
     response_jsonl_path: str | None = None
     script_path: str | None = None
     script_executable: str | None = None
@@ -52,10 +53,29 @@ class LiveAdapterConfig(StrictModel):
             raise ValueError("temperature must be between 0.000000 and 2.000000")
         return value
 
-    @field_validator("script_args", "script_env", "script_env_allowlist", mode="before")
+    @field_validator(
+        "allowed_endpoint_hosts",
+        "script_args",
+        "script_env",
+        "script_env_allowlist",
+        mode="before",
+    )
     @classmethod
     def _coerce_script_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @field_validator("allowed_endpoint_hosts")
+    @classmethod
+    def _validate_allowed_endpoint_hosts(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        normalized: list[str] = []
+        for host in value:
+            cleaned = host.strip().lower()
+            if not cleaned:
+                raise ValueError("allowed_endpoint_hosts entries must not be empty")
+            if any(marker in cleaned for marker in (":", "/", "*")):
+                raise ValueError("allowed_endpoint_hosts entries must be bare hostnames")
+            normalized.append(cleaned)
+        return tuple(normalized)
 
 
 class LivePromptCase(StrictModel):

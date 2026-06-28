@@ -14,8 +14,8 @@ from agent_assure.policies import (
     tools,
 )
 from agent_assure.policies.base import ControlResult
-from agent_assure.schema.common import GateState, ReasonCode, Severity
-from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
+from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
 
 
 def evaluate_runset_controls(
@@ -46,6 +46,7 @@ def evaluate_case(
     results.extend(_evaluate_allowed_outcomes(run, expectation.allowed_outcomes))
     results.extend(_evaluate_forbidden_outcomes(run, expectation.forbidden_outcomes))
     results.extend(runtime.evaluate_runtime_success(run))
+    results.extend(_evaluate_persisted_policy_results(run))
     results.extend(output_schema.evaluate_structured_output(run))
     results.extend(evidence.evaluate_required_evidence(run, expectation))
     results.extend(evidence.evaluate_material_claim_evidence(run, expectation))
@@ -61,6 +62,49 @@ def evaluate_case(
     results.extend(injection.evaluate_prompt_boundary(run, case_expectation.case, expectation))
     results.extend(privacy.evaluate_redaction(run))
     return tuple(results)
+
+
+def _evaluate_persisted_policy_results(run: AgentRunRecord) -> tuple[ControlResult, ...]:
+    if run.execution_mode is not ExecutionMode.live:
+        return ()
+    results: list[ControlResult] = []
+    for policy_result in run.policy_results:
+        if policy_result.state is GateState.pass_:
+            continue
+        results.append(
+            ControlResult(
+                control_id=f"policy_result:{policy_result.policy_id}",
+                case_id=run.case_id,
+                state=policy_result.state,
+                reason_code=_policy_reason_code(policy_result),
+                severity=_policy_severity(policy_result),
+                target=policy_result.policy_id,
+                message=policy_result.message
+                or (
+                    f"persisted policy result {policy_result.policy_id!r} "
+                    f"was {policy_result.state.value}"
+                ),
+            )
+        )
+    return tuple(results)
+
+
+def _policy_reason_code(policy_result: PolicyResult) -> ReasonCode:
+    reason_codes = policy_result.reason_codes
+    if reason_codes:
+        return reason_codes[0]
+    if policy_result.state is GateState.not_evaluated:
+        return ReasonCode.NOT_EVALUATED
+    return ReasonCode.POLICY_FAILED
+
+
+def _policy_severity(policy_result: PolicyResult) -> Severity:
+    severity = policy_result.severity
+    if policy_result.state is GateState.fail and severity not in {Severity.error, Severity.blocker}:
+        return Severity.error
+    if policy_result.state is GateState.warn and severity is Severity.info:
+        return Severity.warning
+    return severity
 
 
 def _runs_by_case(

@@ -31,6 +31,13 @@ from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest, SuiteCase
 
 FIXTURE_HMAC_KEY = b"agent-assure-fixture-mode-example-key"
+DEFAULT_HMAC_KEY_ALLOWED_SYNTHETIC_RUNNERS = frozenset(
+    {
+        ("expense-approval-minimal", "expense_approval.minimal"),
+        ("prior-auth-synthetic", "prior_auth.synthetic"),
+        ("prior-auth-synthetic", "prior_auth.synthetic_evidence_refactor"),
+    }
+)
 
 
 class VariantBehaviorConfig(StrictModel):
@@ -111,6 +118,7 @@ def run_suite(
 ) -> RunSet:
     if mode is not ExecutionMode.fixture:
         raise ValueError("fixture runner only supports fixture execution mode")
+    _validate_fixture_hmac_key(compiled, variant, hmac_key)
     if source_yaml is not None:
         verify_source_digest(compiled, source_yaml)
     resolver = FixtureResolver(suite_root)
@@ -148,6 +156,22 @@ def run_suite(
         fixture_manifest_digest=manifest_digest,
         execution_mode=ExecutionMode.fixture,
         runs=tuple(runs),
+    )
+
+
+def _validate_fixture_hmac_key(
+    compiled: CompiledSuite,
+    variant: VariantConfig,
+    hmac_key: bytes,
+) -> None:
+    if hmac_key != FIXTURE_HMAC_KEY:
+        return
+    runner_id = variant.runner_id or compiled.defaults.runner_id
+    if (compiled.suite_id, runner_id) in DEFAULT_HMAC_KEY_ALLOWED_SYNTHETIC_RUNNERS:
+        return
+    raise ValueError(
+        "the default fixture HMAC key is only allowed for bundled synthetic examples; "
+        "pass an explicit hmac_key for non-synthetic fixture data"
     )
 
 

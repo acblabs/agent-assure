@@ -3,11 +3,12 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Literal
+from typing import BinaryIO, Literal, cast
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -17,6 +18,7 @@ from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
 from agent_assure.schema.runtime import EmergencyProcessRecord
 
 FailureKind = Literal["spawn_failed", "timeout", "nonzero_exit", "invalid_output"]
+MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES = 1_048_576
 
 
 class ExternalScriptError(RuntimeError):
@@ -48,6 +50,8 @@ class ExternalScriptCompleted:
     duration_ms: int
     started_at_utc: str
     completed_at_utc: str
+    stdout_bytes: int = 0
+    stderr_bytes: int = 0
 
 
 def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptCompleted:
@@ -61,45 +65,52 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
     started_at_utc = _utc_now()
     started = time.perf_counter()
     env = _process_env(invocation)
-    try:
-        result = subprocess.run(
-            list(invocation.argv),
-            cwd=invocation.cwd,
-            input=json.dumps(invocation.request_payload, sort_keys=True),
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            timeout=invocation.timeout_seconds,
-            check=False,
-            env=env,
-        )
-    except subprocess.TimeoutExpired as exc:
-        duration_ms = _duration_ms(started)
-        completed_at_utc = _utc_now()
-        emergency = _emergency_record(
-            invocation,
-            failure_kind="timeout",
-            message=f"external script timed out after {invocation.timeout_seconds} seconds",
-            started_at_utc=started_at_utc,
-            completed_at_utc=completed_at_utc,
-            duration_ms=duration_ms,
-            stdout=exc.stdout if isinstance(exc.stdout, str) else None,
-            stderr=exc.stderr if isinstance(exc.stderr, str) else None,
-        )
-        raise ExternalScriptError("external script timed out", emergency) from exc
-    except OSError as exc:
-        duration_ms = _duration_ms(started)
-        completed_at_utc = _utc_now()
-        emergency = _emergency_record(
-            invocation,
-            failure_kind="spawn_failed",
-            message=str(exc),
-            started_at_utc=started_at_utc,
-            completed_at_utc=completed_at_utc,
-            duration_ms=duration_ms,
-            exc=exc,
-        )
-        raise ExternalScriptError("external script could not be started", emergency) from exc
+    request_body = json.dumps(invocation.request_payload, sort_keys=True).encode("utf-8")
+    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+        try:
+            result = subprocess.run(
+                list(invocation.argv),
+                cwd=invocation.cwd,
+                input=request_body,
+                stdout=stdout_file,
+                stderr=stderr_file,
+                timeout=invocation.timeout_seconds,
+                check=False,
+                env=env,
+            )
+        except subprocess.TimeoutExpired as exc:
+            duration_ms = _duration_ms(started)
+            completed_at_utc = _utc_now()
+            stdout, stdout_bytes = _read_limited_output(cast(BinaryIO, stdout_file))
+            stderr, stderr_bytes = _read_limited_output(cast(BinaryIO, stderr_file))
+            emergency = _emergency_record(
+                invocation,
+                failure_kind="timeout",
+                message=f"external script timed out after {invocation.timeout_seconds} seconds",
+                started_at_utc=started_at_utc,
+                completed_at_utc=completed_at_utc,
+                duration_ms=duration_ms,
+                stdout=stdout,
+                stderr=stderr,
+                stdout_bytes=stdout_bytes,
+                stderr_bytes=stderr_bytes,
+            )
+            raise ExternalScriptError("external script timed out", emergency) from exc
+        except OSError as exc:
+            duration_ms = _duration_ms(started)
+            completed_at_utc = _utc_now()
+            emergency = _emergency_record(
+                invocation,
+                failure_kind="spawn_failed",
+                message=str(exc),
+                started_at_utc=started_at_utc,
+                completed_at_utc=completed_at_utc,
+                duration_ms=duration_ms,
+                exc=exc,
+            )
+            raise ExternalScriptError("external script could not be started", emergency) from exc
+        stdout, stdout_bytes = _read_limited_output(cast(BinaryIO, stdout_file))
+        stderr, stderr_bytes = _read_limited_output(cast(BinaryIO, stderr_file))
     duration_ms = _duration_ms(started)
     completed_at_utc = _utc_now()
     if result.returncode != 0:
@@ -111,17 +122,29 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             completed_at_utc=completed_at_utc,
             duration_ms=duration_ms,
             exit_code=result.returncode,
-            stdout=result.stdout,
-            stderr=result.stderr,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_bytes=stdout_bytes,
+            stderr_bytes=stderr_bytes,
         )
         raise ExternalScriptError("external script exited nonzero", emergency)
-    return ExternalScriptCompleted(
-        stdout=result.stdout,
-        stderr=result.stderr,
+    completed = ExternalScriptCompleted(
+        stdout=stdout,
+        stderr=stderr,
         duration_ms=duration_ms,
         started_at_utc=started_at_utc,
         completed_at_utc=completed_at_utc,
+        stdout_bytes=stdout_bytes,
+        stderr_bytes=stderr_bytes,
     )
+    if stdout_bytes + stderr_bytes > MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES:
+        emergency = invalid_output_emergency(
+            invocation,
+            completed,
+            "external script output exceeded configured byte limit",
+        )
+        raise ExternalScriptError("external script output exceeded byte limit", emergency)
+    return completed
 
 
 def emergency_from_exception(exc: BaseException) -> EmergencyProcessRecord | None:
@@ -146,6 +169,8 @@ def invalid_output_emergency(
         exit_code=0,
         stdout=completed.stdout,
         stderr=completed.stderr,
+        stdout_bytes=completed.stdout_bytes,
+        stderr_bytes=completed.stderr_bytes,
         exc=exc,
     )
 
@@ -189,6 +214,8 @@ def _emergency_record(
     exit_code: int | None = None,
     stdout: str | None = None,
     stderr: str | None = None,
+    stdout_bytes: int | None = None,
+    stderr_bytes: int | None = None,
     exc: BaseException | None = None,
 ) -> EmergencyProcessRecord:
     safe = safe_error(f"external_script_{failure_kind}", message, exc)
@@ -209,8 +236,8 @@ def _emergency_record(
         duration_ms=duration_ms,
         timeout_seconds=invocation.timeout_seconds,
         exit_code=exit_code,
-        stdout_bytes=_byte_count(stdout),
-        stderr_bytes=_byte_count(stderr),
+        stdout_bytes=stdout_bytes if stdout_bytes is not None else _byte_count(stdout),
+        stderr_bytes=stderr_bytes if stderr_bytes is not None else _byte_count(stderr),
         stderr_summary=_summary(stderr),
         safe_error_code=safe.code,
         safe_error_message=safe.message,
@@ -227,6 +254,17 @@ def _summary(value: str | None) -> str | None:
     if not compact:
         return None
     return redact_text(compact[:500])
+
+
+def _read_limited_output(output: BinaryIO) -> tuple[str, int]:
+    output.flush()
+    output.seek(0, os.SEEK_END)
+    byte_count = output.tell()
+    output.seek(0)
+    sample = output.read(MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES + 1)
+    if not isinstance(sample, bytes):
+        sample = bytes(sample)
+    return sample[:MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES].decode("utf-8", errors="replace"), byte_count
 
 
 def _byte_count(value: str | None) -> int:

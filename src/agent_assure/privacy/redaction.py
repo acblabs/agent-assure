@@ -6,7 +6,6 @@ from typing import Any
 from agent_assure.privacy.detectors import SENSITIVE_PATTERNS
 
 REDACTION = "[REDACTED]"
-RUN_RECORD_SUMMARY_FIELDS = ("input_summary", "output_summary")
 
 
 def redact_text(value: str) -> str:
@@ -17,23 +16,72 @@ def redact_text(value: str) -> str:
 
 
 def redact_run_record_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
-    redacted = dict(payload)
-    for field_name in RUN_RECORD_SUMMARY_FIELDS:
-        value = redacted.get(field_name)
-        if isinstance(value, str):
-            redacted[field_name] = redact_text(value)
-    return redacted
+    redacted = redact_artifact_payload(payload, preserve_keys=PRESERVE_RUNSET_KEYS)
+    return dict(redacted) if isinstance(redacted, Mapping) else dict(payload)
 
 
 def redact_runset_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
-    redacted = dict(payload)
-    runs = redacted.get("runs")
-    if isinstance(runs, list | tuple):
-        redacted["runs"] = [
-            redact_run_record_payload(run) if isinstance(run, Mapping) else run
-            for run in runs
-        ]
-    return redacted
+    redacted = redact_artifact_payload(payload, preserve_keys=PRESERVE_RUNSET_KEYS)
+    return dict(redacted) if isinstance(redacted, Mapping) else dict(payload)
+
+
+PRESERVE_RUNSET_KEYS = frozenset(
+    {
+        "artifact_kind",
+        "schema_version",
+        "runset_id",
+        "suite_id",
+        "suite_version",
+        "execution_mode",
+        "protocol_id",
+        "completion_status",
+        "stop_reasons",
+        "run_id",
+        "case_id",
+        "pipeline_id",
+        "recommendation",
+        "outcome",
+        "observation_status",
+        "observation_id",
+        "randomization_block_id",
+        "cluster_id",
+        "source_group_id",
+        "adapter_id",
+        "provider",
+        "model",
+        "resolved_model",
+        "provider_api_version",
+        "provider_sdk",
+        "provider_region",
+        "provider_response_id",
+        "traceparent",
+        "started_at_utc",
+        "completed_at_utc",
+        "exclusion_reason",
+        "estimated_cost_usd",
+        "estimated_cost_source",
+        "ref_id",
+        "source_id",
+        "claim_ids",
+        "content_digest",
+        "claim_id",
+        "evidence_ref_id",
+        "policy_id",
+        "state",
+        "reason_codes",
+        "severity",
+        "gate_profile",
+        "emergency_id",
+        "failure_kind",
+        "process_kind",
+        "command_digest",
+        "executable_name",
+        "script_name",
+        "working_directory_digest",
+        "safe_error_code",
+        "local_debug_reference",
+    }
+)
 
 
 PRESERVE_PACKET_KEYS = frozenset(

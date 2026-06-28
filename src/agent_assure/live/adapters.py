@@ -5,6 +5,7 @@ import os
 import sys
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from decimal import Decimal
 from pathlib import Path
@@ -15,6 +16,7 @@ from pydantic import Field
 from agent_assure.canonical.normalize import normalize_decimal
 from agent_assure.live.config import LiveAdapterConfig
 from agent_assure.live.output_contract import validate_live_structured_content
+from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.runner.subprocess_harness import (
     ExternalScriptError,
     ExternalScriptInvocation,
@@ -29,6 +31,8 @@ EstimatedCostSource = Literal[
     "not_reported",
     "provider_reported",
 ]
+
+DEFAULT_OPENAI_ENDPOINT_HOSTS = ("api.openai.com",)
 
 
 class LiveProviderRequest(StrictModel):
@@ -88,7 +92,11 @@ class StaticJsonlAdapter:
         if config.response_jsonl_path is None:
             raise ValueError("static-jsonl adapter requires response_jsonl_path")
         self._config = config
-        path = _resolve_relative(base_dir, config.response_jsonl_path)
+        path = resolve_live_config_path(
+            base_dir,
+            config.response_jsonl_path,
+            field_name="response_jsonl_path",
+        )
         self._responses = _load_jsonl_responses(path)
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
@@ -150,6 +158,7 @@ class OpenAIChatCompletionsAdapter:
             raise ValueError("openai-chat-completions requires endpoint_url")
         if not config.api_key_env:
             raise ValueError("openai-chat-completions requires api_key_env")
+        _validate_openai_endpoint(config)
         api_key = os.environ.get(config.api_key_env)
         if not api_key:
             raise ValueError(f"environment variable {config.api_key_env!r} is not set")
@@ -205,11 +214,19 @@ class ExternalScriptAdapter:
         if config.script_path is None:
             raise ValueError("external-script adapter requires script_path")
         self._config = config
-        self._script = _resolve_relative(base_dir, config.script_path).resolve()
+        self._script = resolve_live_config_path(
+            base_dir,
+            config.script_path,
+            field_name="script_path",
+        )
         if not self._script.exists():
             raise ValueError(f"external script does not exist: {config.script_path}")
         self._cwd = (
-            _resolve_relative(base_dir, config.script_cwd).resolve()
+            resolve_live_config_path(
+                base_dir,
+                config.script_cwd,
+                field_name="script_cwd",
+            )
             if config.script_cwd is not None
             else self._script.parent
         )
@@ -409,11 +426,22 @@ def _script_argv(config: LiveAdapterConfig, script: Path) -> tuple[str, ...]:
     return (str(script), *args)
 
 
-def _resolve_relative(base_dir: Path, value: str) -> Path:
-    path = Path(value)
-    if path.is_absolute():
-        return path
-    return base_dir / path
+def _validate_openai_endpoint(config: LiveAdapterConfig) -> None:
+    endpoint = config.endpoint_url or ""
+    parsed = urllib.parse.urlparse(endpoint)
+    if parsed.scheme.lower() != "https":
+        raise ValueError("openai-chat-completions endpoint_url must use https")
+    if not parsed.hostname:
+        raise ValueError("openai-chat-completions endpoint_url must include a host")
+    host = parsed.hostname.lower()
+    allowed_hosts = {
+        host_name.lower()
+        for host_name in (*DEFAULT_OPENAI_ENDPOINT_HOSTS, *config.allowed_endpoint_hosts)
+    }
+    if host not in allowed_hosts:
+        raise ValueError(
+            "openai-chat-completions endpoint host must be in allowed_endpoint_hosts"
+        )
 
 
 def _string(value: object, default: str) -> str:

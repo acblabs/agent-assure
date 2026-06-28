@@ -90,7 +90,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          identity_regexp=".*"
+          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/release.yml@${GITHUB_REF}"
           issuer="https://token.actions.githubusercontent.com"
           verify_blob() {
             local artifact="$1"
@@ -99,7 +99,7 @@ jobs:
               echo "verifying ${artifact} for ${GITHUB_REPOSITORY} ${GITHUB_REF} ${GITHUB_SHA} (attempt ${attempt})"
               if cosign verify-blob "${artifact}" \
                 --bundle "${artifact}.bundle" \
-                --certificate-identity-regexp "${identity_regexp}" \
+                --certificate-identity "${identity}" \
                 --certificate-oidc-issuer "${issuer}" \
                 --certificate-github-workflow-name "release" \
                 --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \

@@ -46,7 +46,12 @@ def test_case_fixtures_can_load_from_non_first_declared_root(tmp_path) -> None: 
     _make_fixture_dirs(tmp_path, "fixtures/root-a")
     _write_prior_auth_fixture_triplet(tmp_path, "fixtures/root-b", "case-fixture")
     compiled = compile_suite(suite)
-    runset = run_suite(compiled, load_variant_config(BASELINE), tmp_path)
+    runset = run_suite(
+        compiled,
+        load_variant_config(BASELINE),
+        tmp_path,
+        hmac_key=b"multi-root-test-key",
+    )
     assert runset.runs[0].case_id == "case-001"
     assert runset.runs[0].outcome == "approve"
 

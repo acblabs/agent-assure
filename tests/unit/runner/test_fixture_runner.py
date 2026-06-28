@@ -52,6 +52,23 @@ def test_run_suite_is_deterministic_for_same_inputs() -> None:
     assert first == second
 
 
+def test_default_fixture_hmac_key_is_limited_to_bundled_synthetic_suites() -> None:
+    compiled = compile_suite(SUITE).model_copy(update={"suite_id": "private-suite"})
+    variant = load_variant_config(BASELINE)
+
+    with pytest.raises(ValueError, match="default fixture HMAC key"):
+        run_suite(compiled, variant, SUITE.parent)
+
+
+def test_explicit_fixture_hmac_key_allows_non_synthetic_suite() -> None:
+    compiled = compile_suite(SUITE).model_copy(update={"suite_id": "private-suite"})
+    variant = load_variant_config(BASELINE)
+
+    runset = run_suite(compiled, variant, SUITE.parent, hmac_key=b"private-test-key")
+
+    assert runset.suite_id == "private-suite"
+
+
 def test_run_suite_verifies_source_digest_when_source_is_supplied(tmp_path) -> None:  # type: ignore[no-untyped-def]
     compiled = compile_suite(SUITE)
     bad_source = tmp_path / "suite.yaml"
@@ -73,6 +90,7 @@ cases: []
 
 
 def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    traceparent = "00-11111111111111111111111111111111-2222222222222222-01"
     record = AgentRunRecord(
         artifact_kind="agent-run-record",
         run_id="run-001",
@@ -83,6 +101,7 @@ def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -
         outcome="approve",
         input_summary="patient=Jane ssn: 123-45-6789",
         output_summary="email jane@example.com",
+        traceparent=traceparent,
     )
     runset = RunSet(
         artifact_kind="run-set",
@@ -103,3 +122,4 @@ def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -
     loaded = RunSet.model_validate_json(text)
     assert "[REDACTED]" in loaded.runs[0].input_summary
     assert "[REDACTED]" in loaded.runs[0].output_summary
+    assert loaded.runs[0].traceparent == traceparent

@@ -8,10 +8,10 @@ from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset,
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver
 from agent_assure.policies.evidence import evaluate_material_claim_evidence
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
-from agent_assure.schema.common import GateState, ReasonCode, Severity
+from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation
-from agent_assure.schema.run import AgentRunRecord, EvidenceRef, RunSet
+from agent_assure.schema.run import AgentRunRecord, EvidenceRef, PolicyResult, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -109,6 +109,37 @@ def test_raw_sensitive_summary_is_verdict_bearing_redaction_failure() -> None:
     assert ReasonCode.RAW_SENSITIVE_CONTENT in _reason_codes(
         report.candidate_vs_expectations
     )
+
+
+def test_persisted_policy_result_failure_is_verdict_bearing() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    bad_run = first_run.model_copy(
+        update={
+            "execution_mode": ExecutionMode.live,
+            "policy_results": (
+                PolicyResult(
+                    artifact_kind="policy-result",
+                    policy_id="adapter.injected_policy",
+                    state=GateState.fail,
+                    reason_codes=(ReasonCode.POLICY_FAILED,),
+                    severity=Severity.warning,
+                    message="adapter-reported policy failure",
+                ),
+            )
+        }
+    )
+    mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == "policy_result:adapter.injected_policy"
+    )
+    assert finding.reason_code is ReasonCode.POLICY_FAILED
 
 
 def test_missing_record_counts_as_unevaluated_not_failed_case() -> None:

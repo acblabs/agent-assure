@@ -103,6 +103,15 @@
 - Added an explicit distribution reproducibility check for the evidence
   reproduce job and documented the claim-evidence-link contract for external
   `AgentRunRecord` producers.
+- Hardened the final v0.2.0 pre-tag security posture by making live
+  producer-supplied failing policy results verdict-bearing, confining live
+  prompt/JSONL/script/cwd paths to the live config directory, requiring HTTPS
+  and explicit host allowlisting for non-default OpenAI-compatible endpoints,
+  bounding external-script stdout/stderr capture, recursively redacting
+  persisted run artifacts for common secret token patterns while preserving
+  schema-owned structural identifiers, restricting the bundled fixture HMAC key
+  to repository synthetic examples, and documenting the remaining live adapter
+  trust boundary.
 
 ## 0.1.0 - 2026-06-27
 

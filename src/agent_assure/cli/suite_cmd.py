@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path
 from typing import Annotated
 
@@ -77,6 +78,13 @@ def run_cmd(
         Path | None,
         typer.Option("--manifest", exists=True, readable=True, help="Expected fixture manifest."),
     ] = None,
+    hmac_key_env: Annotated[
+        str | None,
+        typer.Option(
+            "--hmac-key-env",
+            help="Environment variable containing the fixture HMAC key.",
+        ),
+    ] = None,
 ) -> None:
     execution_mode = coerce_enum(ExecutionMode, mode)
     if execution_mode is ExecutionMode.live:
@@ -88,6 +96,7 @@ def run_cmd(
     root = suite_root or _infer_suite_root(compiled_suite, variant)
     source_yaml = source or _default_source_yaml(root)
     expected_manifest = load_fixture_manifest(manifest) if manifest is not None else None
+    hmac_key = _hmac_key_from_env(hmac_key_env)
     runset = run_suite(
         compiled,
         variant_config,
@@ -95,6 +104,7 @@ def run_cmd(
         mode=execution_mode,
         expected_manifest=expected_manifest,
         source_yaml=source_yaml,
+        **({"hmac_key": hmac_key} if hmac_key is not None else {}),
     )
     write_runset(runset, out)
     console.print(f"run set: {out}")
@@ -111,3 +121,12 @@ def _default_source_yaml(suite_root: Path) -> Path | None:
     if candidate.exists():
         return candidate
     return None
+
+
+def _hmac_key_from_env(name: str | None) -> bytes | None:
+    if name is None:
+        return None
+    value = os.environ.get(name)
+    if not value:
+        raise typer.BadParameter(f"hmac key environment variable {name!r} is not set")
+    return value.encode("utf-8")

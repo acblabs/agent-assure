@@ -51,18 +51,46 @@ controls:
     nist_ai_rmf: [Measure, Govern]
     iso_iec_42001_areas: [transparency, documentation]
     owasp_risks: [LLM02]
-    project_threats: [summary-sensitive-content]
+    project_threats: [persisted-sensitive-content]
   - id: prompt_injection_control_boundary
     status: evaluated
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [human oversight, monitoring]
     owasp_risks: [LLM01]
     project_threats: [prompt-boundary-bypass]
+  - id: live_persisted_policy_results
+    status: evaluated_when_live
+    nist_ai_rmf: [Measure, Manage]
+    iso_iec_42001_areas: [monitoring, accountability]
+    owasp_risks: [LLM02, LLM09]
+    project_threats: [live-adapter-suppressed-policy-failure]
+  - id: live_config_path_confinement
+    status: evaluated
+    nist_ai_rmf: [Manage]
+    iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
+    owasp_risks: [LLM06, LLM07]
+    project_threats: [live-config-path-traversal]
+  - id: live_openai_endpoint_allowlist
+    status: evaluated
+    nist_ai_rmf: [Manage]
+    iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
+    owasp_risks: [LLM05, LLM07]
+    project_threats: [network-adapter-key-exfiltration]
+  - id: external_script_output_limit
+    status: evaluated
+    nist_ai_rmf: [Manage]
+    iso_iec_42001_areas: [monitoring]
+    owasp_risks: [LLM06]
+    project_threats: [external-script-output-dos]
 uncovered:
   - id: raw_payload_persistence_forbidden
     status: not_evaluated
-    reason: Runset writers redact summary fields and evaluation checks raw summaries, but no evaluator policy inspects external raw payload storage.
+    reason: Runset writers recursively redact persisted artifacts, but the project does not inspect storage outside agent-assure artifacts or provide production DLP.
     nist_ai_rmf: [Measure, Govern]
+  - id: live-adapter-attestation
+    status: not_evaluated
+    reason: Live adapters and providers are trusted producers; responses are not signed or independently attested.
+    nist_ai_rmf: [Measure, Manage]
   - id: live-stochastic-model-quality-regression
     status: not_evaluated
     reason: Fixture mode does not run live stochastic model comparisons.

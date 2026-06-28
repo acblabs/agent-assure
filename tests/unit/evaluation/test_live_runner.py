@@ -8,6 +8,7 @@ import pytest
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.live.adapters import OpenAIChatCompletionsAdapter, StaticJsonlAdapter
 from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
 from agent_assure.live.runner import (
     _is_rate_limit_error,
@@ -131,6 +132,97 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
         ReasonCode.STRUCTURED_OUTPUT_INVALID,
     )
     assert runset.runs[0].traceparent is not None
+
+
+def test_static_jsonl_path_cannot_escape_config_dir(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="response_jsonl_path"):
+        StaticJsonlAdapter(
+            LiveAdapterConfig(
+                adapter_id="static-jsonl",
+                provider="static-provider",
+                model="static-model",
+                response_jsonl_path="../responses.jsonl",
+            ),
+            base_dir=tmp_path,
+        )
+
+
+def test_live_prompt_path_cannot_escape_config_dir(tmp_path: Path) -> None:
+    config_dir = tmp_path / "config"
+    config_dir.mkdir()
+    responses = config_dir / "responses.jsonl"
+    responses.write_text(
+        '{"case_id":"exp-001","content":"not json","provider":"static","model":"model"}\n',
+        encoding="utf-8",
+    )
+    compiled = compile_suite(SUITE)
+    protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
+    protocol_digest = sha256_hexdigest(protocol)
+    config = _static_config(config_dir / "inside-prompt.txt", responses, protocol, protocol_digest)
+    config = config.model_copy(
+        update={
+            "cases": (
+                LivePromptCase(
+                    case_id="exp-001",
+                    prompt_path="../outside-prompt.txt",
+                    input_summary="expense request",
+                ),
+            )
+        }
+    )
+
+    with pytest.raises(ValueError, match="prompt_path"):
+        run_live_suite(compiled, config, protocol=protocol, config_dir=config_dir)
+
+
+def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+    common = {
+        "adapter_id": "openai-chat-completions",
+        "provider": "openai",
+        "model": "gpt-test",
+        "api_key_env": "OPENAI_TEST_KEY",
+        "allow_network": True,
+    }
+
+    with pytest.raises(ValueError, match="https"):
+        OpenAIChatCompletionsAdapter(
+            LiveAdapterConfig(
+                **common,
+                endpoint_url="http://api.openai.com/v1/chat/completions",
+            ),
+            base_dir=tmp_path,
+        )
+
+    with pytest.raises(ValueError, match="allowed_endpoint_hosts"):
+        OpenAIChatCompletionsAdapter(
+            LiveAdapterConfig(
+                **common,
+                endpoint_url="https://gateway.example.com/v1/chat/completions",
+            ),
+            base_dir=tmp_path,
+        )
+
+    with pytest.raises(ValueError, match="bare hostnames"):
+        LiveAdapterConfig(
+            **common,
+            endpoint_url="https://gateway.example.com/v1/chat/completions",
+            allowed_endpoint_hosts=("https://gateway.example.com",),
+        )
+
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            **common,
+            endpoint_url="https://gateway.example.com/v1/chat/completions",
+            allowed_endpoint_hosts=("gateway.example.com",),
+        ),
+        base_dir=tmp_path,
+    )
+
+    assert adapter.adapter_id == "openai-chat-completions"
 
 
 def test_live_runner_records_post_response_budget_stop(tmp_path: Path) -> None:

@@ -8,6 +8,7 @@ import pytest
 
 from agent_assure.live.adapters import ExternalScriptAdapter, LiveProviderRequest
 from agent_assure.live.config import LiveAdapterConfig
+from agent_assure.runner import subprocess_harness
 from agent_assure.runner.subprocess_harness import ExternalScriptError
 from agent_assure.telemetry.context import trace_context_for_seed
 
@@ -127,3 +128,61 @@ raise SystemExit(7)
     assert "123-45-6789" not in dumped
     assert "[REDACTED]" in dumped
     assert emergency.traceparent == trace_context.traceparent
+
+
+def test_external_script_path_cannot_escape_config_dir(tmp_path: Path) -> None:
+    script = tmp_path / "adapter.py"
+    script.write_text("print('{}')\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="script_path"):
+        ExternalScriptAdapter(
+            LiveAdapterConfig(
+                adapter_id="external-script",
+                provider="local-script",
+                model="script-model",
+                script_path=str(script.resolve()),
+                script_executable=sys.executable,
+            ),
+            base_dir=tmp_path,
+        )
+
+
+def test_external_script_stdout_is_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(subprocess_harness, "MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES", 32)
+    script = tmp_path / "noisy_adapter.py"
+    script.write_text(
+        """
+print("x" * 128)
+""".lstrip(),
+        encoding="utf-8",
+    )
+    adapter = ExternalScriptAdapter(
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path=script.name,
+            script_executable=sys.executable,
+        ),
+        base_dir=tmp_path,
+    )
+
+    with pytest.raises(ExternalScriptError, match="output exceeded byte limit") as raised:
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-oversized",
+                observation_id="obs-oversized",
+                case_id="case-oversized",
+                repetition_index=0,
+                prompt="summarize the request",
+                provider="local-script",
+                model="script-model",
+            )
+        )
+
+    emergency = raised.value.emergency_record
+    assert emergency.failure_kind == "invalid_output"
+    assert emergency.stdout_bytes > 32

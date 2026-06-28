@@ -20,6 +20,7 @@ from agent_assure.live.output_contract import (
     LiveOutputContractError,
     parse_live_structured_content,
 )
+from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.privacy.redaction import redact_text
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
@@ -141,7 +142,7 @@ def run_live_suite(
             )
             continue
         prompt = _read_prompt(config_dir, prompt_case.prompt_path)
-        prompt_digest = sha256_hexdigest({"prompt": prompt})
+        prompt_digest = sha256_hexdigest({"prompt": redact_text(prompt)})
         request = LiveProviderRequest(
             run_id=run_id,
             observation_id=observation_id,
@@ -704,9 +705,7 @@ def _is_rate_limit_error(exc: Exception) -> bool:
 
 
 def _read_prompt(config_dir: Path, prompt_path: str) -> str:
-    path = Path(prompt_path)
-    if not path.is_absolute():
-        path = config_dir / path
+    path = resolve_live_config_path(config_dir, prompt_path, field_name="prompt_path")
     text = path.read_text(encoding="utf-8")
     if not text.strip():
         raise ValueError(f"prompt file is empty: {prompt_path}")
@@ -743,7 +742,7 @@ def _prompt_digest_input(prompt_case: LivePromptCase) -> dict[str, str]:
     return {
         "case_id": prompt_case.case_id,
         "prompt_path": prompt_case.prompt_path,
-        "input_summary": prompt_case.input_summary,
+        "input_summary": redact_text(prompt_case.input_summary),
     }
 
 

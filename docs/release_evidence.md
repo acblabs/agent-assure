@@ -101,10 +101,11 @@ REPO=acblabs/agent-assure
 TAG=v0.2.0
 SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
+IDENTITY="https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}"
 
 cosign verify-blob evidence-packet.json \
   --bundle evidence-packet.json.bundle \
-  --certificate-identity-regexp ".*" \
+  --certificate-identity "${IDENTITY}" \
   --certificate-oidc-issuer "${ISSUER}" \
   --certificate-github-workflow-name "release" \
   --certificate-github-workflow-repository "${REPO}" \

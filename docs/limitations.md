@@ -108,7 +108,8 @@ In-process fixture runs capture ordinary Python exceptions and produce failure
 records. Live adapters capture accepted provider metadata when available and
 record retry/rate-limit/exclusion counters. Configured external scripts run
 through a no-shell subprocess harness that records redacted emergency process
-metadata for spawn failures, timeouts, nonzero exits, and invalid stdout.
+metadata for spawn failures, timeouts, nonzero exits, invalid stdout, and
+oversized output.
 
 This boundary is not a hardened sandbox against malicious local scripts. The
 external-script adapter sends the full live request payload, including the
@@ -117,7 +118,17 @@ working-directory resolution happen in the calling process; compromise of the
 configured script or its allowed environment can affect the host. Scripts do
 not inherit the full parent environment by default, but any variable named in
 `script_env_allowlist` or supplied through `script_env` is intentionally passed
-through.
+through. Prompt, JSONL response, script, and script working-directory paths are
+confined to the live config directory; this prevents accidental path escape but
+does not make the script itself trustworthy.
+
+Live adapters are trusted record producers. A static JSONL file, external
+script, or network provider controls the structured observation it returns,
+including recommendations, outcomes, evidence links, claims, tool names, review
+flags, and summaries. Live producer-supplied failing policy results are
+verdict-bearing, but agent-assure does not attest adapter code or provider
+responses. The OpenAI-compatible adapter requires HTTPS and an allowlisted
+endpoint host; non-default gateways must be listed explicitly.
 
 Optional OpenTelemetry export is a projection from persisted, privacy-filtered
 span plans. It is useful for correlation, but it is not live SDK

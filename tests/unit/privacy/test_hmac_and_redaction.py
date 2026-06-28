@@ -4,7 +4,7 @@ import pytest
 
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.privacy.detectors import contains_sensitive_value
-from agent_assure.privacy.redaction import redact_text
+from agent_assure.privacy.redaction import redact_runset_payload, redact_text
 from agent_assure.privacy.safe_errors import safe_error
 
 TEST_HMAC_KEY = b"agent-assure-test-suite-key"
@@ -56,6 +56,44 @@ def test_redaction_card_pattern_handles_long_digit_sequences() -> None:
     raw = "card 4111 1111 1111 1111"
     redacted = redact_text(raw)
     assert "4111 1111 1111 1111" not in redacted
+
+
+def test_redaction_removes_common_secret_tokens() -> None:
+    raw = (
+        "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456 "
+        "token=ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH "
+        "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signatureABC"
+    )
+    redacted = redact_text(raw)
+
+    assert "Bearer abcdefghijklmnopqrstuvwxyz123456" not in redacted
+    assert "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH" not in redacted
+    assert "eyJhbGci" not in redacted
+    assert not contains_sensitive_value(redacted)
+
+
+def test_runset_redaction_recurses_persisted_record_fields() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "runs": [
+            {
+                "input_summary": "plain",
+                "output_summary": "plain",
+                "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
+                "claims": [{"claim_id": "c1", "text": "api_key=abcdef1234567890"}],
+                "provenance": {"configuration_digest": "a" * 64},
+            }
+        ],
+    }
+
+    redacted = redact_runset_payload(payload)
+
+    assert "abcdef1234567890" not in str(redacted)
+    assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
+    assert (
+        redacted["runs"][0]["traceparent"]
+        == "00-11111111111111111111111111111111-2222222222222222-01"
+    )
 
 
 def test_redaction_is_idempotent() -> None:
