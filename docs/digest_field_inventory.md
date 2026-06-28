@@ -53,3 +53,10 @@ RunSet `runset_digest` is an exact artifact digest used for waiver scoping and
 local reproducibility. Release replay uses role-specific stable projections for
 environment-bearing reports, packets, and manifests, and excludes only the
 defined environment fields for each role.
+
+For the v0.2 release surface, digest-bearing additions are covered through the
+`live-protocol-record` digest, live RunSet protocol bindings, JSON Schema
+parity fixtures, and schema export drift checks. Release replay still verifies
+the deterministic release bundle and manifest-listed artifact bytes; it does
+not turn arbitrary later live workspaces into signed release evidence unless
+those artifacts are explicitly included in a future release bundle manifest.

@@ -656,6 +656,79 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
     assert test.resamples == 32
 
 
+def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=5,
+        clusters=5,
+        repetitions=5,
+        analysis_method="paired_cluster_permutation_exact",
+        advanced_analysis_plan=_advanced_plan(
+            multiplicity_method="bonferroni",
+            familywise_alpha="0.100000",
+            primary_minimum_clusters=5,
+            secondary_interpretation="confirmatory",
+        ),
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    baseline = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="baseline-live",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="1" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=tuple(
+                _record(repetition_index=index, linked=False, cluster_id=f"cluster-{index}")
+                for index in range(5)
+            ),
+        ),
+        protocol=protocol,
+    )
+    candidate = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="candidate-live",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="2" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=tuple(
+                _record(repetition_index=index, linked=True, cluster_id=f"cluster-{index}")
+                for index in range(5)
+            ),
+        ),
+        protocol=protocol,
+    )
+
+    comparison = compare_live_reports(baseline, candidate, protocol=protocol)
+    primary = next(
+        invariant
+        for invariant in baseline.statistical_invariants
+        if invariant.endpoint_id == "expectation-pass"
+    )
+    test = comparison.randomization_tests[0]
+    plan = protocol.advanced_analysis_plan
+    assert plan is not None
+
+    assert primary.adjusted_alpha == "0.050000"
+    assert test.p_value == "0.031250"
+    assert test.adjusted_p_value == "0.062500"
+    assert Decimal(test.adjusted_p_value) > Decimal(primary.adjusted_alpha)
+    assert Decimal(test.adjusted_p_value) <= Decimal(plan.familywise_alpha)
+    assert comparison.state is GateState.pass_
+
+
 def test_exact_paired_randomization_fails_closed_above_enumeration_limit() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(

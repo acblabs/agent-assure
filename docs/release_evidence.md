@@ -35,15 +35,14 @@ run sets, reports, fixture manifest, and dependency inventory.
 
 ## Reproduce From a Tag
 
-From a clean checkout of the tagged commit and the downloaded release bundle:
-the commands below show the v0.1.0 release; substitute the target tag,
-artifact filenames, and source ref for later releases.
+After the target tag exists, reproduce from a clean checkout of the tagged
+commit and the downloaded release bundle:
 
 ```bash
-git checkout v0.1.0
+git checkout v0.2.0
 pip install -e ".[dev]"
-python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref refs/tags/v0.1.0
-agent-assure release replay path/to/downloaded/release-digest-replay.json --artifact-root . --expect-ref refs/tags/v0.1.0 --require-current-commit
+python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref refs/tags/v0.2.0
+agent-assure release replay path/to/downloaded/release-digest-replay.json --artifact-root . --expect-ref refs/tags/v0.2.0 --require-current-commit
 ```
 
 The script reruns the flagship suite and rebuilds local release artifacts. The
@@ -85,8 +84,8 @@ cosign sign-blob --yes --bundle evidence-packet.json.bundle evidence-packet.json
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
 cosign sign-blob --yes --bundle sbom.cdx.json.bundle sbom.cdx.json
-cosign sign-blob --yes --bundle agent_assure-0.1.0-py3-none-any.whl.bundle agent_assure-0.1.0-py3-none-any.whl
-cosign sign-blob --yes --bundle agent_assure-0.1.0.tar.gz.bundle agent_assure-0.1.0.tar.gz
+cosign sign-blob --yes --bundle agent_assure-0.2.0-py3-none-any.whl.bundle agent_assure-0.2.0-py3-none-any.whl
+cosign sign-blob --yes --bundle agent_assure-0.2.0.tar.gz.bundle agent_assure-0.2.0.tar.gz
 ```
 
 The repository workflow pins the cosign binary to `v3.0.6` through the
@@ -99,7 +98,7 @@ that produced the signed release bundle:
 
 ```bash
 REPO=acblabs/agent-assure
-TAG=v0.1.0
+TAG=v0.2.0
 SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
 

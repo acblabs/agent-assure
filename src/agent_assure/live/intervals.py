@@ -5,6 +5,11 @@ import random
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
 from statistics import mean
 
+# Two-sided 95% Student's t critical values, equivalent to the 97.5th
+# percentile. Values are from standard statistical tables and are spot-checkable
+# against the NIST/SEMATECH e-Handbook of Statistical Methods; sparse high-df
+# buckets intentionally round down to the nearest tabulated df for conservative
+# intervals.
 TWO_SIDED_95_T_CRITICALS: dict[int, str] = {
     1: "12.706205",
     2: "4.302653",

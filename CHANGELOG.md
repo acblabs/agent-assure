@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.2.0 - 2026-06-28
+
 - Added protocol-bound live trajectory reports with a new
   `live-trajectory-report` schema and `agent-assure live trajectory` command.
   Reports derive privacy-filtered observable state paths from structured live

@@ -11,8 +11,8 @@ The current implementation supports offline schema validation, YAML suite
 compilation, canonical digest generation, privacy-preserving summaries,
 deterministic fixture runs, expectation evaluation, JSON/Markdown/Rich reports,
 evidence packets, and CI gates across synthetic prior-authorization and minimal
-expense-approval examples. The development branch also includes explicit
-live-adapter commands for protocol-bound repeated provider observations,
+expense-approval examples. It also includes explicit live-adapter commands for
+protocol-bound repeated provider observations,
 cluster-aware stochastic rates, paired or fixed-reference live comparisons,
 cross-window drift monitoring review signals, derived observable trajectory and
 operational event-process reports, completion/provenance checks,
@@ -117,8 +117,9 @@ findings.
 
 ## Current claim boundary
 
-The project currently claims only deterministic, offline controls implemented in
-this repository. Public claims are tracked in
+The project currently claims deterministic offline controls and
+protocol-bound live operational evaluation implemented in this repository.
+Public claims are tracked in
 `docs/claims_traceability_matrix.yaml`.
 
 A statistical protocol is documented in
@@ -136,6 +137,10 @@ run artifacts. Live results remain bounded by the declared
 protocol, data boundary, provider/model configuration, and execution window.
 They are not general model-quality, safety, compliance, or clinical-validation
 claims.
+
+Synthetic calibration and regression coverage for the live statistical,
+drift-monitoring, trajectory, and event-process paths is summarized in
+`docs/live_calibration.md`.
 
 The `external-script` live adapter runs configured scripts through a no-shell
 subprocess harness and records redacted `emergency-process-record` artifacts

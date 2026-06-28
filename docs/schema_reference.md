@@ -92,6 +92,10 @@ Live-specific root artifacts:
   assumption. Monte Carlo seeds are deterministic integers derived from
   protocol-bound seed material; the report cannot prove exchangeability beyond
   the declared assumption and structural pairing checks.
+  For Bonferroni outputs, consumers must treat `adjusted_alpha` and
+  `adjusted_p_value` as alternative correction encodings: compare a raw
+  p-value to `adjusted_alpha`, or compare `adjusted_p_value` to the protocol
+  `familywise_alpha`; never compare an adjusted p-value to an adjusted alpha.
 - `live-drift-report` records ordered cross-window monitoring over live
   evaluation reports. It includes a comparability result for suite identity,
   baseline mode, analysis method, protocol digest, material field match,
@@ -105,7 +109,9 @@ Live-specific root artifacts:
   floor and EWMA state thresholds have a six-window floor. Drift reports are
   exploratory by default, use `not_evaluated` gate state, and keep drift signals separate from
   release-verdict evidence unless a reviewed protocol separately predeclares a
-  stronger interpretation.
+  stronger interpretation. Irregular timestamps are used for ordering and
+  comparability checks only; lag-1, AR(1), trend, and EWMA diagnostics operate
+  over ordered window positions and do not time-weight unequal gaps.
 - `live-trajectory-report` records derived observable governance trajectories
   from a protocol-bound RunSet and its live evaluation report. It includes
   privacy-filtered path summaries over generic states such as request assembly,

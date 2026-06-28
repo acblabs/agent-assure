@@ -27,6 +27,8 @@ from agent_assure.schema.live import (
 )
 from agent_assure.schema.run import AgentRunRecord
 
+# Exact paired permutation enumerates 2**clusters sign assignments using Decimal
+# arithmetic; 20 clusters is already 1,048,576 evaluations per endpoint.
 _MAX_EXACT_PERMUTATION_CLUSTERS = 20
 _MONTE_CARLO_RESAMPLES = 10000
 _ICC_BOOTSTRAP_ITERATIONS = 1000
@@ -575,4 +577,3 @@ def _poisson_cdf(events: int, rate: Decimal) -> Decimal:
 
 def _confidence_alpha(confidence_level: str) -> Decimal:
     return Decimal("1") - Decimal(confidence_level)
-
