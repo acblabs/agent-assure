@@ -1,3 +1,6 @@
+PYTHON ?= python
+SOURCE_CLI_PYTHON := $(or $(wildcard .venv/Scripts/python.exe),$(wildcard .venv/bin/python),$(PYTHON))
+
 .PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-staging schema-check release-bundle check release-check demo
 
 test:
@@ -35,7 +38,7 @@ release-check: check
 	python scripts/smoke_install_wheel.py
 
 demo:
-	python -c "import sys; sys.path.insert(0, 'src'); from agent_assure.cli.main import app; app()" demo flagship --out .tmp/demo/flagship --clean
+	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py demo flagship --out .tmp/demo/flagship --clean
 
 schemas: schema-staging
 

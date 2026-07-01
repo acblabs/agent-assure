@@ -12,6 +12,7 @@ from pathlib import Path
 
 DEMO_MARKER_FILENAME = ".agent-assure-demo-owned.json"
 DEMO_COMMAND_TIMEOUT_SECONDS = 30
+PACKAGE_IMPORT_ROOT = Path(__file__).resolve().parents[2]
 _NETWORK_GUARD_DIRNAME = ".runtime"
 _LEGACY_DEMO_TOP_LEVEL_NAMES = frozenset(
     {
@@ -188,7 +189,7 @@ def demo_subprocess_env(out_dir: Path, *, env: dict[str, str] | None = None) -> 
     resolved_env = dict(env or os.environ)
     guard_dir = _ensure_network_guard(out_dir)
     existing_pythonpath = resolved_env.get("PYTHONPATH")
-    pythonpath_parts = [str(guard_dir)]
+    pythonpath_parts = [str(guard_dir), str(PACKAGE_IMPORT_ROOT)]
     if existing_pythonpath:
         pythonpath_parts.append(existing_pythonpath)
     resolved_env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)

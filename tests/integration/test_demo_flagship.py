@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 from agent_assure.cli.demo_cmd import _strict_exit_code
 from agent_assure.cli.main import app
 from agent_assure.demo.flagship import render_flagship_text
+from agent_assure.reporting.evidence_diff_html import THESIS_TITLE
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 
 RUNNER = CliRunner()
@@ -82,6 +83,8 @@ def test_flagship_demo_exits_zero_on_expected_process_regression(tmp_path: Path)
         assert (out_dir / artifact).exists()
     assert "case: shared-source-multi-claim" in render_flagship_text(summary)
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")
+    assert THESIS_TITLE in html
+    assert "Review Punchline" in html
     assert "claim-duration" in html
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert "<script" not in html.lower()

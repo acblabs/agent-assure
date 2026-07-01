@@ -111,6 +111,7 @@ DEFAULT_SCAN_GLOBS = (
     "docs/**/*.md",
     "docs/**/*.txt",
     "docs/**/*.html",
+    ".tmp/demo/**/*evidence-diff*.html",
     "tests/golden/reports/**/*evidence-diff*.html",
 )
 
@@ -194,10 +195,15 @@ def _containing_sentence(text: str, offset: int) -> str:
 
 
 def _last_boundary(text: str, offset: int) -> int:
+    boundary = 0
     for index in range(offset - 1, -1, -1):
         if _is_sentence_boundary(text, index):
-            return index + 1
-    return 0
+            boundary = index + 1
+            break
+    tag_boundary = text.rfind(">", 0, offset)
+    if tag_boundary != -1:
+        boundary = max(boundary, tag_boundary + 1)
+    return boundary
 
 
 def _next_boundary(text: str, offset: int) -> int:

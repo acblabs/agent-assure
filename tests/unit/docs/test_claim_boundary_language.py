@@ -37,6 +37,15 @@ def test_claim_boundary_allows_markdown_decorated_limitation_phrase() -> None:
     assert violations == []
 
 
+def test_claim_boundary_allows_html_limitation_paragraph() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "<h2>Claim Boundary</h2>\n<p>This report is not a compliance attestation.</p>",
+        path=Path("tests/golden/reports/evidence-diff.html"),
+    )
+
+    assert violations == []
+
+
 def test_claim_boundary_rejects_roi_impact() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "ROI impact",

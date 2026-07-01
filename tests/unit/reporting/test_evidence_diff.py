@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from agent_assure.reporting.evidence_diff import render_evidence_diff_html
+from agent_assure.reporting.evidence_diff_html import render_evidence_diff_html
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -29,6 +29,8 @@ def test_evidence_diff_marks_missing_candidate_case_as_changed() -> None:
             candidate_runset_id="candidate",
             classification=ComparisonClassification.not_evaluated,
             fixture_equivalence_state=GateState.not_evaluated,
+            baseline_state=GateState.pass_,
+            candidate_state=GateState.pass_,
         ),
     )
 
