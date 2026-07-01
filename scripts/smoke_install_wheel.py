@@ -23,6 +23,7 @@ def main(argv: list[str] | None = None) -> int:
             venv_dir = temp_dir / ".venv"
             wheelhouse = temp_dir / "wheelhouse"
             schema_dir = temp_dir / "schemas"
+            flagship_dir = temp_dir / "flagship"
             build_wheelhouse(args.dist, wheelhouse, args.lockfile)
             create_virtualenv(venv_dir)
             python = venv_python(venv_dir)
@@ -61,6 +62,17 @@ def main(argv: list[str] | None = None) -> int:
             run([str(agent_assure), "--version"], cwd=temp_dir)
             run(
                 [str(agent_assure), "schema", "export", "--out", str(schema_dir)],
+                cwd=temp_dir,
+            )
+            run(
+                [
+                    str(agent_assure),
+                    "demo",
+                    "flagship",
+                    "--out",
+                    str(flagship_dir),
+                    "--clean",
+                ],
                 cwd=temp_dir,
             )
     except (RuntimeError, ValueError) as exc:

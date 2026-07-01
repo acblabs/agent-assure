@@ -35,7 +35,7 @@ release-check: check
 	python scripts/smoke_install_wheel.py
 
 demo:
-	python -c "raise SystemExit('make demo is implemented in Sprint 2')"
+	python -c "import sys; sys.path.insert(0, 'src'); from agent_assure.cli.main import app; app()" demo flagship --out .tmp/demo/flagship --clean
 
 schemas: schema-staging
 

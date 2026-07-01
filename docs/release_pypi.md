@@ -167,17 +167,18 @@ After Sprint 2 lands, also run:
 
 ```bash
 agent-assure demo flagship --out /tmp/agent-assure-flagship --clean
-agent-assure demo expense --out /tmp/agent-assure-expense --clean
 ```
 
 PowerShell:
 
 ```powershell
 $FlagshipOut = Join-Path $env:TEMP "agent-assure-flagship"
-$ExpenseOut = Join-Path $env:TEMP "agent-assure-expense"
 agent-assure demo flagship --out $FlagshipOut --clean
-agent-assure demo expense --out $ExpenseOut --clean
 ```
+
+The expense demo remains deferred for v0.3.0 unless its fixture supports the
+same visible-output/process-regression shape without slowing the flagship
+release path.
 
 ## Final PyPI Release
 
