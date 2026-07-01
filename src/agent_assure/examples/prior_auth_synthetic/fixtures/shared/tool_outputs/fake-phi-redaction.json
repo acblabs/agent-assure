@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-redaction"
+      ],
+      "content_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+      "ref_id": "ref-redacted-intake",
+      "source_id": "redacted-intake-summary"
+    }
+  ],
+  "tools": [
+    "intake_redaction_check"
+  ]
+}

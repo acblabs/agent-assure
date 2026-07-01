@@ -1,4 +1,4 @@
-.PHONY: test lint type clean-dist build docs-align claim-boundary schemas schema-staging schema-check release-bundle check release-check demo
+.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-staging schema-check release-bundle check release-check demo
 
 test:
 	pytest
@@ -24,7 +24,10 @@ docs-align:
 claim-boundary:
 	python scripts/check_claim_boundaries.py
 
-check: lint type test docs-align claim-boundary build
+examples-parity:
+	python scripts/check_packaged_examples.py
+
+check: lint type test docs-align claim-boundary examples-parity build
 
 release-check: check
 	python -m twine check dist/*

@@ -1,0 +1,10 @@
+{
+  "case_id": "fake-phi-redaction",
+  "dob": "1990-01-01",
+  "email": "jane.synthetic@example.test",
+  "member_id": "SYN-MEMBER-006",
+  "patient_name": "Jane Synthetic",
+  "requested_service": "care coordination",
+  "request_type": "prior_authorization",
+  "ssn": "123-45-6789"
+}

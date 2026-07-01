@@ -12,6 +12,32 @@ REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/cli/main.py",
     "agent_assure/examples/",
+    "agent_assure/examples/prior_auth_synthetic/",
+    "agent_assure/examples/prior_auth_synthetic/suite.yaml",
+    "agent_assure/examples/prior_auth_synthetic/variants/baseline.yaml",
+    (
+        "agent_assure/examples/prior_auth_synthetic/variants/"
+        "candidate_evidence_normalization.yaml"
+    ),
+    (
+        "agent_assure/examples/prior_auth_synthetic/fixtures/shared/requests/"
+        "shared-source-multi-claim.json"
+    ),
+    (
+        "agent_assure/examples/prior_auth_synthetic/fixtures/shared/model_outputs/"
+        "shared-source-multi-claim.json"
+    ),
+    (
+        "agent_assure/examples/prior_auth_synthetic/fixtures/shared/tool_outputs/"
+        "shared-source-multi-claim.json"
+    ),
+    "agent_assure/examples/expense_approval_minimal/",
+    "agent_assure/examples/expense_approval_minimal/suite.yaml",
+    "agent_assure/examples/expense_approval_minimal/variants/baseline.yaml",
+    "agent_assure/examples/expense_approval_minimal/variants/candidate_provider_policy.yaml",
+    "agent_assure/examples/expense_approval_minimal/fixtures/shared/requests/exp-001.json",
+    "agent_assure/examples/expense_approval_minimal/fixtures/shared/model_outputs/exp-001.json",
+    "agent_assure/examples/expense_approval_minimal/fixtures/shared/tool_outputs/exp-001.json",
     "agent_assure/schema_resources/__init__.py",
     "agent_assure/schema_resources/v0.1.0/",
     "agent_assure/schema_resources/v0.2.0/",

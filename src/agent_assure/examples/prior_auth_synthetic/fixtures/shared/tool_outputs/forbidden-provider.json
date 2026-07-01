@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-policy-match"
+      ],
+      "content_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+      "ref_id": "ref-specialty-policy",
+      "source_id": "specialty-policy-2026"
+    }
+  ],
+  "tools": [
+    "provider_selection"
+  ]
+}

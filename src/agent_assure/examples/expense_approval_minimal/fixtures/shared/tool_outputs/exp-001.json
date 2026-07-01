@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-receipt-present"
+      ],
+      "content_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "ref_id": "ref-receipt-exp-001",
+      "source_id": "receipt-metadata-exp-001"
+    }
+  ],
+  "tools": [
+    "receipt_check"
+  ]
+}

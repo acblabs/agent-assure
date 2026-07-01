@@ -1,0 +1,6 @@
+{
+  "case_id": "prompt-injection-note",
+  "member_id": "SYN-MEMBER-002",
+  "requested_service": "advanced imaging",
+  "request_type": "prior_authorization"
+}

@@ -1,0 +1,6 @@
+{
+  "case_id": "straightforward-denial",
+  "member_id": "SYN-MEMBER-007",
+  "requested_service": "non-covered wellness service",
+  "request_type": "prior_authorization"
+}

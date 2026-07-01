@@ -39,18 +39,29 @@ def main(argv: list[str] | None = None) -> int:
                     "--find-links",
                     str(wheelhouse),
                     "agent-assure",
-                ]
+                ],
+                cwd=temp_dir,
             )
             run(
                 [
                     str(python),
                     "-c",
                     _wheel_import_assertion(venv_dir),
-                ]
+                ],
+                cwd=temp_dir,
             )
-            run([str(agent_assure), "--version"])
+            run(
+                [
+                    str(python),
+                    "-c",
+                    _packaged_example_assertion(),
+                ],
+                cwd=temp_dir,
+            )
+            run([str(agent_assure), "--version"], cwd=temp_dir)
             run(
                 [str(agent_assure), "schema", "export", "--out", str(schema_dir)],
+                cwd=temp_dir,
             )
     except (RuntimeError, ValueError) as exc:
         print(f"wheel-smoke: {exc}", file=sys.stderr)
@@ -122,12 +133,12 @@ def venv_executable(venv_dir: Path, name: str) -> Path:
     return venv_dir / script_dir / f"{name}{suffix}"
 
 
-def run(args: list[str]) -> None:
+def run(args: list[str], *, cwd: Path = ROOT) -> None:
     env = {**os.environ, "PIP_DISABLE_PIP_VERSION_CHECK": "1"}
     env.pop("PYTHONPATH", None)
     result = subprocess.run(
         args,
-        cwd=ROOT,
+        cwd=cwd,
         env=env,
         text=True,
         capture_output=True,
@@ -156,6 +167,26 @@ def _wheel_import_assertion(venv_dir: Path) -> str:
         f"expected = Path({expected_prefix!r}); "
         "actual = Path(agent_assure.__file__).resolve(); "
         "actual.relative_to(expected)"
+    )
+
+
+def _packaged_example_assertion() -> str:
+    required = (
+        "prior_auth_synthetic/suite.yaml",
+        "prior_auth_synthetic/variants/baseline.yaml",
+        "prior_auth_synthetic/variants/candidate_evidence_normalization.yaml",
+        "prior_auth_synthetic/fixtures/shared/requests/shared-source-multi-claim.json",
+        "expense_approval_minimal/suite.yaml",
+        "expense_approval_minimal/variants/baseline.yaml",
+        "expense_approval_minimal/variants/candidate_provider_policy.yaml",
+        "expense_approval_minimal/fixtures/shared/requests/exp-001.json",
+    )
+    return (
+        "from importlib.resources import files; "
+        f"required = {required!r}; "
+        "root = files('agent_assure.examples'); "
+        "missing = [name for name in required if not root.joinpath(name).is_file()]; "
+        "raise SystemExit('missing packaged examples: ' + ', '.join(missing) if missing else 0)"
     )
 
 

@@ -4,6 +4,32 @@
 
 - No unreleased changes.
 
+## 0.3.0 - 2026-07-01
+
+- Prepared the v0.3.0 adoption release package metadata for PyPI and TestPyPI,
+  including project URLs, Python 3.11-3.13 classifiers, release keywords, and
+  the `0.3.0` package version.
+- Added Trusted Publishing for TestPyPI and PyPI. Final PyPI publishing now
+  runs from the signed release workflow and publishes the package files from
+  the release bundle artifact instead of rebuilding them in a parallel workflow.
+- Bundled deterministic prior-authorization and expense-approval example suite
+  resources under the package namespace so installed wheels contain the data
+  needed for offline example flows.
+- Tightened wheel-content and clean-venv smoke checks so release gates inspect
+  actual wheel contents and assert packaged example resources from an installed
+  wheel.
+- Added a packaged-example parity check so top-level repository examples and
+  bundled example resources cannot silently drift.
+- Pinned third-party GitHub Actions used in OIDC publish/signing jobs to
+  immutable commit SHAs while retaining comments with the reviewed upstream
+  tags.
+- Hardened package-publish jobs by validating workflow-dispatch version input
+  with a strict release-version parser and rechecking downloaded package
+  artifacts immediately before TestPyPI/PyPI upload.
+- Added the PyPI release runbook with TestPyPI install checks, Windows
+  PowerShell equivalents, credential timing guidance, and the relationship
+  between package publishing and the signed GitHub release bundle.
+
 ## 0.2.0 - 2026-06-28
 
 - Added protocol-bound live trajectory reports with a new

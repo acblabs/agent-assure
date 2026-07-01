@@ -69,17 +69,20 @@ safety, compliance, or clinical-validity claim.
 
 ## Install
 
-`agent-assure` is not currently published on PyPI. Install it from a local
-repository checkout instead.
+Install the package from PyPI:
 
-For normal local CLI use:
+```bash
+pip install agent-assure
+agent-assure --version
+```
+
+For local development from a repository checkout:
 
 ```bash
 pip install -e .
 ```
 
-For the flagship demo and local validation checks, install the development
-extras:
+For local validation checks, install the development extras:
 
 ```bash
 pip install -e ".[dev]"
@@ -349,4 +352,7 @@ Dependency locking for release builds is documented in
 cosign verification are documented in `docs/release_evidence.md`.
 
 The installed package includes bundled deterministic examples for reproducible
-local demos. They are not a stable extension API; see `docs/api_surface.md`.
+local demos. The top-level `examples/` tree mirrors those packaged resources
+for repository-oriented docs and tests; `scripts/check_packaged_examples.py`
+keeps the copies aligned. They are not a stable extension API; see
+`docs/api_surface.md`.

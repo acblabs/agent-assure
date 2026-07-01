@@ -1,0 +1,11 @@
+variant_id: expense-provider-policy-candidate
+pipeline_id: expense-approval-provider-policy
+runner_id: expense_approval.minimal
+provider_policy:
+  forbidden_providers:
+    - unapproved-expense-model
+  runtime_allowed_providers:
+    - unapproved-expense-model
+behavior:
+  evidence_assembly: association_preserving
+  provider_policy_precedence: runtime_over_policy

@@ -1,0 +1,6 @@
+{
+  "case_id": "ambiguous-case",
+  "member_id": "SYN-MEMBER-010",
+  "requested_service": "out-of-network specialist visit",
+  "request_type": "prior_authorization"
+}

@@ -1,0 +1,8 @@
+{
+  "human_review_performed": false,
+  "human_review_required": false,
+  "model": "approved-expense-model-v1",
+  "outcome": "approve",
+  "provider": "approved-expense-model",
+  "recommendation": "approve"
+}

@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-conflict-present"
+      ],
+      "content_digest": "9999999999999999999999999999999999999999999999999999999999999999",
+      "ref_id": "ref-conflict-summary",
+      "source_id": "clinical-policy-conflict-check"
+    }
+  ],
+  "tools": [
+    "conflict_check"
+  ]
+}

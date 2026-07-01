@@ -1,0 +1,24 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-eligibility"
+      ],
+      "content_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "ref_id": "ref-shared-clinical-note",
+      "source_id": "shared-clinical-note"
+    },
+    {
+      "claim_ids": [
+        "claim-duration"
+      ],
+      "content_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+      "ref_id": "ref-shared-clinical-note",
+      "source_id": "shared-clinical-note"
+    }
+  ],
+  "tools": [
+    "clinical_note_parser",
+    "benefit_policy_lookup"
+  ]
+}

@@ -1,0 +1,15 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-medical-necessity"
+      ],
+      "content_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+      "ref_id": "ref-coverage-policy",
+      "source_id": "coverage-policy-2026"
+    }
+  ],
+  "tools": [
+    "coverage_policy_lookup"
+  ]
+}

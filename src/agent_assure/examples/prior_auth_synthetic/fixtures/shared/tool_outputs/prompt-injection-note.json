@@ -1,0 +1,16 @@
+{
+  "evidence": [
+    {
+      "claim_ids": [
+        "claim-boundary"
+      ],
+      "content_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+      "ref_id": "ref-clinical-note-boundary",
+      "source_id": "submitted-clinical-note"
+    }
+  ],
+  "prompt_injection_detected": true,
+  "tools": [
+    "clinical_note_parser"
+  ]
+}

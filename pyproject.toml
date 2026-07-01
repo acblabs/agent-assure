@@ -4,13 +4,34 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-assure"
-version = "0.2.0"
-description = "Expectation-driven assurance and change-control gates for AI agent governance pipelines."
+version = "0.3.0"
+description = "Local-first process assurance for agentic AI pipelines."
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
 authors = [{ name = "ACB Labs" }]
-keywords = ["ai-governance", "assurance", "evaluation", "opentelemetry"]
+keywords = [
+  "agentic-ai",
+  "ai-governance",
+  "ai-assurance",
+  "llmops",
+  "responsible-ai",
+  "opentelemetry",
+  "mlops",
+  "ci-cd",
+]
+classifiers = [
+  "Development Status :: 3 - Alpha",
+  "Environment :: Console",
+  "Intended Audience :: Developers",
+  "Intended Audience :: Information Technology",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
   "pydantic>=2.12,<3",
   "typer>=0.12,<1",
@@ -34,8 +55,16 @@ dev = [
   "ruff",
   "mypy",
   "build",
+  "hatchling>=1.27",
   "twine>=5",
 ]
+
+[project.urls]
+Homepage = "https://github.com/acblabs/agent-assure"
+Repository = "https://github.com/acblabs/agent-assure"
+Issues = "https://github.com/acblabs/agent-assure/issues"
+Documentation = "https://github.com/acblabs/agent-assure#readme"
+Changelog = "https://github.com/acblabs/agent-assure/releases"
 
 [project.scripts]
 agent-assure = "agent_assure.cli.main:app"

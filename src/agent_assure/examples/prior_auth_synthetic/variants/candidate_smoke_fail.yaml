@@ -1,0 +1,12 @@
+variant_id: candidate-smoke-fail
+pipeline_id: prior-auth-smoke-fail
+runner_id: prior_auth.synthetic
+provider_policy:
+  forbidden_providers:
+    - unapproved-prior-auth-model
+  runtime_allowed_providers:
+    - unapproved-prior-auth-model
+behavior:
+  evidence_assembly: source_digest_normalized
+  provider_policy_precedence: runtime_over_policy
+  runtime_error_case: tool-failure
