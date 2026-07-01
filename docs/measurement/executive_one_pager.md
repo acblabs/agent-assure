@@ -101,7 +101,7 @@ The repository includes:
 
 Live reports are time-bound to declared provider/model/configuration windows
 and approved data boundaries. The project does not establish safety assurance,
-prove regulatory compliance, validate clinical use, certify provider quality,
+prove regulatory compliance, validate clinical use, assess provider quality,
 or claim OpenTelemetry adoption. Unsupported capabilities are surfaced as
 `not_evaluated`.
 

@@ -57,8 +57,8 @@ malicious model, script, provider, CI checkout, or operator.
 - Keyless cosign bundles bind exact release bytes to the GitHub Actions workflow
   identity when downstream verification pins the repository, workflow file, ref,
   commit, workflow name, and trigger.
-- Release evidence does not certify safety, regulatory compliance, clinical
-  validity, live model quality, or dependency vulnerability status.
+- Release evidence does not establish safety assurance, regulatory compliance,
+  clinical validity, live model quality, or dependency vulnerability status.
 
 ## Out Of Scope
 

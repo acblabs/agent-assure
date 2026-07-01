@@ -2,6 +2,33 @@
 
 Released schema version: `0.2.0`.
 
+Development schema changes for the next release are exported to
+`schemas/unreleased/`. Stable releases freeze a copy into `schemas/vX.Y.Z/`,
+such as `schemas/v0.2.0/` for the current release and `schemas/v0.3.0/` when
+the v0.3.0 release is cut.
+
+Use these directories as the release lifecycle:
+
+- `schemas/v0.2.0/` contains the stable exported schema from v0.2.
+- `schemas/unreleased/` is the development export target for the next release.
+- `schemas/v0.3.0/` is created only when the v0.3.0 schema surface is frozen.
+
+Automation has two separate checks:
+
+- frozen schema parity exports the current release schema surface to
+  `schemas/v0.2.0/` and fails if those committed files drift;
+- schema staging exports the current development schema surface to
+  `schemas/unreleased/` and fails if no schema files are produced.
+
+`schemas/unreleased/` is a staging scratch area, not a drift gate. Generated
+`*.schema.json` files in that directory are ignored by Git until a release cut
+freezes them into `schemas/vX.Y.Z/`.
+
+The wheel ships frozen schema snapshots under the package namespace
+`agent_assure/schema_resources/` for release inspection. It does not install a
+generic top-level `schemas/` directory into `site-packages`, and it does not
+ship `schemas/unreleased/`.
+
 The package version, persisted artifact `schema_version`, exported schema
 directory, JSON Schema `$id`, and producer contracts are related but not
 identical version surfaces. A release that changes persisted artifact shape

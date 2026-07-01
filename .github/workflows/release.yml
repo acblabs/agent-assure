@@ -6,16 +6,18 @@ on:
       - "v*"
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 env:
-  PYTHON_VERSION: "3.14"
+  PYTHON_VERSION: "3.13"
   COSIGN_VERSION: "v3.0.6"
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,14 +54,18 @@ jobs:
       - run: mypy src
       - run: pytest
       - run: python scripts/update_golden.py
-      - run: agent-assure schema export --out schemas/v0.2.0
-      - run: git diff --exit-code -- schemas/v0.2.0
+      - run: make schema-check
       - name: Build release bundle
         run: >
           python scripts/build_release_bundle.py
           --out .tmp/release
           --write-digests .tmp/release/release-digest-replay.json
           --source-ref "${GITHUB_REF}"
+      - name: Check release distributions
+        run: |
+          python -m twine check .tmp/release/dist/*
+          python scripts/check_wheel_contents.py --dist .tmp/release/dist
+          python scripts/smoke_install_wheel.py --dist .tmp/release/dist
       - name: Replay release digests
         run: >
           agent-assure release replay .tmp/release/release-digest-replay.json

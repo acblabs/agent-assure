@@ -154,7 +154,7 @@ run records.
 `LiveRate.rate` is the pooled observation rate. `LiveRate.cluster_mean_rate` is
 the unweighted mean across declared clusters. When the interval center is
 `cluster_mean_rate`, `ci_lower` and `ci_upper` describe that cluster-centered
-estimate and are not guaranteed to bracket the pooled rate under unequal
+estimate and are not required to bracket the pooled rate under unequal
 cluster sizes.
 
 External `AgentRunRecord` producers must also follow

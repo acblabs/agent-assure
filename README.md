@@ -85,6 +85,14 @@ extras:
 pip install -e ".[dev]"
 ```
 
+## Schemas
+
+Schema changes are versioned. Development work uses `schemas/unreleased/`.
+Stable releases freeze a copy into `schemas/vX.Y.Z/`.
+The release gate still verifies the latest frozen schema directory, while the
+schema staging check exports the current development schema surface to
+`schemas/unreleased/`.
+
 ## Five-minute flagship demo
 
 Run these commands one at a time from the repository root. The final two

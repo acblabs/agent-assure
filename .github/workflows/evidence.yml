@@ -7,15 +7,17 @@ on:
 
 permissions:
   contents: read
-  id-token: write
 
 env:
-  PYTHON_VERSION: "3.14"
+  PYTHON_VERSION: "3.13"
   COSIGN_VERSION: "v3.0.6"
 
 jobs:
   publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -29,6 +31,11 @@ jobs:
           --out .tmp/release
           --write-digests .tmp/release/release-digest-replay.json
           --source-ref "${GITHUB_REF}"
+      - name: Check release distributions
+        run: |
+          python -m twine check .tmp/release/dist/*
+          python scripts/check_wheel_contents.py --dist .tmp/release/dist
+          python scripts/smoke_install_wheel.py --dist .tmp/release/dist
       - name: Replay release digests
         run: >
           agent-assure release replay .tmp/release/release-digest-replay.json

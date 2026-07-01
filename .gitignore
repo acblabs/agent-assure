@@ -6,6 +6,7 @@
 .ruff_cache/
 dist/
 build/
+schemas/unreleased/*.schema.json
 *.egg-info/
 Lib/
 __pycache__/

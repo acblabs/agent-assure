@@ -3,17 +3,18 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.12", "3.13"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.14"
-      - run: pip install --require-hashes -r requirements.lock
-      - run: pip install --no-deps --no-build-isolation -e .
-      - run: ruff check .
-      - run: mypy src
-      - run: pytest
+          python-version: ${{ matrix.python-version }}
+      - run: python -m pip install --upgrade pip
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      - run: make release-check
       - run: python scripts/update_golden.py
-      - run: agent-assure schema export --out schemas/v0.2.0
-      - run: git diff --exit-code -- schemas/v0.2.0
-      - run: python -m build --no-isolation
+      - run: make schema-check

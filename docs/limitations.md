@@ -14,7 +14,7 @@ evidence links, provider/tool boundaries, redaction, escalation, human review,
 runtime failures, fixture equivalence, provenance diffing, and CI/report gates.
 
 This scope does not establish safety assurance, prove regulatory compliance,
-validate clinical workflows, certify provider quality, or provide production
+validate clinical workflows, assess provider quality, or provide production
 PHI de-identification.
 
 Live stochastic work requires an explicit run configuration and a matching

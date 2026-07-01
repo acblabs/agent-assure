@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import shutil
 import subprocess
 import sys
 from collections.abc import Sequence
@@ -103,7 +104,9 @@ def main(argv: Sequence[str] | None = None) -> int:
 
 
 def _build_distributions(dist_dir: Path) -> tuple[int, tuple[Path, ...]]:
-    dist_dir.mkdir(parents=True, exist_ok=True)
+    if dist_dir.exists():
+        shutil.rmtree(dist_dir)
+    dist_dir.mkdir(parents=True)
     result = subprocess.run(
         [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(dist_dir)],
         cwd=ROOT,

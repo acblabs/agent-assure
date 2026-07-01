@@ -34,6 +34,7 @@ dev = [
   "ruff",
   "mypy",
   "build",
+  "twine>=5",
 ]
 
 [project.scripts]
@@ -41,6 +42,44 @@ agent-assure = "agent_assure.cli.main:app"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/agent_assure"]
+exclude = [
+  ".tmp/**/*",
+  "dist/**/*",
+  "build/**/*",
+  ".pytest_cache/**/*",
+  ".mypy_cache/**/*",
+  ".ruff_cache/**/*",
+  "**/__pycache__/**/*",
+  "**/*.pyc",
+]
+
+[tool.hatch.build.targets.wheel.force-include]
+"schemas/v0.1.0" = "agent_assure/schema_resources/v0.1.0"
+"schemas/v0.2.0" = "agent_assure/schema_resources/v0.2.0"
+
+[tool.hatch.build.targets.sdist]
+include = [
+  "src/agent_assure/**/*",
+  "schemas/**/*",
+  "examples/**/*",
+  "docs/**/*",
+  "tests/**/*",
+  "scripts/**/*",
+  "README.md",
+  "LICENSE",
+  "pyproject.toml",
+  "Makefile",
+]
+exclude = [
+  ".tmp/**/*",
+  "dist/**/*",
+  "build/**/*",
+  ".pytest_cache/**/*",
+  ".mypy_cache/**/*",
+  ".ruff_cache/**/*",
+  "**/__pycache__/**/*",
+  "**/*.pyc",
+]
 
 [tool.pytest.ini_options]
 addopts = "-q --disable-socket"
