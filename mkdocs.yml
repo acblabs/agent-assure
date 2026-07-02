@@ -1,0 +1,19 @@
+site_name: agent-assure
+site_description: Local-first process assurance for agentic AI pipelines.
+site_dir: .tmp/mkdocs-site
+strict: true
+theme:
+  name: readthedocs
+nav:
+  - Home: index.md
+  - For AI leaders: for_ai_leaders.md
+  - For engineers: for_engineers.md
+  - What this measures: what_this_measures.md
+  - Flagship demo: demo_flagship.md
+  - Expense demo: demo_expense.md
+  - Evidence diff: evidence_diff.md
+  - Claim boundary: claim_boundary.md
+  - Schema evolution: schema_evolution.md
+  - PyPI release: release_pypi.md
+  - API surface: api_surface.md
+  - Limitations: limitations.md

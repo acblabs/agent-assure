@@ -51,6 +51,7 @@ jobs:
           version="${GITHUB_REF_NAME#v}"
           grep -Fq "## ${version} -" CHANGELOG.md
       - run: python scripts/check_docs_alignment.py
+      - run: python scripts/check_claim_boundaries.py
       - run: ruff check .
       - run: mypy src
       - run: pytest

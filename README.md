@@ -1,102 +1,73 @@
 # agent-assure
 
-`agent-assure` is a local-first assurance and measurement toolkit for AI agent
-governance pipelines. It treats agentic governance as a measurement problem:
-declare expectations, bind fixtures or live protocols, run candidate pipelines,
-and produce reviewable evidence about observable behavior instead of relying on
-final-answer comparison or a hosted governance platform.
+Local-first process assurance for agentic AI pipelines.
 
-The project is designed for reviewers who need to know whether a candidate
-pipeline preserved explicit expectations, material evidence links,
-provider/tool boundaries, redaction behavior, escalation logic, human-review
-routing, live-protocol assumptions, and provenance under reproducible local
-commands.
+**Core thesis:** output equivalence is not process equivalence.
 
-The core premise is simple: **output equivalence is not process equivalence**.
-If an agentic AI process changes and still returns the same recommendation,
-approval, denial, or summary, the surrounding pipeline may still have changed
-in material ways. Evidence links may be missing, a different provider or tool
-may have been used, redaction behavior may have shifted, review routing may
-have been bypassed, retries may have cascaded, or provenance may no longer
-match the reviewed configuration. `agent-assure` measures those observable
-pipeline behaviors around the result so reviewers can distinguish stable
-answers from preserved governance controls.
-
-The result is evidence designed to support reproducibility, traceability,
-auditability, observability, and review defensibility. Those properties come
-from local commands, strict schemas, explicit expectations, protocol records,
-canonical digests, privacy-filtered reports, evidence packets, CI gates,
-release replay, and OpenTelemetry-aligned span plans. They are review supports,
-not safety, compliance, clinical-validity, or standards-acceptance claims.
-
-## Why this is different
-
-- **Evidence before dashboards.** `agent-assure` runs as a local package and
-  writes review artifacts in your workspace instead of requiring a hosted
-  governance platform.
-- **Offline fixture assurance.** The included fixture demos and CI gates run
-  without a provider API key, network call, or token spend.
-- **Statistical controls for probabilistic systems.** Live reports preserve
-  clustering, report pooled and cluster-mean rates, expose design-effect and
-  effective-sample metadata, support Bonferroni-controlled endpoint families,
-  rare-event Poisson upper bounds, observed intraclass-correlation summaries,
-  and paired exact or Monte Carlo randomization tests when prerequisites are
-  declared and met.
-- **Observable trajectory analysis.** Live trajectory reports derive
-  privacy-filtered state paths, transition profiles, history-dependent
-  sequence checks, and operational event-process summaries for retries,
-  rate-limit storms, malformed outputs, runtime failures, emergency process
-  records, and budget stops. These are review signals over structured
-  artifacts, not claims about hidden model state.
-- **Thin live adapters and observability alignment.** Live execution includes a
-  static JSONL adapter, a no-shell external-script adapter, and an
-  OpenAI-compatible chat-completions adapter implemented with Python's standard
-  library HTTP client. Runtime W3C `traceparent` context is propagated into
-  live adapters and can be projected into OpenTelemetry-aligned span plans with
-  optional SDK/OTLP export.
-
-The implemented surface spans suite authoring and compilation, deterministic
-fixture runs, canonical digests, expectation evaluation, privacy-filtered
-reports, evidence packets, CI gates, release replay, protocol-bound live
-analyses, and OpenTelemetry-aligned span plans.
-
-Live reports are time-bound operational evidence for declared
-provider/model/configuration windows; they do not establish safety assurance,
-validate clinical use, prove regulatory compliance, provide general
-provider-quality evidence, or claim OpenTelemetry adoption. Release evidence
-can be signed and verified for exact workflow identity; that signature is not a
-safety, compliance, or clinical-validity claim.
+A candidate agent pipeline can return the same final approval, denial,
+recommendation, or summary while silently changing material evidence, review
+routing, provider/tool boundaries, redaction behavior, retries, or provenance.
+`agent-assure` produces local evidence packets and CI gates so reviewers can
+detect those observable process regressions.
 
 ## Install
 
-Install the package from PyPI:
+Install from PyPI and run the flagship demo:
 
 ```bash
 pip install agent-assure
-agent-assure --version
+agent-assure demo flagship
 ```
 
-For local development from a repository checkout:
+The demo runs offline with bundled deterministic fixtures. It writes local
+review artifacts under `.tmp/demo/flagship` by default.
 
-```bash
-pip install -e .
+## One-command demo
+
+```text
+Expected punchline:
+
+output equivalence: preserved
+missing evidence link: claim-duration
+classification: new_failure
+CI gate: blocked as expected
 ```
 
-For local validation checks, install the development extras:
+The baseline and candidate both keep
+`recommendation=approve; outcome=approve`. The candidate still fails because it
+drops the material evidence link for `claim-duration`.
 
-```bash
-pip install -e ".[dev]"
-```
+## Claim boundary
+
+`agent-assure` produces local review evidence, traceability, evidence mapping,
+artifact digests, and CI-gate signals. It does not replace legal, regulatory,
+clinical, provider-quality, model-quality, or business-impact review.
+
+This project is not a compliance attestation. Safety review remains a separate
+human and organizational responsibility.
 
 ## Schemas
 
 Schema changes are versioned. Development work uses `schemas/unreleased/`.
 Stable releases freeze a copy into `schemas/vX.Y.Z/`.
-The release gate still verifies the latest frozen schema directory, while the
-schema staging check exports the current development schema surface to
-`schemas/unreleased/`.
+The release gate verifies the latest frozen schema directory, while schema
+staging exports the current development schema surface to `schemas/unreleased/`.
 
-## Five-minute flagship demo
+## Local development
+
+From a repository checkout:
+
+```bash
+pip install -e .
+```
+
+For validation checks, install the development extras:
+
+```bash
+pip install -e ".[dev]"
+```
+
+## Five-minute fixture walkthrough
 
 Run these commands one at a time from the repository root. The final two
 commands write reports and are expected to exit `1`; the GitHub Actions snippet
@@ -161,8 +132,8 @@ cosign verification of workflow-signed release blobs, see
 The flagship demo is intentionally narrow. It shows that a candidate can keep
 the same visible answer while losing a material evidence link, and that the
 evaluation report identifies the failing invariant under equivalent fixtures.
-It does not show live model quality, safety, compliance, clinical validity, or
-standards acceptance.
+It is deterministic review evidence for a declared fixture, not a broad model
+or provider assessment.
 
 ### Flagship regression at a glance
 

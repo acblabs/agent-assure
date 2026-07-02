@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Output equivalence is not process equivalence</title>
+<style>
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+  line-height: 1.45;
+}
+* {
+  box-sizing: border-box;
+}
+body {
+  margin: 0;
+  color: #17212b;
+  background: #fbfcfd;
+}
+main {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px 20px 48px;
+}
+h1, h2 {
+  color: #101820;
+  letter-spacing: 0;
+}
+h1 {
+  font-size: 34px;
+  margin: 0 0 8px;
+}
+h2 {
+  font-size: 19px;
+  margin: 0 0 12px;
+}
+.subtitle {
+  margin: 0 0 20px;
+  color: #4d5b6a;
+}
+section {
+  padding: 22px 0;
+  border-top: 1px solid #d8e0e8;
+}
+.hero {
+  border-top: 0;
+  padding-top: 14px;
+}
+.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 14px;
+}
+.signal {
+  min-height: 86px;
+  padding: 14px;
+  border: 1px solid #cbd5df;
+  border-radius: 6px;
+  background: #ffffff;
+}
+.signal-label {
+  display: block;
+  margin-bottom: 8px;
+  color: #516171;
+  font-size: 13px;
+}
+.signal-value {
+  display: block;
+  font-size: 21px;
+  font-weight: 700;
+}
+dl {
+  display: grid;
+  grid-template-columns: minmax(180px, 280px) 1fr;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+}
+dt {
+  font-weight: 700;
+}
+dd {
+  margin: 0;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+th, td {
+  padding: 8px 10px;
+  border: 1px solid #d8e0e8;
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+th {
+  background: #eef3f7;
+}
+code {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 0.92em;
+}
+.state-good {
+  color: #12613a;
+  font-weight: 700;
+}
+.state-bad {
+  color: #982626;
+  font-weight: 700;
+}
+.state-warn {
+  color: #805000;
+  font-weight: 700;
+}
+.state-expected {
+  color: #0f5e73;
+  font-weight: 700;
+}
+.empty {
+  color: #667789;
+}
+@media (max-width: 760px) {
+  .signal-grid,
+  dl {
+    grid-template-columns: 1fr;
+  }
+}
+</style>
+</head>
+<body>
+<main>
+<h1>Output equivalence is not process equivalence</h1>
+
+<section class="hero" aria-labelledby="review-punchline">
+<h2 id="review-punchline">Review Punchline</h2>
+<div class="signal-grid">
+<div class="signal"><span class="signal-label">Final-output equivalence</span><span class="signal-value state-good">preserved</span></div>
+<div class="signal"><span class="signal-label">Process regression</span><span class="signal-value state-expected">caught</span></div>
+<div class="signal"><span class="signal-label">CI gate result</span><span class="signal-value state-expected">blocked</span></div>
+</div>
+<p>Candidate is missing 1 baseline evidence link: claim-duration.</p>
+</section>
+<section aria-labelledby="claim-boundary">
+<h2 id="claim-boundary">Claim Boundary</h2>
+
+<p>This report is not a compliance attestation.</p>
+
+<p>This artifact does not certify safety.</p>
+
+<p>Display note: external URLs and sensitive-looking values may be redacted in this HTML; source artifacts remain unchanged.</p>
+
+</section>
+<section aria-labelledby="final-output-comparison">
+<h2 id="final-output-comparison">Final-Output Comparison</h2>
+<dl>
+<dt>Visible output equivalence</dt><dd>preserved</dd>
+<dt>Case coverage</dt><dd>same case IDs</dd>
+<dt>Baseline evaluation state</dt><dd>pass</dd>
+<dt>Candidate evaluation state</dt><dd>fail</dd>
+</dl>
+<table>
+<thead><tr><th>Case</th><th>Baseline recommendation</th><th>Candidate recommendation</th><th>Baseline outcome</th><th>Candidate outcome</th><th>Equivalence</th></tr></thead>
+<tbody><tr><td>shared-source-multi-claim</td><td>approve</td><td>approve</td><td>approve</td><td>approve</td><td class="state-good">preserved</td></tr></tbody>
+</table>
+</section>
+<section aria-labelledby="baseline-process">
+<h2 id="baseline-process">Baseline Process Evidence</h2>
+<table>
+<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
+<tbody><tr><td>shared-source-multi-claim</td><td><code>claim-duration</code></td><td><code>evidence-duration</code></td><td><code>claim-duration</code></td><td><span class="empty">none</span></td><td>not required</td><td>not recorded</td><td><code>benefit-policy-lookup</code></td></tr></tbody>
+</table>
+</section>
+<section aria-labelledby="candidate-process">
+<h2 id="candidate-process">Candidate Process Evidence</h2>
+<table>
+<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
+<tbody><tr><td>shared-source-multi-claim</td><td><code>claim-duration</code></td><td><span class="empty">none</span></td><td><span class="empty">none</span></td><td><span class="empty">none</span></td><td>not required</td><td>not recorded</td><td><code>benefit-policy-lookup</code></td></tr></tbody>
+</table>
+</section>
+<section aria-labelledby="missing-evidence-link-diff">
+<h2 id="missing-evidence-link-diff">Missing Evidence Link Diff</h2>
+<table>
+<thead><tr><th>Case</th><th>Claim</th><th>Baseline evidence refs</th><th>Candidate evidence refs</th></tr></thead>
+<tbody><tr><td>shared-source-multi-claim</td><td>claim-duration</td><td><code>evidence-duration</code></td><td><span class="empty">none</span></td></tr></tbody>
+</table>
+</section>
+<section aria-labelledby="process-invariant-findings">
+<h2 id="process-invariant-findings">Process Invariant Findings</h2>
+<table>
+<thead><tr><th>Case</th><th>Control</th><th>Target</th><th>Reason code</th><th>State</th><th>Message</th></tr></thead>
+<tbody><tr><td>shared-source-multi-claim</td><td>material_claims_have_evidence</td><td>claim:claim-duration</td><td>MATERIAL_CLAIM_MISSING_EVIDENCE</td><td class="state-bad">fail</td><td>fixture-declared material claim has no evidence link</td></tr></tbody>
+</table>
+</section>
+<section aria-labelledby="comparison-classification">
+<h2 id="comparison-classification">Comparison Classification</h2>
+<dl>
+<dt>Classification</dt><dd>new_failure</dd>
+<dt>Baseline state</dt><dd>pass</dd>
+<dt>Candidate state</dt><dd>fail</dd>
+<dt>Provenance changes</dt><dd>none</dd>
+<dt>Verdict findings</dt><dd>1 item: MATERIAL_CLAIM_MISSING_EVIDENCE</dd>
+</dl>
+</section>
+<section aria-labelledby="fixture-equivalence-state">
+<h2 id="fixture-equivalence-state">Fixture-Equivalence State</h2>
+<dl>
+<dt>State</dt><dd>pass</dd>
+<dt>Review note</dt><dd>Baseline and candidate fixture material remained equivalent for comparison.</dd>
+</dl>
+</section>
+<section aria-labelledby="ci-gate-result">
+<h2 id="ci-gate-result">CI Gate Result</h2>
+<dl>
+<dt>Result</dt><dd>blocked</dd>
+<dt>Evidence packet</dt><dd>packet-duration</dd>
+<dt>Packet limitations</dt><dd>1 item: Local deterministic fixture evidence for human review.</dd>
+</dl>
+</section>
+<section aria-labelledby="artifact-paths">
+<h2 id="artifact-paths">Artifact Paths</h2>
+<table>
+<thead><tr><th>Artifact</th><th>Path</th></tr></thead>
+<tbody><tr><td>baseline run set</td><td><code>baseline.runset.json</code></td></tr>
+<tr><td>candidate run set</td><td><code>candidate.runset.json</code></td></tr>
+<tr><td>evidence packet</td><td><code>evidence-packet.json</code></td></tr></tbody>
+</table>
+</section>
+<section aria-labelledby="artifact-digests">
+<h2 id="artifact-digests">Artifact Digests</h2>
+<table>
+<thead><tr><th>Role</th><th>Path</th><th>SHA-256</th></tr></thead>
+<tbody><tr><td>evaluation-summary</td><td><code>packet artifact digest</code></td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td></tr>
+<tr><td>compiled-suite</td><td><code>compiled.json</code></td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td></tr>
+<tr><td>candidate-runset</td><td><code>candidate.json</code></td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td></tr></tbody>
+</table>
+</section>
+</main>
+</body>
+</html>

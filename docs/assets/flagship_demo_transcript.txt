@@ -1,0 +1,27 @@
+agent-assure flagship demo
+
+Final visible output:
+  case: shared-source-multi-claim
+  baseline:  recommendation=approve; outcome=approve
+  candidate: recommendation=approve; outcome=approve
+  output equivalence: preserved
+
+Process assurance:
+  missing evidence link: claim-duration
+  reason: MATERIAL_CLAIM_MISSING_EVIDENCE
+  fixture equivalence: pass
+  classification: new_failure
+
+CI gate:
+  blocked as expected
+
+Artifacts:
+  demo-summary.json
+  baseline-report/evaluation-report.md
+  evidence-report/evaluation-report.md
+  comparison-report/comparison-report.md
+  ci-report/evidence-packet.json
+  evidence-diff.html
+
+Demo result:
+  success: identical output, process regression caught

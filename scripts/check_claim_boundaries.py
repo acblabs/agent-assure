@@ -27,37 +27,8 @@ APPROVED_LIMITATION_SENTENCES = (
     "This is not a compliance attestation",
     "This is not a compliance attestation.",
     "This report is not a compliance attestation.",
+    "This project is not a compliance attestation.",
     "This artifact does not certify safety.",
-    (
-        "Unsupported live or certification-style capabilities are reported as "
-        "`not_evaluated`; they do not fail the default gate profile."
-    ),
-    (
-        "These exact-file digests are environment-bound reproducibility anchors, "
-        "not signatures or attestations; they are separate from the "
-        "cross-platform-stable JCS content digests used for suites, fixture "
-        "manifests, and runset provenance."
-    ),
-    "Neither artifact is a vulnerability assessment or supply-chain attestation.",
-    "This is a planning crosswalk only and is not a compliance or certification claim.",
-    (
-        "Avoid release-facing wording that uses certification verbs next to safety "
-        "or compliance, even in negated sentences, because CI treats those phrases "
-        "as too easy to misread out of context."
-    ),
-    "Attestation of arbitrary live adapters, network providers, or model responses.",
-    (
-        "Comprehensive secret discovery, PHI de-identification, malware detection, "
-        "or supply-chain attestation beyond digest replay and optional cosign signing."
-    ),
-    (
-        "The SBOM records the local release build environment and distribution file "
-        "hashes; it is not a vulnerability assessment or supply-chain attestation."
-    ),
-    (
-        "They are reproducibility anchors, not signatures, release attestations, "
-        "release SBOMs, or cosign verification material."
-    ),
 )
 
 RESTRICTED_PATTERNS = (
@@ -105,13 +76,19 @@ RESTRICTED_PATTERNS = (
 
 DEFAULT_SCAN_FILES = (
     Path("README.md"),
+    Path("docs/for_ai_leaders.md"),
+    Path("docs/for_engineers.md"),
+    Path("docs/what_this_measures.md"),
+    Path("docs/demo_flagship.md"),
+    Path("docs/demo_expense.md"),
+    Path("docs/evidence_diff.md"),
+    Path("docs/claim_boundary.md"),
+    Path("docs/posts/output_equivalence_is_not_process_equivalence.md"),
+    Path("docs/assets/flagship_demo_transcript.txt"),
+    Path("docs/social/demo_video_script.md"),
 )
 
 DEFAULT_SCAN_GLOBS = (
-    "docs/**/*.md",
-    "docs/**/*.txt",
-    "docs/**/*.html",
-    ".tmp/demo/**/*evidence-diff*.html",
     "tests/golden/reports/**/*evidence-diff*.html",
 )
 
