@@ -12,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 LOCKFILE = ROOT / "requirements.lock"
+SCHEMA_ROOT = ROOT / "schemas"
+FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -56,6 +58,14 @@ def main(argv: list[str] | None = None) -> int:
                     str(python),
                     "-c",
                     _packaged_example_assertion(),
+                ],
+                cwd=temp_dir,
+            )
+            run(
+                [
+                    str(python),
+                    "-c",
+                    _packaged_schema_resource_assertion(),
                 ],
                 cwd=temp_dir,
             )
@@ -200,6 +210,33 @@ def _packaged_example_assertion() -> str:
         "missing = [name for name in required if not root.joinpath(name).is_file()]; "
         "raise SystemExit('missing packaged examples: ' + ', '.join(missing) if missing else 0)"
     )
+
+
+def _packaged_schema_resource_assertion() -> str:
+    required = _frozen_schema_resource_paths()
+    return (
+        "from importlib.resources import files; "
+        f"required = {required!r}; "
+        "root = files('agent_assure.schema_resources'); "
+        "missing = [name for name in required if not root.joinpath(name).is_file()]; "
+        "raise SystemExit('missing packaged schema resources: ' + ', '.join(missing) "
+        "if missing else 0)"
+    )
+
+
+def _frozen_schema_resource_paths(
+    *,
+    schema_root: Path = SCHEMA_ROOT,
+    schema_versions: tuple[str, ...] = FROZEN_SCHEMA_VERSIONS,
+) -> tuple[str, ...]:
+    paths: list[str] = []
+    for version in schema_versions:
+        version_dir = schema_root / version
+        paths.extend(
+            f"{version}/{path.name}"
+            for path in sorted(version_dir.glob("*.schema.json"))
+        )
+    return tuple(paths)
 
 
 if __name__ == "__main__":

@@ -7,8 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
+SCHEMA_ROOT = ROOT / "schemas"
+FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0")
 
-REQUIRED_ARCHIVE_PATHS = (
+BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/cli/main.py",
     "agent_assure/examples/",
@@ -41,6 +43,7 @@ REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/schema_resources/__init__.py",
     "agent_assure/schema_resources/v0.1.0/",
     "agent_assure/schema_resources/v0.2.0/",
+    "agent_assure/schema_resources/v0.3.0/",
 )
 
 FORBIDDEN_ARCHIVE_PREFIXES = (
@@ -110,13 +113,32 @@ def find_single_wheel(dist_dir: Path) -> Path:
 def inspect_wheel(wheel: Path) -> tuple[list[str], list[str]]:
     with zipfile.ZipFile(wheel) as archive:
         names = tuple(sorted(archive.namelist()))
+    required_paths = required_archive_paths()
     missing = [
         required
-        for required in REQUIRED_ARCHIVE_PATHS
+        for required in required_paths
         if not _archive_contains(names, required)
     ]
     forbidden = [name for name in names if _is_forbidden_archive_path(name)]
     return missing, forbidden
+
+
+def required_archive_paths(
+    *,
+    schema_root: Path = SCHEMA_ROOT,
+    schema_versions: tuple[str, ...] = FROZEN_SCHEMA_VERSIONS,
+) -> tuple[str, ...]:
+    schema_paths: list[str] = []
+    for version in schema_versions:
+        version_dir = schema_root / version
+        if not version_dir.is_dir():
+            schema_paths.append(f"agent_assure/schema_resources/{version}/")
+            continue
+        schema_paths.extend(
+            f"agent_assure/schema_resources/{version}/{path.name}"
+            for path in sorted(version_dir.glob("*.schema.json"))
+        )
+    return (*BASE_REQUIRED_ARCHIVE_PATHS, *tuple(schema_paths))
 
 
 def _archive_contains(names: tuple[str, ...], required: str) -> bool:

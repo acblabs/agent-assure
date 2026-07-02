@@ -32,7 +32,7 @@ examples-parity:
 
 check: lint type test docs-align claim-boundary examples-parity build
 
-release-check: check
+release-check: check schema-check
 	$(PYTHON) -m twine check dist/*
 	$(PYTHON) scripts/check_wheel_contents.py
 	$(PYTHON) scripts/smoke_install_wheel.py
@@ -40,12 +40,12 @@ release-check: check
 demo:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py demo flagship --out .tmp/demo/flagship --clean
 
-schemas: schema-staging
+schemas:
+	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out schemas/v0.3.0
 
 schema-staging:
 	$(PYTHON) scripts/check_schema_staging.py
 
 schema-check:
-	agent-assure schema export --out schemas/v0.2.0
-	git diff --exit-code -- schemas/v0.2.0
+	$(PYTHON) scripts/check_frozen_schemas.py --schema-dir schemas/v0.3.0
 	$(PYTHON) scripts/check_schema_staging.py

@@ -1,22 +1,23 @@
 # Schema Evolution
 
-Released schema version: `0.2.0`.
+Released schema snapshot: `schemas/v0.3.0/`.
+
+Persisted artifact `schema_version`: `0.2.0`.
 
 Development schema changes for the next release are exported to
-`schemas/unreleased/`. Stable releases freeze a copy into `schemas/vX.Y.Z/`,
-such as `schemas/v0.2.0/` for the current release and `schemas/v0.3.0/` when
-the v0.3.0 release is cut.
+`schemas/unreleased/`. Stable package releases freeze a copy into
+`schemas/vX.Y.Z/`, such as `schemas/v0.3.0/` for the v0.3.0 release.
 
 Use these directories as the release lifecycle:
 
-- `schemas/v0.2.0/` contains the stable exported schema from v0.2.
+- `schemas/v0.1.0/` and `schemas/v0.2.0/` retain earlier release schema sets.
+- `schemas/v0.3.0/` contains the stable exported schema snapshot for v0.3.0.
 - `schemas/unreleased/` is the development export target for the next release.
-- `schemas/v0.3.0/` is created only when the v0.3.0 schema surface is frozen.
 
 Automation has two separate checks:
 
 - frozen schema parity exports the current release schema surface to
-  `schemas/v0.2.0/` and fails if those committed files drift;
+  `schemas/v0.3.0/` and fails if those committed files drift;
 - schema staging exports the current development schema surface to
   `schemas/unreleased/` and fails if no schema files are produced.
 
@@ -31,10 +32,29 @@ ship `schemas/unreleased/`.
 
 The package version, persisted artifact `schema_version`, exported schema
 directory, JSON Schema `$id`, and producer contracts are related but not
-identical version surfaces. A release that changes persisted artifact shape
-must update all schema surfaces together. A release that changes behavioral
-producer obligations without changing JSON shape must publish a versioned
-producer contract and document the compatibility boundary.
+identical version surfaces. The v0.3.0 package release freezes a v0.3.0 schema
+snapshot without changing persisted artifact `schema_version`, which remains
+`0.2.0`. A release that changes persisted artifact shape must update all schema
+surfaces together. A release that changes behavioral producer obligations
+without changing JSON shape must publish a versioned producer contract and
+document the compatibility boundary.
+
+Because v0.3.0 does not change persisted artifact shape, the JSON Schema `$id`
+values inside `schemas/v0.3.0/` still point to the `v0.2.0` schema namespace.
+This is intentional for v0.3.0: the directory is a package-release snapshot,
+while the persisted artifact schema namespace remains `0.2.0`.
+
+## Replay Support Window
+
+For the v0.3.x line, the CLI keeps replay and validation support for the
+release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
+`schemas/v0.3.0/`.
+
+Future minor releases should keep at least the two previous minor release
+schema snapshots available for local replay unless release notes explicitly
+declare a narrower support boundary. Removing a frozen schema snapshot requires
+a release note, migration guidance, and a compatibility test update. Development
+schemas in `schemas/unreleased/` are never part of the replay support window.
 
 ## Required Updates
 
@@ -105,3 +125,8 @@ values, and keeps the v0.1 release schemas in `schemas/v0.1.0` for replay of
 the earlier release surface. Schema parity coverage includes v0.2 live protocol,
 evaluation, comparison, drift, trajectory, emergency-process, release-manifest,
 and release-replay roots.
+
+The v0.3 package release adds `schemas/v0.3.0` as the frozen release snapshot
+used by release gates and wheel-content inspection. The persisted artifact
+schema version remains `0.2.0` because v0.3.0 focuses on packaging, demos, and
+release evidence rather than a breaking artifact-shape change.

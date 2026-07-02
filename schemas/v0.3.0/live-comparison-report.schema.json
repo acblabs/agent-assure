@@ -1,0 +1,496 @@
+{
+  "$defs": {
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "LiveRate": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_method": {
+          "minLength": 1,
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "live-rate",
+          "default": "live-rate",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "assumed_intraclass_correlation": {
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Assumed Intraclass Correlation",
+          "type": "string"
+        },
+        "ci_lower": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Ci Lower",
+          "type": "string"
+        },
+        "ci_upper": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Ci Upper",
+          "type": "string"
+        },
+        "cluster_count": {
+          "minimum": 0,
+          "title": "Cluster Count",
+          "type": "integer"
+        },
+        "cluster_mean_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Cluster Mean Rate",
+          "type": "string"
+        },
+        "confidence_level": {
+          "const": "0.950000",
+          "default": "0.950000",
+          "title": "Confidence Level",
+          "type": "string"
+        },
+        "denominator": {
+          "minimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "design_effect": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Design Effect",
+          "type": "string"
+        },
+        "effective_n": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Effective N",
+          "type": "string"
+        },
+        "exploratory": {
+          "default": false,
+          "title": "Exploratory",
+          "type": "boolean"
+        },
+        "interval_center": {
+          "default": "cluster_mean_rate",
+          "enum": [
+            "cluster_mean_rate",
+            "pooled_rate"
+          ],
+          "title": "Interval Center",
+          "type": "string"
+        },
+        "interval_center_value": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Interval Center Value",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "largest_cluster_design_effect": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Largest Cluster Design Effect",
+          "type": "string"
+        },
+        "largest_cluster_effective_n": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Largest Cluster Effective N",
+          "type": "string"
+        },
+        "largest_cluster_size": {
+          "minimum": 0,
+          "title": "Largest Cluster Size",
+          "type": "integer"
+        },
+        "numerator": {
+          "minimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Rate",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "numerator",
+        "denominator",
+        "cluster_count",
+        "effective_n",
+        "design_effect",
+        "largest_cluster_size",
+        "largest_cluster_design_effect",
+        "largest_cluster_effective_n",
+        "assumed_intraclass_correlation",
+        "analysis_method",
+        "rate",
+        "cluster_mean_rate",
+        "interval_center_value",
+        "ci_lower",
+        "ci_upper"
+      ],
+      "title": "LiveRate",
+      "type": "object"
+    },
+    "PairedRandomizationTestResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_p_value": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adjusted P Value"
+        },
+        "analysis_method": {
+          "enum": [
+            "paired_cluster_permutation_exact",
+            "paired_cluster_permutation_monte_carlo"
+          ],
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "paired-randomization-test-result",
+          "default": "paired-randomization-test-result",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "compared_clusters": {
+          "minimum": 0,
+          "title": "Compared Clusters",
+          "type": "integer"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "enum": [
+            "baseline_candidate_relabeling",
+            "not_applicable"
+          ],
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "exhaustive": {
+          "default": false,
+          "title": "Exhaustive",
+          "type": "boolean"
+        },
+        "interpretation": {
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "non_inferiority_margin": {
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Non Inferiority Margin",
+          "type": "string"
+        },
+        "observed_difference": {
+          "pattern": "^-?(0|1)\\.[0-9]{6}$",
+          "title": "Observed Difference",
+          "type": "string"
+        },
+        "p_value": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P Value"
+        },
+        "prerequisite_status": {
+          "enum": [
+            "met",
+            "exploratory",
+            "invalid"
+          ],
+          "title": "Prerequisite Status",
+          "type": "string"
+        },
+        "resamples": {
+          "minimum": 0,
+          "title": "Resamples",
+          "type": "integer"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "seed": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Seed"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "interpretation",
+        "analysis_method",
+        "prerequisite_status",
+        "exchangeability_assumption",
+        "compared_clusters",
+        "observed_difference",
+        "non_inferiority_margin",
+        "resamples"
+      ],
+      "title": "PairedRandomizationTestResult",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.2.0/live-comparison-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_method": {
+      "minLength": 1,
+      "title": "Analysis Method",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "const": "live-comparison-report",
+      "default": "live-comparison-report",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_group_id": {
+      "minLength": 1,
+      "title": "Baseline Group Id",
+      "type": "string"
+    },
+    "baseline_mode": {
+      "enum": [
+        "concurrent_paired",
+        "fixed_reference"
+      ],
+      "title": "Baseline Mode",
+      "type": "string"
+    },
+    "baseline_pass_rate": {
+      "$ref": "#/$defs/LiveRate"
+    },
+    "baseline_runset_id": {
+      "minLength": 1,
+      "title": "Baseline Runset Id",
+      "type": "string"
+    },
+    "candidate_group_id": {
+      "minLength": 1,
+      "title": "Candidate Group Id",
+      "type": "string"
+    },
+    "candidate_pass_rate": {
+      "$ref": "#/$defs/LiveRate"
+    },
+    "candidate_runset_id": {
+      "minLength": 1,
+      "title": "Candidate Runset Id",
+      "type": "string"
+    },
+    "compared_clusters": {
+      "minimum": 0,
+      "title": "Compared Clusters",
+      "type": "integer"
+    },
+    "confidence_level": {
+      "const": "0.950000",
+      "default": "0.950000",
+      "title": "Confidence Level",
+      "type": "string"
+    },
+    "cost_total_difference_usd": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Cost Total Difference Usd"
+    },
+    "difference_ci_lower": {
+      "pattern": "^-?(0|1)\\.[0-9]{6}$",
+      "title": "Difference Ci Lower",
+      "type": "string"
+    },
+    "difference_ci_upper": {
+      "pattern": "^-?(0|1)\\.[0-9]{6}$",
+      "title": "Difference Ci Upper",
+      "type": "string"
+    },
+    "effective_n": {
+      "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+      "title": "Effective N",
+      "type": "string"
+    },
+    "exploratory": {
+      "default": false,
+      "title": "Exploratory",
+      "type": "boolean"
+    },
+    "fixed_reference_pass_rate": {
+      "anyOf": [
+        {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fixed Reference Pass Rate"
+    },
+    "latency_p50_difference_ms": {
+      "anyOf": [
+        {
+          "pattern": "^-?(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Latency P50 Difference Ms"
+    },
+    "limitations": {
+      "default": [
+        "live comparison intervals are descriptive unless the protocol predeclares the comparison as confirmatory"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "non_inferiority_margin": {
+      "pattern": "^0\\.[0-9]{6}$",
+      "title": "Non Inferiority Margin",
+      "type": "string"
+    },
+    "pass_rate_difference": {
+      "pattern": "^-?(0|1)\\.[0-9]{6}$",
+      "title": "Pass Rate Difference",
+      "type": "string"
+    },
+    "protocol_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Protocol Digest",
+      "type": "string"
+    },
+    "protocol_id": {
+      "minLength": 1,
+      "title": "Protocol Id",
+      "type": "string"
+    },
+    "randomization_tests": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PairedRandomizationTestResult"
+      },
+      "title": "Randomization Tests",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.2.0",
+      "default": "0.2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/GateState"
+    },
+    "suite_id": {
+      "minLength": 1,
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "suite_version": {
+      "minLength": 1,
+      "title": "Suite Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "baseline_runset_id",
+    "candidate_runset_id",
+    "suite_id",
+    "suite_version",
+    "baseline_group_id",
+    "candidate_group_id",
+    "protocol_id",
+    "protocol_digest",
+    "baseline_mode",
+    "analysis_method",
+    "state",
+    "non_inferiority_margin",
+    "baseline_pass_rate",
+    "candidate_pass_rate",
+    "pass_rate_difference",
+    "difference_ci_lower",
+    "difference_ci_upper",
+    "compared_clusters",
+    "effective_n"
+  ],
+  "title": "LiveComparisonReport",
+  "type": "object"
+}

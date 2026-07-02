@@ -1,0 +1,245 @@
+{
+  "$defs": {
+    "ComparisonClassification": {
+      "enum": [
+        "new_failure",
+        "resolved_failure",
+        "persistent_failure",
+        "allowed_behavioral_change",
+        "provenance_only_change",
+        "invalid_comparison",
+        "not_evaluated"
+      ],
+      "title": "ComparisonClassification",
+      "type": "string"
+    },
+    "EnvironmentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "environment-info",
+          "default": "environment-info",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "dependency_inventory_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Digest"
+        },
+        "dependency_inventory_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Path"
+        },
+        "git_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Commit"
+        },
+        "git_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Dirty"
+        },
+        "installed_packages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InstalledPackage"
+          },
+          "title": "Installed Packages",
+          "type": "array"
+        },
+        "lockfile_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Digest"
+        },
+        "lockfile_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Path"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "platform",
+        "python_version"
+      ],
+      "title": "EnvironmentInfo",
+      "type": "object"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "InstalledPackage": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "installed-package",
+          "default": "installed-package",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "InstalledPackage",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.2.0/comparison-summary.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "comparison-summary",
+      "default": "comparison-summary",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_runset_id": {
+      "title": "Baseline Runset Id",
+      "type": "string"
+    },
+    "baseline_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
+    "candidate_runset_id": {
+      "title": "Candidate Runset Id",
+      "type": "string"
+    },
+    "candidate_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
+    "classification": {
+      "$ref": "#/$defs/ComparisonClassification"
+    },
+    "environment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvironmentInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "fixture_equivalence_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
+    "provenance_changes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Provenance Changes",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.2.0",
+      "default": "0.2.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "verdict_findings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Verdict Findings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "baseline_runset_id",
+    "candidate_runset_id",
+    "classification"
+  ],
+  "title": "ComparisonSummary",
+  "type": "object"
+}

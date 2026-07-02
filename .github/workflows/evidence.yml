@@ -51,83 +51,23 @@ jobs:
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign release evidence blobs
-        shell: bash
-        run: |
-          set -euo pipefail
-          artifacts=(
-            .tmp/release/reports/evidence-packet.json
-            .tmp/release/reports/release-artifact-manifest.json
-            .tmp/release/release-digest-replay.json
-            .tmp/release/sbom.cdx.json
-          )
-          while IFS= read -r artifact; do
-            artifacts+=("${artifact}")
-          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
-          for artifact in "${artifacts[@]}"; do
-            cosign sign-blob --yes --bundle "${artifact}.bundle" "${artifact}"
-          done
+        run: >
+          python scripts/cosign_release_artifacts.py sign
+          --release-dir .tmp/release
+          --workflow-name evidence
+          --workflow-path .github/workflows/evidence.yml
       - name: Verify workflow identity signatures
-        shell: bash
-        run: |
-          set -euo pipefail
-          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/evidence.yml@${GITHUB_REF}"
-          issuer="https://token.actions.githubusercontent.com"
-          verify_blob() {
-            local artifact="$1"
-            local attempt
-            for attempt in 1 2 3 4 5; do
-              echo "verifying ${artifact} for ${GITHUB_REPOSITORY} ${GITHUB_REF} ${GITHUB_SHA} (attempt ${attempt})"
-              if cosign verify-blob "${artifact}" \
-                --bundle "${artifact}.bundle" \
-                --certificate-identity "${identity}" \
-                --certificate-oidc-issuer "${issuer}" \
-                --certificate-github-workflow-name "evidence" \
-                --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
-                --certificate-github-workflow-ref "${GITHUB_REF}" \
-                --certificate-github-workflow-sha "${GITHUB_SHA}" \
-                --certificate-github-workflow-trigger "${GITHUB_EVENT_NAME}"; then
-                return 0
-              fi
-              sleep "$((attempt * 2))"
-            done
-            return 1
-          }
-          artifacts=(
-            .tmp/release/reports/evidence-packet.json
-            .tmp/release/reports/release-artifact-manifest.json
-            .tmp/release/release-digest-replay.json
-            .tmp/release/sbom.cdx.json
-          )
-          while IFS= read -r artifact; do
-            artifacts+=("${artifact}")
-          done < <(find .tmp/release/dist -type f ! -name '*.bundle' | sort)
-          for artifact in "${artifacts[@]}"; do
-            verify_blob "${artifact}"
-          done
+        run: >
+          python scripts/cosign_release_artifacts.py verify
+          --release-dir .tmp/release
+          --workflow-name evidence
+          --workflow-path .github/workflows/evidence.yml
       - name: Assert modified packet verification fails
-        shell: bash
-        run: |
-          set -euo pipefail
-          identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/evidence.yml@${GITHUB_REF}"
-          issuer="https://token.actions.githubusercontent.com"
-          packet=.tmp/release/reports/evidence-packet.json
-          packet_bundle="${packet}.bundle"
-          modified_packet=.tmp/release/reports/evidence-packet.modified.json
-          cp "${packet}" "${modified_packet}"
-          printf '\nmodified\n' >> "${modified_packet}"
-          if cosign verify-blob "${modified_packet}" \
-            --bundle "${packet_bundle}" \
-            --certificate-identity "${identity}" \
-            --certificate-oidc-issuer "${issuer}" \
-            --certificate-github-workflow-name "evidence" \
-            --certificate-github-workflow-repository "${GITHUB_REPOSITORY}" \
-            --certificate-github-workflow-ref "${GITHUB_REF}" \
-            --certificate-github-workflow-sha "${GITHUB_SHA}" \
-            --certificate-github-workflow-trigger "${GITHUB_EVENT_NAME}"; then
-            echo "modified packet unexpectedly verified"
-            exit 1
-          fi
-          rm -f "${modified_packet}"
+        run: >
+          python scripts/cosign_release_artifacts.py verify-modified-fails
+          --release-dir .tmp/release
+          --workflow-name evidence
+          --workflow-path .github/workflows/evidence.yml
       - name: Upload signed release evidence
         # actions/upload-artifact@v4
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
