@@ -69,6 +69,14 @@ def main(argv: list[str] | None = None) -> int:
                 ],
                 cwd=temp_dir,
             )
+            run(
+                [
+                    str(python),
+                    "-c",
+                    _demo_network_guard_assertion(),
+                ],
+                cwd=temp_dir,
+            )
             run([str(agent_assure), "--version"], cwd=temp_dir)
             run(
                 [str(agent_assure), "schema", "export", "--out", str(schema_dir)],
@@ -221,6 +229,24 @@ def _packaged_schema_resource_assertion() -> str:
         "missing = [name for name in required if not root.joinpath(name).is_file()]; "
         "raise SystemExit('missing packaged schema resources: ' + ', '.join(missing) "
         "if missing else 0)"
+    )
+
+
+def _demo_network_guard_assertion() -> str:
+    probe = "import socket; socket.create_connection(('127.0.0.1', 9))"
+    expected = "network access is disabled for agent-assure demo subprocesses"
+    return (
+        "from pathlib import Path; "
+        "import os, subprocess, sys; "
+        "from agent_assure.demo.common import demo_subprocess_env; "
+        "out = Path.cwd() / 'network-guard-check'; "
+        "out.mkdir(parents=True, exist_ok=True); "
+        "env = demo_subprocess_env(out, env=os.environ.copy()); "
+        f"result = subprocess.run([sys.executable, '-c', {probe!r}], "
+        "cwd=out, env=env, text=True, capture_output=True, check=False); "
+        f"expected = {expected!r}; "
+        "raise SystemExit(0 if result.returncode != 0 and expected in result.stderr "
+        "else 'demo network guard did not block socket creation')"
     )
 
 

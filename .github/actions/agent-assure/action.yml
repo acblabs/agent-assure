@@ -32,41 +32,54 @@ runs:
   steps:
     - name: Compile suite
       shell: bash
+      env:
+        AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
+        AGENT_ASSURE_ACTION_SUITE: ${{ inputs.suite }}
       run: |
         set -euo pipefail
-        mkdir -p "${{ inputs.out-dir }}"
-        agent-assure suite compile "${{ inputs.suite }}" \
-          --out "${{ inputs.out-dir }}/suite.compiled.json" \
-          --manifest "${{ inputs.out-dir }}/fixtures.json"
+        mkdir -p "${AGENT_ASSURE_ACTION_OUT_DIR}"
+        agent-assure suite compile "${AGENT_ASSURE_ACTION_SUITE}" \
+          --out "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json" \
+          --manifest "${AGENT_ASSURE_ACTION_OUT_DIR}/fixtures.json"
     - name: Run baseline
       if: inputs.baseline-variant != ''
       shell: bash
+      env:
+        AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
+        AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
       run: |
         set -euo pipefail
-        agent-assure suite run "${{ inputs.out-dir }}/suite.compiled.json" \
-          --variant "${{ inputs.baseline-variant }}" \
-          --manifest "${{ inputs.out-dir }}/fixtures.json" \
-          --out "${{ inputs.out-dir }}/baseline.runset.json"
+        agent-assure suite run "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json" \
+          --variant "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" \
+          --manifest "${AGENT_ASSURE_ACTION_OUT_DIR}/fixtures.json" \
+          --out "${AGENT_ASSURE_ACTION_OUT_DIR}/baseline.runset.json"
     - name: Run candidate
       shell: bash
+      env:
+        AGENT_ASSURE_ACTION_CANDIDATE_VARIANT: ${{ inputs.candidate-variant }}
+        AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
       run: |
         set -euo pipefail
-        agent-assure suite run "${{ inputs.out-dir }}/suite.compiled.json" \
-          --variant "${{ inputs.candidate-variant }}" \
-          --manifest "${{ inputs.out-dir }}/fixtures.json" \
-          --out "${{ inputs.out-dir }}/candidate.runset.json"
+        agent-assure suite run "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json" \
+          --variant "${AGENT_ASSURE_ACTION_CANDIDATE_VARIANT}" \
+          --manifest "${AGENT_ASSURE_ACTION_OUT_DIR}/fixtures.json" \
+          --out "${AGENT_ASSURE_ACTION_OUT_DIR}/candidate.runset.json"
     - name: Evaluate and gate
       shell: bash
+      env:
+        AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
+        AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
+        AGENT_ASSURE_ACTION_REPORT_MODE: ${{ inputs.report-mode }}
       run: |
         set -euo pipefail
         args=(
-          agent-assure ci "${{ inputs.out-dir }}/candidate.runset.json"
-          --suite "${{ inputs.out-dir }}/suite.compiled.json"
-          --out-dir "${{ inputs.out-dir }}/reports"
-          --report-mode "${{ inputs.report-mode }}"
+          agent-assure ci "${AGENT_ASSURE_ACTION_OUT_DIR}/candidate.runset.json"
+          --suite "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json"
+          --out-dir "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"
+          --report-mode "${AGENT_ASSURE_ACTION_REPORT_MODE}"
         )
-        if [ -n "${{ inputs.baseline-variant }}" ]; then
-          args+=(--baseline "${{ inputs.out-dir }}/baseline.runset.json")
+        if [ -n "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" ]; then
+          args+=(--baseline "${AGENT_ASSURE_ACTION_OUT_DIR}/baseline.runset.json")
         fi
         "${args[@]}"
     - name: Upload reports

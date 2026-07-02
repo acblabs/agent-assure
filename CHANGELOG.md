@@ -26,6 +26,11 @@
 - Hardened package-publish jobs by validating workflow-dispatch version input
   with a strict release-version parser and rechecking downloaded package
   artifacts immediately before TestPyPI/PyPI upload.
+- Hardened the reusable GitHub Action against shell interpretation of
+  caller-provided paths and variants, removed the inert demo expected-failure
+  environment marker, added a regression test that core commands ignore that
+  marker if set externally, and made the wheel smoke test assert the installed
+  demo network guard.
 - Added the PyPI release runbook with TestPyPI install checks, Windows
   PowerShell equivalents, credential timing guidance, and the relationship
   between package publishing and the signed GitHub release bundle.
