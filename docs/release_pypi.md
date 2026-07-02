@@ -142,7 +142,9 @@ will fail, so each release candidate needs a unique version such as
    `agent_assure.__version__ = "0.3.0rc1"`.
 2. Build and verify locally with `make release-check`.
 3. Run the `Publish to TestPyPI` workflow manually from that ref and set
-   `expected-version` to the same value, for example `0.3.0rc1`.
+   `expected-version` explicitly to the same value, for example `0.3.0rc1`.
+   The workflow intentionally has no default version because the selected ref
+   must already contain matching package metadata.
 4. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package

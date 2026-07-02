@@ -103,6 +103,57 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     assert inventory["format"] == "agent-assure-dependency-inventory-v0.1"
 
 
+def test_demo_expected_failure_flag_does_not_affect_core_commands(tmp_path: Path) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    env = {"AGENT_ASSURE_DEMO_EXPECTED_FAILURE": "1"}
+
+    evaluate = RUNNER.invoke(
+        app,
+        [
+            "evaluate",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(tmp_path / "evaluate-report"),
+        ],
+        env=env,
+    )
+    compare = RUNNER.invoke(
+        app,
+        [
+            "compare",
+            str(baseline_path),
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(tmp_path / "compare-report"),
+        ],
+        env=env,
+    )
+    ci = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--baseline",
+            str(baseline_path),
+            "--out-dir",
+            str(tmp_path / "ci-report-with-demo-env"),
+            "--report-mode",
+            "full",
+        ],
+        env=env,
+    )
+
+    assert evaluate.exit_code == 1, evaluate.output
+    assert compare.exit_code == 1, compare.output
+    assert ci.exit_code == 1, ci.output
+
+
 def test_ci_fail_fast_stops_before_comparison_after_candidate_blocker(tmp_path: Path) -> None:
     compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
     out_dir = tmp_path / "ci-report"

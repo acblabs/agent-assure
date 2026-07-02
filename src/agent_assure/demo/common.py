@@ -144,10 +144,6 @@ def run_cli_command(
     env = os.environ.copy()
     env["PYTHONIOENCODING"] = "utf-8"
     env = demo_subprocess_env(out_dir, env=env)
-    # This flag exists solely so the demo wrapper can treat an expected
-    # blocking finding as successful demo behavior. It must never be used
-    # by evaluate/compare/ci in normal operation
-    env["AGENT_ASSURE_DEMO_EXPECTED_FAILURE"] = "1"
     try:
         result = subprocess.run(
             list(command),
