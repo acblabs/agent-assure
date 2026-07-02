@@ -46,10 +46,10 @@ Complete this setup before the first TestPyPI publish attempt:
 2. Use Trusted Publishing/OIDC as the default release path. In that path, do
    not create, paste, store, or commit a PyPI API token, and do not run local
    `twine upload`.
-3. Use a PyPI API token only as a manual fallback if Trusted Publishing is
-   unavailable. Create the token immediately before the manual upload step,
-   after the relevant release checks have passed and the package files are
-   present.
+3. Use a PyPI API token only as a high-alert manual fallback if Trusted
+   Publishing is unavailable. Create the token immediately before the manual
+   upload step, after the relevant release checks have passed and the package
+   files are present.
 4. For a first manual upload to an unregistered package name, an account-scoped
    token may be required because the project does not exist yet. After the
    package exists, replace that with project-scoped tokens for future uploads.
@@ -62,7 +62,12 @@ Complete this setup before the first TestPyPI publish attempt:
    bundle directory, for example `.tmp/release/dist/*.whl` and
    `.tmp/release/dist/*.tar.gz`. Username is `__token__`; password is the copied
    token value, including the `pypi-` prefix.
-6. Never add PyPI tokens to repository files, GitHub workflow YAML, shell
+6. A final manual PyPI upload must not bypass the release evidence ledger. Build
+   the release bundle first, verify its digest replay, and attach the release
+   manifest, SBOM, evidence packet, digest replay file, distributions, and
+   signature bundles to the GitHub release before or alongside the manual
+   upload. Record the manual-upload reason in the release notes.
+7. Never add PyPI tokens to repository files, GitHub workflow YAML, shell
    history snippets, logs, release notes, or docs examples with real values.
 
 ## Local Verification
@@ -74,8 +79,13 @@ git checkout main
 git pull
 python -m pip install --upgrade pip
 python -m pip install ".[dev]"
+schema_review_dir="$(mktemp -d)"
+agent-assure schema export --out "${schema_review_dir}/v0.3.0"
+git diff --no-index -- schemas/v0.3.0 "${schema_review_dir}/v0.3.0"
+make schema-check
 make release-check
 python scripts/check_version_matches_tag.py v0.3.0
+rm -rf "${schema_review_dir}"
 ```
 
 PowerShell equivalent:
@@ -85,9 +95,19 @@ git checkout main
 git pull
 python -m pip install --upgrade pip
 python -m pip install ".[dev]"
+$SchemaReviewRoot = Join-Path $env:TEMP "agent-assure-schema-review"
+Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force -ErrorAction SilentlyContinue
+$SchemaReview = Join-Path $SchemaReviewRoot "v0.3.0"
+agent-assure schema export --out $SchemaReview
+git diff --no-index -- schemas/v0.3.0 $SchemaReview
+make schema-check
 make release-check
 python scripts/check_version_matches_tag.py v0.3.0
+Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
+
+If the schema review diff is intentional, run `make schemas`, review
+`git diff -- schemas/v0.3.0`, then rerun `make schema-check` before continuing.
 
 ## Temporary Virtual Environments
 
@@ -134,14 +154,19 @@ CI, WSL, or Git Bash:
 python -m venv /tmp/agent-assure-testpypi
 source /tmp/agent-assure-testpypi/bin/activate
 python -m pip install --upgrade pip
-python -m pip install \
+python -m pip install --require-hashes -r requirements.lock
+python -m pip install --no-deps \
   --index-url https://test.pypi.org/simple/ \
-  --extra-index-url https://pypi.org/simple/ \
   agent-assure==0.3.0rc1
+python -m pip check
 agent-assure --version
 agent-assure schema export --out /tmp/agent-assure-testpypi-schemas
+agent-assure demo flagship --out /tmp/agent-assure-testpypi-flagship --clean
 deactivate
-rm -rf /tmp/agent-assure-testpypi /tmp/agent-assure-testpypi-schemas
+rm -rf \
+  /tmp/agent-assure-testpypi \
+  /tmp/agent-assure-testpypi-schemas \
+  /tmp/agent-assure-testpypi-flagship
 ```
 
 PowerShell:
@@ -149,36 +174,40 @@ PowerShell:
 ```powershell
 $InstallTemp = Join-Path $env:TEMP "agent-assure-testpypi"
 $SchemaTemp = Join-Path $env:TEMP "agent-assure-testpypi-schemas"
+$FlagshipOut = Join-Path $env:TEMP "agent-assure-testpypi-flagship"
 python -m venv $InstallTemp
 & (Join-Path $InstallTemp "Scripts\Activate.ps1")
 python -m pip install --upgrade pip
-python -m pip install `
+python -m pip install --require-hashes -r requirements.lock
+python -m pip install --no-deps `
   --index-url https://test.pypi.org/simple/ `
-  --extra-index-url https://pypi.org/simple/ `
   agent-assure==0.3.0rc1
+python -m pip check
 agent-assure --version
 agent-assure schema export --out $SchemaTemp
+agent-assure demo flagship --out $FlagshipOut --clean
 deactivate
 Remove-Item -LiteralPath $InstallTemp -Recurse -Force
 Remove-Item -LiteralPath $SchemaTemp -Recurse -Force
-```
-
-After Sprint 2 lands, also run:
-
-```bash
-agent-assure demo flagship --out /tmp/agent-assure-flagship --clean
-```
-
-PowerShell:
-
-```powershell
-$FlagshipOut = Join-Path $env:TEMP "agent-assure-flagship"
-agent-assure demo flagship --out $FlagshipOut --clean
+Remove-Item -LiteralPath $FlagshipOut -Recurse -Force
 ```
 
 The expense demo remains deferred for v0.3.0 unless its fixture supports the
 same visible-output/process-regression shape without slowing the flagship
 release path.
+
+If the expense demo is included in the release candidate, also run:
+
+```bash
+agent-assure demo expense --out /tmp/agent-assure-testpypi-expense --clean
+```
+
+PowerShell:
+
+```powershell
+$ExpenseOut = Join-Path $env:TEMP "agent-assure-testpypi-expense"
+agent-assure demo expense --out $ExpenseOut --clean
+```
 
 ## Final PyPI Release
 
@@ -187,6 +216,7 @@ Create and push the final release tag only after TestPyPI install checks pass:
 ```bash
 git checkout main
 git pull
+make schema-check
 make release-check
 python scripts/check_version_matches_tag.py v0.3.0
 git tag v0.3.0
@@ -202,8 +232,44 @@ package build. Before upload, it verifies the downloaded release bundle with
 `twine check`, wheel-content verification, and the clean wheel smoke install on
 the staged upload directory.
 
+PyPI receives only the wheel and source distribution. The release packet,
+manifest, SBOM, digest replay file, and signature bundles live on the GitHub
+release and are the cryptographic provenance chain for the package files.
+
 If the PyPI publish job fails after the release build succeeds, rerun the failed
 job from the same workflow run so it reuses the uploaded release bundle
 artifact. Do not push a replacement tag or start a fresh build for the same
 version unless the release is being deliberately re-cut before any package file
 has been accepted by PyPI.
+
+After the workflow publishes to PyPI, validate the final package from a clean
+environment.
+
+CI, WSL, or Git Bash:
+
+```bash
+python -m venv /tmp/agent-assure-pypi
+source /tmp/agent-assure-pypi/bin/activate
+python -m pip install --upgrade pip
+python -m pip install agent-assure==0.3.0
+agent-assure --version
+agent-assure demo flagship --out /tmp/agent-assure-pypi-flagship --clean
+deactivate
+rm -rf /tmp/agent-assure-pypi /tmp/agent-assure-pypi-flagship
+```
+
+PowerShell:
+
+```powershell
+$InstallTemp = Join-Path $env:TEMP "agent-assure-pypi"
+$FlagshipOut = Join-Path $env:TEMP "agent-assure-pypi-flagship"
+python -m venv $InstallTemp
+& (Join-Path $InstallTemp "Scripts\Activate.ps1")
+python -m pip install --upgrade pip
+python -m pip install agent-assure==0.3.0
+agent-assure --version
+agent-assure demo flagship --out $FlagshipOut --clean
+deactivate
+Remove-Item -LiteralPath $InstallTemp -Recurse -Force
+Remove-Item -LiteralPath $FlagshipOut -Recurse -Force
+```

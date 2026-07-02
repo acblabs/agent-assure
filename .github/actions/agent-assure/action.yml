@@ -71,7 +71,8 @@ runs:
         "${args[@]}"
     - name: Upload reports
       if: always() && inputs.upload-reports == 'true'
-      uses: actions/upload-artifact@v4
+      # actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: ${{ inputs.upload-name }}
         path: ${{ inputs.out-dir }}

@@ -6,7 +6,7 @@ on:
       expected-version:
         description: "Expected package version in this ref, for example 0.3.0rc1."
         required: true
-        default: "0.3.0"
+        default: "0.3.0rc1"
 
 permissions:
   contents: read
@@ -31,6 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_version_matches_tag.py "v${EXPECTED_VERSION}"
+      - run: make schema-check
       - run: make release-check
       # actions/upload-artifact@v4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -69,6 +70,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_version_matches_tag.py "v${EXPECTED_VERSION}"
+          python scripts/check_frozen_schemas.py --schema-dir schemas/v0.3.0
           python -m twine check dist/*
           python scripts/check_wheel_contents.py --dist dist
           python scripts/smoke_install_wheel.py --dist dist
