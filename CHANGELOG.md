@@ -6,6 +6,9 @@
 
 ## 0.3.0 - 2026-07-01
 
+- Published v0.3.0 to PyPI and completed post-publish validation from the
+  installed package: the packaged flagship demo preserved output equivalence
+  and blocked the expected process-assurance regression.
 - Prepared the v0.3.0 adoption release package metadata for PyPI and TestPyPI,
   including project URLs, Python 3.11-3.13 classifiers, release keywords, and
   the `0.3.0` package version.
