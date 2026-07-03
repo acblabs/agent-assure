@@ -257,6 +257,8 @@ def test_live_runner_records_post_response_budget_stop(tmp_path: Path) -> None:
     assert runset.completion_status == "incomplete"
     assert runset.stop_reasons == ("cost_budget_exceeded_after_response",)
     assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.POLICY_FAILED,)
+    assert runset.runs[0].estimated_cost_usd == "2.000000"
+    assert runset.runs[0].estimated_cost_source == "adapter_reported"
 
 
 def test_live_runner_records_cumulative_total_token_budget_stop(tmp_path: Path) -> None:
@@ -309,6 +311,9 @@ def test_live_runner_records_cumulative_total_token_budget_stop(tmp_path: Path) 
     assert runset.stop_reasons == ("token_budget_exceeded_after_response",)
     assert runset.runs[0].outcome == "approve"
     assert runset.runs[1].policy_results[0].reason_codes == (ReasonCode.POLICY_FAILED,)
+    assert runset.runs[1].prompt_tokens == 12
+    assert runset.runs[1].completion_tokens == 18
+    assert runset.runs[1].total_tokens == 30
 
 
 def _config(*, tokens_per_minute: int, max_output_tokens: int) -> LiveRunConfig:

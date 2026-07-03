@@ -11,11 +11,13 @@ from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
 from agent_assure.reporting.environment import (
+    artifact_project_root,
     attach_comparison_environment,
     attach_evaluation_environment,
     build_release_manifest,
     environment_with_dependency_inventory,
     release_artifact,
+    source_project_root,
     write_release_manifest,
 )
 from agent_assure.reporting.json_report import write_comparison_json, write_evaluation_json
@@ -223,9 +225,41 @@ def run_ci(
     today: date | None = None,
     project_root: Path | None = None,
 ) -> CiRunResult:
-    root = (project_root or Path.cwd()).resolve()
+    source_root = (
+        project_root.resolve()
+        if project_root is not None
+        else source_project_root(
+            tuple(
+                path
+                for path in (
+                    suite_path,
+                    candidate_runset_path,
+                    baseline_runset_path,
+                )
+                if path is not None
+            ),
+            default_root=Path.cwd(),
+        )
+    )
+    artifact_root = artifact_project_root(
+        tuple(
+            path
+            for path in (
+                suite_path,
+                candidate_runset_path,
+                baseline_runset_path,
+                out_dir,
+            )
+            if path is not None
+        ),
+        default_root=source_root,
+    )
     out_dir.mkdir(parents=True, exist_ok=True)
-    environment = environment_with_dependency_inventory(root, out_dir)
+    environment = environment_with_dependency_inventory(
+        source_root,
+        out_dir,
+        artifact_root=artifact_root,
+    )
     suite = load_compiled_suite(suite_path)
     candidate = _load_runset(candidate_runset_path)
     candidate_report = attach_evaluation_environment(
@@ -271,7 +305,7 @@ def run_ci(
         suite_path=suite_path,
         candidate_runset_path=candidate_runset_path,
         baseline_runset_path=baseline_runset_path,
-        project_root=root,
+        project_root=artifact_root,
     )
     report_paths.extend(
         (

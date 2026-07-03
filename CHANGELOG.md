@@ -2,7 +2,46 @@
 
 ## Unreleased
 
-No unreleased changes.
+- Hardened the release publish path so the PyPI job verifies downloaded
+  release-bundle cosign signatures against the release workflow identity before
+  digest replay or package staging. Release manifest emission now rejects
+  artifact paths outside the project root instead of recording unreplayable
+  absolute paths, and release build/reproduction scripts write per-step logs
+  under the release output directory. Release and evidence workflows now pin
+  `SOURCE_DATE_EPOCH`, release CI evaluation uses a fixed `--today` date, and
+  release manifests can still cover report output directories outside the
+  current working directory by choosing a true common artifact root.
+- Tightened privacy redaction so preserved structural keys and digest fields
+  only bypass redaction for scalar string values; nested values under those
+  keys are still traversed and scrubbed, and free-form `exclusion_reason`
+  values are no longer preserved from sensitive-value redaction.
+- Expanded claim-boundary scanning to `CHANGELOG.md` and release notes, widened
+  CI/package metadata to Python 3.14 to match the checked-in lockfile, and
+  constrained isolated builds to `hatchling>=1.27,<2`.
+- Centralized frozen schema version discovery for wheel-content and clean-wheel
+  smoke checks, added a schema-resource force-include consistency gate, and
+  made release tag validation check package, schema, and frozen snapshot
+  versions together.
+- Fixed live incomplete-run rollups so observed included failures remain
+  verdict-bearing after budget stops, preserved response usage counters on
+  post-response budget failure records, and replaced production `assert`
+  statements in live execution paths with explicit errors.
+- Aligned evidence policy with the producer contract by requiring
+  `claim_evidence_links` to point at present `evidence_refs[].ref_id` values,
+  and expanded behavior diffs to include digest-bearing evidence items, claims,
+  and explicit claim-evidence links.
+- Aligned the evidence-diff HTML renderer with the same claim-evidence contract,
+  narrowed report wording to decision-field equivalence for
+  `recommendation`/`outcome`, and kept git/lockfile provenance rooted at the
+  source project even when reports are written to external output directories.
+- Added typed release-script coverage for `scripts/`, dynamic active-schema
+  Makefile targets, a schema force-include sync helper, and workflow
+  consistency checks for the pinned release `SOURCE_DATE_EPOCH`.
+- Refreshed the flagship evidence-diff golden from a claim-link fixture that
+  uses explicit `claim_evidence_links`, added a renderer consistency guard for
+  missing-evidence findings, aligned the final release workflow with
+  `make release-check`, and moved TestPyPI/local release verification snippets
+  to the locked editable install pattern used by final release builds.
 
 ## 0.3.1 - 2026-07-03
 
@@ -17,8 +56,8 @@ No unreleased changes.
 - Hardened usage evidence by requiring explicit limitations on cost-bearing
   segments, rejecting ledger/summary mismatches, propagating partial
   missingness limitations into summaries and deltas, rejecting legacy-labeled
-  containers that carry v0.3.1 usage fields, and rejecting lowercase ROI
-  language in the claim-boundary linter.
+  containers that carry v0.3.1 usage fields, and rejecting
+  return-on-investment acronym language in the claim-boundary linter.
 
 ## 0.3.0 - 2026-07-01
 

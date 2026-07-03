@@ -34,7 +34,7 @@ def test_evidence_diff_marks_missing_candidate_case_as_changed() -> None:
         ),
     )
 
-    assert "<dt>Visible output equivalence</dt><dd>changed</dd>" in html
+    assert "<dt>Decision fields (recommendation, outcome)</dt><dd>changed</dd>" in html
     assert "<dt>Case coverage</dt><dd>missing candidate cases: case-b</dd>" in html
     assert "<td>case-b</td>" in html
     assert "&lt;missing&gt;" in html

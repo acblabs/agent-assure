@@ -11,7 +11,14 @@ from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation
-from agent_assure.schema.run import AgentRunRecord, EvidenceRef, PolicyResult, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    ClaimEvidenceLink,
+    EvidenceItem,
+    EvidenceRef,
+    PolicyResult,
+    RunSet,
+)
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -169,6 +176,7 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
     compiled, runset = _runset(EVIDENCE_CANDIDATE)
     initial_report = evaluate_runset(compiled, runset)
     finding = initial_report.candidate_vs_expectations.findings[0]
+    today = date(2026, 7, 3)
     waiver = Waiver(
         waiver_id="waiver-active",
         owner="quality",
@@ -176,11 +184,11 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
         reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
         finding_id=finding.finding_id,
         artifact_digest=runset_digest(runset),
-        expires_on=date.today() + timedelta(days=1),
+        expires_on=today + timedelta(days=1),
         reviewer="assurance",
     )
 
-    report = evaluate_runset(compiled, runset, waivers=(waiver,))
+    report = evaluate_runset(compiled, runset, waivers=(waiver,), today=today)
 
     assert report.candidate_vs_expectations.state is GateState.warn
     assert report.metrics.blocking_findings == 0
@@ -189,6 +197,7 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
 
 def test_expired_waiver_fails_closed() -> None:
     compiled, runset = _runset(BASELINE)
+    today = date(2026, 7, 3)
     waiver = Waiver(
         waiver_id="waiver-expired",
         owner="quality",
@@ -196,11 +205,11 @@ def test_expired_waiver_fails_closed() -> None:
         reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
         finding_id="finding-expired",
         artifact_digest=runset_digest(runset),
-        expires_on=date.today() - timedelta(days=1),
+        expires_on=today - timedelta(days=1),
         reviewer="assurance",
     )
 
-    report = evaluate_runset(compiled, runset, waivers=(waiver,))
+    report = evaluate_runset(compiled, runset, waivers=(waiver,), today=today)
 
     assert report.candidate_vs_expectations.state is GateState.fail
     assert _reason_codes(report.candidate_vs_expectations) == {ReasonCode.POLICY_FAILED}
@@ -283,6 +292,51 @@ def test_material_claims_require_explicit_claim_evidence_links() -> None:
         finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
         for finding in findings
     )
+
+
+def test_claim_evidence_links_must_target_evidence_refs_not_evidence_items() -> None:
+    run = AgentRunRecord(
+        artifact_kind="agent-run-record",
+        run_id="run-item-only-link",
+        case_id="case-item-only-link",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="redacted input",
+        output_summary="redacted output",
+        evidence_refs=(
+            EvidenceRef(
+                artifact_kind="evidence-ref",
+                ref_id="declared-ref",
+                source_id="source-1",
+            ),
+        ),
+        evidence_items=(
+            EvidenceItem(
+                artifact_kind="evidence-item",
+                ref_id="item-only-ref",
+                source_id="source-1",
+                content_digest="a" * 64,
+            ),
+        ),
+        claim_evidence_links=(
+            ClaimEvidenceLink(
+                artifact_kind="claim-evidence-link",
+                claim_id="claim-present",
+                evidence_ref_id="item-only-ref",
+            ),
+        ),
+    )
+    expectation = Expectation(
+        artifact_kind="expectation",
+        expectation_id="expect-item-only-link",
+        case_id="case-item-only-link",
+        material_claim_ids=("claim-present",),
+    )
+
+    findings = evaluate_material_claim_evidence(run, expectation)
+
+    assert {finding.target for finding in findings} == {"claim:claim-present"}
 
 
 def _report(variant: Path) -> EvaluationReport:

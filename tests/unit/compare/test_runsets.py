@@ -5,12 +5,12 @@ from pathlib import Path
 import pytest
 
 from agent_assure.authoring.compiler import compile_suite
-from agent_assure.compare.invariant_diff import diff_control_findings
+from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
 from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
-from agent_assure.schema.run import RunSet
+from agent_assure.schema.run import EvidenceItem, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -83,6 +83,37 @@ def test_control_diff_uses_stable_finding_identity_not_message_text() -> None:
 
     assert len(changes) == 1
     assert changes[0].classification is ComparisonClassification.persistent_failure
+
+
+def test_behavior_diff_includes_evidence_item_digest_changes() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    first = baseline.runs[0]
+    baseline_item = EvidenceItem(
+        artifact_kind="evidence-item",
+        ref_id="evidence-digest-ref",
+        source_id="source-1",
+        content_digest="a" * 64,
+    )
+    baseline_first = first.model_copy(update={"evidence_items": (baseline_item,)})
+    baseline_with_item = baseline.model_copy(
+        update={
+            "runset_id": f"{baseline.runset_id}-with-evidence-item",
+            "runs": (baseline_first, *baseline.runs[1:]),
+        }
+    )
+    candidate_item = baseline_item.model_copy(update={"content_digest": "b" * 64})
+    candidate_first = baseline_first.model_copy(update={"evidence_items": (candidate_item,)})
+    candidate = baseline_with_item.model_copy(
+        update={
+            "runset_id": f"{baseline.runset_id}-changed-evidence-item",
+            "runs": (candidate_first, *baseline.runs[1:]),
+        }
+    )
+
+    changes = diff_behavior(baseline_with_item, candidate)
+
+    assert {change.field for change in changes} == {"evidence_items"}
 
 
 def _runset(compiled: CompiledSuite, variant_path: Path) -> RunSet:

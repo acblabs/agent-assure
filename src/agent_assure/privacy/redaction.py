@@ -57,7 +57,6 @@ PRESERVE_RUNSET_KEYS = frozenset(
         "traceparent",
         "started_at_utc",
         "completed_at_utc",
-        "exclusion_reason",
         "estimated_cost_usd",
         "estimated_cost_source",
         "ref_id",
@@ -106,7 +105,7 @@ def redact_artifact_payload(value: Any, *, preserve_keys: frozenset[str] = froze
     if isinstance(value, Mapping):
         return {
             key: item
-            if isinstance(key, str) and (key in preserve_keys or key.endswith("_digest"))
+            if _preserves_scalar_value(key, item, preserve_keys=preserve_keys)
             else redact_artifact_payload(item, preserve_keys=preserve_keys)
             for key, item in value.items()
         }
@@ -119,3 +118,16 @@ def redact_artifact_payload(value: Any, *, preserve_keys: frozenset[str] = froze
 
 def redact_packet_payload(value: Any) -> Any:
     return redact_artifact_payload(value, preserve_keys=PRESERVE_PACKET_KEYS)
+
+
+def _preserves_scalar_value(
+    key: object,
+    item: object,
+    *,
+    preserve_keys: frozenset[str],
+) -> bool:
+    return (
+        isinstance(key, str)
+        and isinstance(item, str)
+        and (key in preserve_keys or key.endswith("_digest"))
+    )

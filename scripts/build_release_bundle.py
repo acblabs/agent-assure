@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
-import subprocess
 import sys
 from collections.abc import Sequence
 from pathlib import Path
@@ -11,11 +10,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 SCRIPTS = ROOT / "scripts"
-for import_path in (SRC, SCRIPTS):
+for import_path in (ROOT, SRC, SCRIPTS):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
-
-from reproduce_release import release_artifacts, release_commands  # noqa: E402
 
 from agent_assure.release_evidence import build_digest_replay, write_digest_replay  # noqa: E402
 from agent_assure.reporting.environment import (  # noqa: E402
@@ -31,6 +28,12 @@ from agent_assure.reporting.packet import (  # noqa: E402
 from agent_assure.reporting.sbom import build_sbom, write_sbom  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
 from agent_assure.schema.validation import load_json  # noqa: E402
+from scripts.reproduce_release import (  # noqa: E402
+    ReleaseCommand,
+    release_artifacts,
+    release_commands,
+    run_release_commands,
+)
 
 DEFAULT_OUT = ROOT / ".tmp" / "release"
 
@@ -61,27 +64,29 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
-    for command, expected_exit in release_commands(
-        out,
-        suite=args.suite,
-        baseline_variant=args.baseline_variant,
-        candidate_variant=args.candidate_variant,
-        artifact_prefix=args.artifact_prefix,
-    ):
-        result = subprocess.run(command, cwd=ROOT, check=False)
-        if result.returncode != expected_exit:
-            command_text = " ".join(str(part) for part in command)
-            print(
-                f"expected exit {expected_exit}, got {result.returncode}: {command_text}",
-                file=sys.stderr,
-            )
-            return result.returncode or 3
+    try:
+        commands = release_commands(
+            out,
+            suite=args.suite,
+            baseline_variant=args.baseline_variant,
+            candidate_variant=args.candidate_variant,
+            artifact_prefix=args.artifact_prefix,
+        )
+    except ValueError as exc:
+        print(f"release input error: {exc}", file=sys.stderr)
+        return 2
+    command_exit = run_release_commands(
+        commands,
+        logs_dir=out / "logs",
+    )
+    if command_exit:
+        return command_exit
 
     distribution_paths: tuple[Path, ...]
     if args.skip_build:
         distribution_paths = ()
     else:
-        build_exit, distribution_paths = _build_distributions(out / "dist")
+        build_exit, distribution_paths = _build_distributions(out / "dist", logs_dir=out / "logs")
         if build_exit:
             return build_exit
     extra_artifacts = _write_release_sbom_and_manifest(
@@ -103,18 +108,25 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _build_distributions(dist_dir: Path) -> tuple[int, tuple[Path, ...]]:
+def _build_distributions(dist_dir: Path, *, logs_dir: Path) -> tuple[int, tuple[Path, ...]]:
     if dist_dir.exists():
         shutil.rmtree(dist_dir)
     dist_dir.mkdir(parents=True)
-    result = subprocess.run(
-        [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(dist_dir)],
-        cwd=ROOT,
-        check=False,
+    result = run_release_commands(
+        (_distribution_command(dist_dir),),
+        logs_dir=logs_dir,
     )
-    if result.returncode:
-        return result.returncode, ()
+    if result:
+        return result, ()
     return 0, tuple(sorted(path for path in dist_dir.iterdir() if path.is_file()))
+
+
+def _distribution_command(dist_dir: Path) -> ReleaseCommand:
+    return ReleaseCommand(
+        "build-distributions",
+        [sys.executable, "-m", "build", "--no-isolation", "--outdir", str(dist_dir)],
+        expected_exit=0,
+    )
 
 
 def _write_release_sbom_and_manifest(

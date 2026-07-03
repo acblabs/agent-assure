@@ -7,16 +7,19 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.evaluation.evaluator import evaluate_runset, load_runset
 from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
 from agent_assure.reporting.console import render_evaluation_console
 from agent_assure.reporting.environment import (
+    artifact_project_root,
     attach_evaluation_environment,
     build_release_manifest,
     environment_with_dependency_inventory,
     release_artifact,
+    source_project_root,
     write_release_manifest,
 )
 from agent_assure.reporting.json_report import write_evaluation_json
@@ -47,6 +50,10 @@ def evaluate(
             help="Treat not-evaluated capabilities as blocking.",
         ),
     ] = False,
+    today: Annotated[
+        str | None,
+        typer.Option("--today", help="Evaluation date for waiver expiry checks."),
+    ] = None,
 ) -> None:
     try:
         compiled = load_compiled_suite(suite)
@@ -56,9 +63,21 @@ def evaluate(
             runset,
             gate_profile=_gate_profile(fail_on_warn, fail_on_not_evaluated),
             waivers=load_waivers(tuple(waiver or ())),
-            today=date.today(),
+            today=parse_cli_date(today) or date.today(),
         )
-        environment = environment_with_dependency_inventory(Path.cwd().resolve(), out_dir)
+        source_root = source_project_root(
+            (suite, runset_path),
+            default_root=Path.cwd(),
+        )
+        artifact_root = artifact_project_root(
+            (suite, runset_path, out_dir),
+            default_root=source_root,
+        )
+        environment = environment_with_dependency_inventory(
+            source_root,
+            out_dir,
+            artifact_root=artifact_root,
+        )
         report = attach_evaluation_environment(report, environment)
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -72,6 +91,7 @@ def evaluate(
         summary_path=summary_json,
         out_dir=out_dir,
         environment=environment,
+        project_root=artifact_root,
     )
     render_evaluation_console(report, console)
     if report.candidate_vs_expectations.state is GateState.fail:
@@ -98,6 +118,10 @@ def run(
             help="Treat not-evaluated capabilities as blocking.",
         ),
     ] = False,
+    today: Annotated[
+        str | None,
+        typer.Option("--today", help="Evaluation date for waiver expiry checks."),
+    ] = None,
 ) -> None:
     evaluate(
         runset_path=runset_path,
@@ -106,6 +130,7 @@ def run(
         waiver=waiver,
         fail_on_warn=fail_on_warn,
         fail_on_not_evaluated=fail_on_not_evaluated,
+        today=today,
     )
 
 
@@ -128,8 +153,8 @@ def _write_release_manifest(
     summary_path: Path,
     out_dir: Path,
     environment: EnvironmentInfo,
+    project_root: Path,
 ) -> None:
-    project_root = Path.cwd().resolve()
     manifest = build_release_manifest(
         (
             release_artifact("compiled-suite", suite_path, project_root=project_root),

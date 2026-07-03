@@ -175,7 +175,7 @@ def _punchline_section(
             '<section class="hero" aria-labelledby="review-punchline">',
             '<h2 id="review-punchline">Review Punchline</h2>',
             '<div class="signal-grid">',
-            _signal("Final-output equivalence", visible_state),
+            _signal("Decision-field equivalence", visible_state),
             _signal("Process regression", process_state),
             _signal("CI gate result", ci_gate_result),
             "</div>",
@@ -212,10 +212,10 @@ def _final_output_section(
     rows = "\n".join(_visible_output_rows(baseline, candidate))
     return "\n".join(
         (
-            '<section aria-labelledby="final-output-comparison">',
-            '<h2 id="final-output-comparison">Final-Output Comparison</h2>',
+            '<section aria-labelledby="decision-field-comparison">',
+            '<h2 id="decision-field-comparison">Decision-Field Comparison</h2>',
             "<dl>",
-            _detail("Visible output equivalence", visible_state),
+            _detail("Decision fields (recommendation, outcome)", visible_state),
             _detail("Case coverage", _case_coverage(baseline, candidate)),
             _detail("Baseline evaluation state", baseline_summary.state.value),
             _detail("Candidate evaluation state", candidate_summary.state.value),
@@ -223,7 +223,7 @@ def _final_output_section(
             "<table>",
             "<thead><tr>"
             "<th>Case</th><th>Baseline recommendation</th><th>Candidate recommendation</th>"
-            "<th>Baseline outcome</th><th>Candidate outcome</th><th>Equivalence</th>"
+            "<th>Baseline outcome</th><th>Candidate outcome</th><th>Decision fields</th>"
             "</tr></thead>",
             f"<tbody>{rows}</tbody>",
             "</table>",
@@ -873,11 +873,10 @@ def _missing_evidence_link_diffs(
 
 def _linked_claim_evidence(run: AgentRunRecord) -> dict[str, tuple[str, ...]]:
     links: dict[str, set[str]] = {}
-    for ref in run.evidence_refs:
-        for claim_id in ref.claim_ids:
-            links.setdefault(claim_id, set()).add(ref.ref_id)
+    present_refs = {ref.ref_id for ref in run.evidence_refs}
     for link in run.claim_evidence_links:
-        links.setdefault(link.claim_id, set()).add(link.evidence_ref_id)
+        if link.evidence_ref_id in present_refs:
+            links.setdefault(link.claim_id, set()).add(link.evidence_ref_id)
     return {claim_id: tuple(sorted(refs)) for claim_id, refs in sorted(links.items())}
 
 

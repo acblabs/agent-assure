@@ -1,5 +1,5 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project]
@@ -30,6 +30,7 @@ classifiers = [
   "Programming Language :: Python :: 3.11",
   "Programming Language :: Python :: 3.12",
   "Programming Language :: Python :: 3.13",
+  "Programming Language :: Python :: 3.14",
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
@@ -55,7 +56,7 @@ dev = [
   "ruff",
   "mypy",
   "build",
-  "hatchling>=1.27",
+  "hatchling>=1.27,<2",
   "twine>=5",
   "mkdocs>=1.6,<2",
 ]

@@ -556,12 +556,12 @@ def _report_state(
     )
     if not included:
         return GateState.not_evaluated
-    if stop_reasons:
-        return GateState.not_evaluated
-    if Decimal(overall.exclusion_rate.rate) > Decimal(protocol.max_exclusion_rate):
-        return GateState.fail
     if any(observation.state is GateState.fail for observation in included):
         return GateState.fail
+    if Decimal(overall.exclusion_rate.rate) > Decimal(protocol.max_exclusion_rate):
+        return GateState.fail
+    if stop_reasons:
+        return GateState.not_evaluated
     if any(observation.state is GateState.warn for observation in included):
         return GateState.warn
     if any(observation.state is GateState.not_evaluated for observation in included):

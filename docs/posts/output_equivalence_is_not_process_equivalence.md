@@ -24,7 +24,7 @@ equivalence, and artifact digests.
 
 ## Minimal example
 
-The flagship fixture keeps the visible final output stable:
+The flagship fixture keeps the decision fields stable:
 
 ```text
 baseline:  recommendation=approve; outcome=approve

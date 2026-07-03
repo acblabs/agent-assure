@@ -672,7 +672,8 @@ class LiveProtocolRecord(PersistedArtifact):
         return self
 
     def _validate_advanced_analysis_plan(self) -> None:
-        assert self.advanced_analysis_plan is not None
+        if self.advanced_analysis_plan is None:
+            raise ValueError("advanced_analysis_plan is required for advanced analysis")
         if self.analysis_method in {
             "paired_cluster_permutation_exact",
             "paired_cluster_permutation_monte_carlo",

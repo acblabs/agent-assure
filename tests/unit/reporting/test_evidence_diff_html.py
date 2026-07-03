@@ -12,13 +12,20 @@ from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
-from agent_assure.schema.run import AgentRunRecord, ClaimRecord, EvidenceRef, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    ClaimEvidenceLink,
+    ClaimRecord,
+    EvidenceRef,
+    RunSet,
+)
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import scripts.check_claim_boundaries as claim_boundaries  # noqa: E402
+import scripts.update_golden as update_golden  # noqa: E402
 
 _DIGEST = "a" * 64
 
@@ -41,8 +48,8 @@ def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
     assert "This report is not a compliance attestation." in html
     assert "This artifact does not certify safety." in html
     assert "Review Punchline" in html
-    assert html.index("Review Punchline") < html.index("Final-Output Comparison")
-    assert "<dt>Visible output equivalence</dt><dd>preserved</dd>" in html
+    assert html.index("Review Punchline") < html.index("Decision-Field Comparison")
+    assert "<dt>Decision fields (recommendation, outcome)</dt><dd>preserved</dd>" in html
     assert "Process regression" in html
     assert "caught" in html
     assert "CI gate result" in html
@@ -53,6 +60,34 @@ def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
     assert "compiled-suite" in html
     assert "compiled.json" in html
     assert "artifact_kind" not in html
+
+
+def test_evidence_diff_html_missing_link_panel_agrees_with_material_finding() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+        packet=packet,
+    )
+
+    assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
+    assert "No missing evidence links were observed." not in html
+    assert "No baseline evidence links were missing from the candidate run set." not in html
+    assert "Candidate is missing 1 baseline evidence link: claim-duration." in html
+    missing_section = html[html.index("Missing Evidence Link Diff") :]
+    assert "claim-duration" in missing_section
+    assert "evidence-duration" in missing_section
+
+
+def test_flagship_golden_fixture_missing_link_panel_agrees_with_finding() -> None:
+    html = update_golden._evidence_diff_html()
+
+    assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
+    assert "No missing evidence links were observed." not in html
+    assert "No baseline evidence links were missing from the candidate run set." not in html
+    assert "Candidate is missing 1 baseline evidence link: claim-duration." in html
 
 
 def test_evidence_diff_html_escapes_dynamic_content_and_stays_static() -> None:
@@ -185,6 +220,33 @@ def test_evidence_diff_html_summarizes_long_comparison_lists() -> None:
     assert "case-5 config_digest" not in html
 
 
+def test_evidence_diff_html_ignores_display_only_evidence_ref_claim_ids() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    candidate_run = _run(
+        "shared-source-multi-claim",
+        evidence_refs=(
+            EvidenceRef(
+                ref_id="evidence-duration",
+                source_id="guideline-duration",
+                claim_ids=("claim-duration",),
+            ),
+        ),
+        link_claims=False,
+    )
+    candidate = candidate.model_copy(update={"runs": (candidate_run,)})
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+        packet=packet,
+    )
+
+    assert "No missing evidence links were observed." not in html
+    assert "claim-duration" in html
+    assert "evidence-duration" in html
+
+
 def _artifacts(
     *,
     case_id: str = "shared-source-multi-claim",
@@ -262,7 +324,22 @@ def _runset(runset_id: str, run: AgentRunRecord) -> RunSet:
     )
 
 
-def _run(case_id: str, *, evidence_refs: tuple[EvidenceRef, ...]) -> AgentRunRecord:
+def _run(
+    case_id: str,
+    *,
+    evidence_refs: tuple[EvidenceRef, ...],
+    link_claims: bool = True,
+) -> AgentRunRecord:
+    claim_evidence_links = (
+        (
+            ClaimEvidenceLink(
+                claim_id="claim-duration",
+                evidence_ref_id="evidence-duration",
+            ),
+        )
+        if link_claims and any(ref.ref_id == "evidence-duration" for ref in evidence_refs)
+        else ()
+    )
     return AgentRunRecord(
         run_id=f"run-{case_id}",
         case_id=case_id,
@@ -273,5 +350,6 @@ def _run(case_id: str, *, evidence_refs: tuple[EvidenceRef, ...]) -> AgentRunRec
         output_summary="redacted fixture output",
         claims=(ClaimRecord(claim_id="claim-duration"),),
         evidence_refs=evidence_refs,
+        claim_evidence_links=claim_evidence_links,
         tools=("benefit-policy-lookup",),
     )

@@ -80,6 +80,7 @@ RESTRICTED_PATTERNS = (
 
 DEFAULT_SCAN_FILES = (
     Path("README.md"),
+    Path("CHANGELOG.md"),
     Path("docs/for_ai_leaders.md"),
     Path("docs/for_engineers.md"),
     Path("docs/what_this_measures.md"),
@@ -93,6 +94,7 @@ DEFAULT_SCAN_FILES = (
 )
 
 DEFAULT_SCAN_GLOBS = (
+    "docs/release_notes/*.md",
     "tests/golden/reports/**/*evidence-diff*.html",
 )
 

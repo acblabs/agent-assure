@@ -11,6 +11,11 @@ phone-number fields.
 RunSet write-time redaction now walks persisted structured fields recursively
 while preserving digest/hash provenance metadata and known schema-owned
 structural fields such as run IDs, case IDs, status values, and `traceparent`.
+Those preservation rules apply only to scalar string values; nested mappings or
+lists under preserved keys are still traversed and redacted. Free-form
+`exclusion_reason` values are also redacted rather than preserved, because live
+adapters can emit operational reason text even when common values are short
+codes.
 Evaluation similarly scans persisted run-record strings and emits
 verdict-bearing redaction findings for sensitive-looking content. Raw
 sensitive-looking values are still allowed at model construction so evaluation

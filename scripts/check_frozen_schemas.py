@@ -5,15 +5,25 @@ import sys
 import tempfile
 from pathlib import Path
 
-from agent_assure.schema.export import export_json_schemas
-
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SCHEMA_DIR = ROOT / "schemas" / "v0.3.1"
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from agent_assure.schema.export import export_json_schemas  # noqa: E402
+from scripts.schema_versions import (  # noqa: E402
+    active_schema_dir,
+    schema_packaging_failures,
+)
+
+DEFAULT_SCHEMA_DIR = active_schema_dir()
 
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
-    failures = check_frozen_schema_dir(_resolve_path(args.schema_dir))
+    failures = [
+        *check_frozen_schema_dir(_resolve_path(args.schema_dir)),
+        *schema_packaging_failures(),
+    ]
     if failures:
         for failure in failures:
             print(f"frozen-schemas: {failure}", file=sys.stderr)
@@ -31,7 +41,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--schema-dir",
         type=Path,
         default=DEFAULT_SCHEMA_DIR,
-        help="Frozen schema directory to compare. Defaults to schemas/v0.3.1.",
+        help="Frozen schema directory to compare. Defaults to the active schema version directory.",
     )
     return parser.parse_args(argv)
 

@@ -9,8 +9,9 @@ permissions:
   contents: read
 
 env:
-  PYTHON_VERSION: "3.13"
+  PYTHON_VERSION: "3.14"
   COSIGN_VERSION: "v3.0.6"
+  SOURCE_DATE_EPOCH: "1783036800"
 
 jobs:
   publish:

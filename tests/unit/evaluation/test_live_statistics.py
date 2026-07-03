@@ -497,6 +497,37 @@ def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None
     assert report.budget_exceeded is True
 
 
+def test_live_statistics_preserves_included_failures_after_budget_stop() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-budget-after-response-failure",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        completion_status="incomplete",
+        stop_reasons=("cost_budget_exceeded_after_response",),
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=False,
+                cost="0.000000",
+            ),
+        ),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    assert report.state is GateState.fail
+    assert report.budget_exceeded is True
+
+
 def test_live_statistics_rejects_cumulative_total_token_budget_violation() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(

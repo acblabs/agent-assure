@@ -11,6 +11,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 PYPROJECT = ROOT / "pyproject.toml"
 PACKAGE_INIT = ROOT / "src" / "agent_assure" / "__init__.py"
+SCHEMA_BASE = ROOT / "src" / "agent_assure" / "schema" / "base.py"
+SCHEMA_ROOT = ROOT / "schemas"
 VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:rc[1-9]\d*)?$")
 
 
@@ -20,11 +22,15 @@ def main(argv: list[str] | None = None) -> int:
         tag = normalize_tag(args.tag or tag_from_environment())
         pyproject_version = read_pyproject_version(args.pyproject)
         package_version = read_package_version(args.package_init)
+        package_schema_version = read_schema_version(args.package_init)
+        base_schema_version = read_schema_version(args.schema_base)
     except ValueError as exc:
         print(f"version-tag: {exc}", file=sys.stderr)
         return 1
 
     expected_tag = f"v{pyproject_version}"
+    expected_schema_version = release_schema_version(pyproject_version)
+    expected_schema_dir = args.schema_root / f"v{expected_schema_version}"
     failures: list[str] = []
     if tag != expected_tag:
         failures.append(f"tag {tag!r} does not match pyproject version {pyproject_version!r}")
@@ -32,6 +38,21 @@ def main(argv: list[str] | None = None) -> int:
         failures.append(
             f"package __version__ {package_version!r} does not match "
             f"pyproject version {pyproject_version!r}"
+        )
+    if package_schema_version != expected_schema_version:
+        failures.append(
+            f"package SCHEMA_VERSION {package_schema_version!r} does not match "
+            f"release schema version {expected_schema_version!r}"
+        )
+    if base_schema_version != expected_schema_version:
+        failures.append(
+            f"schema.base SCHEMA_VERSION {base_schema_version!r} does not match "
+            f"release schema version {expected_schema_version!r}"
+        )
+    if not expected_schema_dir.is_dir():
+        failures.append(
+            "frozen schema directory missing for release version: "
+            f"{expected_schema_dir}"
         )
     if failures:
         for failure in failures:
@@ -62,6 +83,18 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         default=PACKAGE_INIT,
         help="Path to src/agent_assure/__init__.py.",
+    )
+    parser.add_argument(
+        "--schema-base",
+        type=Path,
+        default=SCHEMA_BASE,
+        help="Path to src/agent_assure/schema/base.py.",
+    )
+    parser.add_argument(
+        "--schema-root",
+        type=Path,
+        default=SCHEMA_ROOT,
+        help="Directory containing frozen schema version snapshots.",
     )
     return parser.parse_args(argv)
 
@@ -102,16 +135,34 @@ def read_pyproject_version(path: Path = PYPROJECT) -> str:
 
 
 def read_package_version(path: Path = PACKAGE_INIT) -> str:
+    version = read_string_assignment(path, "__version__")
+    validate_version(version, source=f"{path} __version__")
+    return version
+
+
+def read_schema_version(path: Path) -> str:
+    version = read_string_assignment(path, "SCHEMA_VERSION")
+    validate_version(version, source=f"{path} SCHEMA_VERSION")
+    return version
+
+
+def release_schema_version(package_version: str) -> str:
+    # v0.3.1 intentionally couples package and schema release versions. If a
+    # future package-only release keeps the schema behind the package version,
+    # replace this derivation with an explicit release-to-schema mapping.
+    return package_version.split("rc", 1)[0]
+
+
+def read_string_assignment(path: Path, name: str) -> str:
     module = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
     for node in module.body:
         if isinstance(node, ast.Assign):
             for target in node.targets:
-                if isinstance(target, ast.Name) and target.id == "__version__":
+                if isinstance(target, ast.Name) and target.id == name:
                     value = ast.literal_eval(node.value)
                     if isinstance(value, str) and value:
-                        validate_version(value, source=f"{path} __version__")
                         return value
-    raise ValueError(f"{path} is missing __version__")
+    raise ValueError(f"{path} is missing {name}")
 
 
 def validate_version(version: str, *, source: str) -> None:

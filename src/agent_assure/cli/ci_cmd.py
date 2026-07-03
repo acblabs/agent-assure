@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -9,6 +8,7 @@ import typer
 from rich.console import Console
 
 from agent_assure.ci import ReportMode, gate_artifact, load_gate_artifact, run_ci
+from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE
 
@@ -48,6 +48,10 @@ def ci(
         bool,
         typer.Option("--fail-on-not-evaluated", help="Treat not-evaluated summaries as blocking."),
     ] = False,
+    today: Annotated[
+        str | None,
+        typer.Option("--today", help="Evaluation date for waiver expiry checks."),
+    ] = None,
 ) -> None:
     argv = tuple(args or ())
     if argv and argv[0] == "gate":
@@ -81,8 +85,7 @@ def ci(
             report_mode=report_mode,
             gate_profile=gate_profile,
             waivers=load_waivers(tuple(waiver or ())),
-            today=date.today(),
-            project_root=Path.cwd(),
+            today=parse_cli_date(today),
         )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc

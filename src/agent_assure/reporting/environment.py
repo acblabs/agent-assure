@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import platform
 from importlib import metadata
 from pathlib import Path
@@ -24,10 +25,12 @@ LOCKFILE_CANDIDATES = (
 def collect_environment(
     *,
     project_root: Path,
+    artifact_root: Path | None = None,
     dependency_inventory_path: Path | None = None,
     dependency_inventory_digest: str | None = None,
 ) -> EnvironmentInfo:
     lockfile = _first_existing(project_root, LOCKFILE_CANDIDATES)
+    path_root = artifact_root or project_root
     return EnvironmentInfo(
         artifact_kind="environment-info",
         platform=platform.platform(),
@@ -37,7 +40,7 @@ def collect_environment(
         lockfile_path=_relative_path(lockfile, project_root) if lockfile else None,
         lockfile_digest=file_sha256(lockfile) if lockfile else None,
         dependency_inventory_path=(
-            _relative_path(dependency_inventory_path, project_root)
+            _relative_path(dependency_inventory_path, path_root)
             if dependency_inventory_path
             else None
         ),
@@ -69,12 +72,18 @@ def write_dependency_inventory(environment: EnvironmentInfo, path: Path) -> str:
     return file_sha256(path)
 
 
-def environment_with_dependency_inventory(project_root: Path, out_dir: Path) -> EnvironmentInfo:
+def environment_with_dependency_inventory(
+    project_root: Path,
+    out_dir: Path,
+    *,
+    artifact_root: Path | None = None,
+) -> EnvironmentInfo:
     initial = collect_environment(project_root=project_root)
     inventory_path = out_dir / "dependency-inventory.json"
     inventory_digest = write_dependency_inventory(initial, inventory_path)
     return collect_environment(
         project_root=project_root,
+        artifact_root=artifact_root,
         dependency_inventory_path=inventory_path,
         dependency_inventory_digest=inventory_digest,
     )
@@ -119,6 +128,36 @@ def release_artifact(
         path=_relative_path(path, project_root),
         sha256=file_sha256(path),
     )
+
+
+def artifact_project_root(paths: tuple[Path, ...], *, default_root: Path) -> Path:
+    resolved_default = default_root.resolve()
+    resolved_paths = tuple(path.resolve() for path in paths)
+    if not resolved_paths:
+        return resolved_default
+    if all(_is_relative_to(path, resolved_default) for path in resolved_paths):
+        return resolved_default
+    try:
+        common_root = Path(os.path.commonpath([str(path) for path in resolved_paths]))
+    except ValueError as exc:
+        raise ValueError(
+            "release artifact paths must share a common filesystem root"
+        ) from exc
+    return common_root
+
+
+def source_project_root(paths: tuple[Path, ...], *, default_root: Path) -> Path:
+    resolved_default = default_root.resolve()
+    resolved_paths = tuple(path.resolve() for path in paths)
+    if not resolved_paths:
+        return _git_toplevel(resolved_default) or resolved_default
+    if all(_is_relative_to(path, resolved_default) for path in resolved_paths):
+        return _git_toplevel(resolved_default) or resolved_default
+    try:
+        common_root = Path(os.path.commonpath([str(path) for path in resolved_paths]))
+    except ValueError as exc:
+        raise ValueError("source paths must share a common filesystem root") from exc
+    return _git_toplevel(common_root) or common_root
 
 
 def build_release_manifest(
@@ -176,6 +215,13 @@ def _git_dirty(project_root: Path) -> bool | None:
     return bool(output)
 
 
+def _git_toplevel(project_root: Path) -> Path | None:
+    output = git_output(project_root, "rev-parse", "--show-toplevel")
+    if output is None:
+        return None
+    return Path(output).resolve()
+
+
 def _first_existing(root: Path, names: tuple[str, ...]) -> Path | None:
     for name in names:
         path = root / name
@@ -185,7 +231,20 @@ def _first_existing(root: Path, names: tuple[str, ...]) -> Path | None:
 
 
 def _relative_path(path: Path, root: Path) -> str:
+    resolved_root = root.resolve()
+    resolved_path = path.resolve()
     try:
-        return path.resolve().relative_to(root.resolve()).as_posix()
+        return resolved_path.relative_to(resolved_root).as_posix()
+    except ValueError as exc:
+        raise ValueError(
+            "release artifact paths must stay under project_root: "
+            f"{resolved_path} is outside {resolved_root}"
+        ) from exc
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
     except ValueError:
-        return path.as_posix()
+        return False
+    return True

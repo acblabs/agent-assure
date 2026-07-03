@@ -18,13 +18,19 @@ The workflows have distinct roles:
 
 - `.github/workflows/release.yml` builds the signed GitHub release bundle and
   uploads GitHub release assets. On release tags, it also publishes the package
-  files from that same release bundle to PyPI. The PyPI job replays the
-  downloaded release bundle digests and rechecks the staged wheel/source
-  distribution immediately before upload.
+  files from that same release bundle to PyPI. The PyPI job verifies the
+  downloaded release bundle signatures against the release workflow identity,
+  replays the downloaded release bundle digests, and rechecks the staged
+  wheel/source distribution immediately before upload.
 - `.github/workflows/publish-testpypi.yml` manually publishes a separately
   built TestPyPI candidate from the selected ref. Use a unique package version
   for each TestPyPI candidate. The workflow validates the requested version
   through a strict release-version parser before building or uploading.
+
+Release, evidence, and TestPyPI workflows use Python 3.14, matching the
+checked-in `requirements.lock` generator version. The tag validator checks the
+package version, exported schema version constants, and matching frozen
+`schemas/vX.Y.Z` directory before package upload.
 
 ## Owner Setup
 
@@ -78,7 +84,8 @@ From a clean checkout:
 git checkout main
 git pull
 python -m pip install --upgrade pip
-python -m pip install ".[dev]"
+python -m pip install --require-hashes -r requirements.lock
+python -m pip install --no-deps --no-build-isolation -e .
 schema_review_dir="$(mktemp -d)"
 agent-assure schema export --out "${schema_review_dir}/v0.3.1"
 git diff --no-index -- schemas/v0.3.1 "${schema_review_dir}/v0.3.1"
@@ -94,7 +101,8 @@ PowerShell equivalent:
 git checkout main
 git pull
 python -m pip install --upgrade pip
-python -m pip install ".[dev]"
+python -m pip install --require-hashes -r requirements.lock
+python -m pip install --no-deps --no-build-isolation -e .
 $SchemaReviewRoot = Join-Path $env:TEMP "agent-assure-schema-review"
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force -ErrorAction SilentlyContinue
 $SchemaReview = Join-Path $SchemaReviewRoot "v0.3.1"
@@ -107,7 +115,8 @@ Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
 
 If the schema review diff is intentional, run `make schemas`, review
-`git diff -- schemas/v0.3.1`, then rerun `make schema-check` before continuing.
+`git diff -- schemas/v0.3.1`, run `make schema-force-includes`, then rerun
+`make schema-check` before continuing.
 
 ## Temporary Virtual Environments
 
@@ -195,7 +204,7 @@ Remove-Item -LiteralPath $FlagshipOut -Recurse -Force
 ```
 
 The expense demo remains deferred for v0.3.1 unless its fixture supports the
-same visible-output/process-regression shape without slowing the flagship
+same decision-field/process-regression shape without slowing the flagship
 release path.
 
 If the expense demo is included in the release candidate, also run:
@@ -227,12 +236,14 @@ git push origin v0.3.1
 
 The PyPI publish job in `.github/workflows/release.yml` runs only on matching
 tags. It blocks if `v0.3.1` does not match `project.version = "0.3.1"` and
-`agent_assure.__version__ = "0.3.1"`. It publishes package files from the
-release bundle artifact produced by the release build; it does not run a second
-package build. Before upload, it verifies the downloaded release bundle with
-`agent-assure release replay`, stages only `.whl` and `.tar.gz` files, then runs
-`twine check`, wheel-content verification, and the clean wheel smoke install on
-the staged upload directory.
+`agent_assure.__version__ = "0.3.1"`, if the active schema constants do not
+match `0.3.1`, or if `schemas/v0.3.1` is missing. It publishes package files
+from the release bundle artifact produced by the release build; it does not run
+a second package build. Before upload, it verifies the downloaded release
+bundle with cosign against `.github/workflows/release.yml`, verifies the same
+bundle with `agent-assure release replay`, stages only `.whl` and `.tar.gz`
+files, then runs `twine check`, wheel-content verification, and the clean wheel
+smoke install on the staged upload directory.
 
 PyPI receives only the wheel and source distribution. The release packet,
 manifest, SBOM, digest replay file, and signature bundles live on the GitHub

@@ -21,7 +21,13 @@ from agent_assure.schema.environment import EnvironmentInfo  # noqa: E402
 from agent_assure.schema.evaluation import EvaluationSummary, Finding  # noqa: E402
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
-from agent_assure.schema.run import AgentRunRecord, ClaimRecord, EvidenceRef, RunSet  # noqa: E402
+from agent_assure.schema.run import (  # noqa: E402
+    AgentRunRecord,
+    ClaimEvidenceLink,
+    ClaimRecord,
+    EvidenceRef,
+    RunSet,
+)
 
 SUITE_YAML = ROOT / "examples" / "prior_auth_synthetic" / "suite.yaml"
 SUITE_ROOT = SUITE_YAML.parent
@@ -187,7 +193,22 @@ def _runset(runset_id: str, run: AgentRunRecord) -> RunSet:
     )
 
 
-def _run(case_id: str, *, evidence_refs: tuple[EvidenceRef, ...]) -> AgentRunRecord:
+def _run(
+    case_id: str,
+    *,
+    evidence_refs: tuple[EvidenceRef, ...],
+    link_claims: bool = True,
+) -> AgentRunRecord:
+    claim_evidence_links = (
+        (
+            ClaimEvidenceLink(
+                claim_id="claim-duration",
+                evidence_ref_id="evidence-duration",
+            ),
+        )
+        if link_claims and any(ref.ref_id == "evidence-duration" for ref in evidence_refs)
+        else ()
+    )
     return AgentRunRecord(
         run_id=f"run-{case_id}",
         case_id=case_id,
@@ -198,6 +219,7 @@ def _run(case_id: str, *, evidence_refs: tuple[EvidenceRef, ...]) -> AgentRunRec
         output_summary="redacted fixture output",
         claims=(ClaimRecord(claim_id="claim-duration"),),
         evidence_refs=evidence_refs,
+        claim_evidence_links=claim_evidence_links,
         tools=("benefit-policy-lookup",),
     )
 

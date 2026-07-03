@@ -96,6 +96,63 @@ def test_runset_redaction_recurses_persisted_record_fields() -> None:
     )
 
 
+def test_redaction_recurses_nested_values_under_preserved_keys() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "runs": [
+            {
+                "local_debug_reference": {
+                    "nested_error": "patient ssn: 123-45-6789",
+                },
+                "provenance": {
+                    "configuration_digest": {
+                        "debug_note": "api_key=abcdef1234567890",
+                    }
+                },
+            }
+        ],
+    }
+
+    redacted = redact_runset_payload(payload)
+
+    assert "123-45-6789" not in str(redacted)
+    assert "abcdef1234567890" not in str(redacted)
+    assert redacted["runs"][0]["local_debug_reference"]["nested_error"] == "patient [REDACTED]"
+
+
+def test_runset_redaction_scrubs_sensitive_exclusion_reason() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "runs": [
+            {
+                "exclusion_reason": "patient ssn: 123-45-6789",
+            }
+        ],
+    }
+
+    redacted = redact_runset_payload(payload)
+
+    assert redacted["runs"][0]["exclusion_reason"] == "patient [REDACTED]"
+
+
+def test_redaction_still_preserves_scalar_structural_values() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "runs": [
+            {
+                "local_debug_reference": "debug-001",
+                "provenance": {"configuration_digest": "a" * 64},
+            }
+        ],
+    }
+
+    redacted = redact_runset_payload(payload)
+
+    assert redacted["artifact_kind"] == "run-set"
+    assert redacted["runs"][0]["local_debug_reference"] == "debug-001"
+    assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
+
+
 def test_redaction_is_idempotent() -> None:
     raw = "patient: John Smith DOB 1990-01-01 jane@example.com"
     once = redact_text(raw)

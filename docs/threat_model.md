@@ -16,6 +16,9 @@ malicious model, script, provider, CI checkout, or operator.
   producer can still fabricate recommendations, evidence links, claims, tools,
   review flags, and summaries, but live producer-supplied failing policy results
   are verdict-bearing during evaluation.
+- Live artifacts may include host wall-clock timestamps, measured latency,
+  scheduling jitter, provider response identifiers, and emergency-record timing.
+  They are operational evidence, not byte-replay-stable fixture artifacts.
 
 ## Live Execution Boundary
 

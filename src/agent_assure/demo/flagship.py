@@ -238,7 +238,7 @@ def render_flagship_text(summary: dict[str, object]) -> str:
                 "  candidate: "
                 f"recommendation={candidate['recommendation']}; outcome={candidate['outcome']}"
             ),
-            f"  output equivalence: {summary['output_equivalence']}",
+            f"  decision fields: {summary['output_equivalence']}",
             "",
             "Process assurance:",
             f"  missing evidence link: {', '.join(missing_links)}",
@@ -258,7 +258,7 @@ def render_flagship_text(summary: dict[str, object]) -> str:
             f"  {artifacts['evidence_diff_html']}",
             "",
             "Demo result:",
-            "  success: identical output, process regression caught",
+            "  success: matching decision fields, process regression caught",
         )
     )
 

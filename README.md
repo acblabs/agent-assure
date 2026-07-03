@@ -2,7 +2,7 @@
 
 Local-first process assurance for agentic AI pipelines.
 
-**Core thesis:** output equivalence is not process equivalence.
+**Core thesis:** matching decision fields are not process equivalence.
 
 A candidate agent pipeline can return the same final approval, denial,
 recommendation, or summary while silently changing material evidence, review
@@ -27,7 +27,7 @@ review artifacts under `.tmp/demo/flagship` by default.
 ```text
 Expected punchline:
 
-output equivalence: preserved
+decision fields: preserved
 missing evidence link: claim-duration
 classification: new_failure
 CI gate: blocked as expected
@@ -313,7 +313,7 @@ jobs:
 git config core.hooksPath .githooks
 python scripts/check_docs_alignment.py
 ruff check .
-mypy src
+mypy src scripts
 pytest
 python -m build
 ```

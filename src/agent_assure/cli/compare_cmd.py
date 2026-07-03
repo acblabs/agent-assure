@@ -7,6 +7,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.compare.runsets import (
     ComparisonReport,
@@ -18,10 +19,12 @@ from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE
 from agent_assure.reporting.console import render_comparison_console
 from agent_assure.reporting.environment import (
+    artifact_project_root,
     attach_comparison_environment,
     build_release_manifest,
     environment_with_dependency_inventory,
     release_artifact,
+    source_project_root,
     write_release_manifest,
 )
 from agent_assure.reporting.json_report import write_comparison_json
@@ -52,6 +55,10 @@ def compare(
         list[Path] | None,
         typer.Option("--waiver", exists=True, readable=True, help="Waiver JSON or YAML file."),
     ] = None,
+    today: Annotated[
+        str | None,
+        typer.Option("--today", help="Evaluation date for waiver expiry checks."),
+    ] = None,
 ) -> None:
     gate_profile = (
         DEFAULT_GATE_PROFILE
@@ -63,8 +70,20 @@ def compare(
             }
         )
     )
-    environment = environment_with_dependency_inventory(Path.cwd().resolve(), out_dir)
     try:
+        source_root = source_project_root(
+            (suite, baseline_runset, candidate_runset),
+            default_root=Path.cwd(),
+        )
+        artifact_root = artifact_project_root(
+            (suite, baseline_runset, candidate_runset, out_dir),
+            default_root=source_root,
+        )
+        environment = environment_with_dependency_inventory(
+            source_root,
+            out_dir,
+            artifact_root=artifact_root,
+        )
         compiled = load_compiled_suite(suite)
         baseline = load_runset(baseline_runset)
         candidate = load_runset(candidate_runset)
@@ -74,7 +93,7 @@ def compare(
             candidate,
             gate_profile=gate_profile,
             waivers=load_waivers(tuple(waiver or ())),
-            today=date.today(),
+            today=parse_cli_date(today) or date.today(),
         )
         report = attach_comparison_environment(report, environment)
     except InvalidComparisonError as exc:
@@ -88,6 +107,7 @@ def compare(
             baseline_runset=baseline_runset,
             candidate_runset=candidate_runset,
             environment=environment,
+            project_root=artifact_root,
         )
         render_comparison_console(report, console)
         raise typer.Exit(2) from exc
@@ -101,6 +121,7 @@ def compare(
         baseline_runset=baseline_runset,
         candidate_runset=candidate_runset,
         environment=environment,
+        project_root=artifact_root,
     )
     render_comparison_console(report, console)
     classification = report.comparison_summary.classification
@@ -118,6 +139,7 @@ def _write_reports(
     baseline_runset: Path,
     candidate_runset: Path,
     environment: EnvironmentInfo,
+    project_root: Path,
 ) -> None:
     report_json, summary_json = write_comparison_json(report, out_dir)
     write_comparison_markdown(report, out_dir)
@@ -129,6 +151,7 @@ def _write_reports(
         summary_path=summary_json,
         out_dir=out_dir,
         environment=environment,
+        project_root=project_root,
     )
 
 
@@ -141,8 +164,8 @@ def _write_release_manifest(
     summary_path: Path,
     out_dir: Path,
     environment: EnvironmentInfo,
+    project_root: Path,
 ) -> None:
-    project_root = Path.cwd().resolve()
     manifest = build_release_manifest(
         (
             release_artifact("compiled-suite", suite_path, project_root=project_root),

@@ -17,10 +17,10 @@ Render from existing artifacts:
 agent-assure diff render --baseline BASELINE.runset.json --candidate CANDIDATE.runset.json --comparison comparison-summary.json --packet evidence-packet.json --out evidence-diff.html
 ```
 
-The page shows final-output equivalence and process evidence side by side,
-including missing evidence links, candidate findings, comparison
-classification, fixture-equivalence state, CI-gate result, artifact paths, and
-packet digests.
+The page shows decision-field equivalence for `recommendation` and `outcome`
+alongside process evidence, including missing evidence links, candidate
+findings, comparison classification, fixture-equivalence state, CI-gate result,
+artifact paths, and packet digests.
 
 The flagship demo writes the artifact to:
 

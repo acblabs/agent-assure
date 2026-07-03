@@ -41,6 +41,24 @@ PUBLIC_DOCS = [
     ROOT / "paper" / "reproducibility_appendix.md",
 ]
 
+CURRENT_TERMINOLOGY_DOCS = (
+    Path("README.md"),
+    Path("docs/index.md"),
+    Path("docs/evidence_diff.md"),
+    Path("docs/demo_flagship.md"),
+    Path("docs/showcase.md"),
+    Path("docs/social/demo_video_script.md"),
+    Path("docs/release_evidence.md"),
+    Path("docs/release_pypi.md"),
+)
+
+DEPRECATED_REPORT_TERMINOLOGY_PATTERNS = (
+    re.compile(r"\bfinal[- ]output equivalence\b", re.IGNORECASE),
+    re.compile(r"\bvisible output equivalence\b", re.IGNORECASE),
+    re.compile(r"\bFinal-Output Comparison\b"),
+    re.compile(r"\bVisible output equivalence\b"),
+)
+
 FORBIDDEN_POSITIVE_PATTERNS = [
     re.compile(r"\bNIST[- ]endorsed\b", re.IGNORECASE),
     re.compile(r"\bOpenTelemetry[- ]native\b", re.IGNORECASE),
@@ -130,6 +148,7 @@ def main() -> int:
     failures: list[str] = []
     failures.extend(_check_public_docs_exist())
     failures.extend(_check_forbidden_claims())
+    failures.extend(_check_deprecated_report_terminology())
     failures.extend(_check_changelog())
     failures.extend(_check_claim_traceability())
     failures.extend(_check_schema_reference())
@@ -164,6 +183,22 @@ def _check_forbidden_claims() -> list[str]:
             if pattern.search(text):
                 failures.append(
                     f"forbidden positive claim in {path.relative_to(ROOT)}: {pattern.pattern}"
+                )
+    return failures
+
+
+def _check_deprecated_report_terminology() -> list[str]:
+    failures: list[str] = []
+    for relative_path in CURRENT_TERMINOLOGY_DOCS:
+        path = ROOT / relative_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for pattern in DEPRECATED_REPORT_TERMINOLOGY_PATTERNS:
+            if pattern.search(text):
+                failures.append(
+                    "deprecated report terminology in "
+                    f"{relative_path.as_posix()}: {pattern.pattern}"
                 )
     return failures
 

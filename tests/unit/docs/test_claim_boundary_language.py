@@ -113,13 +113,16 @@ def test_claim_boundary_splits_adjacent_markdown_list_items() -> None:
 
 def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> None:
     readme = tmp_path / "README.md"
+    changelog = tmp_path / "CHANGELOG.md"
     docs = tmp_path / "docs"
     post_dir = docs / "posts"
     assets_dir = docs / "assets"
     social_dir = docs / "social"
+    release_notes_dir = docs / "release_notes"
     hidden_demo_dir = tmp_path / ".tmp" / "demo" / "flagship"
     golden_dir = tmp_path / "tests" / "golden" / "reports"
     readme.write_text("# Project\n", encoding="utf-8")
+    changelog.write_text("Measured evidence\n", encoding="utf-8")
     docs.mkdir()
     (docs / "for_ai_leaders.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "for_engineers.md").write_text("Measured evidence\n", encoding="utf-8")
@@ -137,6 +140,9 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     social_dir.mkdir()
     video_script = social_dir / "demo_video_script.md"
     video_script.write_text("Measured evidence\n", encoding="utf-8")
+    release_notes_dir.mkdir()
+    release_note = release_notes_dir / "v0.1.0.md"
+    release_note.write_text("Measured evidence\n", encoding="utf-8")
     hidden_demo_dir.mkdir(parents=True)
     stale_tmp_html = hidden_demo_dir / "evidence-diff.html"
     stale_tmp_html.write_text("ROI impact\n", encoding="utf-8")
@@ -151,8 +157,10 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     paths = claim_boundaries.default_scan_paths(tmp_path)
 
     assert readme in paths
+    assert changelog in paths
     assert docs / "for_ai_leaders.md" in paths
     assert docs / "for_engineers.md" in paths
+    assert release_note in paths
     assert post in paths
     assert transcript in paths
     assert video_script in paths

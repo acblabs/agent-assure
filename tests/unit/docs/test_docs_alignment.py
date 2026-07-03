@@ -33,6 +33,30 @@ def test_forbidden_patterns_allow_unsupported_capability_nouns() -> None:
         )
 
 
+def test_deprecated_report_terminology_checker_rejects_current_docs(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    evidence_diff = tmp_path / "docs" / "evidence_diff.md"
+    evidence_diff.parent.mkdir(parents=True)
+    evidence_diff.write_text(
+        "The page shows final-output equivalence and process evidence.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    failures = docs_alignment._check_deprecated_report_terminology()
+
+    assert failures == [
+        "deprecated report terminology in docs/evidence_diff.md: "
+        "\\bfinal[- ]output equivalence\\b"
+    ]
+
+
+def test_deprecated_report_terminology_checker_allows_current_docs() -> None:
+    assert docs_alignment._check_deprecated_report_terminology() == []
+
+
 def test_live_protocol_checker_accepts_current_documents() -> None:
     assert docs_alignment._check_live_protocol() == []
 

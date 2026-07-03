@@ -99,7 +99,7 @@ claims:
       docs: [docs/cli_contract.md, docs/evidence_packets.md, docs/release_evidence.md]
     limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and cross-checks manifest-listed child digests when files are available, but remains separate from cryptographic signatures or attestations.
   - id: signed-release-evidence
-    claim: Release evidence, SBOM, wheel, and source distribution blobs can be signed keylessly in GitHub Actions and verified against the exact workflow identity and blob bytes.
+    claim: Release evidence, SBOM, wheel, and source distribution blobs can be signed keylessly in GitHub Actions and verified against the exact workflow identity and blob bytes. PyPI publishing verifies downloaded release bundle signatures before digest replay and package staging.
     evidence:
       code: [.github/workflows/release.yml, .github/workflows/evidence.yml, scripts/build_release_bundle.py, scripts/reproduce_release.py, src/agent_assure/reporting/sbom.py]
       tests: [tests/unit/release/test_release_evidence.py, tests/unit/release/test_sbom.py]

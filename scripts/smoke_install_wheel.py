@@ -10,10 +10,13 @@ import venv
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.schema_versions import SCHEMA_ROOT, frozen_schema_versions  # noqa: E402
+
 DIST = ROOT / "dist"
 LOCKFILE = ROOT / "requirements.lock"
-SCHEMA_ROOT = ROOT / "schemas"
-FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1")
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -253,10 +256,11 @@ def _demo_network_guard_assertion() -> str:
 def _frozen_schema_resource_paths(
     *,
     schema_root: Path = SCHEMA_ROOT,
-    schema_versions: tuple[str, ...] = FROZEN_SCHEMA_VERSIONS,
+    schema_versions: tuple[str, ...] | None = None,
 ) -> tuple[str, ...]:
+    versions = schema_versions or frozen_schema_versions(schema_root)
     paths: list[str] = []
-    for version in schema_versions:
+    for version in versions:
         version_dir = schema_root / version
         paths.extend(
             f"{version}/{path.name}"

@@ -6,6 +6,13 @@ deterministic and keep their original behavior; live execution is invoked only
 through `agent-assure live ...` with a live run configuration and frozen
 `live-protocol-record`.
 
+Live artifacts intentionally include real execution observations such as host
+timestamps, measured latency, scheduling jitter, provider identifiers, and
+emergency-record timing. They can flow through the same evaluation, comparison,
+packet, and CI surfaces as fixture artifacts, but they are time-bound
+operational evidence rather than byte-replay-stable deterministic release
+evidence.
+
 The statistical protocol is documented in
 `docs/measurement/experiment_protocol.md`. It covers hypotheses, sample-size
 planning, confidence intervals, baseline handling modes, retry and exclusion

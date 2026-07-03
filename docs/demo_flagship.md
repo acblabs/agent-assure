@@ -9,7 +9,7 @@ agent-assure demo flagship --out .tmp/demo/flagship --clean
 Expected punchline:
 
 ```text
-output equivalence: preserved
+decision fields: preserved
 missing evidence link: claim-duration
 classification: new_failure
 CI gate: blocked as expected
@@ -20,7 +20,7 @@ resources, stages it in the output directory, runs the baseline and candidate
 variants, evaluates both run sets, compares them, builds an evidence packet
 through the CI command, gates that packet, and renders `evidence-diff.html`.
 
-The visible final output remains stable:
+The visible decision fields remain stable:
 
 ```text
 baseline:  recommendation=approve; outcome=approve

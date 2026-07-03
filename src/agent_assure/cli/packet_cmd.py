@@ -7,9 +7,11 @@ import typer
 from rich.console import Console
 
 from agent_assure.reporting.environment import (
+    artifact_project_root,
     build_release_manifest,
     environment_with_dependency_inventory,
     release_artifact,
+    source_project_root,
     write_release_manifest,
 )
 from agent_assure.reporting.packet import (
@@ -59,22 +61,44 @@ def build(
     ] = Path("."),
 ) -> None:
     try:
+        source_candidates = (evaluation, *(() if comparison is None else (comparison,)))
+        source_root = (
+            project_root.resolve()
+            if project_root != Path(".")
+            else source_project_root(source_candidates, default_root=Path.cwd())
+        )
+        artifact_root = artifact_project_root(
+            (evaluation, out, *(() if comparison is None else (comparison,))),
+            default_root=source_root,
+        )
         evaluation_summary = load_evaluation_summary(evaluation)
         comparison_summary = load_comparison_summary(comparison) if comparison else None
-        environment = environment_with_dependency_inventory(project_root.resolve(), out.parent)
+        environment = environment_with_dependency_inventory(
+            source_root,
+            out.parent,
+            artifact_root=artifact_root,
+        )
         digests = [packet_artifact_digest("evaluation-summary", evaluation)]
         artifacts = [
-            release_artifact("evaluation-summary", evaluation, project_root=project_root),
+            release_artifact(
+                "evaluation-summary",
+                evaluation,
+                project_root=artifact_root,
+            ),
             release_artifact(
                 "dependency-inventory",
                 out.parent / "dependency-inventory.json",
-                project_root=project_root,
+                project_root=artifact_root,
             ),
         ]
         if comparison is not None:
             digests.append(packet_artifact_digest("comparison-summary", comparison))
             artifacts.append(
-                release_artifact("comparison-summary", comparison, project_root=project_root)
+                release_artifact(
+                    "comparison-summary",
+                    comparison,
+                    project_root=artifact_root,
+                )
             )
         manifest = build_release_manifest(
             tuple(artifacts),

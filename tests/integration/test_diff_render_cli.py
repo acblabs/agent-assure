@@ -47,8 +47,8 @@ def test_diff_render_cli_uses_packet_and_comparison_contract(tmp_path: Path) -> 
     assert "evidence diff:" in result.output
     html = out_path.read_text(encoding="utf-8")
     assert THESIS_TITLE in html
-    assert "Final-Output Comparison" in html
-    assert "<dt>Visible output equivalence</dt><dd>preserved</dd>" in html
+    assert "Decision-Field Comparison" in html
+    assert "<dt>Decision fields (recommendation, outcome)</dt><dd>preserved</dd>" in html
     assert "Missing Evidence Link Diff" in html
     assert "claim-duration" in html
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html

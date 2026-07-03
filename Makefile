@@ -1,7 +1,8 @@
 PYTHON ?= $(or $(wildcard .venv/Scripts/python.exe),$(wildcard .venv/bin/python),python)
 SOURCE_CLI_PYTHON := $(PYTHON)
+SCHEMA_DIR ?= $(shell $(PYTHON) scripts/schema_target.py)
 
-.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-staging schema-check release-bundle check release-check demo
+.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-force-includes schema-staging schema-check release-bundle check release-check demo
 
 test:
 	$(PYTHON) -m pytest
@@ -10,7 +11,7 @@ lint:
 	$(PYTHON) -m ruff check .
 
 type:
-	$(PYTHON) -m mypy src
+	$(PYTHON) -m mypy src scripts
 
 clean-dist:
 	$(PYTHON) scripts/clean_dist.py
@@ -41,11 +42,16 @@ demo:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py demo flagship --out .tmp/demo/flagship --clean
 
 schemas:
-	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out schemas/v0.3.1
+	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out $(SCHEMA_DIR)
+	$(PYTHON) scripts/sync_schema_force_includes.py
+
+schema-force-includes:
+	$(PYTHON) scripts/sync_schema_force_includes.py
 
 schema-staging:
 	$(PYTHON) scripts/check_schema_staging.py
 
 schema-check:
-	$(PYTHON) scripts/check_frozen_schemas.py --schema-dir schemas/v0.3.1
+	$(PYTHON) scripts/sync_schema_force_includes.py --check
+	$(PYTHON) scripts/check_frozen_schemas.py
 	$(PYTHON) scripts/check_schema_staging.py

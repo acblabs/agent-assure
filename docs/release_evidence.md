@@ -24,14 +24,16 @@ identity is required.
 From a clean checkout:
 
 ```bash
-pip install -e ".[dev]"
+python -m pip install --require-hashes -r requirements.lock
+python -m pip install --no-deps --no-build-isolation -e .
 python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 
 The bundle directory contains the evidence packet, Markdown packet, release
 artifact manifest, digest replay file, SBOM, Python source distribution, wheel,
-run sets, reports, fixture manifest, and dependency inventory.
+run sets, reports, fixture manifest, dependency inventory, and per-step command
+logs under `logs/`.
 
 ## Reproduce From a Tag
 
@@ -39,10 +41,12 @@ After the target tag exists, reproduce from a clean checkout of the tagged
 commit and the downloaded release bundle:
 
 ```bash
-git checkout v0.2.0
-pip install -e ".[dev]"
-python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref refs/tags/v0.2.0
-agent-assure release replay path/to/downloaded/release-digest-replay.json --artifact-root . --expect-ref refs/tags/v0.2.0 --require-current-commit
+TAG=v0.3.1
+git checkout "${TAG}"
+python -m pip install --require-hashes -r requirements.lock
+python -m pip install --no-deps --no-build-isolation -e .
+python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref "refs/tags/${TAG}"
+agent-assure release replay path/to/downloaded/release-digest-replay.json --artifact-root . --expect-ref "refs/tags/${TAG}" --require-current-commit
 ```
 
 The script reruns the flagship suite and rebuilds local release artifacts. The
@@ -69,11 +73,31 @@ before replay. If a wheel or source distribution stops being byte-reproducible,
 that check reports the specific distribution filename and digest pair before
 the broader release-manifest replay check runs.
 
+Release bundle scripts pin waiver-sensitive CI evaluation to `2026-07-03` and
+default subprocesses to `SOURCE_DATE_EPOCH=1783036800` unless the environment
+already sets a value. Keep those values fixed for v0.3.1 replays; update them
+deliberately only when cutting a new release line.
+
 Replay artifact paths must be relative to `--artifact-root` and cannot include
 parent-directory segments. `--expect-commit` validates the replay file's
 `source_commit`; `--expect-ref` validates the replay file's `source_ref`.
 `--require-current-commit` separately checks the current checkout against the
 replay file's `source_commit`.
+
+Commands keep source provenance separate from artifact path rooting. Git commit
+and lockfile metadata are collected from the source project root, while release
+manifest paths are made relative to an artifact root that can also cover an
+external report directory. Artifact paths still fail closed if they cannot share
+a common filesystem root. The bundled release scripts require `--suite`,
+`--baseline-variant`, and `--candidate-variant` inputs to stay under the
+repository root; copy external release inputs into the repository before
+building a release bundle.
+
+Fixture release artifacts are the deterministic release path. Live RunSets and
+live reports can carry host timestamps, latency measurements, scheduling
+jitter, provider metadata, and emergency-record timing from real execution.
+Treat live artifacts as time-bound operational evidence with raw artifact
+digests, not byte-replay-stable fixture evidence.
 
 ## Sign Blobs
 
@@ -84,8 +108,8 @@ cosign sign-blob --yes --bundle evidence-packet.json.bundle evidence-packet.json
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
 cosign sign-blob --yes --bundle sbom.cdx.json.bundle sbom.cdx.json
-cosign sign-blob --yes --bundle agent_assure-0.2.0-py3-none-any.whl.bundle agent_assure-0.2.0-py3-none-any.whl
-cosign sign-blob --yes --bundle agent_assure-0.2.0.tar.gz.bundle agent_assure-0.2.0.tar.gz
+cosign sign-blob --yes --bundle agent_assure-0.3.1-py3-none-any.whl.bundle agent_assure-0.3.1-py3-none-any.whl
+cosign sign-blob --yes --bundle agent_assure-0.3.1.tar.gz.bundle agent_assure-0.3.1.tar.gz
 ```
 
 The repository workflow pins the cosign binary to `v3.0.6` through the
@@ -98,7 +122,7 @@ that produced the signed release bundle:
 
 ```bash
 REPO=acblabs/agent-assure
-TAG=v0.2.0
+TAG=v0.3.1
 SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
 IDENTITY="https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}"
@@ -125,6 +149,9 @@ stable projections for environment-bearing JSON artifacts.
 Sigstore documents keyless blob signing and GitHub Actions OIDC signing at
 https://docs.sigstore.dev/cosign/signing/signing_with_blobs/ and
 https://docs.sigstore.dev/quickstart/quickstart-ci/.
+
+The PyPI publish job performs workflow-identity verification on the downloaded
+release bundle before running digest replay or staging package files for upload.
 
 ## Limits
 

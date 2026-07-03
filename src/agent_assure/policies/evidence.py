@@ -52,6 +52,4 @@ def evaluate_material_claim_evidence(
 
 
 def _observed_evidence_refs(run: AgentRunRecord) -> set[str]:
-    if run.evidence_items:
-        return {item.ref_id for item in run.evidence_items}
     return {ref.ref_id for ref in run.evidence_refs}

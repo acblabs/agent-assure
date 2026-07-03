@@ -254,6 +254,7 @@ def run_live_suite(
                 completed_at_utc=completed,
                 latency_ms=latency_ms,
                 trace_context=trace_context,
+                response=response,
                 reason_code=reason_code,
                 exc=exc,
             )
@@ -295,11 +296,7 @@ def _record_from_response(
     trace_context: RuntimeTraceContext,
 ) -> AgentRunRecord:
     payload = parse_live_structured_content(response.content)
-    total_tokens = response.total_tokens
-    if total_tokens is None and (
-        response.prompt_tokens is not None or response.completion_tokens is not None
-    ):
-        total_tokens = (response.prompt_tokens or 0) + (response.completion_tokens or 0)
+    total_tokens = _response_total_tokens(response)
     observation_id = _observation_id(
         compiled.suite_id,
         config.variant_id,
@@ -389,6 +386,7 @@ def _error_record(
     completed_at_utc: str | None = None,
     latency_ms: int | None = None,
     trace_context: RuntimeTraceContext | None = None,
+    response: LiveProviderResponse | None = None,
     reason_code: ReasonCode = ReasonCode.RUNTIME_FAILED,
     exc: Exception | None = None,
 ) -> AgentRunRecord:
@@ -432,12 +430,19 @@ def _error_record(
         cluster_id=_cluster_id(prompt_case, cluster_by),
         source_group_id=prompt_case.source_group_id,
         adapter_id=config.adapter.adapter_id,
-        provider=config.adapter.provider,
-        model=config.adapter.model,
-        resolved_model=config.adapter.model,
-        provider_api_version=config.adapter.api_version,
-        provider_sdk=_sdk_label(config),
-        provider_region=config.adapter.region,
+        provider=response.provider if response else config.adapter.provider,
+        model=response.model if response else config.adapter.model,
+        resolved_model=(
+            response.resolved_model
+            if response and response.resolved_model
+            else config.adapter.model
+        ),
+        provider_api_version=(
+            response.provider_api_version if response else config.adapter.api_version
+        ),
+        provider_sdk=response.provider_sdk if response else _sdk_label(config),
+        provider_region=response.provider_region if response else config.adapter.region,
+        provider_response_id=response.provider_response_id if response else None,
         traceparent=trace_context.traceparent,
         tracestate=trace_context.tracestate,
         started_at_utc=started_at_utc,
@@ -447,8 +452,11 @@ def _error_record(
         retry_count=retry_count,
         rate_limit_events=rate_limit_events,
         exclusion_reason=exclusion_reason,
-        estimated_cost_usd="0.000000",
-        estimated_cost_source="not_reported",
+        prompt_tokens=response.prompt_tokens if response else None,
+        completion_tokens=response.completion_tokens if response else None,
+        total_tokens=_response_total_tokens(response) if response else None,
+        estimated_cost_usd=response.estimated_cost_usd if response else "0.000000",
+        estimated_cost_source=response.estimated_cost_source if response else "not_reported",
         policy_results=(
             PolicyResult(
                 artifact_kind="policy-result",
@@ -469,9 +477,17 @@ def _error_record(
             config,
             configuration_digest,
             prompt_digest=prompt_digest or sha256_hexdigest(_prompt_digest_input(prompt_case)),
-            model_identifier=config.adapter.model,
+            model_identifier=response.model if response else config.adapter.model,
         ),
     )
+
+
+def _response_total_tokens(response: LiveProviderResponse) -> int | None:
+    if response.total_tokens is not None:
+        return response.total_tokens
+    if response.prompt_tokens is None and response.completion_tokens is None:
+        return None
+    return (response.prompt_tokens or 0) + (response.completion_tokens or 0)
 
 
 def _validate_cases(compiled: CompiledSuite, config: LiveRunConfig) -> None:
@@ -596,7 +612,8 @@ def _complete_with_retries(
                 break
             retry_count += 1
             _sleep_before_retry(config, retry_count, _retry_after_seconds(exc))
-    assert last_exc is not None
+    if last_exc is None:
+        raise RuntimeError("live adapter failed without an exception")
     raise last_exc
 
 

@@ -7,9 +7,16 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.schema_versions import (  # noqa: E402
+    SCHEMA_ROOT,
+    frozen_schema_versions,
+    schema_resource_archive_paths,
+)
+
 DIST = ROOT / "dist"
-SCHEMA_ROOT = ROOT / "schemas"
-FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1")
 
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
@@ -42,10 +49,6 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/examples/expense_approval_minimal/fixtures/shared/model_outputs/exp-001.json",
     "agent_assure/examples/expense_approval_minimal/fixtures/shared/tool_outputs/exp-001.json",
     "agent_assure/schema_resources/__init__.py",
-    "agent_assure/schema_resources/v0.1.0/",
-    "agent_assure/schema_resources/v0.2.0/",
-    "agent_assure/schema_resources/v0.3.0/",
-    "agent_assure/schema_resources/v0.3.1/",
 )
 
 FORBIDDEN_ARCHIVE_PREFIXES = (
@@ -166,19 +169,17 @@ def inspect_sdist(sdist: Path) -> list[str]:
 def required_archive_paths(
     *,
     schema_root: Path = SCHEMA_ROOT,
-    schema_versions: tuple[str, ...] = FROZEN_SCHEMA_VERSIONS,
+    schema_versions: tuple[str, ...] | None = None,
 ) -> tuple[str, ...]:
-    schema_paths: list[str] = []
-    for version in schema_versions:
-        version_dir = schema_root / version
-        if not version_dir.is_dir():
-            schema_paths.append(f"agent_assure/schema_resources/{version}/")
-            continue
-        schema_paths.extend(
-            f"agent_assure/schema_resources/{version}/{path.name}"
-            for path in sorted(version_dir.glob("*.schema.json"))
-        )
-    return (*BASE_REQUIRED_ARCHIVE_PATHS, *tuple(schema_paths))
+    versions = schema_versions or frozen_schema_versions(schema_root)
+    schema_dirs = tuple(
+        f"agent_assure/schema_resources/{version}/" for version in versions
+    )
+    schema_paths = schema_resource_archive_paths(
+        schema_root=schema_root,
+        schema_versions=versions,
+    )
+    return (*BASE_REQUIRED_ARCHIVE_PATHS, *schema_dirs, *schema_paths)
 
 
 def _archive_contains(names: tuple[str, ...], required: str) -> bool:

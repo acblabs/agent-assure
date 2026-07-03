@@ -19,8 +19,16 @@ Automation has two separate checks:
 
 - frozen schema parity exports the current release schema surface to
   `schemas/v0.3.1/` and fails if those committed files drift;
+- schema packaging consistency discovers frozen `schemas/v*` directories and
+  fails if `pyproject.toml` does not force-include the same directories under
+  `agent_assure/schema_resources/`;
 - schema staging exports the current development schema surface to
   `schemas/unreleased/` and fails if no schema files are produced.
+
+When a release freezes a new `schemas/vX.Y.Z/` directory, run
+`make schema-force-includes` to refresh the Hatch wheel force-include block.
+`make schema-check` runs the same helper in `--check` mode and fails if the
+static packaging block drifts from the frozen schema directories.
 
 `schemas/unreleased/` is a staging scratch area, not a drift gate. Generated
 `*.schema.json` files in that directory are ignored by Git until a release cut
@@ -41,6 +49,11 @@ current schema version, JSON Schema `$id`, frozen schema directory, package
 schema resources, and release gates together. A release that changes behavioral producer obligations
 without changing JSON shape must publish a versioned producer contract and
 document the compatibility boundary.
+
+The v0.3.1 tag validator intentionally expects the package version and active
+schema version to match. Before cutting a future package-only release that keeps
+the schema behind the package version, update the validator with an explicit
+release-to-schema mapping and document the mapping in the release notes.
 
 Because v0.3.0 does not change persisted artifact shape, the JSON Schema `$id`
 values inside `schemas/v0.3.0/` still point to the `v0.2.0` schema namespace.
