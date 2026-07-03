@@ -11,4 +11,4 @@ the response preserved the controls reviewers expected.
 
 Example: the flagship fixture keeps `recommendation=approve; outcome=approve`,
 but the candidate drops a material evidence link. Output equivalence is
-preserved; process equivalence is not.
+preserved in the decision the reviewer sees; process equivalence is not.

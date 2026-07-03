@@ -24,4 +24,4 @@ Artifacts:
   evidence-diff.html
 
 Demo result:
-  success: identical output, process regression caught
+  success: output equivalence preserved, process regression caught

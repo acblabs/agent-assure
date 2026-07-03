@@ -2,13 +2,15 @@
 
 Local-first process assurance for agentic AI pipelines.
 
-**Core thesis:** matching decision fields are not process equivalence.
+**Core thesis:** Output equivalence is not process equivalence.
 
-A candidate agent pipeline can return the same final approval, denial,
-recommendation, or summary while silently changing material evidence, review
-routing, provider/tool boundaries, redaction behavior, retries, or provenance.
-`agent-assure` produces local evidence packets and CI gates so reviewers can
-detect those observable process regressions.
+A candidate agent pipeline can return the same visible decision, approval,
+denial, recommendation, or summary while silently changing material evidence,
+review routing, provider/tool boundaries, redaction behavior, retries, or
+provenance. `agent-assure` produces local evidence packets and CI gates so
+reviewers can detect those observable process regressions. In the flagship
+case, the output-equivalence claim is the narrower decision equivalence of
+`recommendation` and `outcome`.
 
 ## Install
 
@@ -27,7 +29,7 @@ review artifacts under `.tmp/demo/flagship` by default.
 ```text
 Expected punchline:
 
-decision fields: preserved
+output equivalence: preserved
 missing evidence link: claim-duration
 classification: new_failure
 CI gate: blocked as expected
@@ -137,11 +139,11 @@ or provider assessment.
 
 ### Flagship regression at a glance
 
-The key idea: ordinary output comparison can miss governance regressions. In the
-flagship fixture, the candidate keeps the same visible recommendation and
-outcome as the baseline, but drops a material evidence link. `agent-assure`
-catches the missing evidence invariant and classifies the baseline-to-candidate
-comparison as a `new_failure` under passing fixture equivalence.
+The key idea: output equivalence is not process equivalence. In the flagship
+fixture, the candidate keeps the same visible recommendation and outcome as the
+baseline, but drops a material evidence link. `agent-assure` catches the
+missing evidence invariant and classifies the baseline-to-candidate comparison
+as a `new_failure` under passing fixture equivalence.
 
 ```mermaid
 flowchart LR

@@ -31,9 +31,11 @@
   and expanded behavior diffs to include digest-bearing evidence items, claims,
   and explicit claim-evidence links.
 - Aligned the evidence-diff HTML renderer with the same claim-evidence contract,
-  narrowed report wording to decision-field equivalence for
-  `recommendation`/`outcome`, and kept git/lockfile provenance rooted at the
-  source project even when reports are written to external output directories.
+  restored "Output equivalence is not process equivalence" as the public
+  thesis while keeping decision-field equivalence for the precise
+  `recommendation`/`outcome` comparison, and kept git/lockfile provenance
+  rooted at the source project even when reports are written to external output
+  directories.
 - Added typed release-script coverage for `scripts/`, dynamic active-schema
   Makefile targets, a schema force-include sync helper, and workflow
   consistency checks for the pinned release `SOURCE_DATE_EPOCH`.

@@ -13,6 +13,7 @@ from agent_assure.reporting.evidence_diff_html import THESIS_TITLE
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 
 RUNNER = CliRunner()
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_flagship_demo_exits_zero_on_expected_process_regression(tmp_path: Path) -> None:
@@ -81,7 +82,13 @@ def test_flagship_demo_exits_zero_on_expected_process_regression(tmp_path: Path)
     artifacts = cast(dict[str, str], summary["artifacts"])
     for artifact in artifacts.values():
         assert (out_dir / artifact).exists()
-    assert "case: shared-source-multi-claim" in render_flagship_text(summary)
+    rendered_text = render_flagship_text(summary)
+    assert "case: shared-source-multi-claim" in rendered_text
+    assert "output equivalence: preserved" in rendered_text
+    expected_transcript = (
+        ROOT / "docs" / "assets" / "flagship_demo_transcript.txt"
+    ).read_text(encoding="utf-8")
+    assert rendered_text == expected_transcript.rstrip("\n")
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")
     assert THESIS_TITLE in html
     assert "Review Punchline" in html
