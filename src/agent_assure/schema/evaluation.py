@@ -2,11 +2,19 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import GateState, ReasonCode, coerce_enum, coerce_tuple
 from agent_assure.schema.environment import EnvironmentInfo
+from agent_assure.schema.usage import (
+    UsageSummary,
+    usage_container_json_schema_extra,
+    validate_usage_field_paths_schema_version,
+)
+
+_EVALUATION_SUMMARY_USAGE_FIELD_PATHS = (("usage_summary",),)
 
 
 class Finding(PersistedArtifact):
@@ -31,11 +39,18 @@ class Finding(PersistedArtifact):
 
 
 class EvaluationSummary(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=usage_container_json_schema_extra(
+            *_EVALUATION_SUMMARY_USAGE_FIELD_PATHS
+        )
+    )
+
     artifact_kind: Literal["evaluation-summary"] = "evaluation-summary"
     runset_id: str
     state: GateState
     findings: tuple[Finding, ...] = ()
     environment: EnvironmentInfo | None = None
+    usage_summary: UsageSummary | None = Field(default=None, exclude_if=lambda value: value is None)
 
     @field_validator("state", mode="before")
     @classmethod
@@ -46,3 +61,13 @@ class EvaluationSummary(PersistedArtifact):
     @classmethod
     def _coerce_findings(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_usage_schema_version(self) -> EvaluationSummary:
+        validate_usage_field_paths_schema_version(
+            self.schema_version,
+            owner="evaluation summary",
+            root=self,
+            field_paths=_EVALUATION_SUMMARY_USAGE_FIELD_PATHS,
+        )
+        return self

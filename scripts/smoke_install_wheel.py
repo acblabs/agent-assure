@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 LOCKFILE = ROOT / "requirements.lock"
 SCHEMA_ROOT = ROOT / "schemas"
-FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0")
+FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1")
 
 
 def main(argv: list[str] | None = None) -> int:

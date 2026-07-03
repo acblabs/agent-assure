@@ -11,6 +11,7 @@ from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
 from agent_assure.schema.release import ReleaseArtifactManifest
+from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import load_json
 
 DEFAULT_PACKET_LIMITATIONS = (
@@ -28,6 +29,8 @@ DEFAULT_INTERPRETATION = (
     "over local files; they are not signatures or external attestations.",
     "Not-evaluated capabilities are explicit scope boundaries, not evidence that "
     "the capability passed.",
+    "If a usage summary is present, treat it as measured usage and declared "
+    "estimated cost evidence for human review, not business impact evidence.",
 )
 
 
@@ -45,6 +48,7 @@ def build_evidence_packet(
     comparison: ComparisonSummary | None = None,
     environment: EnvironmentInfo | None = None,
     release_manifest: ReleaseArtifactManifest | None = None,
+    usage_summary: UsageSummary | None = None,
     artifact_digests: tuple[PacketArtifactDigest, ...] = (),
     packet_id: str | None = None,
     interpretation: tuple[str, ...] = DEFAULT_INTERPRETATION,
@@ -64,6 +68,7 @@ def build_evidence_packet(
         comparison=comparison,
         environment=environment,
         release_manifest=release_manifest,
+        usage_summary=usage_summary or evaluation.usage_summary,
         artifact_digests=artifact_digests,
         limitations=limitations,
     )
@@ -111,6 +116,7 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
             f"- Run set: `{packet.evaluation.runset_id}`",
             f"- State: `{packet.evaluation.state.value}`",
             f"- Findings: `{len(packet.evaluation.findings)}`",
+            f"- Usage summary: `{_usage_presence(packet.usage_summary)}`",
         ]
     )
     if packet.comparison is not None:
@@ -150,6 +156,8 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
             f"- `{artifact.role}` `{redact_text(artifact.path)}` `{artifact.sha256}`"
             for artifact in packet.release_manifest.artifacts
         )
+    lines.extend(["", "## Measured Usage", ""])
+    lines.extend(_usage_summary_lines(packet.usage_summary))
     lines.extend(["", "## Limitations", ""])
     lines.extend(f"- {redact_text(limitation)}" for limitation in packet.limitations)
     return "\n".join(lines) + "\n"
@@ -184,3 +192,33 @@ def _summary_for_packet_id(
 
 def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _usage_summary_lines(summary: UsageSummary | None) -> list[str]:
+    if summary is None:
+        return ["- measured usage: `not_observed`"]
+    lines = [
+        f"- total tokens: `{_observed_int(summary.total_tokens)}`",
+        f"- tool calls: `{_observed_int(summary.total_tool_calls)}`",
+        f"- retries: `{_observed_int(summary.total_retries)}`",
+        f"- latency ms: `{_observed_int(summary.total_latency_ms)}`",
+        (
+            "- declared estimated cost: "
+            f"`{_observed_int(summary.estimated_cost_microusd)}` micro-USD "
+            f"`{summary.currency}`"
+        ),
+    ]
+    lines.extend(f"- limitation: {redact_text(limitation)}" for limitation in summary.limitations)
+    return lines
+
+
+def _observed_int(value: int | None) -> str:
+    if value is None:
+        return "not_observed"
+    return str(value)
+
+
+def _usage_presence(summary: UsageSummary | None) -> str:
+    if summary is None:
+        return "not_observed"
+    return "observed"

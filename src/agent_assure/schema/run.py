@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
@@ -17,7 +17,25 @@ from agent_assure.schema.common import (
 )
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.runtime import EmergencyProcessRecord
+from agent_assure.schema.usage import (
+    UsageLedger,
+    UsageSummary,
+    usage_container_json_schema_extra,
+    validate_usage_field_paths_schema_version,
+    validate_usage_summary_consistency,
+)
 from agent_assure.telemetry.context import TRACEPARENT_FIELD_PATTERN, validate_traceparent
+
+_RUN_RECORD_USAGE_FIELD_PATHS = (
+    ("usage_ledger",),
+    ("usage_summary",),
+)
+_RUN_SET_USAGE_FIELD_PATHS = (
+    ("usage_ledger",),
+    ("usage_summary",),
+    ("runs", "*", "usage_ledger"),
+    ("runs", "*", "usage_summary"),
+)
 
 
 class EvidenceRef(PersistedArtifact):
@@ -78,6 +96,10 @@ class PolicyResult(PersistedArtifact):
 
 
 class AgentRunRecord(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
+    )
+
     artifact_kind: Literal["agent-run-record"] = "agent-run-record"
     run_id: str = Field(min_length=1)
     case_id: str = Field(min_length=1)
@@ -132,6 +154,14 @@ class AgentRunRecord(PersistedArtifact):
     policy_results: tuple[PolicyResult, ...] = ()
     human_review_required: bool = False
     human_review_performed: bool = False
+    usage_ledger: UsageLedger | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    usage_summary: UsageSummary | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     provenance: Provenance = Provenance()
 
     @field_validator("execution_mode", mode="before")
@@ -166,6 +196,17 @@ class AgentRunRecord(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_metadata(self) -> AgentRunRecord:
+        validate_usage_field_paths_schema_version(
+            self.schema_version,
+            owner="run record",
+            root=self,
+            field_paths=_RUN_RECORD_USAGE_FIELD_PATHS,
+        )
+        validate_usage_summary_consistency(
+            self.usage_ledger,
+            self.usage_summary,
+            owner="run record",
+        )
         if self.execution_mode is ExecutionMode.fixture:
             return self
         missing = [
@@ -191,6 +232,10 @@ class AgentRunRecord(PersistedArtifact):
 
 
 class RunSet(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=usage_container_json_schema_extra(*_RUN_SET_USAGE_FIELD_PATHS)
+    )
+
     artifact_kind: Literal["run-set"] = "run-set"
     runset_id: str
     suite_id: str
@@ -206,6 +251,14 @@ class RunSet(PersistedArtifact):
         default=(),
         exclude_if=lambda value: len(value) == 0,
     )
+    usage_ledger: UsageLedger | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    usage_summary: UsageSummary | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     runs: tuple[AgentRunRecord, ...]
 
     @field_validator("execution_mode", mode="before")
@@ -220,6 +273,17 @@ class RunSet(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_protocol_binding(self) -> RunSet:
+        validate_usage_field_paths_schema_version(
+            self.schema_version,
+            owner="run set",
+            root=self,
+            field_paths=_RUN_SET_USAGE_FIELD_PATHS,
+        )
+        validate_usage_summary_consistency(
+            self.usage_ledger,
+            self.usage_summary,
+            owner="run set",
+        )
         if self.execution_mode is not ExecutionMode.live:
             return self
         missing = [

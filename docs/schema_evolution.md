@@ -1,23 +1,24 @@
 # Schema Evolution
 
-Released schema snapshot: `schemas/v0.3.0/`.
+Active released schema snapshot: `schemas/v0.3.1/`.
 
-Persisted artifact `schema_version`: `0.2.0`.
+Persisted artifact `schema_version`: `0.3.1`.
 
 Development schema changes for the next release are exported to
 `schemas/unreleased/`. Stable package releases freeze a copy into
-`schemas/vX.Y.Z/`, such as `schemas/v0.3.0/` for the v0.3.0 release.
+`schemas/vX.Y.Z/`, such as `schemas/v0.3.1/` for the v0.3.1 release.
 
 Use these directories as the release lifecycle:
 
 - `schemas/v0.1.0/` and `schemas/v0.2.0/` retain earlier release schema sets.
 - `schemas/v0.3.0/` contains the stable exported schema snapshot for v0.3.0.
+- `schemas/v0.3.1/` contains the active release schema snapshot for v0.3.1.
 - `schemas/unreleased/` is the development export target for the next release.
 
 Automation has two separate checks:
 
 - frozen schema parity exports the current release schema surface to
-  `schemas/v0.3.0/` and fails if those committed files drift;
+  `schemas/v0.3.1/` and fails if those committed files drift;
 - schema staging exports the current development schema surface to
   `schemas/unreleased/` and fails if no schema files are produced.
 
@@ -32,10 +33,12 @@ ship `schemas/unreleased/`.
 
 The package version, persisted artifact `schema_version`, exported schema
 directory, JSON Schema `$id`, and producer contracts are related but not
-identical version surfaces. The v0.3.0 package release freezes a v0.3.0 schema
-snapshot without changing persisted artifact `schema_version`, which remains
-`0.2.0`. A release that changes persisted artifact shape must update all schema
-surfaces together. A release that changes behavioral producer obligations
+identical version surfaces. The v0.3.0 package release froze a v0.3.0 schema
+snapshot without changing persisted artifact `schema_version`, which remained
+`0.2.0`. The v0.3.1 package release changes persisted artifact shape
+additively for measured usage evidence, so it updates the package version,
+current schema version, JSON Schema `$id`, frozen schema directory, package
+schema resources, and release gates together. A release that changes behavioral producer obligations
 without changing JSON shape must publish a versioned producer contract and
 document the compatibility boundary.
 
@@ -48,7 +51,8 @@ while the persisted artifact schema namespace remains `0.2.0`.
 
 For the v0.3.x line, the CLI keeps replay and validation support for the
 release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
-`schemas/v0.3.0/`.
+`schemas/v0.3.0/`, while active development and release checks target
+`schemas/v0.3.1/`.
 
 Future minor releases should keep at least the two previous minor release
 schema snapshots available for local replay unless release notes explicitly
@@ -81,8 +85,8 @@ link must point to a present `evidence_refs[].ref_id` in the same run record.
 not satisfy `material_claims_have_evidence`.
 
 This contract is behavioral, not merely syntactic. A record can validate
-against schema version `0.2.0` and still fail deterministic evaluation if it
-omits explicit material claim-evidence links.
+against an accepted legacy schema version such as `0.2.0` and still fail
+deterministic evaluation if it omits explicit material claim-evidence links.
 
 ## Live-Capable Schema Additions
 
@@ -130,3 +134,34 @@ The v0.3 package release adds `schemas/v0.3.0` as the frozen release snapshot
 used by release gates and wheel-content inspection. The persisted artifact
 schema version remains `0.2.0` because v0.3.0 focuses on packaging, demos, and
 release evidence rather than a breaking artifact-shape change.
+
+The v0.3.1 package release adds `schemas/v0.3.1` as the active frozen release
+snapshot. It keeps `schemas/v0.3.0` unchanged for replay, accepts legacy
+`schema_version: 0.2.0` artifacts, and emits `schema_version: 0.3.1` for newly
+produced artifacts.
+
+## Usage Schema Foundation
+
+The v0.3.1 release surface stages optional measured-usage fields on run,
+evaluation, comparison, and packet artifacts. The additive model is
+`UsageSegment -> UsageLedger -> UsageSummary`, with `UsageSummaryDelta` for
+baseline-to-candidate comparisons. Usage segments include `span_id`,
+`parent_span_id`, `event_range_start`, and `event_range_end` so future streaming
+ingestion can attach usage to ordered events without redesigning the schema. The
+usage artifact roots are introduced in v0.3.1 and therefore accept only
+`schema_version: "0.3.1"`. Container artifacts that carry usage fields must also
+use `schema_version: "0.3.1"`; legacy-labeled containers reject direct and
+nested usage evidence.
+
+Persisted money uses `estimated_cost_microusd: int | None`. Do not introduce
+float money fields in persisted artifacts. Missing usage is represented as
+`not_observed` in summaries and reports; it is not a deterministic evaluation
+failure. Generated wording must stay on measured usage, usage delta, declared
+estimated cost, and cost-per-run evidence, and must not claim business impact.
+When a usage ledger and summary are both present, the summary must match the
+ledger-derived values and include the ledger-derived limitations. Partial
+missingness is carried into summaries and deltas so known-field totals are not
+read as complete observations. Exported JSON Schema enforces the
+cost-bearing-segment limitation requirement and the legacy-container usage
+field gate; ledger missingness equality is a derived invariant enforced by
+Pydantic validation.

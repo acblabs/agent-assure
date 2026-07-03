@@ -2,7 +2,23 @@
 
 ## Unreleased
 
-- No unreleased changes.
+No unreleased changes.
+
+## 0.3.1 - 2026-07-03
+
+- Added a v0.3.1 measured-usage schema foundation with integer
+  `estimated_cost_microusd`, usage ledgers, summaries, comparison deltas,
+  optional usage fields on existing artifacts, and report wording that treats
+  missing usage as `not_observed`.
+- Bumped the active package/schema surface to v0.3.1, added a frozen
+  `schemas/v0.3.1` release snapshot, kept `schemas/v0.3.0` immutable for
+  replay, and restored the frozen-schema gate to compare the current exporter
+  against the active release snapshot.
+- Hardened usage evidence by requiring explicit limitations on cost-bearing
+  segments, rejecting ledger/summary mismatches, propagating partial
+  missingness limitations into summaries and deltas, rejecting legacy-labeled
+  containers that carry v0.3.1 usage fields, and rejecting lowercase ROI
+  language in the claim-boundary linter.
 
 ## 0.3.0 - 2026-07-01
 

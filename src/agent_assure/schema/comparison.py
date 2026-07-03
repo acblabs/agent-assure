@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
@@ -12,9 +13,22 @@ from agent_assure.schema.common import (
     coerce_tuple,
 )
 from agent_assure.schema.environment import EnvironmentInfo
+from agent_assure.schema.usage import (
+    UsageSummaryDelta,
+    usage_container_json_schema_extra,
+    validate_usage_field_paths_schema_version,
+)
+
+_COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (("usage_delta",),)
 
 
 class ComparisonSummary(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=usage_container_json_schema_extra(
+            *_COMPARISON_SUMMARY_USAGE_FIELD_PATHS
+        )
+    )
+
     artifact_kind: Literal["comparison-summary"] = "comparison-summary"
     baseline_runset_id: str
     candidate_runset_id: str
@@ -25,6 +39,10 @@ class ComparisonSummary(PersistedArtifact):
     provenance_changes: tuple[str, ...] = ()
     verdict_findings: tuple[str, ...] = ()
     environment: EnvironmentInfo | None = None
+    usage_delta: UsageSummaryDelta | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
 
     @field_validator("classification", mode="before")
     @classmethod
@@ -45,3 +63,13 @@ class ComparisonSummary(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_usage_schema_version(self) -> ComparisonSummary:
+        validate_usage_field_paths_schema_version(
+            self.schema_version,
+            owner="comparison summary",
+            root=self,
+            field_paths=_COMPARISON_SUMMARY_USAGE_FIELD_PATHS,
+        )
+        return self

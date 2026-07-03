@@ -62,10 +62,14 @@ RESTRICTED_PATTERNS = (
         "regulatory approval",
         re.compile(r"\bregulatory\s+approval\b", re.IGNORECASE),
     ),
-    RestrictedPattern("ROI", re.compile(r"\bROI\b")),
+    RestrictedPattern("ROI", re.compile(r"\bROI\b", re.IGNORECASE)),
     RestrictedPattern(
         "bottom-line impact",
         re.compile(r"\bbottom-line\s+impact\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "business savings",
+        re.compile(r"\bbusiness\s+savings\b", re.IGNORECASE),
     ),
     RestrictedPattern(
         "annualized savings",

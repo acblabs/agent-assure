@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+import io
+import tarfile
 import zipfile
 from pathlib import Path
 
-from scripts.check_wheel_contents import inspect_wheel, required_archive_paths
+from scripts.check_wheel_contents import inspect_sdist, inspect_wheel, required_archive_paths
 
 
 def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> None:
@@ -43,3 +45,29 @@ def test_inspect_wheel_reports_missing_frozen_schema_file(tmp_path: Path) -> Non
 
     assert missing_schema in missing
     assert forbidden == []
+
+
+def test_inspect_sdist_reports_unreleased_schema_files(tmp_path: Path) -> None:
+    sdist = tmp_path / "agent_assure-0.3.1.tar.gz"
+    with tarfile.open(sdist, "w:gz") as archive:
+        _write_tar_member(
+            archive,
+            "agent_assure-0.3.1/schemas/v0.3.1/usage-summary.schema.json",
+            "{}\n",
+        )
+        _write_tar_member(
+            archive,
+            "agent_assure-0.3.1/schemas/unreleased/usage-summary.schema.json",
+            "{}\n",
+        )
+
+    forbidden = inspect_sdist(sdist)
+
+    assert "agent_assure-0.3.1/schemas/unreleased/usage-summary.schema.json" in forbidden
+
+
+def _write_tar_member(archive: tarfile.TarFile, name: str, content: str) -> None:
+    data = content.encode("utf-8")
+    info = tarfile.TarInfo(name)
+    info.size = len(data)
+    archive.addfile(info, io.BytesIO(data))

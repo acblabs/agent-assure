@@ -47,6 +47,12 @@ malicious model, script, provider, CI checkout, or operator.
 - Raw prompts and raw provider responses are not persisted in RunSet artifacts,
   but a trusted live adapter or external script sees the prompt it is asked to
   process.
+- Optional usage artifacts may persist measured token, tool-call, retry,
+  latency, and declared estimated cost fields. Cost-bearing usage segments must
+  include explicit limitations, and pricing snapshot IDs or cost-basis labels
+  are treated as observable metadata for review rather than proof of business
+  impact. Future renderers that show segment metadata labels directly should
+  route those labels through redaction.
 - The bundled fixture HMAC key is synthetic-example-only. Non-synthetic fixture
   runs must provide an explicit key rather than reusing the repository default.
 

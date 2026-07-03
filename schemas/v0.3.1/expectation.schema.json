@@ -1,0 +1,132 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.3.1/expectation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "allowed_outcomes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Outcomes",
+      "type": "array"
+    },
+    "allowed_providers": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Providers",
+      "type": "array"
+    },
+    "allowed_tools": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Allowed Tools",
+      "type": "array"
+    },
+    "artifact_kind": {
+      "const": "expectation",
+      "default": "expectation",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "case_id": {
+      "minLength": 1,
+      "title": "Case Id",
+      "type": "string"
+    },
+    "expectation_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expectation Digest"
+    },
+    "expectation_id": {
+      "minLength": 1,
+      "title": "Expectation Id",
+      "type": "string"
+    },
+    "expected_recommendation": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Recommendation"
+    },
+    "forbidden_outcomes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbidden Outcomes",
+      "type": "array"
+    },
+    "forbidden_providers": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbidden Providers",
+      "type": "array"
+    },
+    "forbidden_tools": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Forbidden Tools",
+      "type": "array"
+    },
+    "material_claim_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Material Claim Ids",
+      "type": "array"
+    },
+    "required_evidence_refs": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Required Evidence Refs",
+      "type": "array"
+    },
+    "required_human_review": {
+      "default": false,
+      "title": "Required Human Review",
+      "type": "boolean"
+    },
+    "schema_version": {
+      "default": "0.3.1",
+      "enum": [
+        "0.2.0",
+        "0.3.1"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expectation_id",
+    "case_id"
+  ],
+  "title": "Expectation",
+  "type": "object"
+}

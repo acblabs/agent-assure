@@ -9,6 +9,7 @@ from pydantic import ValidationError as PydanticValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.schema.export import SCHEMA_MODELS
+from agent_assure.schema.usage import UsageSegment
 from agent_assure.schema.validation import validate_artifact
 
 
@@ -21,6 +22,111 @@ def test_valid_artifacts_match_pydantic_and_jsonschema(tmp_path) -> None:  # typ
     path = tmp_path / "compiled.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     assert validate_artifact(path, "compiled-suite") == "pydantic+jsonschema"
+
+
+def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    payload = UsageSegment(
+        segment_id="seg-schema-parity",
+        case_id="case-001",
+        run_id="run-001",
+        span_id="span-001",
+        parent_span_id="span-parent",
+        event_range_start=1,
+        event_range_end=3,
+        provider="demo",
+        model="fixture-model-small",
+        operation="fixture-evaluation",
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+        tool_call_count=1,
+        retry_count=0,
+        latency_ms=25,
+        estimated_cost_microusd=35,
+        pricing_snapshot_id="local-demo-pricing-v1",
+        limitations=("Cost is estimated from a declared pricing snapshot.",),
+    ).model_dump(mode="json")
+    model = SCHEMA_MODELS["usage-segment"]
+    model.model_validate(payload)
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+    path = tmp_path / "usage-segment.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert validate_artifact(path, "usage-segment") == "pydantic+jsonschema"
+
+
+@pytest.mark.parametrize(
+    ("artifact_kind", "payload"),
+    [
+        (
+            "usage-segment",
+            {
+                "artifact_kind": "usage-segment",
+                "schema_version": "0.2.0",
+                "segment_id": "seg-legacy-version",
+            },
+        ),
+        (
+            "usage-ledger",
+            {
+                "artifact_kind": "usage-ledger",
+                "schema_version": "0.2.0",
+            },
+        ),
+        (
+            "usage-summary",
+            {
+                "artifact_kind": "usage-summary",
+                "schema_version": "0.2.0",
+            },
+        ),
+        (
+            "usage-summary-delta",
+            {
+                "artifact_kind": "usage-summary-delta",
+                "schema_version": "0.2.0",
+                "comparison_state": "observed",
+                "baseline_observed": True,
+                "candidate_observed": True,
+            },
+        ),
+    ],
+)
+def test_usage_roots_jsonschema_reject_legacy_schema_version(
+    artifact_kind: str,
+    payload: dict[str, object],
+) -> None:
+    model = SCHEMA_MODELS[artifact_kind]
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_usage_segment_jsonschema_rejects_cost_without_limitations() -> None:
+    payload = {
+        "artifact_kind": "usage-segment",
+        "schema_version": "0.3.1",
+        "segment_id": "seg-cost-no-limitations",
+        "estimated_cost_microusd": 1,
+    }
+    model = SCHEMA_MODELS["usage-segment"]
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_legacy_labeled_usage_containers_jsonschema_reject_usage_fields() -> None:
+    for artifact_kind, payload in _legacy_container_usage_payloads():
+        model = SCHEMA_MODELS[artifact_kind]
+        with pytest.raises(JsonSchemaValidationError):
+            Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_legacy_labeled_packet_jsonschema_allows_null_comparison_without_usage() -> None:
+    payload = _legacy_evidence_packet_payload()
+    payload["comparison"] = None
+    model = SCHEMA_MODELS["evidence-packet"]
+
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
 
 
 def test_live_protocol_artifact_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -432,5 +538,230 @@ def test_invalid_artifact_rejected_by_both_validators() -> None:
     model = SCHEMA_MODELS["compiled-suite"]
     with pytest.raises(PydanticValidationError):
         model.model_validate(payload)
-    with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+def _legacy_container_usage_payloads() -> tuple[tuple[str, dict[str, object]], ...]:
+    usage_summary = _usage_summary_payload()
+    usage_delta = _usage_delta_payload()
+    return (
+        ("agent-run-record", _legacy_agent_run_record_payload(usage_summary=usage_summary)),
+        ("run-set", _legacy_runset_payload(usage_summary=usage_summary)),
+        ("run-set", _legacy_runset_payload(runs=(_agent_run_record_payload(),))),
+        ("evaluation-summary", _legacy_evaluation_summary_payload(usage_summary)),
+        ("comparison-summary", _legacy_comparison_summary_payload(usage_delta)),
+        ("evidence-packet", _legacy_evidence_packet_payload(usage_summary=usage_summary)),
+        (
+            "evidence-packet",
+            _legacy_evidence_packet_payload(
+                evaluation=_evaluation_summary_payload(usage_summary=usage_summary)
+            ),
+        ),
+        ("evaluation-report", _legacy_evaluation_report_payload(usage_summary)),
+        (
+            "evaluation-report",
+            _legacy_evaluation_report_payload(
+                None,
+                candidate_vs_expectations=_evaluation_summary_payload(
+                    usage_summary=usage_summary
+                ),
+            ),
+        ),
+        ("comparison-report", _legacy_comparison_report_payload(usage_delta=usage_delta)),
+        (
+            "comparison-report",
+            _legacy_comparison_report_payload(
+                comparison_summary=_comparison_summary_payload(usage_delta=usage_delta)
+            ),
+        ),
+    )
+
+
+def _usage_summary_payload() -> dict[str, object]:
+    return {
+        "artifact_kind": "usage-summary",
+        "schema_version": "0.3.1",
+        "total_tokens": 1,
+    }
+
+
+def _usage_delta_payload() -> dict[str, object]:
+    return {
+        "artifact_kind": "usage-summary-delta",
+        "schema_version": "0.3.1",
+        "comparison_state": "observed",
+        "baseline_observed": True,
+        "candidate_observed": True,
+        "total_tokens_delta": 1,
+    }
+
+
+def _agent_run_record_payload() -> dict[str, object]:
+    payload = _legacy_agent_run_record_payload()
+    payload["schema_version"] = "0.3.1"
+    payload["usage_summary"] = _usage_summary_payload()
+    return payload
+
+
+def _legacy_agent_run_record_payload(
+    *,
+    usage_summary: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "agent-run-record",
+        "schema_version": "0.2.0",
+        "run_id": "run-001",
+        "case_id": "case-001",
+        "pipeline_id": "pipeline-001",
+        "recommendation": "approve",
+        "outcome": "approved",
+        "input_summary": "input",
+        "output_summary": "output",
+    }
+    if usage_summary is not None:
+        payload["usage_summary"] = usage_summary
+    return payload
+
+
+def _legacy_runset_payload(
+    *,
+    usage_summary: dict[str, object] | None = None,
+    runs: tuple[dict[str, object], ...] = (),
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "run-set",
+        "schema_version": "0.2.0",
+        "runset_id": "runset-001",
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+        "runs": list(runs),
+    }
+    if usage_summary is not None:
+        payload["usage_summary"] = usage_summary
+    return payload
+
+
+def _evaluation_summary_payload(
+    *,
+    usage_summary: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "evaluation-summary",
+        "schema_version": "0.3.1",
+        "runset_id": "runset-001",
+        "state": "pass",
+    }
+    if usage_summary is not None:
+        payload["usage_summary"] = usage_summary
+    return payload
+
+
+def _legacy_evaluation_summary_payload(usage_summary: dict[str, object]) -> dict[str, object]:
+    payload = _evaluation_summary_payload(usage_summary=usage_summary)
+    payload["schema_version"] = "0.2.0"
+    return payload
+
+
+def _comparison_summary_payload(
+    *,
+    usage_delta: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "comparison-summary",
+        "schema_version": "0.3.1",
+        "baseline_runset_id": "baseline",
+        "candidate_runset_id": "candidate",
+        "classification": "not_evaluated",
+    }
+    if usage_delta is not None:
+        payload["usage_delta"] = usage_delta
+    return payload
+
+
+def _legacy_comparison_summary_payload(usage_delta: dict[str, object]) -> dict[str, object]:
+    payload = _comparison_summary_payload(usage_delta=usage_delta)
+    payload["schema_version"] = "0.2.0"
+    return payload
+
+
+def _legacy_evidence_packet_payload(
+    *,
+    evaluation: dict[str, object] | None = None,
+    usage_summary: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "evidence-packet",
+        "schema_version": "0.2.0",
+        "packet_id": "packet-001",
+        "interpretation": ["read candidate state first"],
+        "evaluation": evaluation or _evaluation_summary_payload(),
+        "limitations": ["fixture evidence only"],
+    }
+    if usage_summary is not None:
+        payload["usage_summary"] = usage_summary
+    return payload
+
+
+def _legacy_evaluation_report_payload(
+    usage_summary: dict[str, object] | None,
+    *,
+    candidate_vs_expectations: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "evaluation-report",
+        "schema_version": "0.2.0",
+        "candidate_vs_expectations": candidate_vs_expectations or _evaluation_summary_payload(),
+        "runset_id": "runset-001",
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "gate_profile": "default",
+        "metrics": _metrics_payload(),
+    }
+    if usage_summary is not None:
+        payload["usage_summary"] = usage_summary
+    return payload
+
+
+def _legacy_comparison_report_payload(
+    *,
+    comparison_summary: dict[str, object] | None = None,
+    usage_delta: dict[str, object] | None = None,
+) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "artifact_kind": "comparison-report",
+        "schema_version": "0.2.0",
+        "candidate_vs_expectations": _evaluation_summary_payload(),
+        "verdict_explanations": [],
+        "fixture_equivalence": {"state": "not_evaluated"},
+        "baseline_vs_expectations": _evaluation_summary_payload(),
+        "control_changes": [],
+        "behavioral_changes": [],
+        "provenance_changes": [],
+        "not_evaluated_capabilities": [],
+        "limitations": ["fixture evidence only"],
+        "comparison_summary": comparison_summary or _comparison_summary_payload(),
+        "baseline_metrics": _metrics_payload(),
+        "candidate_metrics": _metrics_payload(),
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "gate_profile": "default",
+    }
+    if usage_delta is not None:
+        payload["usage_delta"] = usage_delta
+    return payload
+
+
+def _metrics_payload() -> dict[str, object]:
+    return {
+        "total_cases": 1,
+        "evaluated_cases": 1,
+        "unevaluated_cases": 0,
+        "passed_cases": 1,
+        "failed_cases": 0,
+        "warning_findings": 0,
+        "blocking_findings": 0,
+        "global_blocking_findings": 0,
+        "findings_by_reason": {},
+        "findings_by_control": {},
+    }

@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Literal
 
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.compare.case_map import case_counts, unique_case_map
@@ -41,6 +42,22 @@ from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.usage import (
+    UsageSummary,
+    UsageSummaryDelta,
+    usage_container_json_schema_extra,
+    validate_usage_field_paths_schema_version,
+)
+from agent_assure.usage.aggregation import compare_usage_summaries, usage_summary_for_runset
+
+_COMPARISON_REPORT_USAGE_FIELD_PATHS = (
+    ("baseline_usage_summary",),
+    ("candidate_usage_summary",),
+    ("usage_delta",),
+    ("candidate_vs_expectations", "usage_summary"),
+    ("baseline_vs_expectations", "usage_summary"),
+    ("comparison_summary", "usage_delta"),
+)
 
 
 class InvalidComparisonError(ValueError):
@@ -66,6 +83,12 @@ class FixtureEquivalenceReport(StrictModel):
 
 
 class ComparisonReport(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=usage_container_json_schema_extra(
+            *_COMPARISON_REPORT_USAGE_FIELD_PATHS
+        )
+    )
+
     artifact_kind: Literal["comparison-report"] = "comparison-report"
     candidate_vs_expectations: EvaluationSummary
     verdict_explanations: tuple[str, ...]
@@ -79,6 +102,18 @@ class ComparisonReport(PersistedArtifact):
     comparison_summary: ComparisonSummary
     baseline_metrics: EvaluationMetrics
     candidate_metrics: EvaluationMetrics
+    baseline_usage_summary: UsageSummary | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    candidate_usage_summary: UsageSummary | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    usage_delta: UsageSummaryDelta | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     environment: EnvironmentInfo | None = None
     suite_id: str
     suite_version: str
@@ -96,6 +131,16 @@ class ComparisonReport(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_usage_schema_version(self) -> ComparisonReport:
+        validate_usage_field_paths_schema_version(
+            self.schema_version,
+            owner="comparison report",
+            root=self,
+            field_paths=_COMPARISON_REPORT_USAGE_FIELD_PATHS,
+        )
+        return self
 
 
 def compare_runsets(
@@ -135,6 +180,13 @@ def compare_runsets(
     control_changes = diff_control_findings(baseline_report, candidate_report)
     behavioral_changes = diff_behavior(baseline, candidate)
     provenance_changes = diff_provenance(baseline, candidate)
+    baseline_usage = usage_summary_for_runset(baseline)
+    candidate_usage = usage_summary_for_runset(candidate)
+    usage_delta = (
+        compare_usage_summaries(baseline_usage, candidate_usage)
+        if baseline_usage is not None or candidate_usage is not None
+        else None
+    )
     classification = choose_comparison_classification(
         control_changes=control_changes,
         behavioral_changes=behavioral_changes,
@@ -154,6 +206,7 @@ def compare_runsets(
             summarize_provenance_change(change) for change in provenance_changes
         ),
         verdict_findings=tuple(summarize_control_change(change) for change in control_changes),
+        usage_delta=usage_delta,
     )
     report = ComparisonReport(
         candidate_vs_expectations=candidate_report.candidate_vs_expectations,
@@ -171,6 +224,9 @@ def compare_runsets(
         comparison_summary=summary,
         baseline_metrics=baseline_report.metrics,
         candidate_metrics=candidate_report.metrics,
+        baseline_usage_summary=baseline_usage,
+        candidate_usage_summary=candidate_usage,
+        usage_delta=usage_delta,
         suite_id=suite.suite_id,
         suite_version=suite.suite_version,
         gate_profile=gate_profile.profile_id,

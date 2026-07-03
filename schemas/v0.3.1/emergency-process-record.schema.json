@@ -1,0 +1,263 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.3.1/emergency-process-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "adapter_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Adapter Id"
+    },
+    "artifact_kind": {
+      "const": "emergency-process-record",
+      "default": "emergency-process-record",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "case_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Case Id"
+    },
+    "command_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Command Digest",
+      "type": "string"
+    },
+    "completed_at_utc": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Completed At Utc"
+    },
+    "duration_ms": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Duration Ms"
+    },
+    "emergency_id": {
+      "minLength": 1,
+      "title": "Emergency Id",
+      "type": "string"
+    },
+    "executable_name": {
+      "minLength": 1,
+      "title": "Executable Name",
+      "type": "string"
+    },
+    "exit_code": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Exit Code"
+    },
+    "failure_kind": {
+      "enum": [
+        "spawn_failed",
+        "timeout",
+        "nonzero_exit",
+        "invalid_output"
+      ],
+      "title": "Failure Kind",
+      "type": "string"
+    },
+    "local_debug_reference": {
+      "minLength": 1,
+      "title": "Local Debug Reference",
+      "type": "string"
+    },
+    "observation_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Observation Id"
+    },
+    "process_kind": {
+      "const": "external_script",
+      "default": "external_script",
+      "title": "Process Kind",
+      "type": "string"
+    },
+    "run_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Run Id"
+    },
+    "safe_error_code": {
+      "minLength": 1,
+      "title": "Safe Error Code",
+      "type": "string"
+    },
+    "safe_error_message": {
+      "minLength": 1,
+      "title": "Safe Error Message",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "0.3.1",
+      "enum": [
+        "0.2.0",
+        "0.3.1"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "script_name": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Script Name"
+    },
+    "started_at_utc": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Started At Utc"
+    },
+    "stderr_bytes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Stderr Bytes",
+      "type": "integer"
+    },
+    "stderr_summary": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stderr Summary"
+    },
+    "stdout_bytes": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Stdout Bytes",
+      "type": "integer"
+    },
+    "timeout_seconds": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Timeout Seconds"
+    },
+    "traceparent": {
+      "anyOf": [
+        {
+          "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Traceparent"
+    },
+    "tracestate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tracestate"
+    },
+    "working_directory_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Working Directory Digest"
+    }
+  },
+  "required": [
+    "emergency_id",
+    "failure_kind",
+    "command_digest",
+    "executable_name",
+    "safe_error_code",
+    "safe_error_message",
+    "local_debug_reference"
+  ],
+  "title": "EmergencyProcessRecord",
+  "type": "object"
+}

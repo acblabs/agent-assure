@@ -9,6 +9,7 @@ from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.main import app
 from agent_assure.fixtures.loader import write_compiled_suite
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -39,7 +40,7 @@ def test_compare_cli_writes_candidate_first_reports_for_regression(tmp_path: Pat
     assert result.exit_code == 1
     report_text = (out_dir / "comparison-report.json").read_text(encoding="utf-8")
     report = json.loads(report_text)
-    assert report["schema_version"] == "0.2.0"
+    assert report["schema_version"] == SCHEMA_VERSION
     assert report["artifact_kind"] == "comparison-report"
     assert report["environment"]["artifact_kind"] == "environment-info"
     assert report["environment"]["dependency_inventory_digest"]

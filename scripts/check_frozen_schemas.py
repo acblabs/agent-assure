@@ -8,7 +8,7 @@ from pathlib import Path
 from agent_assure.schema.export import export_json_schemas
 
 ROOT = Path(__file__).resolve().parents[1]
-DEFAULT_SCHEMA_DIR = ROOT / "schemas" / "v0.3.0"
+DEFAULT_SCHEMA_DIR = ROOT / "schemas" / "v0.3.1"
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -31,7 +31,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--schema-dir",
         type=Path,
         default=DEFAULT_SCHEMA_DIR,
-        help="Frozen schema directory to compare. Defaults to schemas/v0.3.0.",
+        help="Frozen schema directory to compare. Defaults to schemas/v0.3.1.",
     )
     return parser.parse_args(argv)
 

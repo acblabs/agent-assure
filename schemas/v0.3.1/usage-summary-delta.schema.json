@@ -1,0 +1,118 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.3.1/usage-summary-delta.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "usage-summary-delta",
+      "default": "usage-summary-delta",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_observed": {
+      "title": "Baseline Observed",
+      "type": "boolean"
+    },
+    "candidate_observed": {
+      "title": "Candidate Observed",
+      "type": "boolean"
+    },
+    "comparison_state": {
+      "enum": [
+        "observed",
+        "not_observed",
+        "baseline_not_observed",
+        "candidate_not_observed"
+      ],
+      "title": "Comparison State",
+      "type": "string"
+    },
+    "currency": {
+      "default": "USD",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "estimated_cost_microusd_delta": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Cost Microusd Delta"
+    },
+    "limitations": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.3.1",
+      "default": "0.3.1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "total_latency_ms_delta": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Latency Ms Delta"
+    },
+    "total_retries_delta": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Retries Delta"
+    },
+    "total_tokens_delta": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Tokens Delta"
+    },
+    "total_tool_calls_delta": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Tool Calls Delta"
+    }
+  },
+  "required": [
+    "comparison_state",
+    "baseline_observed",
+    "candidate_observed"
+  ],
+  "title": "UsageSummaryDelta",
+  "type": "object"
+}

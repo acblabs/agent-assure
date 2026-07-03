@@ -26,6 +26,7 @@ from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
+from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary, UsageSummaryDelta
 
 SchemaModel: TypeAlias = type[BaseModel]
 
@@ -51,6 +52,10 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "release-digest-replay": ReleaseDigestReplay,
     "run-set": RunSet,
     "span-plan": SpanPlan,
+    "usage-ledger": UsageLedger,
+    "usage-segment": UsageSegment,
+    "usage-summary": UsageSummary,
+    "usage-summary-delta": UsageSummaryDelta,
 }
 
 

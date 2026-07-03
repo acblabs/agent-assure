@@ -6,7 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from pydantic import Field
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -28,6 +28,17 @@ from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.usage import (
+    UsageSummary,
+    usage_container_json_schema_extra,
+    validate_usage_field_paths_schema_version,
+)
+from agent_assure.usage.aggregation import usage_summary_for_runset
+
+_EVALUATION_REPORT_USAGE_FIELD_PATHS = (
+    ("usage_summary",),
+    ("candidate_vs_expectations", "usage_summary"),
+)
 
 
 class EvaluationMetrics(StrictModel):
@@ -55,6 +66,12 @@ class CapabilityReport(StrictModel):
 
 
 class EvaluationReport(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=usage_container_json_schema_extra(
+            *_EVALUATION_REPORT_USAGE_FIELD_PATHS
+        )
+    )
+
     artifact_kind: Literal["evaluation-report"] = "evaluation-report"
     candidate_vs_expectations: EvaluationSummary
     runset_id: str
@@ -63,6 +80,7 @@ class EvaluationReport(PersistedArtifact):
     gate_profile: str
     metrics: EvaluationMetrics
     environment: EnvironmentInfo | None = None
+    usage_summary: UsageSummary | None = Field(default=None, exclude_if=lambda value: value is None)
     failed_controls: tuple[Finding, ...] = ()
     warning_controls: tuple[Finding, ...] = ()
     not_evaluated_capabilities: tuple[CapabilityReport, ...] = ()
@@ -70,6 +88,16 @@ class EvaluationReport(PersistedArtifact):
         "offline fixture evaluation does not certify safety, compliance, clinical validity, "
         "or live model quality",
     )
+
+    @model_validator(mode="after")
+    def _validate_usage_schema_version(self) -> EvaluationReport:
+        validate_usage_field_paths_schema_version(
+            self.schema_version,
+            owner="evaluation report",
+            root=self,
+            field_paths=_EVALUATION_REPORT_USAGE_FIELD_PATHS,
+        )
+        return self
 
 
 def load_runset(path: Path) -> RunSet:
@@ -128,11 +156,13 @@ def evaluate_runset(
         rollup_results = adjusted_results + capability_results
     findings = tuple(_finding_from_result(result) for result in rollup_results)
     state = rollup_state(rollup_results, gate_profile)
+    usage_summary = usage_summary_for_runset(runset)
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=runset.runset_id,
         state=state,
         findings=findings,
+        usage_summary=usage_summary,
     )
     failed_controls = tuple(
         finding
@@ -151,6 +181,7 @@ def evaluate_runset(
         suite_version=suite.suite_version,
         gate_profile=gate_profile.profile_id,
         metrics=_metrics(suite, runset, rollup_results, gate_profile),
+        usage_summary=usage_summary,
         failed_controls=failed_controls,
         warning_controls=warning_controls,
         not_evaluated_capabilities=capabilities,

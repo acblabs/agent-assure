@@ -1,8 +1,10 @@
 # Schema Reference
 
-Schema version: `0.2.0`.
+Schema version: `0.3.1`.
 
-Persisted artifacts include `schema_version` and `artifact_kind`.
+Persisted artifacts include `schema_version` and `artifact_kind`. The current
+models emit `schema_version: 0.3.1` and continue to accept legacy
+`schema_version: 0.2.0` artifacts for replay.
 
 Exported roots:
 
@@ -27,6 +29,10 @@ Exported roots:
 - `release-digest-replay`
 - `run-set`
 - `span-plan`
+- `usage-ledger`
+- `usage-segment`
+- `usage-summary`
+- `usage-summary-delta`
 
 `AgentRunRecord` intentionally has no persisted `otel_attributes` field. OTel
 attributes are derived from structured fields during span-plan projection.
@@ -162,3 +168,29 @@ External `AgentRunRecord` producers must also follow
 `docs/schema_evolution.md`. In particular, material claim coverage is satisfied
 only by explicit `claim_evidence_links` that point to present evidence
 references.
+
+Usage schema roots are an additive v0.3.1 release surface. `UsageSegment`
+records measured token, tool-call, retry, latency, and declared estimated cost
+fields for a case, run, span, or future stream event range. Persisted money uses
+`estimated_cost_microusd` integers; the schema does not use floats for cost.
+Usage roots and usage-bearing containers use `schema_version: "0.3.1"` when
+usage evidence is present; `schema_version: "0.2.0"` containers reject direct
+and nested usage fields.
+Cost-bearing usage segments require explicit limitations, and this requirement
+is encoded in the exported JSON Schema. Segment metadata labels such as
+`provider`, `model`, `operation`, `cost_basis`, and `pricing_snapshot_id` are
+caller-controlled review metadata; producers should not put sensitive
+identifiers in them.
+`UsageLedger` keeps the contributing segments, the deterministic
+`sum_known_fields_v1` aggregation method, and missingness counts. JSON Schema
+validates the shape of those counts; Pydantic validation verifies that the
+counts exactly match the contributing segments. `UsageSummary` contains summed
+known fields and limitations, and must match the ledger-derived summary when
+both are present. `total_latency_ms` is the sum of known segment latency fields
+under `sum_known_fields_v1`, not necessarily wall-clock elapsed time for
+parallel runs. `UsageSummaryDelta` records baseline-to-candidate usage deltas
+when usage is observed; missing usage is represented as
+`not_observed`, not as a failing gate. Partial missingness is retained in
+limitations so known-field totals are not presented as complete observations.
+These fields are measured usage and declared estimated cost evidence only, not
+business impact claims.

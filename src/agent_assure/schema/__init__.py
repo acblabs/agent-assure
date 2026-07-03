@@ -47,6 +47,7 @@ from agent_assure.schema.suite import (
     SuiteDefaults,
 )
 from agent_assure.schema.telemetry import SpanAttribute, SpanEvent, SpanPlan
+from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary, UsageSummaryDelta
 
 __all__ = [
     "AgentRunRecord",
@@ -95,4 +96,8 @@ __all__ = [
     "StrictModel",
     "SuiteCase",
     "SuiteDefaults",
+    "UsageLedger",
+    "UsageSegment",
+    "UsageSummary",
+    "UsageSummaryDelta",
 ]

@@ -1,6 +1,6 @@
 # PyPI Release Runbook
 
-This runbook covers the Python package upload path for `agent-assure` v0.3.0.
+This runbook covers the Python package upload path for `agent-assure` v0.3.1.
 The default path is GitHub Trusted Publishing with OIDC. Local `twine upload`
 is a fallback only when Trusted Publishing is unavailable.
 
@@ -80,11 +80,11 @@ git pull
 python -m pip install --upgrade pip
 python -m pip install ".[dev]"
 schema_review_dir="$(mktemp -d)"
-agent-assure schema export --out "${schema_review_dir}/v0.3.0"
-git diff --no-index -- schemas/v0.3.0 "${schema_review_dir}/v0.3.0"
+agent-assure schema export --out "${schema_review_dir}/v0.3.1"
+git diff --no-index -- schemas/v0.3.1 "${schema_review_dir}/v0.3.1"
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.3.0
+python scripts/check_version_matches_tag.py v0.3.1
 rm -rf "${schema_review_dir}"
 ```
 
@@ -97,17 +97,17 @@ python -m pip install --upgrade pip
 python -m pip install ".[dev]"
 $SchemaReviewRoot = Join-Path $env:TEMP "agent-assure-schema-review"
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force -ErrorAction SilentlyContinue
-$SchemaReview = Join-Path $SchemaReviewRoot "v0.3.0"
+$SchemaReview = Join-Path $SchemaReviewRoot "v0.3.1"
 agent-assure schema export --out $SchemaReview
-git diff --no-index -- schemas/v0.3.0 $SchemaReview
+git diff --no-index -- schemas/v0.3.1 $SchemaReview
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.3.0
+python scripts/check_version_matches_tag.py v0.3.1
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
 
 If the schema review diff is intentional, run `make schemas`, review
-`git diff -- schemas/v0.3.0`, then rerun `make schema-check` before continuing.
+`git diff -- schemas/v0.3.1`, then rerun `make schema-check` before continuing.
 
 ## Temporary Virtual Environments
 
@@ -135,20 +135,20 @@ Remove-Item -LiteralPath $ReleaseTemp -Recurse -Force
 
 TestPyPI package versions are immutable. A second upload of the same version
 will fail, so each release candidate needs a unique version such as
-`0.3.0rc1`, then `0.3.0rc2` if another candidate is needed.
+`0.3.1rc1`, then `0.3.1rc2` if another candidate is needed.
 
 1. Create a candidate ref whose package metadata already contains the unique
-   candidate version, for example `project.version = "0.3.0rc1"` and
-   `agent_assure.__version__ = "0.3.0rc1"`.
+   candidate version, for example `project.version = "0.3.1rc1"` and
+   `agent_assure.__version__ = "0.3.1rc1"`.
 2. Build and verify locally with `make release-check`.
 3. Run the `Publish to TestPyPI` workflow manually from that ref and set
-   `expected-version` explicitly to the same value, for example `0.3.0rc1`.
+   `expected-version` explicitly to the same value, for example `0.3.1rc1`.
    The workflow intentionally has no default version because the selected ref
    must already contain matching package metadata.
 4. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package
-version to `0.3.0` before creating the final `v0.3.0` tag.
+version to `0.3.1` before creating the final `v0.3.1` tag.
 
 CI, WSL, or Git Bash:
 
@@ -159,7 +159,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps \
   --index-url https://test.pypi.org/simple/ \
-  agent-assure==0.3.0rc1
+  agent-assure==0.3.1rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out /tmp/agent-assure-testpypi-schemas
@@ -183,7 +183,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps `
   --index-url https://test.pypi.org/simple/ `
-  agent-assure==0.3.0rc1
+  agent-assure==0.3.1rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out $SchemaTemp
@@ -194,7 +194,7 @@ Remove-Item -LiteralPath $SchemaTemp -Recurse -Force
 Remove-Item -LiteralPath $FlagshipOut -Recurse -Force
 ```
 
-The expense demo remains deferred for v0.3.0 unless its fixture supports the
+The expense demo remains deferred for v0.3.1 unless its fixture supports the
 same visible-output/process-regression shape without slowing the flagship
 release path.
 
@@ -220,14 +220,14 @@ git checkout main
 git pull
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.3.0
-git tag v0.3.0
-git push origin v0.3.0
+python scripts/check_version_matches_tag.py v0.3.1
+git tag v0.3.1
+git push origin v0.3.1
 ```
 
 The PyPI publish job in `.github/workflows/release.yml` runs only on matching
-tags. It blocks if `v0.3.0` does not match `project.version = "0.3.0"` and
-`agent_assure.__version__ = "0.3.0"`. It publishes package files from the
+tags. It blocks if `v0.3.1` does not match `project.version = "0.3.1"` and
+`agent_assure.__version__ = "0.3.1"`. It publishes package files from the
 release bundle artifact produced by the release build; it does not run a second
 package build. Before upload, it verifies the downloaded release bundle with
 `agent-assure release replay`, stages only `.whl` and `.tar.gz` files, then runs
@@ -253,7 +253,7 @@ CI, WSL, or Git Bash:
 python -m venv /tmp/agent-assure-pypi
 source /tmp/agent-assure-pypi/bin/activate
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.3.0
+python -m pip install agent-assure==0.3.1
 agent-assure --version
 agent-assure demo flagship --out /tmp/agent-assure-pypi-flagship --clean
 deactivate
@@ -268,7 +268,7 @@ $FlagshipOut = Join-Path $env:TEMP "agent-assure-pypi-flagship"
 python -m venv $InstallTemp
 & (Join-Path $InstallTemp "Scripts\Activate.ps1")
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.3.0
+python -m pip install agent-assure==0.3.1
 agent-assure --version
 agent-assure demo flagship --out $FlagshipOut --clean
 deactivate

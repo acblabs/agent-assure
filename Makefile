@@ -41,11 +41,11 @@ demo:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py demo flagship --out .tmp/demo/flagship --clean
 
 schemas:
-	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out schemas/v0.3.0
+	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py schema export --out schemas/v0.3.1
 
 schema-staging:
 	$(PYTHON) scripts/check_schema_staging.py
 
 schema-check:
-	$(PYTHON) scripts/check_frozen_schemas.py --schema-dir schemas/v0.3.0
+	$(PYTHON) scripts/check_frozen_schemas.py --schema-dir schemas/v0.3.1
 	$(PYTHON) scripts/check_schema_staging.py

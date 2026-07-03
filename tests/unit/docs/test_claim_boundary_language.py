@@ -64,6 +64,15 @@ def test_claim_boundary_rejects_roi_impact() -> None:
     assert [violation.label for violation in violations] == ["ROI"]
 
 
+def test_claim_boundary_rejects_lowercase_roi() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "roi impact",
+        path=Path("README.md"),
+    )
+
+    assert [violation.label for violation in violations] == ["ROI"]
+
+
 def test_claim_boundary_allows_measured_usage_delta() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "Measured usage delta",
@@ -71,6 +80,15 @@ def test_claim_boundary_allows_measured_usage_delta() -> None:
     )
 
     assert violations == []
+
+
+def test_claim_boundary_rejects_business_savings() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "Business savings from agent process controls",
+        path=Path("README.md"),
+    )
+
+    assert [violation.label for violation in violations] == ["business savings"]
 
 
 def test_claim_boundary_sentence_splitter_ignores_version_dots() -> None:

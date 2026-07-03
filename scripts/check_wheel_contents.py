@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import argparse
 import sys
+import tarfile
 import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 DIST = ROOT / "dist"
 SCHEMA_ROOT = ROOT / "schemas"
-FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0")
+FROZEN_SCHEMA_VERSIONS = ("v0.1.0", "v0.2.0", "v0.3.0", "v0.3.1")
 
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
@@ -44,6 +45,7 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/schema_resources/v0.1.0/",
     "agent_assure/schema_resources/v0.2.0/",
     "agent_assure/schema_resources/v0.3.0/",
+    "agent_assure/schema_resources/v0.3.1/",
 )
 
 FORBIDDEN_ARCHIVE_PREFIXES = (
@@ -65,12 +67,28 @@ FORBIDDEN_ARCHIVE_SUFFIXES = (
     ".pyc",
 )
 
+FORBIDDEN_SDIST_PREFIXES = (
+    "schemas/unreleased/",
+    ".tmp/",
+    "dist/",
+    "build/",
+    ".pytest_cache/",
+    ".mypy_cache/",
+    ".ruff_cache/",
+)
+
+FORBIDDEN_SDIST_EXACT_PATHS = (
+    "schemas/unreleased",
+)
+
 
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     try:
         wheel = find_single_wheel(args.dist)
+        sdist = find_single_sdist(args.dist)
         missing, forbidden = inspect_wheel(wheel)
+        sdist_forbidden = inspect_sdist(sdist)
     except ValueError as exc:
         print(f"wheel-contents: {exc}", file=sys.stderr)
         return 1
@@ -82,12 +100,18 @@ def main(argv: list[str] | None = None) -> int:
         failures.append(
             "forbidden paths present:\n" + "\n".join(f"  - {path}" for path in forbidden)
         )
+    if sdist_forbidden:
+        failures.append(
+            "forbidden sdist paths present:\n"
+            + "\n".join(f"  - {path}" for path in sdist_forbidden)
+        )
     if failures:
         print(f"wheel-contents: {wheel}", file=sys.stderr)
+        print(f"sdist-contents: {sdist}", file=sys.stderr)
         print("\n".join(failures), file=sys.stderr)
         return 1
 
-    print(f"wheel-contents: ok ({wheel.name})")
+    print(f"wheel-contents: ok ({wheel.name}, {sdist.name})")
     return 0
 
 
@@ -97,7 +121,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         "--dist",
         type=Path,
         default=DIST,
-        help="Directory containing exactly one built wheel. Defaults to dist/.",
+        help="Directory containing exactly one built wheel and sdist. Defaults to dist/.",
     )
     return parser.parse_args(argv)
 
@@ -108,6 +132,16 @@ def find_single_wheel(dist_dir: Path) -> Path:
         wheel_list = ", ".join(wheel.name for wheel in wheels) or "none"
         raise ValueError(f"expected exactly one wheel in {dist_dir}, found {wheel_list}")
     return wheels[0]
+
+
+def find_single_sdist(dist_dir: Path) -> Path:
+    sdists = sorted(dist_dir.glob("*.tar.gz"))
+    if len(sdists) != 1:
+        sdist_list = ", ".join(sdist.name for sdist in sdists) or "none"
+        raise ValueError(
+            f"expected exactly one source distribution in {dist_dir}, found {sdist_list}"
+        )
+    return sdists[0]
 
 
 def inspect_wheel(wheel: Path) -> tuple[list[str], list[str]]:
@@ -121,6 +155,12 @@ def inspect_wheel(wheel: Path) -> tuple[list[str], list[str]]:
     ]
     forbidden = [name for name in names if _is_forbidden_archive_path(name)]
     return missing, forbidden
+
+
+def inspect_sdist(sdist: Path) -> list[str]:
+    with tarfile.open(sdist, "r:gz") as archive:
+        names = tuple(sorted(member.name for member in archive.getmembers()))
+    return [name for name in names if _is_forbidden_sdist_path(name)]
 
 
 def required_archive_paths(
@@ -153,6 +193,24 @@ def _is_forbidden_archive_path(name: str) -> bool:
     if any(segment in name.split("/") for segment in FORBIDDEN_ARCHIVE_SEGMENTS):
         return True
     return any(name.endswith(suffix) for suffix in FORBIDDEN_ARCHIVE_SUFFIXES)
+
+
+def _is_forbidden_sdist_path(name: str) -> bool:
+    normalized = _strip_sdist_root(name)
+    if normalized in FORBIDDEN_SDIST_EXACT_PATHS:
+        return True
+    if any(normalized.startswith(prefix) for prefix in FORBIDDEN_SDIST_PREFIXES):
+        return True
+    if any(segment in normalized.split("/") for segment in FORBIDDEN_ARCHIVE_SEGMENTS):
+        return True
+    return any(normalized.endswith(suffix) for suffix in FORBIDDEN_ARCHIVE_SUFFIXES)
+
+
+def _strip_sdist_root(name: str) -> str:
+    parts = name.split("/", 1)
+    if len(parts) == 1:
+        return name
+    return parts[1]
 
 
 if __name__ == "__main__":

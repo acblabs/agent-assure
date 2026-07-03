@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       expected-version:
-        description: "Expected package version in this ref; set explicitly, for example 0.3.0rc1."
+        description: "Expected package version in this ref; set explicitly, for example 0.3.1rc1."
         required: true
 
 permissions:
@@ -69,7 +69,7 @@ jobs:
         run: |
           set -euo pipefail
           python scripts/check_version_matches_tag.py "v${EXPECTED_VERSION}"
-          python scripts/check_frozen_schemas.py --schema-dir schemas/v0.3.0
+          make schema-check
           python -m twine check dist/*
           python scripts/check_wheel_contents.py --dist dist
           python scripts/smoke_install_wheel.py --dist dist

@@ -9,6 +9,7 @@ from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.main import app
 from agent_assure.fixtures.loader import write_compiled_suite
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import GateState, ReasonCode
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -40,7 +41,7 @@ def test_evaluate_cli_writes_candidate_first_reports_for_passing_baseline(
     assert result.exit_code == 0
     report_text = (out_dir / "evaluation-report.json").read_text(encoding="utf-8")
     report = json.loads(report_text)
-    assert report["schema_version"] == "0.2.0"
+    assert report["schema_version"] == SCHEMA_VERSION
     assert report["artifact_kind"] == "evaluation-report"
     assert report["candidate_vs_expectations"]["state"] == GateState.pass_.value
     assert report["environment"]["artifact_kind"] == "environment-info"
