@@ -47,14 +47,32 @@ def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
     assert THESIS_TITLE in html
     assert "This report is not a compliance attestation." in html
     assert "This artifact does not certify safety." in html
-    assert "Review Punchline" in html
-    assert html.index("Review Punchline") < html.index("Decision-Field Comparison")
+    assert "CI Gate Blocked Candidate Regression" in html
+    assert html.index("CI Gate Blocked Candidate Regression") < html.index(
+        "Decision-Field Comparison"
+    )
     assert "<dt>Decision fields (recommendation, outcome)</dt><dd>preserved</dd>" in html
     assert "Process regression" in html
     assert "caught" in html
-    assert "CI gate result" in html
+    assert "Process scope" in html
+    assert "1 of 1 cases" in html
+    assert "1 missing material-claim link of 1 baseline claim link" in html
+    assert "1 material claim link regression" in html
+    assert "CI gate" in html
     assert "blocked" in html
     assert "state-expected" in html
+    assert "Process Evidence Diff" in html
+    assert "Process-affected cases are sourced from candidate findings" in html
+    assert 'data-label="Changed fields"' in html
+    assert 'data-label="Claim-evidence links"' in html
+    assert 'data-label="Provider/model"' in html
+    assert '<div class="cell-value">' in html
+    assert "diff-removed-token" in html
+    assert ".process-diff-table td::before" in html
+    assert ".process-evidence-table td::before" in html
+    assert "content: attr(data-label)" in html
+    assert "hyphens: none" in html
+    assert "border-radius: 999px" not in html
     assert "claim-duration" in html
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert "compiled-suite" in html
@@ -75,7 +93,9 @@ def test_evidence_diff_html_missing_link_panel_agrees_with_material_finding() ->
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert "No missing evidence links were observed." not in html
     assert "No baseline evidence links were missing from the candidate run set." not in html
-    assert "Candidate is missing 1 baseline evidence link: claim-duration." in html
+    assert "Key Finding" in html
+    assert "1 material claim link regression" in html
+    assert "failed invariant" in html
     missing_section = html[html.index("Missing Evidence Link Diff") :]
     assert "claim-duration" in missing_section
     assert "evidence-duration" in missing_section
@@ -87,7 +107,9 @@ def test_flagship_golden_fixture_missing_link_panel_agrees_with_finding() -> Non
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert "No missing evidence links were observed." not in html
     assert "No baseline evidence links were missing from the candidate run set." not in html
-    assert "Candidate is missing 1 baseline evidence link: claim-duration." in html
+    assert "CI Gate Blocked Candidate Regression" in html
+    assert "Process Evidence Diff" in html
+    assert "1 material claim link regression" in html
 
 
 def test_evidence_diff_html_escapes_dynamic_content_and_stays_static() -> None:
@@ -245,6 +267,86 @@ def test_evidence_diff_html_ignores_display_only_evidence_ref_claim_ids() -> Non
     assert "No missing evidence links were observed." not in html
     assert "claim-duration" in html
     assert "evidence-duration" in html
+
+
+def test_evidence_diff_html_handles_unscoped_findings_without_zero_case_claim() -> None:
+    evidence_ref = EvidenceRef(
+        ref_id="evidence-duration",
+        source_id="guideline-duration",
+        claim_ids=("claim-duration",),
+    )
+    baseline = _runset("baseline", _run("case-a", evidence_refs=(evidence_ref,)))
+    candidate = _runset("candidate", _run("case-a", evidence_refs=(evidence_ref,)))
+    finding = Finding(
+        finding_id="finding-unscoped",
+        case_id="",
+        control_id="material_claims_have_evidence",
+        target="claim:claim-duration",
+        state=GateState.fail,
+        reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+        message="fixture-declared material claim has no evidence link",
+    )
+    candidate_summary = EvaluationSummary(
+        runset_id="candidate",
+        state=GateState.fail,
+        findings=(finding,),
+    )
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        classification=ComparisonClassification.new_failure,
+        fixture_equivalence_state=GateState.pass_,
+        baseline_state=GateState.pass_,
+        candidate_state=GateState.fail,
+        verdict_findings=(ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value,),
+    )
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+        candidate_summary=candidate_summary,
+    )
+
+    assert "0 of 1 cases + 1 unscoped" in html
+    assert "without case IDs (1 unscoped finding)" in html
+    assert "1 process finding does not include a case ID" in html
+    assert "unscoped" in html
+    assert "across 0 process-affected cases" not in html
+
+
+def test_evidence_diff_html_surfaces_non_claim_process_changed_fields() -> None:
+    evidence_ref = EvidenceRef(
+        ref_id="evidence-duration",
+        source_id="guideline-duration",
+        claim_ids=("claim-duration",),
+    )
+    baseline = _runset("baseline", _run("case-a", evidence_refs=(evidence_ref,)))
+    candidate_run = _run("case-a", evidence_refs=(evidence_ref,)).model_copy(
+        update={"tools": ("alternate-tool",)}
+    )
+    candidate = _runset("candidate", candidate_run)
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        classification=ComparisonClassification.provenance_only_change,
+        fixture_equivalence_state=GateState.pass_,
+        baseline_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+    )
+
+    assert "Changed fields" in html
+    assert "<code>tools</code>" in html
+    assert "alternate-tool" in html
+    assert "changed" in html
+    assert "Claim-evidence links" in html
+    assert "failed invariant" not in html
 
 
 def _artifacts(

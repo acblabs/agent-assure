@@ -3,11 +3,33 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Output equivalence is not process equivalence</title>
+<title>CI Gate Blocked Candidate Regression - Agent Assure</title>
 <style>
 :root {
   color-scheme: light;
-  font-family: Arial, Helvetica, sans-serif;
+  --bg: #f6f8fb;
+  --panel: #ffffff;
+  --panel-muted: #f8fafc;
+  --text: #14202b;
+  --muted: #566575;
+  --subtle: #748292;
+  --border: #d8e1eb;
+  --border-strong: #b8c6d6;
+  --slate: #263445;
+  --green: #12613a;
+  --green-bg: #e8f6ee;
+  --green-border: #9dd7b4;
+  --red: #982626;
+  --red-bg: #fdecec;
+  --red-border: #efb4b4;
+  --amber: #805000;
+  --amber-bg: #fff5db;
+  --amber-border: #e7c66d;
+  --blue: #0f5e73;
+  --blue-bg: #e7f5f8;
+  --blue-border: #9ecfd9;
+  --shadow: 0 12px 28px rgba(20, 32, 43, 0.08);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
   line-height: 1.45;
 }
 * {
@@ -15,62 +37,149 @@
 }
 body {
   margin: 0;
-  color: #17212b;
-  background: #fbfcfd;
+  color: var(--text);
+  background: var(--bg);
 }
 main {
-  max-width: 1180px;
+  max-width: 1240px;
   margin: 0 auto;
-  padding: 28px 20px 48px;
+  padding: 30px 22px 56px;
 }
 h1, h2 {
-  color: #101820;
+  color: #0f1720;
   letter-spacing: 0;
 }
 h1 {
-  font-size: 34px;
-  margin: 0 0 8px;
+  max-width: 920px;
+  font-size: 42px;
+  line-height: 1.08;
+  margin: 0 0 10px;
 }
 h2 {
-  font-size: 19px;
-  margin: 0 0 12px;
+  font-size: 20px;
+  line-height: 1.2;
+  margin: 0 0 14px;
+}
+.eyebrow {
+  margin: 0 0 10px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
 }
 .subtitle {
-  margin: 0 0 20px;
-  color: #4d5b6a;
+  max-width: 780px;
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 18px;
+  font-weight: 650;
+}
+.report-label {
+  margin: 0 0 14px;
+  color: var(--subtle);
+}
+.verdict-sentence {
+  max-width: 900px;
+  margin: 18px 0 22px;
+  color: #263445;
+  font-size: 18px;
 }
 section {
-  padding: 22px 0;
-  border-top: 1px solid #d8e0e8;
+  padding: 28px 0;
+  border-top: 1px solid var(--border);
 }
 .hero {
   border-top: 0;
-  padding-top: 14px;
+  padding: 8px 0 30px;
 }
 .signal-grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
   margin: 0 0 14px;
 }
 .signal {
-  min-height: 86px;
-  padding: 14px;
-  border: 1px solid #cbd5df;
-  border-radius: 6px;
-  background: #ffffff;
+  min-height: 118px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow);
 }
 .signal-label {
   display: block;
-  margin-bottom: 8px;
-  color: #516171;
+  margin-bottom: 10px;
+  color: var(--muted);
   font-size: 13px;
-}
-.signal-value {
-  display: block;
-  font-size: 21px;
   font-weight: 700;
 }
+.signal-value {
+  display: inline-block;
+  margin-bottom: 10px;
+  font-size: 20px;
+  font-weight: 800;
+}
+.signal-note {
+  display: block;
+  color: var(--subtle);
+  font-size: 12px;
+}
+.status-legend,
+.section-note {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.key-finding,
+.claim-boundary,
+.findings-section,
+.ci-gate-section {
+  margin: 0 0 6px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-left: 6px solid var(--red);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 22px rgba(20, 32, 43, 0.05);
+}
+.key-finding-clear {
+  border-left-color: var(--green);
+}
+.claim-boundary {
+  border-left-color: var(--slate);
+  background: var(--panel-muted);
+}
+.ci-gate-section {
+  border-left-color: var(--blue);
+}
+.section-heading-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.section-heading-row h2 {
+  margin: 0;
+}
+.regression-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 4px 10px;
+  border: 1px solid var(--red-border);
+  border-radius: 8px;
+  color: var(--red);
+  background: var(--red-bg);
+  font-size: 12px;
+  font-weight: 800;
+}
+.table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+.summary-grid,
 dl {
   display: grid;
   grid-template-columns: minmax(180px, 280px) 1fr;
@@ -78,71 +187,326 @@ dl {
   margin: 0 0 16px;
 }
 dt {
-  font-weight: 700;
+  color: var(--muted);
+  font-weight: 750;
 }
 dd {
   margin: 0;
 }
 table {
   width: 100%;
-  border-collapse: collapse;
-  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--panel);
 }
 th, td {
-  padding: 8px 10px;
-  border: 1px solid #d8e0e8;
+  padding: 11px 12px;
+  border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
   overflow-wrap: anywhere;
 }
+td + td,
+th + th {
+  border-left: 1px solid var(--border);
+}
 th {
-  background: #eef3f7;
+  color: #253244;
+  background: #edf3f8;
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+tbody tr:nth-child(even) td {
+  background: #fbfdff;
+}
+tbody tr:last-child td {
+  border-bottom: 0;
+}
+.process-row-unchanged td {
+  background: #fbfdff;
+}
+.process-row-affected td,
+.process-row-changed td {
+  background: #fff8f8;
+}
+.process-diff-table td {
+  min-width: 140px;
+}
+.wide-table {
+  min-width: 760px;
+}
+.process-diff-table {
+  min-width: 1040px;
+}
+.process-evidence-table {
+  min-width: 1120px;
+}
+.cell-value {
+  min-width: 0;
 }
 code {
+  display: inline-block;
+  margin: 1px 0;
+  padding: 1px 5px;
+  border: 1px solid #dbe3ec;
+  border-radius: 5px;
+  color: #1d2b3a;
+  background: #f4f7fa;
   font-family: Consolas, Monaco, monospace;
   font-size: 0.92em;
 }
 .state-good {
-  color: #12613a;
-  font-weight: 700;
+  color: var(--green);
+  background: var(--green-bg);
+  border-color: var(--green-border);
 }
 .state-bad {
-  color: #982626;
-  font-weight: 700;
+  color: var(--red);
+  background: var(--red-bg);
+  border-color: var(--red-border);
 }
 .state-warn {
-  color: #805000;
-  font-weight: 700;
+  color: var(--amber);
+  background: var(--amber-bg);
+  border-color: var(--amber-border);
 }
 .state-expected {
-  color: #0f5e73;
+  color: var(--blue);
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+}
+.state-good,
+.state-bad,
+.state-warn,
+.state-expected {
+  padding: 3px 9px;
+  border: 1px solid;
+  border-radius: 8px;
+  font-weight: 800;
+  white-space: nowrap;
+}
+.diff-pair {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 4px 10px;
+}
+.diff-label {
+  color: var(--muted);
+  font-weight: 800;
+}
+.diff-removed {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  margin: 1px 0;
+  padding: 2px 6px;
+  border: 1px solid var(--red-border);
+  border-radius: 5px;
+  color: var(--red);
+  background: var(--red-bg);
+}
+.diff-removed-token {
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.diff-removed .empty {
+  color: var(--red);
+}
+.diff-marker {
+  font-weight: 900;
+  text-decoration: none;
+}
+.value-list {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+.value-count {
+  color: var(--muted);
   font-weight: 700;
 }
+.technical-detail,
+.appendix-section {
+  color: #253244;
+}
+.technical-detail h2,
+.appendix-section h2 {
+  color: #253244;
+}
 .empty {
-  color: #667789;
+  color: var(--subtle);
+}
+@media (max-width: 1120px) {
+  .signal-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 @media (max-width: 760px) {
+  main {
+    padding: 22px 14px 42px;
+  }
+  h1 {
+    font-size: 31px;
+  }
   .signal-grid,
   dl {
     grid-template-columns: 1fr;
+  }
+  .key-finding,
+  .claim-boundary,
+  .findings-section,
+  .ci-gate-section {
+    padding: 18px;
+  }
+}
+@media print {
+  body {
+    background: #ffffff;
+  }
+  main {
+    max-width: none;
+    padding: 0;
+  }
+  section,
+  .signal,
+  .key-finding,
+  .claim-boundary,
+  .findings-section,
+  .ci-gate-section {
+    break-inside: avoid;
+    box-shadow: none;
+  }
+  .table-wrap {
+    overflow: visible;
+  }
+  table {
+    min-width: 0;
+  }
+  th {
+    overflow-wrap: normal;
+    word-break: normal;
+    hyphens: none;
+  }
+  .wide-table {
+    min-width: 0;
+  }
+  .process-diff-table,
+  .process-evidence-table {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+  }
+  .process-diff-table thead,
+  .process-evidence-table thead {
+    display: none;
+  }
+  .process-diff-table,
+  .process-diff-table tbody,
+  .process-diff-table tr,
+  .process-diff-table td,
+  .process-evidence-table,
+  .process-evidence-table tbody,
+  .process-evidence-table tr,
+  .process-evidence-table td {
+    display: block;
+  }
+  .process-diff-table tr,
+  .process-evidence-table tr {
+    margin: 0 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: var(--panel);
+    break-inside: avoid;
+  }
+  .process-diff-table td,
+  .process-evidence-table td {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .process-diff-table td + td,
+  .process-evidence-table td + td {
+    border-left: 0;
+  }
+  .process-diff-table td:last-child,
+  .process-evidence-table td:last-child {
+    border-bottom: 0;
+  }
+  .process-diff-table td::before,
+  .process-evidence-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .process-diff-table .cell-value,
+  .process-evidence-table .cell-value {
+    min-width: 0;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .process-diff-table code,
+  .process-evidence-table code,
+  .process-diff-table .state-good,
+  .process-diff-table .state-bad,
+  .process-diff-table .state-warn,
+  .process-diff-table .state-expected,
+  .process-evidence-table .state-good,
+  .process-evidence-table .state-bad,
+  .process-evidence-table .state-warn,
+  .process-evidence-table .state-expected {
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .process-diff-table .diff-pair {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+  .appendix-section code {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 </style>
 </head>
 <body>
 <main>
-<h1>Output equivalence is not process equivalence</h1>
+<section class="hero" aria-labelledby="report-verdict">
+<p class="eyebrow">agent-assure evidence diff</p>
+<h1 id="report-verdict">CI Gate Blocked Candidate Regression</h1>
+<p class="subtitle">Output equivalence is not process equivalence</p>
 
-<section class="hero" aria-labelledby="review-punchline">
-<h2 id="review-punchline">Review Punchline</h2>
+<p class="verdict-sentence">Decision fields were preserved, but the candidate dropped 1 required material-claim evidence link across 1 process-affected case; the CI gate blocked the candidate as designed.</p>
 <div class="signal-grid">
-<div class="signal"><span class="signal-label">Decision-field equivalence</span><span class="signal-value state-good">preserved</span></div>
-<div class="signal"><span class="signal-label">Process regression</span><span class="signal-value state-expected">caught</span></div>
-<div class="signal"><span class="signal-label">CI gate result</span><span class="signal-value state-expected">blocked</span></div>
+<div class="signal"><span class="signal-label">Decision fields</span><span class="signal-value state-good">preserved</span><span class="signal-note">recommendation and outcome</span></div>
+<div class="signal"><span class="signal-label">Process regression</span><span class="signal-value state-expected">caught</span><span class="signal-note">process invariant layer</span></div>
+<div class="signal"><span class="signal-label">Process scope</span><span class="signal-value state-bad">1 of 1 cases</span><span class="signal-note">findings or missing links by case; 1 missing material-claim link of 1 baseline claim link</span></div>
+<div class="signal"><span class="signal-label">CI gate</span><span class="signal-value state-expected">blocked</span><span class="signal-note">control response</span></div>
 </div>
-<p>Candidate is missing 1 baseline evidence link: claim-duration.</p>
+<p class="status-legend">Blue control states mean the gate caught or blocked candidate risk; red states mark the underlying regression.</p>
 </section>
-<section aria-labelledby="claim-boundary">
+<section class="key-finding" aria-labelledby="key-finding">
+<div class="section-heading-row">
+<h2 id="key-finding">Key Finding</h2>
+<span class="regression-badge">1 material claim link regression</span>
+</div>
+<p>The candidate preserved the visible decision fields but dropped a required material-claim evidence link. This is a link-level regression: the source evidence may still be present for another claim.</p>
+<div class="table-wrap">
+<table>
+<thead><tr><th>Case</th><th>Material claim</th><th>Baseline link</th><th>Candidate link</th><th>Reason</th></tr></thead>
+<tbody><tr><td>shared-source-multi-claim</td><td><code>claim-duration</code></td><td><code>claim-duration</code> -&gt; <code>evidence-duration</code></td><td><code>claim-duration</code> -&gt; <span class="empty">none</span></td><td><code>MATERIAL_CLAIM_MISSING_EVIDENCE</code></td></tr></tbody>
+</table>
+</div>
+</section>
+<section class="claim-boundary" aria-labelledby="claim-boundary">
 <h2 id="claim-boundary">Claim Boundary</h2>
 
 <p>This report is not a compliance attestation.</p>
@@ -152,89 +516,117 @@ code {
 <p>Display note: external URLs and sensitive-looking values may be redacted in this HTML; source artifacts remain unchanged.</p>
 
 </section>
-<section aria-labelledby="decision-field-comparison">
+<section class="decision-section" aria-labelledby="decision-field-comparison">
 <h2 id="decision-field-comparison">Decision-Field Comparison</h2>
-<dl>
+<dl class="summary-grid">
 <dt>Decision fields (recommendation, outcome)</dt><dd>preserved</dd>
 <dt>Case coverage</dt><dd>same case IDs</dd>
 <dt>Baseline evaluation state</dt><dd>pass</dd>
 <dt>Candidate evaluation state</dt><dd>fail</dd>
 </dl>
-<table>
+<div class="table-wrap">
+<table class="wide-table">
 <thead><tr><th>Case</th><th>Baseline recommendation</th><th>Candidate recommendation</th><th>Baseline outcome</th><th>Candidate outcome</th><th>Decision fields</th></tr></thead>
 <tbody><tr><td>shared-source-multi-claim</td><td>approve</td><td>approve</td><td>approve</td><td>approve</td><td class="state-good">preserved</td></tr></tbody>
 </table>
+</div>
 </section>
-<section aria-labelledby="baseline-process">
-<h2 id="baseline-process">Baseline Process Evidence</h2>
-<table>
-<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
-<tbody><tr><td>shared-source-multi-claim</td><td><code>claim-duration</code></td><td><code>evidence-duration</code></td><td><code>claim-duration</code></td><td><span class="empty">none</span></td><td>not required</td><td>not recorded</td><td><code>benefit-policy-lookup</code></td></tr></tbody>
+<section class="process-diff-section" aria-labelledby="process-evidence-diff">
+<h2 id="process-evidence-diff">Process Evidence Diff</h2>
+<p class="section-note">Process-affected cases are sourced from candidate findings and missing material-claim evidence links, not from preserved decision fields.</p>
+<div class="table-wrap">
+<table class="process-diff-table wide-table">
+<thead><tr><th>Case</th><th>Process status</th><th>Decision fields</th><th>Changed fields</th><th>Process findings</th><th>Claim-evidence links</th></tr></thead>
+<tbody><tr class="process-row-affected"><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Process status"><div class="cell-value"><span class="state-bad">failed invariant</span></div></td><td data-label="Decision fields"><div class="cell-value"><span class="state-good">preserved</span></div></td><td data-label="Changed fields"><div class="cell-value"><code>evidence refs</code>, <code>claim-evidence links</code></div></td><td data-label="Process findings"><div class="cell-value"><span class="regression-badge">1 material claim link regression</span><br><code>MATERIAL_CLAIM_MISSING_EVIDENCE</code></div></td><td data-label="Claim-evidence links"><div class="cell-value"><div class="diff-pair"><span class="diff-label">Baseline</span><span><code>claim-duration</code> -&gt; <code>evidence-duration</code></span><span class="diff-label">Candidate</span><span><span class="diff-removed"><span class="diff-marker">-</span> <span class="diff-removed-token"><code>claim-duration</code></span> <span>-&gt;</span> <span class="empty">none</span></span></span></div></div></td></tr></tbody>
 </table>
+</div>
 </section>
-<section aria-labelledby="candidate-process">
-<h2 id="candidate-process">Candidate Process Evidence</h2>
-<table>
+<section class="technical-detail" aria-labelledby="baseline-process">
+<h2 id="baseline-process">Full Baseline Process Evidence</h2>
+<div class="table-wrap">
+<table class="process-evidence-table wide-table">
 <thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
-<tbody><tr><td>shared-source-multi-claim</td><td><code>claim-duration</code></td><td><span class="empty">none</span></td><td><span class="empty">none</span></td><td><span class="empty">none</span></td><td>not required</td><td>not recorded</td><td><code>benefit-policy-lookup</code></td></tr></tbody>
+<tbody><tr><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Evidence refs"><div class="cell-value"><code>evidence-duration</code></div></td><td data-label="Linked claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Policy states"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Human review"><div class="cell-value">not required</div></td><td data-label="Provider/model"><div class="cell-value">not recorded</div></td><td data-label="Tools"><div class="cell-value"><code>benefit-policy-lookup</code></div></td></tr></tbody>
 </table>
+</div>
 </section>
-<section aria-labelledby="missing-evidence-link-diff">
+<section class="technical-detail" aria-labelledby="candidate-process">
+<h2 id="candidate-process">Full Candidate Process Evidence</h2>
+<div class="table-wrap">
+<table class="process-evidence-table wide-table">
+<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
+<tbody><tr><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Evidence refs"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Linked claims"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Policy states"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Human review"><div class="cell-value">not required</div></td><td data-label="Provider/model"><div class="cell-value">not recorded</div></td><td data-label="Tools"><div class="cell-value"><code>benefit-policy-lookup</code></div></td></tr></tbody>
+</table>
+</div>
+</section>
+<section class="missing-link-section technical-detail" aria-labelledby="missing-evidence-link-diff">
+<div class="section-heading-row">
 <h2 id="missing-evidence-link-diff">Missing Evidence Link Diff</h2>
+</div>
+<div class="table-wrap">
 <table>
 <thead><tr><th>Case</th><th>Claim</th><th>Baseline evidence refs</th><th>Candidate evidence refs</th></tr></thead>
 <tbody><tr><td>shared-source-multi-claim</td><td>claim-duration</td><td><code>evidence-duration</code></td><td><span class="empty">none</span></td></tr></tbody>
 </table>
+</div>
 </section>
-<section aria-labelledby="process-invariant-findings">
+<section class="findings-section" aria-labelledby="process-invariant-findings">
+<div class="section-heading-row">
 <h2 id="process-invariant-findings">Process Invariant Findings</h2>
-<table>
+</div>
+<div class="table-wrap">
+<table class="wide-table">
 <thead><tr><th>Case</th><th>Control</th><th>Target</th><th>Reason code</th><th>State</th><th>Message</th></tr></thead>
 <tbody><tr><td>shared-source-multi-claim</td><td>material_claims_have_evidence</td><td>claim:claim-duration</td><td>MATERIAL_CLAIM_MISSING_EVIDENCE</td><td class="state-bad">fail</td><td>fixture-declared material claim has no evidence link</td></tr></tbody>
 </table>
+</div>
 </section>
 <section aria-labelledby="comparison-classification">
 <h2 id="comparison-classification">Comparison Classification</h2>
-<dl>
+<dl class="summary-grid">
 <dt>Classification</dt><dd>new_failure</dd>
 <dt>Baseline state</dt><dd>pass</dd>
 <dt>Candidate state</dt><dd>fail</dd>
-<dt>Provenance changes</dt><dd>none</dd>
-<dt>Verdict findings</dt><dd>1 item: MATERIAL_CLAIM_MISSING_EVIDENCE</dd>
+<dt>Provenance changes</dt><dd><span class="empty">none</span></dd>
+<dt>Verdict findings</dt><dd><span class="value-count">1 item</span><ul class="value-list"><li>MATERIAL_CLAIM_MISSING_EVIDENCE</li></ul></dd>
 </dl>
 </section>
 <section aria-labelledby="fixture-equivalence-state">
 <h2 id="fixture-equivalence-state">Fixture-Equivalence State</h2>
-<dl>
+<dl class="summary-grid">
 <dt>State</dt><dd>pass</dd>
 <dt>Review note</dt><dd>Baseline and candidate fixture material remained equivalent for comparison.</dd>
 </dl>
 </section>
-<section aria-labelledby="ci-gate-result">
+<section class="ci-gate-section" aria-labelledby="ci-gate-result">
 <h2 id="ci-gate-result">CI Gate Result</h2>
-<dl>
+<dl class="summary-grid">
 <dt>Result</dt><dd>blocked</dd>
 <dt>Evidence packet</dt><dd>packet-duration</dd>
-<dt>Packet limitations</dt><dd>1 item: Local deterministic fixture evidence for human review.</dd>
+<dt>Packet limitations</dt><dd><span class="value-count">1 item</span><ul class="value-list"><li>Local deterministic fixture evidence for human review.</li></ul></dd>
 </dl>
 </section>
-<section aria-labelledby="artifact-paths">
+<section class="appendix-section" aria-labelledby="artifact-paths">
 <h2 id="artifact-paths">Artifact Paths</h2>
+<div class="table-wrap">
 <table>
 <thead><tr><th>Artifact</th><th>Path</th></tr></thead>
 <tbody><tr><td>baseline run set</td><td><code>baseline.runset.json</code></td></tr>
 <tr><td>candidate run set</td><td><code>candidate.runset.json</code></td></tr>
 <tr><td>evidence packet</td><td><code>evidence-packet.json</code></td></tr></tbody>
 </table>
+</div>
 </section>
-<section aria-labelledby="artifact-digests">
+<section class="appendix-section" aria-labelledby="artifact-digests">
 <h2 id="artifact-digests">Artifact Digests</h2>
+<div class="table-wrap">
 <table>
 <thead><tr><th>Role</th><th>Path</th><th>SHA-256</th></tr></thead>
 <tbody><tr><td>evaluation-summary</td><td><code>packet artifact digest</code></td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td></tr>
 <tr><td>compiled-suite</td><td><code>compiled.json</code></td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td></tr>
 <tr><td>candidate-runset</td><td><code>candidate.json</code></td><td><code>aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa</code></td></tr></tbody>
 </table>
+</div>
 </section>
 </main>
 </body>

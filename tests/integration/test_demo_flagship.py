@@ -91,7 +91,9 @@ def test_flagship_demo_exits_zero_on_expected_process_regression(tmp_path: Path)
     assert rendered_text == expected_transcript.rstrip("\n")
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")
     assert THESIS_TITLE in html
-    assert "Review Punchline" in html
+    assert "CI Gate Blocked Candidate Regression" in html
+    assert "Process Evidence Diff" in html
+    assert "1 material claim link regression" in html
     assert "claim-duration" in html
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert "<script" not in html.lower()

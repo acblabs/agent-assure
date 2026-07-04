@@ -47,8 +47,13 @@ def test_diff_render_cli_uses_packet_and_comparison_contract(tmp_path: Path) -> 
     assert "evidence diff:" in result.output
     html = out_path.read_text(encoding="utf-8")
     assert THESIS_TITLE in html
+    assert "CI Gate Blocked Candidate Regression" in html
     assert "Decision-Field Comparison" in html
     assert "<dt>Decision fields (recommendation, outcome)</dt><dd>preserved</dd>" in html
+    assert "Process Evidence Diff" in html
+    assert "Process scope" in html
+    assert "1 of 1 cases" in html
+    assert "failed invariant" in html
     assert "Missing Evidence Link Diff" in html
     assert "claim-duration" in html
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
