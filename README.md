@@ -1,149 +1,49 @@
 # agent-assure
 
-Local-first process assurance for agentic AI pipelines.
+[![PyPI](https://img.shields.io/pypi/v/agent-assure.svg)](https://pypi.org/project/agent-assure/)
+[![Python](https://img.shields.io/pypi/pyversions/agent-assure.svg)](https://pypi.org/project/agent-assure/)
+[![CI](https://github.com/acblabs/agent-assure/actions/workflows/ci.yml/badge.svg)](https://github.com/acblabs/agent-assure/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+![Offline demo](https://img.shields.io/badge/demo-offline%20%2F%20no%20API%20key-0f766e)
 
-**Core thesis:** Output equivalence is not process equivalence.
+**Catch agent process regressions that final-answer evals miss.**
 
-A candidate agent pipeline can return the same visible decision, approval,
-denial, recommendation, or summary while silently changing material evidence,
-review routing, provider/tool boundaries, redaction behavior, retries, or
-provenance. `agent-assure` produces local evidence packets and CI gates so
-reviewers can detect those observable process regressions. In the flagship
-case, the output-equivalence claim is the narrower decision equivalence of
-`recommendation` and `outcome`.
+`agent-assure` is a local-first process assurance toolkit for agentic AI
+pipelines. It produces deterministic review artifacts and CI-gate signals when
+a candidate agent preserves the visible decision but changes the governed
+process around it.
 
-## Install
+> **Core thesis:** Output equivalence is not process equivalence.
 
-Install from PyPI and run the flagship demo:
+<img src="docs/assets/flagship-evidence-diff.png" alt="Agent Assure evidence diff report showing same approval, broken evidence trail, and CI blocked." width="100%">
 
-```bash
-pip install agent-assure
-agent-assure demo flagship
-```
+<sub>Flagship evidence diff: the visible approval stayed stable, but the
+material evidence trail regressed and the CI gate blocked the candidate.</sub>
 
-The demo runs offline with bundled deterministic fixtures. It writes local
-review artifacts under `.tmp/demo/flagship` by default.
+## The 30-second story
 
-## One-command demo
+The flagship demo compares a passing baseline with an evidence-normalization
+candidate under the same deterministic fixtures:
 
 ```text
-Expected punchline:
+baseline:  recommendation=approve; outcome=approve
+candidate: recommendation=approve; outcome=approve
 
-output equivalence: preserved
+decision fields: preserved
 missing evidence link: claim-duration
 classification: new_failure
 CI gate: blocked as expected
 ```
 
-The baseline and candidate both keep
-`recommendation=approve; outcome=approve`. The candidate still fails because it
-drops the material evidence link for `claim-duration`.
-
-## Claim boundary
-
-`agent-assure` produces local review evidence, traceability, evidence mapping,
-artifact digests, and CI-gate signals. It does not replace legal, regulatory,
-clinical, provider-quality, model-quality, or business-impact review.
-
-This project is not a compliance attestation. Safety review remains a separate
-human and organizational responsibility.
-
-## Schemas
-
-Schema changes are versioned. Development work uses `schemas/unreleased/`.
-Stable releases freeze a copy into `schemas/vX.Y.Z/`.
-The release gate verifies the latest frozen schema directory, while schema
-staging exports the current development schema surface to `schemas/unreleased/`.
-
-## Local development
-
-From a repository checkout:
-
-```bash
-pip install -e .
-```
-
-For validation checks, install the development extras:
-
-```bash
-pip install -e ".[dev]"
-```
-
-## Five-minute fixture walkthrough
-
-Run these commands one at a time from the repository root. The final two
-commands write reports and are expected to exit `1`; the GitHub Actions snippet
-below shows how to assert those expected failures in `set -e` contexts.
-
-```bash
-pip install -e ".[dev]"
-mkdir -p .tmp/showcase
-agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/showcase/prior-auth.compiled.json --manifest .tmp/showcase/prior-auth.fixtures.json
-agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.baseline.json
-agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.evidence-candidate.json
-agent-assure evaluate .tmp/showcase/prior-auth.baseline.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/baseline-report
-agent-assure evaluate .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/evidence-report
-agent-assure compare .tmp/showcase/prior-auth.baseline.json .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/comparison-report
-agent-assure ci .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --baseline .tmp/showcase/prior-auth.baseline.json --out-dir .tmp/showcase/ci-report --report-mode full
-```
-
-The baseline evaluation exits `0` and writes a `pass` summary with ten evaluated
-cases and zero blocking findings. The candidate evaluation is expected to exit
-`1`; its report contains one blocking finding for
-`shared-source-multi-claim` with reason code
-`MATERIAL_CLAIM_MISSING_EVIDENCE`.
-
-The comparison command is also expected to exit `1`. It writes
-`.tmp/showcase/comparison-report/comparison-report.md` with classification
-`new_failure` and fixture-equivalence state `pass`. For the failing case, the
-baseline and candidate both keep `recommendation=approve; outcome=approve`; the
-material regression is the missing `claim-duration` evidence link. See
-`docs/showcase.md` for the expected report fields, GitHub Actions snippet, and
-artifact digest summary.
-
-After reports exist, an evidence packet can also be built and gated from
-summaries:
-
-```bash
-agent-assure packet build .tmp/showcase/evidence-report/evaluation-summary.json --comparison .tmp/showcase/comparison-report/comparison-summary.json --out .tmp/showcase/evidence-packet.json
-agent-assure ci gate .tmp/showcase/evidence-packet.json
-```
-
-For this known failing candidate, both the CI command and packet gate are
-expected to exit `1`. The CI command writes JSON/Markdown reports,
-`evidence-packet.json`, `evidence-packet.md`, `dependency-inventory.json`,
-`release-artifact-manifest.json`, and `ci-diagnostics.json`.
-
-Release evidence can be bundled and replayed from raw digests for stable source
-artifacts and stable JSON projection digests for environment-bearing packet
-artifacts:
-
-```bash
-python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
-agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
-```
-
-The release bundle includes the evidence packet, release manifest, replay file,
-SBOM, source distribution, wheel, manifest-listed digest cross-checks, and
-exact cosign-verifiable blobs when built by the release workflow. For keyless
-cosign verification of workflow-signed release blobs, see
-`docs/release_evidence.md`.
-
-## What the demo shows
-
-The flagship demo is intentionally narrow. It shows that a candidate can keep
-the same visible answer while losing a material evidence link, and that the
-evaluation report identifies the failing invariant under equivalent fixtures.
-It is deterministic review evidence for a declared fixture, not a broad model
-or provider assessment.
+The point is deliberately narrow and reviewable: the business decision did not
+change, but the governed evidence path did. `agent-assure` catches that
+process regression before release.
 
 ### Flagship regression at a glance
 
-The key idea: output equivalence is not process equivalence. In the flagship
-fixture, the candidate keeps the same visible recommendation and outcome as the
-baseline, but drops a material evidence link. `agent-assure` catches the
-missing evidence invariant and classifies the baseline-to-candidate comparison
-as a `new_failure` under passing fixture equivalence.
+The diagram makes the gate logic explicit: fixture equivalence gates the
+comparison, the visible answer stays stable, and the candidate still fails the
+material evidence invariant.
 
 ```mermaid
 flowchart LR
@@ -171,38 +71,125 @@ flowchart LR
     Tension --> Compare
 
     Compare --> NewFailure["Classification: new_failure"]
-
-    classDef pass fill:#e5f5ff,stroke:#0072b2,color:#003b5c;
-    classDef fail fill:#fff1e0,stroke:#d55e00,color:#5c2a00;
-    classDef neutral fill:#eef3ff,stroke:#3f51b5,color:#1a237e;
-    classDef warn fill:#fff8e1,stroke:#f9a825,color:#5d4037;
-
-    class Pass,Equiv pass;
-    class Fail,NewFailure fail;
-    class Same,Compare neutral;
-    class Tension warn;
 ```
+
+## Start in one command
+
+```bash
+pip install agent-assure
+agent-assure demo flagship
+```
+
+The demo runs offline with bundled deterministic fixtures. It writes local
+review artifacts under `.tmp/demo/flagship` by default, including the generated
+`evidence-diff.html` report previewed above as a PNG.
+
+## For AI leaders
+
+Use `agent-assure` when a team needs release-review evidence that an agent
+change preserved declared expectations around the process, not just the answer.
+
+- It makes hidden process regressions visible: evidence links, review routing,
+  provider/tool boundaries, redaction behavior, retries, and provenance.
+- It creates local evidence packets, Markdown reports, and a static HTML
+  evidence diff that reviewers can inspect without a hosted governance
+  platform.
+- It complements answer-quality evals. Those evals ask whether the response is
+  good; `agent-assure` asks whether the governed path to that response still
+  matches the controls reviewers expected.
+
+## For AI and security engineers
+
+`agent-assure` is built around declared, observable controls:
+
+- YAML suites and live protocols compile to strict JSON artifacts.
+- Fixture mode runs baseline and candidate variants offline with no provider
+  API key, network call, or token spend.
+- Evaluators check expectations, policy controls, privacy filters, tool/provider
+  boundaries, review routing, and material claim-evidence links.
+- Baseline-to-candidate comparison runs after fixture equivalence passes, so
+  verdicts are tied to controlled input material rather than incidental drift.
+- Evidence packets bundle summaries, limitations, artifact digests, dependency
+  inventory, environment context, and CI-gate state.
+- CI commands exit nonzero on blocking findings, while the demo wrapper treats
+  the known blocked candidate as a successful demonstration.
+
+## What it produces
+
+The flagship run writes reproducible local review artifacts:
+
+- `.tmp/demo/flagship/demo-summary.json`
+- `.tmp/demo/flagship/baseline-report/evaluation-report.md`
+- `.tmp/demo/flagship/evidence-report/evaluation-report.md`
+- `.tmp/demo/flagship/comparison-report/comparison-report.md`
+- `.tmp/demo/flagship/ci-report/evidence-packet.json`
+- `.tmp/demo/flagship/evidence-diff.html`
+
+The evidence diff is a single local HTML file with inline CSS and escaped
+dynamic content. It does not load external JavaScript, CSS, fonts, or network
+resources.
 
 ## Architecture
 
-This is the full toolkit shape. The five-minute demo exercises the fixture-mode
-path and evidence outputs.
+At the highest level, `agent-assure` turns declared expectations into local
+release-review evidence:
 
 ```mermaid
 flowchart LR
-  A[Authoring<br/>YAML suites<br/>live protocols] --> B[Compile and bind<br/>strict JSON<br/>canonical digests]
-  B --> C{Execution}
-  C -->|Fixture mode| D[Fixed local fixtures<br/>offline<br/>no token spend]
-  C -->|Live mode| E[Declared adapters<br/>static JSONL<br/>external script<br/>OpenAI-compatible]
-  D --> F[RunSet records<br/>redacted summaries<br/>provenance<br/>trace context]
-  E --> F
-  F --> G[Evaluate controls<br/>expectations<br/>policies<br/>privacy checks]
-  G --> H[Change review<br/>fixture equivalence<br/>verdicts<br/>provenance diffs]
-  G --> I[Live review<br/>cluster rates<br/>rare-event bounds<br/>drift and trajectories]
-  H --> J[Evidence outputs<br/>reports<br/>packets<br/>CI gates<br/>release replay]
-  I --> J
-  J --> K[Observability<br/>span plans<br/>optional SDK/OTLP]
+  A[Declared expectations] --> B[Baseline and candidate runs]
+  B --> C[Evaluate controls]
+  C --> D[Compare process evidence]
+  D --> E[Evidence packet]
+  E --> F[CI gate]
+  F -->|blocking regression| G[Release blocked]
 ```
+
+The broader toolkit includes YAML authoring, strict schemas, canonical digests,
+fixture and live execution paths, privacy-filtered reporting, release replay,
+and optional OpenTelemetry-aligned span-plan export. See
+[`docs/architecture.md`](docs/architecture.md) for the implementation map.
+
+## Five-minute fixture walkthrough
+
+Run these commands one at a time from the repository root. The candidate
+evaluation, comparison, and CI commands are expected to exit `1` after writing
+their reports. See [`docs/showcase.md`](docs/showcase.md) for a GitHub Actions
+snippet that asserts those expected failures in `set -e` contexts.
+
+```bash
+pip install -e ".[dev]"
+mkdir -p .tmp/showcase
+agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/showcase/prior-auth.compiled.json --manifest .tmp/showcase/prior-auth.fixtures.json
+agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.baseline.json
+agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.evidence-candidate.json
+agent-assure evaluate .tmp/showcase/prior-auth.baseline.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/baseline-report
+agent-assure evaluate .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/evidence-report
+agent-assure compare .tmp/showcase/prior-auth.baseline.json .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/comparison-report
+agent-assure ci .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --baseline .tmp/showcase/prior-auth.baseline.json --out-dir .tmp/showcase/ci-report --report-mode full
+```
+
+The baseline evaluation exits `0` and writes a `pass` summary with ten evaluated
+cases and zero blocking findings. The candidate evaluation writes one blocking
+finding for `shared-source-multi-claim` with reason code
+`MATERIAL_CLAIM_MISSING_EVIDENCE`.
+
+The comparison report classifies the change as `new_failure` under passing
+fixture equivalence. For the failing case, the baseline and candidate both keep
+`recommendation=approve; outcome=approve`; the material regression is the
+missing `claim-duration` evidence link.
+
+After reports exist, an evidence packet can also be built and gated from
+summaries:
+
+```bash
+agent-assure packet build .tmp/showcase/evidence-report/evaluation-summary.json --comparison .tmp/showcase/comparison-report/comparison-summary.json --out .tmp/showcase/evidence-packet.json
+agent-assure ci gate .tmp/showcase/evidence-packet.json
+```
+
+For this known failing candidate, both the CI command and packet gate are
+expected to exit `1`. The CI command writes JSON/Markdown reports,
+`evidence-packet.json`, `evidence-packet.md`, `dependency-inventory.json`,
+`release-artifact-manifest.json`, and `ci-diagnostics.json`.
 
 ## Small generic example
 
@@ -222,96 +209,17 @@ The baseline evaluation exits `0`. The provider-policy candidate is expected to
 exit `1` with deterministic provider, outcome, and human-review control
 findings.
 
-## Current claim boundary
+## Schemas and development
 
-The project currently claims deterministic offline controls and
-protocol-bound live operational evaluation implemented in this repository.
-Public claims are tracked in
-`docs/claims_traceability_matrix.yaml`.
+Schema changes are versioned. Development work uses `schemas/unreleased/`.
+Stable releases freeze a copy into `schemas/vX.Y.Z/`. The release gate verifies
+the latest frozen schema directory, while schema staging exports the current
+development schema surface to `schemas/unreleased/`.
 
-A statistical protocol is documented in
-`docs/measurement/experiment_protocol.md` for live stochastic evaluation. The
-`agent-assure live` commands require a machine-readable protocol, run
-explicitly configured adapters, and analyze repeated observations with
-cluster-aware rates, protocol-declared comparison methods, and exploratory
-guardrails for low cluster counts. Optional advanced endpoint plans bind
-confirmatory/exploratory labels, Bonferroni multiplicity controls, rare-event upper
-bounds, observed cluster-correlation summaries, and paired randomization-test
-prerequisites to the protocol digest. Optional trajectory reports derive
-privacy-filtered observable state paths, canonical transition profiles,
-sequence invariants, and operational event-process summaries from structured
-run artifacts. Live results remain bounded by the declared
-protocol, data boundary, provider/model configuration, and execution window.
-They are not general model-quality, safety, compliance, or clinical-validation
-claims.
-
-Synthetic calibration and regression coverage for the live statistical,
-drift-monitoring, trajectory, and event-process paths is summarized in
-`docs/live_calibration.md`.
-
-The `external-script` live adapter runs configured scripts through a no-shell
-subprocess harness and records redacted `emergency-process-record` artifacts
-for process failures. It passes only declared environment allowlist entries,
-explicit config variables, and runner-injected trace/request variables.
-OpenTelemetry export is optional:
+From a repository checkout:
 
 ```bash
-pip install -e ".[otel]"
-agent-assure otel export RUNSET_OR_RECORD_OR_SPAN_PLAN.json --protocol otlp-http --endpoint http://localhost:4318/v1/traces
-```
-
-Exported spans are derived from span plans and structured run records, not live
-SDK instrumentation of provider calls; raw prompts, raw outputs, tool
-arguments, and unredacted summaries are not emitted.
-
-## GitHub Actions snippet
-
-```yaml
-name: agent-assure-showcase
-on: [push, pull_request]
-jobs:
-  flagship:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.11"
-      - run: pip install -e ".[dev]"
-      - run: mkdir -p .tmp/showcase
-      - run: agent-assure suite compile examples/prior_auth_synthetic/suite.yaml --out .tmp/showcase/prior-auth.compiled.json --manifest .tmp/showcase/prior-auth.fixtures.json
-      - run: agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/baseline.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.baseline.json
-      - run: agent-assure suite run .tmp/showcase/prior-auth.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml --manifest .tmp/showcase/prior-auth.fixtures.json --out .tmp/showcase/prior-auth.evidence-candidate.json
-      - run: agent-assure evaluate .tmp/showcase/prior-auth.baseline.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/baseline-report
-      - name: Evaluate evidence candidate
-        run: |
-          set +e
-          agent-assure evaluate .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/evidence-report
-          status=$?
-          set -e
-          if [ "$status" -ne 1 ]; then
-            echo "expected exit 1, got $status"
-            exit 1
-          fi
-          grep -q "MATERIAL_CLAIM_MISSING_EVIDENCE" .tmp/showcase/evidence-report/evaluation-report.md
-      - name: Compare baseline to candidate
-        run: |
-          set +e
-          agent-assure compare .tmp/showcase/prior-auth.baseline.json .tmp/showcase/prior-auth.evidence-candidate.json --suite .tmp/showcase/prior-auth.compiled.json --out-dir .tmp/showcase/comparison-report
-          status=$?
-          set -e
-          if [ "$status" -ne 1 ]; then
-            echo "expected exit 1, got $status"
-            exit 1
-          fi
-          grep -q 'Classification: `new_failure`' .tmp/showcase/comparison-report/comparison-report.md
-          grep -q 'Fixture-Equivalence Result' .tmp/showcase/comparison-report/comparison-report.md
-          grep -q 'State: `pass`' .tmp/showcase/comparison-report/comparison-report.md
-```
-
-## Development
-
-```bash
+pip install -e ".[dev]"
 git config core.hooksPath .githooks
 python scripts/check_docs_alignment.py
 ruff check .
@@ -321,11 +229,36 @@ python -m build
 ```
 
 Dependency locking for release builds is documented in
-`docs/dependency_locking.md`. Release bundle reproduction, SBOM generation, and
-cosign verification are documented in `docs/release_evidence.md`.
+[`docs/dependency_locking.md`](docs/dependency_locking.md). Release bundle
+reproduction, SBOM generation, and cosign verification are documented in
+[`docs/release_evidence.md`](docs/release_evidence.md).
 
 The installed package includes bundled deterministic examples for reproducible
 local demos. The top-level `examples/` tree mirrors those packaged resources
 for repository-oriented docs and tests; `scripts/check_packaged_examples.py`
 keeps the copies aligned. They are not a stable extension API; see
-`docs/api_surface.md`.
+[`docs/api_surface.md`](docs/api_surface.md).
+
+## Claim and trust boundary
+
+`agent-assure` produces local review evidence, traceability, evidence mapping,
+artifact digests, and CI-gate signals. It does not replace legal, regulatory,
+clinical, provider-quality, model-quality, or business-impact review.
+
+This project is not a compliance attestation.
+
+It is not a safety claim.
+
+Live results remain bounded by the declared protocol, data boundary,
+provider/model configuration, and execution window. They are not general
+model-quality, safety, or clinical-validation claims.
+
+## Learn more
+
+- [For AI leaders](docs/for_ai_leaders.md)
+- [For engineers](docs/for_engineers.md)
+- [What this measures](docs/what_this_measures.md)
+- [Flagship demo](docs/demo_flagship.md)
+- [Evidence diff](docs/evidence_diff.md)
+- [Threat model](docs/threat_model.md)
+- [Current claim boundary](docs/claim_boundary.md)
