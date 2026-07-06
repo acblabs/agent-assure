@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- No changes yet.
+
+## 0.3.1 - 2026-07-06
+
+- Published v0.3.1 to PyPI and completed post-publish validation from a fresh
+  unpinned install: `pip install agent-assure` resolved `0.3.1`,
+  `agent-assure --version` returned `0.3.1`, and the packaged flagship demo
+  caught the expected process-assurance regression.
+- Added a v0.3.1 measured-usage schema foundation with integer
+  `estimated_cost_microusd`, usage ledgers, summaries, comparison deltas,
+  optional usage fields on existing artifacts, and report wording that treats
+  missing usage as `not_observed`.
+- Bumped the active package/schema surface to v0.3.1, added a frozen
+  `schemas/v0.3.1` release snapshot, kept `schemas/v0.3.0` immutable for
+  replay, and restored the frozen-schema gate to compare the current exporter
+  against the active release snapshot.
+- Hardened usage evidence by requiring explicit limitations on cost-bearing
+  segments, rejecting ledger/summary mismatches, propagating partial
+  missingness limitations into summaries and deltas, rejecting legacy-labeled
+  containers that carry v0.3.1 usage fields, and rejecting
+  return-on-investment acronym language in the claim-boundary linter.
 - Hardened the release publish path so the PyPI job verifies downloaded
   release-bundle cosign signatures against the release workflow identity before
   digest replay or package staging. Release manifest emission now rejects
@@ -44,22 +65,6 @@
   missing-evidence findings, aligned the final release workflow with
   `make release-check`, and moved TestPyPI/local release verification snippets
   to the locked editable install pattern used by final release builds.
-
-## 0.3.1 - 2026-07-03
-
-- Added a v0.3.1 measured-usage schema foundation with integer
-  `estimated_cost_microusd`, usage ledgers, summaries, comparison deltas,
-  optional usage fields on existing artifacts, and report wording that treats
-  missing usage as `not_observed`.
-- Bumped the active package/schema surface to v0.3.1, added a frozen
-  `schemas/v0.3.1` release snapshot, kept `schemas/v0.3.0` immutable for
-  replay, and restored the frozen-schema gate to compare the current exporter
-  against the active release snapshot.
-- Hardened usage evidence by requiring explicit limitations on cost-bearing
-  segments, rejecting ledger/summary mismatches, propagating partial
-  missingness limitations into summaries and deltas, rejecting legacy-labeled
-  containers that carry v0.3.1 usage fields, and rejecting
-  return-on-investment acronym language in the claim-boundary linter.
 
 ## 0.3.0 - 2026-07-01
 
