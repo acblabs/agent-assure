@@ -145,19 +145,14 @@ def render_evidence_diff_html(
             _verdict_section(
                 verdict=verdict,
                 title=title,
+                baseline=baseline,
+                candidate=candidate,
                 visible_state=visible_state,
                 process_state=process_state,
                 ci_gate_result=ci_gate_result,
+                candidate_summary=resolved_candidate_summary,
+                missing_links=missing_links,
                 affected_summary=affected_summary,
-            ),
-            _key_finding_section(missing_links),
-            _claim_boundary_section(),
-            _final_output_section(
-                baseline,
-                candidate,
-                visible_state,
-                resolved_baseline_summary,
-                resolved_candidate_summary,
             ),
             _process_diff_section(
                 baseline,
@@ -167,25 +162,21 @@ def render_evidence_diff_html(
                 missing_links,
                 affected_summary,
             ),
-            _process_evidence_section(
-                "baseline-process",
-                "Full Baseline Process Evidence",
+            _decision_review_page(
                 baseline,
-                section_class="technical-detail",
-            ),
-            _process_evidence_section(
-                "candidate-process",
-                "Full Candidate Process Evidence",
                 candidate,
-                section_class="technical-detail",
+                visible_state,
+                resolved_baseline_summary,
+                resolved_candidate_summary,
+                missing_links,
             ),
-            _missing_evidence_section(missing_links),
-            _findings_section(resolved_candidate_summary.findings, missing_links),
-            _comparison_section(comparison_summary),
-            _fixture_equivalence_section(comparison_summary),
-            _ci_gate_section(ci_gate_result, packet),
-            _artifact_paths_section(artifact_paths),
-            _artifact_digests_section(packet),
+            _technical_evidence_page(baseline, candidate, missing_links),
+            _evidence_packet_page(
+                comparison_summary,
+                ci_gate_result,
+                packet,
+                artifact_paths,
+            ),
             "</main>",
             "</body>",
             "</html>",
@@ -208,48 +199,336 @@ def _report_label(title: str) -> str:
     return f'<p class="report-label">{_h(title)}</p>'
 
 
+def _page(page_class: str, page_number: int, *children: str) -> str:
+    return "\n".join(
+        (
+            f'<article class="page {_h(page_class)}">',
+            *children,
+            _page_footer(page_number),
+            "</article>",
+        )
+    )
+
+
+def _page_footer(page_number: int) -> str:
+    return (
+        '<footer class="page-footer">'
+        "<span>Agent Assure Evidence Diff &middot; generated locally "
+        "&middot; evidence packet available</span>"
+        f'<span class="page-number">{_h(page_number)} / 5</span>'
+        "</footer>"
+    )
+
+
+def _hero_headline(
+    verdict: ReportVerdict,
+    visible_state: str,
+    ci_gate_result: str,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+) -> str:
+    if visible_state == "preserved" and missing_links and ci_gate_result == "blocked":
+        return "Same approval. Broken evidence trail. CI blocked."
+    return verdict.headline
+
+
+def _hero_subheading(
+    visible_state: str,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+) -> str:
+    if visible_state == "preserved" and missing_links:
+        return (
+            "The candidate agent preserved the visible decision, but lost the "
+            "material-claim evidence link required for governance review."
+        )
+    return (
+        "Agent Assure compares visible decisions against the process evidence "
+        "needed for traceability, review, and release confidence."
+    )
+
+
+def _signal_card(
+    label: str,
+    value: str,
+    state: str,
+    note: str,
+    tone: str,
+) -> str:
+    return (
+        f'<div class="signal signal-{_h(tone)}">'
+        f'<span class="signal-icon" aria-hidden="true">{_status_icon(tone)}</span>'
+        f'<span class="signal-label">{_h(label)}</span>'
+        f'<span class="signal-value">{_h(value)}</span>'
+        f'<span class="signal-state">{_h(state)}</span>'
+        f'<span class="signal-note">{_h(note)}</span>'
+        "</div>"
+    )
+
+
+def _status_icon(tone: str) -> str:
+    if tone == "good":
+        return "&#10003;"
+    if tone == "bad":
+        return "&#10005;"
+    if tone == "expected":
+        return "&#9632;"
+    return "!"
+
+
+def _hero_meta(verdict: ReportVerdict, title: str) -> str:
+    return (
+        '<div class="hero-meta">'
+        '<span>Gate classification</span>'
+        f'<strong>{_h(verdict.headline)}</strong>'
+        '<span>Core thesis</span>'
+        f'<strong>{_h(THESIS_TITLE)}</strong>'
+        "</div>"
+        + _report_label(title)
+    )
+
+
+def _executive_extract(
+    *,
+    visible_state: str,
+    ci_gate_result: str,
+    finding: Finding | None,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+    affected_summary: ProcessAffectedSummary,
+) -> str:
+    return "\n".join(
+        (
+            '<div class="hero-summary-row">',
+            '<section class="executive-extract" aria-labelledby="executive-extract">',
+            '<h2 id="executive-extract">Executive TL;DR</h2>',
+            "<ul>",
+            (
+                "<li><strong>Decision drift:</strong> "
+                f"{_h(_decision_drift_summary(visible_state))}</li>"
+            ),
+            (
+                "<li><strong>Process regression:</strong> "
+                f"{_h(_process_regression_summary(finding, missing_links))}</li>"
+            ),
+            (
+                "<li><strong>Process scope:</strong> "
+                f"{_h(_executive_process_scope_summary(affected_summary))}</li>"
+            ),
+            (
+                "<li><strong>Release action:</strong> "
+                f"{_h(_release_action_summary(ci_gate_result))}</li>"
+            ),
+            "</ul>",
+            "</section>",
+            '<section class="trust-boundary-note" aria-labelledby="trust-boundary">',
+            '<h2 id="trust-boundary">Trust Boundary</h2>',
+            "<p>Local deterministic evidence for human review.</p>",
+            f"<p>{_h(CLAIM_BOUNDARY_SENTENCES[0])} {_h(CLAIM_BOUNDARY_SENTENCES[1])}</p>",
+            "</section>",
+            "</div>",
+        )
+    )
+
+
+def _decision_drift_summary(visible_state: str) -> str:
+    if visible_state == "preserved":
+        return "none observed in recommendation/outcome fields."
+    if visible_state == GateState.not_evaluated.value:
+        return "not evaluated for this artifact."
+    return "visible decision fields changed."
+
+
+def _process_regression_summary(
+    finding: Finding | None,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+) -> str:
+    if missing_links:
+        claim = missing_links[0].claim_id
+        control = _finding_control(finding)
+        return f"{claim} lost its required evidence link ({control})."
+    if finding is not None:
+        return f"{finding.control_id} reported {finding.state.value}."
+    return "none observed."
+
+
+def _release_action_summary(ci_gate_result: str) -> str:
+    if ci_gate_result == "blocked":
+        return "candidate regression caught and blocked in CI before release."
+    if ci_gate_result == "not blocked":
+        return "candidate was not blocked by the CI gate."
+    return f"CI gate result: {ci_gate_result}."
+
+
+def _executive_process_scope_summary(summary: ProcessAffectedSummary) -> str:
+    summary_text = f"{_process_scope_value(summary)}; {_process_scope_note(summary)}"
+    if summary.unscoped_finding_count:
+        summary_text += f"; findings recorded {_process_finding_scope_phrase(summary)}"
+    return summary_text
+
+
+def _decision_delta_value(baseline: RunSet, candidate: RunSet) -> str:
+    pairs = _paired_runs(baseline, candidate)
+    if not pairs:
+        return "not evaluated"
+    changed = sum(
+        int(base.recommendation != cand.recommendation)
+        + int(base.outcome != cand.outcome)
+        for base, cand in pairs
+    )
+    noun = "field" if changed == 1 else "fields"
+    return f"{changed} decision {noun} changed"
+
+
+def _decision_delta_state(baseline: RunSet, candidate: RunSet) -> str:
+    pairs = _paired_runs(baseline, candidate)
+    if not pairs:
+        return GateState.not_evaluated.value
+    if _decision_delta_value(baseline, candidate).startswith("0 "):
+        return "no drift"
+    return "changed"
+
+
+def _decision_delta_note(baseline: RunSet, candidate: RunSet) -> str:
+    pairs = _paired_runs(baseline, candidate)
+    if not pairs:
+        return "recommendation/outcome fields were not paired"
+    case_count = len(pairs)
+    noun = "case" if case_count == 1 else "cases"
+    return f"recommendation/outcome across {case_count} {noun}"
+
+
+def _decision_delta_tone(baseline: RunSet, candidate: RunSet) -> str:
+    return "good" if _decision_delta_state(baseline, candidate) == "no drift" else "bad"
+
+
+def _evidence_invariant_value(
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+    process_state: str,
+) -> str:
+    if missing_links:
+        return _missing_link_card_value(missing_links)
+    if process_state in {"caught", "observed"}:
+        return "failed"
+    return "not observed"
+
+
+def _evidence_invariant_state(
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+    process_state: str,
+) -> str:
+    if missing_links or process_state in {"caught", "observed"}:
+        return "failed invariant"
+    return process_state
+
+
+def _evidence_invariant_tone(state: str) -> str:
+    if state == "failed invariant":
+        return "bad"
+    if state in {"not observed", "not evaluated"}:
+        return "good"
+    return "warn"
+
+
+def _evidence_invariant_note(finding: Finding | None) -> str:
+    control = _finding_control(finding)
+    return f"control: {control}"
+
+
+def _decision_output_value(baseline: RunSet, candidate: RunSet) -> str:
+    pairs = _paired_runs(baseline, candidate)
+    if not pairs:
+        return "not evaluated"
+    base, cand = pairs[0]
+    if base.recommendation == base.outcome == cand.recommendation == cand.outcome:
+        return f"{base.outcome} → {cand.outcome}"
+    return f"{base.recommendation}/{base.outcome} → {cand.recommendation}/{cand.outcome}"
+
+
+def _missing_link_card_value(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> str:
+    if not missing_links:
+        return "none observed"
+    first = missing_links[0]
+    return f"{first.claim_id} → none"
+
+
+def _primary_finding(summary: EvaluationSummary) -> Finding | None:
+    return summary.findings[0] if summary.findings else None
+
+
+def _finding_control(finding: Finding | None) -> str:
+    return finding.control_id if finding is not None else "process invariant layer"
+
+
 def _verdict_section(
     *,
     verdict: ReportVerdict,
     title: str,
+    baseline: RunSet,
+    candidate: RunSet,
     visible_state: str,
     process_state: str,
     ci_gate_result: str,
+    candidate_summary: EvaluationSummary,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
     affected_summary: ProcessAffectedSummary,
 ) -> str:
-    affected_value = _process_scope_value(affected_summary)
-    affected_note = _process_scope_note(affected_summary)
-    return "\n".join(
-        (
-            '<section class="hero" aria-labelledby="report-verdict">',
-            '<p class="eyebrow">agent-assure evidence diff</p>',
-            f'<h1 id="report-verdict">{_h(verdict.headline)}</h1>',
-            f'<p class="subtitle">{_h(THESIS_TITLE)}</p>',
-            _report_label(title),
-            f'<p class="verdict-sentence">{_h(verdict.sentence)}</p>',
-            '<div class="signal-grid">',
-            _signal("Decision fields", visible_state, "recommendation and outcome"),
-            _signal("Process regression", process_state, "process invariant layer"),
-            _signal(
-                "Process scope",
-                affected_value,
-                affected_note,
-                state="failed invariant"
-                if affected_summary.missing_link_count
-                else "observed"
-                if affected_summary.case_ids or affected_summary.unscoped_finding_count
-                else "not observed",
-            ),
-            _signal("CI gate", ci_gate_result, "control response"),
-            "</div>",
+    headline = _hero_headline(verdict, visible_state, ci_gate_result, missing_links)
+    gate_value = (
+        "blocked as designed" if ci_gate_result == "blocked" else ci_gate_result
+    )
+    finding = _primary_finding(candidate_summary)
+    subheading = _hero_subheading(visible_state, missing_links)
+    evidence_state = _evidence_invariant_state(missing_links, process_state)
+    return _page(
+        "hero-page",
+        1,
+        "\n".join(
             (
-                '<p class="status-legend">'
-                "Blue control states mean the gate caught or blocked candidate risk; "
-                "red states mark the underlying regression."
-                "</p>"
-            ),
-            "</section>",
-        )
+                '<section class="hero" aria-labelledby="report-verdict">',
+                '<div class="hero-copy">',
+                '<p class="eyebrow">Agent Assure Evidence Diff</p>',
+                f'<h1 id="report-verdict">{_h(headline)}</h1>',
+                f'<p class="subtitle">{_h(subheading)}</p>',
+                _hero_meta(verdict, title),
+                "</div>",
+                '<div class="signal-grid">',
+                _signal_card(
+                    "Decision output",
+                    _decision_output_value(baseline, candidate),
+                    visible_state,
+                    "recommendation and outcome stayed aligned",
+                    "good" if visible_state == "preserved" else "bad",
+                ),
+                _signal_card(
+                    "Decision-field delta",
+                    _decision_delta_value(baseline, candidate),
+                    _decision_delta_state(baseline, candidate),
+                    _decision_delta_note(baseline, candidate),
+                    _decision_delta_tone(baseline, candidate),
+                ),
+                _signal_card(
+                    "Evidence invariant",
+                    _evidence_invariant_value(missing_links, process_state),
+                    evidence_state,
+                    _evidence_invariant_note(finding),
+                    _evidence_invariant_tone(evidence_state),
+                ),
+                _signal_card(
+                    "CI gate",
+                    gate_value,
+                    "blocked" if ci_gate_result == "blocked" else ci_gate_result,
+                    "candidate release stopped before merge",
+                    "expected" if ci_gate_result == "blocked" else "warn",
+                ),
+                "</div>",
+                _executive_extract(
+                    visible_state=visible_state,
+                    ci_gate_result=ci_gate_result,
+                    finding=finding,
+                    missing_links=missing_links,
+                    affected_summary=affected_summary,
+                ),
+                "</section>",
+            )
+        ),
     )
 
 
@@ -279,7 +558,7 @@ def _key_finding_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> 
                 "</p>"
             ),
             '<div class="table-wrap">',
-            "<table>",
+            '<table class="key-finding-table">',
             "<thead><tr>"
             "<th>Case</th><th>Material claim</th><th>Baseline link</th>"
             "<th>Candidate link</th><th>Reason</th>"
@@ -359,28 +638,209 @@ def _process_diff_section(
         )
     )
     body = rows or '<tr><td colspan="6" class="empty">No runs were recorded.</td></tr>'
+    return _page(
+        "diff-page",
+        2,
+        "\n".join(
+            (
+                '<section class="process-diff-section" aria-labelledby="process-evidence-diff">',
+                '<p class="eyebrow">The diff that matters</p>',
+                '<h2 id="process-evidence-diff">Process Evidence Diff</h2>',
+                (
+                    "<p class=\"section-lede\">"
+                    "Same final approval, different governed path. Agent Assure compares "
+                    "the process evidence around the decision, not just the visible answer."
+                    "</p>"
+                ),
+                _evidence_link_diagram(missing_links, ci_gate_state="candidate blocked"),
+                _key_finding_section(missing_links),
+                (
+                    "<p class=\"section-note\">"
+                    "Process-affected cases are sourced from candidate findings and missing "
+                    "material-claim evidence links, not from preserved decision fields."
+                    f"{_unscoped_finding_note(affected_summary)}"
+                    "</p>"
+                ),
+                '<div class="table-wrap">',
+                '<table class="process-diff-table wide-table">',
+                "<thead><tr>"
+                "<th>Case</th><th>Process status</th><th>Decision fields</th>"
+                "<th>Changed fields</th><th>Process findings</th><th>Claim-evidence links</th>"
+                "</tr></thead>",
+                f"<tbody>{body}</tbody>",
+                "</table>",
+                "</div>",
+                "</section>",
+            )
+        ),
+    )
+
+
+def _evidence_link_diagram(
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+    *,
+    ci_gate_state: str,
+) -> str:
+    if missing_links:
+        diff = missing_links[0]
+        baseline_value = _inline_values(diff.baseline_evidence_refs)
+        candidate_value = '<span class="empty">none</span>'
+        claim = _h(diff.claim_id)
+    else:
+        baseline_value = '<span class="empty">none observed</span>'
+        candidate_value = '<span class="empty">none observed</span>'
+        claim = "material-claim"
     return "\n".join(
         (
-            '<section class="process-diff-section" aria-labelledby="process-evidence-diff">',
-            '<h2 id="process-evidence-diff">Process Evidence Diff</h2>',
             (
-                "<p class=\"section-note\">"
-                "Process-affected cases are sourced from candidate findings and missing "
-                "material-claim evidence links, not from preserved decision fields."
-                f"{_unscoped_finding_note(affected_summary)}"
-                "</p>"
+                '<div class="evidence-diagram" '
+                'aria-label="Baseline and candidate evidence-link comparison">'
             ),
-            '<div class="table-wrap">',
-            '<table class="process-diff-table wide-table">',
-            "<thead><tr>"
-            "<th>Case</th><th>Process status</th><th>Decision fields</th>"
-            "<th>Changed fields</th><th>Process findings</th><th>Claim-evidence links</th>"
-            "</tr></thead>",
-            f"<tbody>{body}</tbody>",
-            "</table>",
+            '<div class="diagram-row diagram-row-good">',
+            '<div class="diagram-label">Baseline Process</div>',
+            (
+                '<div class="diagram-chain">'
+                f'<code>{claim}</code><span class="diagram-arrow">→</span>{baseline_value}'
+                "</div>"
+            ),
+            (
+                '<div class="diagram-state"><span aria-hidden="true">&#10003;</span> '
+                "material claim has evidence</div>"
+            ),
             "</div>",
-            "</section>",
+            '<div class="diagram-row diagram-row-bad">',
+            '<div class="diagram-label">Candidate Process</div>',
+            (
+                '<div class="diagram-chain">'
+                f'<code>{claim}</code><span class="diagram-arrow">→</span>{candidate_value}'
+                "</div>"
+            ),
+            (
+                '<div class="diagram-state"><span aria-hidden="true">&#10005;</span> '
+                "material claim evidence link missing</div>"
+            ),
+            "</div>",
+            '<div class="diagram-row diagram-row-gate">',
+            '<div class="diagram-label">CI Gate</div>',
+            (
+                '<div class="diagram-chain"><strong>control response</strong>'
+                '<span class="diagram-arrow">→</span><code>blocked</code></div>'
+            ),
+            (
+                '<div class="diagram-state"><span aria-hidden="true">&#9632;</span> '
+                f"{_h(ci_gate_state)}</div>"
+            ),
+            "</div>",
+            "</div>",
         )
+    )
+
+
+def _decision_review_page(
+    baseline: RunSet,
+    candidate: RunSet,
+    visible_state: str,
+    baseline_summary: EvaluationSummary,
+    candidate_summary: EvaluationSummary,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+) -> str:
+    return _page(
+        "decision-page",
+        3,
+        "\n".join(
+            (
+                '<section class="page-intro" aria-labelledby="decision-review">',
+                '<p class="eyebrow">Decision preserved, process failed</p>',
+                '<h2 id="decision-review">Visible Output Stayed Stable</h2>',
+                (
+                    '<p class="section-lede">'
+                    "The business decision did not change. The governance evidence "
+                    "around that decision did."
+                    "</p>"
+                ),
+                "</section>",
+                _final_output_section(
+                    baseline,
+                    candidate,
+                    visible_state,
+                    baseline_summary,
+                    candidate_summary,
+                ),
+                _findings_section(candidate_summary.findings, missing_links),
+            )
+        ),
+    )
+
+
+def _technical_evidence_page(
+    baseline: RunSet,
+    candidate: RunSet,
+    missing_links: tuple[MissingEvidenceLinkDiff, ...],
+) -> str:
+    return _page(
+        "technical-page",
+        4,
+        "\n".join(
+            (
+                '<section class="page-intro" aria-labelledby="technical-evidence">',
+                '<p class="eyebrow">Technical appendix</p>',
+                '<h2 id="technical-evidence">Before and After Traceability Detail</h2>',
+                (
+                    '<p class="section-lede">'
+                    "Engineers can inspect the exact claim IDs, linked evidence refs, "
+                    "policy states, provider/model fields, and tool names used in the run."
+                    "</p>"
+                ),
+                "</section>",
+                _missing_evidence_section(missing_links),
+                _process_evidence_section(
+                    "baseline-process",
+                    "Full Baseline Process Evidence",
+                    baseline,
+                    section_class="technical-detail",
+                ),
+                _process_evidence_section(
+                    "candidate-process",
+                    "Full Candidate Process Evidence",
+                    candidate,
+                    section_class="technical-detail",
+                ),
+            )
+        ),
+    )
+
+
+def _evidence_packet_page(
+    comparison_summary: ComparisonSummary,
+    ci_gate_result: str,
+    packet: EvidencePacket | None,
+    artifact_paths: Mapping[str, PathValue] | None,
+) -> str:
+    return _page(
+        "packet-page",
+        5,
+        "\n".join(
+            (
+                '<section class="page-intro" aria-labelledby="packet-proof">',
+                '<p class="eyebrow">Evidence packet appendix</p>',
+                '<h2 id="packet-proof">Release Proofs for Review</h2>',
+                (
+                    '<p class="section-lede">'
+                    "Fixture equivalence, artifact paths, and SHA-256 digests make the "
+                    "blocking decision reproducible without exposing local machine paths."
+                    "</p>"
+                ),
+                "</section>",
+                '<div class="packet-grid">',
+                _comparison_section(comparison_summary),
+                _fixture_equivalence_section(comparison_summary),
+                _ci_gate_section(ci_gate_result, packet),
+                _claim_boundary_section(),
+                "</div>",
+                _artifact_paths_section(artifact_paths),
+                _artifact_digests_section(packet),
+            )
+        ),
     )
 
 
@@ -580,151 +1040,382 @@ def _css() -> str:
     return """
 :root {
   color-scheme: light;
-  --bg: #f6f8fb;
-  --panel: #ffffff;
-  --panel-muted: #f8fafc;
-  --text: #14202b;
-  --muted: #566575;
-  --subtle: #748292;
-  --border: #d8e1eb;
-  --border-strong: #b8c6d6;
-  --slate: #263445;
-  --green: #12613a;
+  --screen: #dfe7f0;
+  --page: #ffffff;
+  --panel: #f8fafc;
+  --panel-strong: #eef4f8;
+  --ink: #111827;
+  --muted: #536171;
+  --subtle: #718096;
+  --border: #d5deea;
+  --border-strong: #aebdcb;
+  --navy: #0d1b2a;
+  --slate: #1b2b3f;
+  --teal: #0f766e;
+  --teal-bg: #e6f6f3;
+  --teal-border: #8ed4cc;
+  --green: #166534;
   --green-bg: #e8f6ee;
-  --green-border: #9dd7b4;
-  --red: #982626;
-  --red-bg: #fdecec;
-  --red-border: #efb4b4;
-  --amber: #805000;
-  --amber-bg: #fff5db;
-  --amber-border: #e7c66d;
-  --blue: #0f5e73;
-  --blue-bg: #e7f5f8;
-  --blue-border: #9ecfd9;
-  --shadow: 0 12px 28px rgba(20, 32, 43, 0.08);
+  --green-border: #8fcaa7;
+  --red: #b42318;
+  --red-bg: #fff1f0;
+  --red-border: #f2ada7;
+  --amber: #8a5a00;
+  --amber-bg: #fff7df;
+  --amber-border: #eac96b;
+  --blue: #155e75;
+  --blue-bg: #e6f5f8;
+  --blue-border: #91cdd9;
+  --shadow: 0 18px 45px rgba(13, 27, 42, 0.16);
   font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-  line-height: 1.45;
+  line-height: 1.42;
 }
 * {
   box-sizing: border-box;
 }
 body {
   margin: 0;
-  color: var(--text);
-  background: var(--bg);
+  color: var(--ink);
+  background: var(--screen);
 }
 main {
-  max-width: 1240px;
+  width: min(100%, 11.5in);
   margin: 0 auto;
-  padding: 30px 22px 56px;
+  padding: 26px 18px 46px;
 }
-h1, h2 {
-  color: #0f1720;
+h1,
+h2,
+h3 {
   letter-spacing: 0;
 }
 h1 {
-  max-width: 920px;
-  font-size: 42px;
+  max-width: 820px;
+  font-size: 48px;
   line-height: 1.08;
-  margin: 0 0 10px;
+  margin: 0;
+  text-wrap: balance;
 }
 h2 {
-  font-size: 20px;
+  font-size: 22px;
   line-height: 1.2;
-  margin: 0 0 14px;
+  margin: 0 0 10px;
+}
+p {
+  margin: 0;
+}
+.page {
+  width: 11in;
+  max-width: 100%;
+  min-height: 8.5in;
+  margin: 0 auto 24px;
+  padding: 0.42in;
+  display: flex;
+  flex-direction: column;
+  background: var(--page);
+  border: 1px solid rgba(174, 189, 203, 0.7);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  page-break-after: always;
+  break-after: page;
+}
+.page:last-child {
+  page-break-after: auto;
+  break-after: auto;
+}
+.page > section + section {
+  margin-top: 16px;
 }
 .eyebrow {
   margin: 0 0 10px;
-  color: var(--blue);
+  color: var(--teal);
   font-size: 12px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   text-transform: uppercase;
 }
 .subtitle {
-  max-width: 780px;
-  margin: 0 0 8px;
-  color: var(--muted);
+  max-width: 760px;
+  margin: 18px 0 0;
+  color: rgba(255, 255, 255, 0.88);
   font-size: 18px;
-  font-weight: 650;
+  font-weight: 600;
 }
 .report-label {
-  margin: 0 0 14px;
-  color: var(--subtle);
+  margin: 12px 0 0;
+  color: rgba(255, 255, 255, 0.78);
 }
-.verdict-sentence {
-  max-width: 900px;
-  margin: 18px 0 22px;
-  color: #263445;
-  font-size: 18px;
+.hero-page {
+  color: #ffffff;
+  background: var(--navy);
+  border-color: #24364c;
 }
-section {
-  padding: 28px 0;
-  border-top: 1px solid var(--border);
+.hero-page h1,
+.hero-page h2 {
+  color: #ffffff;
 }
 .hero {
   border-top: 0;
-  padding: 8px 0 30px;
+  padding: 0;
+}
+.hero-copy {
+  max-width: 920px;
+}
+.hero .eyebrow {
+  color: #78d6ce;
+}
+.hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+  align-items: center;
+  max-width: 900px;
+  margin: 22px 0 0;
+}
+.hero-meta span {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 12px;
+  font-weight: 750;
+  text-transform: uppercase;
+}
+.hero-meta strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-size: 13px;
 }
 .signal-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 14px;
-  margin: 0 0 14px;
+  gap: 12px;
+  margin: 28px 0 0;
 }
 .signal {
-  min-height: 118px;
-  padding: 16px;
-  border: 1px solid var(--border);
+  min-height: 146px;
+  padding: 15px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 8px;
-  background: var(--panel);
-  box-shadow: var(--shadow);
+  background: rgba(255, 255, 255, 0.08);
+  display: grid;
+  grid-template-rows: auto auto auto auto 1fr;
+  align-content: start;
+  gap: 7px;
+}
+.signal-icon {
+  width: 28px;
+  height: 28px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  font-weight: 900;
+}
+.signal-good .signal-icon {
+  color: #8ee0a8;
+}
+.signal-bad .signal-icon {
+  color: #ffaca5;
+}
+.signal-expected .signal-icon {
+  color: #7dd3fc;
+}
+.signal-warn .signal-icon {
+  color: #f5cf70;
 }
 .signal-label {
   display: block;
-  margin-bottom: 10px;
-  color: var(--muted);
+  color: rgba(255, 255, 255, 0.8);
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 760;
 }
 .signal-value {
+  display: block;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  color: #ffffff;
+  font-size: 21px;
+  font-weight: 800;
+}
+.signal-state {
   display: inline-block;
-  margin-bottom: 10px;
-  font-size: 20px;
+  width: fit-content;
+  align-self: start;
+  justify-self: start;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+  font-size: 12px;
   font-weight: 800;
 }
 .signal-note {
   display: block;
-  color: var(--subtle);
+  color: rgba(255, 255, 255, 0.76);
   font-size: 12px;
+}
+.hero-summary-row {
+  display: grid;
+  grid-template-columns: 1.25fr 0.8fr;
+  gap: 28px;
+  margin-top: 24px;
+  padding-top: 20px;
+  border-top: 1px solid rgba(142, 212, 204, 0.28);
+}
+.executive-extract,
+.trust-boundary-note {
+  min-width: 0;
+}
+.executive-extract h2,
+.trust-boundary-note h2 {
+  margin: 0 0 8px;
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 14px;
+  text-transform: uppercase;
+}
+.executive-extract ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.executive-extract li {
+  margin: 5px 0;
+  color: rgba(255, 255, 255, 0.84);
+  font-size: 14px;
+}
+.executive-extract strong {
+  color: #ffffff;
+}
+.trust-boundary-note p {
+  color: rgba(255, 255, 255, 0.82);
+  font-size: 13px;
+}
+.trust-boundary-note p + p {
+  margin-top: 10px;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 12px;
+}
+.page-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: auto;
+  padding-top: 18px;
+  color: var(--subtle);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.hero-page .page-footer {
+  color: rgba(255, 255, 255, 0.58);
+}
+.page-number {
+  white-space: nowrap;
+}
+.section-lede {
+  max-width: 840px;
+  color: var(--muted);
+  font-size: 16px;
+  font-weight: 580;
 }
 .status-legend,
 .section-note {
-  margin: 8px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
   font-size: 14px;
 }
+.decision-section,
 .key-finding,
-.claim-boundary,
 .findings-section,
-.ci-gate-section {
-  margin: 0 0 6px;
-  padding: 22px;
+.missing-link-section,
+.technical-detail,
+.appendix-section,
+.ci-gate-section,
+.claim-boundary,
+.packet-grid section {
+  padding: 16px;
   border: 1px solid var(--border);
-  border-left: 6px solid var(--red);
   border-radius: 8px;
-  background: var(--panel);
-  box-shadow: 0 8px 22px rgba(20, 32, 43, 0.05);
+  background: #ffffff;
+}
+.page-intro {
+  padding: 0 0 4px;
+}
+.process-diff-section {
+  padding: 0;
+}
+.key-finding,
+.findings-section {
+  border-left: 5px solid var(--red);
 }
 .key-finding-clear {
   border-left-color: var(--green);
 }
 .claim-boundary {
-  border-left-color: var(--slate);
-  background: var(--panel-muted);
+  border-left: 5px solid var(--slate);
+  background: var(--panel);
 }
 .ci-gate-section {
-  border-left-color: var(--blue);
+  border-left: 5px solid var(--blue);
+  background: var(--blue-bg);
+  border-color: var(--blue-border);
+}
+.evidence-diagram {
+  display: grid;
+  gap: 10px;
+  margin: 20px 0 16px;
+}
+.diagram-row {
+  display: grid;
+  grid-template-columns: 170px minmax(0, 1fr) 280px;
+  align-items: center;
+  gap: 14px;
+  min-height: 72px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.diagram-row-good {
+  border-left: 5px solid var(--green);
+}
+.diagram-row-bad {
+  border-left: 5px solid var(--red);
+}
+.diagram-row-gate {
+  border-left: 5px solid var(--blue);
+  background: var(--blue-bg);
+}
+.diagram-label {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 850;
+  text-transform: uppercase;
+}
+.diagram-chain {
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--ink);
+  font-size: 17px;
+  font-weight: 780;
+}
+.diagram-arrow {
+  color: var(--subtle);
+  font-weight: 900;
+}
+.diagram-state {
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 760;
+}
+.diagram-row-good .diagram-state {
+  color: var(--green);
+}
+.diagram-row-bad .diagram-state {
+  color: var(--red);
+}
+.diagram-row-gate .diagram-state {
+  color: var(--blue);
 }
 .section-heading-row {
   display: flex;
@@ -755,7 +1446,7 @@ section {
 .summary-grid,
 dl {
   display: grid;
-  grid-template-columns: minmax(180px, 280px) 1fr;
+  grid-template-columns: minmax(170px, 260px) 1fr;
   gap: 8px 16px;
   margin: 0 0 16px;
 }
@@ -765,6 +1456,7 @@ dt {
 }
 dd {
   margin: 0;
+  min-width: 0;
 }
 table {
   width: 100%;
@@ -774,25 +1466,26 @@ table {
   border: 1px solid var(--border);
   border-radius: 8px;
   overflow: hidden;
-  background: var(--panel);
+  background: #ffffff;
 }
 th, td {
-  padding: 11px 12px;
+  padding: 9px 10px;
   border-bottom: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
-  overflow-wrap: anywhere;
+  overflow-wrap: break-word;
 }
 td + td,
 th + th {
   border-left: 1px solid var(--border);
 }
 th {
-  color: #253244;
-  background: #edf3f8;
+  color: #243244;
+  background: var(--panel-strong);
   font-size: 12px;
   font-weight: 800;
   text-transform: uppercase;
+  hyphens: none;
 }
 tbody tr:nth-child(even) td {
   background: #fbfdff;
@@ -808,30 +1501,41 @@ tbody tr:last-child td {
   background: #fff8f8;
 }
 .process-diff-table td {
-  min-width: 140px;
+  min-width: 0;
 }
 .wide-table {
   min-width: 760px;
 }
 .process-diff-table {
-  min-width: 1040px;
+  min-width: 0;
 }
 .process-evidence-table {
-  min-width: 1120px;
+  min-width: 1040px;
 }
 .cell-value {
   min-width: 0;
 }
 code {
   display: inline-block;
+  max-width: 100%;
   margin: 1px 0;
   padding: 1px 5px;
   border: 1px solid #dbe3ec;
   border-radius: 5px;
   color: #1d2b3a;
-  background: #f4f7fa;
+  background: #f6f8fb;
   font-family: Consolas, Monaco, monospace;
   font-size: 0.92em;
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+code.wrap-token {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+.process-diff-table code {
+  font-size: 0.82em;
 }
 .state-good {
   color: var(--green);
@@ -857,15 +1561,20 @@ code {
 .state-bad,
 .state-warn,
 .state-expected {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
   padding: 3px 9px;
   border: 1px solid;
-  border-radius: 8px;
+  border-radius: 6px;
   font-weight: 800;
   white-space: nowrap;
+  line-height: 1.25;
 }
 .diff-pair {
   display: grid;
-  grid-template-columns: 84px 1fr;
+  grid-template-columns: 72px minmax(0, 1fr);
   gap: 4px 10px;
 }
 .diff-label {
@@ -882,6 +1591,9 @@ code {
   border-radius: 5px;
   color: var(--red);
   background: var(--red-bg);
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
 }
 .diff-removed-token {
   text-decoration: line-through;
@@ -898,6 +1610,10 @@ code {
   margin: 6px 0 0;
   padding-left: 18px;
 }
+.value-list li {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
 .value-count {
   color: var(--muted);
   font-weight: 700;
@@ -913,45 +1629,230 @@ code {
 .empty {
   color: var(--subtle);
 }
+.packet-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0 0 16px;
+}
+.packet-grid section {
+  min-width: 0;
+}
+.appendix-section code,
+.packet-grid code,
+.value-list code {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+@media screen {
+  .process-diff-table {
+    border: 0;
+    background: transparent;
+  }
+  .process-diff-table thead {
+    display: none;
+  }
+  .process-diff-table,
+  .process-diff-table tbody,
+  .process-diff-table tr,
+  .process-diff-table td {
+    display: block;
+  }
+  .process-diff-table tr {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 10px;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-left: 5px solid var(--red);
+    border-radius: 8px;
+    background: #fff8f8;
+  }
+  .process-diff-table td {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    gap: 6px;
+    min-width: 0;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #ffffff;
+    overflow: hidden;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .process-diff-table td + td {
+    border-left: 1px solid var(--border);
+  }
+  .process-diff-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 850;
+    text-transform: uppercase;
+  }
+  .process-diff-table td:nth-child(5),
+  .process-diff-table td:nth-child(6) {
+    grid-column: span 2;
+  }
+  .process-diff-table td:nth-child(5) {
+    border-color: var(--red-border);
+    background: #fffafa;
+  }
+  .process-diff-table .cell-value,
+  .process-diff-table .diff-pair > span {
+    min-width: 0;
+  }
+  .process-diff-table code {
+    font-size: 0.86em;
+  }
+  .process-diff-table .diff-pair {
+    grid-template-columns: 78px minmax(0, 1fr);
+  }
+}
 @media (max-width: 1120px) {
   .signal-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .diagram-row {
+    grid-template-columns: 150px minmax(0, 1fr);
+  }
+  .diagram-state {
+    grid-column: 2;
+  }
 }
-@media (max-width: 760px) {
+@media (max-width: 820px) {
   main {
-    padding: 22px 14px 42px;
+    padding: 18px 10px 34px;
+  }
+  .page {
+    min-height: auto;
+    padding: 22px;
   }
   h1 {
-    font-size: 31px;
+    font-size: 34px;
   }
   .signal-grid,
+  .hero-summary-row,
+  .packet-grid,
   dl {
     grid-template-columns: 1fr;
   }
-  .key-finding,
-  .claim-boundary,
-  .findings-section,
-  .ci-gate-section {
-    padding: 18px;
+  .diagram-row {
+    grid-template-columns: 1fr;
+  }
+  .diagram-state {
+    grid-column: auto;
+  }
+  .key-finding-table,
+  .process-diff-table,
+  .process-evidence-table {
+    min-width: 0;
+    border: 0;
+    background: transparent;
+  }
+  .key-finding-table thead,
+  .process-diff-table thead,
+  .process-evidence-table thead {
+    display: none;
+  }
+  .key-finding-table,
+  .key-finding-table tbody,
+  .key-finding-table tr,
+  .key-finding-table td,
+  .process-diff-table,
+  .process-diff-table tbody,
+  .process-diff-table tr,
+  .process-diff-table td,
+  .process-evidence-table,
+  .process-evidence-table tbody,
+  .process-evidence-table tr,
+  .process-evidence-table td {
+    display: block;
+  }
+  .key-finding-table tr,
+  .process-diff-table tr,
+  .process-evidence-table tr {
+    margin: 0 0 12px;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+  .key-finding-table td,
+  .process-diff-table td,
+  .process-evidence-table td {
+    display: grid;
+    grid-template-columns: 132px minmax(0, 1fr);
+    gap: 8px;
+    min-width: 0;
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .key-finding-table td + td,
+  .process-diff-table td + td,
+  .process-evidence-table td + td {
+    border-left: 0;
+  }
+  .key-finding-table td:last-child,
+  .process-diff-table td:last-child,
+  .process-evidence-table td:last-child {
+    border-bottom: 0;
+  }
+  .key-finding-table td::before,
+  .process-diff-table td::before,
+  .process-evidence-table td::before {
+    content: attr(data-label);
+    color: var(--muted);
+    font-weight: 800;
+  }
+  .key-finding-table .cell-value,
+  .process-diff-table .cell-value,
+  .process-evidence-table .cell-value {
+    min-width: 0;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .process-diff-table td {
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    border-radius: 0;
+    background: #ffffff;
+  }
+  .process-diff-table td:nth-child(5),
+  .process-diff-table td:nth-child(6) {
+    grid-column: auto;
+  }
+  .process-diff-table td:nth-child(5) {
+    background: #fff8f8;
+  }
+  .key-finding-table code {
+    white-space: normal;
+    overflow-wrap: anywhere;
   }
 }
 @media print {
+  @page {
+    size: letter landscape;
+    margin: 0;
+  }
   body {
     background: #ffffff;
   }
   main {
-    max-width: none;
+    width: auto;
     padding: 0;
   }
-  section,
-  .signal,
-  .key-finding,
-  .claim-boundary,
-  .findings-section,
-  .ci-gate-section {
-    break-inside: avoid;
+  .page {
+    width: 11in;
+    min-height: 8.5in;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
     box-shadow: none;
+    break-inside: avoid;
   }
   .table-wrap {
     overflow: visible;
@@ -966,65 +1867,6 @@ code {
   }
   .wide-table {
     min-width: 0;
-  }
-  .process-diff-table,
-  .process-evidence-table {
-    min-width: 0;
-    border: 0;
-    background: transparent;
-  }
-  .process-diff-table thead,
-  .process-evidence-table thead {
-    display: none;
-  }
-  .process-diff-table,
-  .process-diff-table tbody,
-  .process-diff-table tr,
-  .process-diff-table td,
-  .process-evidence-table,
-  .process-evidence-table tbody,
-  .process-evidence-table tr,
-  .process-evidence-table td {
-    display: block;
-  }
-  .process-diff-table tr,
-  .process-evidence-table tr {
-    margin: 0 0 12px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    background: var(--panel);
-    break-inside: avoid;
-  }
-  .process-diff-table td,
-  .process-evidence-table td {
-    display: grid;
-    grid-template-columns: 132px minmax(0, 1fr);
-    gap: 8px;
-    min-width: 0;
-    padding: 8px 10px;
-    border-bottom: 1px solid var(--border);
-    overflow-wrap: normal;
-    word-break: normal;
-  }
-  .process-diff-table td + td,
-  .process-evidence-table td + td {
-    border-left: 0;
-  }
-  .process-diff-table td:last-child,
-  .process-evidence-table td:last-child {
-    border-bottom: 0;
-  }
-  .process-diff-table td::before,
-  .process-evidence-table td::before {
-    content: attr(data-label);
-    color: var(--muted);
-    font-weight: 800;
-  }
-  .process-diff-table .cell-value,
-  .process-evidence-table .cell-value {
-    min-width: 0;
-    overflow-wrap: normal;
-    word-break: normal;
   }
   .process-diff-table code,
   .process-evidence-table code,
@@ -1410,14 +2252,28 @@ def _regression_badge(count: int) -> str:
 
 
 def _key_finding_row(diff: MissingEvidenceLinkDiff) -> str:
-    return (
-        "<tr>"
-        f"<td>{_h(diff.case_id)}</td>"
-        f"<td><code>{_h(diff.claim_id)}</code></td>"
-        f"<td>{_link_expression(diff.claim_id, diff.baseline_evidence_refs)}</td>"
-        f"<td>{_link_expression(diff.claim_id, diff.candidate_evidence_refs)}</td>"
-        f"<td><code>{_h(ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value)}</code></td>"
-        "</tr>"
+    return "".join(
+        (
+            "<tr>",
+            _labeled_cell("Case", _h(diff.case_id)),
+            _labeled_cell("Material claim", f"<code>{_h(diff.claim_id)}</code>"),
+            _labeled_cell(
+                "Baseline link",
+                _link_expression(diff.claim_id, diff.baseline_evidence_refs),
+            ),
+            _labeled_cell(
+                "Candidate link",
+                _link_expression(diff.claim_id, diff.candidate_evidence_refs),
+            ),
+            _labeled_cell(
+                "Reason",
+                (
+                    '<code class="wrap-token">'
+                    f"{_h(ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value)}</code>"
+                ),
+            ),
+            "</tr>",
+        )
     )
 
 
@@ -1449,7 +2305,7 @@ def _visible_output_row(
         f"<td>{_h(candidate.recommendation if candidate else '<missing>')}</td>"
         f"<td>{_h(baseline.outcome if baseline else '<missing>')}</td>"
         f"<td>{_h(candidate.outcome if candidate else '<missing>')}</td>"
-        f'<td class="{_state_class(state)}">{_h(state)}</td>'
+        f"<td>{_status_badge(state)}</td>"
         "</tr>"
     )
 
@@ -1592,7 +2448,7 @@ def _claim_link_summary(
 
 
 def _link_expression(claim_id: str, evidence_refs: tuple[str, ...]) -> str:
-    return f"<code>{_h(claim_id)}</code> -&gt; {_inline_values(evidence_refs)}"
+    return f"<code>{_h(claim_id)}</code> → {_inline_values(evidence_refs)}"
 
 
 def _removed_link_expression(claim_id: str) -> str:
@@ -1600,7 +2456,7 @@ def _removed_link_expression(claim_id: str) -> str:
         '<span class="diff-removed">'
         '<span class="diff-marker">-</span> '
         f'<span class="diff-removed-token"><code>{_h(claim_id)}</code></span>'
-        ' <span>-&gt;</span> <span class="empty">none</span>'
+        ' <span>→</span> <span class="empty">none</span>'
         "</span>"
     )
 
@@ -1670,8 +2526,8 @@ def _finding_row(finding: Finding) -> str:
         f"<td>{_h(finding.case_id or 'unscoped')}</td>"
         f"<td>{_h(finding.control_id)}</td>"
         f"<td>{_h(finding.target)}</td>"
-        f"<td>{_h(finding.reason_code.value)}</td>"
-        f'<td class="{_state_class(finding.state.value)}">{_h(finding.state.value)}</td>'
+        f'<td><code class="wrap-token">{_h(finding.reason_code.value)}</code></td>'
+        f"<td>{_status_badge(finding.state.value)}</td>"
         f"<td>{_h(finding.message)}</td>"
         "</tr>"
     )
@@ -1975,4 +2831,5 @@ def _path_name(value: str) -> str:
 def _h(value: object) -> str:
     redacted = redact_text(str(value))
     without_external_urls = _EXTERNAL_URL_PATTERN.sub("[URL]", redacted)
-    return escape(without_external_urls, quote=True)
+    polished_display = without_external_urls.replace("->", "→")
+    return escape(polished_display, quote=True)

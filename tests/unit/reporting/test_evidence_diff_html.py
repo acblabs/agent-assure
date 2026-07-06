@@ -63,14 +63,32 @@ def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
     assert "state-expected" in html
     assert "Process Evidence Diff" in html
     assert "Process-affected cases are sourced from candidate findings" in html
+    assert "caught:" not in html
     assert 'data-label="Changed fields"' in html
     assert 'data-label="Claim-evidence links"' in html
     assert 'data-label="Provider/model"' in html
+    assert 'class="key-finding-table"' in html
     assert '<div class="cell-value">' in html
     assert "diff-removed-token" in html
+    assert ".key-finding-table td::before" in html
     assert ".process-diff-table td::before" in html
     assert ".process-evidence-table td::before" in html
     assert "content: attr(data-label)" in html
+    assert "@media screen" in html
+    assert "grid-template-columns: repeat(4, minmax(0, 1fr));" in html
+    assert ".process-diff-table td:nth-child(6)" in html
+    assert 'class="wrap-token"' in html
+    assert "code.wrap-token" in html
+    assert ".value-list li" in html
+    assert "grid-template-rows: auto auto auto auto 1fr;" in html
+    assert "align-self: start;" in html
+    assert '<td class="state-good">' not in html
+    assert '<td class="state-bad">' not in html
+    assert "table-layout: fixed" not in html
+    assert "min-width: 1120px" not in html
+    assert "min-width: 300px" not in html
+    assert "code {\n  display: inline-block;" in html
+    assert "white-space: nowrap;" in html
     assert "hyphens: none" in html
     assert "border-radius: 999px" not in html
     assert "claim-duration" in html
