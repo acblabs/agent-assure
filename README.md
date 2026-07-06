@@ -84,6 +84,40 @@ The demo runs offline with bundled deterministic fixtures. It writes local
 review artifacts under `.tmp/demo/flagship` by default, including the generated
 `evidence-diff.html` report previewed above as a PNG.
 
+## How agent-assure is different
+
+`agent-assure` is a local-first assurance layer designed for agentic AI release
+review. It runs where engineering changes are already reviewed, writes evidence
+into the caller's workspace, and can block a PR or release when a declared
+process invariant fails.
+
+| Common governance-tool pattern | `agent-assure` approach |
+| --- | --- |
+| Central hosted dashboard | **Local-first** CLI and workspace files |
+| Separate sign-in and platform workflow | Runs directly from **`pip install`** and CI |
+| Manual or dashboard-driven approval | **Deterministic exit codes** that block PRs or releases |
+| Final-answer or trace-inspection focus | **Process invariants** for evidence, boundaries, routing, redaction, and provenance |
+| Full-lifecycle governance platform | **Focused release-review evidence** and CI gates |
+| Code/text diffs or output-similarity scoring | **Deterministic process invariants**, plus protocol-bound stochastic review for live behavior |
+| Centralized dashboard artifacts | **Portable, versionable artifacts**: JSON, Markdown, static HTML, digests, and evidence packets |
+| Broad trust claims | **Explicit boundary:** measured evidence for human review |
+
+Why it matters:
+
+- **Local-first review:** teams can inspect the evidence packet, Markdown
+  reports, and static HTML diff from the same workspace where the change was
+  built.
+- **CI-native release gates:** the gate logic ships in the package and returns
+  ordinary exit codes, so nothing needs an external service to decide pass or
+  fail.
+- **Process-aware regression checks:** a candidate can keep the same visible
+  decision while losing evidence, changing review routing, or crossing a
+  provider/tool boundary.
+- **Statistical live review:** when live provider behavior is involved,
+  declared protocols preserve repeated observations, clustering, interval
+  bounds, paired tests, drift summaries, and trajectory signals instead of
+  relying only on deterministic diffs or output similarity.
+
 ## For AI leaders
 
 Use `agent-assure` when a team needs release-review evidence that an agent
@@ -91,9 +125,8 @@ change preserved declared expectations around the process, not just the answer.
 
 - It makes hidden process regressions visible: evidence links, review routing,
   provider/tool boundaries, redaction behavior, retries, and provenance.
-- It creates local evidence packets, Markdown reports, and a static HTML
-  evidence diff that reviewers can inspect without a hosted governance
-  platform.
+- It creates evidence packets, Markdown reports, and a static HTML evidence
+  diff that reviewers can inspect, archive, or attach to release review.
 - It complements answer-quality evals. Those evals ask whether the response is
   good; `agent-assure` asks whether the governed path to that response still
   matches the controls reviewers expected.
