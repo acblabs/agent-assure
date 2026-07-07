@@ -166,6 +166,7 @@ def build_run_record_from_observations(
     case_id: str,
     fixture_manifest_digest: DigestHex,
     configuration_digest: DigestHex | None = None,
+    require_observed_final_decision: bool = True,
 ) -> AgentRunRecord:
     ordered = tuple(sorted(observations, key=lambda observation: observation.sequence_number))
     if not ordered:
@@ -187,6 +188,17 @@ def build_run_record_from_observations(
     )
     usage_ledger, usage_summary = _usage_artifacts(usage_segments)
     observation_id = _observation_group_id(ordered)
+    observed_recommendation = _last_observed_attribute(ordered, "recommendation")
+    observed_outcome = _last_observed_attribute(ordered, "outcome")
+    if require_observed_final_decision and (
+        observed_recommendation is None or observed_outcome is None
+    ):
+        raise ValueError(
+            "framework observations must include observed recommendation and outcome "
+            "privacy_filtered_attributes"
+        )
+    recommendation = observed_recommendation or projection.recommendation
+    outcome = observed_outcome or projection.outcome
 
     return AgentRunRecord(
         artifact_kind="agent-run-record",
@@ -197,12 +209,12 @@ def build_run_record_from_observations(
         # metadata produced by the live runner rather than this projection helper.
         execution_mode=ExecutionMode.fixture,
         pipeline_id=projection.pipeline_id,
-        recommendation=projection.recommendation,
-        outcome=projection.outcome,
+        recommendation=recommendation,
+        outcome=outcome,
         input_summary=projection.input_summary
         or f"case={case_id}; framework={ordered[0].framework}; observations={len(ordered)}",
         output_summary=projection.output_summary
-        or f"recommendation={projection.recommendation}; outcome={projection.outcome}",
+        or f"recommendation={recommendation}; outcome={outcome}",
         observation_id=observation_id,
         adapter_id=projection.adapter_id or f"framework:{ordered[0].framework}",
         provider=provider,
@@ -424,6 +436,17 @@ def _last_observed(
     for observation in reversed(observations):
         value = getattr(observation, field_name)
         if isinstance(value, str):
+            return value
+    return None
+
+
+def _last_observed_attribute(
+    observations: tuple[FrameworkObservation, ...],
+    key: str,
+) -> str | None:
+    for observation in reversed(observations):
+        value = observation.privacy_filtered_attributes.get(key)
+        if isinstance(value, str) and value:
             return value
     return None
 

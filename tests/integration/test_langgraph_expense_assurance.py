@@ -54,6 +54,37 @@ def test_langgraph_candidate_preserves_final_answer_and_omits_raw_payloads() -> 
     assert RAW_REQUEST not in json.dumps(candidate.model_dump(mode="json"), sort_keys=True)
 
 
+def test_langgraph_example_records_observed_decision(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    original_decision_node = runner._decision_node
+
+    def missing_langgraph_import() -> object:
+        raise ModuleNotFoundError(
+            "No module named 'langgraph'",
+            name="langgraph",
+        )
+
+    def changed_decision_node(
+        state: runner.ExpenseGraphState,
+    ) -> runner.ExpenseGraphState:
+        node_output = original_decision_node(state)
+        agent_metadata = dict(node_output["agent_assure"])
+        attributes = dict(agent_metadata["privacy_filtered_attributes"])
+        attributes["recommendation"] = "manual_review"
+        attributes["outcome"] = "manual_review"
+        agent_metadata["privacy_filtered_attributes"] = attributes
+        return {"agent_assure": agent_metadata}
+
+    monkeypatch.setattr(runner, "_compiled_langgraph", missing_langgraph_import)
+    monkeypatch.setattr(runner, "_decision_node", changed_decision_node)
+
+    runset = run_variant("candidate_missing_evidence")
+
+    assert runset.runs[0].recommendation == "manual_review"
+    assert runset.runs[0].outcome == "manual_review"
+
+
 def test_langgraph_real_graph_stream_smoke() -> None:
     pytest.importorskip("langgraph.graph")
 

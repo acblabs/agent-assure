@@ -22,7 +22,11 @@ messages, completions, and tool arguments. Application nodes should emit only
 privacy-filtered metadata, using compact labels or digests for
 `privacy_filtered_attributes`, top-level labels such as `provider`, `model`,
 `tool_name`, and `review_route`, and usage labels such as `operation` and
-`cost_basis`, such as:
+`cost_basis`. Use canonical tokens such as `azure-openai`,
+`gpt-4-turbo`, or `manager_review` rather than display labels with spaces.
+For decision nodes, emit the observed final `recommendation` and `outcome` in
+`privacy_filtered_attributes`; static projection values are not treated as
+measured graph output by default. Example:
 
 ```python
 {
@@ -47,7 +51,8 @@ evidence, material claim links, provider/tool boundaries, review routing, and
 redaction controls. Parallel LangGraph update events with multiple node
 updates produce one observation per node when each node carries
 `agent_assure` metadata. Those parallel node observations must use distinct
-`sequence_number` values.
+`sequence_number` values. Stream events without `agent_assure` metadata are
+ignored, and empty `agent_assure` blocks are rejected.
 
 The current projection helper emits fixture-mode review artifacts only. Do not
 use it to label stochastic production traffic as live evidence; protocol-bound

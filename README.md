@@ -101,8 +101,10 @@ provenance drift for review rather than a blocking finding.
 The RAG demo also includes fixture-authored counterfactual query variants for
 the same synthetic decision. Those variants use committed query-vector keys and
 report query digests rather than raw query text; the report separates required
-ref coverage from source-ID and material-claim support, and does not claim to
-prove semantic equivalence between natural-language queries.
+ref coverage from source-ID and material-claim support. Decision equivalence is
+measured on the canonical case only; the paraphrase variants recompute
+retrieval evidence support and do not claim to prove semantic equivalence
+between natural-language queries.
 
 ## How agent-assure is different
 

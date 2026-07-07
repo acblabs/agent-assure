@@ -5,10 +5,12 @@ from pathlib import Path
 
 import pytest
 
+import agent_assure.reporting.environment as environment
 from agent_assure.reporting.environment import (
     artifact_project_root,
     collect_environment,
     release_artifact,
+    source_project_root,
 )
 
 
@@ -38,6 +40,35 @@ def test_artifact_project_root_rejects_cross_drive_artifacts() -> None:
             (Path("C:/agent-assure/suite.json"), Path("Z:/agent-assure-out/report.json")),
             default_root=Path("C:/agent-assure"),
         )
+
+
+def test_source_project_root_prefers_nested_git_root_inside_default(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    default_root = tmp_path / "parent"
+    nested_root = default_root / "workspace"
+    nested_root.mkdir(parents=True)
+    source_paths = (
+        nested_root / "suite.compiled.json",
+        nested_root / "candidate.json",
+    )
+    for path in source_paths:
+        path.write_text("{}\n", encoding="utf-8")
+
+    def fake_git_toplevel(path: Path) -> Path | None:
+        resolved = path.resolve()
+        if _is_relative_to(resolved, nested_root.resolve()):
+            return nested_root.resolve()
+        if _is_relative_to(resolved, default_root.resolve()):
+            return default_root.resolve()
+        return None
+
+    monkeypatch.setattr(environment, "_git_toplevel", fake_git_toplevel)
+
+    root = source_project_root(source_paths, default_root=default_root)
+
+    assert root == nested_root.resolve()
 
 
 def test_environment_dependency_inventory_path_can_use_artifact_root(
@@ -92,3 +123,11 @@ def test_environment_rejects_dependency_inventory_outside_project_root(
             dependency_inventory_path=dependency_inventory,
             dependency_inventory_digest="a" * 64,
         )
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True

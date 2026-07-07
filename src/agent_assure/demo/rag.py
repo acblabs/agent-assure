@@ -343,6 +343,7 @@ def render_rag_text(summary: dict[str, object]) -> str:
             "",
             "Counterfactual RAG robustness:",
             f"  framing: {counterfactual['framing']}",
+            f"  decision measurement: {counterfactual['decision_measurement_scope']}",
             (
                 "  semantic equivalence proven: "
                 f"{str(counterfactual['semantic_equivalence_proven']).lower()}"
@@ -539,6 +540,7 @@ def _build_summary(
         },
         "counterfactual_robustness": {
             "framing": "fixture_author_declared_metamorphic_family",
+            "decision_measurement_scope": "canonical_case_only",
             "semantic_equivalence_proven": False,
             "baseline": [
                 evaluation.report_payload() for evaluation in baseline_counterfactual

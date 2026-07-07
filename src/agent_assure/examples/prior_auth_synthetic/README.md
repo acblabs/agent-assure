@@ -66,5 +66,6 @@ and some committed entries may intentionally share the same vector value. The
 family inherits the canonical case's expected decision, required refs, and
 material claims from `rag_suite.yaml`. agent-assure measures required-ref
 coverage separately from source-ID and material-claim support across the
-declared variants; it does not prove semantic equivalence between
-natural-language queries.
+declared variants. Decision equivalence is measured on the canonical case only;
+the paraphrase variants recompute retrieval evidence support and do not prove
+semantic equivalence between natural-language queries.

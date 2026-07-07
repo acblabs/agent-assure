@@ -16,6 +16,7 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     RAG_CORPUS_VERSION_SKEW_VARIANT_ID,
     RAG_RERANKER_REGRESSION_VARIANT_ID,
     CounterfactualFamilyEvaluation,
+    _int_sequence,
     evaluate_counterfactual_families,
     load_counterfactual_query_families,
     retrieval_diff_summary,
@@ -332,6 +333,22 @@ def test_rag_retrieval_rejects_invalid_score_threshold() -> None:
 
     with pytest.raises(ValueError, match="score_threshold"):
         retrieve_for_variant(EXAMPLE, malformed_request, variant_id=RAG_BASELINE_VARIANT_ID)
+
+
+def test_rag_retrieval_rejects_boolean_top_k() -> None:
+    request = _request()
+    malformed_request = copy.deepcopy(request)
+    retrieval = malformed_request["retrieval"]
+    assert isinstance(retrieval, dict)
+    retrieval["top_k"] = True
+
+    with pytest.raises(TypeError, match="top_k"):
+        retrieve_for_variant(EXAMPLE, malformed_request, variant_id=RAG_BASELINE_VARIANT_ID)
+
+
+def test_rag_vector_integer_sequence_rejects_bool() -> None:
+    with pytest.raises(TypeError, match="vectors.demo"):
+        _int_sequence((1, True, 3), "vectors.demo")
 
 
 def test_rag_retrieval_rejects_invalid_chunk_date_range(tmp_path: Path) -> None:

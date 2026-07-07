@@ -51,8 +51,10 @@ from `rag_suite.yaml`, while declaring RAG-specific source IDs in the family
 fixture. Reported required-ref coverage tracks only those inherited suite refs;
 duration support is also reported through the source-ID and material-claim
 dimensions. The report stores query digests and stable variant IDs, not raw
-query text. This does not prove semantic equivalence; it is fixture evidence
-that retrieval support stayed preserved for an authored query family.
+query text. Decision equivalence is measured on the canonical case only; each
+paraphrase variant recomputes retrieval evidence support, not a separate model
+decision. This does not prove semantic equivalence; it is fixture evidence that
+retrieval support stayed preserved for an authored query family.
 
 Runtime retrieval uses committed JSON artifacts:
 

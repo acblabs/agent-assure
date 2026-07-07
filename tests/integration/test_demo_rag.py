@@ -72,6 +72,7 @@ def test_rag_demo_exits_zero_on_expected_retrieval_regression(tmp_path: Path) ->
 
     counterfactual = cast(dict[str, Any], summary["counterfactual_robustness"])
     assert counterfactual["framing"] == "fixture_author_declared_metamorphic_family"
+    assert counterfactual["decision_measurement_scope"] == "canonical_case_only"
     assert counterfactual["semantic_equivalence_proven"] is False
     baseline_counterfactual = cast(list[dict[str, Any]], counterfactual["baseline"])
     candidate_counterfactual = cast(list[dict[str, Any]], counterfactual["candidate"])

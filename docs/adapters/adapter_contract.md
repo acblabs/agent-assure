@@ -27,13 +27,18 @@ span-context, and adapter-controlled top-level label values such as
 labels, or digests rather than free-text summaries. Usage segment string
 fields that adapters control, such as `operation` and `cost_basis`, follow the
 same compact-token rule. This is a producer contract and validation heuristic,
-not semantic raw-text detection.
+not semantic raw-text detection. Prefer canonical tokens such as
+`azure-openai`, `gpt-4-turbo`, `manager_review`, or `sha256:0123...` over
+display labels with spaces or raw payload fragments.
 
 The helper that projects framework observations into `AgentRunRecord` emits
 fixture-mode review artifacts. It is for deterministic offline or declared
-observation records. Protocol-bound live mode remains the responsibility of
-the live runner because live records require repetition, schedule, cluster,
-budget, and protocol metadata.
+observation records. Final `recommendation` and `outcome` values must be
+observed in privacy-filtered observation attributes; the projection helper does
+not treat static projection values as measured framework output by default.
+Protocol-bound live mode remains the responsibility of the live runner because
+live records require repetition, schedule, cluster, budget, and protocol
+metadata.
 
 ## Producer Duties
 
@@ -49,6 +54,8 @@ An adapter should:
   completion text in usage metadata;
 - map evidence references to explicit `claim_evidence_links` before producing
   an `AgentRunRecord`;
+- emit the observed final `recommendation` and `outcome` as compact
+  privacy-filtered attributes on a decision observation;
 - keep provider, tool, and review-route boundaries observable;
 - treat raw framework payloads as input to the application, not as persisted
   assurance evidence.

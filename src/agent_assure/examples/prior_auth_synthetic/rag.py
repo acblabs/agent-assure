@@ -409,6 +409,8 @@ def retrieve_policy_chunks(
             )[:top_k]
         )
     )
+    # The synthetic demo perturbation runs after top_k so dropped support shrinks
+    # the observed result set instead of backfilling from lower-ranked chunks.
     ranked = _apply_reranker(ranked, reranker_config)
     retrieval_config_digest = sha256_hexdigest(
         {
@@ -1246,7 +1248,7 @@ def _optional_string_tuple(value: object) -> tuple[str, ...] | None:
 
 
 def _positive_int(value: object, label: str) -> int:
-    if not isinstance(value, int) or value <= 0:
+    if isinstance(value, bool) or not isinstance(value, int) or value <= 0:
         raise TypeError(f"{label} must be a positive integer")
     return value
 
@@ -1272,7 +1274,7 @@ def _score_threshold(value: object) -> Decimal:
 def _int_sequence(value: object, label: str) -> tuple[int, ...]:
     result: list[int] = []
     for item in _sequence(value, label):
-        if not isinstance(item, int):
+        if isinstance(item, bool) or not isinstance(item, int):
             raise TypeError(f"{label} must contain integers")
         result.append(item)
     return tuple(result)

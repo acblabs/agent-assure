@@ -52,6 +52,8 @@ class LangGraphAdapter:
         for raw_event in events:
             event = _normalize_event(raw_event)
             for node_name, agent_metadata in _agent_assure_metadata_items(event):
+                if not agent_metadata:
+                    raise ValueError("LangGraph agent_assure metadata must not be empty")
                 validate_no_raw_payload_keys(
                     agent_metadata,
                     owner="LangGraph agent_assure metadata",
@@ -200,7 +202,7 @@ def _agent_assure_metadata_items(
             items.append((str(key), _string_key_mapping(nested)))
     if items:
         return tuple(items)
-    return ((None, {}),)
+    return ()
 
 
 def _metadata_node_name(event: Mapping[str, object]) -> str | None:

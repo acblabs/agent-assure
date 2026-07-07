@@ -70,6 +70,81 @@ def test_langgraph_adapter_ignores_raw_event_payloads_and_attaches_usage() -> No
     assert run.usage_summary.total_tokens == 20
 
 
+def test_build_run_record_uses_observed_decision_not_projection() -> None:
+    adapter = LangGraphAdapter(framework_version="1.2.8")
+    observations = adapter.observations_from_events(
+        _events(),
+        run_id="run-lg-001",
+        case_id="case-001",
+    )
+
+    run = build_run_record_from_observations(
+        observations,
+        projection=FrameworkRunProjection(
+            pipeline_id="langgraph-expense-assurance",
+            recommendation="manual_review",
+            outcome="manual_review",
+        ),
+        run_id="run-lg-001",
+        case_id="case-001",
+        fixture_manifest_digest="1" * 64,
+    )
+
+    assert run.recommendation == "approve"
+    assert run.outcome == "approved_with_review"
+    assert run.output_summary == "recommendation=approve; outcome=approved_with_review"
+
+
+def test_build_run_record_requires_observed_final_decision() -> None:
+    adapter = LangGraphAdapter(framework_version="1.2.8")
+    observations = adapter.observations_from_events(
+        (
+            _event_with_agent_metadata(
+                {"case_id": "case-001", "event_type": "decision", "sequence_number": 1}
+            ),
+        ),
+        run_id="run-lg-001",
+        case_id="case-001",
+    )
+
+    with pytest.raises(ValueError, match="observed recommendation and outcome"):
+        build_run_record_from_observations(
+            observations,
+            projection=_projection(),
+            run_id="run-lg-001",
+            case_id="case-001",
+            fixture_manifest_digest="1" * 64,
+        )
+
+
+def test_langgraph_adapter_skips_uninstrumented_events() -> None:
+    adapter = LangGraphAdapter(framework_version="1.2.8")
+    event = {
+        "event": "on_chain_end",
+        "name": "decision",
+        "data": {"output": "raw final completion should be ignored"},
+    }
+
+    observations = adapter.observations_from_events(
+        (event,),
+        run_id="run-lg-001",
+        case_id="case-001",
+    )
+
+    assert observations == ()
+
+
+def test_langgraph_adapter_rejects_empty_agent_assure_metadata() -> None:
+    adapter = LangGraphAdapter(framework_version="1.2.8")
+
+    with pytest.raises(ValueError, match="must not be empty"):
+        adapter.observations_from_events(
+            ({"metadata": {"agent_assure": {}}},),
+            run_id="run-lg-001",
+            case_id="case-001",
+        )
+
+
 def test_langgraph_adapter_rejects_raw_metadata_keys() -> None:
     adapter = LangGraphAdapter(framework_version="1.2.8")
     event = {
@@ -280,7 +355,15 @@ def test_build_run_record_accepts_sequence_zero() -> None:
     observations = adapter.observations_from_events(
         (
             _event_with_agent_metadata(
-                {"case_id": "case-001", "event_type": "decision", "sequence_number": 0}
+                {
+                    "case_id": "case-001",
+                    "event_type": "decision",
+                    "sequence_number": 0,
+                    "privacy_filtered_attributes": {
+                        "recommendation": "approve",
+                        "outcome": "approved_with_review",
+                    },
+                }
             ),
         ),
         run_id="run-lg-001",

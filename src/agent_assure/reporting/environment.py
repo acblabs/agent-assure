@@ -151,13 +151,20 @@ def source_project_root(paths: tuple[Path, ...], *, default_root: Path) -> Path:
     resolved_paths = tuple(path.resolve() for path in paths)
     if not resolved_paths:
         return _git_toplevel(resolved_default) or resolved_default
-    if all(_is_relative_to(path, resolved_default) for path in resolved_paths):
-        return _git_toplevel(resolved_default) or resolved_default
     try:
-        common_root = Path(os.path.commonpath([str(path) for path in resolved_paths]))
+        common_root = Path(
+            os.path.commonpath(
+                [str(path if path.is_dir() else path.parent) for path in resolved_paths]
+            )
+        )
     except ValueError as exc:
         raise ValueError("source paths must share a common filesystem root") from exc
-    return _git_toplevel(common_root) or common_root
+    source_git_root = _git_toplevel(common_root)
+    if source_git_root is not None:
+        return source_git_root
+    if all(_is_relative_to(path, resolved_default) for path in resolved_paths):
+        return _git_toplevel(resolved_default) or resolved_default
+    return common_root
 
 
 def build_release_manifest(
