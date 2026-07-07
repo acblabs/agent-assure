@@ -13,6 +13,8 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.runner.evidence import EvidenceAssociation
 from agent_assure.runner.fixture_values import required_string
 from agent_assure.schema.common import decimal_string
+from agent_assure.schema.expectation import Expectation
+from agent_assure.schema.suite import CompiledSuite
 
 RAG_BASELINE_VARIANT_ID = "rag-baseline"
 RAG_RERANKER_REGRESSION_VARIANT_ID = "rag-reranker-drops-secondary-claim-source"
@@ -21,6 +23,7 @@ RAG_CORPUS_VERSION_SKEW_VARIANT_ID = "rag-corpus-version-skew"
 _FIXTURE_ROOT = Path("fixtures/rag")
 _CURRENT_CORPUS_MANIFEST = "corpus_manifest.json"
 _SKEWED_CORPUS_MANIFEST = "corpus_manifest_skewed.json"
+_COUNTERFACTUAL_FAMILIES = "counterfactual_query_families.json"
 _SCORE_QUANTUM = Decimal("0.000001")
 _NORMALIZED_QUERY_PATTERN = re.compile(r"\s+")
 _ISO_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
@@ -101,6 +104,191 @@ class RetrievalResult:
         return tuple(item.chunk.source_id for item in self.retrieved_chunks)
 
 
+@dataclass(frozen=True)
+class CounterfactualQueryVariant:
+    query_variant_id: str
+    query: str
+    query_vector_key: str
+
+
+@dataclass(frozen=True)
+class CounterfactualQueryFamily:
+    query_family_id: str
+    canonical_case_id: str
+    source_fixture_id: str
+    expected_recommendation: str | None
+    allowed_outcomes: tuple[str, ...]
+    required_evidence_refs: tuple[str, ...]
+    required_material_claim_ids: tuple[str, ...]
+    required_source_ids: tuple[str, ...]
+    allowed_retrieval_drift_bps: int
+    variants: tuple[CounterfactualQueryVariant, ...]
+
+
+@dataclass(frozen=True)
+class CounterfactualVariantEvaluation:
+    query_variant_id: str
+    query_digest: str
+    retrieved_ref_ids: tuple[str, ...]
+    retrieved_source_ids: tuple[str, ...]
+    retrieved_material_claim_ids: tuple[str, ...]
+    missing_required_evidence_refs: tuple[str, ...]
+    missing_required_source_ids: tuple[str, ...]
+    missing_required_material_claim_ids: tuple[str, ...]
+    retrieval_jaccard_bps: int
+    required_ref_coverage_bps: int
+    lowest_required_score: str | None
+    retrieval_drift_exceeded: bool
+    escalated: bool
+
+    @property
+    def preserved_required_ref_support(self) -> bool:
+        return not self.missing_required_evidence_refs
+
+    @property
+    def preserved_required_source_support(self) -> bool:
+        return not self.missing_required_source_ids
+
+    @property
+    def preserved_required_material_claim_support(self) -> bool:
+        return not self.missing_required_material_claim_ids
+
+    def report_payload(self) -> dict[str, object]:
+        return {
+            "query_variant_id": self.query_variant_id,
+            "query_digest": self.query_digest,
+            "retrieved_ref_ids": self.retrieved_ref_ids,
+            "retrieved_source_ids": self.retrieved_source_ids,
+            "retrieved_material_claim_ids": self.retrieved_material_claim_ids,
+            "missing_required_evidence_refs": self.missing_required_evidence_refs,
+            "missing_required_source_ids": self.missing_required_source_ids,
+            "missing_required_material_claim_ids": self.missing_required_material_claim_ids,
+            "retrieval_jaccard_bps": self.retrieval_jaccard_bps,
+            "required_ref_coverage_bps": self.required_ref_coverage_bps,
+            "preserved_required_ref_support": self.preserved_required_ref_support,
+            "preserved_required_source_support": self.preserved_required_source_support,
+            "preserved_required_material_claim_support": (
+                self.preserved_required_material_claim_support
+            ),
+            "lowest_required_score": self.lowest_required_score,
+            "retrieval_drift_exceeded": self.retrieval_drift_exceeded,
+            "escalated": self.escalated,
+        }
+
+
+@dataclass(frozen=True)
+class CounterfactualFamilyEvaluation:
+    query_family_id: str
+    canonical_case_id: str
+    expected_recommendation: str | None
+    allowed_outcomes: tuple[str, ...]
+    required_evidence_refs: tuple[str, ...]
+    required_material_claim_ids: tuple[str, ...]
+    required_source_ids: tuple[str, ...]
+    allowed_retrieval_drift_bps: int
+    reference_variant_id: str
+    reference_query_digest: str
+    reference_retrieval_ref_ids: tuple[str, ...]
+    canonical_decision_matches_family_expectation: bool | None
+    variant_evaluations: tuple[CounterfactualVariantEvaluation, ...]
+
+    @property
+    def variants_evaluated(self) -> int:
+        return len(self.variant_evaluations)
+
+    @property
+    def preserved_required_ref_support(self) -> bool:
+        return all(
+            item.preserved_required_ref_support
+            for item in self.variant_evaluations
+        )
+
+    @property
+    def preserved_required_source_support(self) -> bool:
+        return all(
+            item.preserved_required_source_support
+            for item in self.variant_evaluations
+        )
+
+    @property
+    def preserved_material_claim_support(self) -> bool:
+        return all(
+            item.preserved_required_material_claim_support
+            for item in self.variant_evaluations
+        )
+
+    @property
+    def escalated_variants(self) -> tuple[str, ...]:
+        return tuple(
+            item.query_variant_id
+            for item in self.variant_evaluations
+            if item.escalated
+        )
+
+    def report_payload(self) -> dict[str, object]:
+        return {
+            "query_family_id": self.query_family_id,
+            "canonical_case_id": self.canonical_case_id,
+            "variants_evaluated": self.variants_evaluated,
+            "expected_decision": {
+                "expected_recommendation": self.expected_recommendation,
+                "allowed_outcomes": self.allowed_outcomes,
+            },
+            "decision_measurement_scope": "canonical_case_only",
+            "decision_fields_evaluated": (
+                self.canonical_decision_matches_family_expectation is not None
+            ),
+            "canonical_decision_matches_family_expectation": (
+                self.canonical_decision_matches_family_expectation
+            ),
+            "preserved_required_ref_support": self.preserved_required_ref_support,
+            "preserved_required_source_support": self.preserved_required_source_support,
+            "preserved_material_claim_support": self.preserved_material_claim_support,
+            "reference_variant_id": self.reference_variant_id,
+            "reference_query_digest": self.reference_query_digest,
+            "reference_retrieval_ref_ids": self.reference_retrieval_ref_ids,
+            "required_evidence_refs": self.required_evidence_refs,
+            "required_material_claim_ids": self.required_material_claim_ids,
+            "required_source_ids": self.required_source_ids,
+            "allowed_retrieval_drift_bps": self.allowed_retrieval_drift_bps,
+            "missing_refs_by_variant": {
+                item.query_variant_id: item.missing_required_evidence_refs
+                for item in self.variant_evaluations
+            },
+            "missing_material_claim_ids_by_variant": {
+                item.query_variant_id: item.missing_required_material_claim_ids
+                for item in self.variant_evaluations
+            },
+            "missing_source_ids_by_variant": {
+                item.query_variant_id: item.missing_required_source_ids
+                for item in self.variant_evaluations
+            },
+            "retrieval_jaccard_bps_by_variant": {
+                item.query_variant_id: item.retrieval_jaccard_bps
+                for item in self.variant_evaluations
+            },
+            "required_ref_coverage_bps_by_variant": {
+                item.query_variant_id: item.required_ref_coverage_bps
+                for item in self.variant_evaluations
+            },
+            "required_ref_support_preserved_by_variant": {
+                item.query_variant_id: item.preserved_required_ref_support
+                for item in self.variant_evaluations
+            },
+            "required_source_support_preserved_by_variant": {
+                item.query_variant_id: item.preserved_required_source_support
+                for item in self.variant_evaluations
+            },
+            "required_material_claim_support_preserved_by_variant": {
+                item.query_variant_id: item.preserved_required_material_claim_support
+                for item in self.variant_evaluations
+            },
+            "lowest_score_variant": _lowest_score_variant(self.variant_evaluations),
+            "escalated_variants": self.escalated_variants,
+            "variants": tuple(item.report_payload() for item in self.variant_evaluations),
+        }
+
+
 def rag_mode_for_variant(variant_id: str) -> RagVariantMode:
     if variant_id == RAG_BASELINE_VARIANT_ID:
         return "baseline"
@@ -118,12 +306,7 @@ def retrieve_for_variant(
     variant_id: str,
 ) -> RetrievalResult:
     mode = rag_mode_for_variant(variant_id)
-    manifest_name = (
-        _SKEWED_CORPUS_MANIFEST
-        if mode == "corpus_version_skew"
-        else _CURRENT_CORPUS_MANIFEST
-    )
-    corpus = load_policy_corpus(suite_root, manifest_name=manifest_name)
+    corpus = load_policy_corpus(suite_root, manifest_name=_manifest_name_for_mode(mode))
     return retrieve_policy_chunks(corpus, request, variant_mode=mode)
 
 
@@ -197,7 +380,11 @@ def retrieve_policy_chunks(
         retrieval_request.get("required_source_ids", ()),
         "retrieval.required_source_ids",
     )
-    reranker_config = _reranker_config(retrieval_request, variant_mode)
+    reranker_config = _reranker_config(
+        retrieval_request,
+        variant_mode,
+        query_vector_key=query_key,
+    )
 
     scored: list[RetrievedChunk] = []
     for chunk in corpus.chunks:
@@ -265,7 +452,6 @@ def retrieval_diff_summary(
     baseline_set = set(baseline_ref_ids)
     candidate_set = set(candidate_ref_ids)
     shared_ref_ids = tuple(sorted(baseline_set & candidate_set))
-    union_ref_ids = baseline_set | candidate_set
     rank_changes = []
     baseline_ranks = {item.chunk.ref_id: item.rank for item in baseline.retrieved_chunks}
     candidate_ranks = {item.chunk.ref_id: item.rank for item in candidate.retrieved_chunks}
@@ -280,15 +466,8 @@ def retrieval_diff_summary(
                     "candidate_rank": candidate_rank,
                 }
             )
-    candidate_sources = set(candidate.retrieved_source_ids)
-    missing_required = tuple(
-        source_id
-        for source_id in baseline.required_source_ids
-        if source_id not in candidate_sources
-    )
-    jaccard_bps = 10000 if not union_ref_ids else int(
-        Decimal(len(shared_ref_ids) * 10000) / Decimal(len(union_ref_ids))
-    )
+    missing_required = _missing(baseline.required_source_ids, candidate.retrieved_source_ids)
+    jaccard_bps = _jaccard_bps(baseline_set, candidate_set)
     vector_manifest_digest: str | dict[str, str]
     if baseline.corpus.vector_manifest_digest == candidate.corpus.vector_manifest_digest:
         vector_manifest_digest = baseline.corpus.vector_manifest_digest
@@ -344,13 +523,459 @@ def retrieval_output_payload(result: RetrievalResult) -> dict[str, object]:
     }
 
 
+def load_counterfactual_query_families(
+    suite_root: Path,
+    *,
+    fixture_name: str = _COUNTERFACTUAL_FAMILIES,
+    compiled_suite: CompiledSuite | None = None,
+) -> tuple[CounterfactualQueryFamily, ...]:
+    """Load fixture-authored metamorphic RAG query families.
+
+    The Sprint 8 fixture keeps case-level decision and material-claim
+    expectations single-sourced in ``rag_suite.yaml`` whenever ``compiled_suite``
+    is supplied; family JSON should only declare the RAG-specific query variants
+    and source-ID requirements.
+    """
+    payload = _read_json_object(suite_root / _FIXTURE_ROOT / fixture_name)
+    schema_version = _string(payload, "schema_version")
+    if schema_version != "counterfactual-rag-family-v1":
+        raise ValueError(f"unsupported counterfactual family schema: {schema_version}")
+    families = tuple(
+        _load_counterfactual_family_with_context(
+            item,
+            index,
+            compiled_suite=compiled_suite,
+        )
+        for index, item in enumerate(_sequence(payload.get("families"), "families"))
+    )
+    if not families:
+        raise ValueError("counterfactual fixture must define at least one family")
+    return families
+
+
+def evaluate_counterfactual_families(
+    suite_root: Path,
+    *,
+    variant_id: str,
+    compiled_suite: CompiledSuite | None = None,
+    canonical_decision_matches_family_expectation: bool | None = None,
+    reference_variant_id: str = RAG_BASELINE_VARIANT_ID,
+    fixture_name: str = _COUNTERFACTUAL_FAMILIES,
+) -> tuple[CounterfactualFamilyEvaluation, ...]:
+    return tuple(
+        evaluate_counterfactual_family(
+            suite_root,
+            family,
+            variant_id=variant_id,
+            canonical_decision_matches_family_expectation=(
+                canonical_decision_matches_family_expectation
+            ),
+            reference_variant_id=reference_variant_id,
+        )
+        for family in load_counterfactual_query_families(
+            suite_root,
+            fixture_name=fixture_name,
+            compiled_suite=compiled_suite,
+        )
+    )
+
+
+def evaluate_counterfactual_family(
+    suite_root: Path,
+    family: CounterfactualQueryFamily,
+    *,
+    variant_id: str,
+    canonical_decision_matches_family_expectation: bool | None = None,
+    reference_variant_id: str = RAG_BASELINE_VARIANT_ID,
+) -> CounterfactualFamilyEvaluation:
+    source_request = _counterfactual_source_request(suite_root, family)
+    reference_mode = rag_mode_for_variant(reference_variant_id)
+    reference_manifest_name = _manifest_name_for_mode(reference_mode)
+    reference_corpus = load_policy_corpus(
+        suite_root,
+        manifest_name=reference_manifest_name,
+    )
+    reference_retrieval = retrieve_policy_chunks(
+        reference_corpus,
+        source_request,
+        variant_mode=reference_mode,
+    )
+    variant_mode = rag_mode_for_variant(variant_id)
+    variant_manifest_name = _manifest_name_for_mode(variant_mode)
+    variant_corpus = (
+        reference_corpus
+        if variant_manifest_name == reference_manifest_name
+        else load_policy_corpus(
+            suite_root,
+            manifest_name=variant_manifest_name,
+        )
+    )
+    return CounterfactualFamilyEvaluation(
+        query_family_id=family.query_family_id,
+        canonical_case_id=family.canonical_case_id,
+        expected_recommendation=family.expected_recommendation,
+        allowed_outcomes=family.allowed_outcomes,
+        required_evidence_refs=family.required_evidence_refs,
+        required_material_claim_ids=family.required_material_claim_ids,
+        required_source_ids=family.required_source_ids,
+        allowed_retrieval_drift_bps=family.allowed_retrieval_drift_bps,
+        reference_variant_id=reference_variant_id,
+        reference_query_digest=reference_retrieval.normalized_query_digest,
+        reference_retrieval_ref_ids=reference_retrieval.retrieved_ref_ids,
+        canonical_decision_matches_family_expectation=(
+            canonical_decision_matches_family_expectation
+        ),
+        variant_evaluations=tuple(
+            _evaluate_counterfactual_variant(
+                family,
+                source_request,
+                variant,
+                reference_retrieval=reference_retrieval,
+                variant_corpus=variant_corpus,
+                variant_mode=variant_mode,
+            )
+            for variant in family.variants
+        ),
+    )
+
+
 def normalize_query(query: str) -> str:
     return _NORMALIZED_QUERY_PATTERN.sub(" ", query.casefold()).strip()
+
+
+def _manifest_name_for_mode(mode: RagVariantMode) -> str:
+    return (
+        _SKEWED_CORPUS_MANIFEST
+        if mode == "corpus_version_skew"
+        else _CURRENT_CORPUS_MANIFEST
+    )
+
+
+def _load_counterfactual_family_with_context(
+    payload: object,
+    index: int,
+    *,
+    compiled_suite: CompiledSuite | None,
+) -> CounterfactualQueryFamily:
+    try:
+        return _counterfactual_family_from_payload(
+            payload,
+            index,
+            compiled_suite=compiled_suite,
+        )
+    except (TypeError, ValueError) as exc:
+        context = _counterfactual_family_context(payload, index)
+        message = f"counterfactual {context}: {exc}"
+        if isinstance(exc, TypeError):
+            raise TypeError(message) from exc
+        raise ValueError(message) from exc
+
+
+def _counterfactual_family_context(payload: object, index: int) -> str:
+    if isinstance(payload, dict):
+        query_family_id = payload.get("query_family_id")
+        if isinstance(query_family_id, str) and query_family_id:
+            return f"families[{index}] query_family_id={query_family_id!r}"
+    return f"families[{index}]"
+
+
+def _counterfactual_family_from_payload(
+    payload: object,
+    index: int,
+    *,
+    compiled_suite: CompiledSuite | None,
+) -> CounterfactualQueryFamily:
+    mapping = _mapping(payload, f"families[{index}]")
+    canonical_case_id = _string(mapping, "canonical_case_id")
+    expectation = (
+        _expectation_for_case(compiled_suite, canonical_case_id)
+        if compiled_suite is not None
+        else None
+    )
+    expected_recommendation = _optional_string(mapping.get("expected_recommendation"))
+    if expectation is not None:
+        expected_recommendation = _field_or_expectation_string(
+            observed=expected_recommendation,
+            expected=expectation.expected_recommendation,
+            field_name="expected_recommendation",
+            case_id=canonical_case_id,
+        )
+    if expected_recommendation is None and expectation is None:
+        raise TypeError(
+            "expected_recommendation must be declared in the family fixture or "
+            "inherited by passing compiled_suite"
+        )
+
+    allowed_outcomes = _optional_string_tuple(mapping.get("allowed_outcomes"))
+    if expectation is not None:
+        expected_allowed_outcomes = (
+            expectation.allowed_outcomes
+            if expectation.allowed_outcomes
+            else (
+                ()
+                if expectation.expected_recommendation is None
+                else (expectation.expected_recommendation,)
+            )
+        )
+        allowed_outcomes = _field_or_expectation_tuple(
+            observed=allowed_outcomes,
+            expected=expected_allowed_outcomes,
+            field_name="allowed_outcomes",
+            case_id=canonical_case_id,
+        )
+    if allowed_outcomes is None:
+        allowed_outcomes = (
+            (expected_recommendation,)
+            if expected_recommendation is not None
+            else ()
+        )
+
+    required_evidence_refs = _optional_string_tuple(mapping.get("required_evidence_refs"))
+    if expectation is not None:
+        required_evidence_refs = _field_or_expectation_tuple(
+            observed=required_evidence_refs,
+            expected=expectation.required_evidence_refs,
+            field_name="required_evidence_refs",
+            case_id=canonical_case_id,
+        )
+    required_material_claim_ids = _optional_string_tuple(
+        mapping.get("required_material_claim_ids")
+    )
+    if expectation is not None:
+        required_material_claim_ids = _field_or_expectation_tuple(
+            observed=required_material_claim_ids,
+            expected=expectation.material_claim_ids,
+            field_name="required_material_claim_ids",
+            case_id=canonical_case_id,
+        )
+
+    variants = tuple(
+        _counterfactual_variant_from_payload(item, variant_index)
+        for variant_index, item in enumerate(_sequence(mapping.get("variants"), "variants"))
+    )
+    if not variants:
+        raise ValueError("counterfactual family must define at least one variant")
+    variant_ids = tuple(item.query_variant_id for item in variants)
+    if len(set(variant_ids)) != len(variant_ids):
+        raise ValueError("counterfactual query_variant_id values must be unique")
+    return CounterfactualQueryFamily(
+        query_family_id=_string(mapping, "query_family_id"),
+        canonical_case_id=canonical_case_id,
+        source_fixture_id=_string(mapping, "source_fixture_id"),
+        expected_recommendation=expected_recommendation,
+        allowed_outcomes=allowed_outcomes,
+        required_evidence_refs=required_evidence_refs or (),
+        required_material_claim_ids=required_material_claim_ids or (),
+        required_source_ids=_string_tuple(
+            mapping.get("required_source_ids", ()),
+            "required_source_ids",
+        ),
+        allowed_retrieval_drift_bps=_basis_points(
+            mapping.get("allowed_retrieval_drift_bps", 0),
+            "allowed_retrieval_drift_bps",
+        ),
+        variants=variants,
+    )
+
+
+def _counterfactual_variant_from_payload(
+    payload: object,
+    index: int,
+) -> CounterfactualQueryVariant:
+    mapping = _mapping(payload, f"variants[{index}]")
+    return CounterfactualQueryVariant(
+        query_variant_id=_string(mapping, "query_variant_id"),
+        query=_string(mapping, "query"),
+        query_vector_key=_string(mapping, "query_vector_key"),
+    )
+
+
+def _counterfactual_source_request(
+    suite_root: Path,
+    family: CounterfactualQueryFamily,
+) -> dict[str, object]:
+    request = _read_json_object(
+        suite_root / _FIXTURE_ROOT / "requests" / f"{family.source_fixture_id}.json"
+    )
+    case_id = _string(request, "case_id")
+    if case_id != family.canonical_case_id:
+        raise ValueError(
+            "counterfactual source request case_id does not match canonical_case_id: "
+            f"{case_id!r} != {family.canonical_case_id!r}"
+        )
+    return request
+
+
+def _expectation_for_case(compiled_suite: CompiledSuite, case_id: str) -> Expectation:
+    for expectation in compiled_suite.resolved_expectations:
+        if expectation.case_id == case_id:
+            return expectation
+    raise ValueError(f"counterfactual canonical_case_id not found in suite: {case_id}")
+
+
+def _field_or_expectation_string(
+    *,
+    observed: str | None,
+    expected: str | None,
+    field_name: str,
+    case_id: str,
+) -> str | None:
+    if observed is not None and expected is not None and observed != expected:
+        raise ValueError(
+            f"counterfactual {field_name} for {case_id!r} does not match suite expectation"
+        )
+    return expected if expected is not None else observed
+
+
+def _field_or_expectation_tuple(
+    *,
+    observed: tuple[str, ...] | None,
+    expected: tuple[str, ...],
+    field_name: str,
+    case_id: str,
+) -> tuple[str, ...]:
+    if observed is not None and observed != expected:
+        raise ValueError(
+            f"counterfactual {field_name} for {case_id!r} does not match suite expectation"
+        )
+    return expected
+
+
+def _evaluate_counterfactual_variant(
+    family: CounterfactualQueryFamily,
+    source_request: dict[str, object],
+    variant: CounterfactualQueryVariant,
+    *,
+    reference_retrieval: RetrievalResult,
+    variant_corpus: PolicyCorpus,
+    variant_mode: RagVariantMode,
+) -> CounterfactualVariantEvaluation:
+    request = _request_with_counterfactual_query(source_request, variant)
+    retrieval = retrieve_policy_chunks(
+        variant_corpus,
+        request,
+        variant_mode=variant_mode,
+    )
+    retrieved_ref_ids = retrieval.retrieved_ref_ids
+    retrieved_source_ids = retrieval.retrieved_source_ids
+    retrieved_material_claim_ids = tuple(
+        sorted(
+            {
+                claim_id
+                for item in retrieval.retrieved_chunks
+                for claim_id in item.chunk.claim_ids
+            }
+        )
+    )
+    missing_refs = _missing(family.required_evidence_refs, retrieved_ref_ids)
+    missing_sources = _missing(family.required_source_ids, retrieved_source_ids)
+    missing_material_claim_ids = _missing(
+        family.required_material_claim_ids,
+        retrieved_material_claim_ids,
+    )
+    retrieval_jaccard_bps = _jaccard_bps(
+        set(reference_retrieval.retrieved_ref_ids),
+        set(retrieved_ref_ids),
+    )
+    required_ref_coverage_bps = _coverage_bps(
+        family.required_evidence_refs,
+        retrieved_ref_ids,
+    )
+    retrieval_drift_exceeded = (
+        10000 - retrieval_jaccard_bps > family.allowed_retrieval_drift_bps
+    )
+    escalated = bool(
+        missing_refs
+        or missing_sources
+        or missing_material_claim_ids
+        or retrieval_drift_exceeded
+    )
+    return CounterfactualVariantEvaluation(
+        query_variant_id=variant.query_variant_id,
+        query_digest=retrieval.normalized_query_digest,
+        retrieved_ref_ids=retrieved_ref_ids,
+        retrieved_source_ids=retrieved_source_ids,
+        retrieved_material_claim_ids=retrieved_material_claim_ids,
+        missing_required_evidence_refs=missing_refs,
+        missing_required_source_ids=missing_sources,
+        missing_required_material_claim_ids=missing_material_claim_ids,
+        retrieval_jaccard_bps=retrieval_jaccard_bps,
+        required_ref_coverage_bps=required_ref_coverage_bps,
+        lowest_required_score=_lowest_required_score(retrieval, family.required_evidence_refs),
+        retrieval_drift_exceeded=retrieval_drift_exceeded,
+        escalated=escalated,
+    )
+
+
+def _request_with_counterfactual_query(
+    request: dict[str, object],
+    variant: CounterfactualQueryVariant,
+) -> dict[str, object]:
+    updated = dict(request)
+    retrieval = _mapping(updated.get("retrieval"), "retrieval")
+    retrieval["query"] = variant.query
+    retrieval["query_vector_key"] = variant.query_vector_key
+    updated["retrieval"] = retrieval
+    return updated
+
+
+def _missing(required: tuple[str, ...], observed: tuple[str, ...]) -> tuple[str, ...]:
+    observed_set = set(observed)
+    return tuple(item for item in required if item not in observed_set)
+
+
+def _jaccard_bps(left: set[str], right: set[str]) -> int:
+    union = left | right
+    if not union:
+        return 10000
+    return int(Decimal(len(left & right) * 10000) / Decimal(len(union)))
+
+
+def _coverage_bps(required: tuple[str, ...], observed: tuple[str, ...]) -> int:
+    required_set = set(required)
+    if not required_set:
+        return 10000
+    return int(Decimal(len(required_set & set(observed)) * 10000) / Decimal(len(required_set)))
+
+
+def _lowest_required_score(
+    retrieval: RetrievalResult,
+    required_evidence_refs: tuple[str, ...],
+) -> str | None:
+    required_refs = set(required_evidence_refs)
+    scores = tuple(
+        item.score
+        for item in retrieval.retrieved_chunks
+        if item.chunk.ref_id in required_refs
+    )
+    if not scores:
+        return None
+    return min(scores, key=Decimal)
+
+
+def _lowest_score_variant(
+    variants: tuple[CounterfactualVariantEvaluation, ...],
+) -> dict[str, object] | None:
+    scored = tuple(
+        (Decimal(item.lowest_required_score), item)
+        for item in variants
+        if item.lowest_required_score is not None
+    )
+    if not scored:
+        return None
+    # The variant ID tie-breaker keeps reports deterministic when scores match.
+    _, lowest = min(scored, key=lambda item: (item[0], item[1].query_variant_id))
+    return {
+        "query_variant_id": lowest.query_variant_id,
+        "lowest_required_score": lowest.lowest_required_score,
+    }
 
 
 def _reranker_config(
     retrieval_request: dict[str, object],
     mode: RagVariantMode,
+    *,
+    query_vector_key: str,
 ) -> RerankerConfig:
     raw_configs = retrieval_request.get("reranker_configs", {})
     configs = _mapping(raw_configs, "retrieval.reranker_configs")
@@ -358,9 +983,18 @@ def _reranker_config(
     if raw_config is None:
         return RerankerConfig(config_id="none")
     config = _mapping(raw_config, f"retrieval.reranker_configs.{mode}")
+    drop_claim_ids = _string_tuple(config.get("drop_claim_ids", ()), "drop_claim_ids")
+    keyed_drops = _mapping(
+        config.get("drop_claim_ids_by_query_vector_key", {}),
+        "drop_claim_ids_by_query_vector_key",
+    )
+    keyed_drop_claim_ids = _string_tuple(
+        keyed_drops.get(query_vector_key, ()),
+        f"drop_claim_ids_by_query_vector_key.{query_vector_key}",
+    )
     return RerankerConfig(
         config_id=_string(config, "config_id"),
-        drop_claim_ids=_string_tuple(config.get("drop_claim_ids", ()), "drop_claim_ids"),
+        drop_claim_ids=tuple(dict.fromkeys((*drop_claim_ids, *keyed_drop_claim_ids))),
     )
 
 
@@ -569,6 +1203,14 @@ def _string(mapping: dict[str, object], key: str) -> str:
     return value
 
 
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or not value:
+        raise TypeError("optional string field must be a non-empty string when present")
+    return value
+
+
 def _date_string(mapping: dict[str, object], key: str) -> str:
     value = _string(mapping, key)
     _validate_iso_date(value, key)
@@ -597,9 +1239,21 @@ def _string_tuple(value: object, label: str) -> tuple[str, ...]:
     return tuple(str(item) for item in _sequence(value, label))
 
 
+def _optional_string_tuple(value: object) -> tuple[str, ...] | None:
+    if value is None:
+        return None
+    return _string_tuple(value, "optional string sequence")
+
+
 def _positive_int(value: object, label: str) -> int:
     if not isinstance(value, int) or value <= 0:
         raise TypeError(f"{label} must be a positive integer")
+    return value
+
+
+def _basis_points(value: object, label: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0 or value > 10000:
+        raise TypeError(f"{label} must be an integer from 0 to 10000")
     return value
 
 

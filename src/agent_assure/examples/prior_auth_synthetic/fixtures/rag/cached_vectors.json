@@ -9,6 +9,30 @@
       0,
       0
     ],
+    "query:rag-pt-duration-twelve-weeks": [
+      1000,
+      0,
+      0,
+      0
+    ],
+    "query:rag-pt-duration-three-months-pt": [
+      980,
+      130,
+      0,
+      0
+    ],
+    "query:rag-pt-duration-extended-rehab": [
+      965,
+      95,
+      0,
+      0
+    ],
+    "query:rag-pt-duration-noisy-typo": [
+      970,
+      80,
+      0,
+      0
+    ],
     "chunk:medical-necessity": [
       1000,
       0,

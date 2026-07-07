@@ -17,6 +17,10 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     RAG_BASELINE_VARIANT_ID,
     RAG_CORPUS_VERSION_SKEW_VARIANT_ID,
     RAG_RERANKER_REGRESSION_VARIANT_ID,
+    CounterfactualFamilyEvaluation,
+    CounterfactualQueryFamily,
+    evaluate_counterfactual_family,
+    load_counterfactual_query_families,
     retrieval_diff_summary,
     retrieval_output_payload,
     retrieve_for_variant,
@@ -26,6 +30,7 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.suite import CompiledSuite
 
 RAG_CASE_ID = "rag-pt-duration"
 MISSING_CLAIM_ID = "claim-duration"
@@ -277,6 +282,7 @@ def run_rag_demo(out_dir: Path, *, clean: bool) -> dict[str, object]:
     summary = _build_summary(
         root=root,
         example_dir=example_dir,
+        compiled_suite_path=compiled_path,
         baseline_runset_path=baseline_runset_path,
         candidate_runset_path=candidate_runset_path,
         skew_runset_path=skew_runset_path,
@@ -300,10 +306,13 @@ def render_rag_text(summary: dict[str, object]) -> str:
     candidate = cast(dict[str, Any], visible["candidate"])
     process = cast(dict[str, Any], summary["retrieval_process_regression"])
     skew = cast(dict[str, Any], summary["corpus_version_skew"])
+    counterfactual = cast(dict[str, Any], summary["counterfactual_robustness"])
     artifacts = cast(dict[str, Any], summary["artifacts"])
     missing_links = cast(list[str], process["missing_evidence_links"])
     missing_sources = cast(list[str], process["missing_required_source_ids"])
     reason_codes = cast(list[str], summary["blocking_reason_codes"])
+    candidate_families = _counterfactual_report_families(counterfactual, "candidate")
+    candidate_escalations = _counterfactual_escalation_text(candidate_families)
     return "\n".join(
         (
             "agent-assure RAG provenance demo",
@@ -332,6 +341,14 @@ def render_rag_text(summary: dict[str, object]) -> str:
             f"  classification: {skew['classification']}",
             f"  advisory only: {str(skew['advisory_only']).lower()}",
             "",
+            "Counterfactual RAG robustness:",
+            f"  framing: {counterfactual['framing']}",
+            (
+                "  semantic equivalence proven: "
+                f"{str(counterfactual['semantic_equivalence_proven']).lower()}"
+            ),
+            f"  candidate escalated variants: {candidate_escalations}",
+            "",
             "CI gate:",
             "  blocked as expected for the reranker regression",
             "",
@@ -354,6 +371,7 @@ def _build_summary(
     *,
     root: Path,
     example_dir: Path,
+    compiled_suite_path: Path,
     baseline_runset_path: Path,
     candidate_runset_path: Path,
     skew_runset_path: Path,
@@ -367,6 +385,7 @@ def _build_summary(
     command_results: tuple[ExpectedCommandResult, ...],
 ) -> dict[str, object]:
     baseline_runset = _load_runset(baseline_runset_path)
+    compiled_suite = _load_compiled_suite(compiled_suite_path)
     candidate_runset = _load_runset(candidate_runset_path)
     skew_runset = _load_runset(skew_runset_path)
     baseline_summary = _load_evaluation_summary(baseline_summary_path)
@@ -396,6 +415,38 @@ def _build_summary(
     )
     hero_drift = retrieval_diff_summary(baseline_retrieval, candidate_retrieval)
     skew_drift = retrieval_diff_summary(baseline_retrieval, skew_retrieval)
+    counterfactual_families = load_counterfactual_query_families(
+        example_dir,
+        compiled_suite=compiled_suite,
+    )
+    baseline_counterfactual = tuple(
+        evaluate_counterfactual_family(
+            example_dir,
+            family,
+            variant_id=RAG_BASELINE_VARIANT_ID,
+            canonical_decision_matches_family_expectation=(
+                _run_matches_counterfactual_expectations(
+                    baseline_run,
+                    (family,),
+                )
+            ),
+        )
+        for family in counterfactual_families
+    )
+    candidate_counterfactual = tuple(
+        evaluate_counterfactual_family(
+            example_dir,
+            family,
+            variant_id=RAG_RERANKER_REGRESSION_VARIANT_ID,
+            canonical_decision_matches_family_expectation=(
+                _run_matches_counterfactual_expectations(
+                    candidate_run,
+                    (family,),
+                )
+            ),
+        )
+        for family in counterfactual_families
+    )
     blocking_reason_codes = sorted(
         {
             finding.reason_code.value
@@ -422,6 +473,8 @@ def _build_summary(
         missing_links=missing_links,
         hero_drift=hero_drift,
         skew_drift=skew_drift,
+        baseline_counterfactual=baseline_counterfactual,
+        candidate_counterfactual=candidate_counterfactual,
         command_results=command_results,
     )
     return {
@@ -484,6 +537,16 @@ def _build_summary(
             "retrieval_drift": skew_drift,
             "candidate_retrieval_output": retrieval_output_payload(skew_retrieval),
         },
+        "counterfactual_robustness": {
+            "framing": "fixture_author_declared_metamorphic_family",
+            "semantic_equivalence_proven": False,
+            "baseline": [
+                evaluation.report_payload() for evaluation in baseline_counterfactual
+            ],
+            "candidate": [
+                evaluation.report_payload() for evaluation in candidate_counterfactual
+            ],
+        },
         "artifacts": {
             "summary": artifact_path(root / "demo-summary.json", root=root),
             "compiled_suite": artifact_path(root / "prior-auth-rag.compiled.json", root=root),
@@ -532,6 +595,8 @@ def _expected_regression_caught(
     missing_links: list[str],
     hero_drift: dict[str, object],
     skew_drift: dict[str, object],
+    baseline_counterfactual: tuple[CounterfactualFamilyEvaluation, ...],
+    candidate_counterfactual: tuple[CounterfactualFamilyEvaluation, ...],
     command_results: tuple[ExpectedCommandResult, ...],
 ) -> bool:
     return (
@@ -557,6 +622,10 @@ def _expected_regression_caught(
         is ComparisonClassification.provenance_only_change
         and comparison_summary.fixture_equivalence_state is GateState.pass_
         and skew_comparison_summary.fixture_equivalence_state is GateState.pass_
+        and _counterfactual_acceptance_met(
+            baseline_counterfactual,
+            candidate_counterfactual,
+        )
         and _command_exit(command_results, "ci-report") == 1
         and _command_exit(command_results, "ci-gate-packet") == 1
         and all(result.matched for result in command_results)
@@ -590,6 +659,10 @@ def _load_runset(path: Path) -> RunSet:
     return RunSet.model_validate_json(path.read_text(encoding="utf-8"))
 
 
+def _load_compiled_suite(path: Path) -> CompiledSuite:
+    return CompiledSuite.model_validate_json(path.read_text(encoding="utf-8"))
+
+
 def _load_evaluation_summary(path: Path) -> EvaluationSummary:
     return EvaluationSummary.model_validate_json(path.read_text(encoding="utf-8"))
 
@@ -619,6 +692,79 @@ def _run_by_case(runset: RunSet, case_id: str) -> AgentRunRecord:
 
 def _visible_output(run: AgentRunRecord) -> tuple[str, str]:
     return run.recommendation, run.outcome
+
+
+def _run_matches_counterfactual_expectations(
+    run: AgentRunRecord,
+    families: tuple[CounterfactualQueryFamily, ...],
+) -> bool:
+    return all(
+        (
+            family.expected_recommendation is None
+            or run.recommendation == family.expected_recommendation
+        )
+        and run.outcome in family.allowed_outcomes
+        for family in families
+    )
+
+
+def _counterfactual_escalation_text(families: list[dict[str, Any]]) -> str:
+    escalations = [
+        f"{family['query_family_id']}:{variant_id}"
+        for family in families
+        for variant_id in cast(list[str], family["escalated_variants"])
+    ]
+    return ", ".join(escalations) if escalations else "none"
+
+
+def _counterfactual_report_families(
+    counterfactual: dict[str, Any],
+    key: str,
+) -> list[dict[str, Any]]:
+    value = counterfactual.get(key)
+    if not isinstance(value, list):
+        raise TypeError(f"counterfactual_robustness.{key} must be a list")
+    families: list[dict[str, Any]] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, dict):
+            raise TypeError(f"counterfactual_robustness.{key}[{index}] must be an object")
+        query_family_id = item.get("query_family_id")
+        if not isinstance(query_family_id, str) or not query_family_id:
+            raise TypeError(
+                f"counterfactual_robustness.{key}[{index}].query_family_id "
+                "must be a non-empty string"
+            )
+        escalated_variants = item.get("escalated_variants")
+        if not isinstance(escalated_variants, (list, tuple)) or not all(
+            isinstance(variant_id, str) for variant_id in escalated_variants
+        ):
+            raise TypeError(
+                f"counterfactual_robustness.{key}[{index}].escalated_variants "
+                "must be a sequence of strings"
+            )
+        families.append(item)
+    return families
+
+
+def _counterfactual_acceptance_met(
+    baseline: tuple[CounterfactualFamilyEvaluation, ...],
+    candidate: tuple[CounterfactualFamilyEvaluation, ...],
+) -> bool:
+    return (
+        bool(baseline)
+        and all(
+            evaluation.canonical_decision_matches_family_expectation is True
+            and evaluation.preserved_material_claim_support
+            and not evaluation.escalated_variants
+            for evaluation in baseline
+        )
+        and any(
+            evaluation.canonical_decision_matches_family_expectation is True
+            and not evaluation.preserved_material_claim_support
+            and evaluation.escalated_variants
+            for evaluation in candidate
+        )
+    )
 
 
 def _claim_id_from_target(target: str) -> str:

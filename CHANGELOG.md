@@ -6,6 +6,11 @@
   digest-addressed prior-auth policy chunks, scaled-integer cached vectors,
   `agent-assure demo rag`, and a hero reranker regression that preserves the
   visible decision and corpus digest while losing material duration evidence.
+- Added fixture-declared counterfactual RAG query families for the synthetic
+  prior-auth RAG path, with distinct committed query-vector keys and
+  deterministic reports that summarize required-ref coverage separately from
+  source-ID and material-claim support across paraphrase/noise variants without
+  exposing raw query text or claiming semantic proof.
 
 ## 0.3.1 - 2026-07-06
 

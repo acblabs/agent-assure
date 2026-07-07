@@ -58,3 +58,13 @@ duration source and triggers `MATERIAL_CLAIM_MISSING_EVIDENCE`. The
 corpus-version-skew candidate preserves the decision and evidence links while
 changing `provenance.retrieval_corpus_digest`, so comparison reports it as
 provenance-only drift.
+
+The RAG fixture includes `fixtures/rag/counterfactual_query_families.json`.
+Those query variants are fixture-author-declared metamorphic cases for the same
+synthetic decision. Each variant uses a distinct committed query-vector key,
+and some committed entries may intentionally share the same vector value. The
+family inherits the canonical case's expected decision, required refs, and
+material claims from `rag_suite.yaml`. agent-assure measures required-ref
+coverage separately from source-ID and material-claim support across the
+declared variants; it does not prove semantic equivalence between
+natural-language queries.

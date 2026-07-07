@@ -27,5 +27,6 @@ evidence link. The CI gate blocks that process regression as expected.
 - [For engineers](for_engineers.md)
 - [What this measures](what_this_measures.md)
 - [Flagship demo](demo_flagship.md)
+- [RAG provenance demo](demo_rag.md)
 - [Evidence diff](evidence_diff.md)
 - [Claim boundary](claim_boundary.md)

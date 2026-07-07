@@ -41,6 +41,10 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
         "agent_assure/examples/prior_auth_synthetic/fixtures/shared/tool_outputs/"
         "shared-source-multi-claim.json"
     ),
+    (
+        "agent_assure/examples/prior_auth_synthetic/fixtures/rag/"
+        "counterfactual_query_families.json"
+    ),
     "agent_assure/examples/expense_approval_minimal/",
     "agent_assure/examples/expense_approval_minimal/suite.yaml",
     "agent_assure/examples/expense_approval_minimal/variants/baseline.yaml",

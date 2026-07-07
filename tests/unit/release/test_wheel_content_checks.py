@@ -31,6 +31,10 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
 
     assert "agent_assure/schema_resources/v0.3.0/agent-run-record.schema.json" in required
     assert "agent_assure/schema_resources/v0.3.0/evidence-packet.schema.json" in required
+    assert (
+        "agent_assure/examples/prior_auth_synthetic/fixtures/rag/"
+        "counterfactual_query_families.json"
+    ) in required
 
 
 def test_frozen_schema_versions_are_discovered_from_schema_root(tmp_path: Path) -> None:

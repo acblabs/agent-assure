@@ -8,7 +8,7 @@
   },
   "chunking_config_digest": "687d9a2c191d7f024c5f55399ca2dab81eb0511ed20cf45ee6e1c9ccf4d31b38",
   "vector_manifest_path": "vector_manifest.json",
-  "vector_manifest_digest": "88b6cbeecf24cf46c2a46944d4cab0d68a8dfbde52a45f18a3769f51841c0624",
+  "vector_manifest_digest": "51942d99a2114e3c9f28acf455e67fcb360b1a844a83d1168fde6fe5ede5e200",
   "retrieval_corpus_digest": "c3e4aac7896f93d26248b1132587057ca0f566bffbefde76e0178888df94973a",
   "chunks": [
     {

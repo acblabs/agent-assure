@@ -65,6 +65,30 @@ def test_flagship_readme_diagram_checker_accepts_current_diagram() -> None:
     assert docs_alignment._check_flagship_readme_diagram() == []
 
 
+def test_counterfactual_rag_boundary_checker_accepts_current_docs() -> None:
+    assert docs_alignment._check_counterfactual_rag_boundary() == []
+
+
+def test_counterfactual_rag_boundary_checker_rejects_semantic_proof_claim(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    docs = tmp_path / "docs"
+    docs.mkdir()
+    (docs / "demo_rag.md").write_text(
+        "The fixture author declares the family and stores query digests.\n"
+        "This automatically proves semantic\n"
+        "equivalence.\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    failures = docs_alignment._check_counterfactual_rag_boundary()
+
+    assert any("overclaim counterfactual capability" in failure for failure in failures)
+    assert any("does not prove semantic equivalence" in failure for failure in failures)
+
+
 def test_flagship_readme_diagram_required_snippets_use_showcase_facts() -> None:
     snippets = docs_alignment._flagship_readme_diagram_required_snippets()
 

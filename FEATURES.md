@@ -75,6 +75,10 @@
   scaled-integer cached vectors, pinned effective-date filters, and
   digest-addressed retrieval corpus manifests; the hero candidate keeps the
   same answer and corpus digest while dropping a material duration source.
+- Fixture-declared counterfactual RAG query families with committed
+  query-vector keys, query-digest reporting, and separate required-ref,
+  source-ID, and material-claim support measurements across authored
+  paraphrase/noise variants.
 - Publishable measurement, executive, technical-report, standards, and
   reproducibility documents with traceability to deterministic fixture evidence
   and explicit limitation boundaries.

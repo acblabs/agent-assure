@@ -17,6 +17,12 @@ Use a RAG-specific suite inside the existing `prior_auth_synthetic` example:
 - `examples/prior_auth_synthetic/fixtures/rag/`
 - `examples/prior_auth_synthetic/variants/rag_*.yaml`
 
+Sprint 8 extends that fixture tree with
+`fixtures/rag/counterfactual_query_families.json`. The family JSON declares
+authored query variants and RAG-specific source-ID requirements while inheriting
+case-level decision, required-ref, and material-claim expectations from
+`rag_suite.yaml`.
+
 The packaged copy under `src/agent_assure/examples/prior_auth_synthetic/` stays
 byte-aligned with the top-level example through the packaged-example parity
 check.
@@ -34,6 +40,9 @@ computes evidence associations only from retrieved chunks, and writes
   packet, and evidence-diff flow as the flagship demo.
 - The hero reranker regression keeps the same retrieval corpus digest while
   dropping the secondary duration source.
+- The counterfactual family can identify a paraphrase-specific retrieval
+  support regression, but it records fixture evidence rather than proving
+  natural-language semantic equivalence.
 - The corpus-version-skew variant changes only provenance when evidence links
   remain intact.
 - No new top-level run-record, provenance, or reason-code fields are required.

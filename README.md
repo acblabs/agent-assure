@@ -98,6 +98,12 @@ regression. A second corpus-version-skew candidate changes
 `retrieval_corpus_digest` while preserving evidence links, so it is reported as
 provenance drift for review rather than a blocking finding.
 
+The RAG demo also includes fixture-authored counterfactual query variants for
+the same synthetic decision. Those variants use committed query-vector keys and
+report query digests rather than raw query text; the report separates required
+ref coverage from source-ID and material-claim support, and does not claim to
+prove semantic equivalence between natural-language queries.
+
 ## How agent-assure is different
 
 `agent-assure` is a local-first assurance layer designed for agentic AI release

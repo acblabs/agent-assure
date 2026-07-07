@@ -15,6 +15,9 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     RAG_BASELINE_VARIANT_ID,
     RAG_CORPUS_VERSION_SKEW_VARIANT_ID,
     RAG_RERANKER_REGRESSION_VARIANT_ID,
+    CounterfactualFamilyEvaluation,
+    evaluate_counterfactual_families,
+    load_counterfactual_query_families,
     retrieval_diff_summary,
     retrieval_output_payload,
     retrieve_for_variant,
@@ -30,6 +33,10 @@ RERANKER_VARIANT = EXAMPLE / "variants" / "candidate_rag_reranker_regression.yam
 SKEW_VARIANT = EXAMPLE / "variants" / "candidate_rag_corpus_version_skew.yaml"
 REQUEST = EXAMPLE / "fixtures" / "rag" / "requests" / "rag-pt-duration.json"
 RETRIEVAL_OUTPUTS = EXAMPLE / "fixtures" / "rag" / "retrieval_outputs"
+COUNTERFACTUAL_FAMILIES = (
+    EXAMPLE / "fixtures" / "rag" / "counterfactual_query_families.json"
+)
+COUNTERFACTUAL_FAMILY_ID = "rag-pt-duration-equivalent-v1"
 
 
 def test_rag_retrieval_matches_committed_rank_fixtures() -> None:
@@ -57,6 +64,205 @@ def test_rag_retrieval_matches_committed_rank_fixtures() -> None:
         "32de93ec681deeb1108a2355c3ce0caded976cd66ec554dfe8c5adc9ee7ddcfd",
         "39a52598fb2b7f5bbfc734a18d6ddd55a1e9c48da493cd10c65aceabcd44a782",
     }
+
+
+def test_counterfactual_baseline_preserves_required_evidence_across_query_variants() -> None:
+    compiled = compile_suite(SUITE)
+    evaluation = _counterfactual_family_evaluation(
+        evaluate_counterfactual_families(
+            EXAMPLE,
+            variant_id=RAG_BASELINE_VARIANT_ID,
+            compiled_suite=compiled,
+            canonical_decision_matches_family_expectation=True,
+        ),
+        COUNTERFACTUAL_FAMILY_ID,
+    )
+    report = evaluation.report_payload()
+    variant_payloads = report["variants"]
+    assert isinstance(variant_payloads, tuple)
+
+    assert report["query_family_id"] == COUNTERFACTUAL_FAMILY_ID
+    assert report["variants_evaluated"] == 4
+    assert report["expected_decision"] == {
+        "allowed_outcomes": ("approve",),
+        "expected_recommendation": "approve",
+    }
+    assert report["decision_measurement_scope"] == "canonical_case_only"
+    assert report["canonical_decision_matches_family_expectation"] is True
+    assert report["preserved_required_ref_support"] is True
+    assert report["preserved_required_source_support"] is True
+    assert report["preserved_material_claim_support"] is True
+    assert report["escalated_variants"] == ()
+    assert report["reference_retrieval_ref_ids"] == (
+        "ref-rag-medical-necessity",
+        "ref-rag-duration-limit",
+    )
+    assert set(report["retrieval_jaccard_bps_by_variant"].values()) == {10000}
+    assert set(report["required_ref_coverage_bps_by_variant"].values()) == {10000}
+    assert set(report["required_ref_support_preserved_by_variant"].values()) == {True}
+    assert set(report["required_source_support_preserved_by_variant"].values()) == {True}
+    assert set(
+        report["required_material_claim_support_preserved_by_variant"].values()
+    ) == {True}
+    assert set(report["missing_refs_by_variant"].values()) == {()}
+    assert len(
+        {
+            item["query_digest"]
+            for item in variant_payloads
+            if isinstance(item, dict)
+        }
+    ) == 4
+    assert "query_digest" in json.dumps(report, sort_keys=True)
+    assert "Does this member qualify" not in json.dumps(report, sort_keys=True)
+    assert "three months of PT" not in json.dumps(report, sort_keys=True)
+
+
+def test_counterfactual_candidate_preserves_decision_but_loses_material_support() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = run_suite(compiled, load_variant_config(BASELINE_VARIANT), SUITE.parent)
+    candidate = run_suite(compiled, load_variant_config(RERANKER_VARIANT), SUITE.parent)
+    baseline_run = baseline.runs[0]
+    candidate_run = candidate.runs[0]
+    decision_preserved = (
+        baseline_run.recommendation == candidate_run.recommendation == "approve"
+        and baseline_run.outcome == candidate_run.outcome == "approve"
+    )
+
+    evaluation = _counterfactual_family_evaluation(
+        evaluate_counterfactual_families(
+            EXAMPLE,
+            variant_id=RAG_RERANKER_REGRESSION_VARIANT_ID,
+            compiled_suite=compiled,
+            canonical_decision_matches_family_expectation=decision_preserved,
+        ),
+        COUNTERFACTUAL_FAMILY_ID,
+    )
+    report = evaluation.report_payload()
+
+    assert report["canonical_decision_matches_family_expectation"] is True
+    assert report["preserved_required_ref_support"] is True
+    assert report["preserved_required_source_support"] is False
+    assert report["preserved_material_claim_support"] is False
+    assert report["escalated_variants"] == (
+        "rag-pt-duration-three-months-pt",
+    )
+    assert report["retrieval_jaccard_bps_by_variant"] == {
+        "rag-pt-duration-twelve-weeks": 10000,
+        "rag-pt-duration-three-months-pt": 5000,
+        "rag-pt-duration-extended-rehab": 10000,
+        "rag-pt-duration-noisy-typo": 10000,
+    }
+    assert set(report["required_ref_coverage_bps_by_variant"].values()) == {10000}
+    assert report["required_source_support_preserved_by_variant"] == {
+        "rag-pt-duration-twelve-weeks": True,
+        "rag-pt-duration-three-months-pt": False,
+        "rag-pt-duration-extended-rehab": True,
+        "rag-pt-duration-noisy-typo": True,
+    }
+    assert report["required_material_claim_support_preserved_by_variant"] == {
+        "rag-pt-duration-twelve-weeks": True,
+        "rag-pt-duration-three-months-pt": False,
+        "rag-pt-duration-extended-rehab": True,
+        "rag-pt-duration-noisy-typo": True,
+    }
+    assert set(report["missing_refs_by_variant"].values()) == {()}
+    assert set(report["missing_material_claim_ids_by_variant"].values()) == {
+        (),
+        ("claim-duration",)
+    }
+    assert set(report["missing_source_ids_by_variant"].values()) == {
+        (),
+        ("policy:acme-health:pt-coverage:duration-limit",)
+    }
+    assert "Can this patient receive three months" not in json.dumps(report, sort_keys=True)
+    assert "physcial therapy" not in json.dumps(report, sort_keys=True)
+
+
+def test_counterfactual_fixtures_require_committed_query_vector_keys(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    fixture_root = tmp_path / "fixtures" / "rag"
+    fixture_root.mkdir(parents=True)
+    payload = _json(COUNTERFACTUAL_FAMILIES)
+    families = payload["families"]
+    assert isinstance(families, list)
+    family = families[0]
+    assert isinstance(family, dict)
+    variants = family["variants"]
+    assert isinstance(variants, list)
+    variant = variants[0]
+    assert isinstance(variant, dict)
+    del variant["query_vector_key"]
+    (fixture_root / "counterfactual_query_families.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(
+        TypeError,
+        match=r"families\[0\].*rag-pt-duration-equivalent-v1.*query_vector_key",
+    ):
+        load_counterfactual_query_families(tmp_path, compiled_suite=compiled)
+
+
+def test_counterfactual_loader_inherits_and_validates_suite_expectations(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    fixture_root = tmp_path / "fixtures" / "rag"
+    fixture_root.mkdir(parents=True)
+    payload = _json(COUNTERFACTUAL_FAMILIES)
+    families = payload["families"]
+    assert isinstance(families, list)
+    family = families[0]
+    assert isinstance(family, dict)
+    family["required_material_claim_ids"] = ["claim-eligibility"]
+    (fixture_root / "counterfactual_query_families.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(
+        ValueError,
+        match=r"families\[0\].*rag-pt-duration-equivalent-v1.*required_material_claim_ids",
+    ):
+        load_counterfactual_query_families(tmp_path, compiled_suite=compiled)
+
+
+def test_counterfactual_loader_rejects_boolean_drift_threshold(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    fixture_root = tmp_path / "fixtures" / "rag"
+    fixture_root.mkdir(parents=True)
+    payload = _json(COUNTERFACTUAL_FAMILIES)
+    families = payload["families"]
+    assert isinstance(families, list)
+    family = families[0]
+    assert isinstance(family, dict)
+    family["allowed_retrieval_drift_bps"] = True
+    (fixture_root / "counterfactual_query_families.json").write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    with pytest.raises(
+        TypeError,
+        match=r"families\[0\].*rag-pt-duration-equivalent-v1.*allowed_retrieval_drift_bps",
+    ):
+        load_counterfactual_query_families(tmp_path, compiled_suite=compiled)
+
+
+def test_counterfactual_loader_requires_compiled_suite_for_inherited_expectations() -> None:
+    with pytest.raises(
+        TypeError,
+        match=r"families\[0\].*rag-pt-duration-equivalent-v1.*compiled_suite",
+    ):
+        load_counterfactual_query_families(EXAMPLE)
 
 
 def test_rag_retrieval_uses_fixture_pinned_as_of_date() -> None:
@@ -240,3 +446,13 @@ def _jsonable(value: dict[str, object]) -> dict[str, Any]:
     payload = json.loads(json.dumps(value, sort_keys=True))
     assert isinstance(payload, dict)
     return payload
+
+
+def _counterfactual_family_evaluation(
+    evaluations: tuple[CounterfactualFamilyEvaluation, ...],
+    query_family_id: str,
+) -> CounterfactualFamilyEvaluation:
+    for evaluation in evaluations:
+        if evaluation.query_family_id == query_family_id:
+            return evaluation
+    raise AssertionError(f"missing counterfactual family evaluation: {query_family_id}")

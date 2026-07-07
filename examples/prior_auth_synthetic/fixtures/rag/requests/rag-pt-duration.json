@@ -20,9 +20,14 @@
     "reranker_configs": {
       "reranker_drops_secondary_claim_source": {
         "config_id": "drop-secondary-claim-source-v1",
-        "drop_claim_ids": [
-          "claim-duration"
-        ]
+        "drop_claim_ids_by_query_vector_key": {
+          "query:rag-pt-duration": [
+            "claim-duration"
+          ],
+          "query:rag-pt-duration-three-months-pt": [
+            "claim-duration"
+          ]
+        }
       }
     }
   }

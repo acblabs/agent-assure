@@ -70,6 +70,40 @@ def test_rag_demo_exits_zero_on_expected_retrieval_regression(tmp_path: Path) ->
     assert skew["classification"] == ComparisonClassification.provenance_only_change.value
     assert skew["advisory_only"] is True
 
+    counterfactual = cast(dict[str, Any], summary["counterfactual_robustness"])
+    assert counterfactual["framing"] == "fixture_author_declared_metamorphic_family"
+    assert counterfactual["semantic_equivalence_proven"] is False
+    baseline_counterfactual = cast(list[dict[str, Any]], counterfactual["baseline"])
+    candidate_counterfactual = cast(list[dict[str, Any]], counterfactual["candidate"])
+    baseline_family = _counterfactual_family_payload(
+        baseline_counterfactual,
+        "rag-pt-duration-equivalent-v1",
+    )
+    candidate_family = _counterfactual_family_payload(
+        candidate_counterfactual,
+        "rag-pt-duration-equivalent-v1",
+    )
+    assert baseline_family["decision_measurement_scope"] == "canonical_case_only"
+    assert baseline_family["preserved_required_source_support"] is True
+    assert baseline_family["preserved_material_claim_support"] is True
+    assert baseline_family["escalated_variants"] == []
+    assert candidate_family["canonical_decision_matches_family_expectation"] is True
+    assert candidate_family["preserved_required_source_support"] is False
+    assert candidate_family["preserved_material_claim_support"] is False
+    assert candidate_family["escalated_variants"] == [
+        "rag-pt-duration-three-months-pt"
+    ]
+    assert candidate_family["retrieval_jaccard_bps_by_variant"][
+        "rag-pt-duration-three-months-pt"
+    ] == 5000
+    assert candidate_family["required_source_support_preserved_by_variant"][
+        "rag-pt-duration-three-months-pt"
+    ] is False
+    assert candidate_family["required_material_claim_support_preserved_by_variant"][
+        "rag-pt-duration-three-months-pt"
+    ] is False
+    assert "Can this patient receive three months" not in json.dumps(counterfactual)
+
     command_exits = {
         command["name"]: command["actual_exit_code"]
         for command in cast(list[dict[str, Any]], summary["commands"])
@@ -97,6 +131,9 @@ def test_rag_demo_exits_zero_on_expected_retrieval_regression(tmp_path: Path) ->
     rendered_text = render_rag_text(summary)
     assert "retrieval corpus digest: unchanged" in rendered_text
     assert "advisory only: true" in rendered_text
+    assert "Counterfactual RAG robustness" in rendered_text
+    assert "semantic equivalence proven: false" in rendered_text
+    assert "rag-pt-duration-equivalent-v1:rag-pt-duration-three-months-pt" in rendered_text
 
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")
     assert RAG_THESIS_TITLE in html
@@ -115,3 +152,13 @@ def _json(path: Path) -> dict[str, object]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return payload
+
+
+def _counterfactual_family_payload(
+    families: list[dict[str, Any]],
+    query_family_id: str,
+) -> dict[str, Any]:
+    for family in families:
+        if family.get("query_family_id") == query_family_id:
+            return family
+    raise AssertionError(f"missing counterfactual family payload: {query_family_id}")

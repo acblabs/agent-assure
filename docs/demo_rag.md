@@ -38,6 +38,22 @@ decision and material evidence links while changing
 `provenance.retrieval_corpus_digest`; the comparison records a
 `provenance_only_change` rather than a blocking regression.
 
+The bundled RAG fixture also contains a counterfactual query family for the
+same physical-therapy duration decision. The fixture author declares those
+query variants to be metamorphic equivalents for this synthetic case, and the
+demo measures whether declared refs, source IDs, and claim support remain
+present across the declared variants. Each variant points at a distinct
+committed query-vector key, so paraphrase fixtures can exercise keyed retrieval
+or reranker behavior without generating embeddings during tests. Some committed
+entries may intentionally share the same vector value. The family inherits the
+canonical case's expected recommendation, required refs, and material claims
+from `rag_suite.yaml`, while declaring RAG-specific source IDs in the family
+fixture. Reported required-ref coverage tracks only those inherited suite refs;
+duration support is also reported through the source-ID and material-claim
+dimensions. The report stores query digests and stable variant IDs, not raw
+query text. This does not prove semantic equivalence; it is fixture evidence
+that retrieval support stayed preserved for an authored query family.
+
 Runtime retrieval uses committed JSON artifacts:
 
 - `fixtures/rag/corpus_manifest.json`
@@ -45,6 +61,7 @@ Runtime retrieval uses committed JSON artifacts:
 - `fixtures/rag/vector_manifest.json`
 - `fixtures/rag/cached_vectors.json`
 - `fixtures/rag/policy_corpus/current/*.json`
+- `fixtures/rag/counterfactual_query_families.json`
 
 The cached vectors are scaled integers. Vector-manifest digesting uses exact
 file bytes, cosine scoring stays in Python `Decimal` arithmetic, and retrieval
@@ -54,3 +71,6 @@ validity windows are treated as `[effective_date, expires_date)`.
 The retrieval request fixture fully pins `top_k`, `score_threshold`,
 `required_source_ids`, and `reranker_configs`; the reranker regression is a
 synthetic fixture-mode perturbation, not a production reranker implementation.
+For the counterfactual family, the synthetic reranker drops duration support for
+one declared paraphrase while preserving the other declared paraphrases, making
+the affected query variant visible in the demo summary.

@@ -1,0 +1,37 @@
+{
+  "schema_version": "counterfactual-rag-family-v1",
+  "families": [
+    {
+      "query_family_id": "rag-pt-duration-equivalent-v1",
+      "canonical_case_id": "rag-pt-duration",
+      "source_fixture_id": "rag-pt-duration",
+      "required_source_ids": [
+        "policy:acme-health:pt-coverage:medical-necessity",
+        "policy:acme-health:pt-coverage:duration-limit"
+      ],
+      "allowed_retrieval_drift_bps": 0,
+      "variants": [
+        {
+          "query_variant_id": "rag-pt-duration-twelve-weeks",
+          "query": "Does this member qualify for twelve weeks of physical therapy after failed conservative care?",
+          "query_vector_key": "query:rag-pt-duration-twelve-weeks"
+        },
+        {
+          "query_variant_id": "rag-pt-duration-three-months-pt",
+          "query": "Can this patient receive three months of PT under the Acme plan after conservative treatment failed?",
+          "query_vector_key": "query:rag-pt-duration-three-months-pt"
+        },
+        {
+          "query_variant_id": "rag-pt-duration-extended-rehab",
+          "query": "Approve extended rehab after documented functional limitation and failed home exercise?",
+          "query_vector_key": "query:rag-pt-duration-extended-rehab"
+        },
+        {
+          "query_variant_id": "rag-pt-duration-noisy-typo",
+          "query": "Member asks for 12 wks of physcial therapy; cafeteria note is unrelated; use current PT coverage policy.",
+          "query_vector_key": "query:rag-pt-duration-noisy-typo"
+        }
+      ]
+    }
+  ]
+}

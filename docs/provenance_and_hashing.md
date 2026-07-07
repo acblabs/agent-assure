@@ -20,6 +20,9 @@ Current digest behavior:
   exact file-byte SHA-256 rather than a parsed floating-point projection;
 - RAG retrieval scores are computed with deterministic `Decimal` arithmetic and
   quantized before persistence;
+- counterfactual RAG reports persist stable query variant IDs and normalized
+  query digests, not raw query text, while committed query-vector keys select
+  the offline fixture vectors used for retrieval;
 - HMAC-SHA256 is used for sensitive low-entropy correlations.
 
 The current schema keeps fixture-mode provenance narrow while allowing live

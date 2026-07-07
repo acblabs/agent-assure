@@ -70,6 +70,12 @@ FORBIDDEN_POSITIVE_PATTERNS = [
     re.compile(r"\bregulatory compliance certified\b", re.IGNORECASE),
 ]
 
+COUNTERFACTUAL_RAG_FORBIDDEN_PATTERNS = (
+    re.compile(r"\bsemantic equivalence (?:is|was) proven\b", re.IGNORECASE),
+    re.compile(r"\bautomatically proves? semantic equivalence\b", re.IGNORECASE),
+    re.compile(r"\bcertifies semantic equivalence\b", re.IGNORECASE),
+)
+
 REQUIRED_LIVE_PROTOCOL_SECTIONS = (
     "## Scope",
     "## Experimental Unit",
@@ -154,6 +160,7 @@ def main() -> int:
     failures.extend(_check_schema_reference())
     failures.extend(_check_reason_codes())
     failures.extend(_check_flagship_readme_diagram())
+    failures.extend(_check_counterfactual_rag_boundary())
     failures.extend(_check_otel_mapping())
     failures.extend(_check_live_protocol())
     failures.extend(_check_standards_freshness())
@@ -281,6 +288,29 @@ def _check_flagship_readme_diagram() -> list[str]:
             "README.md flagship diagram must show fixture equivalence gating "
             "comparison, not comparison producing fixture equivalence"
         )
+    return failures
+
+
+def _check_counterfactual_rag_boundary() -> list[str]:
+    path = ROOT / "docs" / "demo_rag.md"
+    if not path.exists():
+        return ["missing docs/demo_rag.md"]
+    text = path.read_text(encoding="utf-8")
+    normalized_text = re.sub(r"\s+", " ", text)
+    failures: list[str] = []
+    for needle in (
+        "fixture author declares",
+        "query digests",
+        "required-ref coverage tracks only",
+        "does not prove semantic equivalence",
+    ):
+        if needle not in normalized_text:
+            failures.append(f"RAG demo docs missing counterfactual boundary: {needle}")
+    failures.extend(
+        f"RAG demo docs overclaim counterfactual capability: {pattern.pattern}"
+        for pattern in COUNTERFACTUAL_RAG_FORBIDDEN_PATTERNS
+        if pattern.search(normalized_text)
+    )
     return failures
 
 
