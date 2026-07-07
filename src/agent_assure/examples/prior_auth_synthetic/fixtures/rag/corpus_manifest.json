@@ -1,0 +1,50 @@
+{
+  "corpus_id": "prior-auth-policy-rag",
+  "corpus_version": "2026.01",
+  "chunking_config": {
+    "strategy": "synthetic-policy-section-v1",
+    "max_chunk_chars": 360,
+    "content_digest_projection": "full_chunk_payload_v1"
+  },
+  "chunking_config_digest": "687d9a2c191d7f024c5f55399ca2dab81eb0511ed20cf45ee6e1c9ccf4d31b38",
+  "vector_manifest_path": "vector_manifest.json",
+  "vector_manifest_digest": "88b6cbeecf24cf46c2a46944d4cab0d68a8dfbde52a45f18a3769f51841c0624",
+  "retrieval_corpus_digest": "9ddf817deb6a162bf5de61eda820b232a36ebf0ab7e130e20864b4be922b7728",
+  "chunks": [
+    {
+      "path": "policy_corpus/current/medical_necessity.json",
+      "chunk_id": "pt-coverage-medical-necessity-v1",
+      "ref_id": "ref-rag-medical-necessity",
+      "source_id": "policy:acme-health:pt-coverage:medical-necessity",
+      "content_digest": "32de93ec681deeb1108a2355c3ce0caded976cd66ec554dfe8c5adc9ee7ddcfd"
+    },
+    {
+      "path": "policy_corpus/current/duration_limit.json",
+      "chunk_id": "pt-coverage-duration-limit-v1",
+      "ref_id": "ref-rag-duration-limit",
+      "source_id": "policy:acme-health:pt-coverage:duration-limit",
+      "content_digest": "39a52598fb2b7f5bbfc734a18d6ddd55a1e9c48da493cd10c65aceabcd44a782"
+    },
+    {
+      "path": "policy_corpus/current/documentation.json",
+      "chunk_id": "pt-coverage-documentation-v1",
+      "ref_id": "ref-rag-documentation",
+      "source_id": "policy:acme-health:pt-coverage:documentation",
+      "content_digest": "71eb24cce9c8b81b62f2cef4102c46c0932ee31ff81e93858f20bae66da91ef9"
+    },
+    {
+      "path": "policy_corpus/current/exclusions.json",
+      "chunk_id": "pt-coverage-exclusions-v1",
+      "ref_id": "ref-rag-exclusions",
+      "source_id": "policy:acme-health:pt-coverage:exclusions",
+      "content_digest": "fc8bbb8a2ba3dbb86e64bf6f8d939e91d0ec5e18adbc54a00a16cd723b8ded53"
+    },
+    {
+      "path": "policy_corpus/current/provider_network.json",
+      "chunk_id": "pt-coverage-provider-network-v1",
+      "ref_id": "ref-rag-provider-network",
+      "source_id": "policy:acme-health:pt-coverage:provider-network",
+      "content_digest": "3014becab137296cf202aa95e800e00a7446d0aa542140e1cf8b689f9ba6a822"
+    }
+  ]
+}

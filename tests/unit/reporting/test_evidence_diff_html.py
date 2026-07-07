@@ -95,6 +95,7 @@ def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert "compiled-suite" in html
     assert "compiled.json" in html
+    assert "Retrieval corpus digest" not in html
     assert "artifact_kind" not in html
 
 
@@ -365,6 +366,39 @@ def test_evidence_diff_html_surfaces_non_claim_process_changed_fields() -> None:
     assert "changed" in html
     assert "Claim-evidence links" in html
     assert "failed invariant" not in html
+
+
+def test_evidence_diff_html_surfaces_changed_retrieval_corpus_digest() -> None:
+    baseline, candidate, comparison, _packet = _artifacts()
+    baseline_digest = "1" * 64
+    candidate_digest = "2" * 64
+    baseline_run = baseline.runs[0].model_copy(
+        update={
+            "provenance": baseline.runs[0].provenance.model_copy(
+                update={"retrieval_corpus_digest": baseline_digest}
+            )
+        }
+    )
+    candidate_run = candidate.runs[0].model_copy(
+        update={
+            "provenance": candidate.runs[0].provenance.model_copy(
+                update={"retrieval_corpus_digest": candidate_digest}
+            )
+        }
+    )
+    baseline = baseline.model_copy(update={"runs": (baseline_run,)})
+    candidate = candidate.model_copy(update={"runs": (candidate_run,)})
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+    )
+
+    assert "Retrieval corpus digest" in html
+    assert '<span class="state-bad">changed</span>' in html
+    assert baseline_digest in html
+    assert candidate_digest in html
 
 
 def _artifacts(

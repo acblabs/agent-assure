@@ -38,3 +38,23 @@ failure capture.
 
 The evidence-normalization candidate is supported by a release-evidence review
 rubric in `docs/measurement/blind_review_release_evidence.md`.
+
+## RAG provenance path
+
+The example also includes a one-case RAG provenance suite that uses committed
+policy chunks, scaled-integer cached vectors, fixture-pinned effective-date
+filters, and explicit `retrieval_corpus_digest` provenance.
+
+```bash
+agent-assure suite compile examples/prior_auth_synthetic/rag_suite.yaml --out .tmp/prior-auth-rag.compiled.json --manifest .tmp/prior-auth-rag.fixtures.json
+agent-assure suite run .tmp/prior-auth-rag.compiled.json --variant examples/prior_auth_synthetic/variants/rag_baseline.yaml --manifest .tmp/prior-auth-rag.fixtures.json --source examples/prior_auth_synthetic/rag_suite.yaml --out .tmp/prior-auth-rag.baseline.json
+agent-assure suite run .tmp/prior-auth-rag.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_rag_reranker_regression.yaml --manifest .tmp/prior-auth-rag.fixtures.json --source examples/prior_auth_synthetic/rag_suite.yaml --out .tmp/prior-auth-rag.reranker-candidate.json
+agent-assure suite run .tmp/prior-auth-rag.compiled.json --variant examples/prior_auth_synthetic/variants/candidate_rag_corpus_version_skew.yaml --manifest .tmp/prior-auth-rag.fixtures.json --source examples/prior_auth_synthetic/rag_suite.yaml --out .tmp/prior-auth-rag.corpus-skew.json
+```
+
+The reranker-regression candidate preserves `recommendation=approve` and
+`outcome=approve` with the same retrieval corpus digest, but drops the retrieved
+duration source and triggers `MATERIAL_CLAIM_MISSING_EVIDENCE`. The
+corpus-version-skew candidate preserves the decision and evidence links while
+changing `provenance.retrieval_corpus_digest`, so comparison reports it as
+provenance-only drift.

@@ -1,0 +1,5 @@
+variant_id: rag-reranker-drops-secondary-claim-source
+pipeline_id: prior-auth-rag-reranker-regression
+runner_id: prior_auth.synthetic_rag
+behavior:
+  evidence_assembly: association_preserving

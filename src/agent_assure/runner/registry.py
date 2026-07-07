@@ -46,9 +46,11 @@ def register_builtin_runners() -> None:
     from agent_assure.examples.prior_auth_synthetic.runner import (
         run_prior_auth_case,
         run_prior_auth_case_evidence_refactor,
+        run_prior_auth_case_rag,
     )
 
     register_runner("expense_approval.minimal", run_expense_case)
     register_runner("prior_auth.synthetic", run_prior_auth_case)
     register_runner("prior_auth.synthetic_evidence_refactor", run_prior_auth_case_evidence_refactor)
+    register_runner("prior_auth.synthetic_rag", run_prior_auth_case_rag)
     _BUILTINS_REGISTERED = True

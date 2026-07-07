@@ -71,6 +71,10 @@
 - Reproducible flagship showcase commands that demonstrate a stable visible
   answer with a failing material evidence-link invariant under equivalent
   fixtures.
+- RAG provenance assurance demo over committed prior-auth policy chunks,
+  scaled-integer cached vectors, pinned effective-date filters, and
+  digest-addressed retrieval corpus manifests; the hero candidate keeps the
+  same answer and corpus digest while dropping a material duration source.
 - Publishable measurement, executive, technical-report, standards, and
   reproducibility documents with traceability to deterministic fixture evidence
   and explicit limitation boundaries.

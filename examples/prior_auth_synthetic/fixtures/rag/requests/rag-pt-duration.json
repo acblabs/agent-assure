@@ -1,0 +1,29 @@
+{
+  "case_id": "rag-pt-duration",
+  "member_id": "SYN-RAG-MEMBER-001",
+  "requested_service": "physical_therapy",
+  "retrieval": {
+    "query": "Approve twelve weeks of physical therapy after failed conservative care under the current Acme policy.",
+    "query_vector_key": "query:rag-pt-duration",
+    "as_of_date": "2026-07-01",
+    "filters": {
+      "payer": "acme-health",
+      "policy_domain": "prior_auth_physical_therapy",
+      "section_type": "coverage"
+    },
+    "top_k": 2,
+    "score_threshold": "0.650000",
+    "required_source_ids": [
+      "policy:acme-health:pt-coverage:medical-necessity",
+      "policy:acme-health:pt-coverage:duration-limit"
+    ],
+    "reranker_configs": {
+      "reranker_drops_secondary_claim_source": {
+        "config_id": "drop-secondary-claim-source-v1",
+        "drop_claim_ids": [
+          "claim-duration"
+        ]
+      }
+    }
+  }
+}

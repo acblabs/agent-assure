@@ -2,7 +2,10 @@
 
 ## Unreleased
 
-- No changes yet.
+- Added a deterministic RAG provenance assurance demo with committed
+  digest-addressed prior-auth policy chunks, scaled-integer cached vectors,
+  `agent-assure demo rag`, and a hero reranker regression that preserves the
+  visible decision and corpus digest while losing material duration evidence.
 
 ## 0.3.1 - 2026-07-06
 

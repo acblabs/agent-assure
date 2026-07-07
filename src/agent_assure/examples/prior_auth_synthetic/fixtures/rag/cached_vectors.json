@@ -1,0 +1,43 @@
+{
+  "serialization": "scaled-int-cosine-v1",
+  "scale": 1000,
+  "dimensions": 4,
+  "vectors": {
+    "query:rag-pt-duration": [
+      1000,
+      0,
+      0,
+      0
+    ],
+    "chunk:medical-necessity": [
+      1000,
+      0,
+      0,
+      0
+    ],
+    "chunk:duration-limit": [
+      960,
+      100,
+      0,
+      0
+    ],
+    "chunk:documentation": [
+      600,
+      800,
+      0,
+      0
+    ],
+    "chunk:exclusions": [
+      200,
+      900,
+      0,
+      0
+    ],
+    "chunk:provider-network": [
+      400,
+      0,
+      900,
+      0
+    ]
+  }
+}

@@ -84,6 +84,20 @@ The demo runs offline with bundled deterministic fixtures. It writes local
 review artifacts under `.tmp/demo/flagship` by default, including the generated
 `evidence-diff.html` report previewed above as a PNG.
 
+For the RAG provenance assurance variant:
+
+```bash
+agent-assure demo rag --out .tmp/demo/rag --clean
+```
+
+That demo uses committed policy chunks and scaled-integer cached vectors. The
+hero candidate keeps `recommendation=approve; outcome=approve` and the same
+`retrieval_corpus_digest`, but drops the retrieved source supporting
+`claim-duration`; the existing material-claim evidence invariant catches the
+regression. A second corpus-version-skew candidate changes
+`retrieval_corpus_digest` while preserving evidence links, so it is reported as
+provenance drift for review rather than a blocking finding.
+
 ## How agent-assure is different
 
 `agent-assure` is a local-first assurance layer designed for agentic AI release

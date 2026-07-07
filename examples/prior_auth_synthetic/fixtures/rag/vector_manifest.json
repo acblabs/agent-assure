@@ -1,0 +1,12 @@
+{
+  "embedding_model": "synthetic-review-vector-v1",
+  "model_revision": "committed-fixture-v1",
+  "dimensions": 4,
+  "normalization": "cosine over scaled integer vectors",
+  "distance_metric": "cosine_similarity",
+  "serialization": "scaled-int-cosine-v1",
+  "cached_vectors_path": "cached_vectors.json",
+  "cached_vectors_sha256": "48ac7bd08a0d1ae42b183e1954d8856664d450a8f74d14cce39228cffc34f337",
+  "generation_script_digest": "9d99b9746c0f57431c3b339d95a754cf267cc89a5b7aa12d0fd524338d62ce54",
+  "chunking_config_digest": "687d9a2c191d7f024c5f55399ca2dab81eb0511ed20cf45ee6e1c9ccf4d31b38"
+}

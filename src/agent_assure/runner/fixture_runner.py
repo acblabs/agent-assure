@@ -36,6 +36,7 @@ DEFAULT_HMAC_KEY_ALLOWED_SYNTHETIC_RUNNERS = frozenset(
         ("expense-approval-minimal", "expense_approval.minimal"),
         ("prior-auth-synthetic", "prior_auth.synthetic"),
         ("prior-auth-synthetic", "prior_auth.synthetic_evidence_refactor"),
+        ("prior-auth-synthetic-rag", "prior_auth.synthetic_rag"),
     }
 )
 

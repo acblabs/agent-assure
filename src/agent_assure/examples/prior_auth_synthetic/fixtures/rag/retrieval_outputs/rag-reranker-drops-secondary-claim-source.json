@@ -1,0 +1,19 @@
+{
+  "variant_mode": "reranker_drops_secondary_claim_source",
+  "retrieval_corpus_digest": "9ddf817deb6a162bf5de61eda820b232a36ebf0ab7e130e20864b4be922b7728",
+  "corpus_version": "2026.01",
+  "normalized_query_digest": "bb3ba93bfcefc99326b79ba824dd7eadcfc448eef3ab0d7ade44ea2140c3e426",
+  "retrieval_config_digest": "d59fb223cc66e96063b283f673f173ca377457c8b8edc8b9c92ba819faf27b20",
+  "retrieved_chunks": [
+    {
+      "rank": 1,
+      "score": "1.000000",
+      "ref_id": "ref-rag-medical-necessity",
+      "source_id": "policy:acme-health:pt-coverage:medical-necessity",
+      "chunk_digest": "32de93ec681deeb1108a2355c3ce0caded976cd66ec554dfe8c5adc9ee7ddcfd",
+      "claim_ids": [
+        "claim-eligibility"
+      ]
+    }
+  ]
+}

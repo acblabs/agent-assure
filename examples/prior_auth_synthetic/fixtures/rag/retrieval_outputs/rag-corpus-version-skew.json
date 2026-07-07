@@ -1,0 +1,29 @@
+{
+  "variant_mode": "corpus_version_skew",
+  "retrieval_corpus_digest": "c3e4aac7896f93d26248b1132587057ca0f566bffbefde76e0178888df94973a",
+  "corpus_version": "2025.10-stale",
+  "normalized_query_digest": "bb3ba93bfcefc99326b79ba824dd7eadcfc448eef3ab0d7ade44ea2140c3e426",
+  "retrieval_config_digest": "05a2942596ceca4e75f07dd194830c46ce5f96b82cb0c2c15800fe18760151b2",
+  "retrieved_chunks": [
+    {
+      "rank": 1,
+      "score": "1.000000",
+      "ref_id": "ref-rag-medical-necessity",
+      "source_id": "policy:acme-health:pt-coverage:medical-necessity",
+      "chunk_digest": "32de93ec681deeb1108a2355c3ce0caded976cd66ec554dfe8c5adc9ee7ddcfd",
+      "claim_ids": [
+        "claim-eligibility"
+      ]
+    },
+    {
+      "rank": 2,
+      "score": "0.994618",
+      "ref_id": "ref-rag-duration-limit",
+      "source_id": "policy:acme-health:pt-coverage:duration-limit",
+      "chunk_digest": "39a52598fb2b7f5bbfc734a18d6ddd55a1e9c48da493cd10c65aceabcd44a782",
+      "claim_ids": [
+        "claim-duration"
+      ]
+    }
+  ]
+}

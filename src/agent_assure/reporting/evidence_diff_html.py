@@ -172,6 +172,8 @@ def render_evidence_diff_html(
             ),
             _technical_evidence_page(baseline, candidate, missing_links),
             _evidence_packet_page(
+                baseline,
+                candidate,
                 comparison_summary,
                 ci_gate_result,
                 packet,
@@ -811,6 +813,8 @@ def _technical_evidence_page(
 
 
 def _evidence_packet_page(
+    baseline: RunSet,
+    candidate: RunSet,
     comparison_summary: ComparisonSummary,
     ci_gate_result: str,
     packet: EvidencePacket | None,
@@ -832,7 +836,7 @@ def _evidence_packet_page(
                 ),
                 "</section>",
                 '<div class="packet-grid">',
-                _comparison_section(comparison_summary),
+                _comparison_section(comparison_summary, baseline, candidate),
                 _fixture_equivalence_section(comparison_summary),
                 _ci_gate_section(ci_gate_result, packet),
                 _claim_boundary_section(),
@@ -933,7 +937,22 @@ def _findings_section(
     )
 
 
-def _comparison_section(comparison_summary: ComparisonSummary) -> str:
+def _comparison_section(
+    comparison_summary: ComparisonSummary,
+    baseline: RunSet,
+    candidate: RunSet,
+) -> str:
+    retrieval_corpus_digest_html = _retrieval_corpus_digest_html(baseline, candidate)
+    retrieval_corpus_digest_detail = (
+        ()
+        if retrieval_corpus_digest_html is None
+        else (
+            _detail_html(
+                "Retrieval corpus digest",
+                retrieval_corpus_digest_html,
+            ),
+        )
+    )
     return "\n".join(
         (
             '<section aria-labelledby="comparison-classification">',
@@ -942,6 +961,7 @@ def _comparison_section(comparison_summary: ComparisonSummary) -> str:
             _detail("Classification", comparison_summary.classification.value),
             _detail("Baseline state", comparison_summary.baseline_state.value),
             _detail("Candidate state", comparison_summary.candidate_state.value),
+            *retrieval_corpus_digest_detail,
             _detail_html(
                 "Provenance changes",
                 _summarized_values_html(comparison_summary.provenance_changes, empty="none"),
@@ -954,6 +974,70 @@ def _comparison_section(comparison_summary: ComparisonSummary) -> str:
             "</section>",
         )
     )
+
+
+def _retrieval_corpus_digest_html(baseline: RunSet, candidate: RunSet) -> str | None:
+    pairs = _paired_runs(baseline, candidate)
+    if not pairs:
+        if _has_retrieval_corpus_digest(baseline) or _has_retrieval_corpus_digest(candidate):
+            return _h(GateState.not_evaluated.value)
+        return None
+    observed_pairs = tuple(
+        (
+            base.case_id,
+            base.provenance.retrieval_corpus_digest,
+            cand.provenance.retrieval_corpus_digest,
+        )
+        for base, cand in pairs
+        if base.provenance.retrieval_corpus_digest is not None
+        or cand.provenance.retrieval_corpus_digest is not None
+    )
+    if not observed_pairs:
+        return None
+    changed = tuple(
+        (case_id, baseline_digest, candidate_digest)
+        for case_id, baseline_digest, candidate_digest in observed_pairs
+        if baseline_digest != candidate_digest
+    )
+    if not changed:
+        digest = observed_pairs[0][1] or observed_pairs[0][2] or "not recorded"
+        case_count = len(observed_pairs)
+        noun = "case" if case_count == 1 else "cases"
+        return (
+            '<span class="state-good">unchanged</span> '
+            f'<span class="empty">across {_h(case_count)} {_h(noun)}</span><br>'
+            f"<code>{_h(digest)}</code>"
+        )
+    values = tuple(
+        _retrieval_corpus_digest_change_item(case_id, baseline_digest, candidate_digest)
+        for case_id, baseline_digest, candidate_digest in changed
+    )
+    return (
+        '<span class="state-bad">changed</span><br>'
+        + _summarized_html_items(values, empty="none")
+    )
+
+
+def _retrieval_corpus_digest_change_item(
+    case_id: str,
+    baseline_digest: str | None,
+    candidate_digest: str | None,
+) -> str:
+    return (
+        f"<code>{_h(case_id)}</code>: baseline "
+        f"{_digest_value_html(baseline_digest)} candidate "
+        f"{_digest_value_html(candidate_digest)}"
+    )
+
+
+def _digest_value_html(digest: str | None) -> str:
+    if digest is None:
+        return '<span class="empty">&lt;unset&gt;</span>'
+    return f"<code>{_h(digest)}</code>"
+
+
+def _has_retrieval_corpus_digest(runset: RunSet) -> bool:
+    return any(run.provenance.retrieval_corpus_digest is not None for run in runset.runs)
 
 
 def _fixture_equivalence_section(comparison_summary: ComparisonSummary) -> str:
@@ -2756,6 +2840,17 @@ def _summarized_values_html(values: tuple[str, ...], *, empty: str) -> str:
     if len(values) > MAX_INLINE_ITEMS:
         prefix = f"{prefix}; first {len(shown)} shown"
     items = "".join(f"<li>{_h(value)}</li>" for value in shown)
+    return f'<span class="value-count">{_h(prefix)}</span><ul class="value-list">{items}</ul>'
+
+
+def _summarized_html_items(values: tuple[str, ...], *, empty: str) -> str:
+    if not values:
+        return f'<span class="empty">{_h(empty)}</span>'
+    shown = values[:MAX_INLINE_ITEMS]
+    prefix = f"{len(values)} item" if len(values) == 1 else f"{len(values)} items"
+    if len(values) > MAX_INLINE_ITEMS:
+        prefix = f"{prefix}; first {len(shown)} shown"
+    items = "".join(f"<li>{value}</li>" for value in shown)
     return f'<span class="value-count">{_h(prefix)}</span><ul class="value-list">{items}</ul>'
 
 

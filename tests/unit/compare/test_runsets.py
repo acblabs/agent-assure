@@ -6,10 +6,12 @@ import pytest
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
+from agent_assure.compare.provenance_diff import PROVENANCE_FIELDS
 from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
+from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import EvidenceItem, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
@@ -51,6 +53,16 @@ def test_provenance_only_changes_do_not_create_verdict_findings() -> None:
     assert report.comparison_summary.candidate_state is GateState.pass_
     assert report.comparison_summary.verdict_findings == ()
     assert report.provenance_changes[0].field == "code_digest"
+
+
+def test_provenance_diff_field_whitelist_tracks_schema_fields() -> None:
+    schema_fields = tuple(
+        field_name
+        for field_name in Provenance.model_fields
+        if field_name not in {"schema_version", "artifact_kind"}
+    )
+
+    assert PROVENANCE_FIELDS == schema_fields
 
 
 def test_fixture_mismatch_is_invalid_comparison() -> None:

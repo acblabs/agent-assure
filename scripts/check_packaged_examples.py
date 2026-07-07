@@ -17,6 +17,7 @@ EXAMPLE_RESOURCE_SETS = (
 MIRRORED_RESOURCE_PATHS = (
     Path("README.md"),
     Path("suite.yaml"),
+    Path("rag_suite.yaml"),
     Path("fixtures"),
     Path("variants"),
 )

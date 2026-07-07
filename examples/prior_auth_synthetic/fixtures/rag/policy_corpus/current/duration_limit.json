@@ -1,0 +1,16 @@
+{
+  "chunk_id": "pt-coverage-duration-limit-v1",
+  "ref_id": "ref-rag-duration-limit",
+  "source_id": "policy:acme-health:pt-coverage:duration-limit",
+  "section": "Duration limit",
+  "section_type": "coverage",
+  "payer": "acme-health",
+  "policy_domain": "prior_auth_physical_therapy",
+  "effective_date": "2026-01-01",
+  "expires_date": "2026-12-31",
+  "claim_ids": [
+    "claim-duration"
+  ],
+  "safe_summary": "Up to twelve weeks of physical therapy may be approved when coverage criteria are met.",
+  "vector_key": "chunk:duration-limit"
+}

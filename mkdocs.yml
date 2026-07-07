@@ -10,6 +10,7 @@ nav:
   - For engineers: for_engineers.md
   - What this measures: what_this_measures.md
   - Flagship demo: demo_flagship.md
+  - RAG demo: demo_rag.md
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md

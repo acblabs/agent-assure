@@ -1,0 +1,14 @@
+{
+  "chunk_id": "pt-coverage-provider-network-v1",
+  "ref_id": "ref-rag-provider-network",
+  "source_id": "policy:acme-health:pt-coverage:provider-network",
+  "section": "Provider network",
+  "section_type": "coverage",
+  "payer": "acme-health",
+  "policy_domain": "prior_auth_physical_therapy",
+  "effective_date": "2026-01-01",
+  "expires_date": "2026-12-31",
+  "claim_ids": [],
+  "safe_summary": "Network status is reviewed separately from the coverage and duration criteria.",
+  "vector_key": "chunk:provider-network"
+}

@@ -1,0 +1,16 @@
+{
+  "chunk_id": "pt-coverage-medical-necessity-v1",
+  "ref_id": "ref-rag-medical-necessity",
+  "source_id": "policy:acme-health:pt-coverage:medical-necessity",
+  "section": "Medical necessity",
+  "section_type": "coverage",
+  "payer": "acme-health",
+  "policy_domain": "prior_auth_physical_therapy",
+  "effective_date": "2026-01-01",
+  "expires_date": "2026-12-31",
+  "claim_ids": [
+    "claim-eligibility"
+  ],
+  "safe_summary": "Physical therapy may be approved when functional limitation and failed conservative care are documented.",
+  "vector_key": "chunk:medical-necessity"
+}

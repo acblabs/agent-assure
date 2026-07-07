@@ -13,6 +13,13 @@ Current digest behavior:
 - SHA-256 is used for content digests;
 - fixture manifests hash file bytes and use canonical digests for the manifest
   artifact;
+- the RAG provenance demo records `provenance.retrieval_corpus_digest` from a
+  committed corpus manifest covering corpus identity, version, chunking, chunk
+  source IDs, and chunk content digests;
+- cached RAG vectors use scaled integers, and the vector-manifest digest is an
+  exact file-byte SHA-256 rather than a parsed floating-point projection;
+- RAG retrieval scores are computed with deterministic `Decimal` arithmetic and
+  quantized before persistence;
 - HMAC-SHA256 is used for sensitive low-entropy correlations.
 
 The current schema keeps fixture-mode provenance narrow while allowing live

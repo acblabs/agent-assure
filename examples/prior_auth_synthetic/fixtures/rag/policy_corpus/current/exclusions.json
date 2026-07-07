@@ -1,0 +1,14 @@
+{
+  "chunk_id": "pt-coverage-exclusions-v1",
+  "ref_id": "ref-rag-exclusions",
+  "source_id": "policy:acme-health:pt-coverage:exclusions",
+  "section": "Exclusions",
+  "section_type": "coverage",
+  "payer": "acme-health",
+  "policy_domain": "prior_auth_physical_therapy",
+  "effective_date": "2026-01-01",
+  "expires_date": "2026-12-31",
+  "claim_ids": [],
+  "safe_summary": "Maintenance therapy without measurable functional improvement is outside this coverage path.",
+  "vector_key": "chunk:exclusions"
+}

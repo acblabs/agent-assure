@@ -1,0 +1,25 @@
+suite_id: prior-auth-synthetic-rag
+suite_version: 0.4.0
+defaults:
+  execution_mode: fixture
+  runner_id: prior_auth.synthetic_rag
+  fixture_roots:
+    - fixtures/rag
+  required_policy_ids:
+    - evidence-linking
+  allowed_tools:
+    - coverage_policy_lookup
+cases:
+  - case_id: rag-pt-duration
+    title: RAG coverage duration provenance
+    fixture_id: rag-pt-duration
+    tags:
+      - rag
+      - evidence-linking
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-rag-medical-necessity
+      material_claim_ids:
+        - claim-eligibility
+        - claim-duration

@@ -1,0 +1,5 @@
+variant_id: rag-corpus-version-skew
+pipeline_id: prior-auth-rag-corpus-version-skew
+runner_id: prior_auth.synthetic_rag
+behavior:
+  evidence_assembly: association_preserving
