@@ -12,6 +12,8 @@ The current stable public surface is intentionally narrow:
   `agent-assure live`.
 - experimental runtime isolation and telemetry commands for external-script
   live adapters and OpenTelemetry export.
+- experimental framework adapters under `agent_assure.adapters`, currently
+  including a LangGraph translator.
 
 The wheel also includes `agent_assure.examples.*` modules so the offline example
 suites remain reproducible after installation. These modules are bundled
@@ -21,8 +23,8 @@ adapter API is introduced.
 
 External projects should treat persisted artifacts and CLI behavior as the
 primary integration points. Live adapter internals, external-script request
-JSON, and telemetry exporter helpers are useful for development but are not yet
-a stable plugin API.
+JSON, framework-adapter internals, and telemetry exporter helpers are useful
+for development but are not yet a stable plugin API.
 
 External producers of `AgentRunRecord` artifacts should also treat
 `agent-run-record-producer-contract/v1` as part of the integration surface. The

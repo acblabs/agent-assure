@@ -35,6 +35,8 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
         "agent_assure/examples/prior_auth_synthetic/fixtures/rag/"
         "counterfactual_query_families.json"
     ) in required
+    assert "agent_assure/examples/langgraph_expense_assurance/runner.py" in required
+    assert "agent_assure/examples/langgraph_expense_assurance/suite.yaml" in required
 
 
 def test_frozen_schema_versions_are_discovered_from_schema_root(tmp_path: Path) -> None:

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added an experimental framework adapter foundation with a deep LangGraph
+  translator, privacy-filtered framework observations, measured-usage
+  attachment, optional `agent-assure[langgraph]` metadata, and an offline
+  LangGraph expense-assurance example whose candidate preserves the final
+  decision while dropping required policy evidence.
 - Added a deterministic RAG provenance assurance demo with committed
   digest-addressed prior-auth policy chunks, scaled-integer cached vectors,
   `agent-assure demo rag`, and a hero reranker regression that preserves the

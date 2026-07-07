@@ -24,7 +24,8 @@
 - Thin integration surface: live execution includes static JSONL,
   external-script, and OpenAI-compatible chat-completions adapters; the OpenAI
   adapter uses Python standard-library HTTP support rather than an additional
-  provider SDK dependency.
+  provider SDK dependency. An experimental framework adapter surface currently
+  includes a LangGraph translator for privacy-filtered node observations.
 - OpenTelemetry-aligned evidence: W3C `traceparent` context can flow through
   live runs and into privacy-filtered span plans, with optional SDK span
   emission and OTLP HTTP export when `agent-assure[otel]` is installed.
@@ -79,6 +80,10 @@
   query-vector keys, query-digest reporting, and separate required-ref,
   source-ID, and material-claim support measurements across authored
   paraphrase/noise variants.
+- Experimental framework adapter contract with a LangGraph integration that
+  converts allowlisted node metadata into `AgentRunRecord` artifacts, attaches
+  measured usage segments, and keeps raw prompts, completions, tool arguments,
+  and unredacted summaries out of persisted observations.
 - Publishable measurement, executive, technical-report, standards, and
   reproducibility documents with traceability to deterministic fixture evidence
   and explicit limitation boundaries.
@@ -129,8 +134,8 @@
 
 ## Planned
 
-- Hardened external-runner extension APIs and broader live provider adapter
-  ergonomics.
+- Hardened external-runner extension APIs, broader live provider adapter
+  ergonomics, and stabilized framework-adapter APIs.
 
 ## Explicitly unsupported
 

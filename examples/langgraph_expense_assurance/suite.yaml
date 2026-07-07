@@ -1,0 +1,28 @@
+suite_id: langgraph-expense-assurance
+suite_version: 0.1.0
+defaults:
+  execution_mode: fixture
+  runner_id: langgraph.expense_assurance
+  allowed_tools:
+    - expense_policy_lookup
+cases:
+  - case_id: lg-exp-001
+    title: LangGraph expense approval preserves evidence and review route
+    tags:
+      - expense
+      - framework-adapter
+      - provider-policy
+    expectation:
+      allowed_outcomes:
+        - approved_with_review
+      allowed_tools:
+        - expense_policy_lookup
+      allowed_providers:
+        - approved-expense-model
+      forbidden_providers:
+        - unapproved-expense-model
+      required_evidence_refs:
+        - ref-expense-policy-v3
+      material_claim_ids:
+        - claim-policy-evidence
+      required_human_review: true

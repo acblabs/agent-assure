@@ -59,7 +59,11 @@ def _write_example_pair(tmp_path: Path, *, content: str) -> tuple[Path, Path]:
     top_level = tmp_path / "examples"
     packaged = tmp_path / "src" / "agent_assure" / "examples"
     for root in (top_level, packaged):
-        for example in ("prior_auth_synthetic", "expense_approval_minimal"):
+        for example in (
+            "prior_auth_synthetic",
+            "expense_approval_minimal",
+            "langgraph_expense_assurance",
+        ):
             example_root = root / example
             (example_root / "fixtures" / "shared" / "requests").mkdir(parents=True)
             (example_root / "variants").mkdir(parents=True)

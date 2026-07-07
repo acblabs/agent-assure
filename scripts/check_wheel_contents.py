@@ -52,6 +52,11 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/examples/expense_approval_minimal/fixtures/shared/requests/exp-001.json",
     "agent_assure/examples/expense_approval_minimal/fixtures/shared/model_outputs/exp-001.json",
     "agent_assure/examples/expense_approval_minimal/fixtures/shared/tool_outputs/exp-001.json",
+    "agent_assure/examples/langgraph_expense_assurance/",
+    "agent_assure/examples/langgraph_expense_assurance/__init__.py",
+    "agent_assure/examples/langgraph_expense_assurance/README.md",
+    "agent_assure/examples/langgraph_expense_assurance/runner.py",
+    "agent_assure/examples/langgraph_expense_assurance/suite.yaml",
     "agent_assure/schema_resources/__init__.py",
 )
 

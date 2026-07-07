@@ -15,6 +15,8 @@ nav:
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
   - Schema evolution: schema_evolution.md
+  - Adapter contract: adapters/adapter_contract.md
+  - LangGraph integration: integrations/langgraph.md
   - PyPI release: release_pypi.md
   - API surface: api_surface.md
   - Limitations: limitations.md

@@ -12,6 +12,7 @@ PACKAGED_EXAMPLES = ROOT / "src" / "agent_assure" / "examples"
 EXAMPLE_RESOURCE_SETS = (
     "prior_auth_synthetic",
     "expense_approval_minimal",
+    "langgraph_expense_assurance",
 )
 
 MIRRORED_RESOURCE_PATHS = (
