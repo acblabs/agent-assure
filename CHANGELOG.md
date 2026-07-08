@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added a MITRE ATLAS 2026.06 planning crosswalk to the threat coverage matrix,
+  including conservative mapping-strength labels, explicit ATLAS-relevant gaps,
+  an offline ATLAS ID validation fixture with provenance notes, and a
+  bidirectional Markdown/YAML consistency guard with prose provenance checks.
+- Refreshed public docs for the current release surface and expanded the
+  ISO/IEC 42001 planning crosswalk into a structured control table linked from
+  the docs nav.
 - Added an experimental framework adapter foundation with a deep LangGraph
   translator, privacy-filtered framework observations, measured-usage
   attachment, optional `agent-assure[langgraph]` metadata, and an offline

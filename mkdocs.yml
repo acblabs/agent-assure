@@ -14,6 +14,8 @@ nav:
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
+  - ISO/IEC 42001 crosswalk: governance_crosswalk_iso42001.md
+  - MITRE ATLAS crosswalk: governance_crosswalk_mitre_atlas.md
   - Schema evolution: schema_evolution.md
   - Adapter contract: adapters/adapter_contract.md
   - LangGraph integration: integrations/langgraph.md

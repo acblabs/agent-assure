@@ -4,8 +4,8 @@ The expense approval example is a compact non-healthcare fixture suite. It uses
 the same suite compilation, fixture run, evaluation, and report-writing path as
 the flagship demo.
 
-In v0.3.0, the one-command wrapper is focused on the flagship fixture. The
-expense fixture remains bundled and runnable directly:
+The one-command wrapper is focused on the flagship fixture. The expense fixture
+remains bundled and runnable directly:
 
 ```bash
 agent-assure suite compile examples/expense_approval_minimal/suite.yaml --out .tmp/expense/expense.compiled.json --manifest .tmp/expense/expense.fixtures.json

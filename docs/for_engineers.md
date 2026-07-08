@@ -27,8 +27,8 @@ and verifies their exit codes and artifacts.
 ## Run expense demo
 
 The expense approval fixture is bundled for a compact non-healthcare example.
-In v0.3.0, the one-command demo path focuses on the flagship fixture; the
-expense suite can still be run directly:
+The one-command demo path focuses on the flagship fixture; the expense suite can
+still be run directly:
 
 ```bash
 agent-assure suite compile examples/expense_approval_minimal/suite.yaml --out .tmp/expense/expense.compiled.json --manifest .tmp/expense/expense.fixtures.json
@@ -79,6 +79,6 @@ demos work from editable installs, wheels, and arbitrary current directories.
 
 ## Public vs experimental API
 
-The CLI and persisted JSON artifacts are the primary v0.3.0 surface. Internal
-Python modules may change while the package is still alpha; use documented CLI
+The CLI and persisted JSON artifacts are the primary stable surface while the
+package is still alpha. Internal Python modules may change; use documented CLI
 commands and schema exports for integration points.

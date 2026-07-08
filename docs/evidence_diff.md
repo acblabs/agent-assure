@@ -3,7 +3,7 @@
 `agent-assure diff render` creates a single local HTML artifact for reviewer
 inspection.
 
-The v0.3.0 renderer is intentionally static:
+The renderer is intentionally static:
 
 - local HTML only;
 - inline CSS;

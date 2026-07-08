@@ -3,107 +3,196 @@ taxonomies:
   nist_ai_rmf_functions: [Govern, Map, Measure, Manage]
   iso_iec_42001_crosswalk:
     note: Crosswalk only; not a compliance claim.
+  mitre_atlas_snapshot:
+    name: MITRE ATLAS
+    release: "2026.06"
+    release_date: "2026-06-30"
+    artifact_modified_date: "2026-05-27"
+    format_version: "6.0.0"
+    source: https://atlas.mitre.org/atlas-data/dist/v6/ATLAS-2026.06.yaml
+    note: >
+      Crosswalk only; maps local controls to ATLAS adversary tactics and
+      techniques without claiming ATLAS coverage or validation. ATLAS uses
+      richer strength, tactic, and technique fields because it is an adversary
+      technique catalog; OWASP, NIST, and ISO remain tag-style review
+      dimensions in this matrix.
 controls:
   - id: runtime_success_required
     status: evaluated
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [monitoring, accountability]
     owasp_risks: [LLM08]
+    mitre_atlas:
+      mapping_strength: adjacent
+      tactics: [AML.TA0011]
+      techniques: [AML.T0029]
     project_threats: [fixture-runtime-failure]
   - id: structured_output_required
     status: evaluated
     nist_ai_rmf: [Measure]
     iso_iec_42001_areas: [documentation, monitoring]
     owasp_risks: [LLM02]
+    mitre_atlas:
+      mapping_strength: not_applicable
+      tactics: []
+      techniques: []
     project_threats: [invalid-structured-record]
   - id: evidence_required
     status: evaluated
     nist_ai_rmf: [Measure, Govern]
     iso_iec_42001_areas: [transparency, documentation]
     owasp_risks: [LLM09]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0003, AML.TA0007]
+      techniques: [AML.T0066, AML.T0067.000]
     project_threats: [missing-required-evidence]
   - id: material_claims_have_evidence
     status: evaluated
     nist_ai_rmf: [Measure, Govern]
     iso_iec_42001_areas: [transparency, accountability]
     owasp_risks: [LLM09]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0007]
+      techniques: [AML.T0067.000]
     project_threats: [material-claim-link-regression]
   - id: tool_allowlist
     status: evaluated_when_configured
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
     owasp_risks: [LLM06]
+    mitre_atlas:
+      mapping_strength: direct
+      tactics: [AML.TA0005, AML.TA0009, AML.TA0010, AML.TA0012]
+      techniques: [AML.T0053, AML.T0085.001, AML.T0086]
     project_threats: [unexpected-tool-use]
   - id: provider_review_boundary
     status: evaluated
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [AI system lifecycle governance, accountability]
     owasp_risks: [LLM05]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0000, AML.TA0014]
+      techniques: [AML.T0040, AML.T0096]
     project_threats: [forbidden-provider-review-boundary]
   - id: human_review_required
     status: evaluated
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [human oversight, accountability]
     owasp_risks: [LLM05]
+    mitre_atlas:
+      mapping_strength: adjacent
+      tactics: [AML.TA0005, AML.TA0007, AML.TA0012]
+      techniques: [AML.T0051, AML.T0053, AML.T0054]
     project_threats: [missing-review-route]
   - id: redaction_required
     status: partially_evaluated
     nist_ai_rmf: [Measure, Govern]
     iso_iec_42001_areas: [transparency, documentation]
     owasp_risks: [LLM02]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0010]
+      techniques: [AML.T0024, AML.T0057, AML.T0086]
     project_threats: [persisted-sensitive-content]
   - id: prompt_injection_control_boundary
     status: evaluated
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [human oversight, monitoring]
     owasp_risks: [LLM01]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0004, AML.TA0005, AML.TA0006]
+      techniques: [AML.T0051, AML.T0051.000, AML.T0051.001, AML.T0051.002, AML.T0093]
     project_threats: [prompt-boundary-bypass]
   - id: live_persisted_policy_results
     status: evaluated_when_live
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [monitoring, accountability]
     owasp_risks: [LLM02, LLM09]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0005, AML.TA0007, AML.TA0012]
+      techniques: [AML.T0051, AML.T0053, AML.T0054]
     project_threats: [live-adapter-suppressed-policy-failure]
   - id: live_config_path_confinement
     status: evaluated
     nist_ai_rmf: [Manage]
     iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
     owasp_risks: [LLM06, LLM07]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0006, AML.TA0008, AML.TA0013]
+      techniques: [AML.T0081, AML.T0083, AML.T0084]
     project_threats: [live-config-path-traversal]
   - id: live_openai_endpoint_allowlist
     status: evaluated
     nist_ai_rmf: [Manage]
     iso_iec_42001_areas: [AI system lifecycle governance, monitoring]
     owasp_risks: [LLM05, LLM07]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0000, AML.TA0014]
+      techniques: [AML.T0040, AML.T0096]
     project_threats: [network-adapter-key-exfiltration]
   - id: external_script_output_limit
     status: evaluated
     nist_ai_rmf: [Manage]
     iso_iec_42001_areas: [monitoring]
     owasp_risks: [LLM06]
+    mitre_atlas:
+      mapping_strength: partial
+      tactics: [AML.TA0005, AML.TA0011]
+      techniques: [AML.T0029, AML.T0034.001, AML.T0034.002, AML.T0050]
     project_threats: [external-script-output-dos]
 uncovered:
   - id: raw_payload_persistence_forbidden
     status: not_evaluated
     reason: Runset writers recursively redact persisted artifacts, but the project does not inspect storage outside agent-assure artifacts or provide production DLP.
     nist_ai_rmf: [Measure, Govern]
+    mitre_atlas:
+      mapping_strength: gap
+      tactics: [AML.TA0010]
+      techniques: [AML.T0024, AML.T0025, AML.T0057, AML.T0086]
   - id: live-adapter-attestation
     status: not_evaluated
     reason: Live adapters and providers are trusted producers; responses are not signed or independently attested.
     nist_ai_rmf: [Measure, Manage]
+    mitre_atlas:
+      mapping_strength: gap
+      tactics: [AML.TA0003, AML.TA0006, AML.TA0007]
+      techniques: [AML.T0010, AML.T0010.005, AML.T0109, AML.T0110]
   - id: live-stochastic-model-quality-regression
     status: not_evaluated
     reason: Fixture mode does not run live stochastic model comparisons.
     nist_ai_rmf: [Measure]
+    mitre_atlas:
+      mapping_strength: gap
+      tactics: [AML.TA0011]
+      techniques: [AML.T0031, AML.T0076]
   - id: context-discovery-and-stakeholder-impact-mapping
     status: not_evaluated
     reason: The project does not perform Map-function context discovery or impact mapping.
     nist_ai_rmf: [Map]
+    mitre_atlas:
+      mapping_strength: not_applicable
+      tactics: []
+      techniques: []
   - id: production-runtime-isolation
     status: not_evaluated
     reason: Offline run records do not observe production sandbox isolation.
     nist_ai_rmf: [Manage]
+    mitre_atlas:
+      mapping_strength: gap
+      tactics: [AML.TA0005, AML.TA0011, AML.TA0012]
+      techniques: [AML.T0050, AML.T0105, AML.T0112, AML.T0112.000]
   - id: safety-or-regulatory-certification
     status: not_evaluated
     reason: Deterministic fixture checks do not establish safety assurance or compliance status.
     nist_ai_rmf: [Govern]
+    mitre_atlas:
+      mapping_strength: not_applicable
+      tactics: []
+      techniques: []
