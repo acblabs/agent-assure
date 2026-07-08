@@ -2,13 +2,21 @@ from __future__ import annotations
 
 import json
 import sys
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 import pytest
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.live.adapters import OpenAIChatCompletionsAdapter, StaticJsonlAdapter
+from agent_assure.live.adapters import (
+    MAX_PROVIDER_RESPONSE_BYTES,
+    OpenAIChatCompletionsAdapter,
+    StaticJsonlAdapter,
+    _NoRedirectHandler,
+    _read_provider_response,
+)
 from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
 from agent_assure.live.runner import (
     _is_rate_limit_error,
@@ -223,6 +231,34 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
     )
 
     assert adapter.adapter_id == "openai-chat-completions"
+
+
+def test_openai_adapter_redirect_handler_blocks_redirected_authorization() -> None:
+    request = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        headers={"Authorization": "Bearer test-secret"},
+        method="POST",
+    )
+
+    with pytest.raises(urllib.error.HTTPError, match="provider redirects are disabled"):
+        _NoRedirectHandler().redirect_request(
+            request,
+            fp=None,
+            code=302,
+            msg="Found",
+            headers={},
+            newurl="http://169.254.169.254/latest/meta-data/",
+        )
+
+
+def test_openai_provider_response_is_size_bounded() -> None:
+    class OversizedResponse:
+        def read(self, size: int = -1) -> bytes:
+            del size
+            return b"x" * (MAX_PROVIDER_RESPONSE_BYTES + 1)
+
+    with pytest.raises(ValueError, match="provider response exceeded"):
+        _read_provider_response(OversizedResponse())
 
 
 def test_live_runner_records_post_response_budget_stop(tmp_path: Path) -> None:

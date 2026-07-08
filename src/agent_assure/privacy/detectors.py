@@ -13,8 +13,12 @@ SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bA(?:KIA|SIA)[A-Z0-9]{16}\b"),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{30,}\b"),
     re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
+    re.compile(r"\bAIza[A-Za-z0-9_-]{35}\b"),
+    re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b"),
     re.compile(
-        r"\b(?:api[_-]?key|access[_-]?token|secret|password|passwd|authorization)\s*[:=]\s*"
+        r"\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|private[_-]?key|secret|"
+        r"password|passwd|authorization)\s*[:=]\s*"
         r"['\"]?[^'\"\s,;]{8,}",
         re.IGNORECASE,
     ),

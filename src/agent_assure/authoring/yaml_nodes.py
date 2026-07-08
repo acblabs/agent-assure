@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 import yaml
+
+MAX_YAML_BYTES = 1_048_576
+MAX_YAML_NODE_COUNT = 100_000
+MAX_YAML_DEPTH = 80
 
 
 @dataclass(frozen=True)
@@ -22,6 +26,12 @@ class LoadedYaml:
     warnings: tuple[YamlWarning, ...]
 
 
+@dataclass
+class _YamlConversionState:
+    seen_node_ids: set[int] = field(default_factory=set)
+    node_count: int = 0
+
+
 AMBIGUOUS_TAGS = {
     "tag:yaml.org,2002:int",
     "tag:yaml.org,2002:float",
@@ -31,31 +41,70 @@ AMBIGUOUS_TAGS = {
 
 def load_yaml_nodes(path: Path) -> LoadedYaml:
     text = path.read_text(encoding="utf-8")
+    if len(text.encode("utf-8")) > MAX_YAML_BYTES:
+        raise ValueError("suite YAML exceeds maximum supported size")
     node = yaml.compose(text)
     warnings: list[YamlWarning] = []
-    data = _convert_node(node, "$", warnings)
+    data = _convert_node(
+        node,
+        "$",
+        warnings,
+        state=_YamlConversionState(),
+        depth=0,
+    )
     if not isinstance(data, dict):
         raise ValueError("suite YAML root must be a mapping")
     return LoadedYaml(data=data, warnings=tuple(warnings))
 
 
-def _convert_node(node: yaml.Node | None, path: str, warnings: list[YamlWarning]) -> Any:
+def _convert_node(
+    node: yaml.Node | None,
+    path: str,
+    warnings: list[YamlWarning],
+    *,
+    state: _YamlConversionState,
+    depth: int,
+) -> Any:
     if node is None:
         return {}
+    _record_node_visit(node, path, state=state, depth=depth)
     if isinstance(node, yaml.MappingNode):
         result: dict[str, Any] = {}
         for key_node, value_node in node.value:
-            key = str(_convert_node(key_node, path, warnings))
+            key = str(
+                _convert_node(
+                    key_node,
+                    path,
+                    warnings,
+                    state=state,
+                    depth=depth + 1,
+                )
+            )
             if key in result:
                 raise ValueError(
                     f"duplicate YAML mapping key at {path}.{key}: "
                     f"line {key_node.start_mark.line + 1}, "
                     f"column {key_node.start_mark.column + 1}"
                 )
-            result[key] = _convert_node(value_node, f"{path}.{key}", warnings)
+            result[key] = _convert_node(
+                value_node,
+                f"{path}.{key}",
+                warnings,
+                state=state,
+                depth=depth + 1,
+            )
         return result
     if isinstance(node, yaml.SequenceNode):
-        return tuple(_convert_node(item, f"{path}[]", warnings) for item in node.value)
+        return tuple(
+            _convert_node(
+                item,
+                f"{path}[]",
+                warnings,
+                state=state,
+                depth=depth + 1,
+            )
+            for item in node.value
+        )
     if isinstance(node, yaml.ScalarNode):
         if unicodedata.normalize("NFC", node.value) != node.value:
             warnings.append(
@@ -82,3 +131,24 @@ def _convert_node(node: yaml.Node | None, path: str, warnings: list[YamlWarning]
             return None
         return node.value
     raise TypeError(f"unsupported YAML node: {type(node).__name__}")
+
+
+def _record_node_visit(
+    node: yaml.Node,
+    path: str,
+    *,
+    state: _YamlConversionState,
+    depth: int,
+) -> None:
+    if depth > MAX_YAML_DEPTH:
+        raise ValueError("suite YAML exceeds maximum supported nesting depth")
+    node_id = id(node)
+    if node_id in state.seen_node_ids:
+        raise ValueError(
+            "suite YAML aliases are not supported because alias expansion can "
+            f"exhaust resources at {path}"
+        )
+    state.seen_node_ids.add(node_id)
+    state.node_count += 1
+    if state.node_count > MAX_YAML_NODE_COUNT:
+        raise ValueError("suite YAML exceeds maximum supported node count")

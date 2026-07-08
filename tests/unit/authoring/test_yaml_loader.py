@@ -90,6 +90,24 @@ cases: []
         compile_suite(suite)
 
 
+def test_yaml_aliases_are_rejected_before_expansion(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+defaults: &defaults
+  runner_id: prior_auth.synthetic
+aliased_defaults: *defaults
+cases: []
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="aliases are not supported"):
+        compile_suite(suite)
+
+
 def test_expectation_defaults_are_resolved_and_digest_recorded(tmp_path) -> None:  # type: ignore[no-untyped-def]
     suite = tmp_path / "suite.yaml"
     suite.write_text(

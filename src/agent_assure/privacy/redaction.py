@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
 from agent_assure.privacy.detectors import SENSITIVE_PATTERNS
 
 REDACTION = "[REDACTED]"
+_DIGEST_HEX_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 
 def redact_text(value: str) -> str:
@@ -104,9 +106,7 @@ def redact_artifact_payload(value: Any, *, preserve_keys: frozenset[str] = froze
         return redact_text(value)
     if isinstance(value, Mapping):
         return {
-            key: item
-            if _preserves_scalar_value(key, item, preserve_keys=preserve_keys)
-            else redact_artifact_payload(item, preserve_keys=preserve_keys)
+            key: _redact_mapping_item(key, item, preserve_keys=preserve_keys)
             for key, item in value.items()
         }
     if isinstance(value, tuple):
@@ -129,5 +129,30 @@ def _preserves_scalar_value(
     return (
         isinstance(key, str)
         and isinstance(item, str)
-        and (key in preserve_keys or key.endswith("_digest"))
+        and (
+            key in preserve_keys
+            or (key.endswith("_digest") and _DIGEST_HEX_PATTERN.fullmatch(item) is not None)
+        )
+    )
+
+
+def _redact_mapping_item(
+    key: object,
+    item: Any,
+    *,
+    preserve_keys: frozenset[str],
+) -> Any:
+    if _is_invalid_digest_scalar(key, item):
+        return REDACTION
+    if _preserves_scalar_value(key, item, preserve_keys=preserve_keys):
+        return item
+    return redact_artifact_payload(item, preserve_keys=preserve_keys)
+
+
+def _is_invalid_digest_scalar(key: object, item: object) -> bool:
+    return (
+        isinstance(key, str)
+        and key.endswith("_digest")
+        and isinstance(item, str)
+        and _DIGEST_HEX_PATTERN.fullmatch(item) is None
     )

@@ -33,6 +33,7 @@ EstimatedCostSource = Literal[
 ]
 
 DEFAULT_OPENAI_ENDPOINT_HOSTS = ("api.openai.com",)
+MAX_PROVIDER_RESPONSE_BYTES = 1_048_576
 
 
 class LiveProviderRequest(StrictModel):
@@ -83,6 +84,26 @@ class LiveProviderRequestError(RuntimeError):
         super().__init__(message)
         self.status_code = status_code
         self.retry_after_seconds = retry_after_seconds
+
+
+class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
+    def redirect_request(
+        self,
+        req: urllib.request.Request,
+        fp: Any,
+        code: int,
+        msg: str,
+        headers: Any,
+        newurl: str,
+    ) -> urllib.request.Request | None:
+        del newurl
+        raise urllib.error.HTTPError(
+            req.full_url,
+            code,
+            "provider redirects are disabled",
+            headers,
+            fp,
+        )
 
 
 class StaticJsonlAdapter:
@@ -173,10 +194,7 @@ class OpenAIChatCompletionsAdapter:
         }
         if self._config.max_output_tokens is not None:
             body["max_tokens"] = self._config.max_output_tokens
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
+        headers = {"Content-Type": "application/json"}
         if request.traceparent is not None:
             headers["traceparent"] = request.traceparent
         if request.tracestate:
@@ -187,12 +205,13 @@ class OpenAIChatCompletionsAdapter:
             headers=headers,
             method="POST",
         )
+        http_request.add_unredirected_header("Authorization", f"Bearer {self._api_key}")
         try:
-            with urllib.request.urlopen(  # noqa: S310 - explicit live adapter opt-in.
+            with _open_no_redirects(
                 http_request,
-                timeout=self._config.timeout_seconds,
+                timeout_seconds=self._config.timeout_seconds,
             ) as response:
-                payload = json.loads(response.read().decode("utf-8"))
+                payload = json.loads(_read_provider_response(response).decode("utf-8"))
         except urllib.error.HTTPError as exc:
             retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
             raise LiveProviderRequestError(
@@ -319,6 +338,26 @@ def adapter_ids() -> tuple[str, ...]:
         OpenAIChatCompletionsAdapter.adapter_id,
         ExternalScriptAdapter.adapter_id,
     )
+
+
+def _open_no_redirects(
+    request: urllib.request.Request,
+    *,
+    timeout_seconds: int,
+) -> Any:
+    opener = urllib.request.build_opener(_NoRedirectHandler())
+    return opener.open(request, timeout=timeout_seconds)
+
+
+def _read_provider_response(response: Any) -> bytes:
+    payload = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
+    if isinstance(payload, str):
+        payload = payload.encode("utf-8")
+    elif not isinstance(payload, bytes):
+        payload = bytes(payload)
+    if len(payload) > MAX_PROVIDER_RESPONSE_BYTES:
+        raise ValueError("provider response exceeded configured byte limit")
+    return payload
 
 
 def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> LiveProviderResponse:

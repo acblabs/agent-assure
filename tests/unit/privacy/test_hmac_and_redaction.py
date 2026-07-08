@@ -59,16 +59,25 @@ def test_redaction_card_pattern_handles_long_digit_sequences() -> None:
 
 
 def test_redaction_removes_common_secret_tokens() -> None:
+    slack_token = "xoxb-" + "123456789012-123456789012-secretTOKEN"
+    google_key = "AIza" + "1234567890ABCDEFGHIJKLMNOPQRSTUVWXY"
+    stripe_key = "sk" + "_live_" + "abcdefghijklmnopqrstuvwxyz"
     raw = (
         "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456 "
         "token=ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH "
-        "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signatureABC"
+        "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signatureABC "
+        f"slack={slack_token} "
+        f"google={google_key} "
+        f"stripe={stripe_key}"
     )
     redacted = redact_text(raw)
 
     assert "Bearer abcdefghijklmnopqrstuvwxyz123456" not in redacted
     assert "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH" not in redacted
     assert "eyJhbGci" not in redacted
+    assert slack_token not in redacted
+    assert google_key not in redacted
+    assert stripe_key not in redacted
     assert not contains_sensitive_value(redacted)
 
 
@@ -151,6 +160,29 @@ def test_redaction_still_preserves_scalar_structural_values() -> None:
     assert redacted["artifact_kind"] == "run-set"
     assert redacted["runs"][0]["local_debug_reference"] == "debug-001"
     assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
+
+
+def test_runset_redaction_rejects_malformed_digest_without_corrupting_ids() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "runs": [
+            {
+                "provider_response_id": "1234567890123456",
+                "provenance": {
+                    "configuration_digest": "api_key=abcdef1234567890",
+                    "fixture_manifest_digest": "b" * 64,
+                },
+            }
+        ],
+    }
+
+    redacted = redact_runset_payload(payload)
+
+    dumped = str(redacted)
+    assert "abcdef1234567890" not in dumped
+    assert redacted["runs"][0]["provider_response_id"] == "1234567890123456"
+    assert redacted["runs"][0]["provenance"]["configuration_digest"] == "[REDACTED]"
+    assert redacted["runs"][0]["provenance"]["fixture_manifest_digest"] == "b" * 64
 
 
 def test_redaction_is_idempotent() -> None:
