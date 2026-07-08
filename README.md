@@ -260,8 +260,8 @@ consistency.
 | MITRE ATLAS 2026.06 | Controls mapped to adversary tactics and techniques with a stated mapping strength | [MITRE ATLAS crosswalk](docs/governance_crosswalk_mitre_atlas.md) |
 
 These are planning crosswalks and review aids, not framework conformance,
-coverage, or certification claims. Scope limits and declared gaps are kept
-visible where the current mapping records them.
+complete coverage, or third-party assurance claims. Scope limits and declared
+gaps are kept visible where the current mapping records them.
 
 ## How agent-assure is different
 
@@ -445,8 +445,8 @@ It is not a safety claim.
 
 The governance crosswalks above map local controls to NIST AI RMF, the OWASP
 LLM Top 10, ISO/IEC 42001, and MITRE ATLAS as planning and review aids. They do
-not establish conformance with, coverage of, or certification against any of
-those frameworks.
+not establish conformance with, complete coverage of, or third-party acceptance
+by any of those frameworks.
 
 | `agent-assure` is | `agent-assure` is not |
 | --- | --- |
