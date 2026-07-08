@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Surfaced the governance crosswalks in the README and added standalone NIST AI
+  RMF and OWASP LLM Top 10 planning crosswalk docs so all four frameworks
+  (NIST AI RMF, OWASP LLM Top 10, ISO/IEC 42001, MITRE ATLAS) have dedicated
+  pages derived from the threat coverage matrix, with explicit
+  non-conformance boundary language.
 - Added a MITRE ATLAS 2026.06 planning crosswalk to the threat coverage matrix,
   including conservative mapping-strength labels, explicit ATLAS-relevant gaps,
   an offline ATLAS ID validation fixture with provenance notes, and a

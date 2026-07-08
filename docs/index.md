@@ -38,5 +38,7 @@ controls with OWASP LLM Top 10 2025 risks, NIST AI RMF functions, ISO/IEC 42001
 concept areas, and the pinned MITRE ATLAS 2026.06 planning crosswalk. These are
 review aids, not broad framework outcome claims.
 
+- [NIST AI RMF crosswalk](governance_crosswalk_nist_ai_rmf.md)
+- [OWASP LLM Top 10 crosswalk](governance_crosswalk_owasp_llm.md)
 - [ISO/IEC 42001 crosswalk](governance_crosswalk_iso42001.md)
 - [MITRE ATLAS crosswalk](governance_crosswalk_mitre_atlas.md)

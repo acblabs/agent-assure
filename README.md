@@ -243,6 +243,26 @@ between natural-language queries.
 
 See [`docs/demo_rag.md`](docs/demo_rag.md) for the full demo boundary.
 
+## Governance crosswalks
+
+`agent-assure` controls are tagged against four external governance frameworks
+so reviewers can line up local process evidence with the language their
+programs already use. The source mapping lives in the machine-readable
+[`docs/threat_coverage_matrix.yaml`](docs/threat_coverage_matrix.yaml), with CI
+checks for taxonomy tag shape, pinned ATLAS IDs, and selected Markdown/YAML
+consistency.
+
+| Framework | What is mapped | Crosswalk |
+| --- | --- | --- |
+| NIST AI RMF | Controls tagged by `Govern` / `Map` / `Measure` / `Manage` function | [NIST AI RMF crosswalk](docs/governance_crosswalk_nist_ai_rmf.md) |
+| OWASP Top 10 for LLM Applications 2025 | Controls tagged by related `LLM01`–`LLM10` risk IDs | [OWASP LLM Top 10 crosswalk](docs/governance_crosswalk_owasp_llm.md) |
+| ISO/IEC 42001 | Controls tagged by reviewer-facing concept areas | [ISO/IEC 42001 crosswalk](docs/governance_crosswalk_iso42001.md) |
+| MITRE ATLAS 2026.06 | Controls mapped to adversary tactics and techniques with a stated mapping strength | [MITRE ATLAS crosswalk](docs/governance_crosswalk_mitre_atlas.md) |
+
+These are planning crosswalks and review aids, not framework conformance,
+coverage, or certification claims. Scope limits and declared gaps are kept
+visible where the current mapping records them.
+
 ## How agent-assure is different
 
 `agent-assure` is a local-first assurance layer designed for agentic AI release
@@ -423,6 +443,11 @@ This project is not a compliance attestation.
 
 It is not a safety claim.
 
+The governance crosswalks above map local controls to NIST AI RMF, the OWASP
+LLM Top 10, ISO/IEC 42001, and MITRE ATLAS as planning and review aids. They do
+not establish conformance with, coverage of, or certification against any of
+those frameworks.
+
 | `agent-assure` is | `agent-assure` is not |
 | --- | --- |
 | Release-review evidence for declared process expectations | A substitute for legal, regulatory, clinical, provider-quality, or business-impact review |
@@ -441,3 +466,4 @@ model-quality, safety, or clinical-validation claims.
 - **Integrations:** [LangGraph integration](docs/integrations/langgraph.md)
 - **Assurance model:** [What this measures](docs/what_this_measures.md) &middot; [Evidence diff](docs/evidence_diff.md)
 - **Security and boundaries:** [Threat model](docs/threat_model.md) &middot; [Current claim boundary](docs/claim_boundary.md)
+- **Governance crosswalks:** [NIST AI RMF](docs/governance_crosswalk_nist_ai_rmf.md) &middot; [OWASP LLM Top 10](docs/governance_crosswalk_owasp_llm.md) &middot; [ISO/IEC 42001](docs/governance_crosswalk_iso42001.md) &middot; [MITRE ATLAS](docs/governance_crosswalk_mitre_atlas.md)

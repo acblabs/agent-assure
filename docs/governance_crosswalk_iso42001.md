@@ -30,4 +30,5 @@ where deterministic evidence may help a team prepare review material.
 
 The table reports declared local review areas for deterministic artifacts. It
 does not judge an organization's AI management system, operating context,
-policy completeness, or legal duties.
+policy completeness, or legal duties, and it does not establish ISO/IEC 42001
+conformance.
