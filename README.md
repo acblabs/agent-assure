@@ -151,8 +151,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.3.1
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.3.1
+      - run: python -m pip install agent-assure==0.4.2
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.4.2
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml

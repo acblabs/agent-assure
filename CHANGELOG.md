@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.4.2 - 2026-07-10
+
 - Surfaced the governance crosswalks in the README and added standalone NIST AI
   RMF and OWASP LLM Top 10 planning crosswalk docs so all four frameworks
   (NIST AI RMF, OWASP LLM Top 10, ISO/IEC 42001, MITRE ATLAS) have dedicated
@@ -28,6 +30,9 @@
   deterministic reports that summarize required-ref coverage separately from
   source-ID and material-claim support across paraphrase/noise variants without
   exposing raw query text or claiming semantic proof.
+- Bumped package metadata to `0.4.2` while keeping the persisted artifact
+  schema at `0.3.1`; the release validator now records the explicit
+  package-to-schema mapping for the v0.4 package-only releases.
 
 ## 0.3.1 - 2026-07-06
 

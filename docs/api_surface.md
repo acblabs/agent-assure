@@ -3,8 +3,9 @@
 The current stable public surface is intentionally narrow:
 
 - the `agent-assure` CLI;
-- the v0.3.1 frozen release schema snapshot under `schemas/v0.3.1`, with
-  earlier release schema sets retained under `schemas/v0.1.0`,
+- the v0.3.1 frozen release schema snapshot under `schemas/v0.3.1`, which
+  remains the active persisted artifact schema for the v0.4.2 package release,
+  with earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, and `schemas/v0.3.0`;
 - importable schema models under `agent_assure.schema`;
 - fixture-mode helpers used by the bundled examples.

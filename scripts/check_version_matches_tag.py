@@ -14,6 +14,11 @@ PACKAGE_INIT = ROOT / "src" / "agent_assure" / "__init__.py"
 SCHEMA_BASE = ROOT / "src" / "agent_assure" / "schema" / "base.py"
 SCHEMA_ROOT = ROOT / "schemas"
 VERSION_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:rc[1-9]\d*)?$")
+PACKAGE_SCHEMA_VERSION_OVERRIDES = {
+    "0.4.0": "0.3.1",
+    "0.4.1": "0.3.1",
+    "0.4.2": "0.3.1",
+}
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -147,10 +152,8 @@ def read_schema_version(path: Path) -> str:
 
 
 def release_schema_version(package_version: str) -> str:
-    # v0.3.1 intentionally couples package and schema release versions. If a
-    # future package-only release keeps the schema behind the package version,
-    # replace this derivation with an explicit release-to-schema mapping.
-    return package_version.split("rc", 1)[0]
+    base_version = package_version.split("rc", 1)[0]
+    return PACKAGE_SCHEMA_VERSION_OVERRIDES.get(base_version, base_version)
 
 
 def read_string_assignment(path: Path, name: str) -> str:

@@ -79,6 +79,34 @@ def test_version_tag_check_accepts_release_candidate_metadata(tmp_path: Path) ->
     assert status == 0
 
 
+def test_version_tag_check_accepts_mapped_package_schema_metadata(
+    tmp_path: Path,
+) -> None:
+    pyproject, package_init, schema_base, schema_root = _write_version_files(
+        tmp_path,
+        "0.4.2",
+        "0.4.2",
+        "0.3.1",
+        schema_dir_version="0.3.1",
+    )
+
+    status = main(
+        [
+            "v0.4.2",
+            "--pyproject",
+            str(pyproject),
+            "--package-init",
+            str(package_init),
+            "--schema-base",
+            str(schema_base),
+            "--schema-root",
+            str(schema_root),
+        ]
+    )
+
+    assert status == 0
+
+
 def test_version_tag_check_rejects_mismatched_tag(tmp_path: Path) -> None:
     pyproject, package_init, schema_base, schema_root = _write_version_files(
         tmp_path,

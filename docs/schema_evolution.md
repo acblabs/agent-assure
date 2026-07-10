@@ -4,15 +4,17 @@ Active released schema snapshot: `schemas/v0.3.1/`.
 
 Persisted artifact `schema_version`: `0.3.1`.
 
-Development schema changes for the next release are exported to
-`schemas/unreleased/`. Stable package releases freeze a copy into
-`schemas/vX.Y.Z/`, such as `schemas/v0.3.1/` for the v0.3.1 release.
+Development schema changes for the next schema release are exported to
+`schemas/unreleased/`. Stable package releases that change the persisted
+artifact schema freeze a copy into `schemas/vX.Y.Z/`, such as
+`schemas/v0.3.1/` for the v0.3.1 schema release.
 
 Use these directories as the release lifecycle:
 
 - `schemas/v0.1.0/` and `schemas/v0.2.0/` retain earlier release schema sets.
 - `schemas/v0.3.0/` contains the stable exported schema snapshot for v0.3.0.
-- `schemas/v0.3.1/` contains the active release schema snapshot for v0.3.1.
+- `schemas/v0.3.1/` contains the active release schema snapshot for v0.3.1
+  and the package-only v0.4.2 release.
 - `schemas/unreleased/` is the development export target for the next release.
 
 Automation has two separate checks:
@@ -50,10 +52,11 @@ schema resources, and release gates together. A release that changes behavioral 
 without changing JSON shape must publish a versioned producer contract and
 document the compatibility boundary.
 
-The v0.3.1 tag validator intentionally expects the package version and active
-schema version to match. Before cutting a future package-only release that keeps
-the schema behind the package version, update the validator with an explicit
-release-to-schema mapping and document the mapping in the release notes.
+The release tag validator expects package and schema versions to match unless
+the package version is listed in its explicit release-to-schema mapping. The
+v0.4.0 through v0.4.2 package releases map to schema version `0.3.1` because
+they add RAG, counterfactual-query, adapter, and governance-crosswalk release
+surfaces without changing persisted JSON artifact shape.
 
 Because v0.3.0 does not change persisted artifact shape, the JSON Schema `$id`
 values inside `schemas/v0.3.0/` still point to the `v0.2.0` schema namespace.
@@ -62,7 +65,7 @@ while the persisted artifact schema namespace remains `0.2.0`.
 
 ## Replay Support Window
 
-For the v0.3.x line, the CLI keeps replay and validation support for the
+For the current package line, the CLI keeps replay and validation support for the
 release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
 `schemas/v0.3.0/`, while active development and release checks target
 `schemas/v0.3.1/`.
@@ -152,6 +155,12 @@ The v0.3.1 package release adds `schemas/v0.3.1` as the active frozen release
 snapshot. It keeps `schemas/v0.3.0` unchanged for replay, accepts legacy
 `schema_version: 0.2.0` artifacts, and emits `schema_version: 0.3.1` for newly
 produced artifacts.
+
+The v0.4.2 package release keeps the active frozen schema snapshot at
+`schemas/v0.3.1` and continues to emit `schema_version: 0.3.1`. Its release
+surface is behavioral and integration-oriented: RAG provenance fixtures,
+counterfactual query-family fixtures, the experimental LangGraph adapter, and
+governance crosswalk documentation.
 
 ## Usage Schema Foundation
 
