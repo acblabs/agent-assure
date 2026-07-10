@@ -1,0 +1,182 @@
+framework: mitre-atlas-2026-06
+framework_version: "2026.06"
+mapping_version: "0.1.0"
+source_review:
+  reviewed_on: "2026-07-10"
+  source_refs:
+    - docs/governance_crosswalk_mitre_atlas.md
+    - docs/threat_coverage_matrix.yaml
+    - tests/vectors/mitre_atlas/atlas_2026_06_ids.yaml
+  notes:
+    - Uses pinned ATLAS 2026.06 tactic and technique IDs with short names only.
+limitations:
+  - Evidence mapping only; not an assessment of compliance.
+  - ATLAS entries are planning crosswalk items, not adversary emulations.
+controls:
+  - id: AML.T0067.000
+    title: Citations
+    mapping_strength: partial
+    atlas_tactic_ids:
+      - AML.TA0007
+    atlas_technique_ids:
+      - AML.T0067.000
+    evidence_rules:
+      - rule_id: citation-link-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: material_claims_have_evidence
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: citation-link-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: material_claims_have_evidence
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - This maps citation-link artifacts only; it is not an ATLAS technique execution.
+  - id: AML.T0053
+    title: AI Agent Tool Invocation
+    mapping_strength: direct
+    atlas_tactic_ids:
+      - AML.TA0005
+      - AML.TA0009
+      - AML.TA0010
+      - AML.TA0012
+    atlas_technique_ids:
+      - AML.T0053
+      - AML.T0085.001
+      - AML.T0086
+    evidence_rules:
+      - rule_id: tool-invocation-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: tool_allowlist
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: tool-invocation-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: tool_allowlist
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Tool-allowlist evidence depends on suite configuration.
+  - id: AML.T0040
+    title: AI Model Inference API Access
+    mapping_strength: partial
+    atlas_tactic_ids:
+      - AML.TA0000
+      - AML.TA0014
+    atlas_technique_ids:
+      - AML.T0040
+      - AML.T0096
+    evidence_rules:
+      - rule_id: provider-api-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: provider_review_boundary
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: provider-api-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: provider_review_boundary
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Provider labels are review metadata and do not verify external provider behavior.
+  - id: AML.T0051
+    title: LLM Prompt Injection
+    mapping_strength: partial
+    atlas_tactic_ids:
+      - AML.TA0004
+      - AML.TA0005
+      - AML.TA0006
+    atlas_technique_ids:
+      - AML.T0051
+      - AML.T0051.000
+      - AML.T0051.001
+      - AML.T0051.002
+      - AML.T0093
+    evidence_rules:
+      - rule_id: prompt-injection-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: prompt_injection_control_boundary
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: prompt-injection-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: prompt_injection_control_boundary
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - This is prompt-boundary evidence, not a jailbreak or injection emulation.
+  - id: AML.T0024
+    title: Exfiltration via AI Inference API
+    mapping_strength: partial
+    atlas_tactic_ids:
+      - AML.TA0010
+    atlas_technique_ids:
+      - AML.T0024
+      - AML.T0057
+      - AML.T0086
+    evidence_rules:
+      - rule_id: redaction-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: redaction_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: redaction-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: redaction_required
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - The packet does not inspect production storage or provider-side retention.
+  - id: AML.T0029
+    title: Denial of AI Service
+    mapping_strength: adjacent
+    atlas_tactic_ids:
+      - AML.TA0011
+    atlas_technique_ids:
+      - AML.T0029
+    evidence_rules:
+      - rule_id: runtime-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: runtime_success_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: runtime-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: runtime_success_required
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Runtime success evidence is adjacent reliability evidence, not denial testing.
+  - id: AML.T0010.005
+    title: AI Agent Tool
+    mapping_strength: gap
+    atlas_tactic_ids:
+      - AML.TA0003
+      - AML.TA0006
+      - AML.TA0007
+    atlas_technique_ids:
+      - AML.T0010.005
+      - AML.T0109
+      - AML.T0110
+    evidence_rules:
+      - rule_id: tool-supply-chain-not-evaluated
+        requires:
+          - signal: scope_boundary
+            condition: live-adapter-producer-verification
+        coverage_state_when_true: out_of_scope
+        coverage_state_when_false: not_observed
+    limitations:
+      - The packet does not independently verify live adapters or tool supply chains.

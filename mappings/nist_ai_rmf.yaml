@@ -1,0 +1,95 @@
+framework: nist-ai-rmf
+framework_version: "1.0"
+mapping_version: "0.1.0"
+source_review:
+  reviewed_on: "2026-07-10"
+  source_refs:
+    - docs/governance_crosswalk_nist_ai_rmf.md
+    - docs/threat_coverage_matrix.yaml
+  notes:
+    - Uses AI RMF function/category-style internal labels, not a NIST assessment.
+limitations:
+  - Evidence mapping only; not an assessment of compliance.
+  - Positive control traces are limited by the evidence packet summary surface.
+controls:
+  - id: GOVERN-1.x
+    title: Governance evidence trace
+    evidence_rules:
+      - rule_id: packet-digest-observed
+        requires:
+          - signal: evidence_packet_digest_present
+          - signal: artifact_digest_present
+            condition: evaluation-summary
+        coverage_state_when_true: observed
+        coverage_state_when_false: not_observed
+        limitations:
+          - Digests identify local artifacts; they are not external signatures.
+    limitations:
+      - Maps packet provenance evidence to reviewer traceability only.
+  - id: MEASURE-2.x
+    title: Deterministic process-control measurement
+    evidence_rules:
+      - rule_id: material-evidence-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: material_claims_have_evidence
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: evaluation-summary-observed
+        requires:
+          - signal: evaluation_summary_present
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_observed
+    limitations:
+      - Evaluation summaries expose findings and rollup state, not every passing check.
+  - id: MANAGE-1.x
+    title: Review-route process evidence
+    evidence_rules:
+      - rule_id: review-route-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: human_review_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: review-route-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: human_review_required
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Review-route evidence depends on fixture-declared review conditions.
+  - id: MANAGE-2.x
+    title: Provider and tool boundary evidence
+    evidence_rules:
+      - rule_id: provider-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: provider_review_boundary
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: tool-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: tool_allowlist
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: tool-boundary-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: tool_allowlist
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Tool allowlist evidence is conditional on suite configuration.
+  - id: MAP-1.x
+    title: Context discovery boundary
+    evidence_rules:
+      - rule_id: map-context-out-of-scope
+        requires:
+          - signal: scope_boundary
+            condition: context-discovery-and-stakeholder-impact-mapping
+        coverage_state_when_true: out_of_scope
+        coverage_state_when_false: not_observed
+    limitations:
+      - agent-assure does not perform operating-context or stakeholder-impact discovery.

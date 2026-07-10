@@ -1,0 +1,339 @@
+{
+  "$defs": {
+    "ExecutionMode": {
+      "enum": [
+        "fixture",
+        "live"
+      ],
+      "title": "ExecutionMode",
+      "type": "string"
+    },
+    "Expectation": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_outcomes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Outcomes",
+          "type": "array"
+        },
+        "allowed_providers": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Providers",
+          "type": "array"
+        },
+        "allowed_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Tools",
+          "type": "array"
+        },
+        "artifact_kind": {
+          "const": "expectation",
+          "default": "expectation",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "expectation_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expectation Digest"
+        },
+        "expectation_id": {
+          "minLength": 1,
+          "title": "Expectation Id",
+          "type": "string"
+        },
+        "expected_recommendation": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expected Recommendation"
+        },
+        "forbidden_outcomes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Outcomes",
+          "type": "array"
+        },
+        "forbidden_providers": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Providers",
+          "type": "array"
+        },
+        "forbidden_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Forbidden Tools",
+          "type": "array"
+        },
+        "material_claim_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Material Claim Ids",
+          "type": "array"
+        },
+        "required_evidence_refs": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Evidence Refs",
+          "type": "array"
+        },
+        "required_human_review": {
+          "default": false,
+          "title": "Required Human Review",
+          "type": "boolean"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "expectation_id",
+        "case_id"
+      ],
+      "title": "Expectation",
+      "type": "object"
+    },
+    "SuiteCase": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "suite-case",
+          "default": "suite-case",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "expectation_id": {
+          "minLength": 1,
+          "title": "Expectation Id",
+          "type": "string"
+        },
+        "fixture_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fixture Id"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tags": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Tags",
+          "type": "array"
+        },
+        "title": {
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "title",
+        "expectation_id"
+      ],
+      "title": "SuiteCase",
+      "type": "object"
+    },
+    "SuiteDefaults": {
+      "additionalProperties": false,
+      "properties": {
+        "allowed_tools": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Tools",
+          "type": "array"
+        },
+        "artifact_kind": {
+          "const": "suite-defaults",
+          "default": "suite-defaults",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "execution_mode": {
+          "$ref": "#/$defs/ExecutionMode",
+          "default": "fixture"
+        },
+        "fixture_roots": {
+          "default": [
+            "fixtures/shared"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Fixture Roots",
+          "type": "array"
+        },
+        "required_policy_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Required Policy Ids",
+          "type": "array"
+        },
+        "runner_id": {
+          "default": "prior_auth.synthetic",
+          "minLength": 1,
+          "title": "Runner Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "title": "SuiteDefaults",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.4.3/compiled-suite.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "compiled-suite",
+      "default": "compiled-suite",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/SuiteCase"
+      },
+      "title": "Cases",
+      "type": "array"
+    },
+    "defaults": {
+      "$ref": "#/$defs/SuiteDefaults",
+      "default": {
+        "allowed_tools": [],
+        "artifact_kind": "suite-defaults",
+        "execution_mode": "fixture",
+        "fixture_roots": [
+          "fixtures/shared"
+        ],
+        "required_policy_ids": [],
+        "runner_id": "prior_auth.synthetic",
+        "schema_version": "0.4.3"
+      }
+    },
+    "resolved_expectations": {
+      "items": {
+        "$ref": "#/$defs/Expectation"
+      },
+      "title": "Resolved Expectations",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.4.3",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Digest",
+      "type": "string"
+    },
+    "suite_id": {
+      "minLength": 1,
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "suite_version": {
+      "minLength": 1,
+      "title": "Suite Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "suite_id",
+    "suite_version",
+    "cases",
+    "resolved_expectations",
+    "source_digest"
+  ],
+  "title": "CompiledSuite",
+  "type": "object"
+}

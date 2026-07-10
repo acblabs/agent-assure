@@ -11,6 +11,7 @@ Current commands:
 - `agent-assure evaluate RUNSET_JSON --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
+- `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure live adapters`
@@ -63,6 +64,14 @@ digest, and an interpretation block. These exact-file digests are
 environment-bound reproducibility anchors, not signatures or attestations; they
 are separate from the cross-platform-stable JCS content digests used for suites,
 fixture manifests, and runset provenance.
+
+`controls map` consumes an evidence packet and writes
+`control-coverage-report.json` and `control-coverage-report.md` for the selected
+framework. The report maps packet-resident evidence to framework concepts for
+human review, includes a mapping digest and evidence-packet digest, preserves
+claim-boundary limitations, and does not infer passing local controls from an
+evaluation-summary rollup alone. Built-in mappings cover NIST AI RMF, OWASP LLM
+Top 10 2025, ISO/IEC 42001, and the pinned MITRE ATLAS 2026.06 catalog.
 
 `ci` evaluates a candidate RunSet, optionally compares it with a baseline, writes
 reports, builds a packet, writes a dependency inventory and release manifest,

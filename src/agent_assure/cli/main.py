@@ -6,6 +6,7 @@ from agent_assure import __version__
 from agent_assure.cli import (
     ci_cmd,
     compare_cmd,
+    controls_cmd,
     demo_cmd,
     diff_cmd,
     evaluate_cmd,
@@ -29,6 +30,7 @@ app.add_typer(diff_cmd.app, name="diff")
 app.command("evaluate")(evaluate_cmd.evaluate)
 app.command("compare")(compare_cmd.compare)
 app.command("ci")(ci_cmd.ci)
+app.add_typer(controls_cmd.app, name="controls")
 app.add_typer(live_cmd.app, name="live")
 app.add_typer(packet_cmd.app, name="packet")
 app.add_typer(release_cmd.app, name="release")

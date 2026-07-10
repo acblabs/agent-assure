@@ -1,10 +1,10 @@
 # Schema Reference
 
-Schema version: `0.3.1`.
+Schema version: `0.4.3`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. The current
-models emit `schema_version: 0.3.1` and continue to accept legacy
-`schema_version: 0.2.0` artifacts for replay.
+models emit `schema_version: 0.4.3` and continue to accept legacy
+`schema_version: 0.2.0` and `schema_version: 0.3.1` artifacts for replay.
 
 Exported roots:
 
@@ -12,6 +12,7 @@ Exported roots:
 - `compiled-suite`
 - `comparison-report`
 - `comparison-summary`
+- `control-coverage-report`
 - `evaluation-report`
 - `evaluation-summary`
 - `emergency-process-record`
@@ -36,6 +37,19 @@ Exported roots:
 
 `AgentRunRecord` intentionally has no persisted `otel_attributes` field. OTel
 attributes are derived from structured fields during span-plan projection.
+
+`control-coverage-report` records a framework evidence mapping from an
+evidence packet to selected framework concepts. It carries the framework and
+mapping versions, mapping digest, evidence-packet digest, per-item coverage
+states, conditional rule evaluations, evidence references with optional
+`evidence_digest` values, optional MITRE ATLAS mapping strength and
+tactic/technique IDs, and explicit limitations. Coverage
+states are review labels such as `observed`, `partially_observed`,
+`conditionally_observed`, `contradictory_evidence_observed`, `not_observed`,
+`not_evaluated`, `not_applicable`, and `out_of_scope`; they are not grades.
+Control-specific evaluation signals are based on packet-resident finding
+evidence or explicit mapping scope boundaries, not on an evaluation-summary
+rollup alone.
 
 `AgentRunRecord` and `RunSet` remain lean in fixture mode. They persist
 deterministic case identity, summaries, outcomes, evidence references,
@@ -173,9 +187,10 @@ Usage schema roots are an additive v0.3.1 release surface. `UsageSegment`
 records measured token, tool-call, retry, latency, and declared estimated cost
 fields for a case, run, span, or future stream event range. Persisted money uses
 `estimated_cost_microusd` integers; the schema does not use floats for cost.
-Usage roots and usage-bearing containers use `schema_version: "0.3.1"` when
-usage evidence is present; `schema_version: "0.2.0"` containers reject direct
-and nested usage fields.
+Usage roots continue to use `schema_version: "0.3.1"`. Usage-bearing
+containers use `schema_version: "0.3.1"` or later when usage evidence is
+present; `schema_version: "0.2.0"` containers reject direct and nested usage
+fields.
 Cost-bearing usage segments require explicit limitations, and this requirement
 is encoded in the exported JSON Schema. Segment metadata labels such as
 `provider`, `model`, `operation`, `cost_basis`, and `pricing_snapshot_id` are

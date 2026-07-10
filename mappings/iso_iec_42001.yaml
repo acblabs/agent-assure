@@ -1,0 +1,78 @@
+framework: iso-iec-42001
+framework_version: "2023"
+mapping_version: "0.1.0"
+source_review:
+  reviewed_on: "2026-07-10"
+  source_refs:
+    - docs/governance_crosswalk_iso42001.md
+    - docs/threat_coverage_matrix.yaml
+  notes:
+    - Uses clause identifiers and short internal labels only.
+limitations:
+  - Evidence mapping only; not an assessment of compliance.
+  - Clause labels are internal review aids and do not reproduce clause text.
+controls:
+  - id: "7.5"
+    title: Documented evidence trace
+    evidence_rules:
+      - rule_id: packet-documentation-observed
+        requires:
+          - signal: evidence_packet_digest_present
+          - signal: artifact_digest_present
+            condition: evaluation-summary
+        coverage_state_when_true: observed
+        coverage_state_when_false: not_observed
+    limitations:
+      - Packet and artifact digests support local trace review only.
+  - id: "8.1"
+    title: Operational process controls
+    evidence_rules:
+      - rule_id: process-control-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: runtime_success_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: process-control-evaluated
+        requires:
+          - signal: evaluation_summary_present
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_observed
+    limitations:
+      - Evidence comes from fixture or declared live artifacts, not management-system review.
+  - id: "9.1"
+    title: Monitoring and measurement evidence
+    evidence_rules:
+      - rule_id: evaluation-state-observed
+        requires:
+          - signal: evaluation_summary_present
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_observed
+      - rule_id: comparison-state-observed
+        requires:
+          - signal: comparison_summary_present
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_observed
+    limitations:
+      - Summaries are process-assurance evidence and do not evaluate organization-wide metrics.
+  - id: "10.2"
+    title: Issue response trace
+    evidence_rules:
+      - rule_id: finding-observed
+        requires:
+          - signal: finding_observed
+        coverage_state_when_true: observed
+        coverage_state_when_false: not_observed
+    limitations:
+      - Findings identify review items; they do not prove remediation.
+  - id: "6.1"
+    title: Risk planning boundary
+    evidence_rules:
+      - rule_id: risk-planning-out-of-scope
+        requires:
+          - signal: scope_boundary
+            condition: risk-planning-program
+        coverage_state_when_true: out_of_scope
+        coverage_state_when_false: not_observed
+    limitations:
+      - The packet does not establish an organization's risk planning process.

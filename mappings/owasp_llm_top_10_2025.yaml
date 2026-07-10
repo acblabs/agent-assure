@@ -1,0 +1,179 @@
+framework: owasp-llm-top-10-2025
+framework_version: "2025"
+mapping_version: "0.1.0"
+source_review:
+  reviewed_on: "2026-07-10"
+  source_refs:
+    - docs/governance_crosswalk_owasp_llm.md
+    - docs/threat_coverage_matrix.yaml
+  notes:
+    - Uses OWASP LLM Top 10 2025 risk IDs and short internal labels.
+limitations:
+  - Evidence mapping only; not an assessment of compliance.
+  - Risk tags indicate related review areas, not complete mitigation.
+controls:
+  - id: LLM01
+    title: Prompt boundary review
+    evidence_rules:
+      - rule_id: prompt-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: prompt_injection_control_boundary
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: prompt-boundary-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: prompt_injection_control_boundary
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Fixture checks do not establish production prompt-injection resistance.
+  - id: LLM02
+    title: Sensitive persistence review
+    evidence_rules:
+      - rule_id: redaction-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: redaction_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: redaction-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: redaction_required
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - The packet does not inspect storage outside agent-assure artifacts.
+  - id: LLM05
+    title: Provider and review boundary
+    evidence_rules:
+      - rule_id: provider-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: provider_review_boundary
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: human-review-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: human_review_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: human-review-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: human_review_required
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Review-boundary evidence is limited to declared process artifacts.
+  - id: LLM06
+    title: Tool agency boundary
+    evidence_rules:
+      - rule_id: tool-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: tool_allowlist
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: tool-boundary-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: tool_allowlist
+        coverage_state_when_true: conditionally_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Tool evidence is conditional on configured allowed tools.
+  - id: LLM07
+    title: System prompt and configuration boundary
+    evidence_rules:
+      - rule_id: config-path-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: live_config_path_confinement
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: endpoint-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: live_openai_endpoint_allowlist
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: config-path-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: live_config_path_confinement
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Configuration evidence is limited to local live-adapter guardrails.
+      - The packet does not inspect prompts or provider-side hidden instructions.
+  - id: LLM08
+    title: Retrieval and embedding boundary
+    evidence_rules:
+      - rule_id: runtime-boundary-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: runtime_success_required
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: runtime-boundary-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: runtime_success_required
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Runtime evidence is adjacent only and does not assess vector databases.
+      - RAG provenance checks remain fixture-scoped review evidence.
+  - id: LLM09
+    title: Evidence-link integrity
+    evidence_rules:
+      - rule_id: claim-evidence-contradiction
+        requires:
+          - signal: control_failure_observed
+            condition: material_claims_have_evidence
+        coverage_state_when_true: contradictory_evidence_observed
+        coverage_state_when_false: not_observed
+      - rule_id: claim-evidence-evaluated
+        requires:
+          - signal: control_evaluated
+            condition: material_claims_have_evidence
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_evaluated
+    limitations:
+      - Evidence-link checks do not evaluate factual truth of the final answer.
+  - id: LLM03
+    title: Supply-chain boundary
+    evidence_rules:
+      - rule_id: supply-chain-out-of-scope
+        requires:
+          - signal: scope_boundary
+            condition: supply-chain-assurance
+        coverage_state_when_true: out_of_scope
+        coverage_state_when_false: not_observed
+    limitations:
+      - The packet does not assess model, package, or data supply chains.
+  - id: LLM04
+    title: Poisoning boundary
+    evidence_rules:
+      - rule_id: poisoning-out-of-scope
+        requires:
+          - signal: scope_boundary
+            condition: data-and-model-poisoning
+        coverage_state_when_true: out_of_scope
+        coverage_state_when_false: not_observed
+    limitations:
+      - Offline fixture checks do not test training-data or model poisoning.
+  - id: LLM10
+    title: Consumption boundary
+    evidence_rules:
+      - rule_id: consumption-not-observed
+        requires:
+          - signal: usage_delta_present
+        coverage_state_when_true: partially_observed
+        coverage_state_when_false: not_observed
+    limitations:
+      - Usage evidence is measured separately and is not a risk-mitigation claim.

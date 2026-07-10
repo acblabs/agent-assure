@@ -1,8 +1,8 @@
 # Schema Evolution
 
-Active released schema snapshot: `schemas/v0.3.1/`.
+Active released schema snapshot: `schemas/v0.4.3/`.
 
-Persisted artifact `schema_version`: `0.3.1`.
+Persisted artifact `schema_version`: `0.4.3`.
 
 Development schema changes for the next schema release are exported to
 `schemas/unreleased/`. Stable package releases that change the persisted
@@ -14,13 +14,14 @@ Use these directories as the release lifecycle:
 - `schemas/v0.1.0/` and `schemas/v0.2.0/` retain earlier release schema sets.
 - `schemas/v0.3.0/` contains the stable exported schema snapshot for v0.3.0.
 - `schemas/v0.3.1/` contains the active release schema snapshot for v0.3.1
-  and the package-only v0.4.2 release.
+  and the package-only v0.4.0 through v0.4.2 releases.
+- `schemas/v0.4.3/` contains the active release schema snapshot for v0.4.3.
 - `schemas/unreleased/` is the development export target for the next release.
 
 Automation has two separate checks:
 
 - frozen schema parity exports the current release schema surface to
-  `schemas/v0.3.1/` and fails if those committed files drift;
+  `schemas/v0.4.3/` and fails if those committed files drift;
 - schema packaging consistency discovers frozen `schemas/v*` directories and
   fails if `pyproject.toml` does not force-include the same directories under
   `agent_assure/schema_resources/`;
@@ -56,7 +57,9 @@ The release tag validator expects package and schema versions to match unless
 the package version is listed in its explicit release-to-schema mapping. The
 v0.4.0 through v0.4.2 package releases map to schema version `0.3.1` because
 they add RAG, counterfactual-query, adapter, and governance-crosswalk release
-surfaces without changing persisted JSON artifact shape.
+surfaces without changing persisted JSON artifact shape. The v0.4.3 package
+release adds the `control-coverage-report` persisted root and therefore emits
+`schema_version: 0.4.3`.
 
 Because v0.3.0 does not change persisted artifact shape, the JSON Schema `$id`
 values inside `schemas/v0.3.0/` still point to the `v0.2.0` schema namespace.
@@ -68,7 +71,7 @@ while the persisted artifact schema namespace remains `0.2.0`.
 For the current package line, the CLI keeps replay and validation support for the
 release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
 `schemas/v0.3.0/`, while active development and release checks target
-`schemas/v0.3.1/`.
+`schemas/v0.4.3/`.
 
 Future minor releases should keep at least the two previous minor release
 schema snapshots available for local replay unless release notes explicitly
@@ -162,6 +165,15 @@ surface is behavioral and integration-oriented: RAG provenance fixtures,
 counterfactual query-family fixtures, the experimental LangGraph adapter, and
 governance crosswalk documentation.
 
+The v0.4.3 package release adds `schemas/v0.4.3` as the active frozen release
+snapshot. It keeps earlier schema directories unchanged for replay and emits
+`schema_version: 0.4.3` for newly produced persisted artifacts. The new
+`control-coverage-report` root maps evidence-packet facts to selected
+framework concepts with conditional rule evaluations, coverage states,
+evidence references, mapping digests, evidence-packet digests, and explicit
+claim boundaries. These reports are traceability maps for human review, not
+scorecards or framework grades.
+
 ## Usage Schema Foundation
 
 The v0.3.1 release surface stages optional measured-usage fields on run,
@@ -170,9 +182,9 @@ evaluation, comparison, and packet artifacts. The additive model is
 baseline-to-candidate comparisons. Usage segments include `span_id`,
 `parent_span_id`, `event_range_start`, and `event_range_end` so future streaming
 ingestion can attach usage to ordered events without redesigning the schema. The
-usage artifact roots are introduced in v0.3.1 and therefore accept only
-`schema_version: "0.3.1"`. Container artifacts that carry usage fields must also
-use `schema_version: "0.3.1"`; legacy-labeled containers reject direct and
+usage artifact roots are introduced in v0.3.1 and continue to accept only
+`schema_version: "0.3.1"`. Container artifacts that carry usage fields use
+`schema_version: "0.3.1"` or later; legacy-labeled containers reject direct and
 nested usage evidence.
 
 Persisted money uses `estimated_cost_microusd: int | None`. Do not introduce

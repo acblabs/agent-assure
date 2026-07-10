@@ -61,6 +61,9 @@
 - Evidence packets that bundle evaluation and comparison summaries with
   interpretation guidance, environment metadata, deterministic input artifact
   digests, dependency-inventory digest, and release artifact manifest.
+- Framework evidence maps that turn packet-resident evidence into
+  claim-boundary-limited control coverage reports for NIST AI RMF, OWASP LLM
+  Top 10 2025, ISO/IEC 42001, and pinned MITRE ATLAS 2026.06 review concepts.
 - Release digest replay with stable projections for environment-bearing review
   artifacts, manifest-listed digest cross-checks, release-bundle SBOM
   generation, hash-pinned release dependency installation, and keyless cosign

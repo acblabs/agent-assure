@@ -46,6 +46,17 @@ def test_claim_boundary_allows_markdown_decorated_limitation_phrase() -> None:
     assert violations == []
 
 
+def test_claim_boundary_allows_control_report_required_limitation() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "This report maps observed `agent-assure` evidence to selected framework concepts "
+        "for human review. It is not a compliance attestation, certification, audit "
+        "opinion, legal conclusion, regulatory conclusion, or safety claim.",
+        path=Path("tests/golden/reports/control-coverage-report.md"),
+    )
+
+    assert violations == []
+
+
 def test_claim_boundary_allows_html_limitation_paragraph() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "<h2>Claim Boundary</h2>\n<p>This report is not a compliance attestation.</p>",
@@ -89,6 +100,19 @@ def test_claim_boundary_rejects_business_savings() -> None:
     )
 
     assert [violation.label for violation in violations] == ["business savings"]
+
+
+def test_claim_boundary_rejects_control_report_overclaim_terms() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "Compliance scorecard. ATLAS validation report. Adversary emulation report.",
+        path=Path("docs/report.md"),
+    )
+
+    assert [violation.label for violation in violations] == [
+        "compliance scorecard",
+        "ATLAS validation report",
+        "adversary emulation report",
+    ]
 
 
 def test_claim_boundary_sentence_splitter_ignores_version_dots() -> None:

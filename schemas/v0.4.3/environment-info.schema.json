@@ -1,0 +1,156 @@
+{
+  "$defs": {
+    "InstalledPackage": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "installed-package",
+          "default": "installed-package",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "InstalledPackage",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.4.3/environment-info.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "environment-info",
+      "default": "environment-info",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "dependency_inventory_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dependency Inventory Digest"
+    },
+    "dependency_inventory_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Dependency Inventory Path"
+    },
+    "git_commit": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Commit"
+    },
+    "git_dirty": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Git Dirty"
+    },
+    "installed_packages": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/InstalledPackage"
+      },
+      "title": "Installed Packages",
+      "type": "array"
+    },
+    "lockfile_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lockfile Digest"
+    },
+    "lockfile_path": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Lockfile Path"
+    },
+    "platform": {
+      "title": "Platform",
+      "type": "string"
+    },
+    "python_version": {
+      "title": "Python Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "0.4.3",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "platform",
+    "python_version"
+  ],
+  "title": "EnvironmentInfo",
+  "type": "object"
+}

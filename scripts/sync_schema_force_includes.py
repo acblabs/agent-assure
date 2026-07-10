@@ -16,6 +16,9 @@ from scripts.schema_versions import (  # noqa: E402
 )
 
 _HEADER = "[tool.hatch.build.targets.wheel.force-include]"
+_STATIC_FORCE_INCLUDES = {
+    "mappings": "agent_assure/mappings",
+}
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -76,7 +79,7 @@ def replace_force_include_block(text: str, *, schema_root: Path = SCHEMA_ROOT) -
 
 
 def render_force_include_block(*, schema_root: Path = SCHEMA_ROOT) -> str:
-    entries = expected_schema_force_includes(schema_root)
+    entries = {**expected_schema_force_includes(schema_root), **_STATIC_FORCE_INCLUDES}
     lines = [_HEADER]
     lines.extend(f'"{source}" = "{target}"' for source, target in sorted(entries.items()))
     return "\n".join(lines)

@@ -10,6 +10,7 @@ from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.controls import ControlCoverageReport
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
@@ -35,6 +36,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "compiled-suite": CompiledSuite,
     "comparison-report": ComparisonReport,
     "comparison-summary": ComparisonSummary,
+    "control-coverage-report": ControlCoverageReport,
     "evaluation-report": EvaluationReport,
     "evaluation-summary": EvaluationSummary,
     "emergency-process-record": EmergencyProcessRecord,

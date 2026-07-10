@@ -1,0 +1,101 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.4.3/expectation-change-record.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "after_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "After Digest"
+    },
+    "artifact_kind": {
+      "const": "expectation-change-record",
+      "default": "expectation-change-record",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "author": {
+      "title": "Author",
+      "type": "string"
+    },
+    "before_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Before Digest"
+    },
+    "change_type": {
+      "enum": [
+        "added",
+        "removed",
+        "modified"
+      ],
+      "title": "Change Type",
+      "type": "string"
+    },
+    "changed_fields": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Changed Fields",
+      "type": "array"
+    },
+    "expectation_id": {
+      "title": "Expectation Id",
+      "type": "string"
+    },
+    "fixture_impact": {
+      "title": "Fixture Impact",
+      "type": "string"
+    },
+    "rationale": {
+      "title": "Rationale",
+      "type": "string"
+    },
+    "reviewed_on": {
+      "title": "Reviewed On",
+      "type": "string"
+    },
+    "reviewer": {
+      "title": "Reviewer",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "0.4.3",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "expectation_id",
+    "change_type",
+    "author",
+    "reviewer",
+    "rationale",
+    "reviewed_on",
+    "fixture_impact"
+  ],
+  "title": "ExpectationChangeRecord",
+  "type": "object"
+}

@@ -8,8 +8,8 @@ from scripts.check_frozen_schemas import check_frozen_schema_dir, compare_schema
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_committed_v031_schema_snapshot_matches_exporter() -> None:
-    assert check_frozen_schema_dir(ROOT / "schemas" / "v0.3.1") == []
+def test_committed_v043_schema_snapshot_matches_exporter() -> None:
+    assert check_frozen_schema_dir(ROOT / "schemas" / "v0.4.3") == []
 
 
 def test_committed_v030_schema_snapshot_remains_historical() -> None:
@@ -18,6 +18,13 @@ def test_committed_v030_schema_snapshot_remains_historical() -> None:
     assert (schema_dir / "agent-run-record.schema.json").exists()
     assert (schema_dir / "evidence-packet.schema.json").exists()
     assert not (schema_dir / "usage-summary.schema.json").exists()
+
+
+def test_committed_v031_schema_snapshot_remains_historical() -> None:
+    schema_dir = ROOT / "schemas" / "v0.3.1"
+
+    assert (schema_dir / "usage-summary.schema.json").exists()
+    assert not (schema_dir / "control-coverage-report.schema.json").exists()
 
 
 def test_frozen_schema_compare_accepts_matching_export(tmp_path: Path) -> None:

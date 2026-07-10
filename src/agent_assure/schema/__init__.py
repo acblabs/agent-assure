@@ -8,6 +8,15 @@ from agent_assure.schema.common import (
     Severity,
 )
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.controls import (
+    ControlConditionEvaluation,
+    ControlCoverageItem,
+    ControlCoverageReport,
+    ControlCoverageState,
+    ControlEvidenceRef,
+    ControlFramework,
+    ControlMappingStrength,
+)
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
@@ -56,6 +65,13 @@ __all__ = [
     "CompiledSuite",
     "ComparisonClassification",
     "ComparisonSummary",
+    "ControlConditionEvaluation",
+    "ControlCoverageItem",
+    "ControlCoverageReport",
+    "ControlCoverageState",
+    "ControlEvidenceRef",
+    "ControlFramework",
+    "ControlMappingStrength",
     "DigestHex",
     "EmergencyProcessRecord",
     "EvaluationSummary",

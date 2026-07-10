@@ -28,6 +28,10 @@ APPROVED_LIMITATION_SENTENCES = (
     "This is not a compliance attestation.",
     "This report is not a compliance attestation.",
     "This project is not a compliance attestation.",
+    (
+        "It is not a compliance attestation, certification, audit opinion, legal conclusion, "
+        "regulatory conclusion, or safety claim."
+    ),
     "This artifact does not certify safety.",
 )
 
@@ -76,6 +80,30 @@ RESTRICTED_PATTERNS = (
         re.compile(r"\bannualized\s+savings\b", re.IGNORECASE),
     ),
     RestrictedPattern("labor savings", re.compile(r"\blabor\s+savings\b", re.IGNORECASE)),
+    RestrictedPattern(
+        "compliance scorecard",
+        re.compile(r"\bcompliance\s+scorecard\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "audit attestation",
+        re.compile(r"\baudit\s+attestation\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "certification report",
+        re.compile(r"\bcertification\s+report\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "ATLAS coverage report",
+        re.compile(r"\bATLAS\s+coverage\s+report\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "ATLAS validation report",
+        re.compile(r"\bATLAS\s+validation\s+report\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "adversary emulation report",
+        re.compile(r"\badversary[-\s]+emulation\s+report\b", re.IGNORECASE),
+    ),
 )
 
 DEFAULT_SCAN_FILES = (
@@ -96,6 +124,7 @@ DEFAULT_SCAN_FILES = (
 DEFAULT_SCAN_GLOBS = (
     "docs/release_notes/*.md",
     "tests/golden/reports/**/*evidence-diff*.html",
+    "tests/golden/reports/**/*control-coverage*.*",
 )
 
 

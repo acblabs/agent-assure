@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- Tightened control coverage mapping semantics so `control_evaluated` requires
+  packet-resident control-specific evidence, built-in mappings prefer packaged
+  resources over development checkout files, OWASP 2025 executable maps include
+  `LLM07` and `LLM08`, and control-map docs list the full CLI contract.
+- Closed additional control-map edge cases by requiring scoped fail/warn mapping
+  conditions, omitting partial AND-rule evidence from item-level evidence,
+  renaming control evidence reference hashes to `evidence_digest`, and aligning
+  OWASP/NIST review-side failure mappings with contradictory evidence states.
+
+## 0.4.3 - 2026-07-10
+
+- Added `agent-assure controls map` to produce framework evidence mapping
+  reports from evidence packets for NIST AI RMF, OWASP LLM Top 10 2025,
+  ISO/IEC 42001, and MITRE ATLAS 2026.06.
+- Added conditional mapping files, explicit coverage states, packet and mapping
+  digests, Markdown/JSON control coverage reports, claim-boundary language,
+  and MITRE ATLAS planning-crosswalk metadata with mapping strengths.
+- Bumped the active package/schema surface to v0.4.3 and added a frozen
+  `schemas/v0.4.3` release snapshot while keeping earlier schema directories
+  available for replay.
+
 ## 0.4.2 - 2026-07-10
 
 - Surfaced the governance crosswalks in the README and added standalone NIST AI

@@ -35,6 +35,8 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
         "agent_assure/examples/prior_auth_synthetic/fixtures/rag/"
         "counterfactual_query_families.json"
     ) in required
+    assert "agent_assure/mappings/nist_ai_rmf.yaml" in required
+    assert "agent_assure/mappings/mitre_atlas_2026_06.yaml" in required
     assert "agent_assure/examples/langgraph_expense_assurance/runner.py" in required
     assert "agent_assure/examples/langgraph_expense_assurance/suite.yaml" in required
 
@@ -136,6 +138,7 @@ include = ["src/agent_assure/**/*"]
 
     updated = replace_force_include_block(original, schema_root=schema_root)
 
+    assert '"mappings" = "agent_assure/mappings"' in updated
     assert '"schemas/v0.2.0" = "agent_assure/schema_resources/v0.2.0"' in updated
     assert "[tool.hatch.build.targets.sdist]" in updated
 

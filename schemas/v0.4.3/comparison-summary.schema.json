@@ -1,0 +1,409 @@
+{
+  "$defs": {
+    "ComparisonClassification": {
+      "enum": [
+        "new_failure",
+        "resolved_failure",
+        "persistent_failure",
+        "allowed_behavioral_change",
+        "provenance_only_change",
+        "invalid_comparison",
+        "not_evaluated"
+      ],
+      "title": "ComparisonClassification",
+      "type": "string"
+    },
+    "EnvironmentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "environment-info",
+          "default": "environment-info",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "dependency_inventory_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Digest"
+        },
+        "dependency_inventory_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Path"
+        },
+        "git_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Commit"
+        },
+        "git_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Dirty"
+        },
+        "installed_packages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InstalledPackage"
+          },
+          "title": "Installed Packages",
+          "type": "array"
+        },
+        "lockfile_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Digest"
+        },
+        "lockfile_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Path"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "platform",
+        "python_version"
+      ],
+      "title": "EnvironmentInfo",
+      "type": "object"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "InstalledPackage": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "installed-package",
+          "default": "installed-package",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "InstalledPackage",
+      "type": "object"
+    },
+    "UsageSummaryDelta": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "usage-summary-delta",
+          "default": "usage-summary-delta",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "baseline_observed": {
+          "title": "Baseline Observed",
+          "type": "boolean"
+        },
+        "candidate_observed": {
+          "title": "Candidate Observed",
+          "type": "boolean"
+        },
+        "comparison_state": {
+          "enum": [
+            "observed",
+            "not_observed",
+            "baseline_not_observed",
+            "candidate_not_observed"
+          ],
+          "title": "Comparison State",
+          "type": "string"
+        },
+        "currency": {
+          "default": "USD",
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "estimated_cost_microusd_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Microusd Delta"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.3.1",
+          "default": "0.3.1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total_latency_ms_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms Delta"
+        },
+        "total_retries_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Retries Delta"
+        },
+        "total_tokens_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens Delta"
+        },
+        "total_tool_calls_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tool Calls Delta"
+        }
+      },
+      "required": [
+        "comparison_state",
+        "baseline_observed",
+        "candidate_observed"
+      ],
+      "title": "UsageSummaryDelta",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.4.3/comparison-summary.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.2.0"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "usage_delta"
+              ]
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "properties": {
+    "artifact_kind": {
+      "const": "comparison-summary",
+      "default": "comparison-summary",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_runset_id": {
+      "title": "Baseline Runset Id",
+      "type": "string"
+    },
+    "baseline_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
+    "candidate_runset_id": {
+      "title": "Candidate Runset Id",
+      "type": "string"
+    },
+    "candidate_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
+    "classification": {
+      "$ref": "#/$defs/ComparisonClassification"
+    },
+    "environment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvironmentInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "fixture_equivalence_state": {
+      "$ref": "#/$defs/GateState",
+      "default": "not_evaluated"
+    },
+    "provenance_changes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Provenance Changes",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.4.3",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "usage_delta": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UsageSummaryDelta"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "verdict_findings": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Verdict Findings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "baseline_runset_id",
+    "candidate_runset_id",
+    "classification"
+  ],
+  "title": "ComparisonSummary",
+  "type": "object"
+}

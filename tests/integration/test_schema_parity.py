@@ -8,6 +8,11 @@ from jsonschema import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError as PydanticValidationError
 
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.schema.controls import (
+    ControlCoverageItem,
+    ControlCoverageReport,
+    ControlCoverageState,
+)
 from agent_assure.schema.export import SCHEMA_MODELS
 from agent_assure.schema.usage import UsageSegment
 from agent_assure.schema.validation import validate_artifact
@@ -52,6 +57,33 @@ def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     path = tmp_path / "usage-segment.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     assert validate_artifact(path, "usage-segment") == "pydantic+jsonschema"
+
+
+def test_control_coverage_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    payload = ControlCoverageReport(
+        report_id="control-map-schema-parity",
+        framework="nist-ai-rmf",
+        framework_version="1.0",
+        mapping_version="0.1.0",
+        mapping_digest="1" * 64,
+        evidence_packet_id="packet-001",
+        evidence_packet_digest="2" * 64,
+        coverage_state_counts={"observed": 1},
+        items=(
+            ControlCoverageItem(
+                control_id="MEASURE-2.x",
+                title="Deterministic process-control measurement",
+                coverage_state=ControlCoverageState.observed,
+            ),
+        ),
+        limitations=("Evidence mapping only.",),
+    ).model_dump(mode="json")
+    model = SCHEMA_MODELS["control-coverage-report"]
+    model.model_validate(payload)
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+    path = tmp_path / "control-coverage-report.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert validate_artifact(path, "control-coverage-report") == "pydantic+jsonschema"
 
 
 @pytest.mark.parametrize(

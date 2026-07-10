@@ -58,6 +58,10 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/examples/langgraph_expense_assurance/runner.py",
     "agent_assure/examples/langgraph_expense_assurance/suite.yaml",
     "agent_assure/schema_resources/__init__.py",
+    "agent_assure/mappings/nist_ai_rmf.yaml",
+    "agent_assure/mappings/owasp_llm_top_10_2025.yaml",
+    "agent_assure/mappings/iso_iec_42001.yaml",
+    "agent_assure/mappings/mitre_atlas_2026_06.yaml",
 )
 
 FORBIDDEN_ARCHIVE_PREFIXES = (
