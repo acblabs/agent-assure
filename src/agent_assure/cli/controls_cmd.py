@@ -3,7 +3,6 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Annotated
 
-import click
 import typer
 from pydantic import ValidationError
 from rich.console import Console
@@ -46,7 +45,7 @@ def map_packet(
             evidence_packet_digest=file_sha256(packet),
         )
     except FileNotFoundError as exc:
-        raise click.ClickException(str(exc)) from exc
+        raise typer.BadParameter(str(exc), param_hint="built-in mapping") from exc
     except (ValueError, ValidationError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     report_json, report_markdown = write_control_coverage_report(report, out_dir)
