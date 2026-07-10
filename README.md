@@ -109,6 +109,8 @@ flowchart LR
 
 ## Quickstart
 
+Production package: [agent-assure on PyPI](https://pypi.org/project/agent-assure/).
+
 Run the flagship demo offline:
 
 ```bash
