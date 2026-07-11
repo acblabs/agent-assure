@@ -1,18 +1,37 @@
 from __future__ import annotations
 
+import ipaddress
 import json
+import socket
+from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
+from typing import Any
 
 import yaml
 from pydantic import Field
 from pydantic.functional_validators import field_validator
 
+from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, read_text_bounded
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import DigestHex, coerce_tuple
 
 USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
+EndpointResolver = Callable[..., Iterable[Any]]
+
+
+@dataclass(frozen=True)
+class EndpointResolutionStatus:
+    host: str
+    addresses: tuple[str, ...]
+    resolution_failed: bool = False
+    error: str | None = None
+
+    @property
+    def has_disallowed_address(self) -> bool:
+        return any(is_disallowed_endpoint_host(address) for address in self.addresses)
 
 
 class LiveScriptEnvVar(StrictModel):
@@ -74,6 +93,11 @@ class LiveAdapterConfig(StrictModel):
                 raise ValueError("allowed_endpoint_hosts entries must not be empty")
             if any(marker in cleaned for marker in (":", "/", "*")):
                 raise ValueError("allowed_endpoint_hosts entries must be bare hostnames")
+            if is_disallowed_endpoint_host(cleaned):
+                raise ValueError(
+                    "allowed_endpoint_hosts entries must not target localhost, "
+                    "private, link-local, reserved, or multicast hosts"
+                )
             normalized.append(cleaned)
         return tuple(normalized)
 
@@ -116,10 +140,90 @@ class LiveRunConfig(StrictModel):
 
 
 def load_live_run_config(path: Path) -> LiveRunConfig:
+    text = read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="live run config")
     if path.suffix.lower() == ".json":
-        loaded = json.loads(path.read_text(encoding="utf-8"))
+        loaded = json.loads(text)
     else:
-        loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+        loaded = yaml.safe_load(text)
     if not isinstance(loaded, dict):
         raise TypeError("live run config must be a mapping")
     return LiveRunConfig.model_validate(loaded)
+
+
+def normalize_endpoint_host(host: str) -> str:
+    return host.strip().lower().rstrip(".")
+
+
+def is_disallowed_endpoint_host(host: str) -> bool:
+    normalized = normalize_endpoint_host(host)
+    if normalized in {"localhost"} or normalized.endswith(".localhost"):
+        return True
+    try:
+        address = ipaddress.ip_address(normalized)
+    except ValueError:
+        return False
+    return any(
+        (
+            address.is_loopback,
+            address.is_link_local,
+            address.is_private,
+            address.is_reserved,
+            address.is_multicast,
+            address.is_unspecified,
+        )
+    )
+
+
+def has_disallowed_resolved_address(
+    host: str,
+    *,
+    resolver: EndpointResolver | None = None,
+) -> bool:
+    return resolve_endpoint_host(host, resolver=resolver).has_disallowed_address
+
+
+def resolve_endpoint_host(
+    host: str,
+    *,
+    resolver: EndpointResolver | None = None,
+) -> EndpointResolutionStatus:
+    normalized = normalize_endpoint_host(host)
+    resolver_func = socket.getaddrinfo if resolver is None else resolver
+    try:
+        results = resolver_func(normalized, None, type=socket.SOCK_STREAM)
+    except (OSError, RuntimeError) as exc:
+        return EndpointResolutionStatus(
+            host=normalized,
+            addresses=(),
+            resolution_failed=True,
+            error=f"{exc.__class__.__name__}: {exc}",
+        )
+    addresses: list[str] = []
+    for result in results:
+        try:
+            address = result[4][0]
+        except (IndexError, TypeError):
+            continue
+        addresses.append(str(address))
+    return EndpointResolutionStatus(host=normalized, addresses=tuple(sorted(set(addresses))))
+
+
+def assert_endpoint_resolution_allowed(
+    host: str,
+    *,
+    label: str,
+    require_resolution: bool,
+    resolver: EndpointResolver | None = None,
+) -> None:
+    status = resolve_endpoint_host(host, resolver=resolver)
+    if status.resolution_failed:
+        if require_resolution:
+            raise ValueError(
+                f"{label} endpoint host could not be resolved for safety screening"
+            )
+        return
+    if status.has_disallowed_address:
+        raise ValueError(
+            f"{label} endpoint host resolves to localhost, private, link-local, "
+            "reserved, or multicast addresses"
+        )

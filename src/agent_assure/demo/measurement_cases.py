@@ -34,7 +34,6 @@ _EXPECTED_CASE_IDS = (
 _BLOCKING_REASON_CODES = (
     ReasonCode.FORBIDDEN_PROVIDER.value,
     ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value,
-    ReasonCode.RAW_SENSITIVE_CONTENT.value,
     ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT.value,
 )
 
@@ -258,7 +257,7 @@ def render_measurement_cases_text(summary: dict[str, object]) -> str:
             "  missing evidence link: same-output-missing-evidence",
             "  provider/model changed: same-output-provider-boundary",
             "  human review bypassed: same-output-human-review-bypassed",
-            "  residual sensitive metadata: same-output-redaction-state-changed",
+            "  evidence source changed: same-output-redaction-state-changed",
             f"  suite aggregate retry delta: {usage_delta.get('total_retries_delta')}",
             (
                 "  suite aggregate declared cost delta micro-USD: "
@@ -483,12 +482,6 @@ def _expected_regressions_caught(
         )
         and "evidence sources"
         in _case_changed_fields(cases_by_id, "same-output-redaction-state-changed")
-        and _case_has_finding(
-            cases_by_id,
-            "same-output-redaction-state-changed",
-            ReasonCode.RAW_SENSITIVE_CONTENT,
-            target="evidence_refs[0].source_id",
-        )
         and "operational counters" in _case_changed_fields(cases_by_id, "same-output-retry-storm")
         and "measured usage" in _case_changed_fields(cases_by_id, "same-output-usage-cost-delta")
         and _case_visible_output(cases_by_id, "different-output-no-process-regression")

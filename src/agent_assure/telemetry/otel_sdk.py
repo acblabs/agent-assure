@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+import re
+import urllib.parse
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, Self
 
 from pydantic import Field
-from pydantic.functional_validators import field_validator
+from pydantic.functional_validators import field_validator, model_validator
 
 from agent_assure import __version__
+from agent_assure.live.config import (
+    assert_endpoint_resolution_allowed,
+    is_disallowed_endpoint_host,
+    normalize_endpoint_host,
+)
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.telemetry import SpanPlan
 from agent_assure.telemetry.context import trace_context_carrier
+
+_HEADER_NAME_PATTERN = re.compile(r"^[A-Za-z0-9!#$%&'*+.^_`|~-]+$")
 
 
 class OpenTelemetryUnavailable(RuntimeError):
@@ -20,20 +29,89 @@ class OTelHeader(StrictModel):
     name: str = Field(min_length=1)
     value: str = Field(min_length=1)
 
+    @field_validator("name")
+    @classmethod
+    def _validate_header_name(cls, value: str) -> str:
+        if _HEADER_NAME_PATTERN.fullmatch(value) is None:
+            raise ValueError("OTLP header names must be valid HTTP field names")
+        return value
+
+    @field_validator("value")
+    @classmethod
+    def _validate_header_value(cls, value: str) -> str:
+        if "\r" in value or "\n" in value:
+            raise ValueError("OTLP header values must not contain newlines")
+        return value
+
 
 class OTelExportConfig(StrictModel):
     protocol: Literal["otlp-http", "console"] = "otlp-http"
     endpoint: str | None = None
+    allowed_endpoint_hosts: tuple[str, ...] = ()
+    require_endpoint_resolution: bool = True
     service_name: str = Field(default="agent-assure", min_length=1)
     timeout_seconds: int = Field(default=10, ge=1)
     headers: tuple[OTelHeader, ...] = ()
 
-    @field_validator("headers", mode="before")
+    @field_validator("allowed_endpoint_hosts", "headers", mode="before")
     @classmethod
-    def _coerce_headers(cls, value: object) -> object:
+    def _coerce_sequences(cls, value: object) -> object:
         if isinstance(value, list):
             return tuple(value)
         return value
+
+    @field_validator("allowed_endpoint_hosts")
+    @classmethod
+    def _validate_allowed_endpoint_hosts(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        normalized: list[str] = []
+        for host in value:
+            cleaned = host.strip().lower()
+            if not cleaned:
+                raise ValueError("allowed_endpoint_hosts entries must not be empty")
+            if any(marker in cleaned for marker in (":", "/", "*")):
+                raise ValueError("allowed_endpoint_hosts entries must be bare hostnames")
+            if is_disallowed_endpoint_host(cleaned):
+                raise ValueError(
+                    "allowed_endpoint_hosts entries must not target localhost, private, "
+                    "link-local, reserved, or multicast hosts"
+                )
+            normalized.append(cleaned)
+        return tuple(normalized)
+
+    @field_validator("endpoint")
+    @classmethod
+    def _validate_endpoint(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        parsed = urllib.parse.urlparse(value)
+        if parsed.scheme.lower() != "https":
+            raise ValueError("OTLP HTTP endpoint must use https")
+        if not parsed.hostname:
+            raise ValueError("OTLP HTTP endpoint must include a host")
+        host = normalize_endpoint_host(parsed.hostname)
+        if is_disallowed_endpoint_host(host):
+            raise ValueError(
+                "OTLP HTTP endpoint must not target localhost, private, link-local, "
+                "reserved, or multicast hosts"
+            )
+        return value
+
+    @model_validator(mode="after")
+    def _validate_otlp_endpoint_policy(self) -> Self:
+        if self.protocol == "console":
+            return self
+        if self.endpoint is None:
+            raise ValueError("OTLP HTTP export requires an explicit --endpoint")
+        parsed = urllib.parse.urlparse(self.endpoint)
+        host = normalize_endpoint_host(parsed.hostname or "")
+        if host not in set(self.allowed_endpoint_hosts):
+            raise ValueError("OTLP HTTP endpoint host must be listed in allowed_endpoint_hosts")
+        assert_endpoint_resolution_allowed(
+            host,
+            label="OTLP HTTP",
+            require_resolution=self.require_endpoint_resolution,
+        )
+        return self
 
 
 @dataclass(frozen=True)

@@ -8,6 +8,7 @@ from pathlib import Path
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.io_limits import MAX_PROMPT_BYTES, read_text_bounded
 from agent_assure.live.adapters import (
     LiveProviderAdapter,
     LiveProviderRequest,
@@ -46,6 +47,7 @@ def run_live_suite(
     *,
     protocol: LiveProtocolRecord,
     config_dir: Path,
+    require_resolvable_endpoint_hosts: bool = False,
 ) -> RunSet:
     _validate_cases(compiled, config)
     _validate_protocol_config(compiled, config, protocol)
@@ -54,7 +56,11 @@ def run_live_suite(
         raise ValueError(
             f"planned live requests ({len(schedule)}) exceed max_requests ({config.max_requests})"
         )
-    adapter = build_adapter(config.adapter, base_dir=config_dir)
+    adapter = build_adapter(
+        config.adapter,
+        base_dir=config_dir,
+        require_resolvable_endpoint_hosts=require_resolvable_endpoint_hosts,
+    )
     configuration_digest = _configuration_digest(compiled, config)
     protocol_digest = sha256_hexdigest(protocol)
     spent = Decimal("0")
@@ -142,7 +148,7 @@ def run_live_suite(
             )
             continue
         prompt = _read_prompt(config_dir, prompt_case.prompt_path)
-        prompt_digest = sha256_hexdigest({"prompt": redact_text(prompt)})
+        prompt_digest = sha256_hexdigest({"prompt": prompt})
         request = LiveProviderRequest(
             run_id=run_id,
             observation_id=observation_id,
@@ -723,7 +729,7 @@ def _is_rate_limit_error(exc: Exception) -> bool:
 
 def _read_prompt(config_dir: Path, prompt_path: str) -> str:
     path = resolve_live_config_path(config_dir, prompt_path, field_name="prompt_path")
-    text = path.read_text(encoding="utf-8")
+    text = read_text_bounded(path, max_bytes=MAX_PROMPT_BYTES, label="live prompt")
     if not text.strip():
         raise ValueError(f"prompt file is empty: {prompt_path}")
     return text

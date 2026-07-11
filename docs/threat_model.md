@@ -29,14 +29,32 @@ malicious model, script, provider, CI checkout, or operator.
 - The external-script adapter runs without a shell and receives only declared
   environment variables plus runner-injected request and trace context. It is
   not a sandbox; the configured script still executes with the caller's host
-  privileges.
-- External-script stdout/stderr are captured through bounded temporary files.
-  Oversized successful output is rejected as invalid output, and emergency
-  records store only byte counts and redacted summaries.
+  privileges. Interactive CLI runs ask for explicit trusted-config
+  acknowledgement before running external scripts, live network configs, or
+  configs that pass host environment variables. Non-interactive CI runs must
+  pass `--trust-config` plus the matching risk-specific flags
+  (`--allow-external-script`, `--allow-network`, and/or `--allow-script-env`);
+  `--ci` alone only suppresses prompts and does not grant trust. CI network
+  runs also require endpoint DNS safety screening to succeed.
+- External-script stdout/stderr are streamed through byte-counting pipe readers.
+  Oversized output terminates the child and is rejected as invalid output;
+  emergency records store only byte counts and redacted summaries.
 - The OpenAI-compatible adapter requires `allow_network: true`, HTTPS, an API
   key environment variable, and an endpoint host allowlist. `api.openai.com` is
   allowed by default; non-default gateways must be listed explicitly in
-  `allowed_endpoint_hosts`.
+  `allowed_endpoint_hosts`. Localhost, private, link-local, reserved, multicast,
+  and unspecified endpoint hosts are rejected by literal host inspection and
+  by resolved A/AAAA records when DNS resolution is available. Interactive
+  runs can opt into fail-closed DNS screening with
+  `--strict-endpoint-resolution`; CI network runs enable it automatically.
+  OpenAI-compatible requests repeat DNS screening immediately before dispatch,
+  but this is not TLS pinning or socket-level IP pinning.
+- OTLP HTTP export is explicit operator-controlled network egress. OTLP export
+  requires an explicit HTTPS endpoint and an explicit endpoint-host allowlist;
+  SDK environment-default endpoints are not used. Localhost, private,
+  link-local, reserved, multicast, and unspecified endpoint hosts are rejected
+  by literal host inspection and by resolved A/AAAA records. OTLP endpoint DNS
+  screening fails closed when resolution is unavailable.
 
 ## Privacy Boundary
 
@@ -44,6 +62,11 @@ malicious model, script, provider, CI checkout, or operator.
   emails, payment-card-like numbers, DOB patterns, bearer/JWT/API-key-like
   tokens, selected cloud/source-control tokens, secret-looking key/value pairs,
   and URL query secrets.
+- RunSet writes also fail closed when schema-preserved decision fields,
+  identifiers, provider-response IDs, provider/model provenance labels, pricing
+  labels, evidence identifiers, script names, or debug references contain
+  sensitive-looking values. This protects fields that are otherwise preserved
+  for artifact stability.
 - Evaluation recursively scans persisted run-record strings for sensitive-looking
   content while skipping digest/hash/provenance metadata. This is a guardrail,
   not production PHI de-identification or comprehensive DLP.
@@ -73,7 +96,8 @@ malicious model, script, provider, CI checkout, or operator.
 
 - Host isolation for malicious local scripts or compromised CI jobs.
 - Attestation of arbitrary live adapters, network providers, or model responses.
-- TLS pinning, provider-side compromise detection, or MITM detection beyond
-  HTTPS and endpoint host allowlisting.
+- TLS pinning, socket-level IP pinning, provider-side compromise detection, or
+  MITM detection beyond HTTPS, endpoint host allowlisting, and DNS safety
+  screening.
 - Comprehensive secret discovery, PHI de-identification, malware detection, or
   supply-chain attestation beyond digest replay and optional cosign signing.

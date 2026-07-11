@@ -5,13 +5,16 @@ from pathlib import Path
 import typer
 import yaml
 
+from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, read_text_bounded
 from agent_assure.policies.base import Waiver
 
 
 def load_waivers(paths: tuple[Path, ...]) -> tuple[Waiver, ...]:
     waivers: list[Waiver] = []
     for path in paths:
-        payload = yaml.safe_load(path.read_text(encoding="utf-8"))
+        payload = yaml.safe_load(
+            read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="waiver YAML")
+        )
         if isinstance(payload, dict) and "waivers" in payload:
             raw_waivers = payload["waivers"]
         else:

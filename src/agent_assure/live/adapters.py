@@ -14,7 +14,17 @@ from typing import Any, Literal, Protocol, cast
 from pydantic import Field
 
 from agent_assure.canonical.normalize import normalize_decimal
-from agent_assure.live.config import LiveAdapterConfig
+from agent_assure.io_limits import (
+    MAX_STATIC_JSONL_BYTES,
+    MAX_STATIC_JSONL_LINE_BYTES,
+    read_text_bounded,
+)
+from agent_assure.live.config import (
+    LiveAdapterConfig,
+    assert_endpoint_resolution_allowed,
+    is_disallowed_endpoint_host,
+    normalize_endpoint_host,
+)
 from agent_assure.live.output_contract import validate_live_structured_content
 from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.runner.subprocess_harness import (
@@ -171,7 +181,13 @@ class StaticJsonlAdapter:
 class OpenAIChatCompletionsAdapter:
     adapter_id = "openai-chat-completions"
 
-    def __init__(self, config: LiveAdapterConfig, *, base_dir: Path) -> None:
+    def __init__(
+        self,
+        config: LiveAdapterConfig,
+        *,
+        base_dir: Path,
+        require_resolvable_endpoint_host: bool = False,
+    ) -> None:
         del base_dir
         if not config.allow_network:
             raise ValueError("openai-chat-completions requires allow_network: true")
@@ -179,14 +195,22 @@ class OpenAIChatCompletionsAdapter:
             raise ValueError("openai-chat-completions requires endpoint_url")
         if not config.api_key_env:
             raise ValueError("openai-chat-completions requires api_key_env")
-        _validate_openai_endpoint(config)
+        _validate_openai_endpoint(
+            config,
+            require_resolvable_endpoint_host=require_resolvable_endpoint_host,
+        )
         api_key = os.environ.get(config.api_key_env)
         if not api_key:
             raise ValueError(f"environment variable {config.api_key_env!r} is not set")
         self._config = config
         self._api_key = api_key
+        self._require_resolvable_endpoint_host = require_resolvable_endpoint_host
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
+        _validate_openai_endpoint(
+            self._config,
+            require_resolvable_endpoint_host=self._require_resolvable_endpoint_host,
+        )
         body: dict[str, Any] = {
             "model": self._config.model,
             "messages": [{"role": "user", "content": request.prompt}],
@@ -321,11 +345,20 @@ class ExternalScriptAdapter:
             ) from exc
 
 
-def build_adapter(config: LiveAdapterConfig, *, base_dir: Path) -> LiveProviderAdapter:
+def build_adapter(
+    config: LiveAdapterConfig,
+    *,
+    base_dir: Path,
+    require_resolvable_endpoint_hosts: bool = False,
+) -> LiveProviderAdapter:
     if config.adapter_id == StaticJsonlAdapter.adapter_id:
         return StaticJsonlAdapter(config, base_dir=base_dir)
     if config.adapter_id == OpenAIChatCompletionsAdapter.adapter_id:
-        return OpenAIChatCompletionsAdapter(config, base_dir=base_dir)
+        return OpenAIChatCompletionsAdapter(
+            config,
+            base_dir=base_dir,
+            require_resolvable_endpoint_host=require_resolvable_endpoint_hosts,
+        )
     if config.adapter_id == ExternalScriptAdapter.adapter_id:
         return ExternalScriptAdapter(config, base_dir=base_dir)
     known = ", ".join(adapter_ids())
@@ -411,9 +444,12 @@ def _estimate_cost(
 
 def _load_jsonl_responses(path: Path) -> dict[tuple[str, int | None], dict[str, Any]]:
     responses: dict[tuple[str, int | None], dict[str, Any]] = {}
-    for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+    text = read_text_bounded(path, max_bytes=MAX_STATIC_JSONL_BYTES, label="static JSONL")
+    for line_number, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
+        if len(line.encode("utf-8")) > MAX_STATIC_JSONL_LINE_BYTES:
+            raise ValueError(f"{path}:{line_number}: static response line exceeded byte limit")
         payload = json.loads(line)
         if not isinstance(payload, dict):
             raise ValueError(f"{path}:{line_number}: static response must be an object")
@@ -465,22 +501,36 @@ def _script_argv(config: LiveAdapterConfig, script: Path) -> tuple[str, ...]:
     return (str(script), *args)
 
 
-def _validate_openai_endpoint(config: LiveAdapterConfig) -> None:
+def _validate_openai_endpoint(
+    config: LiveAdapterConfig,
+    *,
+    require_resolvable_endpoint_host: bool,
+) -> None:
     endpoint = config.endpoint_url or ""
     parsed = urllib.parse.urlparse(endpoint)
     if parsed.scheme.lower() != "https":
         raise ValueError("openai-chat-completions endpoint_url must use https")
     if not parsed.hostname:
         raise ValueError("openai-chat-completions endpoint_url must include a host")
-    host = parsed.hostname.lower()
+    host = normalize_endpoint_host(parsed.hostname)
+    if is_disallowed_endpoint_host(host):
+        raise ValueError(
+            "openai-chat-completions endpoint_url must not target localhost, private, "
+            "link-local, reserved, or multicast hosts"
+        )
     allowed_hosts = {
-        host_name.lower()
+        normalize_endpoint_host(host_name)
         for host_name in (*DEFAULT_OPENAI_ENDPOINT_HOSTS, *config.allowed_endpoint_hosts)
     }
     if host not in allowed_hosts:
         raise ValueError(
             "openai-chat-completions endpoint host must be in allowed_endpoint_hosts"
         )
+    assert_endpoint_resolution_allowed(
+        host,
+        label="openai-chat-completions",
+        require_resolution=require_resolvable_endpoint_host,
+    )
 
 
 def _string(value: object, default: str) -> str:

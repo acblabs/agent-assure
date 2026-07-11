@@ -6,6 +6,11 @@ from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.resolver import FixtureResolver
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    load_json_bounded,
+    read_bytes_bounded,
+)
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest, FixtureManifestEntry
 
 REQUIRED_FIXTURE_SUBDIRS = ("requests", "model_outputs", "tool_outputs")
@@ -28,7 +33,7 @@ def build_fixture_manifest(compiled: CompiledSuite, suite_root: Path) -> Fixture
 
 
 def load_fixture_manifest(path: Path) -> FixtureManifest:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = load_json_bounded(path)
     return FixtureManifest.model_validate(payload)
 
 
@@ -121,13 +126,20 @@ def _resolve_case_fixture_root(
 
 
 def _iter_fixture_files(root_path: Path) -> tuple[Path, ...]:
-    return tuple(sorted((path for path in root_path.rglob("*") if path.is_file()), key=_path_key))
+    paths: list[Path] = []
+    for path in root_path.rglob("*"):
+        if path.is_symlink():
+            raise ValueError(f"fixture manifest refuses symlinked path: {path}")
+        if path.is_file():
+            paths.append(path)
+    return tuple(sorted(paths, key=_path_key))
 
 
 def _entry_for_path(path: Path, resolver: FixtureResolver) -> FixtureManifestEntry:
-    data = path.read_bytes()
+    manifest_path = resolver.manifest_path(path)
+    data = read_bytes_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="fixture file")
     return FixtureManifestEntry(
-        path=resolver.manifest_path(path),
+        path=manifest_path,
         sha256=hashlib.sha256(data).hexdigest(),
         size_bytes=len(data),
     )

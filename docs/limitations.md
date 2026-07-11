@@ -141,7 +141,10 @@ not inherit the full parent environment by default, but any variable named in
 `script_env_allowlist` or supplied through `script_env` is intentionally passed
 through. Prompt, JSONL response, script, and script working-directory paths are
 confined to the live config directory; this prevents accidental path escape but
-does not make the script itself trustworthy.
+does not make the script itself trustworthy. Non-interactive live execution
+must pass `--trust-config` plus the specific risk flags for external-script
+execution, network egress, or host environment propagation; these flags are an
+operator acknowledgement, not isolation.
 
 Live adapters are trusted record producers. A static JSONL file, external
 script, or network provider controls the structured observation it returns,
@@ -149,11 +152,18 @@ including recommendations, outcomes, evidence links, claims, tool names, review
 flags, and summaries. Live producer-supplied failing policy results are
 verdict-bearing, but agent-assure does not attest adapter code or provider
 responses. The OpenAI-compatible adapter requires HTTPS and an allowlisted
-endpoint host; non-default gateways must be listed explicitly.
+endpoint host; non-default gateways must be listed explicitly. CI live network
+runs fail closed when endpoint DNS safety screening cannot resolve the host,
+and OpenAI-compatible requests repeat DNS screening immediately before
+dispatch. This reduces but does not eliminate DNS rebinding risk because the
+HTTP stack is not pinned to a screened address.
 
 Optional OpenTelemetry export is a projection from persisted, privacy-filtered
-span plans. It is useful for correlation, but it is not live SDK
-instrumentation of adapter HTTP calls or external subprocess execution.
+span plans. OTLP HTTP export requires an explicit HTTPS endpoint and an explicit
+allowed endpoint host; ambient SDK endpoint defaults are not used, and DNS
+safety screening fails closed by default. It is useful for correlation, but it
+is not live SDK instrumentation of adapter HTTP calls or external subprocess
+execution.
 Catastrophic host termination, production workload isolation, and distributed
 tracing beyond the local W3C context propagated by the live runner remain out
 of scope.

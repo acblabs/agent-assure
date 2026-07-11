@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Annotated
 
@@ -9,6 +8,7 @@ from rich.console import Console
 
 from agent_assure.evaluation.evaluator import load_runset
 from agent_assure.fixtures.loader import compiled_suite_digest, load_compiled_suite
+from agent_assure.io_limits import load_json_bounded
 from agent_assure.live.adapters import adapter_ids
 from agent_assure.live.comparison import compare_live_reports, load_live_evaluation_report
 from agent_assure.live.config import load_live_run_config
@@ -47,21 +47,144 @@ def run(
     config: Annotated[Path, typer.Option("--config", exists=True, readable=True)],
     protocol: Annotated[Path, typer.Option("--protocol", exists=True, readable=True)],
     out: Annotated[Path, typer.Option("--out", help="Live RunSet JSON output path.")],
+    trust_config: Annotated[
+        bool,
+        typer.Option(
+            "--trust-config",
+            help="Acknowledge trusted live config execution or network egress.",
+        ),
+    ] = False,
+    ci: Annotated[
+        bool,
+        typer.Option(
+            "--ci",
+            help="Non-interactive trusted-config acknowledgment for controlled CI jobs.",
+        ),
+    ] = False,
+    allow_network: Annotated[
+        bool,
+        typer.Option(
+            "--allow-network",
+            help="Allow a trusted live config to send prompts or metadata to a network endpoint.",
+        ),
+    ] = False,
+    allow_external_script: Annotated[
+        bool,
+        typer.Option(
+            "--allow-external-script",
+            help="Allow a trusted live config to execute an external script on this host.",
+        ),
+    ] = False,
+    allow_script_env: Annotated[
+        bool,
+        typer.Option(
+            "--allow-script-env",
+            help="Allow a trusted live config to pass selected host environment variables.",
+        ),
+    ] = False,
+    strict_endpoint_resolution: Annotated[
+        bool,
+        typer.Option(
+            "--strict-endpoint-resolution",
+            help="Fail closed if network endpoint hosts cannot be DNS-screened.",
+        ),
+    ] = False,
 ) -> None:
     try:
         compiled = load_compiled_suite(compiled_suite)
         live_config = load_live_run_config(config)
+        _confirm_trusted_live_config(
+            live_config,
+            trust_config=trust_config,
+            ci=ci,
+            allow_network=allow_network,
+            allow_external_script=allow_external_script,
+            allow_script_env=allow_script_env,
+        )
         protocol_record = _load_protocol(protocol)
         runset = run_live_suite(
             compiled,
             live_config,
             protocol=protocol_record,
             config_dir=config.parent,
+            require_resolvable_endpoint_hosts=strict_endpoint_resolution
+            or (ci and allow_network),
         )
         write_runset(runset, out)
     except (KeyError, ValueError, TypeError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     console.print(f"live run set: {out}")
+
+
+def _confirm_trusted_live_config(
+    config: object,
+    *,
+    trust_config: bool,
+    ci: bool,
+    allow_network: bool,
+    allow_external_script: bool,
+    allow_script_env: bool,
+) -> None:
+    risks = _trusted_live_config_risks(config)
+    if not risks:
+        return
+    reasons = tuple(reason for _, reason, _ in risks)
+    missing_flags = tuple(
+        flag
+        for risk_id, _, flag in risks
+        if (risk_id == "network" and not allow_network)
+        or (risk_id == "external-script" and not allow_external_script)
+        or (risk_id == "script-env" and not allow_script_env)
+    )
+    message = "live config requires trust: " + "; ".join(reasons)
+    if ci and not trust_config:
+        raise ValueError(
+            f"{message}; --ci is non-interactive only and requires --trust-config"
+        )
+    if (ci or trust_config) and missing_flags:
+        flags = ", ".join(missing_flags)
+        raise ValueError(f"{message}; explicit allow flag(s) required: {flags}")
+    if trust_config:
+        console.print(f"warning: {message}")
+        return
+    if not typer.confirm(f"{message}. Continue?", default=False):
+        raise typer.Abort()
+
+
+def _trusted_live_config_reasons(config: object) -> tuple[str, ...]:
+    return tuple(reason for _, reason, _ in _trusted_live_config_risks(config))
+
+
+def _trusted_live_config_risks(config: object) -> tuple[tuple[str, str, str], ...]:
+    adapter = getattr(config, "adapter", None)
+    if adapter is None:
+        return ()
+    risks: list[tuple[str, str, str]] = []
+    if getattr(adapter, "adapter_id", None) == "external-script":
+        risks.append(
+            (
+                "external-script",
+                "external-script executes host code with caller privileges",
+                "--allow-external-script",
+            )
+        )
+    if getattr(adapter, "allow_network", False):
+        risks.append(
+            (
+                "network",
+                "allow_network can send prompts and metadata to a configured endpoint",
+                "--allow-network",
+            )
+        )
+    if getattr(adapter, "script_env_allowlist", ()):
+        risks.append(
+            (
+                "script-env",
+                "script_env_allowlist passes selected host environment variables",
+                "--allow-script-env",
+            )
+        )
+    return tuple(risks)
 
 
 @app.command("evaluate")
@@ -203,7 +326,7 @@ def compare(
 
 
 def _load_protocol(path: Path) -> LiveProtocolRecord:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = load_json_bounded(path)
     return LiveProtocolRecord.model_validate(payload)
 
 

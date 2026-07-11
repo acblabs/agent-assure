@@ -11,4 +11,9 @@ schemas/unreleased/*.schema.json
 Lib/
 __pycache__/
 *.py[cod]
+.env
+.env.*
+*.key
+*.pem
+credentials.json
 agent_assure_final_implementation_plan.md

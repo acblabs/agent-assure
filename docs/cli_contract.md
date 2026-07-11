@@ -15,14 +15,14 @@ Current commands:
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure live adapters`
-- `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON`
+- `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
 - `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure live drift LIVE_EVALUATION_REPORT_JSON... --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure live trajectory LIVE_RUNSET_JSON --report LIVE_EVALUATION_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
-- `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
+- `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
 
 `evaluate` writes `evaluation-report.json`, `evaluation-summary.json`,
 `evaluation-report.md`, `dependency-inventory.json`, and
@@ -116,11 +116,23 @@ and runner-injected trace/request variables are passed. The live request
 payload includes the original prompt text. Subprocess spawn failures, timeouts,
 nonzero exits, invalid stdout, and stdout that fails the structured output
 contract create redacted `emergency-process-record` artifacts on the RunSet and
-a structured-output or runtime-failure live record. The OpenAI-compatible
+a structured-output or runtime-failure live record. Risky live configs require
+operator acknowledgement before execution. Interactive runs prompt for configs
+that execute external scripts, enable network egress, or pass host environment
+variables. Non-interactive CI runs must pass `--trust-config` plus the matching
+risk-specific flags: `--allow-external-script`, `--allow-network`, and/or
+`--allow-script-env`. `--strict-endpoint-resolution` makes live network
+adapter construction and request dispatch fail closed when endpoint DNS
+resolution is unavailable; CI network runs enable that strict policy
+automatically. The OpenAI-compatible
 chat-completions adapter uses Python standard-library HTTP support, requires
 explicit `allow_network: true` in the live config, requires HTTPS and an API key
 environment variable, and validates non-default endpoint hosts against the
-declared allowlist. OpenAI cost is recorded as a local estimate when token
+declared allowlist. Literal localhost/private/link-local/reserved/multicast
+hosts are rejected, resolved A/AAAA results are screened at adapter
+construction, and OpenAI-compatible requests repeat that screen immediately
+before dispatch. This is DNS safety screening, not TLS pinning or socket-level
+IP pinning. OpenAI cost is recorded as a local estimate when token
 pricing is configured and as not reported otherwise; it is not a billing
 assertion. Live run records store redacted
 summaries, provider/model labels, resolved provider-version metadata when
@@ -242,6 +254,10 @@ Typer validation. Keyless cosign signature verification remains an external
 precomputed `span-plan`, derives span plans where needed, and emits
 OpenTelemetry SDK spans using either the console exporter or OTLP HTTP exporter.
 OTLP export requires installing the optional `agent-assure[otel]` dependencies.
+OTLP HTTP export requires an explicit HTTPS `--endpoint` and the endpoint host
+must be supplied through `--allowed-endpoint-host`; SDK environment-default
+endpoints are not used by `agent-assure`. OTLP endpoint DNS screening fails
+closed by default when the host cannot be resolved.
 The exporter extracts any span-plan `traceparent` as parent context and emits
 only attributes and events already present in the span plan. It is projection
 from persisted span plans, not live instrumentation of the adapter HTTP request

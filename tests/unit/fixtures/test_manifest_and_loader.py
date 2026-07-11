@@ -50,7 +50,7 @@ def test_case_fixtures_can_load_from_non_first_declared_root(tmp_path) -> None: 
         compiled,
         load_variant_config(BASELINE),
         tmp_path,
-        hmac_key=b"multi-root-test-key",
+        hmac_key=b"multi-root-test-key-32-byte-value-0000",
     )
     assert runset.runs[0].case_id == "case-001"
     assert runset.runs[0].outcome == "approve"
@@ -84,6 +84,22 @@ def test_manifest_hashes_crlf_fixture_bytes(tmp_path) -> None:  # type: ignore[n
         item for item in manifest.entries if item.path.endswith("/requests/case-fixture.json")
     )
     assert entry.sha256 == hashlib.sha256(raw).hexdigest()
+
+
+def test_fixture_manifest_rejects_symlinked_files(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = _write_minimal_suite(tmp_path, ("fixtures/root-a",))
+    _write_prior_auth_fixture_triplet(tmp_path, "fixtures/root-a", "case-fixture")
+    outside = tmp_path / "outside.json"
+    outside.write_text('{"case_id": "outside"}', encoding="utf-8")
+    request = tmp_path / "fixtures" / "root-a" / "requests" / "case-fixture.json"
+    request.unlink()
+    try:
+        request.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlink creation is not available in this environment")
+
+    with pytest.raises(ValueError, match="refuses symlinked path"):
+        build_fixture_manifest(compile_suite(suite), tmp_path)
 
 
 def test_fixture_manifest_verification_detects_drift(tmp_path) -> None:  # type: ignore[no-untyped-def]

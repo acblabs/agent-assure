@@ -120,7 +120,7 @@ def run_prior_auth_case_rag(
 
 def _input_summary(case: SuiteCase, fixtures: LoadedFixtures, context: RunnerContext) -> str:
     subject_id = fixtures.request.get("member_id")
-    subject_token = hmac_sha256_token(str(subject_id or case.case_id), key=context.hmac_key)[:16]
+    subject_token = hmac_sha256_token(str(subject_id or case.case_id), key=context.hmac_key)[:32]
     return f"case={case.case_id}; subject_token={subject_token}; fixture={fixtures.fixture_id}"
 
 
@@ -131,7 +131,7 @@ def _rag_input_summary(
     retrieval: RetrievalResult,
 ) -> str:
     subject_id = fixtures.request.get("member_id")
-    subject_token = hmac_sha256_token(str(subject_id or case.case_id), key=context.hmac_key)[:16]
+    subject_token = hmac_sha256_token(str(subject_id or case.case_id), key=context.hmac_key)[:32]
     return (
         f"case={case.case_id}; subject_token={subject_token}; fixture={fixtures.fixture_id}; "
         f"query_digest={retrieval.normalized_query_digest}; "

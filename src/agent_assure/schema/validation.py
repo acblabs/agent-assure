@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from typing import Any
 
 from jsonschema import Draft202012Validator
 
+from agent_assure.io_limits import load_json_bounded
 from agent_assure.schema.export import model_for_kind
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    value = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(value, dict):
-        raise ValueError("artifact JSON root must be an object")
-    return value
+    return load_json_bounded(path)
 
 
 def validate_artifact(path: Path, kind: str) -> str:

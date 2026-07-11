@@ -11,7 +11,7 @@ from agent_assure.privacy.redaction import (
 )
 from agent_assure.privacy.safe_errors import safe_error
 
-TEST_HMAC_KEY = b"agent-assure-test-suite-key"
+TEST_HMAC_KEY = b"agent-assure-test-suite-key-32-bytes"
 
 
 def test_hmac_requires_explicit_key_and_is_stable() -> None:
@@ -28,9 +28,11 @@ def test_hmac_has_no_default_key() -> None:
         hmac_sha256_token("member-001")  # type: ignore[call-arg]
 
 
-def test_hmac_rejects_empty_key() -> None:
-    with pytest.raises(ValueError, match="must not be empty"):
+def test_hmac_rejects_short_key() -> None:
+    with pytest.raises(ValueError, match="at least 32 bytes"):
         hmac_sha256_token("member-001", key=b"")
+    with pytest.raises(ValueError, match="at least 32 bytes"):
+        hmac_sha256_token("member-001", key=b"short-key")
 
 
 def test_hmac_verify_uses_constant_time_helper() -> None:

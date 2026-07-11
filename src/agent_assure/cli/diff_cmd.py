@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, read_text_bounded
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, write_evidence_diff_html
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -126,19 +127,23 @@ def _required_path(path: Path | None, option_name: str) -> Path:
 
 
 def _load_runset(path: Path) -> RunSet:
-    return RunSet.model_validate_json(path.read_text(encoding="utf-8"))
+    return RunSet.model_validate_json(_artifact_json_text(path))
 
 
 def _load_evaluation_summary(path: Path) -> EvaluationSummary:
-    return EvaluationSummary.model_validate_json(path.read_text(encoding="utf-8"))
+    return EvaluationSummary.model_validate_json(_artifact_json_text(path))
 
 
 def _load_comparison_summary(path: Path) -> ComparisonSummary:
-    return ComparisonSummary.model_validate_json(path.read_text(encoding="utf-8"))
+    return ComparisonSummary.model_validate_json(_artifact_json_text(path))
 
 
 def _load_packet(path: Path) -> EvidencePacket:
-    return EvidencePacket.model_validate_json(path.read_text(encoding="utf-8"))
+    return EvidencePacket.model_validate_json(_artifact_json_text(path))
+
+
+def _artifact_json_text(path: Path) -> str:
+    return read_text_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="artifact JSON")
 
 
 def _artifact_paths(

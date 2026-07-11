@@ -31,5 +31,6 @@ jobs:
         with:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
-      - run: python -m pip install -e ".[langgraph]" pytest pytest-socket
+      - run: python -m pip install --require-hashes -r requirements-langgraph.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
       - run: pytest -q -p no:cacheprovider --basetemp .tmp/pytest tests/integration/test_langgraph_expense_assurance.py::test_langgraph_real_graph_stream_smoke

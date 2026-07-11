@@ -16,6 +16,12 @@ lists under preserved keys are still traversed and redacted. Free-form
 `exclusion_reason` values are also redacted rather than preserved, because live
 adapters can emit operational reason text even when common values are short
 codes.
+Before writing the redacted RunSet, persistence fails closed when preserved
+decision fields, run/suite/case identifiers, observation IDs, provider-response
+IDs, provider/model version labels, pricing labels, evidence identifiers,
+script names, or debug references contain sensitive-looking values. This keeps
+schema-owned identifiers stable when they are clean, but prevents sensitive
+content from surviving solely because a field is structurally preserved.
 Evaluation similarly scans persisted run-record strings and emits
 verdict-bearing redaction findings for sensitive-looking content. Raw
 sensitive-looking values are still allowed at model construction so evaluation
@@ -24,6 +30,9 @@ can fail closed when external producers submit unsafe records.
 The bundled fixture HMAC key is accepted only for the repository's synthetic
 example runners. Non-synthetic fixture runs must pass an explicit key, or use
 `agent-assure suite run --hmac-key-env ENV` to read one from the environment.
+HMAC-derived subject tokens are pseudonyms for correlation, not anonymized
+values; operators must protect the HMAC key and avoid relying on tokens as
+irreversible de-identification for enumerable identifiers.
 
 These controls are pattern-based guardrails, not production-grade PHI
 de-identification or comprehensive DLP. Raw prompts and raw provider responses

@@ -47,7 +47,6 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
     assert summary["blocking_reason_codes"] == [
         ReasonCode.FORBIDDEN_PROVIDER.value,
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value,
-        ReasonCode.RAW_SENSITIVE_CONTENT.value,
         ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT.value,
     ]
 
@@ -89,12 +88,6 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
     assert "evidence sources" in cases["same-output-redaction-state-changed"][
         "changed_process_fields"
     ]
-    assert _case_has_finding(
-        cases,
-        "same-output-redaction-state-changed",
-        ReasonCode.RAW_SENSITIVE_CONTENT,
-        target="evidence_refs[0].source_id",
-    )
     assert "operational counters" in cases["same-output-retry-storm"][
         "changed_process_fields"
     ]
@@ -136,6 +129,7 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
     assert MEASUREMENT_CASES_NOTICE in rendered_text
     assert "not a benchmark against other tools" in rendered_text
     assert "human review bypassed: same-output-human-review-bypassed" in rendered_text
+    assert "evidence source changed: same-output-redaction-state-changed" in rendered_text
     assert "suite aggregate retry delta: 7" in rendered_text
 
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")
@@ -149,7 +143,6 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in html
     assert ReasonCode.FORBIDDEN_PROVIDER.value in html
     assert ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT.value in html
-    assert ReasonCode.RAW_SENSITIVE_CONTENT.value in html
     assert "<script" not in html.lower()
     assert "https://" not in html.lower()
     assert "http://" not in html.lower()

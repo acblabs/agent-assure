@@ -4,11 +4,12 @@ import json
 import os
 import subprocess
 import tempfile
+import threading
 import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO, Literal, cast
+from typing import BinaryIO, Literal
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -54,6 +55,95 @@ class ExternalScriptCompleted:
     stderr_bytes: int = 0
 
 
+class _ProcessOutputCapture:
+    def __init__(self, process: subprocess.Popen[bytes]) -> None:
+        self.process = process
+        self.stdout_sample = bytearray()
+        self.stderr_sample = bytearray()
+        self.stdout_bytes = 0
+        self.stderr_bytes = 0
+        self.limit_exceeded = False
+        self._lock = threading.Lock()
+        self._threads: list[threading.Thread] = []
+
+    def start(self) -> None:
+        for stream_name, pipe in (
+            ("stdout", self.process.stdout),
+            ("stderr", self.process.stderr),
+        ):
+            if pipe is None:
+                continue
+            thread = threading.Thread(
+                target=_read_process_stream,
+                args=(pipe, stream_name, self),
+                daemon=True,
+            )
+            thread.start()
+            self._threads.append(thread)
+
+    def add(self, stream_name: str, chunk: bytes) -> None:
+        with self._lock:
+            if stream_name == "stdout":
+                self.stdout_bytes += len(chunk)
+                _append_sample(self.stdout_sample, chunk)
+            else:
+                self.stderr_bytes += len(chunk)
+                _append_sample(self.stderr_sample, chunk)
+            if (
+                self.stdout_bytes + self.stderr_bytes > MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES
+                and not self.limit_exceeded
+            ):
+                self.limit_exceeded = True
+                try:
+                    self.process.kill()
+                except OSError:
+                    pass
+
+    def join(self) -> None:
+        for thread in self._threads:
+            thread.join()
+
+
+def _capture_process_output(process: subprocess.Popen[bytes]) -> _ProcessOutputCapture:
+    capture = _ProcessOutputCapture(process)
+    capture.start()
+    return capture
+
+
+def _read_process_stream(
+    pipe: BinaryIO,
+    stream_name: str,
+    capture: _ProcessOutputCapture,
+) -> None:
+    try:
+        while True:
+            chunk = pipe.read(8192)
+            if not chunk:
+                return
+            capture.add(stream_name, chunk)
+    finally:
+        pipe.close()
+
+
+def _append_sample(sample: bytearray, chunk: bytes) -> None:
+    remaining = MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES - len(sample)
+    if remaining > 0:
+        sample.extend(chunk[:remaining])
+
+
+def _collected_output(
+    capture: _ProcessOutputCapture | None,
+) -> tuple[str, int, str, int]:
+    if capture is None:
+        return "", 0, "", 0
+    return (
+        _decode_sample(capture.stdout_sample),
+        capture.stdout_bytes,
+        _decode_sample(capture.stderr_sample),
+        capture.stderr_bytes,
+    )
+
+
 def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptCompleted:
     if not invocation.argv:
         emergency = _emergency_record(
@@ -66,23 +156,32 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
     started = time.perf_counter()
     env = _process_env(invocation)
     request_body = json.dumps(invocation.request_payload, sort_keys=True).encode("utf-8")
-    with tempfile.TemporaryFile() as stdout_file, tempfile.TemporaryFile() as stderr_file:
+    with tempfile.TemporaryFile() as stdin_file:
+        stdin_file.write(request_body)
+        stdin_file.seek(0)
+        process: subprocess.Popen[bytes] | None = None
+        capture: _ProcessOutputCapture | None = None
+        returncode = -1
         try:
-            result = subprocess.run(
+            process = subprocess.Popen(
                 list(invocation.argv),
                 cwd=invocation.cwd,
-                input=request_body,
-                stdout=stdout_file,
-                stderr=stderr_file,
-                timeout=invocation.timeout_seconds,
-                check=False,
+                stdin=stdin_file,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
                 env=env,
             )
+            capture = _capture_process_output(process)
+            returncode = process.wait(timeout=invocation.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
+            if process is not None:
+                process.kill()
+                process.wait()
+            if capture is not None:
+                capture.join()
             duration_ms = _duration_ms(started)
             completed_at_utc = _utc_now()
-            stdout, stdout_bytes = _read_limited_output(cast(BinaryIO, stdout_file))
-            stderr, stderr_bytes = _read_limited_output(cast(BinaryIO, stderr_file))
+            stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
             emergency = _emergency_record(
                 invocation,
                 failure_kind="timeout",
@@ -109,25 +208,12 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 exc=exc,
             )
             raise ExternalScriptError("external script could not be started", emergency) from exc
-        stdout, stdout_bytes = _read_limited_output(cast(BinaryIO, stdout_file))
-        stderr, stderr_bytes = _read_limited_output(cast(BinaryIO, stderr_file))
+        finally:
+            if capture is not None:
+                capture.join()
+        stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
     duration_ms = _duration_ms(started)
     completed_at_utc = _utc_now()
-    if result.returncode != 0:
-        emergency = _emergency_record(
-            invocation,
-            failure_kind="nonzero_exit",
-            message=f"external script exited with code {result.returncode}",
-            started_at_utc=started_at_utc,
-            completed_at_utc=completed_at_utc,
-            duration_ms=duration_ms,
-            exit_code=result.returncode,
-            stdout=stdout,
-            stderr=stderr,
-            stdout_bytes=stdout_bytes,
-            stderr_bytes=stderr_bytes,
-        )
-        raise ExternalScriptError("external script exited nonzero", emergency)
     completed = ExternalScriptCompleted(
         stdout=stdout,
         stderr=stderr,
@@ -144,6 +230,21 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             "external script output exceeded configured byte limit",
         )
         raise ExternalScriptError("external script output exceeded byte limit", emergency)
+    if returncode != 0:
+        emergency = _emergency_record(
+            invocation,
+            failure_kind="nonzero_exit",
+            message=f"external script exited with code {returncode}",
+            started_at_utc=started_at_utc,
+            completed_at_utc=completed_at_utc,
+            duration_ms=duration_ms,
+            exit_code=returncode,
+            stdout=stdout,
+            stderr=stderr,
+            stdout_bytes=stdout_bytes,
+            stderr_bytes=stderr_bytes,
+        )
+        raise ExternalScriptError("external script exited nonzero", emergency)
     return completed
 
 
@@ -256,15 +357,11 @@ def _summary(value: str | None) -> str | None:
     return redact_text(compact[:500])
 
 
-def _read_limited_output(output: BinaryIO) -> tuple[str, int]:
-    output.flush()
-    output.seek(0, os.SEEK_END)
-    byte_count = output.tell()
-    output.seek(0)
-    sample = output.read(MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES + 1)
-    if not isinstance(sample, bytes):
-        sample = bytes(sample)
-    return sample[:MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES].decode("utf-8", errors="replace"), byte_count
+def _decode_sample(sample: bytearray) -> str:
+    return bytes(sample[:MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES]).decode(
+        "utf-8",
+        errors="replace",
+    )
 
 
 def _byte_count(value: str | None) -> int:

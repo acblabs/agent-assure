@@ -7,6 +7,11 @@ from typing import Annotated, Literal, cast
 import typer
 from rich.console import Console
 
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    load_json_bounded,
+    read_text_bounded,
+)
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.telemetry import SpanPlan
 from agent_assure.telemetry.otel_mapping import run_record_to_span_plan
@@ -30,7 +35,9 @@ def preview(
         typer.Option("--out", help="Optional span-plan JSON output path."),
     ] = None,
 ) -> None:
-    record = AgentRunRecord.model_validate_json(path.read_text(encoding="utf-8"))
+    record = AgentRunRecord.model_validate_json(
+        read_text_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="OTel preview input")
+    )
     span_plan = run_record_to_span_plan(record)
     payload = json.dumps(span_plan.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
     if out is None:
@@ -50,7 +57,14 @@ def export(
     ] = "otlp-http",
     endpoint: Annotated[
         str | None,
-        typer.Option("--endpoint", help="OTLP HTTP endpoint. Uses SDK defaults when omitted."),
+        typer.Option("--endpoint", help="Required HTTPS OTLP endpoint for otlp-http."),
+    ] = None,
+    allowed_endpoint_host: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--allowed-endpoint-host",
+            help="Allowed OTLP endpoint host. Repeat for each trusted collector host.",
+        ),
     ] = None,
     service_name: Annotated[
         str,
@@ -70,6 +84,7 @@ def export(
         config = OTelExportConfig(
             protocol=_parse_protocol(protocol),
             endpoint=endpoint,
+            allowed_endpoint_hosts=tuple(allowed_endpoint_host or ()),
             service_name=service_name,
             timeout_seconds=timeout_seconds,
             headers=_parse_headers(header or []),
@@ -82,12 +97,12 @@ def export(
     console.print(
         "otel export: "
         f"spans={result.span_count} protocol={result.protocol} "
-        f"endpoint={result.endpoint or 'sdk-default'}"
+        f"endpoint={result.endpoint or 'none'}"
     )
 
 
 def _span_plans_from_path(path: Path) -> tuple[SpanPlan, ...]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = load_json_bounded(path)
     if not isinstance(payload, dict):
         raise ValueError("OTel export input must be a JSON object")
     artifact_kind = payload.get("artifact_kind")

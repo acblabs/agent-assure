@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import socket
 import sys
 import urllib.error
 import urllib.request
@@ -10,8 +11,10 @@ import pytest
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.cli.live_cmd import _confirm_trusted_live_config, _trusted_live_config_reasons
 from agent_assure.live.adapters import (
     MAX_PROVIDER_RESPONSE_BYTES,
+    LiveProviderRequest,
     OpenAIChatCompletionsAdapter,
     StaticJsonlAdapter,
     _NoRedirectHandler,
@@ -60,6 +63,89 @@ def test_tokens_per_minute_rejects_single_request_over_cap() -> None:
             tokens_window_reserved=0,
             reserved_tokens=11,
         )
+
+
+def test_live_cli_trust_detector_flags_external_scripts_and_network() -> None:
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            allow_network=True,
+            script_env_allowlist=("OPENAI_API_KEY",),
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    reasons = _trusted_live_config_reasons(config)
+
+    assert any("external-script" in reason for reason in reasons)
+    assert any("allow_network" in reason for reason in reasons)
+    assert any("script_env_allowlist" in reason for reason in reasons)
+
+
+def test_live_cli_ci_requires_trust_config_and_risk_specific_flags() -> None:
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            allow_network=True,
+            script_env_allowlist=("OPENAI_API_KEY",),
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="requires --trust-config"):
+        _confirm_trusted_live_config(
+            config,
+            trust_config=False,
+            ci=True,
+            allow_network=True,
+            allow_external_script=True,
+            allow_script_env=True,
+        )
+
+    with pytest.raises(ValueError, match="--allow-external-script"):
+        _confirm_trusted_live_config(
+            config,
+            trust_config=True,
+            ci=True,
+            allow_network=True,
+            allow_external_script=False,
+            allow_script_env=True,
+        )
+
+    _confirm_trusted_live_config(
+        config,
+        trust_config=True,
+        ci=True,
+        allow_network=True,
+        allow_external_script=True,
+        allow_script_env=True,
+    )
 
 
 def test_live_runner_attaches_external_script_emergency_records(tmp_path: Path) -> None:
@@ -142,6 +228,39 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
     assert runset.runs[0].traceparent is not None
 
 
+def test_live_prompt_digest_uses_exact_prompt_not_redacted_projection(tmp_path: Path) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    responses = tmp_path / "responses.jsonl"
+    prompt_text = "patient=Jane ssn: 123-45-6789"
+    prompt.write_text(prompt_text, encoding="utf-8")
+    responses.write_text(
+        json.dumps(
+            {
+                "case_id": "exp-001",
+                "record": {
+                    "recommendation": "approve",
+                    "outcome": "approve",
+                    "output_summary": "receipt-backed approval",
+                },
+                "provider": "static",
+                "model": "model",
+            },
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
+    protocol_digest = sha256_hexdigest(protocol)
+    config = _static_config(prompt, responses, protocol, protocol_digest)
+
+    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert runset.runs[0].provenance.prompt_digest == sha256_hexdigest({"prompt": prompt_text})
+    assert "123-45-6789" not in json.dumps(runset.model_dump(mode="json"))
+
+
 def test_static_jsonl_path_cannot_escape_config_dir(tmp_path: Path) -> None:
     with pytest.raises(ValueError, match="response_jsonl_path"):
         StaticJsonlAdapter(
@@ -188,6 +307,12 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+
+    def fake_getaddrinfo(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
+        del args, kwargs
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("93.184.216.34", 443))]
+
+    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", fake_getaddrinfo)
     common = {
         "adapter_id": "openai-chat-completions",
         "provider": "openai",
@@ -214,6 +339,23 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
             base_dir=tmp_path,
         )
 
+    with pytest.raises(ValueError, match="localhost, private"):
+        OpenAIChatCompletionsAdapter(
+            LiveAdapterConfig(
+                **common,
+                endpoint_url="https://127.0.0.1/v1/chat/completions",
+                allowed_endpoint_hosts=("127.0.0.1",),
+            ),
+            base_dir=tmp_path,
+        )
+
+    with pytest.raises(ValueError, match="localhost, private"):
+        LiveAdapterConfig(
+            **common,
+            endpoint_url="https://localhost/v1/chat/completions",
+            allowed_endpoint_hosts=("localhost",),
+        )
+
     with pytest.raises(ValueError, match="bare hostnames"):
         LiveAdapterConfig(
             **common,
@@ -231,6 +373,115 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
     )
 
     assert adapter.adapter_id == "openai-chat-completions"
+
+
+def test_openai_adapter_rejects_allowed_host_resolving_to_private_address(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+
+    def fake_getaddrinfo(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
+        del args, kwargs
+        return [
+            (
+                socket.AF_INET,
+                socket.SOCK_STREAM,
+                6,
+                "",
+                ("169.254.169.254", 443),
+            )
+        ]
+
+    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", fake_getaddrinfo)
+
+    with pytest.raises(ValueError, match="resolves to localhost, private"):
+        OpenAIChatCompletionsAdapter(
+            LiveAdapterConfig(
+                adapter_id="openai-chat-completions",
+                provider="openai",
+                model="gpt-test",
+                api_key_env="OPENAI_TEST_KEY",
+                allow_network=True,
+                endpoint_url="https://gateway.example.com/v1/chat/completions",
+                allowed_endpoint_hosts=("gateway.example.com",),
+            ),
+            base_dir=tmp_path,
+        )
+
+
+def test_openai_adapter_strict_resolution_rejects_unresolved_allowed_host(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+
+    def unresolved_getaddrinfo(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
+        del args, kwargs
+        raise OSError("resolver unavailable")
+
+    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", unresolved_getaddrinfo)
+    config = LiveAdapterConfig(
+        adapter_id="openai-chat-completions",
+        provider="openai",
+        model="gpt-test",
+        api_key_env="OPENAI_TEST_KEY",
+        allow_network=True,
+        endpoint_url="https://gateway.example.com/v1/chat/completions",
+        allowed_endpoint_hosts=("gateway.example.com",),
+    )
+
+    OpenAIChatCompletionsAdapter(config, base_dir=tmp_path)
+    with pytest.raises(ValueError, match="could not be resolved"):
+        OpenAIChatCompletionsAdapter(
+            config,
+            base_dir=tmp_path,
+            require_resolvable_endpoint_host=True,
+        )
+
+
+def test_openai_adapter_rechecks_resolution_before_each_request(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_TEST_KEY", "test-key")
+    responses = [
+        ("93.184.216.34", 443),
+        ("10.0.0.5", 443),
+    ]
+
+    def changing_getaddrinfo(*args: object, **kwargs: object) -> list[tuple[object, ...]]:
+        del args, kwargs
+        address = responses.pop(0)
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", address)]
+
+    monkeypatch.setattr("agent_assure.live.config.socket.getaddrinfo", changing_getaddrinfo)
+    adapter = OpenAIChatCompletionsAdapter(
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            allow_network=True,
+            endpoint_url="https://gateway.example.com/v1/chat/completions",
+            allowed_endpoint_hosts=("gateway.example.com",),
+        ),
+        base_dir=tmp_path,
+        require_resolvable_endpoint_host=True,
+    )
+
+    with pytest.raises(ValueError, match="resolves to localhost, private"):
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-001",
+                observation_id="obs-001",
+                case_id="case-001",
+                repetition_index=0,
+                prompt="prompt",
+                provider="openai",
+                model="gpt-test",
+            )
+        )
 
 
 def test_openai_adapter_redirect_handler_blocks_redirected_authorization() -> None:

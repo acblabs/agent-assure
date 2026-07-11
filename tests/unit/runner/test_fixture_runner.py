@@ -64,7 +64,12 @@ def test_explicit_fixture_hmac_key_allows_non_synthetic_suite() -> None:
     compiled = compile_suite(SUITE).model_copy(update={"suite_id": "private-suite"})
     variant = load_variant_config(BASELINE)
 
-    runset = run_suite(compiled, variant, SUITE.parent, hmac_key=b"private-test-key")
+    runset = run_suite(
+        compiled,
+        variant,
+        SUITE.parent,
+        hmac_key=b"private-test-key-32-byte-value-0000",
+    )
 
     assert runset.suite_id == "private-suite"
 
@@ -123,3 +128,56 @@ def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -
     assert "[REDACTED]" in loaded.runs[0].input_summary
     assert "[REDACTED]" in loaded.runs[0].output_summary
     assert loaded.runs[0].traceparent == traceparent
+
+
+def test_write_runset_rejects_sensitive_preserved_decision_fields(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    record = AgentRunRecord(
+        artifact_kind="agent-run-record",
+        run_id="run-001",
+        case_id="case-001",
+        execution_mode="fixture",
+        pipeline_id="pipeline",
+        recommendation="approve ssn: 123-45-6789",
+        outcome="approve",
+        input_summary="plain",
+        output_summary="plain",
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-001",
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(record,),
+    )
+
+    with pytest.raises(ValueError, match="preserved field"):
+        write_runset(runset, tmp_path / "runset.json")
+
+
+def test_write_runset_rejects_sensitive_preserved_provider_metadata(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    record = AgentRunRecord(
+        artifact_kind="agent-run-record",
+        run_id="run-001",
+        case_id="case-001",
+        execution_mode="fixture",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="plain",
+        output_summary="plain",
+        provider_response_id="authorization=abcdef1234567890",
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-001",
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(record,),
+    )
+
+    with pytest.raises(ValueError, match="provider_response_id"):
+        write_runset(runset, tmp_path / "runset.json")

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from collections import defaultdict
 from decimal import Decimal
 from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.io_limits import load_json_bounded
 from agent_assure.live.advanced import (
     evaluate_paired_randomization_test,
     paired_randomization_prerequisites,
@@ -28,7 +28,7 @@ from agent_assure.schema.live import (
 
 
 def load_live_evaluation_report(path: Path) -> LiveEvaluationReport:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = load_json_bounded(path)
     return LiveEvaluationReport.model_validate(payload)
 
 

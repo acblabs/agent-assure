@@ -19,7 +19,15 @@ from agent_assure.fixtures.manifest import (
     verify_fixture_manifest,
 )
 from agent_assure.fixtures.resolver import FixtureResolver
-from agent_assure.privacy.redaction import redact_runset_payload
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    MAX_CONFIG_TEXT_BYTES,
+    read_text_bounded,
+)
+from agent_assure.privacy.redaction import (
+    assert_runset_payload_safe_for_persistence,
+    redact_runset_payload,
+)
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.runner.clock import DeterministicClock
 from agent_assure.runner.ids import DeterministicIds
@@ -99,7 +107,9 @@ class RunnerContext:
 
 
 def load_variant_config(path: Path) -> VariantConfig:
-    loaded = yaml.safe_load(path.read_text(encoding="utf-8"))
+    loaded = yaml.safe_load(
+        read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="variant YAML")
+    )
     if not isinstance(loaded, dict):
         raise TypeError("variant must be a mapping")
     data = {str(key): value for key, value in loaded.items()}
@@ -191,6 +201,7 @@ def load_case_fixtures(case: SuiteCase, context: RunnerContext) -> LoadedFixture
 def write_runset(runset: RunSet, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = redact_runset_payload(runset.model_dump(mode="json"))
+    assert_runset_payload_safe_for_persistence(payload)
     RunSet.model_validate(payload)
     path.write_text(
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -243,7 +254,9 @@ def _provenance(context: RunnerContext) -> Provenance:
 
 
 def _read_fixture_json(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(
+        read_text_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="fixture JSON")
+    )
     if not isinstance(payload, dict):
         raise ValueError(f"fixture JSON root must be an object: {path}")
     return {str(key): value for key, value in payload.items()}
