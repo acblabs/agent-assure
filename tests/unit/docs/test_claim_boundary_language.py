@@ -151,6 +151,10 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     (docs / "for_ai_leaders.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "for_engineers.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "what_this_measures.md").write_text("Measured evidence\n", encoding="utf-8")
+    measurement_dir = docs / "measurement"
+    measurement_dir.mkdir()
+    process_doc = measurement_dir / "process_assurance_vs_answer_quality_eval.md"
+    process_doc.write_text("Measured evidence\n", encoding="utf-8")
     (docs / "demo_flagship.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "demo_expense.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "evidence_diff.md").write_text("Measured evidence\n", encoding="utf-8")
@@ -184,6 +188,7 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     assert changelog in paths
     assert docs / "for_ai_leaders.md" in paths
     assert docs / "for_engineers.md" in paths
+    assert process_doc in paths
     assert release_note in paths
     assert post in paths
     assert transcript in paths

@@ -57,6 +57,27 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/examples/langgraph_expense_assurance/README.md",
     "agent_assure/examples/langgraph_expense_assurance/runner.py",
     "agent_assure/examples/langgraph_expense_assurance/suite.yaml",
+    "agent_assure/examples/process_measurement_cases/",
+    "agent_assure/examples/process_measurement_cases/README.md",
+    "agent_assure/examples/process_measurement_cases/runner.py",
+    "agent_assure/examples/process_measurement_cases/suite.yaml",
+    "agent_assure/examples/process_measurement_cases/variants/baseline.yaml",
+    (
+        "agent_assure/examples/process_measurement_cases/variants/"
+        "candidate_process_regressions.yaml"
+    ),
+    (
+        "agent_assure/examples/process_measurement_cases/fixtures/shared/requests/"
+        "same-output-human-review-bypassed.json"
+    ),
+    (
+        "agent_assure/examples/process_measurement_cases/fixtures/shared/model_outputs/"
+        "same-output-provider-boundary.json"
+    ),
+    (
+        "agent_assure/examples/process_measurement_cases/fixtures/shared/tool_outputs/"
+        "same-output-missing-evidence.json"
+    ),
     "agent_assure/schema_resources/__init__.py",
     "agent_assure/mappings/nist_ai_rmf.yaml",
     "agent_assure/mappings/owasp_llm_top_10_2025.yaml",

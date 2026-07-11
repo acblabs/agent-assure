@@ -1,0 +1,5 @@
+{
+  "case_id": "same-output-retry-storm",
+  "scenario": "same visible output but retries and latency increase",
+  "subject_id": "pmc-005"
+}

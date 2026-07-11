@@ -1,0 +1,34 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-retry-policy"
+        ],
+        "content_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "ref_id": "ref-retry-policy",
+        "source_id": "retry-policy-v1"
+      }
+    ],
+    "tools": [
+      "retry_controller",
+      "usage_meter"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-retry-policy"
+        ],
+        "content_digest": "5555555555555555555555555555555555555555555555555555555555555555",
+        "ref_id": "ref-retry-policy",
+        "source_id": "retry-policy-v1"
+      }
+    ],
+    "tools": [
+      "retry_controller",
+      "usage_meter"
+    ]
+  }
+}

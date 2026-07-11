@@ -477,7 +477,7 @@ tbody tr:last-child td {
   min-width: 0;
 }
 .process-evidence-table {
-  min-width: 1040px;
+  min-width: 1240px;
 }
 .cell-value {
   min-width: 0;
@@ -977,7 +977,7 @@ code.wrap-token {
 <section class="page-intro" aria-labelledby="technical-evidence">
 <p class="eyebrow">Technical appendix</p>
 <h2 id="technical-evidence">Before and After Traceability Detail</h2>
-<p class="section-lede">Engineers can inspect the exact claim IDs, linked evidence refs, policy states, provider/model fields, and tool names used in the run.</p>
+<p class="section-lede">Engineers can inspect claim IDs, evidence refs and sources, linked evidence, policy states, provider/model fields, tool names, operational counters, and measured usage summaries used in the run.</p>
 </section>
 <section class="missing-link-section technical-detail" aria-labelledby="missing-evidence-link-diff">
 <div class="section-heading-row">
@@ -994,8 +994,8 @@ code.wrap-token {
 <h2 id="baseline-process">Full Baseline Process Evidence</h2>
 <div class="table-wrap">
 <table class="process-evidence-table wide-table">
-<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
-<tbody><tr><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Evidence refs"><div class="cell-value"><code>evidence-duration</code></div></td><td data-label="Linked claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Policy states"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Human review"><div class="cell-value">not required</div></td><td data-label="Provider/model"><div class="cell-value">not recorded</div></td><td data-label="Tools"><div class="cell-value"><code>benefit-policy-lookup</code></div></td></tr></tbody>
+<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th><th>Operational metrics</th><th>Measured usage</th></tr></thead>
+<tbody><tr><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Evidence refs"><div class="cell-value"><code>evidence-duration source=guideline-duration</code></div></td><td data-label="Linked claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Policy states"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Human review"><div class="cell-value">not required</div></td><td data-label="Provider/model"><div class="cell-value">not recorded</div></td><td data-label="Tools"><div class="cell-value"><code>benefit-policy-lookup</code></div></td><td data-label="Operational metrics"><div class="cell-value">not recorded</div></td><td data-label="Measured usage"><div class="cell-value">not observed</div></td></tr></tbody>
 </table>
 </div>
 </section>
@@ -1003,8 +1003,8 @@ code.wrap-token {
 <h2 id="candidate-process">Full Candidate Process Evidence</h2>
 <div class="table-wrap">
 <table class="process-evidence-table wide-table">
-<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th></tr></thead>
-<tbody><tr><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Evidence refs"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Linked claims"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Policy states"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Human review"><div class="cell-value">not required</div></td><td data-label="Provider/model"><div class="cell-value">not recorded</div></td><td data-label="Tools"><div class="cell-value"><code>benefit-policy-lookup</code></div></td></tr></tbody>
+<thead><tr><th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th><th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th><th>Operational metrics</th><th>Measured usage</th></tr></thead>
+<tbody><tr><td data-label="Case"><div class="cell-value">shared-source-multi-claim</div></td><td data-label="Claims"><div class="cell-value"><code>claim-duration</code></div></td><td data-label="Evidence refs"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Linked claims"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Policy states"><div class="cell-value"><span class="empty">none</span></div></td><td data-label="Human review"><div class="cell-value">not required</div></td><td data-label="Provider/model"><div class="cell-value">not recorded</div></td><td data-label="Tools"><div class="cell-value"><code>benefit-policy-lookup</code></div></td><td data-label="Operational metrics"><div class="cell-value">not recorded</div></td><td data-label="Measured usage"><div class="cell-value">not observed</div></td></tr></tbody>
 </table>
 </div>
 </section>

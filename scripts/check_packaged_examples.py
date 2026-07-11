@@ -13,6 +13,7 @@ EXAMPLE_RESOURCE_SETS = (
     "prior_auth_synthetic",
     "expense_approval_minimal",
     "langgraph_expense_assurance",
+    "process_measurement_cases",
 )
 
 MIRRORED_RESOURCE_PATHS = (

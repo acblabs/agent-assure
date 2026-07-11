@@ -1,0 +1,5 @@
+{
+  "case_id": "different-output-no-process-regression",
+  "scenario": "visible output changes while process evidence is preserved",
+  "subject_id": "pmc-007"
+}

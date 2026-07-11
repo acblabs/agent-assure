@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-usage-policy"
+        ],
+        "content_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "ref_id": "ref-usage-policy",
+        "source_id": "usage-policy-v1"
+      }
+    ],
+    "tools": [
+      "usage_meter"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-usage-policy"
+        ],
+        "content_digest": "6666666666666666666666666666666666666666666666666666666666666666",
+        "ref_id": "ref-usage-policy",
+        "source_id": "usage-policy-v1"
+      }
+    ],
+    "tools": [
+      "usage_meter"
+    ]
+  }
+}

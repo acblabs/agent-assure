@@ -62,6 +62,9 @@
   IDs and digests, integer micro-USD declared estimated costs, basis-point
   deltas, and per-cost-observation evidence that stays separate from
   governance verdicts.
+- Deterministic process-measurement cases that show same-answer process changes
+  across evidence links, provider metadata, human review, residual sensitive
+  metadata, retries, measured usage, and a different-answer contextual case.
 - Evidence packets that bundle evaluation and comparison summaries with
   interpretation guidance, environment metadata, deterministic input artifact
   digests, dependency-inventory digest, and release artifact manifest.

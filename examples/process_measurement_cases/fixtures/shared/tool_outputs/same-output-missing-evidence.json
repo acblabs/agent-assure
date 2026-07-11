@@ -1,0 +1,30 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-policy-support"
+        ],
+        "content_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "ref_id": "ref-process-policy",
+        "source_id": "process-policy-v1"
+      }
+    ],
+    "tools": [
+      "evidence_lookup"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [],
+        "content_digest": "1111111111111111111111111111111111111111111111111111111111111111",
+        "ref_id": "ref-process-policy",
+        "source_id": "process-policy-v1"
+      }
+    ],
+    "tools": [
+      "evidence_lookup"
+    ]
+  }
+}

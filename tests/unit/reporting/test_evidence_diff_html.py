@@ -19,6 +19,7 @@ from agent_assure.schema.run import (
     EvidenceRef,
     RunSet,
 )
+from agent_assure.schema.usage import UsageSummary, UsageSummaryDelta
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -366,6 +367,116 @@ def test_evidence_diff_html_surfaces_non_claim_process_changed_fields() -> None:
     assert "changed" in html
     assert "Claim-evidence links" in html
     assert "failed invariant" not in html
+
+
+def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
+    evidence_ref = EvidenceRef(
+        ref_id="evidence-duration",
+        source_id="guideline-duration",
+        claim_ids=("claim-duration",),
+    )
+    baseline_run = _run("case-a", evidence_refs=(evidence_ref,)).model_copy(
+        update={
+            "attempt_count": 1,
+            "retry_count": 0,
+            "latency_ms": 100,
+            "usage_summary": UsageSummary(
+                total_tokens=100,
+                total_retries=0,
+                total_latency_ms=100,
+                estimated_cost_microusd=150,
+                cost_basis_ids=("declared_fixture_v1",),
+                pricing_snapshot_ids=("snapshot-v1",),
+                pricing_snapshot_digests=("a" * 64,),
+                cost_observation_count=1,
+            ),
+        }
+    )
+    candidate_run = _run("case-a", evidence_refs=(evidence_ref,)).model_copy(
+        update={
+            "attempt_count": 4,
+            "retry_count": 3,
+            "latency_ms": 350,
+            "usage_summary": UsageSummary(
+                total_tokens=140,
+                total_retries=3,
+                total_latency_ms=350,
+                estimated_cost_microusd=230,
+                cost_basis_ids=("declared_fixture_v1",),
+                pricing_snapshot_ids=("snapshot-v1",),
+                pricing_snapshot_digests=("a" * 64,),
+                cost_observation_count=1,
+            ),
+        }
+    )
+    baseline = _runset("baseline", baseline_run)
+    candidate = _runset("candidate", candidate_run)
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        classification=ComparisonClassification.allowed_behavioral_change,
+        fixture_equivalence_state=GateState.pass_,
+        baseline_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+        usage_delta=UsageSummaryDelta(
+            comparison_state="observed",
+            baseline_observed=True,
+            candidate_observed=True,
+            total_tokens_delta=40,
+            total_retries_delta=3,
+            total_latency_ms_delta=250,
+            estimated_cost_microusd_delta=80,
+        ),
+    )
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+    )
+
+    assert "Operational metrics" in html
+    assert "Measured usage" in html
+    assert "Measured usage delta" in html
+    assert "<code>operational counters</code>" in html
+    assert "<code>measured usage</code>" in html
+    assert "attempts=4; retries=3; latency_ms=350" in html
+    assert "tokens=140; tools=not_observed; retries=3" in html
+    assert "declared estimated cost delta +80 micro-USD" in html
+
+
+def test_evidence_diff_html_surfaces_source_id_only_process_change() -> None:
+    baseline_ref = EvidenceRef(
+        ref_id="evidence-duration",
+        source_id="guideline-duration-v1",
+        claim_ids=("claim-duration",),
+    )
+    candidate_ref = EvidenceRef(
+        ref_id="evidence-duration",
+        source_id="guideline-duration-v2",
+        claim_ids=("claim-duration",),
+    )
+    baseline = _runset("baseline", _run("case-a", evidence_refs=(baseline_ref,)))
+    candidate = _runset("candidate", _run("case-a", evidence_refs=(candidate_ref,)))
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        classification=ComparisonClassification.provenance_only_change,
+        fixture_equivalence_state=GateState.pass_,
+        baseline_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+
+    html = render_evidence_diff_html(
+        baseline=baseline,
+        candidate=candidate,
+        comparison_summary=comparison,
+    )
+
+    assert "Changed fields" in html
+    assert "<code>evidence refs</code>" in html
+    assert "evidence-duration source=guideline-duration-v1" in html
+    assert "evidence-duration source=guideline-duration-v2" in html
 
 
 def test_evidence_diff_html_surfaces_changed_retrieval_corpus_digest() -> None:

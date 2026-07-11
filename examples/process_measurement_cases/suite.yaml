@@ -1,0 +1,99 @@
+suite_id: process-measurement-cases
+suite_version: 0.4.3
+defaults:
+  execution_mode: fixture
+  runner_id: process_measurement.synthetic
+  fixture_roots:
+    - fixtures/shared
+  allowed_tools:
+    - evidence_lookup
+    - provider_router
+    - review_router
+    - redaction_filter
+    - retry_controller
+    - usage_meter
+cases:
+  - case_id: same-output-missing-evidence
+    title: Same output with missing evidence link
+    fixture_id: same-output-missing-evidence
+    tags:
+      - evidence-linking
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-process-policy
+      material_claim_ids:
+        - claim-policy-support
+  - case_id: same-output-provider-boundary
+    title: Same output with provider boundary changed
+    fixture_id: same-output-provider-boundary
+    tags:
+      - provider-policy
+    expectation:
+      expected_recommendation: approve
+      allowed_providers:
+        - approved-process-provider
+      required_human_review: true
+      required_evidence_refs:
+        - ref-provider-policy
+      material_claim_ids:
+        - claim-provider-routing
+  - case_id: same-output-human-review-bypassed
+    title: Same output with human review bypassed
+    fixture_id: same-output-human-review-bypassed
+    tags:
+      - human-review
+    expectation:
+      expected_recommendation: approve
+      required_human_review: true
+      required_evidence_refs:
+        - ref-review-policy
+      material_claim_ids:
+        - claim-review-required
+  - case_id: same-output-redaction-state-changed
+    title: Same output with residual sensitive metadata
+    fixture_id: same-output-redaction-state-changed
+    tags:
+      - privacy
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-redaction-policy
+      material_claim_ids:
+        - claim-redaction-state
+  - case_id: same-output-retry-storm
+    title: Same output with retry storm
+    fixture_id: same-output-retry-storm
+    tags:
+      - measured-usage
+      - retry
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-retry-policy
+      material_claim_ids:
+        - claim-retry-policy
+  - case_id: same-output-usage-cost-delta
+    title: Same output with measured usage and cost delta
+    fixture_id: same-output-usage-cost-delta
+    tags:
+      - measured-usage
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-usage-policy
+      material_claim_ids:
+        - claim-usage-policy
+  - case_id: different-output-no-process-regression
+    title: Different output without process regression
+    fixture_id: different-output-no-process-regression
+    tags:
+      - answer-quality-context
+    expectation:
+      allowed_outcomes:
+        - approve
+        - escalate
+      required_evidence_refs:
+        - ref-output-policy
+      material_claim_ids:
+        - claim-output-policy

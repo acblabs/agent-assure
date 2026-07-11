@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-redaction-state"
+        ],
+        "content_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "ref_id": "ref-redaction-policy",
+        "source_id": "redaction-policy-v1"
+      }
+    ],
+    "tools": [
+      "redaction_filter"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-redaction-state"
+        ],
+        "content_digest": "4444444444444444444444444444444444444444444444444444444444444444",
+        "ref_id": "ref-redaction-policy",
+        "source_id": "member: Maria Gomez"
+      }
+    ],
+    "tools": [
+      "redaction_filter"
+    ]
+  }
+}

@@ -39,6 +39,12 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
     assert "agent_assure/mappings/mitre_atlas_2026_06.yaml" in required
     assert "agent_assure/examples/langgraph_expense_assurance/runner.py" in required
     assert "agent_assure/examples/langgraph_expense_assurance/suite.yaml" in required
+    assert "agent_assure/examples/process_measurement_cases/runner.py" in required
+    assert "agent_assure/examples/process_measurement_cases/suite.yaml" in required
+    assert (
+        "agent_assure/examples/process_measurement_cases/fixtures/shared/model_outputs/"
+        "same-output-provider-boundary.json"
+    ) in required
 
 
 def test_frozen_schema_versions_are_discovered_from_schema_root(tmp_path: Path) -> None:

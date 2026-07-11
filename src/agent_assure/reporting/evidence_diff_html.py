@@ -12,6 +12,7 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.usage.aggregation import format_usage_delta
 
 THESIS_TITLE = "Output equivalence is not process equivalence"
 MAX_INLINE_ITEMS = 4
@@ -789,8 +790,9 @@ def _technical_evidence_page(
                 '<h2 id="technical-evidence">Before and After Traceability Detail</h2>',
                 (
                     '<p class="section-lede">'
-                    "Engineers can inspect the exact claim IDs, linked evidence refs, "
-                    "policy states, provider/model fields, and tool names used in the run."
+                    "Engineers can inspect claim IDs, evidence refs and sources, linked "
+                    "evidence, policy states, provider/model fields, tool names, operational "
+                    "counters, and measured usage summaries used in the run."
                     "</p>"
                 ),
                 "</section>",
@@ -856,7 +858,7 @@ def _process_evidence_section(
     section_class: str = "",
 ) -> str:
     rows = "\n".join(_process_evidence_row(run) for run in sorted(runset.runs, key=_case_key))
-    body = rows or '<tr><td colspan="8" class="empty">No runs were recorded.</td></tr>'
+    body = rows or '<tr><td colspan="10" class="empty">No runs were recorded.</td></tr>'
     class_attr = f' class="{_h(section_class)}"' if section_class else ""
     return "\n".join(
         (
@@ -867,6 +869,7 @@ def _process_evidence_section(
             "<thead><tr>"
             "<th>Case</th><th>Claims</th><th>Evidence refs</th><th>Linked claims</th>"
             "<th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th>"
+            "<th>Operational metrics</th><th>Measured usage</th>"
             "</tr></thead>",
             f"<tbody>{body}</tbody>",
             "</table>",
@@ -953,6 +956,16 @@ def _comparison_section(
             ),
         )
     )
+    usage_delta_detail = (
+        ()
+        if comparison_summary.usage_delta is None
+        else (
+            _detail(
+                "Measured usage delta",
+                format_usage_delta(comparison_summary.usage_delta),
+            ),
+        )
+    )
     return "\n".join(
         (
             '<section aria-labelledby="comparison-classification">',
@@ -962,6 +975,7 @@ def _comparison_section(
             _detail("Baseline state", comparison_summary.baseline_state.value),
             _detail("Candidate state", comparison_summary.candidate_state.value),
             *retrieval_corpus_digest_detail,
+            *usage_delta_detail,
             _detail_html(
                 "Provenance changes",
                 _summarized_values_html(comparison_summary.provenance_changes, empty="none"),
@@ -1594,7 +1608,7 @@ tbody tr:last-child td {
   min-width: 0;
 }
 .process-evidence-table {
-  min-width: 1040px;
+  min-width: 1240px;
 }
 .cell-value {
   min-width: 0;
@@ -2548,12 +2562,14 @@ def _removed_link_expression(claim_id: str) -> str:
 def _process_signature(run: AgentRunRecord) -> tuple[object, ...]:
     return (
         _claim_ids(run),
-        tuple(ref.ref_id for ref in run.evidence_refs),
+        _evidence_ref_signature(run),
         tuple(_linked_claim_evidence(run).items()),
         _policy_states(run),
         _human_review_state(run),
         _provider_model(run),
         run.tools,
+        _operational_metrics_signature(run),
+        _usage_summary_signature(run),
     )
 
 
@@ -2566,9 +2582,7 @@ def _process_changed_fields(
     changed: list[str] = []
     if _claim_ids(baseline) != _claim_ids(candidate):
         changed.append("claims")
-    if tuple(ref.ref_id for ref in baseline.evidence_refs) != tuple(
-        ref.ref_id for ref in candidate.evidence_refs
-    ):
+    if _evidence_ref_signature(baseline) != _evidence_ref_signature(candidate):
         changed.append("evidence refs")
     if _linked_claim_evidence(baseline) != _linked_claim_evidence(candidate):
         changed.append("claim-evidence links")
@@ -2580,6 +2594,10 @@ def _process_changed_fields(
         changed.append("provider/model")
     if baseline.tools != candidate.tools:
         changed.append("tools")
+    if _operational_metrics_signature(baseline) != _operational_metrics_signature(candidate):
+        changed.append("operational counters")
+    if _usage_summary_signature(baseline) != _usage_summary_signature(candidate):
+        changed.append("measured usage")
     return tuple(changed)
 
 
@@ -2592,13 +2610,15 @@ def _process_evidence_row(run: AgentRunRecord) -> str:
             _labeled_cell("Claims", _inline_values(_claim_ids(run))),
             _labeled_cell(
                 "Evidence refs",
-                _inline_values(tuple(ref.ref_id for ref in run.evidence_refs)),
+                _inline_values(_evidence_ref_display_values(run)),
             ),
             _labeled_cell("Linked claims", _inline_values(linked_claim_ids)),
             _labeled_cell("Policy states", _inline_values(_policy_states(run))),
             _labeled_cell("Human review", _h(_human_review_state(run))),
             _labeled_cell("Provider/model", _h(_provider_model(run) or "not recorded")),
             _labeled_cell("Tools", _inline_values(run.tools)),
+            _labeled_cell("Operational metrics", _h(_operational_metrics_display(run))),
+            _labeled_cell("Measured usage", _h(_usage_summary_display(run))),
             "</tr>",
         )
     )
@@ -2824,6 +2844,62 @@ def _provider_model(run: AgentRunRecord) -> str:
         for value in (run.provider, run.resolved_model or run.model)
         if value is not None and value
     )
+
+
+def _evidence_ref_signature(run: AgentRunRecord) -> tuple[tuple[str, str], ...]:
+    return tuple(sorted((ref.ref_id, ref.source_id) for ref in run.evidence_refs))
+
+
+def _evidence_ref_display_values(run: AgentRunRecord) -> tuple[str, ...]:
+    return tuple(f"{ref.ref_id} source={ref.source_id}" for ref in run.evidence_refs)
+
+
+def _operational_metrics_signature(run: AgentRunRecord) -> tuple[int | None, ...]:
+    return (
+        run.attempt_count,
+        run.retry_count,
+        run.rate_limit_events,
+        run.latency_ms,
+    )
+
+
+def _usage_summary_signature(run: AgentRunRecord) -> dict[str, object] | None:
+    if run.usage_summary is None:
+        return None
+    return run.usage_summary.model_dump(mode="json")
+
+
+def _operational_metrics_display(run: AgentRunRecord) -> str:
+    values = {
+        "attempts": run.attempt_count,
+        "retries": run.retry_count,
+        "rate_limits": run.rate_limit_events,
+        "latency_ms": run.latency_ms,
+    }
+    observed = [f"{name}={value}" for name, value in values.items() if value is not None]
+    if not observed:
+        return "not recorded"
+    return "; ".join(observed)
+
+
+def _usage_summary_display(run: AgentRunRecord) -> str:
+    summary = run.usage_summary
+    if summary is None:
+        return "not observed"
+    values = (
+        f"tokens={_observed_int(summary.total_tokens)}",
+        f"tools={_observed_int(summary.total_tool_calls)}",
+        f"retries={_observed_int(summary.total_retries)}",
+        f"latency_ms={_observed_int(summary.total_latency_ms)}",
+        f"cost_micro_usd={_observed_int(summary.estimated_cost_microusd)}",
+    )
+    return "; ".join(values)
+
+
+def _observed_int(value: int | None) -> str:
+    if value is None:
+        return "not_observed"
+    return str(value)
 
 
 def _inline_values(values: tuple[str, ...], *, empty: str = "none") -> str:

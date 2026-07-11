@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-provider-routing"
+        ],
+        "content_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "ref_id": "ref-provider-policy",
+        "source_id": "provider-policy-v1"
+      }
+    ],
+    "tools": [
+      "provider_router"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-provider-routing"
+        ],
+        "content_digest": "2222222222222222222222222222222222222222222222222222222222222222",
+        "ref_id": "ref-provider-policy",
+        "source_id": "provider-policy-v1"
+      }
+    ],
+    "tools": [
+      "provider_router"
+    ]
+  }
+}

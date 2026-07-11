@@ -1,0 +1,5 @@
+{
+  "case_id": "same-output-provider-boundary",
+  "scenario": "same visible output but provider metadata changes",
+  "subject_id": "pmc-002"
+}

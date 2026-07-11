@@ -48,9 +48,13 @@ def register_builtin_runners() -> None:
         run_prior_auth_case_evidence_refactor,
         run_prior_auth_case_rag,
     )
+    from agent_assure.examples.process_measurement_cases.runner import (
+        run_process_measurement_case,
+    )
 
     register_runner("expense_approval.minimal", run_expense_case)
     register_runner("prior_auth.synthetic", run_prior_auth_case)
     register_runner("prior_auth.synthetic_evidence_refactor", run_prior_auth_case_evidence_refactor)
     register_runner("prior_auth.synthetic_rag", run_prior_auth_case_rag)
+    register_runner("process_measurement.synthetic", run_process_measurement_case)
     _BUILTINS_REGISTERED = True

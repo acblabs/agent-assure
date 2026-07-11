@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-output-policy"
+        ],
+        "content_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "ref_id": "ref-output-policy",
+        "source_id": "output-policy-v1"
+      }
+    ],
+    "tools": [
+      "evidence_lookup"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-output-policy"
+        ],
+        "content_digest": "7777777777777777777777777777777777777777777777777777777777777777",
+        "ref_id": "ref-output-policy",
+        "source_id": "output-policy-v1"
+      }
+    ],
+    "tools": [
+      "evidence_lookup"
+    ]
+  }
+}

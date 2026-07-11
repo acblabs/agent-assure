@@ -1,0 +1,3 @@
+variant_id: baseline
+pipeline_id: process-measurement-baseline
+runner_id: process_measurement.synthetic

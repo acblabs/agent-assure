@@ -1,0 +1,32 @@
+{
+  "baseline": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-review-required"
+        ],
+        "content_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "ref_id": "ref-review-policy",
+        "source_id": "review-policy-v1"
+      }
+    ],
+    "tools": [
+      "review_router"
+    ]
+  },
+  "candidate": {
+    "evidence": [
+      {
+        "claim_ids": [
+          "claim-review-required"
+        ],
+        "content_digest": "3333333333333333333333333333333333333333333333333333333333333333",
+        "ref_id": "ref-review-policy",
+        "source_id": "review-policy-v1"
+      }
+    ],
+    "tools": [
+      "review_router"
+    ]
+  }
+}

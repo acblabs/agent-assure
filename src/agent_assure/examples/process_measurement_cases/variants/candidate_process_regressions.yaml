@@ -1,0 +1,3 @@
+variant_id: candidate-process-regressions
+pipeline_id: process-measurement-candidate
+runner_id: process_measurement.synthetic

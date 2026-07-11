@@ -9,6 +9,7 @@ nav:
   - For AI leaders: for_ai_leaders.md
   - For engineers: for_engineers.md
   - What this measures: what_this_measures.md
+  - Process assurance vs answer-quality evals: measurement/process_assurance_vs_answer_quality_eval.md
   - Flagship demo: demo_flagship.md
   - RAG demo: demo_rag.md
   - Expense demo: demo_expense.md

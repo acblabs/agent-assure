@@ -1,0 +1,5 @@
+{
+  "case_id": "same-output-missing-evidence",
+  "scenario": "same visible output but material evidence link is removed",
+  "subject_id": "pmc-001"
+}

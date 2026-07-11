@@ -1,0 +1,18 @@
+{
+  "baseline": {
+    "human_review_performed": false,
+    "human_review_required": false,
+    "model": "fixture-model-small",
+    "outcome": "approve",
+    "provider": "approved-process-provider",
+    "recommendation": "approve"
+  },
+  "candidate": {
+    "human_review_performed": false,
+    "human_review_required": false,
+    "model": "fixture-model-small",
+    "outcome": "escalate",
+    "provider": "approved-process-provider",
+    "recommendation": "escalate"
+  }
+}

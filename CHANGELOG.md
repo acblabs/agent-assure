@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- Added a non-combative process-assurance vs answer-quality eval positioning
+  doc, a bundled `process_measurement_cases` fixture suite, and
+  `agent-assure demo measurement-cases` to show same-answer process changes
+  without making competitive benchmark claims.
+- Extended evidence-diff HTML process tables to render operational counters,
+  measured usage summaries, and usage deltas alongside evidence, provider,
+  human-review, and privacy findings.
 - Tightened control coverage mapping semantics so `control_evaluated` requires
   packet-resident control-specific evidence, built-in mappings prefer packaged
   resources over development checkout files, OWASP 2025 executable maps include

@@ -129,6 +129,12 @@ Try the RAG provenance demo:
 agent-assure demo rag --out .tmp/demo/rag --clean
 ```
 
+Explore the broader process-assurance fixture cases:
+
+```bash
+agent-assure demo measurement-cases --out .tmp/measurement-cases --clean
+```
+
 From a repository checkout, try the LangGraph expense-assurance example:
 
 ```bash

@@ -1,0 +1,44 @@
+{
+  "baseline": {
+    "attempt_count": 1,
+    "human_review_performed": false,
+    "human_review_required": false,
+    "latency_ms": 120,
+    "model": "fixture-model-small",
+    "outcome": "approve",
+    "provider": "approved-process-provider",
+    "rate_limit_events": 0,
+    "recommendation": "approve",
+    "retry_count": 0,
+    "usage": {
+      "completion_tokens": 30,
+      "estimated_cost_microusd": 160,
+      "latency_ms": 120,
+      "prompt_tokens": 70,
+      "retry_count": 0,
+      "tool_call_count": 1,
+      "total_tokens": 100
+    }
+  },
+  "candidate": {
+    "attempt_count": 8,
+    "human_review_performed": false,
+    "human_review_required": false,
+    "latency_ms": 940,
+    "model": "fixture-model-small",
+    "outcome": "approve",
+    "provider": "approved-process-provider",
+    "rate_limit_events": 3,
+    "recommendation": "approve",
+    "retry_count": 7,
+    "usage": {
+      "completion_tokens": 35,
+      "estimated_cost_microusd": 380,
+      "latency_ms": 940,
+      "prompt_tokens": 105,
+      "retry_count": 7,
+      "tool_call_count": 8,
+      "total_tokens": 140
+    }
+  }
+}

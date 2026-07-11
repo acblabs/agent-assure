@@ -33,6 +33,7 @@ APPROVED_LIMITATION_SENTENCES = (
         "regulatory conclusion, or safety claim."
     ),
     "This artifact does not certify safety.",
+    "It does not certify safety, compliance, clinical validity, or live model quality.",
 )
 
 RESTRICTED_PATTERNS = (
@@ -112,6 +113,7 @@ DEFAULT_SCAN_FILES = (
     Path("docs/for_ai_leaders.md"),
     Path("docs/for_engineers.md"),
     Path("docs/what_this_measures.md"),
+    Path("docs/measurement/process_assurance_vs_answer_quality_eval.md"),
     Path("docs/demo_flagship.md"),
     Path("docs/demo_expense.md"),
     Path("docs/evidence_diff.md"),
