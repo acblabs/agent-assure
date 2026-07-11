@@ -4,7 +4,11 @@ import pytest
 
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.privacy.detectors import contains_sensitive_value
-from agent_assure.privacy.redaction import redact_runset_payload, redact_text
+from agent_assure.privacy.redaction import (
+    redact_packet_payload,
+    redact_runset_payload,
+    redact_text,
+)
 from agent_assure.privacy.safe_errors import safe_error
 
 TEST_HMAC_KEY = b"agent-assure-test-suite-key"
@@ -160,6 +164,33 @@ def test_redaction_still_preserves_scalar_structural_values() -> None:
     assert redacted["artifact_kind"] == "run-set"
     assert redacted["runs"][0]["local_debug_reference"] == "debug-001"
     assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
+
+
+def test_redaction_preserves_usage_provenance_sequence_values_by_key() -> None:
+    payload = {
+        "usage_summary": {
+            "cost_basis_ids": ["api_key=abcdef1234567890"],
+            "pricing_snapshot_ids": ["ssn: 123-45-6789"],
+            "pricing_snapshot_digests": ["a" * 64],
+            "notes": ["ssn: 987-65-4321"],
+        }
+    }
+
+    redacted = redact_packet_payload(payload)
+
+    usage_summary = redacted["usage_summary"]
+    assert usage_summary["cost_basis_ids"] == ["api_key=abcdef1234567890"]
+    assert usage_summary["pricing_snapshot_ids"] == ["ssn: 123-45-6789"]
+    assert usage_summary["pricing_snapshot_digests"] == ["a" * 64]
+    assert "987-65-4321" not in usage_summary["notes"][0]
+
+
+def test_redaction_rejects_malformed_digest_sequence_values() -> None:
+    payload = {"usage_summary": {"pricing_snapshot_digests": ["api_key=abcdef1234567890"]}}
+
+    redacted = redact_packet_payload(payload)
+
+    assert redacted["usage_summary"]["pricing_snapshot_digests"] == ["[REDACTED]"]
 
 
 def test_runset_redaction_rejects_malformed_digest_without_corrupting_ids() -> None:

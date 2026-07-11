@@ -19,6 +19,8 @@ Preferred release-facing language:
 - review support;
 - traceability;
 - control coverage;
+- measured usage delta;
+- declared estimated cost evidence;
 - observed process regression;
 - local evidence packet;
 - CI-gate signal.

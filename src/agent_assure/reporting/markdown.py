@@ -5,9 +5,9 @@ from pathlib import Path
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.privacy.redaction import redact_text
+from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.evaluation import Finding
-from agent_assure.schema.usage import UsageSummary
 from agent_assure.usage.aggregation import format_usage_delta
 
 
@@ -83,7 +83,7 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
             "",
         ]
     )
-    lines.extend(_usage_summary_lines(report.usage_summary))
+    lines.extend(usage_summary_lines(report.usage_summary))
     lines.extend(
         [
             "",
@@ -247,48 +247,10 @@ def _finding_lines(findings: tuple[Finding, ...]) -> list[str]:
 
 def _comparison_usage_lines(report: ComparisonReport) -> list[str]:
     lines = []
-    lines.extend(
-        _prefixed_usage_summary_lines(
-            "Baseline",
-            report.baseline_usage_summary,
-        )
-    )
-    lines.extend(
-        _prefixed_usage_summary_lines(
-            "Candidate",
-            report.candidate_usage_summary,
-        )
-    )
+    lines.extend(prefixed_usage_summary_lines("Baseline", report.baseline_usage_summary))
+    lines.extend(prefixed_usage_summary_lines("Candidate", report.candidate_usage_summary))
     if report.usage_delta is None:
         lines.append("- Usage delta: `not_observed`")
     else:
         lines.append(f"- {redact_text(format_usage_delta(report.usage_delta))}")
     return lines
-
-
-def _prefixed_usage_summary_lines(prefix: str, summary: UsageSummary | None) -> list[str]:
-    return [line.replace("- ", f"- {prefix} ", 1) for line in _usage_summary_lines(summary)]
-
-
-def _usage_summary_lines(summary: UsageSummary | None) -> list[str]:
-    if summary is None:
-        return ["- measured usage: `not_observed`"]
-    lines = [
-        f"- total tokens: `{_observed_int(summary.total_tokens)}`",
-        f"- tool calls: `{_observed_int(summary.total_tool_calls)}`",
-        f"- retries: `{_observed_int(summary.total_retries)}`",
-        f"- latency ms: `{_observed_int(summary.total_latency_ms)}`",
-        (
-            "- declared estimated cost: "
-            f"`{_observed_int(summary.estimated_cost_microusd)}` micro-USD "
-            f"`{summary.currency}`"
-        ),
-    ]
-    lines.extend(f"- limitation: {redact_text(limitation)}" for limitation in summary.limitations)
-    return lines
-
-
-def _observed_int(value: int | None) -> str:
-    if value is None:
-        return "not_observed"
-    return str(value)

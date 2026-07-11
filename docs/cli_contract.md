@@ -31,6 +31,10 @@ report and summary embed local environment metadata. The Markdown and console
 report sections lead with candidate vs expectations. Unsupported live or
 certification-style capabilities are reported as `not_evaluated`; they do not
 fail the default gate profile.
+When measured usage is present, the Markdown report includes total tokens,
+tool calls, retries, latency, declared estimated cost, pricing snapshot IDs and
+digests, cost-basis labels, and per-cost-observation evidence when a matched
+denominator is declared. Missing usage is rendered as `not_observed`.
 `--fail-on-warn` makes warning controls blocking; `--fail-on-not-evaluated`
 makes unsupported capabilities blocking.
 
@@ -54,6 +58,11 @@ it passed or failed, then show fixture equivalence, baseline context, control
 changes, provenance changes, not-evaluated capabilities, and limitations.
 Provenance-only differences are reported for review but do not create regression
 verdicts. Fixture-equivalence failure is an invalid comparison and exits `2`.
+When baseline or candidate usage evidence is present, comparison summaries and
+reports include baseline and candidate usage summaries plus deterministic
+integer basis-point deltas. Declared estimated cost deltas are compared only
+when currency, cost basis, pricing snapshot IDs, and pricing snapshot digests
+are explicitly declared and match on both sides.
 
 `packet build` writes an `evidence-packet` JSON artifact, `evidence-packet.md`,
 `dependency-inventory.json`, and `release-artifact-manifest.json` from an
@@ -64,6 +73,9 @@ digest, and an interpretation block. These exact-file digests are
 environment-bound reproducibility anchors, not signatures or attestations; they
 are separate from the cross-platform-stable JCS content digests used for suites,
 fixture manifests, and runset provenance.
+If the enclosed summaries contain measured usage, the packet preserves that
+usage evidence beside the governance findings. Usage evidence never changes the
+deterministic gate state by itself.
 
 `controls map` consumes an evidence packet and writes
 `control-coverage-report.json` and `control-coverage-report.md` for the selected

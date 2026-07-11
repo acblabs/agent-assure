@@ -58,6 +58,10 @@
   vs expectations and keep unsupported capabilities marked `not_evaluated`.
 - RunSet comparison reports with fixture-equivalence checks, candidate-first
   verdict explanations, baseline context, and provenance-only change reporting.
+- Measured usage summaries and comparison deltas with explicit pricing snapshot
+  IDs and digests, integer micro-USD declared estimated costs, basis-point
+  deltas, and per-cost-observation evidence that stays separate from
+  governance verdicts.
 - Evidence packets that bundle evaluation and comparison summaries with
   interpretation guidance, environment metadata, deterministic input artifact
   digests, dependency-inventory digest, and release artifact manifest.

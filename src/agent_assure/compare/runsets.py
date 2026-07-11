@@ -56,6 +56,8 @@ _COMPARISON_REPORT_USAGE_FIELD_PATHS = (
     ("usage_delta",),
     ("candidate_vs_expectations", "usage_summary"),
     ("baseline_vs_expectations", "usage_summary"),
+    ("comparison_summary", "baseline_usage_summary"),
+    ("comparison_summary", "candidate_usage_summary"),
     ("comparison_summary", "usage_delta"),
 )
 
@@ -206,6 +208,8 @@ def compare_runsets(
             summarize_provenance_change(change) for change in provenance_changes
         ),
         verdict_findings=tuple(summarize_control_change(change) for change in control_changes),
+        baseline_usage_summary=baseline_usage,
+        candidate_usage_summary=candidate_usage,
         usage_delta=usage_delta,
     )
     report = ComparisonReport(

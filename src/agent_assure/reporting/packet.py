@@ -6,6 +6,7 @@ from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.privacy.redaction import redact_packet_payload, redact_text
+from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -13,6 +14,7 @@ from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, Pac
 from agent_assure.schema.release import ReleaseArtifactManifest
 from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import load_json
+from agent_assure.usage.aggregation import format_usage_delta
 
 DEFAULT_PACKET_LIMITATIONS = (
     "evidence packets summarize deterministic fixture-mode results; they are not "
@@ -157,7 +159,7 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
             for artifact in packet.release_manifest.artifacts
         )
     lines.extend(["", "## Measured Usage", ""])
-    lines.extend(_usage_summary_lines(packet.usage_summary))
+    lines.extend(_packet_usage_lines(packet))
     lines.extend(["", "## Limitations", ""])
     lines.extend(f"- {redact_text(limitation)}" for limitation in packet.limitations)
     return "\n".join(lines) + "\n"
@@ -194,28 +196,22 @@ def _file_sha256(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def _usage_summary_lines(summary: UsageSummary | None) -> list[str]:
-    if summary is None:
-        return ["- measured usage: `not_observed`"]
-    lines = [
-        f"- total tokens: `{_observed_int(summary.total_tokens)}`",
-        f"- tool calls: `{_observed_int(summary.total_tool_calls)}`",
-        f"- retries: `{_observed_int(summary.total_retries)}`",
-        f"- latency ms: `{_observed_int(summary.total_latency_ms)}`",
-        (
-            "- declared estimated cost: "
-            f"`{_observed_int(summary.estimated_cost_microusd)}` micro-USD "
-            f"`{summary.currency}`"
-        ),
-    ]
-    lines.extend(f"- limitation: {redact_text(limitation)}" for limitation in summary.limitations)
+def _packet_usage_lines(packet: EvidencePacket) -> list[str]:
+    comparison = packet.comparison
+    if comparison is None or (
+        comparison.baseline_usage_summary is None
+        and comparison.candidate_usage_summary is None
+        and comparison.usage_delta is None
+    ):
+        return usage_summary_lines(packet.usage_summary)
+    lines: list[str] = []
+    lines.extend(prefixed_usage_summary_lines("Baseline", comparison.baseline_usage_summary))
+    lines.extend(prefixed_usage_summary_lines("Candidate", comparison.candidate_usage_summary))
+    if comparison.usage_delta is None:
+        lines.append("- Usage delta: `not_observed`")
+    else:
+        lines.append(f"- {redact_text(format_usage_delta(comparison.usage_delta))}")
     return lines
-
-
-def _observed_int(value: int | None) -> str:
-    if value is None:
-        return "not_observed"
-    return str(value)
 
 
 def _usage_presence(summary: UsageSummary | None) -> str:

@@ -19,8 +19,10 @@ from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.run import RunSet
+from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
+from agent_assure.usage.pricing import estimate_segment_cost
 
-ExampleVariant = Literal["baseline", "candidate_missing_evidence"]
+ExampleVariant = Literal["baseline", "candidate_missing_evidence", "candidate_higher_usage"]
 ExecutionPath = Literal["langgraph", "fallback-no-langgraph"]
 
 EXAMPLE_ROOT = Path(__file__).resolve().parent
@@ -33,6 +35,19 @@ EVIDENCE_REF = "ref-expense-policy-v3"
 CLAIM_ID = "claim-policy-evidence"
 SOURCE_ID = "expense-policy-v3"
 REVIEW_ROUTE = "manager_review"
+PRICING_SNAPSHOT = UsagePricingSnapshot(
+    pricing_snapshot_id="langgraph-expense-demo-pricing-v1",
+    currency="USD",
+    models=(
+        UsagePricingModel(
+            provider=PROVIDER,
+            model=MODEL,
+            input_token_microusd=1,
+            output_token_microusd=3,
+        ),
+    ),
+    limitations=("Demo fixture pricing only; not live provider pricing.",),
+)
 RAW_REQUEST = (
     "Employee E-7788 asks to approve a dinner expense for vendor Cafe Meridian "
     "using receipt R-44119."
@@ -226,7 +241,11 @@ def _intake_node(state: ExpenseGraphState) -> ExpenseGraphState:
 
 
 def _policy_lookup_node(state: ExpenseGraphState) -> ExpenseGraphState:
-    evidence_refs = (EVIDENCE_REF,) if state["variant"] == "baseline" else ()
+    evidence_refs = (
+        ()
+        if state["variant"] == "candidate_missing_evidence"
+        else (EVIDENCE_REF,)
+    )
     return {
         "agent_assure": _metadata(
             state,
@@ -279,18 +298,7 @@ def _decision_node(state: ExpenseGraphState) -> ExpenseGraphState:
                 "recommendation": "approve",
                 "outcome": "approved_with_review",
             },
-            usage_segment={
-                "segment_id": f"usage-{state['variant']}-{state['case_id']}",
-                "provider": PROVIDER,
-                "model": MODEL,
-                "operation": "decision",
-                "prompt_tokens": 12,
-                "completion_tokens": 8,
-                "total_tokens": 20,
-                "tool_call_count": 1,
-                "retry_count": 0,
-                "latency_ms": 25,
-            },
+            usage_segment=_decision_usage_segment(state),
         )
     }
 
@@ -330,6 +338,37 @@ def _metadata(
     if usage_segment is not None:
         payload["usage_segment"] = usage_segment
     return payload
+
+
+def _decision_usage_segment(state: ExpenseGraphState) -> dict[str, object]:
+    if state["variant"] == "baseline":
+        prompt_tokens = 12
+        completion_tokens = 8
+        total_tokens = 20
+        latency_ms = 25
+    elif state["variant"] == "candidate_missing_evidence":
+        prompt_tokens = 7
+        completion_tokens = 5
+        total_tokens = 12
+        latency_ms = 18
+    else:
+        prompt_tokens = 18
+        completion_tokens = 12
+        total_tokens = 30
+        latency_ms = 32
+    segment = UsageSegment(
+        segment_id=f"usage-{state['variant']}-{state['case_id']}",
+        provider=PROVIDER,
+        model=MODEL,
+        operation="decision",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        tool_call_count=1,
+        retry_count=0,
+        latency_ms=latency_ms,
+    )
+    return estimate_segment_cost(segment, PRICING_SNAPSHOT).model_dump(mode="json")
 
 
 def _projection() -> FrameworkRunProjection:

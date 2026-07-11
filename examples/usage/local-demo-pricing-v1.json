@@ -1,0 +1,17 @@
+{
+  "artifact_kind": "usage-pricing-snapshot",
+  "schema_version": "0.4.3",
+  "pricing_snapshot_id": "local-demo-pricing-v1",
+  "currency": "USD",
+  "models": [
+    {
+      "provider": "demo",
+      "model": "fixture-model-small",
+      "input_token_microusd": 1,
+      "output_token_microusd": 3
+    }
+  ],
+  "limitations": [
+    "Demo fixture pricing only; not live provider pricing."
+  ]
+}

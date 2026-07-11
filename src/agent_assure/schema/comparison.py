@@ -14,12 +14,17 @@ from agent_assure.schema.common import (
 )
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.usage import (
+    UsageSummary,
     UsageSummaryDelta,
     usage_container_json_schema_extra,
     validate_usage_field_paths_schema_version,
 )
 
-_COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (("usage_delta",),)
+_COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (
+    ("baseline_usage_summary",),
+    ("candidate_usage_summary",),
+    ("usage_delta",),
+)
 
 
 class ComparisonSummary(PersistedArtifact):
@@ -39,6 +44,14 @@ class ComparisonSummary(PersistedArtifact):
     provenance_changes: tuple[str, ...] = ()
     verdict_findings: tuple[str, ...] = ()
     environment: EnvironmentInfo | None = None
+    baseline_usage_summary: UsageSummary | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    candidate_usage_summary: UsageSummary | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     usage_delta: UsageSummaryDelta | None = Field(
         default=None,
         exclude_if=lambda value: value is None,

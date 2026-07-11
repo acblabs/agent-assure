@@ -48,6 +48,7 @@ expected."
 | RAG retrieval | Same answer and same `retrieval_corpus_digest`, but the retrieved source backing a material claim disappears | `MATERIAL_CLAIM_MISSING_EVIDENCE` |
 | RAG provenance drift | Evidence links stay intact, but the retrieval corpus digest changes | `provenance_only_change` for review, not a blocking finding |
 | Boundaries and routing | Provider, tool, review route, or redaction state changes unexpectedly | Deterministic invariant findings |
+| Measured usage | Candidate uses more or less measured tokens, tool calls, retries, or declared estimated cost | Usage delta evidence beside, not instead of, governance findings |
 | CI release gates | A blocking process invariant fails before merge or release | Nonzero exit code plus local evidence packet |
 
 ## The 30-second story
@@ -360,8 +361,8 @@ dynamic content. It does not load external JavaScript, CSS, fonts, or network
 resources.
 
 Evidence packets can also include summaries, limitations, artifact digests,
-dependency inventory, environment context, release manifests, and CI-gate
-state.
+dependency inventory, environment context, release manifests, measured usage
+summaries, declared estimated cost deltas, and CI-gate state.
 
 ## Architecture
 

@@ -14,8 +14,9 @@ from agent_assure.schema.controls import (
     ControlCoverageState,
 )
 from agent_assure.schema.export import SCHEMA_MODELS
-from agent_assure.schema.usage import UsageSegment
+from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
 from agent_assure.schema.validation import validate_artifact
+from agent_assure.usage.pricing import DECLARED_PRICING_LIMITATION
 
 
 def test_valid_artifacts_match_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -48,8 +49,10 @@ def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
         retry_count=0,
         latency_ms=25,
         estimated_cost_microusd=35,
+        cost_basis="declared_pricing_snapshot_v1",
         pricing_snapshot_id="local-demo-pricing-v1",
-        limitations=("Cost is estimated from a declared pricing snapshot.",),
+        pricing_snapshot_digest="a" * 64,
+        limitations=(DECLARED_PRICING_LIMITATION,),
     ).model_dump(mode="json")
     model = SCHEMA_MODELS["usage-segment"]
     model.model_validate(payload)
@@ -57,6 +60,50 @@ def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     path = tmp_path / "usage-segment.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
     assert validate_artifact(path, "usage-segment") == "pydantic+jsonschema"
+
+
+def test_usage_pricing_snapshot_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    payload = UsagePricingSnapshot(
+        pricing_snapshot_id="local-demo-pricing-v1",
+        currency="USD",
+        models=(
+            UsagePricingModel(
+                provider="demo",
+                model="fixture-model-small",
+                input_token_microusd=1,
+                output_token_microusd=3,
+            ),
+        ),
+        limitations=("Demo fixture pricing only; not live provider pricing.",),
+    ).model_dump(mode="json")
+    model = SCHEMA_MODELS["usage-pricing-snapshot"]
+    model.model_validate(payload)
+    Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+    path = tmp_path / "usage-pricing-snapshot.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+    assert validate_artifact(path, "usage-pricing-snapshot") == "pydantic+jsonschema"
+
+
+def test_usage_pricing_snapshot_jsonschema_rejects_non_usd_currency() -> None:
+    payload = {
+        "artifact_kind": "usage-pricing-snapshot",
+        "schema_version": "0.4.3",
+        "pricing_snapshot_id": "non-usd-pricing",
+        "currency": "EUR",
+        "models": [
+            {
+                "provider": "demo",
+                "model": "fixture-model-small",
+                "input_token_microusd": 1,
+                "output_token_microusd": 3,
+            }
+        ],
+        "limitations": ["Demo fixture pricing only; not live provider pricing."],
+    }
+    model = SCHEMA_MODELS["usage-pricing-snapshot"]
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
 
 
 def test_control_coverage_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -89,6 +136,16 @@ def test_control_coverage_report_matches_pydantic_and_jsonschema(tmp_path) -> No
 @pytest.mark.parametrize(
     ("artifact_kind", "payload"),
     [
+        (
+            "usage-pricing-snapshot",
+            {
+                "artifact_kind": "usage-pricing-snapshot",
+                "schema_version": "0.3.1",
+                "pricing_snapshot_id": "local-demo-pricing-v1",
+                "models": [],
+                "limitations": ["Demo fixture pricing only; not live provider pricing."],
+            },
+        ),
         (
             "usage-segment",
             {
@@ -141,6 +198,52 @@ def test_usage_segment_jsonschema_rejects_cost_without_limitations() -> None:
         "estimated_cost_microusd": 1,
     }
     model = SCHEMA_MODELS["usage-segment"]
+
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("artifact_kind", "payload"),
+    [
+        (
+            "usage-segment",
+            {
+                "artifact_kind": "usage-segment",
+                "schema_version": "0.3.1",
+                "segment_id": "seg-v031-with-digest",
+                "pricing_snapshot_id": "local-demo-pricing-v1",
+                "pricing_snapshot_digest": "a" * 64,
+            },
+        ),
+        (
+            "usage-summary",
+            {
+                "artifact_kind": "usage-summary",
+                "schema_version": "0.3.1",
+                "total_tokens": 1,
+                "pricing_snapshot_ids": ["local-demo-pricing-v1"],
+            },
+        ),
+        (
+            "usage-summary-delta",
+            {
+                "artifact_kind": "usage-summary-delta",
+                "schema_version": "0.3.1",
+                "comparison_state": "observed",
+                "baseline_observed": True,
+                "candidate_observed": True,
+                "total_tokens_delta": 1,
+                "total_tokens_delta_bps": 10_000,
+            },
+        ),
+    ],
+)
+def test_v043_usage_fields_reject_v031_jsonschema_label(
+    artifact_kind: str,
+    payload: dict[str, object],
+) -> None:
+    model = SCHEMA_MODELS[artifact_kind]
 
     with pytest.raises(JsonSchemaValidationError):
         Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)

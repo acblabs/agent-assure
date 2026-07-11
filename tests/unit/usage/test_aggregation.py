@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 from pydantic import BaseModel, ValidationError
 
@@ -11,12 +13,27 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
-from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary, UsageSummaryDelta
+from agent_assure.schema.usage import (
+    UsageLedger,
+    UsagePricingModel,
+    UsagePricingSnapshot,
+    UsageSegment,
+    UsageSummary,
+    UsageSummaryDelta,
+)
 from agent_assure.usage.aggregation import (
     aggregate_usage_segments,
     compare_usage_summaries,
     format_usage_delta,
 )
+from agent_assure.usage.pricing import (
+    DECLARED_PRICING_LIMITATION,
+    estimate_segment_cost,
+    load_pricing_snapshot,
+    pricing_snapshot_digest,
+)
+
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_usage_segments_use_integer_micro_usd() -> None:
@@ -25,7 +42,7 @@ def test_usage_segments_use_integer_micro_usd() -> None:
         total_tokens=42,
         estimated_cost_microusd=123,
         pricing_snapshot_id="local-demo-pricing-v1",
-        limitations=("Cost is estimated from a declared pricing snapshot.",),
+        limitations=(DECLARED_PRICING_LIMITATION,),
     )
 
     assert segment.estimated_cost_microusd == 123
@@ -33,6 +50,161 @@ def test_usage_segments_use_integer_micro_usd() -> None:
 
     with pytest.raises(ValidationError):
         UsageSegment(segment_id="bad-money", estimated_cost_microusd=1.25)  # type: ignore[arg-type]
+
+
+def test_declared_pricing_snapshot_estimates_segment_cost() -> None:
+    snapshot = _pricing_snapshot()
+    segment = UsageSegment(
+        segment_id="seg-priced",
+        provider="demo",
+        model="fixture-model-small",
+        prompt_tokens=10,
+        completion_tokens=5,
+        total_tokens=15,
+    )
+
+    priced = estimate_segment_cost(segment, snapshot)
+
+    assert priced.estimated_cost_microusd == 25
+    assert priced.currency == "USD"
+    assert priced.pricing_snapshot_id == "local-demo-pricing-v1"
+    assert priced.pricing_snapshot_digest == pricing_snapshot_digest(snapshot)
+    assert priced.cost_basis == "declared_pricing_snapshot_v1"
+    assert DECLARED_PRICING_LIMITATION in priced.limitations
+    assert "Demo fixture pricing only; not live provider pricing." in priced.limitations
+
+
+def test_demo_pricing_snapshot_fixture_is_explicit_and_versioned() -> None:
+    snapshot = load_pricing_snapshot(ROOT / "examples" / "usage" / "local-demo-pricing-v1.json")
+
+    assert snapshot.schema_version == "0.4.3"
+    assert snapshot.pricing_snapshot_id == "local-demo-pricing-v1"
+    assert snapshot.limitations == ("Demo fixture pricing only; not live provider pricing.",)
+
+
+def test_declared_pricing_snapshot_requires_explicit_provider_model_rate() -> None:
+    segment = UsageSegment(
+        segment_id="seg-unpriced",
+        provider="demo",
+        model="missing-model",
+        prompt_tokens=10,
+        completion_tokens=5,
+    )
+
+    with pytest.raises(ValueError, match="no rate"):
+        estimate_segment_cost(segment, _pricing_snapshot())
+
+
+def test_declared_pricing_snapshot_refuses_total_token_only_segments() -> None:
+    segment = UsageSegment(
+        segment_id="seg-total-only",
+        provider="demo",
+        model="fixture-model-small",
+        total_tokens=15,
+    )
+
+    with pytest.raises(ValueError, match="prompt_tokens and completion_tokens"):
+        estimate_segment_cost(segment, _pricing_snapshot())
+
+
+def test_declared_pricing_snapshot_requires_explicit_token_class_rates() -> None:
+    segment = UsageSegment(
+        segment_id="seg-token-classes",
+        provider="demo",
+        model="fixture-model-small",
+        prompt_tokens=10,
+        completion_tokens=5,
+        cached_tokens=2,
+    )
+
+    with pytest.raises(ValueError, match="cached_input_token_microusd"):
+        estimate_segment_cost(segment, _pricing_snapshot())
+
+    priced = estimate_segment_cost(
+        segment.model_copy(update={"reasoning_tokens": 1}),
+        _pricing_snapshot(cached_input_token_microusd=1, reasoning_token_microusd=4),
+    )
+
+    assert priced.estimated_cost_microusd == 26
+
+
+def test_declared_pricing_snapshot_overwrite_strips_only_known_pricing_limitations() -> None:
+    old_snapshot = _pricing_snapshot(
+        limitations=("Demo fixture pricing only; not live provider pricing.",)
+    )
+    new_snapshot = _pricing_snapshot(
+        pricing_snapshot_id="local-demo-pricing-v2",
+        limitations=("New demo pricing.",),
+    )
+    segment = UsageSegment(
+        segment_id="seg-overwrite",
+        provider="demo",
+        model="fixture-model-small",
+        prompt_tokens=10,
+        completion_tokens=5,
+        limitations=(
+            "Usage segment includes partial measurement caveat.",
+            "Reviewer pricing note is non-pricing provenance context.",
+        ),
+    )
+
+    priced = estimate_segment_cost(segment, old_snapshot)
+    repriced = estimate_segment_cost(priced, new_snapshot, overwrite=True)
+
+    assert repriced.pricing_snapshot_id == "local-demo-pricing-v2"
+    assert "Demo fixture pricing only; not live provider pricing." not in repriced.limitations
+    assert "New demo pricing." in repriced.limitations
+    assert "Usage segment includes partial measurement caveat." in repriced.limitations
+    assert "Reviewer pricing note is non-pricing provenance context." in repriced.limitations
+
+
+def test_usage_summary_records_pricing_snapshot_ids_from_segments() -> None:
+    snapshot = _pricing_snapshot()
+    priced = estimate_segment_cost(
+        UsageSegment(
+            segment_id="seg-priced",
+            provider="demo",
+            model="fixture-model-small",
+            prompt_tokens=10,
+            completion_tokens=5,
+            total_tokens=15,
+        ),
+        snapshot,
+    )
+
+    summary = aggregate_usage_segments((priced,)).usage_summary
+
+    assert summary.schema_version == "0.4.3"
+    assert summary.estimated_cost_microusd == 25
+    assert summary.cost_basis_ids == ("declared_pricing_snapshot_v1",)
+    assert summary.pricing_snapshot_ids == ("local-demo-pricing-v1",)
+    assert summary.pricing_snapshot_digests == (pricing_snapshot_digest(snapshot),)
+    assert summary.cost_observation_count == 1
+
+
+def test_v043_usage_fields_cannot_be_mislabeled_as_v031() -> None:
+    with pytest.raises(ValidationError, match="schema_version 0.4.3"):
+        UsageSegment(
+            schema_version="0.3.1",
+            segment_id="seg-v031-with-digest",
+            pricing_snapshot_id="local-demo-pricing-v1",
+            pricing_snapshot_digest="a" * 64,
+        )
+    with pytest.raises(ValidationError, match="schema_version 0.4.3"):
+        UsageSummary(
+            schema_version="0.3.1",
+            total_tokens=1,
+            pricing_snapshot_ids=("local-demo-pricing-v1",),
+        )
+    with pytest.raises(ValidationError, match="basis-point usage deltas require"):
+        UsageSummaryDelta(
+            schema_version="0.3.1",
+            comparison_state="observed",
+            baseline_observed=True,
+            candidate_observed=True,
+            total_tokens_delta=1,
+            total_tokens_delta_bps=10_000,
+        )
 
 
 def test_usage_segment_supports_future_stream_attachment_fields() -> None:
@@ -59,6 +231,28 @@ def test_usage_segment_rejects_inverted_event_range() -> None:
 def test_usage_segment_requires_limitations_for_declared_estimated_cost() -> None:
     with pytest.raises(ValidationError, match="cost-bearing usage segments require"):
         UsageSegment(segment_id="seg-cost-no-limitation", estimated_cost_microusd=1)
+
+
+def test_micro_usd_cost_fields_are_usd_only() -> None:
+    with pytest.raises(ValidationError, match="currency USD"):
+        UsageSegment(
+            segment_id="seg-eur-cost",
+            estimated_cost_microusd=1,
+            currency="EUR",
+            limitations=(DECLARED_PRICING_LIMITATION,),
+        )
+    with pytest.raises(ValidationError, match="currency USD"):
+        UsageSummary(estimated_cost_microusd=1, currency="EUR")
+    with pytest.raises(ValidationError, match="currency USD"):
+        UsageSummaryDelta(
+            comparison_state="observed",
+            baseline_observed=True,
+            candidate_observed=True,
+            estimated_cost_microusd_delta=1,
+            currency="EUR",
+        )
+    with pytest.raises(ValidationError, match="currency USD"):
+        _pricing_snapshot(currency="EUR")
 
 
 @pytest.mark.parametrize(
@@ -152,6 +346,7 @@ def test_legacy_labeled_containers_reject_usage_fields() -> None:
 
 
 def test_aggregate_usage_segments_sums_known_fields_and_tracks_missingness() -> None:
+    digest = pricing_snapshot_digest(_pricing_snapshot())
     first = UsageSegment(
         segment_id="seg-001",
         total_tokens=100,
@@ -159,14 +354,20 @@ def test_aggregate_usage_segments_sums_known_fields_and_tracks_missingness() -> 
         retry_count=1,
         latency_ms=50,
         estimated_cost_microusd=400,
-        limitations=("Cost is estimated from a declared pricing snapshot.",),
+        cost_basis="declared_pricing_snapshot_v1",
+        pricing_snapshot_id="local-demo-pricing-v1",
+        pricing_snapshot_digest=digest,
+        limitations=(DECLARED_PRICING_LIMITATION,),
     )
     second = UsageSegment(
         segment_id="seg-002",
         total_tokens=50,
         retry_count=0,
         estimated_cost_microusd=100,
-        limitations=("Cost is estimated from a declared pricing snapshot.",),
+        cost_basis="declared_pricing_snapshot_v1",
+        pricing_snapshot_id="local-demo-pricing-v1",
+        pricing_snapshot_digest=digest,
+        limitations=(DECLARED_PRICING_LIMITATION,),
     )
 
     aggregation = aggregate_usage_segments((first, second))
@@ -189,8 +390,15 @@ def test_aggregate_usage_segments_sums_known_fields_and_tracks_missingness() -> 
         total_retries=1,
         total_latency_ms=50,
         estimated_cost_microusd=500,
+        cost_basis_ids=("declared_pricing_snapshot_v1",),
+        pricing_snapshot_ids=("local-demo-pricing-v1",),
+        pricing_snapshot_digests=(digest,),
         limitations=(
-            "Cost is estimated from a declared pricing snapshot.",
+            DECLARED_PRICING_LIMITATION,
+            (
+                "Declared estimated cost per cost observation was not rendered because "
+                "multiple cost-bearing segments did not all declare run_id or case_id."
+            ),
             (
                 "Usage summary sums known fields only; missing segment fields: "
                 "cached_tokens=2, completion_tokens=2, latency_ms=1, prompt_tokens=2, "
@@ -198,6 +406,70 @@ def test_aggregate_usage_segments_sums_known_fields_and_tracks_missingness() -> 
             ),
         ),
     )
+
+
+def test_cost_observation_count_uses_run_or_case_identity() -> None:
+    digest = pricing_snapshot_digest(_pricing_snapshot())
+    first = UsageSegment(
+        segment_id="seg-run-1-a",
+        run_id="run-1",
+        estimated_cost_microusd=100,
+        cost_basis="declared_pricing_snapshot_v1",
+        pricing_snapshot_id="local-demo-pricing-v1",
+        pricing_snapshot_digest=digest,
+        limitations=(DECLARED_PRICING_LIMITATION,),
+    )
+    second = first.model_copy(update={"segment_id": "seg-run-1-b"})
+    third = first.model_copy(update={"segment_id": "seg-run-2", "run_id": "run-2"})
+    case_only = (
+        first.model_copy(update={"segment_id": "seg-case-1", "run_id": None, "case_id": "case-1"}),
+        first.model_copy(update={"segment_id": "seg-case-2", "run_id": None, "case_id": "case-2"}),
+    )
+
+    by_run = aggregate_usage_segments((first, second, third)).usage_summary
+    by_case = aggregate_usage_segments(case_only).usage_summary
+
+    assert by_run.cost_observation_count == 2
+    assert by_case.cost_observation_count == 2
+    assert any("distinct case_id values" in item for item in by_case.limitations)
+
+
+def test_cost_aggregation_requires_complete_homogeneous_provenance() -> None:
+    missing_provenance = aggregate_usage_segments(
+        (
+            UsageSegment(
+                segment_id="seg-cost-unknown",
+                estimated_cost_microusd=100,
+                limitations=(DECLARED_PRICING_LIMITATION,),
+            ),
+        )
+    ).usage_summary
+    digest = pricing_snapshot_digest(_pricing_snapshot())
+    mixed_snapshots = aggregate_usage_segments(
+        (
+            UsageSegment(
+                segment_id="seg-cost-v1",
+                estimated_cost_microusd=100,
+                cost_basis="declared_pricing_snapshot_v1",
+                pricing_snapshot_id="local-demo-pricing-v1",
+                pricing_snapshot_digest=digest,
+                limitations=(DECLARED_PRICING_LIMITATION,),
+            ),
+            UsageSegment(
+                segment_id="seg-cost-v2",
+                estimated_cost_microusd=100,
+                cost_basis="declared_pricing_snapshot_v1",
+                pricing_snapshot_id="local-demo-pricing-v2",
+                pricing_snapshot_digest=digest,
+                limitations=(DECLARED_PRICING_LIMITATION,),
+            ),
+        )
+    ).usage_summary
+
+    assert missing_provenance.estimated_cost_microusd is None
+    assert any("must declare cost_basis" in item for item in missing_provenance.limitations)
+    assert mixed_snapshots.estimated_cost_microusd is None
+    assert any("pricing snapshot IDs differ" in item for item in mixed_snapshots.limitations)
 
 
 def test_runset_rejects_usage_summary_that_conflicts_with_ledger() -> None:
@@ -218,14 +490,14 @@ def test_runset_rejects_usage_summary_that_conflicts_with_ledger() -> None:
 
 
 def test_compare_usage_summaries_reports_observed_delta_without_float_money() -> None:
-    baseline = UsageSummary(
+    baseline = _usage_summary_with_cost(
         total_tokens=100,
         total_tool_calls=2,
         total_retries=1,
         total_latency_ms=50,
         estimated_cost_microusd=400,
     )
-    candidate = UsageSummary(
+    candidate = _usage_summary_with_cost(
         total_tokens=140,
         total_tool_calls=3,
         total_retries=1,
@@ -237,11 +509,130 @@ def test_compare_usage_summaries_reports_observed_delta_without_float_money() ->
 
     assert delta.comparison_state == "observed"
     assert delta.total_tokens_delta == 40
+    assert delta.total_tokens_delta_bps == 4000
     assert delta.total_tool_calls_delta == 1
+    assert delta.total_tool_calls_delta_bps == 5000
     assert delta.total_retries_delta == 0
+    assert delta.total_retries_delta_bps == 0
     assert delta.total_latency_ms_delta == 25
+    assert delta.total_latency_ms_delta_bps == 5000
     assert delta.estimated_cost_microusd_delta == 25
+    assert delta.estimated_cost_microusd_delta_bps == 625
     assert "ROI" not in format_usage_delta(delta)
+    assert "bps" in format_usage_delta(delta)
+
+
+def test_compare_usage_summaries_uses_truncated_integer_basis_points() -> None:
+    baseline = UsageSummary(total_tokens=18420)
+    candidate = UsageSummary(total_tokens=25980)
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.total_tokens_delta == 7560
+    assert delta.total_tokens_delta_bps == 4104
+
+
+def test_compare_usage_summaries_reports_negative_basis_points() -> None:
+    baseline = _usage_summary_with_cost(total_tokens=100, estimated_cost_microusd=1000)
+    candidate = _usage_summary_with_cost(total_tokens=75, estimated_cost_microusd=700)
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.total_tokens_delta == -25
+    assert delta.total_tokens_delta_bps == -2500
+    assert delta.estimated_cost_microusd_delta == -300
+    assert delta.estimated_cost_microusd_delta_bps == -3000
+
+
+def test_declared_cost_delta_requires_comparable_pricing_snapshots() -> None:
+    digest = pricing_snapshot_digest(_pricing_snapshot())
+    baseline = _usage_summary_with_cost(
+        estimated_cost_microusd=1000,
+        pricing_snapshot_ids=("local-demo-pricing-v1",),
+        pricing_snapshot_digests=(digest,),
+    )
+    candidate = _usage_summary_with_cost(
+        estimated_cost_microusd=700,
+        pricing_snapshot_ids=("local-demo-pricing-v2",),
+        pricing_snapshot_digests=(digest,),
+    )
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.estimated_cost_microusd_delta is None
+    assert any("pricing snapshots differ" in limitation for limitation in delta.limitations)
+
+
+@pytest.mark.parametrize(
+    ("baseline_ids", "candidate_ids", "expected_limitation"),
+    [
+        ((), (), "pricing snapshot IDs were not declared for both sides"),
+        (("local-demo-pricing-v1",), (), "pricing snapshot IDs were not declared"),
+        ((), ("local-demo-pricing-v1",), "pricing snapshot IDs were not declared"),
+    ],
+)
+def test_declared_cost_delta_requires_snapshot_ids_on_both_sides(
+    baseline_ids: tuple[str, ...],
+    candidate_ids: tuple[str, ...],
+    expected_limitation: str,
+) -> None:
+    baseline = _usage_summary_with_cost(
+        estimated_cost_microusd=1000,
+        pricing_snapshot_ids=baseline_ids,
+        pricing_snapshot_digests=(),
+    )
+    candidate = _usage_summary_with_cost(
+        estimated_cost_microusd=700,
+        pricing_snapshot_ids=candidate_ids,
+        pricing_snapshot_digests=(),
+    )
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.estimated_cost_microusd_delta is None
+    assert any(expected_limitation in limitation for limitation in delta.limitations)
+
+
+def test_declared_cost_delta_requires_matching_snapshot_digests() -> None:
+    baseline = _usage_summary_with_cost(
+        estimated_cost_microusd=1000,
+        pricing_snapshot_digests=("a" * 64,),
+    )
+    candidate = _usage_summary_with_cost(
+        estimated_cost_microusd=700,
+        pricing_snapshot_digests=("b" * 64,),
+    )
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.estimated_cost_microusd_delta is None
+    assert any("pricing snapshot digests differ" in item for item in delta.limitations)
+
+
+def test_declared_cost_delta_requires_cost_basis_on_both_sides() -> None:
+    digest = pricing_snapshot_digest(_pricing_snapshot())
+    baseline = UsageSummary(
+        estimated_cost_microusd=1000,
+        pricing_snapshot_ids=("local-demo-pricing-v1",),
+        pricing_snapshot_digests=(digest,),
+    )
+    candidate = _usage_summary_with_cost(estimated_cost_microusd=700)
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.estimated_cost_microusd_delta is None
+    assert any("cost basis was not declared" in item for item in delta.limitations)
+
+
+def test_basis_points_note_zero_baseline_limitations_without_side_effects() -> None:
+    baseline = UsageSummary(total_tokens=0)
+    candidate = UsageSummary(total_tokens=5)
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.total_tokens_delta == 5
+    assert delta.total_tokens_delta_bps is None
+    assert any("total_tokens_delta_bps" in item for item in delta.limitations)
 
 
 def test_compare_usage_summaries_treats_missing_usage_as_not_observed() -> None:
@@ -266,6 +657,19 @@ def test_usage_delta_carries_partial_missingness_limitations() -> None:
     assert delta.total_tokens_delta == 25
     assert any("sums known fields only" in limitation for limitation in delta.limitations)
     assert "sums known fields only" in format_usage_delta(delta)
+
+
+def test_usage_delta_separates_higher_usage_from_governance_state() -> None:
+    baseline = UsageSummary(total_tokens=100, total_tool_calls=1, total_retries=0)
+    candidate = UsageSummary(total_tokens=125, total_tool_calls=2, total_retries=1)
+
+    delta = compare_usage_summaries(baseline, candidate)
+
+    assert delta.comparison_state == "observed"
+    assert delta.total_tokens_delta == 25
+    assert delta.total_tool_calls_delta == 1
+    assert delta.total_retries_delta == 1
+    assert "fail" not in format_usage_delta(delta).lower()
 
 
 def test_report_markdown_uses_measured_language_for_missing_usage() -> None:
@@ -486,3 +890,56 @@ def _metrics_payload() -> dict[str, object]:
         findings_by_reason={},
         findings_by_control={},
     ).model_dump(mode="json")
+
+
+def _usage_summary_with_cost(
+    *,
+    estimated_cost_microusd: int,
+    total_tokens: int | None = None,
+    total_tool_calls: int | None = None,
+    total_retries: int | None = None,
+    total_latency_ms: int | None = None,
+    cost_basis_ids: tuple[str, ...] = ("declared_pricing_snapshot_v1",),
+    pricing_snapshot_ids: tuple[str, ...] = ("local-demo-pricing-v1",),
+    pricing_snapshot_digests: tuple[str, ...] | None = None,
+    cost_observation_count: int | None = 1,
+) -> UsageSummary:
+    digests = pricing_snapshot_digests
+    if digests is None:
+        digests = (pricing_snapshot_digest(_pricing_snapshot()),)
+    return UsageSummary(
+        total_tokens=total_tokens,
+        total_tool_calls=total_tool_calls,
+        total_retries=total_retries,
+        total_latency_ms=total_latency_ms,
+        estimated_cost_microusd=estimated_cost_microusd,
+        cost_basis_ids=cost_basis_ids,
+        pricing_snapshot_ids=pricing_snapshot_ids,
+        pricing_snapshot_digests=digests,
+        cost_observation_count=cost_observation_count,
+    )
+
+
+def _pricing_snapshot(
+    *,
+    pricing_snapshot_id: str = "local-demo-pricing-v1",
+    currency: str = "USD",
+    limitations: tuple[str, ...] = ("Demo fixture pricing only; not live provider pricing.",),
+    cached_input_token_microusd: int | None = None,
+    reasoning_token_microusd: int | None = None,
+) -> UsagePricingSnapshot:
+    return UsagePricingSnapshot(
+        pricing_snapshot_id=pricing_snapshot_id,
+        currency=currency,
+        models=(
+            UsagePricingModel(
+                provider="demo",
+                model="fixture-model-small",
+                input_token_microusd=1,
+                output_token_microusd=3,
+                cached_input_token_microusd=cached_input_token_microusd,
+                reasoning_token_microusd=reasoning_token_microusd,
+            ),
+        ),
+        limitations=limitations,
+    )

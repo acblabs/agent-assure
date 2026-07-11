@@ -7,6 +7,29 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "const": "0.3.1"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "pricing_snapshot_digest"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -17,6 +40,9 @@
           },
           "then": {
             "properties": {
+              "currency": {
+                "const": "USD"
+              },
               "limitations": {
                 "minItems": 1
               }
@@ -186,6 +212,19 @@
           "default": null,
           "title": "Parent Span Id"
         },
+        "pricing_snapshot_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Pricing Snapshot Digest"
+        },
         "pricing_snapshot_id": {
           "anyOf": [
             {
@@ -262,8 +301,11 @@
           "title": "Run Id"
         },
         "schema_version": {
-          "const": "0.3.1",
-          "default": "0.3.1",
+          "default": "0.4.3",
+          "enum": [
+            "0.3.1",
+            "0.4.3"
+          ],
           "title": "Schema Version",
           "type": "string"
         },
@@ -344,8 +386,11 @@
       "type": "object"
     },
     "schema_version": {
-      "const": "0.3.1",
-      "default": "0.3.1",
+      "default": "0.4.3",
+      "enum": [
+        "0.3.1",
+        "0.4.3"
+      ],
       "title": "Schema Version",
       "type": "string"
     },

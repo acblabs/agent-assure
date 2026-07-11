@@ -31,10 +31,11 @@ are not persisted in RunSet artifacts, but live adapters and external scripts
 process the prompt they are invoked with.
 
 Usage evidence, when present, is a separate observable category. It may include
-provider/model labels, operation labels, pricing snapshot IDs, cost-basis text,
-token counts, retry counts, latency, and declared estimated cost in integer
-micro-USD. These fields are review metadata rather than raw prompt or tool
-argument content, but producers should keep labels free of sensitive identifiers.
+provider/model labels, operation labels, pricing snapshot IDs and digests,
+cost-basis text, token counts, retry counts, latency, and declared estimated
+cost in integer micro-USD. These fields are review metadata rather than raw
+prompt or tool argument content, but producers should keep labels free of
+sensitive identifiers.
 Current reports surface usage summaries and limitations; any future renderer
 that displays segment labels directly should pass them through the standard
 redaction path.

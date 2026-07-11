@@ -171,8 +171,11 @@ snapshot. It keeps earlier schema directories unchanged for replay and emits
 `control-coverage-report` root maps evidence-packet facts to selected
 framework concepts with conditional rule evaluations, coverage states,
 evidence references, mapping digests, evidence-packet digests, and explicit
-claim boundaries. These reports are traceability maps for human review, not
-scorecards or framework grades.
+claim boundaries. The v0.4.3 usage extension also adds
+`usage-pricing-snapshot`, summary-level pricing snapshot IDs, and integer
+basis-point usage deltas. These reports are traceability maps and measured
+usage facts for human review, not scorecards, framework grades, or business
+impact claims.
 
 ## Usage Schema Foundation
 
@@ -181,21 +184,36 @@ evaluation, comparison, and packet artifacts. The additive model is
 `UsageSegment -> UsageLedger -> UsageSummary`, with `UsageSummaryDelta` for
 baseline-to-candidate comparisons. Usage segments include `span_id`,
 `parent_span_id`, `event_range_start`, and `event_range_end` so future streaming
-ingestion can attach usage to ordered events without redesigning the schema. The
-usage artifact roots are introduced in v0.3.1 and continue to accept only
-`schema_version: "0.3.1"`. Container artifacts that carry usage fields use
-`schema_version: "0.3.1"` or later; legacy-labeled containers reject direct and
-nested usage evidence.
+ingestion can attach usage to ordered events without redesigning the schema.
+The usage artifact roots are introduced in v0.3.1. v0.4.3 producers emit usage
+roots with `schema_version: "0.4.3"` and still accept v0.3.1 usage roots for
+replay; v0.4.3-only fields are rejected when labeled as v0.3.1. Container
+artifacts that carry usage fields use `schema_version: "0.3.1"` or later;
+legacy-labeled containers reject direct and nested usage evidence.
+Segment-level pricing snapshot digests are v0.4.3-only and cannot be attached
+to a `schema_version: "0.3.1"` usage segment.
 
 Persisted money uses `estimated_cost_microusd: int | None`. Do not introduce
 float money fields in persisted artifacts. Missing usage is represented as
 `not_observed` in summaries and reports; it is not a deterministic evaluation
 failure. Generated wording must stay on measured usage, usage delta, declared
-estimated cost, and cost-per-run evidence, and must not claim business impact.
+estimated cost, and per-cost-observation evidence when a matched denominator is
+declared, and must not claim business impact. Micro-USD cost evidence is
+USD-only by design in this release even though the `currency` field remains for
+schema continuity. Declared pricing snapshots use explicit
+`usage-pricing-snapshot` artifacts with integer micro-USD token rates, optional
+cached-input and reasoning-token rates, USD-only currency, and limitations. The
+pricing helper refuses total-token-only inputs; callers must provide
+prompt/completion splits and token-class rates for cached or reasoning tokens.
+Demo fixtures must say they are demo pricing and not live provider pricing.
+Cost deltas require matching declared cost basis, pricing snapshot IDs, and
+pricing snapshot content digests on both sides; missing or mismatched provenance
+is carried as a limitation instead of a cost delta.
 When a usage ledger and summary are both present, the summary must match the
 ledger-derived values and include the ledger-derived limitations. Partial
 missingness is carried into summaries and deltas so known-field totals are not
 read as complete observations. Exported JSON Schema enforces the
 cost-bearing-segment limitation requirement and the legacy-container usage
 field gate; ledger missingness equality is a derived invariant enforced by
-Pydantic validation.
+Pydantic validation. Baseline-to-candidate percentage-style usage deltas are
+persisted as integer basis points, never floats.

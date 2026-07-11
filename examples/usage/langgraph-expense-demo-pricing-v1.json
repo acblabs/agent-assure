@@ -1,0 +1,17 @@
+{
+  "artifact_kind": "usage-pricing-snapshot",
+  "currency": "USD",
+  "limitations": [
+    "Demo fixture pricing only; not live provider pricing."
+  ],
+  "models": [
+    {
+      "input_token_microusd": 1,
+      "model": "expense-risk-v1",
+      "output_token_microusd": 3,
+      "provider": "approved-expense-model"
+    }
+  ],
+  "pricing_snapshot_id": "langgraph-expense-demo-pricing-v1",
+  "schema_version": "0.4.3"
+}

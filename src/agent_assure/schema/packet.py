@@ -21,6 +21,8 @@ PacketArtifactRole = Literal["evaluation-summary", "comparison-summary"]
 _EVIDENCE_PACKET_USAGE_FIELD_PATHS = (
     ("usage_summary",),
     ("evaluation", "usage_summary"),
+    ("comparison", "baseline_usage_summary"),
+    ("comparison", "candidate_usage_summary"),
     ("comparison", "usage_delta"),
 )
 

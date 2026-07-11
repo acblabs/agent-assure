@@ -2,6 +2,70 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.4.3/usage-summary-delta.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.3.1"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "total_tokens_delta_bps"
+              ]
+            },
+            {
+              "required": [
+                "total_tool_calls_delta_bps"
+              ]
+            },
+            {
+              "required": [
+                "total_retries_delta_bps"
+              ]
+            },
+            {
+              "required": [
+                "total_latency_ms_delta_bps"
+              ]
+            },
+            {
+              "required": [
+                "estimated_cost_microusd_delta_bps"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "estimated_cost_microusd_delta": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "estimated_cost_microusd_delta"
+        ]
+      },
+      "then": {
+        "properties": {
+          "currency": {
+            "const": "USD"
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "artifact_kind": {
       "const": "usage-summary-delta",
@@ -45,6 +109,18 @@
       "default": null,
       "title": "Estimated Cost Microusd Delta"
     },
+    "estimated_cost_microusd_delta_bps": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Cost Microusd Delta Bps"
+    },
     "limitations": {
       "default": [],
       "items": {
@@ -54,8 +130,11 @@
       "type": "array"
     },
     "schema_version": {
-      "const": "0.3.1",
-      "default": "0.3.1",
+      "default": "0.4.3",
+      "enum": [
+        "0.3.1",
+        "0.4.3"
+      ],
       "title": "Schema Version",
       "type": "string"
     },
@@ -71,6 +150,18 @@
       "default": null,
       "title": "Total Latency Ms Delta"
     },
+    "total_latency_ms_delta_bps": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Latency Ms Delta Bps"
+    },
     "total_retries_delta": {
       "anyOf": [
         {
@@ -82,6 +173,18 @@
       ],
       "default": null,
       "title": "Total Retries Delta"
+    },
+    "total_retries_delta_bps": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Retries Delta Bps"
     },
     "total_tokens_delta": {
       "anyOf": [
@@ -95,6 +198,18 @@
       "default": null,
       "title": "Total Tokens Delta"
     },
+    "total_tokens_delta_bps": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Tokens Delta Bps"
+    },
     "total_tool_calls_delta": {
       "anyOf": [
         {
@@ -106,6 +221,18 @@
       ],
       "default": null,
       "title": "Total Tool Calls Delta"
+    },
+    "total_tool_calls_delta_bps": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Tool Calls Delta Bps"
     }
   },
   "required": [

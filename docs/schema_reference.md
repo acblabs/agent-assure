@@ -31,6 +31,7 @@ Exported roots:
 - `run-set`
 - `span-plan`
 - `usage-ledger`
+- `usage-pricing-snapshot`
 - `usage-segment`
 - `usage-summary`
 - `usage-summary-delta`
@@ -183,29 +184,54 @@ External `AgentRunRecord` producers must also follow
 only by explicit `claim_evidence_links` that point to present evidence
 references.
 
-Usage schema roots are an additive v0.3.1 release surface. `UsageSegment`
-records measured token, tool-call, retry, latency, and declared estimated cost
-fields for a case, run, span, or future stream event range. Persisted money uses
-`estimated_cost_microusd` integers; the schema does not use floats for cost.
-Usage roots continue to use `schema_version: "0.3.1"`. Usage-bearing
-containers use `schema_version: "0.3.1"` or later when usage evidence is
-present; `schema_version: "0.2.0"` containers reject direct and nested usage
-fields.
+Usage schema roots started as an additive v0.3.1 release surface and are
+extended in v0.4.3 for declared pricing snapshots and basis-point deltas.
+`UsageSegment` records measured token, tool-call, retry, latency, and declared
+estimated cost fields for a case, run, span, or future stream event range.
+Persisted money uses `estimated_cost_microusd` integers; the schema does not
+use floats for cost. Micro-USD cost evidence is USD-only by design in v0.4.3;
+the pattern-validated `currency` field remains for schema continuity and
+non-cost usage summaries, but cost-bearing artifacts must use `USD`. v0.4.3
+producers emit usage roots with `schema_version: "0.4.3"`; replay still
+accepts v0.3.1 usage roots, while v0.4.3-only fields cannot be labeled as
+v0.3.1. Usage-bearing containers use `schema_version: "0.3.1"` or later when
+usage evidence is present; `schema_version: "0.2.0"` containers reject direct
+and nested usage fields.
 Cost-bearing usage segments require explicit limitations, and this requirement
 is encoded in the exported JSON Schema. Segment metadata labels such as
-`provider`, `model`, `operation`, `cost_basis`, and `pricing_snapshot_id` are
-caller-controlled review metadata; producers should not put sensitive
-identifiers in them.
+`provider`, `model`, `operation`, `cost_basis`, `pricing_snapshot_id`, and
+`pricing_snapshot_digest` are caller-controlled review metadata; producers
+should not put sensitive identifiers in them.
+Segment-level `pricing_snapshot_digest` is a v0.4.3-only provenance field and
+is rejected on `schema_version: "0.3.1"` usage segments.
+`usage-pricing-snapshot` records explicit versioned demo or caller-declared
+token prices with integer micro-USD input and output rates, optional cached
+input and reasoning-token rates, and explicit limitations. Pricing snapshots
+are USD-only while the persisted cost field remains `estimated_cost_microusd`.
+The bundled pricing helper refuses total-token-only segments; callers must
+provide `prompt_tokens` and `completion_tokens`, and must declare cached-input
+or reasoning-token rates when those token classes are present.
+The bundled `examples/usage/local-demo-pricing-v1.json` and
+`examples/usage/langgraph-expense-demo-pricing-v1.json` snapshots are marked as
+demo fixtures and are not live provider pricing.
 `UsageLedger` keeps the contributing segments, the deterministic
 `sum_known_fields_v1` aggregation method, and missingness counts. JSON Schema
 validates the shape of those counts; Pydantic validation verifies that the
 counts exactly match the contributing segments. `UsageSummary` contains summed
-known fields and limitations, and must match the ledger-derived summary when
-both are present. `total_latency_ms` is the sum of known segment latency fields
-under `sum_known_fields_v1`, not necessarily wall-clock elapsed time for
-parallel runs. `UsageSummaryDelta` records baseline-to-candidate usage deltas
-when usage is observed; missing usage is represented as
-`not_observed`, not as a failing gate. Partial missingness is retained in
-limitations so known-field totals are not presented as complete observations.
-These fields are measured usage and declared estimated cost evidence only, not
-business impact claims.
+known fields, cost-basis labels, pricing snapshot IDs and digests, optional
+`cost_observation_count`, and limitations, and must match the ledger-derived
+summary when both are present. `total_latency_ms` is the sum of known segment
+latency fields under `sum_known_fields_v1`, not necessarily wall-clock elapsed
+time for parallel runs. Cost aggregation and comparison require homogeneous
+cost basis plus matching explicit pricing snapshot IDs and content digests; raw
+cost numbers without that provenance remain review facts but are not diffed as
+comparable declared estimated cost evidence. `cost_observation_count` is derived
+from distinct `run_id` values when available, otherwise from distinct `case_id`
+values with a limitation; multiple unlabeled cost-bearing segments omit the
+per-observation denominator rather than guessing. `UsageSummaryDelta` records
+baseline-to-candidate usage deltas when usage is observed, including integer
+basis-point fields such as `total_tokens_delta_bps` where a nonzero baseline
+exists. Missing usage is represented as `not_observed`, not as a failing gate.
+Partial missingness is retained in limitations so known-field totals are not
+presented as complete observations. These fields are measured usage and
+declared estimated cost evidence only, not business impact claims.

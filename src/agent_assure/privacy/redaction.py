@@ -60,7 +60,27 @@ PRESERVE_RUNSET_KEYS = frozenset(
         "started_at_utc",
         "completed_at_utc",
         "estimated_cost_usd",
+        "estimated_cost_microusd",
         "estimated_cost_source",
+        "currency",
+        "cost_basis",
+        "cost_basis_ids",
+        "pricing_snapshot_id",
+        "pricing_snapshot_ids",
+        "pricing_snapshot_digest",
+        "pricing_snapshot_digests",
+        "cost_observation_count",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cached_tokens",
+        "reasoning_tokens",
+        "tool_call_count",
+        "retry_count",
+        "latency_ms",
+        "total_tool_calls",
+        "total_retries",
+        "total_latency_ms",
         "ref_id",
         "source_id",
         "claim_ids",
@@ -97,12 +117,51 @@ PRESERVE_PACKET_KEYS = frozenset(
         "dependency_inventory_digest",
         "git_commit",
         "path",
+        "estimated_cost_microusd",
+        "currency",
+        "cost_basis",
+        "cost_basis_ids",
+        "pricing_snapshot_id",
+        "pricing_snapshot_ids",
+        "pricing_snapshot_digest",
+        "pricing_snapshot_digests",
+        "cost_observation_count",
+        "prompt_tokens",
+        "completion_tokens",
+        "total_tokens",
+        "cached_tokens",
+        "reasoning_tokens",
+        "tool_call_count",
+        "retry_count",
+        "latency_ms",
+        "total_tool_calls",
+        "total_retries",
+        "total_latency_ms",
+        "total_tokens_delta",
+        "total_tokens_delta_bps",
+        "total_tool_calls_delta",
+        "total_tool_calls_delta_bps",
+        "total_retries_delta",
+        "total_retries_delta_bps",
+        "total_latency_ms_delta",
+        "total_latency_ms_delta_bps",
+        "estimated_cost_microusd_delta",
+        "estimated_cost_microusd_delta_bps",
     }
 )
 
 
-def redact_artifact_payload(value: Any, *, preserve_keys: frozenset[str] = frozenset()) -> Any:
+def redact_artifact_payload(
+    value: Any,
+    *,
+    preserve_keys: frozenset[str] = frozenset(),
+    parent_key: str | None = None,
+) -> Any:
     if isinstance(value, str):
+        if _is_invalid_digest_scalar(parent_key, value):
+            return REDACTION
+        if _preserves_scalar_value(parent_key, value, preserve_keys=preserve_keys):
+            return value
         return redact_text(value)
     if isinstance(value, Mapping):
         return {
@@ -110,9 +169,23 @@ def redact_artifact_payload(value: Any, *, preserve_keys: frozenset[str] = froze
             for key, item in value.items()
         }
     if isinstance(value, tuple):
-        return tuple(redact_artifact_payload(item, preserve_keys=preserve_keys) for item in value)
+        return tuple(
+            redact_artifact_payload(
+                item,
+                preserve_keys=preserve_keys,
+                parent_key=parent_key,
+            )
+            for item in value
+        )
     if isinstance(value, list):
-        return [redact_artifact_payload(item, preserve_keys=preserve_keys) for item in value]
+        return [
+            redact_artifact_payload(
+                item,
+                preserve_keys=preserve_keys,
+                parent_key=parent_key,
+            )
+            for item in value
+        ]
     return value
 
 
@@ -142,17 +215,17 @@ def _redact_mapping_item(
     *,
     preserve_keys: frozenset[str],
 ) -> Any:
-    if _is_invalid_digest_scalar(key, item):
-        return REDACTION
-    if _preserves_scalar_value(key, item, preserve_keys=preserve_keys):
-        return item
-    return redact_artifact_payload(item, preserve_keys=preserve_keys)
+    return redact_artifact_payload(
+        item,
+        preserve_keys=preserve_keys,
+        parent_key=key if isinstance(key, str) else None,
+    )
 
 
 def _is_invalid_digest_scalar(key: object, item: object) -> bool:
     return (
         isinstance(key, str)
-        and key.endswith("_digest")
+        and (key.endswith("_digest") or key.endswith("_digests"))
         and isinstance(item, str)
         and _DIGEST_HEX_PATTERN.fullmatch(item) is None
     )

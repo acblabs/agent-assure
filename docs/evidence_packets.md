@@ -2,10 +2,10 @@
 
 Evidence packets summarize deterministic fixture-mode evidence for CI and
 release review. A packet contains an evaluation summary, an optional comparison
-summary, a machine-readable interpretation section, local environment metadata,
-deterministic SHA-256 digests of the summary files used to build it, a
-dependency-inventory digest, a release artifact manifest, and explicit
-limitations.
+summary, measured usage evidence when observed, a machine-readable
+interpretation section, local environment metadata, deterministic SHA-256
+digests of the summary files used to build it, a dependency-inventory digest,
+a release artifact manifest, and explicit limitations.
 
 ```bash
 agent-assure packet build \
@@ -38,6 +38,14 @@ and runset provenance. `packet_id` is derived from the redacted summaries after
 local environment metadata is excluded, plus interpretation text and
 limitations; it intentionally excludes exact-file digests and the release
 manifest.
+
+When evaluation or comparison summaries contain usage evidence, packets keep
+that evidence beside governance findings. Candidate usage summaries, baseline
+usage summaries, usage deltas, pricing snapshot IDs and digests, declared
+estimated cost deltas, and per-cost-observation evidence are review facts only.
+Missing usage is rendered as `not_observed` and does not create a failing gate.
+Cheaper usage is not interpreted as a better candidate when governance evidence
+regresses.
 
 Release evidence can attach keyless cosign bundles to the packet, release
 artifact manifest, digest replay file, SBOM, wheel, and source distribution.

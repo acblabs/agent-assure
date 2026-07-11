@@ -175,8 +175,270 @@
       "title": "InstalledPackage",
       "type": "object"
     },
+    "UsageSummary": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.3.1"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "cost_basis_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "pricing_snapshot_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "pricing_snapshot_digests"
+                  ]
+                },
+                {
+                  "required": [
+                    "cost_observation_count"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "currency": {
+                "const": "USD"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "usage-summary",
+          "default": "usage-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "cost_basis_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Cost Basis Ids",
+          "type": "array"
+        },
+        "cost_observation_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Observation Count"
+        },
+        "currency": {
+          "default": "USD",
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "estimated_cost_microusd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Microusd"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "pricing_snapshot_digests": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "title": "Pricing Snapshot Digests",
+          "type": "array"
+        },
+        "pricing_snapshot_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Pricing Snapshot Ids",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "0.4.3",
+          "enum": [
+            "0.3.1",
+            "0.4.3"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total_latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms"
+        },
+        "total_retries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Retries"
+        },
+        "total_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens"
+        },
+        "total_tool_calls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tool Calls"
+        }
+      },
+      "title": "UsageSummary",
+      "type": "object"
+    },
     "UsageSummaryDelta": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.3.1"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "total_tokens_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_tool_calls_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_retries_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_latency_ms_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_microusd_delta_bps"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd_delta": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd_delta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "currency": {
+                "const": "USD"
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "usage-summary-delta",
@@ -220,6 +482,18 @@
           "default": null,
           "title": "Estimated Cost Microusd Delta"
         },
+        "estimated_cost_microusd_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Microusd Delta Bps"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -229,8 +503,11 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.3.1",
-          "default": "0.3.1",
+          "default": "0.4.3",
+          "enum": [
+            "0.3.1",
+            "0.4.3"
+          ],
           "title": "Schema Version",
           "type": "string"
         },
@@ -246,6 +523,18 @@
           "default": null,
           "title": "Total Latency Ms Delta"
         },
+        "total_latency_ms_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms Delta Bps"
+        },
         "total_retries_delta": {
           "anyOf": [
             {
@@ -257,6 +546,18 @@
           ],
           "default": null,
           "title": "Total Retries Delta"
+        },
+        "total_retries_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Retries Delta Bps"
         },
         "total_tokens_delta": {
           "anyOf": [
@@ -270,6 +571,18 @@
           "default": null,
           "title": "Total Tokens Delta"
         },
+        "total_tokens_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens Delta Bps"
+        },
         "total_tool_calls_delta": {
           "anyOf": [
             {
@@ -281,6 +594,18 @@
           ],
           "default": null,
           "title": "Total Tool Calls Delta"
+        },
+        "total_tool_calls_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tool Calls Delta Bps"
         }
       },
       "required": [
@@ -312,6 +637,16 @@
           "anyOf": [
             {
               "required": [
+                "baseline_usage_summary"
+              ]
+            },
+            {
+              "required": [
+                "candidate_usage_summary"
+              ]
+            },
+            {
+              "required": [
                 "usage_delta"
               ]
             }
@@ -335,6 +670,17 @@
       "$ref": "#/$defs/GateState",
       "default": "not_evaluated"
     },
+    "baseline_usage_summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UsageSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
     "candidate_runset_id": {
       "title": "Candidate Runset Id",
       "type": "string"
@@ -342,6 +688,17 @@
     "candidate_state": {
       "$ref": "#/$defs/GateState",
       "default": "not_evaluated"
+    },
+    "candidate_usage_summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UsageSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "classification": {
       "$ref": "#/$defs/ComparisonClassification"

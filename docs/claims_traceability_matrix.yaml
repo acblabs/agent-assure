@@ -89,6 +89,14 @@ claims:
       commands: [agent-assure compare]
       docs: [docs/cli_contract.md, docs/invariant_diffing.md]
     limitations: Comparison is fixture-bound and does not measure stochastic model quality, live provider behavior, safety, or compliance.
+  - id: measured-usage-cost-delta
+    claim: Usage-bearing RunSets, evaluations, comparisons, and packets can report measured token/tool/retry/latency summaries, explicit demo or caller-declared pricing snapshot IDs and content digests, declared estimated cost deltas when pricing provenance matches, per-cost-observation evidence, and integer basis-point usage deltas separately from governance verdicts.
+    evidence:
+      schemas: [usage-segment, usage-ledger, usage-summary, usage-summary-delta, usage-pricing-snapshot, comparison-summary, evidence-packet]
+      code: [src/agent_assure/schema/usage.py, src/agent_assure/usage/aggregation.py, src/agent_assure/usage/pricing.py, src/agent_assure/reporting/markdown.py, src/agent_assure/reporting/packet.py]
+      tests: [tests/unit/usage/test_aggregation.py, tests/integration/test_langgraph_expense_assurance.py, tests/integration/test_schema_parity.py]
+      docs: [docs/schema_reference.md, docs/schema_evolution.md, docs/evidence_packets.md, docs/cli_contract.md]
+    limitations: Usage and declared estimated cost fields are measured review facts only. Missing usage or incomplete pricing provenance is `not_observed` or limitation-scoped evidence, not a failing gate; lower declared cost does not offset process, evidence, policy, or governance regressions.
   - id: evidence-packets-ci-gates
     claim: Evidence packets bundle deterministic report summaries with interpretation guidance, environment provenance, dependency-inventory digest, release manifest, and input digests; CI gates provide full/fail-fast report modes and stable pass/fail/invalid exit codes over candidate RunSets, summaries, and packets.
     evidence:
