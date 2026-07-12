@@ -84,15 +84,15 @@ def test_version_tag_check_accepts_mapped_package_schema_metadata(
 ) -> None:
     pyproject, package_init, schema_base, schema_root = _write_version_files(
         tmp_path,
-        "0.4.2",
-        "0.4.2",
-        "0.3.1",
-        schema_dir_version="0.3.1",
+        "0.4.4",
+        "0.4.4",
+        "0.4.3",
+        schema_dir_version="0.4.3",
     )
 
     status = main(
         [
-            "v0.4.2",
+            "v0.4.4",
             "--pyproject",
             str(pyproject),
             "--package-init",

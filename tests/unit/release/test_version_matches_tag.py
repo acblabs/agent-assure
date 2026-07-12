@@ -93,16 +93,16 @@ def test_version_tag_check_allows_package_release_with_unchanged_schema(
 ) -> None:
     pyproject, package_init, schema_base, schema_root = _write_version_files(
         tmp_path,
-        project_version="0.4.2",
-        package_version="0.4.2",
-        package_schema_version="0.3.1",
-        base_schema_version="0.3.1",
-        schema_dir_version="0.3.1",
+        project_version="0.4.4",
+        package_version="0.4.4",
+        package_schema_version="0.4.3",
+        base_schema_version="0.4.3",
+        schema_dir_version="0.4.3",
     )
 
     result = version_tag.main(
         [
-            "v0.4.2",
+            "v0.4.4",
             "--pyproject",
             str(pyproject),
             "--package-init",

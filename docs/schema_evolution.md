@@ -15,7 +15,8 @@ Use these directories as the release lifecycle:
 - `schemas/v0.3.0/` contains the stable exported schema snapshot for v0.3.0.
 - `schemas/v0.3.1/` contains the active release schema snapshot for v0.3.1
   and the package-only v0.4.0 through v0.4.2 releases.
-- `schemas/v0.4.3/` contains the active release schema snapshot for v0.4.3.
+- `schemas/v0.4.3/` contains the active release schema snapshot for v0.4.3
+  and the package-only v0.4.4 release.
 - `schemas/unreleased/` is the development export target for the next release.
 
 Automation has two separate checks:
@@ -59,7 +60,10 @@ v0.4.0 through v0.4.2 package releases map to schema version `0.3.1` because
 they add RAG, counterfactual-query, adapter, and governance-crosswalk release
 surfaces without changing persisted JSON artifact shape. The v0.4.3 package
 release adds the `control-coverage-report` persisted root and therefore emits
-`schema_version: 0.4.3`.
+`schema_version: 0.4.3`. The v0.4.4 package release keeps the persisted schema
+at `0.4.3` because its release surface is process-positioning documentation,
+fixture demos, report rendering, and control-map behavior hardening rather than
+a new persisted JSON artifact shape.
 
 Because v0.3.0 does not change persisted artifact shape, the JSON Schema `$id`
 values inside `schemas/v0.3.0/` still point to the `v0.2.0` schema namespace.
@@ -176,6 +180,12 @@ claim boundaries. The v0.4.3 usage extension also adds
 basis-point usage deltas. These reports are traceability maps and measured
 usage facts for human review, not scorecards, framework grades, or business
 impact claims.
+
+The v0.4.4 package release keeps `schemas/v0.4.3` as the active frozen release
+snapshot and continues to emit `schema_version: 0.4.3`. Its release surface is
+process-assurance positioning, bundled deterministic measurement cases,
+evidence-diff rendering for operational counters and measured usage, and
+control-map behavior hardening.
 
 ## Usage Schema Foundation
 

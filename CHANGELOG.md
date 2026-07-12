@@ -2,8 +2,8 @@
 
 ## Unreleased
 
-- These Sprint 12 entries are post-0.4.3 work targeted for v0.4.4;
-  package metadata remains at `0.4.3` until that release is cut.
+## 0.4.4 - 2026-07-12
+
 - Added a non-combative process-assurance vs answer-quality eval positioning
   doc, a bundled `process_measurement_cases` fixture suite, and
   `agent-assure demo measurement-cases` to show same-answer process changes
@@ -19,6 +19,9 @@
   conditions, omitting partial AND-rule evidence from item-level evidence,
   renaming control evidence reference hashes to `evidence_digest`, and aligning
   OWASP/NIST review-side failure mappings with contradictory evidence states.
+- Bumped package metadata to `0.4.4` while retaining the active persisted
+  artifact schema at `0.4.3`; the release validator maps v0.4.4 to the
+  committed `schemas/v0.4.3` snapshot.
 
 ## 0.4.3 - 2026-07-10
 

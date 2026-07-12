@@ -1,5 +1,5 @@
 suite_id: process-measurement-cases
-suite_version: 0.4.3
+suite_version: 0.4.4
 defaults:
   execution_mode: fixture
   runner_id: process_measurement.synthetic
