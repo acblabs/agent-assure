@@ -10,6 +10,8 @@ from agent_assure.privacy.redaction import (
     redact_text,
 )
 from agent_assure.privacy.safe_errors import safe_error
+from agent_assure.reporting.usage import usage_summary_lines
+from agent_assure.schema.usage import UsageSummary
 
 TEST_HMAC_KEY = b"agent-assure-test-suite-key-32-bytes"
 
@@ -168,7 +170,7 @@ def test_redaction_still_preserves_scalar_structural_values() -> None:
     assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
 
 
-def test_redaction_preserves_usage_provenance_sequence_values_by_key() -> None:
+def test_redaction_scrubs_sensitive_usage_provenance_sequence_values() -> None:
     payload = {
         "usage_summary": {
             "cost_basis_ids": ["api_key=abcdef1234567890"],
@@ -181,10 +183,23 @@ def test_redaction_preserves_usage_provenance_sequence_values_by_key() -> None:
     redacted = redact_packet_payload(payload)
 
     usage_summary = redacted["usage_summary"]
-    assert usage_summary["cost_basis_ids"] == ["api_key=abcdef1234567890"]
-    assert usage_summary["pricing_snapshot_ids"] == ["ssn: 123-45-6789"]
+    assert usage_summary["cost_basis_ids"] == ["[REDACTED]"]
+    assert usage_summary["pricing_snapshot_ids"] == ["[REDACTED]"]
     assert usage_summary["pricing_snapshot_digests"] == ["a" * 64]
     assert "987-65-4321" not in usage_summary["notes"][0]
+
+
+def test_usage_markdown_redacts_sensitive_provenance_ids() -> None:
+    summary = UsageSummary(
+        cost_basis_ids=("api_key=abcdef1234567890",),
+        pricing_snapshot_ids=("ssn: 123-45-6789",),
+    )
+
+    rendered = "\n".join(usage_summary_lines(summary))
+
+    assert "abcdef1234567890" not in rendered
+    assert "123-45-6789" not in rendered
+    assert "[REDACTED]" in rendered
 
 
 def test_redaction_rejects_malformed_digest_sequence_values() -> None:

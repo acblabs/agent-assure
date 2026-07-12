@@ -153,6 +153,20 @@ def test_tool_allowlist_failure_contradicts_nist_manage2() -> None:
     assert manage_item.coverage_state is ControlCoverageState.contradictory_evidence_observed
 
 
+def test_provider_review_boundary_forbidden_provider_contradicts_nist_manage2() -> None:
+    report = build_control_coverage_report(
+        _packet_with_control_failure(
+            control_id="provider_review_boundary",
+            reason_code=ReasonCode.FORBIDDEN_PROVIDER,
+        ),
+        framework=ControlFramework.nist_ai_rmf,
+        evidence_packet_digest="2" * 64,
+    )
+    manage_item = next(item for item in report.items if item.control_id == "MANAGE-2.x")
+
+    assert manage_item.coverage_state is ControlCoverageState.contradictory_evidence_observed
+
+
 def test_scope_boundaries_win_over_false_path_not_observed() -> None:
     report = build_control_coverage_report(
         _green_packet(),
@@ -244,6 +258,18 @@ def test_mapping_rule_rejects_empty_requires() -> None:
                 "requires": [],
                 "coverage_state_when_true": "observed",
                 "coverage_state_when_false": "not_observed",
+            }
+        )
+
+
+def test_mapping_rule_rejects_false_path_contradictory_evidence() -> None:
+    with pytest.raises(ValidationError, match="true mapping paths"):
+        MappingRule.model_validate(
+            {
+                "rule_id": "false-path-contradiction",
+                "requires": [{"signal": "scope_boundary"}],
+                "coverage_state_when_true": "observed",
+                "coverage_state_when_false": "contradictory_evidence_observed",
             }
         )
 

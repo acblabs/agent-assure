@@ -21,7 +21,17 @@ def evaluate_provider_boundary(
     if not has_provider_policy:
         return ()
     if not run.provider:
-        return ()
+        return (
+            ControlResult(
+                control_id="provider_review_boundary",
+                case_id=run.case_id,
+                state=GateState.fail,
+                reason_code=ReasonCode.VALID_RECORD_MISSING,
+                severity=Severity.blocker,
+                target="provider",
+                message="provider-boundary policy requires provider metadata",
+            ),
+        )
     provider_allowed = (
         not expectation.allowed_providers or run.provider in set(expectation.allowed_providers)
     )
@@ -30,7 +40,7 @@ def evaluate_provider_boundary(
     if (provider_forbidden or not provider_allowed) and unsafe_without_review:
         return (
             ControlResult(
-                control_id="provider_allowlist",
+                control_id="provider_review_boundary",
                 case_id=run.case_id,
                 state=GateState.fail,
                 reason_code=ReasonCode.FORBIDDEN_PROVIDER,

@@ -147,7 +147,27 @@ def _verify_protocol_obligations(runset: RunSet, protocol: LiveProtocolRecord) -
     if len(clusters) != protocol.planned_clusters:
         raise ValueError("live RunSet cluster count does not match protocol")
     allowed_exclusions = set(protocol.allowed_exclusion_reasons)
+    seen_run_ids: set[str] = set()
+    seen_observation_ids: set[str] = set()
+    seen_schedule_cells: set[tuple[str, int]] = set()
     for run in runset.runs:
+        if run.run_id in seen_run_ids:
+            raise ValueError(f"live RunSet duplicate run_id {run.run_id!r}")
+        seen_run_ids.add(run.run_id)
+        # Live protocol identity defects are structural, so they raise before
+        # rate evaluation rather than becoming report-shaped observations.
+        if run.observation_id is None or run.repetition_index is None or run.cluster_id is None:
+            raise ValueError("live RunSet run missing observation metadata")
+        if run.observation_id in seen_observation_ids:
+            raise ValueError(f"live RunSet duplicate observation_id {run.observation_id!r}")
+        seen_observation_ids.add(run.observation_id)
+        schedule_cell = (run.case_id, run.repetition_index)
+        if schedule_cell in seen_schedule_cells:
+            raise ValueError(
+                "live RunSet duplicate case/repetition observation "
+                f"case_id={run.case_id!r}, repetition_index={run.repetition_index}"
+            )
+        seen_schedule_cells.add(schedule_cell)
         if run.exclusion_reason and run.exclusion_reason not in allowed_exclusions:
             raise ValueError(f"live exclusion reason {run.exclusion_reason!r} is not declared")
         if run.retry_count is not None and run.retry_count > protocol.max_retries:
@@ -200,21 +220,6 @@ def _evaluate_observation(
     gate_profile: GateProfile,
     allowed_tools: tuple[str, ...],
 ) -> LiveObservationResult:
-    if run.observation_id is None or run.repetition_index is None or run.cluster_id is None:
-        findings = (
-            _finding_from_result(
-                ControlResult(
-                    control_id="valid_live_observation",
-                    case_id=run.case_id,
-                    state=GateState.fail,
-                    reason_code=ReasonCode.VALID_RECORD_MISSING,
-                    severity=Severity.blocker,
-                    target=run.run_id,
-                    message="live run record is missing observation metadata",
-                )
-            ),
-        )
-        return _observation_result(run, GateState.fail, findings)
     if run.observation_status == "excluded":
         return _observation_result(run, GateState.not_evaluated, ())
     try:

@@ -153,7 +153,7 @@ Each advanced endpoint must be interpreted under its declared prerequisites:
 | Method | Minimum design information | Confirmatory status |
 | --- | --- | --- |
 | `poisson_upper_bound` | event count, exposure count, exposure unit, and predeclared event family | allowed for one-sided rare-event upper bounds when exposure is nonzero and endpoint prerequisites are met |
-| `hierarchical_binomial_summary` or `beta_binomial_cluster_summary` | binary endpoint values, cluster IDs, observation counts, and planned intraclass correlation | descriptive for observed cluster correlation unless observed-ICC confirmatory use is predeclared by large-cluster threshold or external review |
+| `hierarchical_binomial_summary` | binary endpoint values, cluster IDs, observation counts, and planned intraclass correlation | descriptive for observed cluster correlation unless observed-ICC confirmatory use is predeclared by large-cluster threshold or external review |
 | `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed when exact enumeration is feasible under the implementation cap and the endpoint threshold is met |
 | `paired_cluster_permutation_monte_carlo` | the exact-test requirements plus a deterministic integer seed derived from the protocol digest | allowed when the protocol predeclares Monte Carlo randomization and the endpoint threshold is met |
 

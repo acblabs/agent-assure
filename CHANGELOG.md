@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- These Sprint 12 entries are post-0.4.3 work targeted for v0.4.4;
+  package metadata remains at `0.4.3` until that release is cut.
 - Added a non-combative process-assurance vs answer-quality eval positioning
   doc, a bundled `process_measurement_cases` fixture suite, and
   `agent-assure demo measurement-cases` to show same-answer process changes

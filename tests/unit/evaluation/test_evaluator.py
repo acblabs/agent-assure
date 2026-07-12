@@ -68,6 +68,32 @@ def test_provider_candidate_fails_provider_policy_control() -> None:
     )
 
 
+def test_provider_policy_missing_provider_metadata_fails_closed() -> None:
+    compiled, runset = _runset(BASELINE)
+    mutated = runset.model_copy(
+        update={
+            "runs": tuple(
+                run.model_copy(update={"provider": None})
+                if run.case_id == "forbidden-provider"
+                else run
+                for run in runset.runs
+            )
+        }
+    )
+
+    report = evaluate_runset(compiled, mutated)
+
+    findings = [
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.case_id == "forbidden-provider"
+        and finding.reason_code is ReasonCode.VALID_RECORD_MISSING
+    ]
+    assert len(findings) == 1
+    assert findings[0].control_id == "provider_review_boundary"
+    assert findings[0].target == "provider"
+
+
 def test_smoke_candidate_fails_multiple_controls() -> None:
     report = _report(SMOKE_CANDIDATE)
     reason_codes = _reason_codes(report.candidate_vs_expectations)

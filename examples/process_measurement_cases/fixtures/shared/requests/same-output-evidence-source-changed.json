@@ -1,0 +1,5 @@
+{
+  "case_id": "same-output-evidence-source-changed",
+  "scenario": "same visible output but evidence source identity changes",
+  "subject_id": "pmc-004"
+}

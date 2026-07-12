@@ -274,6 +274,32 @@ def test_static_jsonl_path_cannot_escape_config_dir(tmp_path: Path) -> None:
         )
 
 
+def test_static_jsonl_rejects_duplicate_case_repetition_rows(tmp_path: Path) -> None:
+    responses = tmp_path / "responses.jsonl"
+    row = {
+        "case_id": "exp-001",
+        "repetition_index": 0,
+        "content": "{}",
+        "provider": "static",
+        "model": "model",
+    }
+    responses.write_text(
+        "\n".join(json.dumps(row, sort_keys=True) for _index in range(2)) + "\n",
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="duplicate static response"):
+        StaticJsonlAdapter(
+            LiveAdapterConfig(
+                adapter_id="static-jsonl",
+                provider="static-provider",
+                model="static-model",
+                response_jsonl_path=responses.name,
+            ),
+            base_dir=tmp_path,
+        )
+
+
 def test_live_prompt_path_cannot_escape_config_dir(tmp_path: Path) -> None:
     config_dir = tmp_path / "config"
     config_dir.mkdir()

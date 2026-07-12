@@ -286,6 +286,8 @@ def command_digest(argv: tuple[str, ...], cwd: Path) -> str:
 
 
 def _process_env(invocation: ExternalScriptInvocation) -> dict[str, str]:
+    # Child environments are allowlist-only; callers that resolve helper
+    # executables by bare name must explicitly allowlist PATH.
     env = {
         name: os.environ[name]
         for name in invocation.environment_allowlist

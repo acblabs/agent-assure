@@ -41,12 +41,14 @@ def usage_summary_lines(summary: UsageSummary | None) -> list[str]:
     if summary.cost_basis_ids:
         lines.append(
             "- cost basis: "
-            + ", ".join(f"`{cost_basis}`" for cost_basis in summary.cost_basis_ids)
+            + ", ".join(f"`{redact_text(cost_basis)}`" for cost_basis in summary.cost_basis_ids)
         )
     if summary.pricing_snapshot_ids:
         lines.append(
             "- pricing snapshots: "
-            + ", ".join(f"`{snapshot_id}`" for snapshot_id in summary.pricing_snapshot_ids)
+            + ", ".join(
+                f"`{redact_text(snapshot_id)}`" for snapshot_id in summary.pricing_snapshot_ids
+            )
         )
     if summary.pricing_snapshot_digests:
         lines.append(

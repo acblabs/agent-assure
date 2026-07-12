@@ -26,7 +26,7 @@ _EXPECTED_CASE_IDS = (
     "same-output-missing-evidence",
     "same-output-provider-boundary",
     "same-output-human-review-bypassed",
-    "same-output-redaction-state-changed",
+    "same-output-evidence-source-changed",
     "same-output-retry-storm",
     "same-output-usage-cost-delta",
     "different-output-no-process-regression",
@@ -257,7 +257,7 @@ def render_measurement_cases_text(summary: dict[str, object]) -> str:
             "  missing evidence link: same-output-missing-evidence",
             "  provider/model changed: same-output-provider-boundary",
             "  human review bypassed: same-output-human-review-bypassed",
-            "  evidence source changed: same-output-redaction-state-changed",
+            "  evidence source changed: same-output-evidence-source-changed",
             f"  suite aggregate retry delta: {usage_delta.get('total_retries_delta')}",
             (
                 "  suite aggregate declared cost delta micro-USD: "
@@ -481,7 +481,7 @@ def _expected_regressions_caught(
             target="human_review_required",
         )
         and "evidence sources"
-        in _case_changed_fields(cases_by_id, "same-output-redaction-state-changed")
+        in _case_changed_fields(cases_by_id, "same-output-evidence-source-changed")
         and "operational counters" in _case_changed_fields(cases_by_id, "same-output-retry-storm")
         and "measured usage" in _case_changed_fields(cases_by_id, "same-output-usage-cost-delta")
         and _case_visible_output(cases_by_id, "different-output-no-process-regression")

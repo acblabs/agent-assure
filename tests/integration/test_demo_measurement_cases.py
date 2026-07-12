@@ -85,7 +85,7 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
         ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT,
         target="human_review_required",
     )
-    assert "evidence sources" in cases["same-output-redaction-state-changed"][
+    assert "evidence sources" in cases["same-output-evidence-source-changed"][
         "changed_process_fields"
     ]
     assert "operational counters" in cases["same-output-retry-storm"][
@@ -129,7 +129,7 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
     assert MEASUREMENT_CASES_NOTICE in rendered_text
     assert "not a benchmark against other tools" in rendered_text
     assert "human review bypassed: same-output-human-review-bypassed" in rendered_text
-    assert "evidence source changed: same-output-redaction-state-changed" in rendered_text
+    assert "evidence source changed: same-output-evidence-source-changed" in rendered_text
     assert "suite aggregate retry delta: 7" in rendered_text
 
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")

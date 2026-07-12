@@ -1,5 +1,0 @@
-{
-  "case_id": "same-output-redaction-state-changed",
-  "scenario": "same visible output but preserved metadata contains sensitive-looking text",
-  "subject_id": "pmc-004"
-}

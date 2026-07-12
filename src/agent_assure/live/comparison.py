@@ -41,6 +41,16 @@ def compare_live_reports(
     _verify_report_binding(baseline, candidate, protocol)
     baseline_group = _group(baseline, protocol.baseline_group_id)
     candidate_group = _group(candidate, protocol.candidate_group_id)
+    incomplete_limitations = _incomplete_comparison_limitations(baseline, candidate)
+    if incomplete_limitations:
+        return _incomplete_comparison_report(
+            baseline,
+            candidate,
+            protocol=protocol,
+            baseline_group=baseline_group,
+            candidate_group=candidate_group,
+            limitations=incomplete_limitations,
+        )
     if protocol.baseline_mode == "fixed_reference":
         difference, lower, upper, compared_clusters = _fixed_reference_difference(
             candidate,
@@ -156,6 +166,82 @@ def _verify_report_binding(
     for label, report in (("baseline", baseline), ("candidate", candidate)):
         if report.protocol_id != protocol.protocol_id or report.protocol_digest != protocol_digest:
             raise ValueError(f"{label} live report protocol binding does not match protocol")
+
+
+def _incomplete_comparison_limitations(
+    baseline: LiveEvaluationReport,
+    candidate: LiveEvaluationReport,
+) -> tuple[str, ...]:
+    limitations: list[str] = []
+    for label, report in (("baseline", baseline), ("candidate", candidate)):
+        if report.completion_status == "incomplete":
+            stop_reasons = ", ".join(report.stop_reasons) or "unknown"
+            limitations.append(
+                f"{label} live report is incomplete with stop reasons: {stop_reasons}; "
+                "live comparison is not evaluated"
+            )
+    return tuple(limitations)
+
+
+def _incomplete_comparison_report(
+    baseline: LiveEvaluationReport,
+    candidate: LiveEvaluationReport,
+    *,
+    protocol: LiveProtocolRecord,
+    baseline_group: LiveGroupSummary,
+    candidate_group: LiveGroupSummary,
+    limitations: tuple[str, ...],
+) -> LiveComparisonReport:
+    margin = Decimal(protocol.non_inferiority_margin)
+    baseline_rate = (
+        _fixed_reference_rate(protocol)
+        if protocol.baseline_mode == "fixed_reference"
+        else baseline_group.expectation_pass_rate
+    )
+    candidate_rate = candidate_group.expectation_pass_rate
+    observed_difference = Decimal(candidate_rate.rate) - Decimal(baseline_rate.rate)
+    report_limitations = (
+        "live comparison intervals are descriptive unless the protocol predeclares the "
+        "comparison as confirmatory",
+        *limitations,
+        "pass-rate difference is an observed incomplete-window delta, not an inferential "
+        "comparison interval",
+    )
+    return LiveComparisonReport(
+        artifact_kind="live-comparison-report",
+        baseline_runset_id=baseline.runset_id,
+        candidate_runset_id=candidate.runset_id,
+        suite_id=baseline.suite_id,
+        suite_version=baseline.suite_version,
+        baseline_group_id=protocol.baseline_group_id,
+        candidate_group_id=protocol.candidate_group_id,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+        baseline_mode=protocol.baseline_mode,
+        analysis_method=protocol.analysis_method,
+        exploratory=True,
+        state=GateState.not_evaluated,
+        confidence_level=candidate.confidence_level,
+        non_inferiority_margin=decimal_string(margin),
+        baseline_pass_rate=baseline_rate,
+        candidate_pass_rate=candidate_rate,
+        pass_rate_difference=signed_unit_decimal_string(observed_difference),
+        difference_ci_lower=signed_unit_decimal_string(observed_difference),
+        difference_ci_upper=signed_unit_decimal_string(observed_difference),
+        compared_clusters=0,
+        effective_n="0.000000",
+        fixed_reference_pass_rate=protocol.fixed_reference_pass_rate,
+        latency_p50_difference_ms=_difference(
+            candidate_group.latency_ms.p50,
+            baseline_group.latency_ms.p50,
+        ),
+        cost_total_difference_usd=_difference(
+            candidate_group.estimated_cost_usd.total,
+            baseline_group.estimated_cost_usd.total,
+        ),
+        randomization_tests=(),
+        limitations=tuple(dict.fromkeys(report_limitations)),
+    )
 
 
 def _paired_cluster_differences(

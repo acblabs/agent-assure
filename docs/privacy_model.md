@@ -48,3 +48,10 @@ sensitive identifiers.
 Current reports surface usage summaries and limitations; any future renderer
 that displays segment labels directly should pass them through the standard
 redaction path.
+
+RunSet persistence and packet/report projection intentionally apply different
+policies to usage provenance IDs. RunSets preserve clean schema-owned usage IDs
+and fail closed if those preserved values look sensitive, because runsets are
+the source evidence. Evidence packets and rendered reports redact
+sensitive-looking `cost_basis_ids` and `pricing_snapshot_ids` values in place,
+because those artifacts are derived review/share surfaces.

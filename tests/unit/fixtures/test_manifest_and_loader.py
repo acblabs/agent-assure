@@ -73,6 +73,37 @@ def test_missing_fixture_subdir_is_rejected_at_manifest_time(tmp_path) -> None: 
         build_fixture_manifest(compiled, tmp_path)
 
 
+def test_case_fixture_requires_complete_triplet(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = _write_minimal_suite(tmp_path, ("fixtures/root-a",))
+    _make_fixture_dirs(tmp_path, "fixtures/root-a")
+    (tmp_path / "fixtures" / "root-a" / "requests" / "case-fixture.json").write_text(
+        json.dumps({"case_id": "case-001", "member_id": "SYN-MEMBER-001"}),
+        encoding="utf-8",
+    )
+    (
+        tmp_path / "fixtures" / "root-a" / "model_outputs" / "case-fixture.json"
+    ).write_text(
+        json.dumps(
+            {
+                "human_review_performed": False,
+                "human_review_required": False,
+                "model": "approved-fixture-model-v1",
+                "outcome": "approve",
+                "provider": "approved-prior-auth-model",
+                "recommendation": "approve",
+            }
+        ),
+        encoding="utf-8",
+    )
+    compiled = compile_suite(suite)
+    with pytest.raises(
+        FileNotFoundError,
+        match="fixture_id 'case-fixture' not found in declared fixture roots; "
+        "incomplete roots: fixtures/root-a",
+    ):
+        build_fixture_manifest(compiled, tmp_path)
+
+
 def test_manifest_hashes_crlf_fixture_bytes(tmp_path) -> None:  # type: ignore[no-untyped-def]
     suite = _write_minimal_suite(tmp_path, ("fixtures/root-a",))
     _write_prior_auth_fixture_triplet(tmp_path, "fixtures/root-a", "case-fixture")

@@ -50,17 +50,17 @@ cases:
         - ref-review-policy
       material_claim_ids:
         - claim-review-required
-  - case_id: same-output-redaction-state-changed
-    title: Same output with residual sensitive metadata
-    fixture_id: same-output-redaction-state-changed
+  - case_id: same-output-evidence-source-changed
+    title: Same output with evidence source identity changed
+    fixture_id: same-output-evidence-source-changed
     tags:
-      - privacy
+      - evidence-provenance
     expectation:
       expected_recommendation: approve
       required_evidence_refs:
-        - ref-redaction-policy
+        - ref-source-integrity-policy
       material_claim_ids:
-        - claim-redaction-state
+        - claim-source-identity
   - case_id: same-output-retry-storm
     title: Same output with retry storm
     fixture_id: same-output-retry-storm

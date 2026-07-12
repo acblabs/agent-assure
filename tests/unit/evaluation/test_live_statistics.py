@@ -91,6 +91,37 @@ def test_live_statistics_aggregate_repeated_observations() -> None:
     assert report.observations[0].policy_bundle_digest == "7" * 64
 
 
+def test_live_statistics_rejects_duplicate_case_repetition_observations() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=2, clusters=1, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol)
+    duplicate = _record(repetition_index=0, linked=False).model_copy(
+        update={
+            "run_id": "run-live-0b",
+            "observation_id": "obs-live-0b",
+            "schedule_index": 1,
+        }
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-duplicate-schedule",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(repetition_index=0, linked=True),
+            duplicate,
+        ),
+    )
+
+    with pytest.raises(ValueError, match="duplicate case/repetition observation"):
+        evaluate_live_runset(compiled, runset, protocol=protocol)
+
+
 def test_live_rate_reports_largest_cluster_sensitivity() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=3, clusters=2, repetitions=3)
@@ -314,6 +345,22 @@ def test_advanced_plan_rejects_reserved_endpoint_hierarchy() -> None:
         LiveProtocolRecord.model_validate(payload)
 
 
+def test_advanced_plan_rejects_unimplemented_endpoint_analysis_methods() -> None:
+    compiled = compile_suite(SUITE)
+    payload = _protocol(
+        compiled,
+        observations=6,
+        clusters=3,
+        repetitions=6,
+    ).model_dump(mode="json")
+    plan = _advanced_plan(primary_minimum_clusters=3)
+    plan["endpoints"][0]["analysis_method"] = "cluster_t_interval"
+    payload["advanced_analysis_plan"] = plan
+
+    with pytest.raises(ValueError, match="not implemented"):
+        LiveProtocolRecord.model_validate(payload)
+
+
 def test_rare_event_poisson_bound_uses_protocol_confidence_not_familywise_alpha() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(
@@ -464,6 +511,69 @@ def test_live_statistics_marks_budget_stop_as_incomplete() -> None:
     assert report.completion_status == "incomplete"
     assert report.stop_reasons == ("budget_exhausted",)
     assert report.budget_exceeded is True
+
+
+def test_live_comparison_marks_incomplete_reports_not_evaluated() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        max_exclusion_rate="0.600000",
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    baseline = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="baseline-live-complete",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="1" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            runs=(
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=True),
+            ),
+        ),
+        protocol=protocol,
+    )
+    candidate = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="candidate-live-incomplete",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="2" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=protocol_digest,
+            completion_status="incomplete",
+            stop_reasons=("budget_exhausted",),
+            runs=(
+                _record(repetition_index=0, linked=True),
+                _record(
+                    repetition_index=1,
+                    linked=True,
+                    exclusion_reason="budget_exhausted",
+                ),
+            ),
+        ),
+        protocol=protocol,
+    )
+
+    comparison = compare_live_reports(baseline, candidate, protocol=protocol)
+
+    assert comparison.state is GateState.not_evaluated
+    assert comparison.exploratory is True
+    assert comparison.compared_clusters == 0
+    assert any("candidate live report is incomplete" in item for item in comparison.limitations)
 
 
 def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None:

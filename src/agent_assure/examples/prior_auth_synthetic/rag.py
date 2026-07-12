@@ -883,9 +883,9 @@ def _evaluate_counterfactual_variant(
         family.required_evidence_refs,
         retrieved_ref_ids,
     )
-    retrieval_drift_exceeded = (
-        10000 - retrieval_jaccard_bps > family.allowed_retrieval_drift_bps
-    )
+    # Basis-point ratios floor fractional values, making drift thresholds
+    # slightly conservative at exact boundaries.
+    retrieval_drift_exceeded = 10000 - retrieval_jaccard_bps > family.allowed_retrieval_drift_bps
     escalated = bool(
         missing_refs
         or missing_sources

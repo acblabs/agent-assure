@@ -17,3 +17,8 @@ for every material claim they intend to satisfy, and point each link to a
 present `evidence_refs[].ref_id` in the same run record.
 `evidence_refs[].claim_ids` alone is display/compatibility context and is not
 an evaluator contract.
+
+For human-review expectations, `required_human_review` means the run must retain
+the declared review route. `human_review_performed` is an observed process fact
+for reporting and live trajectory checks, not a substitute for the route flag
+in deterministic expectation evaluation.

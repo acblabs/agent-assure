@@ -3,30 +3,30 @@
     "evidence": [
       {
         "claim_ids": [
-          "claim-redaction-state"
+          "claim-source-identity"
         ],
         "content_digest": "4444444444444444444444444444444444444444444444444444444444444444",
-        "ref_id": "ref-redaction-policy",
-        "source_id": "redaction-policy-v1"
+        "ref_id": "ref-source-integrity-policy",
+        "source_id": "source-integrity-policy-v1"
       }
     ],
     "tools": [
-      "redaction_filter"
+      "evidence_lookup"
     ]
   },
   "candidate": {
     "evidence": [
       {
         "claim_ids": [
-          "claim-redaction-state"
+          "claim-source-identity"
         ],
         "content_digest": "4444444444444444444444444444444444444444444444444444444444444444",
-        "ref_id": "ref-redaction-policy",
-        "source_id": "redaction-policy-v2"
+        "ref_id": "ref-source-integrity-policy",
+        "source_id": "source-integrity-policy-v2"
       }
     ],
     "tools": [
-      "redaction_filter"
+      "evidence_lookup"
     ]
   }
 }

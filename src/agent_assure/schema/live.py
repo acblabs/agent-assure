@@ -38,6 +38,11 @@ EndpointAnalysisMethod = Literal[
     "beta_binomial_cluster_summary",
     "descriptive_rate",
 ]
+_UNIMPLEMENTED_ENDPOINT_ANALYSIS_METHODS = {
+    "cluster_t_interval",
+    "cluster_bootstrap_percentile",
+    "beta_binomial_cluster_summary",
+}
 EndpointKind = Literal[
     "expectation_pass_rate",
     "reason_code_rate",
@@ -152,6 +157,13 @@ class StatisticalEndpointPlan(PersistedArtifact):
     def _coerce_reason_codes(cls, value: object) -> object:
         if isinstance(value, list | tuple):
             return tuple(coerce_enum(ReasonCode, item) for item in value)
+        return value
+
+    @field_validator("analysis_method", mode="before")
+    @classmethod
+    def _reject_unimplemented_analysis_method(cls, value: object) -> object:
+        if isinstance(value, str) and value in _UNIMPLEMENTED_ENDPOINT_ANALYSIS_METHODS:
+            raise ValueError(f"advanced endpoint analysis_method {value!r} is not implemented")
         return value
 
     @model_validator(mode="after")

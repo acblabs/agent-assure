@@ -459,7 +459,13 @@ def _load_jsonl_responses(path: Path) -> dict[tuple[str, int | None], dict[str, 
         repetition = payload.get("repetition_index")
         if repetition is not None and not isinstance(repetition, int):
             raise ValueError(f"{path}:{line_number}: repetition_index must be an integer")
-        responses[(case_id, repetition)] = payload
+        key = (case_id, repetition)
+        if key in responses:
+            raise ValueError(
+                f"{path}:{line_number}: duplicate static response for "
+                f"case_id={case_id!r}, repetition_index={repetition}"
+            )
+        responses[key] = payload
     return responses
 
 

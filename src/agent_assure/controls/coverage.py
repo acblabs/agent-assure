@@ -93,6 +93,17 @@ class MappingRule(StrictModel):
     def _coerce_coverage_state(cls, value: object) -> ControlCoverageState:
         return coerce_enum(ControlCoverageState, value)
 
+    @model_validator(mode="after")
+    def _validate_contradiction_path(self) -> Self:
+        if (
+            self.coverage_state_when_false
+            is ControlCoverageState.contradictory_evidence_observed
+        ):
+            raise ValueError(
+                "contradictory_evidence_observed must be authored on true mapping paths"
+            )
+        return self
+
 
 class MappingControl(StrictModel):
     id: str = Field(min_length=1)
