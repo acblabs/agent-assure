@@ -17,8 +17,10 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     RAG_RERANKER_REGRESSION_VARIANT_ID,
     CounterfactualFamilyEvaluation,
     _int_sequence,
+    _string_tuple,
     evaluate_counterfactual_families,
     load_counterfactual_query_families,
+    normalize_query,
     retrieval_diff_summary,
     retrieval_output_payload,
     retrieve_for_variant,
@@ -349,6 +351,15 @@ def test_rag_retrieval_rejects_boolean_top_k() -> None:
 def test_rag_vector_integer_sequence_rejects_bool() -> None:
     with pytest.raises(TypeError, match="vectors.demo"):
         _int_sequence((1, True, 3), "vectors.demo")
+
+
+def test_rag_string_tuple_rejects_non_string_members() -> None:
+    with pytest.raises(TypeError, match="retrieval.required_source_ids"):
+        _string_tuple(("policy-source", 1), "retrieval.required_source_ids")
+
+
+def test_rag_query_normalization_returns_nfc() -> None:
+    assert normalize_query("Cafe\u0301   POLICY") == "caf\u00e9 policy"
 
 
 def test_rag_retrieval_rejects_invalid_chunk_date_range(tmp_path: Path) -> None:

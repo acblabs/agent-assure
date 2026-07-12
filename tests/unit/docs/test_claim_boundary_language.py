@@ -57,6 +57,17 @@ def test_claim_boundary_allows_control_report_required_limitation() -> None:
     assert violations == []
 
 
+def test_claim_boundary_allows_mitre_atlas_required_limitation() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "MITRE ATLAS mappings are planning crosswalks only and are not adversary-emulation "
+        "results, ATLAS coverage claims, validation results, endorsements, or "
+        "threat-resistance claims.",
+        path=Path("tests/golden/reports/control-coverage-report.md"),
+    )
+
+    assert violations == []
+
+
 def test_claim_boundary_allows_html_limitation_paragraph() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "<h2>Claim Boundary</h2>\n<p>This report is not a compliance attestation.</p>",
@@ -104,13 +115,21 @@ def test_claim_boundary_rejects_business_savings() -> None:
 
 def test_claim_boundary_rejects_control_report_overclaim_terms() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
-        "Compliance scorecard. ATLAS validation report. Adversary emulation report.",
+        "Compliance scorecard. ATLAS validation report. Adversary emulation report. "
+        "MITRE ATLAS: PASS. ATLAS coverage: 80%. "
+        "This system resists MITRE ATLAS techniques. ATLAS validation confirmed. "
+        "MITRE validation confirmed.",
         path=Path("docs/report.md"),
     )
 
     assert [violation.label for violation in violations] == [
         "compliance scorecard",
-        "ATLAS validation report",
+        "ATLAS pass",
+        "ATLAS coverage",
+        "ATLAS validation",
+        "ATLAS validation",
+        "MITRE validation",
+        "resists MITRE",
         "adversary emulation report",
     ]
 

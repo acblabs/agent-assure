@@ -106,9 +106,17 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     assert inventory["format"] == "agent-assure-dependency-inventory-v0.1"
 
 
-def test_demo_expected_failure_flag_does_not_affect_core_commands(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "env_var",
+    (
+        "AGENT_ASSURE_DEMO_EXPECTED_FAILURE",
+        "AGENT_ASSURE_DEMO_NETWORK_DISABLED",
+    ),
+)
+def test_demo_markers_do_not_affect_core_commands(tmp_path: Path, env_var: str) -> None:
     compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
-    env = {"AGENT_ASSURE_DEMO_EXPECTED_FAILURE": "1"}
+    env = {env_var: "1"}
+    slug = env_var.lower()
 
     evaluate = RUNNER.invoke(
         app,
@@ -118,7 +126,7 @@ def test_demo_expected_failure_flag_does_not_affect_core_commands(tmp_path: Path
             "--suite",
             str(compiled_path),
             "--out-dir",
-            str(tmp_path / "evaluate-report"),
+            str(tmp_path / f"evaluate-report-{slug}"),
         ],
         env=env,
     )
@@ -131,7 +139,7 @@ def test_demo_expected_failure_flag_does_not_affect_core_commands(tmp_path: Path
             "--suite",
             str(compiled_path),
             "--out-dir",
-            str(tmp_path / "compare-report"),
+            str(tmp_path / f"compare-report-{slug}"),
         ],
         env=env,
     )
@@ -145,16 +153,27 @@ def test_demo_expected_failure_flag_does_not_affect_core_commands(tmp_path: Path
             "--baseline",
             str(baseline_path),
             "--out-dir",
-            str(tmp_path / "ci-report-with-demo-env"),
+            str(tmp_path / f"ci-report-with-demo-env-{slug}"),
             "--report-mode",
             "full",
         ],
         env=env,
     )
+    failing_summary = tmp_path / f"failing-summary-{slug}.json"
+    _write_json(
+        failing_summary,
+        EvaluationSummary(
+            artifact_kind="evaluation-summary",
+            runset_id="candidate",
+            state=GateState.fail,
+        ).model_dump(mode="json"),
+    )
+    gate = RUNNER.invoke(app, ["ci", "gate", str(failing_summary)], env=env)
 
     assert evaluate.exit_code == 1, evaluate.output
     assert compare.exit_code == 1, compare.output
     assert ci.exit_code == 1, ci.output
+    assert gate.exit_code == 1, gate.output
 
 
 def test_core_commands_accept_out_dir_outside_cwd(tmp_path: Path) -> None:

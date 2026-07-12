@@ -20,15 +20,20 @@ preserved the process expectations declared for a suite.
 | Same answer, missing evidence link | Often invisible | Observable |
 | Same answer, provider boundary changed | Often invisible | Observable |
 | Same answer, human review bypassed | Often invisible | Observable |
-| Same answer, redaction behavior changed | Often invisible | Observable if declared |
+| Same answer, evidence source identity changed | Often invisible | Observable |
 | Same answer, retry/cost regression | Invisible | Observable if usage present |
 | Different answer quality | Visible | Contextual/secondary |
+
+The bundled process-measurement fixture suite uses evidence-source identity
+drift instead of a redaction-state case; redaction behavior remains observable
+when a suite declares and captures that field.
 
 The distinction matters during release review. A candidate can keep the same
 recommendation and outcome while dropping the evidence link that made the
 decision auditable. Another candidate can keep the answer stable while changing
-from an approved provider boundary to a different provider, bypassing a declared
-human-review route, or increasing retries and declared estimated cost.
+from an approved provider boundary to a different provider, changing evidence
+source identity, bypassing a declared human-review route, or increasing retries
+and declared estimated cost.
 
 Those examples are not competitive benchmark claims. They are deterministic
 fixtures that clarify what the project measures: observable process evidence

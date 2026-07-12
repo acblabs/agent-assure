@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import re
+import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
@@ -642,7 +643,8 @@ def evaluate_counterfactual_family(
 
 
 def normalize_query(query: str) -> str:
-    return _NORMALIZED_QUERY_PATTERN.sub(" ", query.casefold()).strip()
+    folded = unicodedata.normalize("NFC", query.casefold())
+    return _NORMALIZED_QUERY_PATTERN.sub(" ", folded).strip()
 
 
 def _manifest_name_for_mode(mode: RagVariantMode) -> str:
@@ -1238,7 +1240,12 @@ def _validate_iso_date(value: str, label: str) -> None:
 
 
 def _string_tuple(value: object, label: str) -> tuple[str, ...]:
-    return tuple(str(item) for item in _sequence(value, label))
+    result: list[str] = []
+    for item in _sequence(value, label):
+        if not isinstance(item, str) or not item:
+            raise TypeError(f"{label} must contain non-empty strings")
+        result.append(item)
+    return tuple(result)
 
 
 def _optional_string_tuple(value: object) -> tuple[str, ...] | None:

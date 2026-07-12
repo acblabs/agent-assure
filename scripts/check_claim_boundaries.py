@@ -29,11 +29,25 @@ APPROVED_LIMITATION_SENTENCES = (
     "This report is not a compliance attestation.",
     "This project is not a compliance attestation.",
     (
+        "This report maps observed `agent-assure` evidence to selected framework concepts "
+        "for human review."
+    ),
+    (
         "It is not a compliance attestation, certification, audit opinion, legal conclusion, "
         "regulatory conclusion, or safety claim."
     ),
     "This artifact does not certify safety.",
     "It does not certify safety, compliance, clinical validity, or live model quality.",
+    (
+        "MITRE ATLAS mappings are planning crosswalks only and are not adversary-emulation "
+        "results, ATLAS coverage claims, validation results, endorsements, or "
+        "threat-resistance claims."
+    ),
+    (
+        "This MITRE ATLAS mapping is a planning crosswalk only; it is not an "
+        "adversary-emulation result, ATLAS coverage claim, validation result, endorsement, "
+        "or threat-resistance claim."
+    ),
 )
 
 RESTRICTED_PATTERNS = (
@@ -94,16 +108,32 @@ RESTRICTED_PATTERNS = (
         re.compile(r"\bcertification\s+report\b", re.IGNORECASE),
     ),
     RestrictedPattern(
-        "ATLAS coverage report",
-        re.compile(r"\bATLAS\s+coverage\s+report\b", re.IGNORECASE),
+        "ATLAS pass",
+        re.compile(
+            r"\b(?:(?:MITRE\s+)?ATLAS\b[^\n.!?]{0,40}\bPASS(?:ED)?\b|"
+            r"PASS(?:ED)?\b[^\n.!?]{0,40}\b(?:MITRE\s+)?ATLAS\b)",
+            re.IGNORECASE,
+        ),
     ),
     RestrictedPattern(
-        "ATLAS validation report",
-        re.compile(r"\bATLAS\s+validation\s+report\b", re.IGNORECASE),
+        "ATLAS coverage",
+        re.compile(r"\bATLAS\s+coverage\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "ATLAS validation",
+        re.compile(r"\bATLAS\s+validation\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "MITRE validation",
+        re.compile(r"\bMITRE\s+validation\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
+        "resists MITRE",
+        re.compile(r"\bresists?\s+MITRE\b", re.IGNORECASE),
     ),
     RestrictedPattern(
         "adversary emulation report",
-        re.compile(r"\badversary[-\s]+emulation\s+report\b", re.IGNORECASE),
+        re.compile(r"\badversary[-\s]+emulation\s+(?:report|result)s?\b", re.IGNORECASE),
     ),
 )
 
