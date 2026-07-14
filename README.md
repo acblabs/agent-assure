@@ -49,6 +49,7 @@ expected."
 | RAG provenance drift | Evidence links stay intact, but the retrieval corpus digest changes | `provenance_only_change` for review, not a blocking finding |
 | Boundaries and routing | Provider, tool, review route, or redaction state changes unexpectedly | Deterministic invariant findings |
 | Measured usage | Candidate uses more or less measured tokens, tool calls, retries, or declared estimated cost | Usage delta evidence beside, not instead of, governance findings |
+| Streaming agents | Replayed, duplicated, or out-of-order events hide mid-run evidence removal, review bypass, or retry bursts | Idempotent ingestion, jitter-tolerant ordering, and ordinary process findings |
 | CI release gates | A blocking process invariant fails before merge or release | Nonzero exit code plus local evidence packet |
 
 ## The 30-second story
@@ -160,8 +161,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.4.4
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.4.4
+      - run: python -m pip install agent-assure==0.5.0
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.5.0
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -179,6 +180,46 @@ candidate is expected to fail because it keeps the same visible decision while
 dropping a material evidence link.
 
 ## Integrations
+
+### Streaming event ingestion
+
+Status: experimental.
+
+`agent-assure` can ingest privacy-filtered JSONL event streams from asynchronous
+or multi-agent runtimes, then evaluate the projected run with the same
+expectation engine used by fixture, RAG, and framework-adapter flows.
+
+```bash
+agent-assure stream ingest examples/streaming_process_regression/events/candidate_evidence_removed.jsonl \
+  --sequence-scope global \
+  --out .tmp/streaming/stream-run.json
+
+agent-assure stream evaluate .tmp/streaming/stream-run.json \
+  --suite examples/streaming_process_regression/suite.yaml \
+  --out-dir .tmp/streaming/report
+```
+
+Stream ingestion is intentionally explicit about idempotency and arrival jitter:
+
+- **Idempotency:** the sequencing contract declares the composite key. For
+  global streams it is `run_id + sequence_number`; for producer-local streams it
+  is `run_id + producer_id|node_id|span_id + sequence_number`. Duplicate events
+  with the same composite key, `event_id`, and canonical payload digest are
+  deduplicated and counted. Conflicting duplicate `event_id` or digest values
+  fail closed. At-least-once producers should redeliver the same logical event
+  with stable timestamp and privacy-filtered payload fields.
+- **Jitter handling:** accepted events are persisted in deterministic order by
+  run ID, sequence number, timestamp, and digest for globally sequenced streams.
+  Producer-local streams use timestamp to merge independent producer counters,
+  so timestamped events are required for that mode. Out-of-order arrival does
+  not change the projected process trajectory.
+
+The stream projection derives evidence-link state, review-route state,
+retry/rate-limit counters, usage summaries, and ordered span-plan events. It
+does not persist raw prompts, raw tool arguments, raw token chunks, or
+unredacted model output. The bundled retry-burst stream is review evidence by
+default, not a blocking gate failure unless the suite declares a retry-related
+expectation or policy.
 
 ### LangGraph
 

@@ -1,0 +1,1406 @@
+{
+  "$defs": {
+    "ClusterCorrelationSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "cluster-correlation-summary",
+          "default": "cluster-correlation-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "bootstrap_iterations": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Bootstrap Iterations",
+          "type": "integer"
+        },
+        "ci_lower": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ci Lower"
+        },
+        "ci_upper": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Ci Upper"
+        },
+        "cluster_count": {
+          "minimum": 0,
+          "title": "Cluster Count",
+          "type": "integer"
+        },
+        "confirmatory_interval_uses_planned_icc": {
+          "default": true,
+          "title": "Confirmatory Interval Uses Planned Icc",
+          "type": "boolean"
+        },
+        "confirmatory_use": {
+          "default": "disabled",
+          "enum": [
+            "disabled",
+            "eligible_large_cluster_threshold",
+            "eligible_external_review"
+          ],
+          "title": "Confirmatory Use",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "observation_count": {
+          "minimum": 0,
+          "title": "Observation Count",
+          "type": "integer"
+        },
+        "observed_intraclass_correlation": {
+          "anyOf": [
+            {
+              "pattern": "^-?(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Intraclass Correlation"
+        },
+        "planned_intraclass_correlation": {
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Planned Intraclass Correlation",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "uncertainty_method": {
+          "default": "not_evaluated",
+          "enum": [
+            "cluster_bootstrap_percentile",
+            "not_evaluated"
+          ],
+          "title": "Uncertainty Method",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "cluster_count",
+        "observation_count",
+        "planned_intraclass_correlation"
+      ],
+      "title": "ClusterCorrelationSummary",
+      "type": "object"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "finding",
+          "default": "finding",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "control_id": {
+          "default": "",
+          "title": "Control Id",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        },
+        "target": {
+          "default": "",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "case_id",
+        "state",
+        "reason_code",
+        "message"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "LiveDistribution": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "live-distribution",
+          "default": "live-distribution",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "count": {
+          "minimum": 0,
+          "title": "Count",
+          "type": "integer"
+        },
+        "max": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max"
+        },
+        "mean": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Mean"
+        },
+        "metric": {
+          "enum": [
+            "latency_ms",
+            "estimated_cost_usd"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "min": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Min"
+        },
+        "p50": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P50"
+        },
+        "p95": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "P95"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total"
+        }
+      },
+      "required": [
+        "metric",
+        "count"
+      ],
+      "title": "LiveDistribution",
+      "type": "object"
+    },
+    "LiveGroupSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adapter Id"
+        },
+        "artifact_kind": {
+          "const": "live-group-summary",
+          "default": "live-group-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "cluster_count": {
+          "minimum": 0,
+          "title": "Cluster Count",
+          "type": "integer"
+        },
+        "design_effect": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Design Effect",
+          "type": "string"
+        },
+        "effective_n": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Effective N",
+          "type": "string"
+        },
+        "estimated_cost_usd": {
+          "$ref": "#/$defs/LiveDistribution"
+        },
+        "excluded_observations": {
+          "minimum": 0,
+          "title": "Excluded Observations",
+          "type": "integer"
+        },
+        "exclusion_rate": {
+          "$ref": "#/$defs/LiveRate"
+        },
+        "expectation_pass_rate": {
+          "$ref": "#/$defs/LiveRate"
+        },
+        "group_id": {
+          "minLength": 1,
+          "title": "Group Id",
+          "type": "string"
+        },
+        "included_observations": {
+          "minimum": 0,
+          "title": "Included Observations",
+          "type": "integer"
+        },
+        "latency_ms": {
+          "$ref": "#/$defs/LiveDistribution"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "observations": {
+          "minimum": 0,
+          "title": "Observations",
+          "type": "integer"
+        },
+        "outcome_rates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LiveRate"
+          },
+          "title": "Outcome Rates",
+          "type": "array"
+        },
+        "pipeline_id": {
+          "minLength": 1,
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "reason_code_rates": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/LiveRate"
+          },
+          "title": "Reason Code Rates",
+          "type": "array"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "group_id",
+        "pipeline_id",
+        "observations",
+        "included_observations",
+        "excluded_observations",
+        "cluster_count",
+        "effective_n",
+        "design_effect",
+        "exclusion_rate",
+        "expectation_pass_rate",
+        "latency_ms",
+        "estimated_cost_usd"
+      ],
+      "title": "LiveGroupSummary",
+      "type": "object"
+    },
+    "LiveObservationResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Adapter Id"
+        },
+        "artifact_kind": {
+          "const": "live-observation-result",
+          "default": "live-observation-result",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "attempt_count": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Count"
+        },
+        "case_id": {
+          "minLength": 1,
+          "title": "Case Id",
+          "type": "string"
+        },
+        "cluster_id": {
+          "minLength": 1,
+          "title": "Cluster Id",
+          "type": "string"
+        },
+        "completed_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Completed At Utc"
+        },
+        "exclusion_reason": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exclusion Reason"
+        },
+        "findings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Model"
+        },
+        "observation_id": {
+          "minLength": 1,
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "observation_status": {
+          "default": "included",
+          "enum": [
+            "included",
+            "excluded"
+          ],
+          "title": "Observation Status",
+          "type": "string"
+        },
+        "pipeline_id": {
+          "minLength": 1,
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "policy_bundle_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Policy Bundle Digest",
+          "type": "string"
+        },
+        "provider": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider"
+        },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "rate_limit_events": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rate Limit Events"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "repetition_index": {
+          "minimum": 0,
+          "title": "Repetition Index",
+          "type": "integer"
+        },
+        "resolved_model": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Model"
+        },
+        "retry_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry Count"
+        },
+        "run_id": {
+          "minLength": 1,
+          "title": "Run Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_group_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Group Id"
+        },
+        "started_at_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Started At Utc"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        },
+        "tool_schema_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Tool Schema Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "observation_id",
+        "run_id",
+        "case_id",
+        "repetition_index",
+        "pipeline_id",
+        "cluster_id",
+        "tool_schema_digest",
+        "policy_bundle_digest",
+        "state"
+      ],
+      "title": "LiveObservationResult",
+      "type": "object"
+    },
+    "LiveRate": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_method": {
+          "minLength": 1,
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "live-rate",
+          "default": "live-rate",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "assumed_intraclass_correlation": {
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Assumed Intraclass Correlation",
+          "type": "string"
+        },
+        "ci_lower": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Ci Lower",
+          "type": "string"
+        },
+        "ci_upper": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Ci Upper",
+          "type": "string"
+        },
+        "cluster_count": {
+          "minimum": 0,
+          "title": "Cluster Count",
+          "type": "integer"
+        },
+        "cluster_mean_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Cluster Mean Rate",
+          "type": "string"
+        },
+        "confidence_level": {
+          "const": "0.950000",
+          "default": "0.950000",
+          "title": "Confidence Level",
+          "type": "string"
+        },
+        "denominator": {
+          "minimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "design_effect": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Design Effect",
+          "type": "string"
+        },
+        "effective_n": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Effective N",
+          "type": "string"
+        },
+        "exploratory": {
+          "default": false,
+          "title": "Exploratory",
+          "type": "boolean"
+        },
+        "interval_center": {
+          "default": "cluster_mean_rate",
+          "enum": [
+            "cluster_mean_rate",
+            "pooled_rate"
+          ],
+          "title": "Interval Center",
+          "type": "string"
+        },
+        "interval_center_value": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Interval Center Value",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "largest_cluster_design_effect": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Largest Cluster Design Effect",
+          "type": "string"
+        },
+        "largest_cluster_effective_n": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Largest Cluster Effective N",
+          "type": "string"
+        },
+        "largest_cluster_size": {
+          "minimum": 0,
+          "title": "Largest Cluster Size",
+          "type": "integer"
+        },
+        "numerator": {
+          "minimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Rate",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "label",
+        "numerator",
+        "denominator",
+        "cluster_count",
+        "effective_n",
+        "design_effect",
+        "largest_cluster_size",
+        "largest_cluster_design_effect",
+        "largest_cluster_effective_n",
+        "assumed_intraclass_correlation",
+        "analysis_method",
+        "rate",
+        "cluster_mean_rate",
+        "interval_center_value",
+        "ci_lower",
+        "ci_upper"
+      ],
+      "title": "LiveRate",
+      "type": "object"
+    },
+    "RareEventUpperBound": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_method": {
+          "const": "poisson_upper_bound",
+          "default": "poisson_upper_bound",
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "rare-event-upper-bound",
+          "default": "rare-event-upper-bound",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "confidence_level": {
+          "const": "0.950000",
+          "default": "0.950000",
+          "title": "Confidence Level",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "event_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Event Rate",
+          "type": "string"
+        },
+        "exposure": {
+          "minimum": 0,
+          "title": "Exposure",
+          "type": "integer"
+        },
+        "exposure_unit": {
+          "minLength": 1,
+          "title": "Exposure Unit",
+          "type": "string"
+        },
+        "interval_sidedness": {
+          "const": "one_sided_upper",
+          "default": "one_sided_upper",
+          "title": "Interval Sidedness",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "observed_events": {
+          "minimum": 0,
+          "title": "Observed Events",
+          "type": "integer"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "upper_count_bound": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Upper Count Bound",
+          "type": "string"
+        },
+        "upper_rate_bound": {
+          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "title": "Upper Rate Bound",
+          "type": "string"
+        },
+        "zero_events": {
+          "default": false,
+          "title": "Zero Events",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "observed_events",
+        "exposure",
+        "exposure_unit",
+        "event_rate",
+        "upper_count_bound",
+        "upper_rate_bound"
+      ],
+      "title": "RareEventUpperBound",
+      "type": "object"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "StatisticalInvariantResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_alpha": {
+          "pattern": "^0\\.[0-9]{6}$",
+          "title": "Adjusted Alpha",
+          "type": "string"
+        },
+        "analysis_method": {
+          "enum": [
+            "cluster_t_interval",
+            "cluster_bootstrap_percentile",
+            "poisson_upper_bound",
+            "hierarchical_binomial_summary",
+            "beta_binomial_cluster_summary",
+            "descriptive_rate"
+          ],
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "statistical-invariant-result",
+          "default": "statistical-invariant-result",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "cluster_correlation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClusterCorrelationSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "cluster_count": {
+          "minimum": 0,
+          "title": "Cluster Count",
+          "type": "integer"
+        },
+        "denominator": {
+          "minimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "endpoint_kind": {
+          "enum": [
+            "expectation_pass_rate",
+            "reason_code_rate",
+            "critical_event_rate",
+            "exclusion_rate",
+            "outcome_rate"
+          ],
+          "title": "Endpoint Kind",
+          "type": "string"
+        },
+        "interpretation": {
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "multiplicity_method": {
+          "enum": [
+            "none",
+            "single_endpoint",
+            "bonferroni"
+          ],
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "numerator": {
+          "minimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outcome"
+        },
+        "prerequisite_status": {
+          "enum": [
+            "met",
+            "exploratory",
+            "invalid"
+          ],
+          "title": "Prerequisite Status",
+          "type": "string"
+        },
+        "rare_event_bound": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RareEventUpperBound"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Rate",
+          "type": "string"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "role": {
+          "enum": [
+            "primary",
+            "secondary",
+            "diagnostic"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "endpoint_kind",
+        "role",
+        "interpretation",
+        "analysis_method",
+        "prerequisite_status",
+        "multiplicity_method",
+        "adjusted_alpha",
+        "numerator",
+        "denominator",
+        "cluster_count",
+        "rate"
+      ],
+      "title": "StatisticalInvariantResult",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.5.0/live-evaluation-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_method": {
+      "default": "cluster_t_interval",
+      "minLength": 1,
+      "title": "Analysis Method",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "const": "live-evaluation-report",
+      "default": "live-evaluation-report",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_mode": {
+      "anyOf": [
+        {
+          "enum": [
+            "concurrent_paired",
+            "fixed_reference"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Baseline Mode"
+    },
+    "budget_exceeded": {
+      "default": false,
+      "title": "Budget Exceeded",
+      "type": "boolean"
+    },
+    "cluster_by": {
+      "default": "case_id",
+      "enum": [
+        "case_id",
+        "source_group_id"
+      ],
+      "title": "Cluster By",
+      "type": "string"
+    },
+    "completion_status": {
+      "default": "complete",
+      "enum": [
+        "complete",
+        "incomplete"
+      ],
+      "title": "Completion Status",
+      "type": "string"
+    },
+    "confidence_level": {
+      "const": "0.950000",
+      "default": "0.950000",
+      "title": "Confidence Level",
+      "type": "string"
+    },
+    "groups": {
+      "items": {
+        "$ref": "#/$defs/LiveGroupSummary"
+      },
+      "title": "Groups",
+      "type": "array"
+    },
+    "limitations": {
+      "default": [
+        "live evaluation is time-bound to the declared provider, model, adapter, configuration, and execution window",
+        "aggregate rates do not certify safety, compliance, clinical validity, or provider superiority in general",
+        "design-effect and effective-n fields are planning and sensitivity metadata; cluster intervals use the declared empirical cluster-rate method"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "observations": {
+      "items": {
+        "$ref": "#/$defs/LiveObservationResult"
+      },
+      "title": "Observations",
+      "type": "array"
+    },
+    "overall": {
+      "$ref": "#/$defs/LiveGroupSummary"
+    },
+    "planned_clusters": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Planned Clusters"
+    },
+    "planned_observations": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Planned Observations"
+    },
+    "planned_repetitions": {
+      "anyOf": [
+        {
+          "minimum": 1,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Planned Repetitions"
+    },
+    "protocol_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Protocol Digest"
+    },
+    "protocol_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Protocol Id"
+    },
+    "runset_id": {
+      "minLength": 1,
+      "title": "Runset Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "default": "0.5.0",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3",
+        "0.5.0"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "state": {
+      "$ref": "#/$defs/GateState"
+    },
+    "statistical_invariants": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/StatisticalInvariantResult"
+      },
+      "title": "Statistical Invariants",
+      "type": "array"
+    },
+    "stop_reasons": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Stop Reasons",
+      "type": "array"
+    },
+    "suite_id": {
+      "minLength": 1,
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "suite_version": {
+      "minLength": 1,
+      "title": "Suite Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "runset_id",
+    "suite_id",
+    "suite_version",
+    "state",
+    "observations",
+    "overall",
+    "groups"
+  ],
+  "title": "LiveEvaluationReport",
+  "type": "object"
+}

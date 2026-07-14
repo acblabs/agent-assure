@@ -213,6 +213,8 @@ def _packaged_example_assertion() -> str:
         "expense_approval_minimal/variants/baseline.yaml",
         "expense_approval_minimal/variants/candidate_provider_policy.yaml",
         "expense_approval_minimal/fixtures/shared/requests/exp-001.json",
+        "streaming_process_regression/suite.yaml",
+        "streaming_process_regression/events/candidate_retry_burst.jsonl",
     )
     return (
         "from importlib.resources import files; "

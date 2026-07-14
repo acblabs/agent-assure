@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "StreamDuplicateSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "stream-duplicate-summary",
+          "default": "stream-duplicate-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "composite_key": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Composite Key",
+          "type": "array"
+        },
+        "digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "duplicate_count": {
+          "minimum": 1,
+          "title": "Duplicate Count",
+          "type": "integer"
+        },
+        "duplicate_event_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Duplicate Event Ids",
+          "type": "array"
+        },
+        "kept_event_id": {
+          "minLength": 1,
+          "title": "Kept Event Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "composite_key",
+        "kept_event_id",
+        "duplicate_count",
+        "digest"
+      ],
+      "title": "StreamDuplicateSummary",
+      "type": "object"
+    },
+    "StreamSequenceContract": {
+      "additionalProperties": false,
+      "properties": {
+        "producer_field": {
+          "anyOf": [
+            {
+              "enum": [
+                "producer_id",
+                "node_id",
+                "span_id"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Producer Field"
+        },
+        "scope": {
+          "enum": [
+            "global",
+            "producer_local"
+          ],
+          "title": "Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "scope"
+      ],
+      "title": "StreamSequenceContract",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.5.0/stream-ingestion-diagnostics.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "accepted_event_count": {
+      "minimum": 0,
+      "title": "Accepted Event Count",
+      "type": "integer"
+    },
+    "artifact_kind": {
+      "const": "stream-ingestion-diagnostics",
+      "default": "stream-ingestion-diagnostics",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "diagnostics": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Diagnostics",
+      "type": "array"
+    },
+    "duplicate_event_count": {
+      "minimum": 0,
+      "title": "Duplicate Event Count",
+      "type": "integer"
+    },
+    "duplicates": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/StreamDuplicateSummary"
+      },
+      "title": "Duplicates",
+      "type": "array"
+    },
+    "run_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Run Ids",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.5.0",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3",
+        "0.5.0"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence_contract": {
+      "$ref": "#/$defs/StreamSequenceContract"
+    },
+    "source_event_count": {
+      "minimum": 0,
+      "title": "Source Event Count",
+      "type": "integer"
+    },
+    "stream_id": {
+      "minLength": 1,
+      "title": "Stream Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "stream_id",
+    "sequence_contract",
+    "source_event_count",
+    "accepted_event_count",
+    "duplicate_event_count"
+  ],
+  "title": "StreamIngestionDiagnostics",
+  "type": "object"
+}

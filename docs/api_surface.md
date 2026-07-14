@@ -3,10 +3,11 @@
 The current stable public surface is intentionally narrow:
 
 - the `agent-assure` CLI;
-- package release v0.4.4, which uses the v0.4.3 frozen release schema snapshot
-  under `schemas/v0.4.3`, with
+- package release v0.5.0, which uses the v0.5.0 frozen release schema snapshot
+  under `schemas/v0.5.0`, with
   earlier release schema sets retained under `schemas/v0.1.0`,
-  `schemas/v0.2.0`, `schemas/v0.3.0`, and `schemas/v0.3.1`;
+  `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`, and
+  `schemas/v0.4.3`;
 - importable schema models under `agent_assure.schema`;
 - fixture-mode helpers used by the bundled examples.
 - experimental live-adapter configuration and reporting commands under
@@ -15,6 +16,8 @@ The current stable public surface is intentionally narrow:
   live adapters and OpenTelemetry export.
 - experimental framework adapters under `agent_assure.adapters`, currently
   including a LangGraph translator.
+- experimental stream ingestion and stream evaluation commands under
+  `agent-assure stream`.
 - framework evidence mapping through `agent-assure controls map`.
 
 The wheel also includes `agent_assure.examples.*` modules so the offline example

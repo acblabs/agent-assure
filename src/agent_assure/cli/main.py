@@ -16,6 +16,7 @@ from agent_assure.cli import (
     packet_cmd,
     release_cmd,
     schema_cmd,
+    stream_cmd,
     suite_cmd,
     validate_cmd,
 )
@@ -35,6 +36,7 @@ app.add_typer(live_cmd.app, name="live")
 app.add_typer(packet_cmd.app, name="packet")
 app.add_typer(release_cmd.app, name="release")
 app.add_typer(otel_cmd.app, name="otel")
+app.add_typer(stream_cmd.app, name="stream")
 
 
 def _version_callback(value: bool) -> None:

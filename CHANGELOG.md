@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- Added v0.5.0 streaming event ingestion with explicit global or producer-local
+  sequencing contracts, JSONL validation, canonical payload digests,
+  deterministic jitter sorting, duplicate diagnostics, and conflict failures.
+- Added `agent-assure stream ingest` and `agent-assure stream evaluate`, plus
+  stream projection into fixture-mode RunSets, ordered span plans, usage
+  summaries, and the `examples/streaming_process_regression` fixture suite for
+  same-final-output process regressions.
+- Hardened stream handling by requiring timestamped producer-local merge order,
+  revalidating persisted stream-run digests and composite keys during
+  evaluation, failing closed on malformed evidence removals and case-ID
+  conflicts, clearing review state on bypass routes, and mirroring the
+  streaming example into packaged resources.
+- Bumped package and active persisted artifact schema metadata to `0.5.0` and
+  added the frozen `schemas/v0.5.0` snapshot with stream artifact roots.
+
 ## 0.4.4 - 2026-07-12
 
 - Added a non-combative process-assurance vs answer-quality eval positioning

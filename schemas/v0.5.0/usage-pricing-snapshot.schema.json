@@ -1,0 +1,115 @@
+{
+  "$defs": {
+    "UsagePricingModel": {
+      "additionalProperties": false,
+      "properties": {
+        "cached_input_token_microusd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cached Input Token Microusd"
+        },
+        "input_token_microusd": {
+          "minimum": 0,
+          "title": "Input Token Microusd",
+          "type": "integer"
+        },
+        "model": {
+          "minLength": 1,
+          "title": "Model",
+          "type": "string"
+        },
+        "output_token_microusd": {
+          "minimum": 0,
+          "title": "Output Token Microusd",
+          "type": "integer"
+        },
+        "provider": {
+          "minLength": 1,
+          "title": "Provider",
+          "type": "string"
+        },
+        "reasoning_token_microusd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reasoning Token Microusd"
+        }
+      },
+      "required": [
+        "provider",
+        "model",
+        "input_token_microusd",
+        "output_token_microusd"
+      ],
+      "title": "UsagePricingModel",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.5.0/usage-pricing-snapshot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "usage-pricing-snapshot",
+      "default": "usage-pricing-snapshot",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "currency": {
+      "const": "USD",
+      "default": "USD",
+      "pattern": "^[A-Z]{3}$",
+      "title": "Currency",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "models": {
+      "items": {
+        "$ref": "#/$defs/UsagePricingModel"
+      },
+      "minItems": 1,
+      "title": "Models",
+      "type": "array"
+    },
+    "pricing_snapshot_id": {
+      "minLength": 1,
+      "title": "Pricing Snapshot Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.4.3",
+      "default": "0.4.3",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pricing_snapshot_id",
+    "models",
+    "limitations"
+  ],
+  "title": "UsagePricingSnapshot",
+  "type": "object"
+}

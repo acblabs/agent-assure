@@ -1,0 +1,171 @@
+{
+  "$defs": {
+    "SpanAttribute": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "span-attribute",
+          "default": "span-attribute",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "key": {
+          "title": "Key",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "key",
+        "value"
+      ],
+      "title": "SpanAttribute",
+      "type": "object"
+    },
+    "SpanEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "span-event",
+          "default": "span-event",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "attributes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SpanAttribute"
+          },
+          "title": "Attributes",
+          "type": "array"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "default": "0.5.0",
+          "enum": [
+            "0.2.0",
+            "0.3.1",
+            "0.4.3",
+            "0.5.0"
+          ],
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "title": "SpanEvent",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.5.0/span-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "span-plan",
+      "default": "span-plan",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "attributes": {
+      "items": {
+        "$ref": "#/$defs/SpanAttribute"
+      },
+      "title": "Attributes",
+      "type": "array"
+    },
+    "events": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SpanEvent"
+      },
+      "title": "Events",
+      "type": "array"
+    },
+    "schema_version": {
+      "default": "0.5.0",
+      "enum": [
+        "0.2.0",
+        "0.3.1",
+        "0.4.3",
+        "0.5.0"
+      ],
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "semconv_checksum": {
+      "title": "Semconv Checksum",
+      "type": "string"
+    },
+    "semconv_commit": {
+      "title": "Semconv Commit",
+      "type": "string"
+    },
+    "span_name": {
+      "title": "Span Name",
+      "type": "string"
+    },
+    "traceparent": {
+      "anyOf": [
+        {
+          "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Traceparent"
+    },
+    "tracestate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tracestate"
+    }
+  },
+  "required": [
+    "span_name",
+    "attributes",
+    "semconv_commit",
+    "semconv_checksum"
+  ],
+  "title": "SpanPlan",
+  "type": "object"
+}

@@ -78,6 +78,22 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
         "agent_assure/examples/process_measurement_cases/fixtures/shared/tool_outputs/"
         "same-output-missing-evidence.json"
     ),
+    "agent_assure/examples/streaming_process_regression/",
+    "agent_assure/examples/streaming_process_regression/README.md",
+    "agent_assure/examples/streaming_process_regression/suite.yaml",
+    "agent_assure/examples/streaming_process_regression/events/baseline.jsonl",
+    (
+        "agent_assure/examples/streaming_process_regression/events/"
+        "candidate_evidence_removed.jsonl"
+    ),
+    (
+        "agent_assure/examples/streaming_process_regression/events/"
+        "candidate_review_bypassed.jsonl"
+    ),
+    (
+        "agent_assure/examples/streaming_process_regression/events/"
+        "candidate_retry_burst.jsonl"
+    ),
     "agent_assure/schema_resources/__init__.py",
     "agent_assure/mappings/nist_ai_rmf.yaml",
     "agent_assure/mappings/owasp_llm_top_10_2025.yaml",

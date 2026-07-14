@@ -45,6 +45,11 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
         "agent_assure/examples/process_measurement_cases/fixtures/shared/model_outputs/"
         "same-output-provider-boundary.json"
     ) in required
+    assert "agent_assure/examples/streaming_process_regression/suite.yaml" in required
+    assert (
+        "agent_assure/examples/streaming_process_regression/events/"
+        "candidate_review_bypassed.jsonl"
+    ) in required
 
 
 def test_frozen_schema_versions_are_discovered_from_schema_root(tmp_path: Path) -> None:

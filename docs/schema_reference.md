@@ -1,10 +1,12 @@
 # Schema Reference
 
-Schema version: `0.4.3`.
+Schema version: `0.5.0`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. The current
-models emit `schema_version: 0.4.3` and continue to accept legacy
-`schema_version: 0.2.0` and `schema_version: 0.3.1` artifacts for replay.
+models emit `schema_version: 0.5.0` and continue to accept legacy
+`schema_version: 0.2.0`, `schema_version: 0.3.1`, and
+`schema_version: 0.4.3` artifacts for replay. Usage roots still emit their
+own v0.4.3 usage schema label because sprint 13 reuses that shape.
 
 Exported roots:
 
@@ -30,6 +32,9 @@ Exported roots:
 - `release-digest-replay`
 - `run-set`
 - `span-plan`
+- `stream-event-record`
+- `stream-ingestion-diagnostics`
+- `stream-run`
 - `usage-ledger`
 - `usage-pricing-snapshot`
 - `usage-segment`
@@ -167,10 +172,43 @@ Live-specific root artifacts:
   raw prompts, raw provider outputs, raw stdout, raw stderr, or script
   arguments.
 
+Streaming root artifacts:
+
+- `stream-event-record` records one privacy-filtered streaming event with a
+  run ID, event ID, sequence number, optional case and producer dimensions,
+  optional framework observation, optional usage segment, optional span context,
+  privacy-filtered attributes, and a canonical payload digest. It does not
+  persist raw prompts, raw token chunks, raw tool arguments, or unredacted model
+  output.
+  The stream payload digest is computed by `agent-assure stream ingest`;
+  producers may omit it. When a producer declares `digest`, ingestion verifies
+  it against this projection:
+  remove `digest`, `event_id`, `artifact_kind`, and `schema_version` fields at
+  any object depth; remove object fields whose value is JSON null; remove object
+  fields whose projected value is an empty object or empty list; remove
+  `currency: "USD"` fields because that is the usage schema default; recurse
+  through nested objects and arrays; then hash the canonical JSON projection
+  with SHA-256. Arrays preserve their non-null projected elements. Producers
+  that rely on idempotent redelivery should keep timestamps and
+  privacy-filtered payload fields stable for the same logical event.
+- `stream-ingestion-diagnostics` records the declared sequencing contract,
+  source event count, accepted event count, duplicate count, run IDs, duplicate
+  summaries, and ingestion diagnostics. Duplicate summaries are emitted only
+  when a duplicate composite key has the same event ID and digest.
+- `stream-run` records a deterministic ordered stream event set after
+  validation and deduplication. Its sequencing contract is either global
+  run-level sequence numbers or producer-local sequence numbers using a
+  declared producer field. It carries aggregate usage evidence and is projected
+  by `agent-assure stream evaluate` into normal fixture-mode RunSets and
+  ordered span plans.
+
 `SpanPlan` may include W3C trace context so optional OpenTelemetry SDK export
 can link emitted spans to the live runtime context. Span plans remain derived
 from structured fields and do not duplicate an `otel_attributes` dictionary on
-run records.
+run records. In v0.5.0, stream span plans are flat per-run plans: stream events
+carry `agent_assure.stream.span_id` and
+`agent_assure.stream.parent_span_id` as event attributes when present, but the
+schema does not yet model a hierarchy of child `SpanPlan` records.
 
 `LiveRate.rate` is the pooled observation rate. `LiveRate.cluster_mean_rate` is
 the unweighted mean across declared clusters. When the interval center is

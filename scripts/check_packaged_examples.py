@@ -14,6 +14,7 @@ EXAMPLE_RESOURCE_SETS = (
     "expense_approval_minimal",
     "langgraph_expense_assurance",
     "process_measurement_cases",
+    "streaming_process_regression",
 )
 
 MIRRORED_RESOURCE_PATHS = (
@@ -21,6 +22,7 @@ MIRRORED_RESOURCE_PATHS = (
     Path("suite.yaml"),
     Path("rag_suite.yaml"),
     Path("fixtures"),
+    Path("events"),
     Path("variants"),
 )
 

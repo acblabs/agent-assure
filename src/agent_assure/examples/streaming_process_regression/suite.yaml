@@ -1,0 +1,45 @@
+suite_id: streaming-process-regression
+suite_version: 0.5.0
+defaults:
+  execution_mode: fixture
+  runner_id: stream-jsonl
+  allowed_tools:
+    - evidence_lookup
+    - review_router
+    - retry_controller
+cases:
+  - case_id: stream-evidence
+    title: Evidence link must remain present before final answer
+    tags:
+      - streaming
+      - evidence-linking
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-stream-policy
+      material_claim_ids:
+        - claim-stream-policy
+  - case_id: stream-review
+    title: Review route must be retained before approval
+    tags:
+      - streaming
+      - human-review
+    expectation:
+      expected_recommendation: approve
+      required_human_review: true
+      required_evidence_refs:
+        - ref-review-policy
+      material_claim_ids:
+        - claim-review-policy
+  - case_id: stream-retry
+    title: Retry burst remains observable with the same final answer
+    tags:
+      - streaming
+      - retry
+      - measured-usage
+    expectation:
+      expected_recommendation: approve
+      required_evidence_refs:
+        - ref-retry-policy
+      material_claim_ids:
+        - claim-retry-policy

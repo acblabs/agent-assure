@@ -64,9 +64,11 @@ def _write_example_pair(tmp_path: Path, *, content: str) -> tuple[Path, Path]:
             "expense_approval_minimal",
             "langgraph_expense_assurance",
             "process_measurement_cases",
+            "streaming_process_regression",
         ):
             example_root = root / example
             (example_root / "fixtures" / "shared" / "requests").mkdir(parents=True)
+            (example_root / "events").mkdir(parents=True)
             (example_root / "variants").mkdir(parents=True)
             (example_root / "README.md").write_text("# Example\n", encoding="utf-8")
             (example_root / "suite.yaml").write_text(
@@ -78,6 +80,10 @@ def _write_example_pair(tmp_path: Path, *, content: str) -> tuple[Path, Path]:
                 encoding="utf-8",
             )
             (example_root / "fixtures" / "shared" / "requests" / "case.json").write_text(
+                f"{content}\n",
+                encoding="utf-8",
+            )
+            (example_root / "events" / "baseline.jsonl").write_text(
                 f"{content}\n",
                 encoding="utf-8",
             )

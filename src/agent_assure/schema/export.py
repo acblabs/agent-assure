@@ -25,6 +25,11 @@ from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.runtime import EmergencyProcessRecord
+from agent_assure.schema.stream import (
+    StreamEventRecord,
+    StreamIngestionDiagnostics,
+    StreamRunRecord,
+)
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
 from agent_assure.schema.usage import (
@@ -60,6 +65,9 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "release-digest-replay": ReleaseDigestReplay,
     "run-set": RunSet,
     "span-plan": SpanPlan,
+    "stream-event-record": StreamEventRecord,
+    "stream-ingestion-diagnostics": StreamIngestionDiagnostics,
+    "stream-run": StreamRunRecord,
     "usage-ledger": UsageLedger,
     "usage-pricing-snapshot": UsagePricingSnapshot,
     "usage-segment": UsageSegment,

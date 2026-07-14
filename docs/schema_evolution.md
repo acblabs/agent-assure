@@ -1,8 +1,8 @@
 # Schema Evolution
 
-Active released schema snapshot: `schemas/v0.4.3/`.
+Active released schema snapshot: `schemas/v0.5.0/`.
 
-Persisted artifact `schema_version`: `0.4.3`.
+Persisted artifact `schema_version`: `0.5.0`.
 
 Development schema changes for the next schema release are exported to
 `schemas/unreleased/`. Stable package releases that change the persisted
@@ -15,14 +15,15 @@ Use these directories as the release lifecycle:
 - `schemas/v0.3.0/` contains the stable exported schema snapshot for v0.3.0.
 - `schemas/v0.3.1/` contains the active release schema snapshot for v0.3.1
   and the package-only v0.4.0 through v0.4.2 releases.
-- `schemas/v0.4.3/` contains the active release schema snapshot for v0.4.3
+- `schemas/v0.4.3/` contains the release schema snapshot for v0.4.3
   and the package-only v0.4.4 release.
+- `schemas/v0.5.0/` contains the active release schema snapshot for v0.5.0.
 - `schemas/unreleased/` is the development export target for the next release.
 
 Automation has two separate checks:
 
 - frozen schema parity exports the current release schema surface to
-  `schemas/v0.4.3/` and fails if those committed files drift;
+  `schemas/v0.5.0/` and fails if those committed files drift;
 - schema packaging consistency discovers frozen `schemas/v*` directories and
   fails if `pyproject.toml` does not force-include the same directories under
   `agent_assure/schema_resources/`;
@@ -74,8 +75,8 @@ while the persisted artifact schema namespace remains `0.2.0`.
 
 For the current package line, the CLI keeps replay and validation support for the
 release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
-`schemas/v0.3.0/`, while active development and release checks target
-`schemas/v0.4.3/`.
+`schemas/v0.3.0/`, `schemas/v0.3.1/`, and `schemas/v0.4.3/`, while active
+development and release checks target `schemas/v0.5.0/`.
 
 Future minor releases should keep at least the two previous minor release
 schema snapshots available for local replay unless release notes explicitly
@@ -186,6 +187,17 @@ snapshot and continues to emit `schema_version: 0.4.3`. Its release surface is
 process-assurance positioning, bundled deterministic measurement cases,
 evidence-diff rendering for operational counters and measured usage, and
 control-map behavior hardening.
+
+The v0.5.0 schema release adds streaming event roots:
+`stream-event-record`, `stream-ingestion-diagnostics`, and `stream-run`.
+New persisted artifacts emit `schema_version: 0.5.0`, while usage roots keep
+their v0.4.3 usage schema label. Stream ingestion records an explicit global or
+producer-local sequence contract, validates and deduplicates JSONL events by
+their declared composite key, carries canonical payload digests for conflict
+checks, aggregates usage segments, and projects privacy-filtered stream
+trajectories into fixture-mode RunSets and ordered span plans. Stream artifacts
+do not persist raw prompts, raw token chunks, raw tool arguments, or unredacted
+model output.
 
 ## Usage Schema Foundation
 

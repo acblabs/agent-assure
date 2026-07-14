@@ -20,6 +20,8 @@ Current commands:
 - `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure live drift LIVE_EVALUATION_REPORT_JSON... --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure live trajectory LIVE_RUNSET_JSON --report LIVE_EVALUATION_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
+- `agent-assure stream ingest EVENTS_JSONL --sequence-scope global|producer_local --out STREAM_RUN_JSON [--producer-field producer_id|node_id|span_id] [--diagnostics-out PATH]`
+- `agent-assure stream evaluate STREAM_RUN_JSON --suite SUITE_YAML_OR_COMPILED_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
@@ -227,6 +229,47 @@ history-dependent checks cover non-Markov conditions such as required review
 before approval or complete claim-evidence history across retries.
 Burst-window event-process screens are reliability review signals and do not
 claim a fitted Hawkes or other point-process intensity model.
+
+`stream ingest` consumes privacy-filtered JSONL stream events and writes a
+`stream-run` artifact plus `stream-ingestion-diagnostics.json`. The sequencing
+contract must be declared before ingestion. `global` means
+`run_id + sequence_number` is the unique composite key. `producer_local` means
+the key is `run_id + declared producer field + sequence_number`, and every
+event must carry that producer field. Producer-local sequence numbers are not
+globally comparable; each producer-local event must therefore include a
+timestamp, and accepted events are merged by timestamp before producer-local
+sequence tie-breaks. Duplicates with the same composite key, same `event_id`,
+and same canonical payload digest are deduplicated with a diagnostic count.
+Conflicting duplicate `event_id` or digest values fail closed. At-least-once
+producers must redeliver the same logical event with stable timestamp and
+privacy-filtered payload fields when they expect idempotent deduplication.
+Output events are sorted deterministically by run ID, sequence number,
+timestamp, and digest for global streams, and by run ID, timestamp, producer,
+sequence number, and digest for producer-local streams, so out-of-order arrival
+jitter does not change the persisted trajectory.
+The per-event `digest` field is optional for producers. When present, it must
+match the ingestion projection: recursively remove `digest`, `event_id`,
+`artifact_kind`, and `schema_version`; omit null object fields, empty projected
+object/list fields, and default `currency: "USD"` fields; then SHA-256 hash the
+canonical JSON projection.
+
+`stream evaluate` projects a `stream-run` into a normal fixture-mode `run-set`,
+writes `stream-runset.json` and `stream-span-plans.json`, then runs the
+ordinary expectation evaluator. It revalidates persisted stream order,
+composite-key uniqueness, event digests, and the stream ID before projection so
+hand-edited `stream-run` artifacts cannot bypass the ingest contract. The
+projection derives active evidence links, human-review route state, retry and
+rate-limit counters, usage summaries, and ordered span-plan events from the
+stream artifact without persisting raw prompts, raw tool arguments, raw token
+chunks, or unredacted model output. A candidate can therefore keep the same
+final recommendation and outcome while failing on a removed evidence link,
+bypassed review route, or other observable process regression. Retry bursts and
+usage changes are surfaced as measured review evidence by default; they become
+blocking only when the suite or selected policy declares a blocking expectation.
+In v0.5.0, stream span plans are flat per-run span plans. Source `span_id` and
+`parent_span_id` values are preserved as event attributes for OpenTelemetry
+consumers, but the persisted `span-plan` schema does not yet model nested child
+span records.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable
