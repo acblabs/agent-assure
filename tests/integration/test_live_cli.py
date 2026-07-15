@@ -219,6 +219,16 @@ def _response(*, repetition_index: int, linked: bool) -> dict[str, object]:
                 "claim_id": "claim-receipt-present",
             }
         ],
+        "policy_results": [
+            {
+                "artifact_kind": "policy-result",
+                "policy_id": "provider-selection",
+                "state": "pass",
+                "reason_codes": [],
+                "severity": "info",
+                "message": "provider policy evaluated",
+            }
+        ],
     }
     if linked:
         record["claim_evidence_links"] = [
