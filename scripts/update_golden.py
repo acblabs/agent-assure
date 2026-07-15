@@ -25,6 +25,7 @@ from agent_assure.schema.run import (  # noqa: E402
     AgentRunRecord,
     ClaimEvidenceLink,
     ClaimRecord,
+    EvidenceItem,
     EvidenceRef,
     RunSet,
 )
@@ -219,6 +220,14 @@ def _run(
         output_summary="redacted fixture output",
         claims=(ClaimRecord(claim_id="claim-duration"),),
         evidence_refs=evidence_refs,
+        evidence_items=tuple(
+            EvidenceItem(
+                ref_id=ref.ref_id,
+                source_id=ref.source_id,
+                content_digest=_DIGEST,
+            )
+            for ref in evidence_refs
+        ),
         claim_evidence_links=claim_evidence_links,
         tools=("benefit-policy-lookup",),
     )

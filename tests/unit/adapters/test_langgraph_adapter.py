@@ -45,6 +45,7 @@ def test_langgraph_adapter_ignores_raw_event_payloads_and_attaches_usage() -> No
             recommendation="approve",
             outcome="approved_with_review",
             evidence_claim_map={"ref-expense-policy-v3": ("claim-policy-evidence",)},
+            evidence_content_digest_map={"ref-expense-policy-v3": "a" * 64},
             human_review_required=True,
             human_review_performed=True,
         ),
@@ -362,6 +363,8 @@ def test_build_run_record_accepts_sequence_zero() -> None:
                     "privacy_filtered_attributes": {
                         "recommendation": "approve",
                         "outcome": "approved_with_review",
+                        "human_review_required": "true",
+                        "human_review_performed": "true",
                     },
                 }
             ),
@@ -453,6 +456,8 @@ def _events() -> tuple[dict[str, object], ...]:
                     "privacy_filtered_attributes": {
                         "recommendation": "approve",
                         "outcome": "approved_with_review",
+                        "human_review_required": "true",
+                        "human_review_performed": "true",
                     },
                     "usage_segment": {
                         "segment_id": "usage-case-001",

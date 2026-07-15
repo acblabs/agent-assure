@@ -39,14 +39,14 @@ not treat static projection values as measured framework output by default.
 When producers emit `human_review_required` or `human_review_performed`,
 values must be the compact strings `"true"` or `"false"`; malformed present
 values fail closed rather than falling back to projection defaults. Observed
-review flags override the projection helper's static defaults. Callers that
-measure a human-review boundary can set `require_observed_human_review=True`
-to fail closed when either review flag is absent. Without that option,
-projection review booleans remain fallback declarations rather than measured
-trajectory evidence. Route labels such as `review_route` remain observable
-evidence, but built-in deterministic evaluation gates the required
-human-review flag rather than route-string equality unless a downstream policy
-adds that invariant.
+review flags override the projection helper's static defaults. When a
+projection declares `human_review_required=True`, the projection helper fails
+closed unless both review flags were observed; callers can pass
+`require_observed_human_review=False` only for explicitly declarative fixture
+records. Route labels such as `review_route` remain observable evidence, but
+built-in deterministic evaluation gates the required human-review and
+performed-review flags rather than route-string equality unless a downstream
+policy adds that invariant.
 Protocol-bound live mode remains the responsibility of the live runner because
 live records require repetition, schedule, cluster, budget, and protocol
 metadata.
@@ -63,8 +63,8 @@ An adapter should:
 - attach measured usage as `UsageSegment` values when usage is observed;
 - keep usage labels compact and scrubbed rather than storing prompt or
   completion text in usage metadata;
-- map evidence references to explicit `claim_evidence_links` before producing
-  an `AgentRunRecord`;
+- map evidence references to explicit `claim_evidence_links` and
+  content-digested `evidence_items` before producing an `AgentRunRecord`;
 - emit the observed final `recommendation` and `outcome` as compact
   privacy-filtered attributes on a decision observation;
 - emit observed `human_review_required` and `human_review_performed` compact

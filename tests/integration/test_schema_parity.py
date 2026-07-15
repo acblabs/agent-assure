@@ -30,6 +30,46 @@ def test_valid_artifacts_match_pydantic_and_jsonschema(tmp_path) -> None:  # typ
     assert validate_artifact(path, "compiled-suite") == "pydantic+jsonschema"
 
 
+def test_validate_artifact_accepts_v010_frozen_schema(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    payload = {
+        "artifact_kind": "compiled-suite",
+        "schema_version": "0.1.0",
+        "suite_id": "legacy-suite",
+        "suite_version": "0.1.0",
+        "defaults": {
+            "artifact_kind": "suite-defaults",
+            "schema_version": "0.1.0",
+            "execution_mode": "fixture",
+            "runner_id": "legacy",
+            "fixture_roots": ["fixtures/shared"],
+            "required_policy_ids": [],
+            "allowed_tools": [],
+        },
+        "cases": [
+            {
+                "artifact_kind": "suite-case",
+                "schema_version": "0.1.0",
+                "case_id": "case-1",
+                "title": "Legacy case",
+                "expectation_id": "expect-1",
+            }
+        ],
+        "resolved_expectations": [
+            {
+                "artifact_kind": "expectation",
+                "schema_version": "0.1.0",
+                "expectation_id": "expect-1",
+                "case_id": "case-1",
+            }
+        ],
+        "source_digest": "0" * 64,
+    }
+    path = tmp_path / "legacy-compiled.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    assert validate_artifact(path, "compiled-suite") == "frozen-jsonschema"
+
+
 def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
     payload = UsageSegment(
         segment_id="seg-schema-parity",
@@ -59,7 +99,7 @@ def test_usage_segment_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "usage-segment.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "usage-segment") == "pydantic+jsonschema"
+    assert validate_artifact(path, "usage-segment") == "frozen-jsonschema"
 
 
 def test_usage_pricing_snapshot_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -81,7 +121,7 @@ def test_usage_pricing_snapshot_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "usage-pricing-snapshot.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "usage-pricing-snapshot") == "pydantic+jsonschema"
+    assert validate_artifact(path, "usage-pricing-snapshot") == "frozen-jsonschema"
 
 
 def test_usage_pricing_snapshot_jsonschema_rejects_non_usd_currency() -> None:
@@ -377,7 +417,7 @@ def test_live_protocol_artifact_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "live-protocol.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "live-protocol-record") == "pydantic+jsonschema"
+    assert validate_artifact(path, "live-protocol-record") == "frozen-jsonschema"
 
 
 def test_live_drift_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -509,7 +549,7 @@ def test_live_drift_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  #
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "live-drift.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "live-drift-report") == "pydantic+jsonschema"
+    assert validate_artifact(path, "live-drift-report") == "frozen-jsonschema"
 
 
 def test_live_trajectory_report_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -622,7 +662,7 @@ def test_live_trajectory_report_matches_pydantic_and_jsonschema(tmp_path) -> Non
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "live-trajectory.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "live-trajectory-report") == "pydantic+jsonschema"
+    assert validate_artifact(path, "live-trajectory-report") == "frozen-jsonschema"
 
 
 def test_emergency_process_record_matches_pydantic_and_jsonschema(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -656,7 +696,7 @@ def test_emergency_process_record_matches_pydantic_and_jsonschema(tmp_path) -> N
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     path = tmp_path / "emergency.json"
     path.write_text(json.dumps(payload), encoding="utf-8")
-    assert validate_artifact(path, "emergency-process-record") == "pydantic+jsonschema"
+    assert validate_artifact(path, "emergency-process-record") == "frozen-jsonschema"
 
 
 def test_invalid_artifact_rejected_by_both_validators() -> None:

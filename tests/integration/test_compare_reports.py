@@ -2,12 +2,14 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 from typer.testing import CliRunner
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.main import app
 from agent_assure.fixtures.loader import write_compiled_suite
+from agent_assure.reporting.markdown import _behavioral_change_heading
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification
@@ -86,6 +88,19 @@ def test_compare_cli_writes_candidate_first_reports_for_regression(tmp_path: Pat
     )
     assert "Behavioral record changes:" in markdown
     assert "Allowed behavioral record changes:" not in markdown
+
+
+def test_allowed_behavioral_change_heading_uses_nonblocking_language() -> None:
+    report = SimpleNamespace(
+        comparison_summary=SimpleNamespace(
+            classification=ComparisonClassification.allowed_behavioral_change
+        )
+    )
+
+    assert (
+        _behavioral_change_heading(report)
+        == "Behavioral record changes (non-blocking under current gates)"
+    )
 
 
 def test_compare_cli_exits_two_for_invalid_fixture_equivalence(tmp_path: Path) -> None:

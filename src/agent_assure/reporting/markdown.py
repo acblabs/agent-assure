@@ -230,7 +230,7 @@ def _behavioral_change_heading(report: ComparisonReport) -> str:
         report.comparison_summary.classification
         is ComparisonClassification.allowed_behavioral_change
     ):
-        return "Allowed behavioral record changes"
+        return "Behavioral record changes (non-blocking under current gates)"
     return "Behavioral record changes"
 
 

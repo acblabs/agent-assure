@@ -285,7 +285,11 @@ def test_stream_projection_uses_timestamp_merge_order_for_producer_local_state(
                     event_type="evidence_link_added",
                     producer_id="retriever",
                     timestamp="2026-07-14T00:00:02Z",
-                    attrs={"evidence_ref_id": "ref-stream", "claim_id": "claim-stream"},
+                    attrs={
+                        "evidence_ref_id": "ref-stream",
+                        "claim_id": "claim-stream",
+                        "content_digest": "a" * 64,
+                    },
                 ),
                 _event(
                     "coordinator-start",
@@ -339,7 +343,11 @@ def test_stream_projection_catches_select_then_bypass_review_regression(
                     "evt-2",
                     sequence_number=2,
                     event_type="evidence_link_added",
-                    attrs={"evidence_ref_id": "ref-stream", "claim_id": "claim-stream"},
+                    attrs={
+                        "evidence_ref_id": "ref-stream",
+                        "claim_id": "claim-stream",
+                        "content_digest": "a" * 64,
+                    },
                 ),
                 _event(
                     "evt-3",
@@ -663,7 +671,11 @@ def _baseline_events() -> list[dict[str, object]]:
             "evt-2",
             sequence_number=2,
             event_type="evidence_link_added",
-            attrs={"evidence_ref_id": "ref-stream", "claim_id": "claim-stream"},
+            attrs={
+                "evidence_ref_id": "ref-stream",
+                "claim_id": "claim-stream",
+                "content_digest": "a" * 64,
+            },
         ),
         _event(
             "evt-3",

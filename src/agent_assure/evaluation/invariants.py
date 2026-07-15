@@ -23,12 +23,34 @@ def evaluate_runset_controls(
     runset: RunSet,
     *,
     allowed_tools: tuple[str, ...] = (),
+    required_policy_ids: tuple[str, ...] = (),
 ) -> tuple[ControlResult, ...]:
     runs_by_case, coverage_results = _runs_by_case(runset, resolver.case_ids)
-    results = list(coverage_results)
+    results = list(_runset_status_results(runset))
+    results.extend(coverage_results)
+    results.extend(
+        _evaluate_required_policy_results(
+            runs_by_case,
+            resolver.case_ids,
+            required_policy_ids,
+        )
+    )
     for case_expectation in resolver.cases():
         run = runs_by_case.get(case_expectation.case.case_id)
         if run is None:
+            continue
+        if run.observation_status == "excluded":
+            results.append(
+                ControlResult(
+                    control_id="valid_record_required",
+                    case_id=run.case_id,
+                    state=GateState.fail,
+                    reason_code=ReasonCode.VALID_RECORD_MISSING,
+                    severity=Severity.blocker,
+                    target="observation_status",
+                    message="ordinary evaluation cannot treat an excluded observation as evaluated",
+                )
+            )
             continue
         results.extend(evaluate_case(case_expectation, run, allowed_tools=allowed_tools))
     return tuple(results)
@@ -65,11 +87,13 @@ def evaluate_case(
 
 
 def _evaluate_persisted_policy_results(run: AgentRunRecord) -> tuple[ControlResult, ...]:
-    if run.execution_mode is not ExecutionMode.live:
-        return ()
     results: list[ControlResult] = []
     for policy_result in run.policy_results:
         if policy_result.state is GateState.pass_:
+            continue
+        if _is_fixture_remediation_signal(run, policy_result):
+            continue
+        if run.execution_mode is not ExecutionMode.live and policy_result.state is GateState.warn:
             continue
         results.append(
             ControlResult(
@@ -87,6 +111,91 @@ def _evaluate_persisted_policy_results(run: AgentRunRecord) -> tuple[ControlResu
             )
         )
     return tuple(results)
+
+
+def _evaluate_required_policy_results(
+    runs_by_case: dict[str, AgentRunRecord],
+    expected_case_ids: tuple[str, ...],
+    required_policy_ids: tuple[str, ...],
+) -> tuple[ControlResult, ...]:
+    results: list[ControlResult] = []
+    if not required_policy_ids:
+        return ()
+
+    for case_id in expected_case_ids:
+        run = runs_by_case.get(case_id)
+        if run is None or run.observation_status == "excluded":
+            continue
+        for policy_id in required_policy_ids:
+            observed = tuple(
+                policy_result
+                for policy_result in run.policy_results
+                if policy_result.policy_id == policy_id
+            )
+            if not observed:
+                results.append(
+                    ControlResult(
+                        control_id="required_policy_evaluated",
+                        case_id=case_id,
+                        state=GateState.fail,
+                        reason_code=ReasonCode.POLICY_FAILED,
+                        severity=Severity.error,
+                        target=policy_id,
+                        message=(
+                            f"required policy {policy_id!r} was not evaluated "
+                            f"for case {case_id!r}"
+                        ),
+                    )
+                )
+                continue
+            for policy_result in observed:
+                if policy_result.state is GateState.pass_:
+                    continue
+                if _is_fixture_remediation_signal(run, policy_result):
+                    continue
+                results.append(
+                    ControlResult(
+                        control_id=f"required_policy:{policy_id}",
+                        case_id=run.case_id,
+                        state=policy_result.state,
+                        reason_code=_policy_reason_code(policy_result),
+                        severity=_policy_severity(policy_result),
+                        target=policy_id,
+                        message=policy_result.message
+                        or f"required policy {policy_id!r} was {policy_result.state.value}",
+                    )
+                )
+    return tuple(results)
+
+
+def _is_fixture_remediation_signal(
+    run: AgentRunRecord,
+    policy_result: PolicyResult,
+) -> bool:
+    return (
+        run.execution_mode is not ExecutionMode.live
+        and ReasonCode.FORBIDDEN_PROVIDER in policy_result.reason_codes
+    )
+
+
+def _runset_status_results(runset: RunSet) -> tuple[ControlResult, ...]:
+    if runset.completion_status == "complete":
+        return ()
+    stop_reasons = ", ".join(runset.stop_reasons) or "unknown"
+    return (
+        ControlResult(
+            control_id="runset_completion_required",
+            case_id="*",
+            state=GateState.fail,
+            reason_code=ReasonCode.RUNTIME_FAILED,
+            severity=Severity.blocker,
+            target="completion_status",
+            message=(
+                "ordinary evaluation requires a complete run set; "
+                f"stop reasons: {stop_reasons}"
+            ),
+        ),
+    )
 
 
 def _policy_reason_code(policy_result: PolicyResult) -> ReasonCode:

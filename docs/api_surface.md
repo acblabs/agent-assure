@@ -35,4 +35,4 @@ External producers of `AgentRunRecord` artifacts should also treat
 `agent-run-record-producer-contract/v1` as part of the integration surface. The
 contract is documented in `docs/schema_evolution.md` and
 `docs/expectation_authoring.md`; it requires explicit material
-claim-evidence links that point to present evidence references.
+claim-evidence links that point to present evidence items.

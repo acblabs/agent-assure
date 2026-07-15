@@ -11,7 +11,14 @@ from agent_assure.schema.common import ComparisonClassification, GateState, Reas
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket
-from agent_assure.schema.run import AgentRunRecord, ClaimRecord, EvidenceRef, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    ClaimEvidenceLink,
+    ClaimRecord,
+    EvidenceItem,
+    EvidenceRef,
+    RunSet,
+)
 
 RUNNER = CliRunner()
 _DIGEST = "b" * 64
@@ -174,6 +181,20 @@ def _run(case_id: str, *, evidence_refs: tuple[EvidenceRef, ...]) -> AgentRunRec
         output_summary="redacted fixture output",
         claims=(ClaimRecord(claim_id="claim-duration"),),
         evidence_refs=evidence_refs,
+        evidence_items=tuple(
+            EvidenceItem(ref_id=ref.ref_id, source_id=ref.source_id, content_digest=_DIGEST)
+            for ref in evidence_refs
+        ),
+        claim_evidence_links=(
+            (
+                ClaimEvidenceLink(
+                    claim_id="claim-duration",
+                    evidence_ref_id="evidence-duration",
+                ),
+            )
+            if any(ref.ref_id == "evidence-duration" for ref in evidence_refs)
+            else ()
+        ),
     )
 
 

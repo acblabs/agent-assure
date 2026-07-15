@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -48,24 +49,25 @@ def test_run_release_commands_returns_unexpected_exit_and_keeps_log(tmp_path: Pa
 
 
 def test_release_commands_reject_external_suite(tmp_path: Path) -> None:
-    external_suite = tmp_path / "external.yaml"
-    external_suite.write_text("suite_id: external\n", encoding="utf-8")
+    with tempfile.TemporaryDirectory() as external_root:
+        external_suite = Path(external_root) / "external.yaml"
+        external_suite.write_text("suite_id: external\n", encoding="utf-8")
 
-    try:
-        release_commands(
-            tmp_path / "release",
-            suite=str(external_suite),
-            baseline_variant="examples/prior_auth_synthetic/variants/baseline.yaml",
-            candidate_variant=(
-                "examples/prior_auth_synthetic/variants/"
-                "candidate_evidence_normalization.yaml"
-            ),
-            artifact_prefix="prior-auth",
-        )
-    except ValueError as exc:
-        assert "suite must stay under the repository root" in str(exc)
-    else:
-        raise AssertionError("expected external suite to fail")
+        try:
+            release_commands(
+                tmp_path / "release",
+                suite=str(external_suite),
+                baseline_variant="examples/prior_auth_synthetic/variants/baseline.yaml",
+                candidate_variant=(
+                    "examples/prior_auth_synthetic/variants/"
+                    "candidate_evidence_normalization.yaml"
+                ),
+                artifact_prefix="prior-auth",
+            )
+        except ValueError as exc:
+            assert "suite must stay under the repository root" in str(exc)
+        else:
+            raise AssertionError("expected external suite to fail")
 
 
 def test_release_commands_pin_ci_evaluation_date(tmp_path: Path) -> None:

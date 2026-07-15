@@ -147,7 +147,7 @@ class LangGraphAdapter:
         case_id: str,
         fixture_manifest_digest: DigestHex,
         configuration_digest: DigestHex | None = None,
-        require_observed_human_review: bool = False,
+        require_observed_human_review: bool | None = None,
     ) -> AgentRunRecord:
         observations = self.observations_from_events(events, run_id=run_id, case_id=case_id)
         return build_run_record_from_observations(

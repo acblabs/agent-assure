@@ -43,10 +43,12 @@ makes unsupported capabilities blocking.
 Evaluation metrics distinguish case-level results from global gate failures.
 `evaluated_cases` counts suite cases with exactly one run record.
 `unevaluated_cases` counts missing or duplicate case records. `failed_cases`
-counts blocking findings only among evaluated cases, so `passed_cases`,
-`failed_cases`, and `unevaluated_cases` partition `total_cases`. Global
-failures, such as expired waivers or blocked `not_evaluated` capabilities, are
-reported separately as `global_blocking_findings`.
+counts suite cases with blocking findings, including coverage failures for
+missing, duplicate, or excluded records. `passed_cases` counts only evaluated
+cases without blocking findings. Global failures, such as expired waivers,
+incomplete ordinary run sets, missing required policy-result coverage, or
+blocked `not_evaluated` capabilities, are reported separately as
+`global_blocking_findings`.
 
 Waivers bind to a run-set digest, reason code, and exact `finding_id`; expired
 waivers fail closed.
@@ -315,7 +317,10 @@ Exit-code mapping:
 - `1`: evaluation, policy, invariant, or configured gate failed.
 - `2`: invalid user input, schema validation failure, invalid comparison, or
   fixture-equivalence failure.
-- `3`: tooling, IO, unexpected runtime, or internal error.
+
+Tooling, IO, unexpected runtime, and internal errors are emitted by the command
+that encounters them; current commands do not reserve a distinct stable exit
+code for that class.
 
 Default roll-up precedence for comparison exits is `invalid_comparison`, then
 `fail`, then `warn`, then `not_evaluated`, then `pass`.

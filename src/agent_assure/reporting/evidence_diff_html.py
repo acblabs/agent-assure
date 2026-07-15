@@ -2742,9 +2742,9 @@ def _missing_evidence_link_diffs(
 
 def _linked_claim_evidence(run: AgentRunRecord) -> dict[str, tuple[str, ...]]:
     links: dict[str, set[str]] = {}
-    present_refs = {ref.ref_id for ref in run.evidence_refs}
+    present_items = {item.ref_id for item in run.evidence_items}
     for link in run.claim_evidence_links:
-        if link.evidence_ref_id in present_refs:
+        if link.evidence_ref_id in present_items:
             links.setdefault(link.claim_id, set()).add(link.evidence_ref_id)
     return {claim_id: tuple(sorted(refs)) for claim_id, refs in sorted(links.items())}
 

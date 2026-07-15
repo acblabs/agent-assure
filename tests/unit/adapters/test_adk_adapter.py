@@ -125,7 +125,7 @@ def test_adk_observed_review_flags_fail_closed_on_malformed_tokens(
         )
 
 
-def test_build_run_record_requires_observed_review_flags_when_requested() -> None:
+def test_build_run_record_requires_review_flags_for_required_review() -> None:
     adapter = GoogleADKAdapter(framework_version="2.4.0")
     observations = adapter.observations_from_events(
         (
@@ -152,7 +152,6 @@ def test_build_run_record_requires_observed_review_flags_when_requested() -> Non
             run_id="run-adk-001",
             case_id="case-001",
             fixture_manifest_digest="1" * 64,
-            require_observed_human_review=True,
         )
 
 
@@ -518,6 +517,7 @@ def _projection(
         recommendation="approve",
         outcome="approved_with_review",
         evidence_claim_map={"ref-benefit-policy-v9": ("claim-benefit-evidence",)},
+        evidence_content_digest_map={"ref-benefit-policy-v9": "a" * 64},
         human_review_required=human_review_required,
         human_review_performed=human_review_performed,
     )

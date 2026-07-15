@@ -49,6 +49,26 @@ FAIL_CLOSED_RUNSET_KEYS = frozenset(
         "local_debug_reference",
     }
 )
+FAIL_CLOSED_STREAM_KEYS = FAIL_CLOSED_RUNSET_KEYS | frozenset(
+    {
+        "stream_id",
+        "event_id",
+        "producer_id",
+        "node_id",
+        "event_type",
+        "span_id",
+        "parent_span_id",
+        "traceparent",
+        "producer_field",
+        "scope",
+        "run_ids",
+        "case_ids",
+        "composite_key",
+        "kept_event_id",
+        "duplicate_event_ids",
+        "diagnostics",
+    }
+)
 
 
 def redact_text(value: str) -> str:
@@ -73,6 +93,14 @@ def assert_runset_payload_safe_for_persistence(payload: Mapping[str, Any]) -> No
         if key in FAIL_CLOSED_RUNSET_KEYS and _contains_sensitive_value(value):
             raise ValueError(
                 f"runset preserved field contains sensitive-looking content: {path}"
+            )
+
+
+def assert_stream_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
+    for path, key, value in _iter_string_fields(payload):
+        if key in FAIL_CLOSED_STREAM_KEYS and _contains_sensitive_value(value):
+            raise ValueError(
+                f"stream preserved field contains sensitive-looking content: {path}"
             )
 
 

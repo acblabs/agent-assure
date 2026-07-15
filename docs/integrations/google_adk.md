@@ -89,10 +89,10 @@ closed instead of falling back to projection defaults. Without that option,
 projection review booleans are fallback declarations, not trajectory evidence.
 From there, the normal agent-assure evaluator checks expected outcomes,
 required evidence, material claim links, provider/tool boundaries, the required
-human-review flag, and redaction controls. The `review_route` token remains
-observable evidence, but the built-in deterministic review control does not
-perform route-string equality unless a downstream policy adds that check. There
-is no ADK-specific evaluator.
+human-review and performed-review flags, and redaction controls. The
+`review_route` token remains observable evidence, but the built-in
+deterministic review control does not perform route-string equality unless a
+downstream policy adds that check. There is no ADK-specific evaluator.
 
 The current projection helper emits fixture-mode review artifacts only. Do not
 use it to label stochastic production traffic as live evidence; protocol-bound
@@ -104,8 +104,8 @@ The repository includes `examples/adk_process_assurance`. The baseline keeps
 the final decision, policy evidence, delegation route, human-review route, and
 provider/tool boundary. The candidate keeps the same final decision and
 evidence but switches to an automatic path and reports
-`human_review_required="false"`, so the ordinary human-review and
-provider-boundary controls fail.
+`human_review_required="false"` and `human_review_performed="false"`, so the
+ordinary human-review and provider-boundary controls fail.
 
 ```bash
 python examples/adk_process_assurance/run_example.py

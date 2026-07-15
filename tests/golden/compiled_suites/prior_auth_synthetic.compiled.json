@@ -129,7 +129,6 @@
       "fixtures/shared"
     ],
     "required_policy_ids": [
-      "evidence-linking",
       "provider-selection"
     ],
     "runner_id": "prior_auth.synthetic",
@@ -350,7 +349,7 @@
     }
   ],
   "schema_version": "0.5.0",
-  "source_digest": "e5b726d327f61235c3b160dd7aea965bfb01d66145ae084089a975424801a8cd",
+  "source_digest": "2c614cd02c5c8a5d3ce3c7ce8cdd4e1d6d8fbe6f2d955644b8b74ede302962c4",
   "suite_id": "prior-auth-synthetic",
   "suite_version": "0.1.0"
 }

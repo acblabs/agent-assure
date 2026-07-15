@@ -389,11 +389,11 @@ def _claim_evidence_violations(
             continue
         linked_claims = {link.claim_id for link in run.claim_evidence_links}
         claim_ids = {claim.claim_id for claim in run.claims}
-        evidence_ref_ids = {ref.ref_id for ref in run.evidence_refs}
+        evidence_item_ids = {item.ref_id for item in run.evidence_items}
         if claim_ids - linked_claims:
             affected.append(observation.observation_id)
             continue
-        if any(link.evidence_ref_id not in evidence_ref_ids for link in run.claim_evidence_links):
+        if any(link.evidence_ref_id not in evidence_item_ids for link in run.claim_evidence_links):
             affected.append(observation.observation_id)
     return tuple(affected)
 
@@ -770,4 +770,3 @@ def _burst_signal(
     if max_burst >= threshold:
         return "review"
     return "none"
-

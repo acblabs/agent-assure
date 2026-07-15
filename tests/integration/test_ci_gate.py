@@ -26,6 +26,7 @@ EVIDENCE_CANDIDATE = Path(
 
 def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
     passing = tmp_path / "pass.json"
+    warning = tmp_path / "warn.json"
     failing = tmp_path / "fail.json"
     _write_json(
         passing,
@@ -33,6 +34,14 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
             artifact_kind="evaluation-summary",
             runset_id="baseline",
             state=GateState.pass_,
+        ).model_dump(mode="json"),
+    )
+    _write_json(
+        warning,
+        EvaluationSummary(
+            artifact_kind="evaluation-summary",
+            runset_id="candidate",
+            state=GateState.warn,
         ).model_dump(mode="json"),
     )
     _write_json(
@@ -45,6 +54,11 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
     )
 
     assert RUNNER.invoke(app, ["ci", "gate", str(passing)]).exit_code == 0
+    assert RUNNER.invoke(app, ["ci", "gate", str(warning)]).exit_code == 0
+    assert (
+        RUNNER.invoke(app, ["ci", "gate", str(warning), "--fail-on-warn"]).exit_code
+        == 1
+    )
     assert RUNNER.invoke(app, ["ci", "gate", str(failing)]).exit_code == 1
 
 

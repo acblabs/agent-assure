@@ -7,7 +7,7 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `MATERIAL_CLAIM_MISSING_EVIDENCE`: a fixture-declared material claim has no structured evidence link.
 - `REQUIRED_SOURCE_MISSING`: an expected evidence reference is absent.
 - `POLICY_FAILED`: a gate, policy, or waiver control failed outside a case-specific invariant.
-- `REQUIRED_HUMAN_REVIEW_ABSENT`: the result did not route to human review when the expectation required it.
+- `REQUIRED_HUMAN_REVIEW_ABSENT`: the result did not route to human review, or did not record performed review, when the expectation required it.
 - `REVIEW_BOUNDARY_FAILED`: an expectation-declared review boundary was not preserved.
 - `FORBIDDEN_PROVIDER`: a provider expectation or runtime provider policy identified
   a forbidden provider without the required review boundary.

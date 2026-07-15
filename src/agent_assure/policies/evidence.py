@@ -30,11 +30,11 @@ def evaluate_material_claim_evidence(
     run: AgentRunRecord,
     expectation: Expectation,
 ) -> tuple[ControlResult, ...]:
-    existing_refs = _observed_evidence_refs(run)
+    existing_items = _observed_evidence_items(run)
     linked_claims = {
         link.claim_id
         for link in run.claim_evidence_links
-        if link.evidence_ref_id in existing_refs
+        if link.evidence_ref_id in existing_items
     }
     return tuple(
         ControlResult(
@@ -44,7 +44,10 @@ def evaluate_material_claim_evidence(
             reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
             severity=Severity.error,
             target=f"claim:{claim_id}",
-            message=f"fixture-declared material claim {claim_id!r} has no evidence link",
+            message=(
+                f"fixture-declared material claim {claim_id!r} has no "
+                "content-addressed evidence item link"
+            ),
         )
         for claim_id in expectation.material_claim_ids
         if claim_id not in linked_claims
@@ -53,3 +56,7 @@ def evaluate_material_claim_evidence(
 
 def _observed_evidence_refs(run: AgentRunRecord) -> set[str]:
     return {ref.ref_id for ref in run.evidence_refs}
+
+
+def _observed_evidence_items(run: AgentRunRecord) -> set[str]:
+    return {item.ref_id for item in run.evidence_items}

@@ -139,6 +139,7 @@ def evaluate_runset(
         resolver,
         runset,
         allowed_tools=suite.defaults.allowed_tools,
+        required_policy_ids=suite.defaults.required_policy_ids,
     )
     adjusted_results = apply_waivers(
         raw_results,
@@ -220,11 +221,12 @@ def _metrics(
     case_ids = {case.case_id for case in suite.cases}
     run_counts = Counter(run.case_id for run in runset.runs)
     evaluated_cases = {case_id for case_id in case_ids if run_counts[case_id] == 1}
-    failed_cases = {
+    blocked_case_ids = {
         result.case_id
         for result in results
-        if result.case_id in evaluated_cases and gate_profile.is_blocking(result)
+        if result.case_id in case_ids and gate_profile.is_blocking(result)
     }
+    failed_evaluated_cases = blocked_case_ids & evaluated_cases
     global_blocking_findings = sum(
         1
         for result in results
@@ -236,8 +238,8 @@ def _metrics(
         total_cases=len(case_ids),
         evaluated_cases=len(evaluated_cases),
         unevaluated_cases=len(case_ids - evaluated_cases),
-        passed_cases=len(evaluated_cases - failed_cases),
-        failed_cases=len(failed_cases),
+        passed_cases=len(evaluated_cases - failed_evaluated_cases),
+        failed_cases=len(blocked_case_ids),
         warning_findings=sum(1 for result in results if result.state is GateState.warn),
         blocking_findings=sum(1 for result in results if gate_profile.is_blocking(result)),
         global_blocking_findings=global_blocking_findings,

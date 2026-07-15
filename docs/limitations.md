@@ -14,10 +14,9 @@ evidence links, provider/tool boundaries, redaction, escalation, human review,
 runtime failures, fixture equivalence, provenance diffing, and CI/report gates.
 
 `required_human_review` checks that a run preserved the declared route to human
-review. The `human_review_performed` field is observational metadata unless a
-live trajectory invariant or downstream policy explicitly gates on performed
-review; setting it alone does not satisfy or fail the deterministic review-route
-control.
+review and observed performed review. Setting `human_review_performed=true`
+alone does not satisfy the deterministic control; the route flag must also be
+present.
 
 This scope does not establish safety assurance, prove regulatory compliance,
 validate clinical workflows, assess provider quality, or provide production

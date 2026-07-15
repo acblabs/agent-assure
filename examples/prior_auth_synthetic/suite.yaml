@@ -6,7 +6,6 @@ defaults:
   fixture_roots:
     - fixtures/shared
   required_policy_ids:
-    - evidence-linking
     - provider-selection
   allowed_tools:
     - ambiguity_check

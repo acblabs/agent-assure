@@ -45,5 +45,5 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install --upgrade pip
       - run: python -m pip install --require-hashes -r requirements.lock
-      - run: python -m pip install --no-build-isolation ".[adk]"
+      - run: python -m pip install --no-deps --no-build-isolation ".[adk]"
       - run: pytest -q -p no:cacheprovider --basetemp .tmp/pytest tests/unit/adapters/test_adk_adapter.py::test_adk_adapter_reads_real_google_adk_event_when_available

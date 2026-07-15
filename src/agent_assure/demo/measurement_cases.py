@@ -561,7 +561,14 @@ def _visible_output(run: AgentRunRecord) -> tuple[str, str]:
 
 
 def _linked_claims(run: AgentRunRecord) -> tuple[tuple[str, str], ...]:
-    return tuple(sorted((link.claim_id, link.evidence_ref_id) for link in run.claim_evidence_links))
+    evidence_items = {item.ref_id for item in run.evidence_items}
+    return tuple(
+        sorted(
+            (link.claim_id, link.evidence_ref_id)
+            for link in run.claim_evidence_links
+            if link.evidence_ref_id in evidence_items
+        )
+    )
 
 
 def _evidence_sources(run: AgentRunRecord) -> tuple[str, ...]:

@@ -14,6 +14,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
     ClaimRecord,
+    EvidenceItem,
     EvidenceRef,
     RunSet,
 )
@@ -38,6 +39,7 @@ class _RunProjection:
     model: str | None = None
     tools: list[str] = field(default_factory=list)
     evidence_sources: dict[str, str] = field(default_factory=dict)
+    evidence_content_digests: dict[str, str] = field(default_factory=dict)
     active_evidence_refs: set[str] = field(default_factory=set)
     active_links: dict[str, set[str]] = field(default_factory=dict)
     observed_claims: set[str] = field(default_factory=set)
@@ -126,6 +128,16 @@ def _run_record_from_events(
         )
         for ref_id in sorted(projection.active_evidence_refs)
     )
+    evidence_items = tuple(
+        EvidenceItem(
+            artifact_kind="evidence-item",
+            ref_id=ref_id,
+            source_id=projection.evidence_sources.get(ref_id, ref_id),
+            content_digest=content_digest,
+        )
+        for ref_id in sorted(projection.active_evidence_refs)
+        if (content_digest := projection.evidence_content_digests.get(ref_id)) is not None
+    )
     links = tuple(
         ClaimEvidenceLink(
             artifact_kind="claim-evidence-link",
@@ -169,6 +181,7 @@ def _run_record_from_events(
         rate_limit_events=projection.rate_limit_events,
         tools=tuple(dict.fromkeys(projection.tools)),
         evidence_refs=evidence_refs,
+        evidence_items=evidence_items,
         claims=tuple(
             ClaimRecord(artifact_kind="claim-record", claim_id=claim_id)
             for claim_id in claim_ids
@@ -264,6 +277,7 @@ def _update_evidence(
     ref_ids = _evidence_ref_ids(event, attrs)
     claim_ids = _claim_ids(attrs)
     source_id = attrs.get("source_id")
+    content_digest = attrs.get("content_digest") or attrs.get("evidence_content_digest")
     if event.event_type == "evidence_link_removed":
         if not ref_ids:
             raise ValueError("evidence_link_removed requires evidence_ref_id or evidence_ref_ids")
@@ -279,6 +293,8 @@ def _update_evidence(
             projection.evidence_sources[ref_id] = source_id
         else:
             projection.evidence_sources.setdefault(ref_id, ref_id)
+        if content_digest is not None:
+            projection.evidence_content_digests[ref_id] = content_digest
         if claim_ids:
             projection.active_links.setdefault(ref_id, set()).update(claim_ids)
             projection.observed_claims.update(claim_ids)
@@ -300,11 +316,13 @@ def _remove_evidence_links(
         if not claim_ids:
             del projection.active_links[ref_id]
             projection.active_evidence_refs.discard(ref_id)
+            projection.evidence_content_digests.pop(ref_id, None)
             continue
         projection.active_links[ref_id].difference_update(claim_ids)
         if not projection.active_links[ref_id]:
             del projection.active_links[ref_id]
             projection.active_evidence_refs.discard(ref_id)
+            projection.evidence_content_digests.pop(ref_id, None)
 
 
 def _update_review(

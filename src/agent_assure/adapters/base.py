@@ -7,6 +7,7 @@ from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import DigestHex, ExecutionMode
 from agent_assure.schema.provenance import Provenance
@@ -14,6 +15,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
     ClaimRecord,
+    EvidenceItem,
     EvidenceRef,
 )
 from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary
@@ -122,6 +124,7 @@ class FrameworkRunProjection(StrictModel):
     tools: tuple[str, ...] = ()
     evidence_claim_map: dict[str, tuple[str, ...]] = Field(default_factory=dict)
     evidence_source_map: dict[str, str] = Field(default_factory=dict)
+    evidence_content_digest_map: dict[str, DigestHex] = Field(default_factory=dict)
     human_review_required: bool = False
     human_review_performed: bool = False
     adapter_id: str | None = None
@@ -140,6 +143,13 @@ class FrameworkRunProjection(StrictModel):
             str(ref_id): _coerce_string_tuple(claim_ids)
             for ref_id, claim_ids in value.items()
         }
+
+    @field_validator("evidence_source_map", "evidence_content_digest_map", mode="before")
+    @classmethod
+    def _coerce_evidence_string_map(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        return {str(ref_id): str(item) for ref_id, item in value.items()}
 
 
 @runtime_checkable
@@ -167,7 +177,7 @@ def build_run_record_from_observations(
     fixture_manifest_digest: DigestHex,
     configuration_digest: DigestHex | None = None,
     require_observed_final_decision: bool = True,
-    require_observed_human_review: bool = False,
+    require_observed_human_review: bool | None = None,
 ) -> AgentRunRecord:
     ordered = tuple(sorted(observations, key=lambda observation: observation.sequence_number))
     if not ordered:
@@ -206,7 +216,12 @@ def build_run_record_from_observations(
             "framework observations must include observed recommendation and outcome "
             "privacy_filtered_attributes"
         )
-    if require_observed_human_review and (
+    require_review_observation = (
+        projection.human_review_required
+        if require_observed_human_review is None
+        else require_observed_human_review
+    )
+    if require_review_observation and (
         observed_human_review_required is None or observed_human_review_performed is None
     ):
         raise ValueError(
@@ -237,6 +252,7 @@ def build_run_record_from_observations(
         model=model,
         tools=tool_names,
         evidence_refs=_evidence_refs(evidence_ref_ids, projection),
+        evidence_items=_evidence_items(evidence_ref_ids, projection),
         claims=_claim_records(projection.evidence_claim_map),
         claim_evidence_links=_claim_evidence_links(evidence_ref_ids, projection),
         human_review_required=(
@@ -291,20 +307,22 @@ def validate_no_raw_payload_keys(payload: Mapping[str, object], *, owner: str) -
 def validate_privacy_filtered_mapping(payload: Mapping[str, str], *, owner: str) -> None:
     validate_no_raw_payload_keys(payload, owner=owner)
     for key, value in payload.items():
-        if _looks_like_raw_payload_value(value):
+        if _looks_like_raw_payload_value(value) or contains_sensitive_value(value):
             raise ValueError(
                 f"{owner} value for {key!r} must be a compact filtered token, "
-                "label, or digest"
+                "label, digest, or other non-sensitive value"
             )
 
 
 def validate_privacy_filtered_usage_segment(segment: UsageSegment) -> None:
     for field_name in _USAGE_SEGMENT_COMPACT_STRING_FIELDS:
         value = getattr(segment, field_name)
-        if value is not None and _looks_like_raw_payload_value(value):
+        if value is not None and (
+            _looks_like_raw_payload_value(value) or contains_sensitive_value(value)
+        ):
             raise ValueError(
                 f"usage_segment.{field_name} must be a compact filtered token, "
-                "label, or digest"
+                "label, digest, or other non-sensitive value"
             )
 
 
@@ -313,10 +331,12 @@ def validate_privacy_filtered_observation_labels(
 ) -> None:
     for field_name in _OBSERVATION_COMPACT_STRING_FIELDS:
         value = getattr(observation, field_name)
-        if value is not None and _looks_like_raw_payload_value(value):
+        if value is not None and (
+            _looks_like_raw_payload_value(value) or contains_sensitive_value(value)
+        ):
             raise ValueError(
                 f"observation.{field_name} must be a compact filtered token, "
-                "label, or digest"
+                "label, digest, or other non-sensitive value"
             )
 
 
@@ -403,6 +423,22 @@ def _evidence_refs(
             claim_ids=projection.evidence_claim_map.get(ref_id, ()),
         )
         for ref_id in evidence_ref_ids
+    )
+
+
+def _evidence_items(
+    evidence_ref_ids: tuple[str, ...],
+    projection: FrameworkRunProjection,
+) -> tuple[EvidenceItem, ...]:
+    return tuple(
+        EvidenceItem(
+            artifact_kind="evidence-item",
+            ref_id=ref_id,
+            source_id=projection.evidence_source_map.get(ref_id, ref_id),
+            content_digest=content_digest,
+        )
+        for ref_id in evidence_ref_ids
+        if (content_digest := projection.evidence_content_digest_map.get(ref_id)) is not None
     )
 
 

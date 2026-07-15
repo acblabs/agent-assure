@@ -368,6 +368,11 @@ def _projection() -> FrameworkRunProjection:
         model=MODEL,
         evidence_claim_map={EVIDENCE_REF: (CLAIM_ID,)},
         evidence_source_map={EVIDENCE_REF: SOURCE_ID},
+        evidence_content_digest_map={
+            EVIDENCE_REF: sha256_hexdigest(
+                {"claim_id": CLAIM_ID, "ref_id": EVIDENCE_REF, "source_id": SOURCE_ID}
+            )
+        },
         human_review_required=True,
         human_review_performed=True,
         adapter_id=GoogleADKAdapter.adapter_id,

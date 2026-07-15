@@ -124,7 +124,8 @@ def test_flagship_showcase_sequence_matches_public_demo(tmp_path: Path) -> None:
     assert finding["state"] == GateState.fail.value
     assert (
         finding["message"]
-        == "fixture-declared material claim 'claim-duration' has no evidence link"
+        == "fixture-declared material claim 'claim-duration' has no content-addressed "
+        "evidence item link"
     )
     assert comparison_summary["classification"] == ComparisonClassification.new_failure.value
     assert comparison_summary["fixture_equivalence_state"] == GateState.pass_.value

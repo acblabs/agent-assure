@@ -104,7 +104,7 @@ Current contract ID: `agent-run-record-producer-contract/v1`.
 
 External producers of `AgentRunRecord` artifacts must populate
 `claim_evidence_links` for every material claim they intend to satisfy. Each
-link must point to a present `evidence_refs[].ref_id` in the same run record.
+link must point to a present `evidence_items[].ref_id` in the same run record.
 `evidence_refs[].claim_ids` is display and compatibility context only; it does
 not satisfy `material_claims_have_evidence`.
 

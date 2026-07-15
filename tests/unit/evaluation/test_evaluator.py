@@ -5,7 +5,7 @@ from pathlib import Path
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset, runset_digest
-from agent_assure.policies.base import ControlResult, GateProfile, Waiver
+from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
 from agent_assure.policies.evidence import evaluate_material_claim_evidence
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
@@ -94,6 +94,39 @@ def test_provider_policy_missing_provider_metadata_fails_closed() -> None:
     assert findings[0].target == "provider"
 
 
+def test_required_human_review_must_be_performed() -> None:
+    compiled, runset = _runset(BASELINE)
+    required_review_cases = {
+        expectation.case_id
+        for expectation in compiled.resolved_expectations
+        if expectation.required_human_review
+    }
+    target_run = next(run for run in runset.runs if run.case_id in required_review_cases)
+    bad_run = target_run.model_copy(
+        update={"human_review_required": True, "human_review_performed": False}
+    )
+    mutated = runset.model_copy(
+        update={
+            "runs": tuple(
+                bad_run if run.case_id == target_run.case_id else run
+                for run in runset.runs
+            )
+        }
+    )
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.case_id == target_run.case_id
+        and finding.control_id == "human_review_required"
+    )
+    assert finding.reason_code is ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT
+    assert finding.target == "human_review_performed"
+
+
 def test_smoke_candidate_fails_multiple_controls() -> None:
     report = _report(SMOKE_CANDIDATE)
     reason_codes = _reason_codes(report.candidate_vs_expectations)
@@ -175,7 +208,112 @@ def test_persisted_policy_result_failure_is_verdict_bearing() -> None:
     assert finding.reason_code is ReasonCode.POLICY_FAILED
 
 
-def test_missing_record_counts_as_unevaluated_not_failed_case() -> None:
+def test_fixture_policy_result_failure_is_verdict_bearing() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    bad_run = first_run.model_copy(
+        update={
+            "policy_results": (
+                *first_run.policy_results,
+                PolicyResult(
+                    artifact_kind="policy-result",
+                    policy_id="fixture.declared_policy",
+                    state=GateState.fail,
+                    reason_codes=(ReasonCode.POLICY_FAILED,),
+                    severity=Severity.warning,
+                    message="fixture-declared policy failure",
+                ),
+            )
+        }
+    )
+    mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == "policy_result:fixture.declared_policy"
+    )
+    assert finding.reason_code is ReasonCode.POLICY_FAILED
+    assert finding.state is GateState.fail
+
+
+def test_required_policy_id_must_be_observed() -> None:
+    compiled, runset = _runset(BASELINE)
+    mutated = runset.model_copy(
+        update={
+            "runs": tuple(run.model_copy(update={"policy_results": ()}) for run in runset.runs)
+        }
+    )
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == "required_policy_evaluated"
+    )
+    assert finding.target == "provider-selection"
+    assert finding.reason_code is ReasonCode.POLICY_FAILED
+    assert finding.case_id in {run.case_id for run in runset.runs}
+    assert report.metrics.failed_cases == report.metrics.total_cases
+    assert report.metrics.global_blocking_findings == 0
+
+
+def test_required_policy_id_must_be_observed_for_each_case() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    bad_run = first_run.model_copy(update={"policy_results": ()})
+    mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    findings = [
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == "required_policy_evaluated"
+    ]
+    assert len(findings) == 1
+    assert findings[0].case_id == first_run.case_id
+    assert findings[0].target == "provider-selection"
+    assert report.metrics.failed_cases == 1
+
+
+def test_required_policy_id_failure_is_verdict_bearing_in_fixture_mode() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    bad_run = first_run.model_copy(
+        update={
+            "policy_results": (
+                PolicyResult(
+                    artifact_kind="policy-result",
+                    policy_id="provider-selection",
+                    state=GateState.fail,
+                    reason_codes=(ReasonCode.POLICY_FAILED,),
+                    severity=Severity.warning,
+                    message="fixture policy failure",
+                ),
+            )
+        }
+    )
+    mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == "required_policy:provider-selection"
+    )
+    assert finding.case_id == first_run.case_id
+    assert finding.state is GateState.fail
+
+
+def test_missing_record_counts_as_unevaluated_and_failed_case() -> None:
     compiled, runset = _runset(BASELINE)
     mutated = runset.model_copy(update={"runs": runset.runs[1:]})
 
@@ -189,13 +327,50 @@ def test_missing_record_counts_as_unevaluated_not_failed_case() -> None:
     assert report.metrics.evaluated_cases == 9
     assert report.metrics.unevaluated_cases == 1
     assert report.metrics.passed_cases == 9
-    assert report.metrics.failed_cases == 0
-    assert (
-        report.metrics.passed_cases
-        + report.metrics.failed_cases
-        + report.metrics.unevaluated_cases
-        == report.metrics.total_cases
+    assert report.metrics.failed_cases == 1
+
+
+def test_incomplete_runset_fails_ordinary_evaluation() -> None:
+    compiled, runset = _runset(BASELINE)
+    mutated = runset.model_copy(
+        update={
+            "completion_status": "incomplete",
+            "stop_reasons": ("budget_exhausted",),
+        }
     )
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == "runset_completion_required"
+    )
+    assert finding.reason_code is ReasonCode.RUNTIME_FAILED
+    assert report.metrics.global_blocking_findings == 1
+
+
+def test_excluded_observation_fails_ordinary_evaluation() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    excluded = first_run.model_copy(
+        update={
+            "observation_status": "excluded",
+            "exclusion_reason": "pre_provider_filter",
+        }
+    )
+    mutated = runset.model_copy(update={"runs": (excluded, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.case_id == first_run.case_id and finding.target == "observation_status"
+    )
+    assert finding.reason_code is ReasonCode.VALID_RECORD_MISSING
+    assert report.metrics.failed_cases == 1
 
 
 def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
@@ -255,6 +430,39 @@ def test_fail_on_not_evaluated_marks_capabilities_blocking() -> None:
     assert report.candidate_vs_expectations.state is GateState.fail
     assert _reason_codes(report.candidate_vs_expectations) == {ReasonCode.NOT_EVALUATED}
     assert report.metrics.global_blocking_findings == len(report.failed_controls)
+
+
+def test_fail_on_warn_marks_warning_controls_blocking() -> None:
+    warning = ControlResult(
+        control_id="policy.warning",
+        case_id="case-1",
+        state=GateState.warn,
+        reason_code=ReasonCode.POLICY_FAILED,
+        severity=Severity.warning,
+        target="policy.warning",
+        message="warning policy result",
+    )
+
+    assert GateProfile().is_blocking(warning) is False
+    assert rollup_state((warning,), GateProfile()) is GateState.warn
+    assert GateProfile(fail_on_warn=True).is_blocking(warning) is True
+    assert rollup_state((warning,), GateProfile(fail_on_warn=True)) is GateState.fail
+
+
+def test_failed_control_is_blocking_even_with_non_matching_profile_filters() -> None:
+    low_severity_failure = ControlResult(
+        control_id="custom.low_severity_failure",
+        case_id="case-1",
+        state=GateState.fail,
+        reason_code=ReasonCode.POLICY_FAILED,
+        severity=Severity.info,
+        target="custom",
+        message="custom control reported fail",
+    )
+    profile = GateProfile(fail_severities=(), fail_reason_codes=())
+
+    assert profile.is_blocking(low_severity_failure) is True
+    assert rollup_state((low_severity_failure,), profile) is GateState.fail
 
 
 def test_finding_id_is_stable_across_message_rewording() -> None:
@@ -320,11 +528,11 @@ def test_material_claims_require_explicit_claim_evidence_links() -> None:
     )
 
 
-def test_claim_evidence_links_must_target_evidence_refs_not_evidence_items() -> None:
+def test_claim_evidence_links_must_target_evidence_items_not_hollow_refs() -> None:
     run = AgentRunRecord(
         artifact_kind="agent-run-record",
-        run_id="run-item-only-link",
-        case_id="case-item-only-link",
+        run_id="run-ref-only-link",
+        case_id="case-ref-only-link",
         pipeline_id="pipeline",
         recommendation="approve",
         outcome="approve",
@@ -337,10 +545,40 @@ def test_claim_evidence_links_must_target_evidence_refs_not_evidence_items() -> 
                 source_id="source-1",
             ),
         ),
+        claim_evidence_links=(
+            ClaimEvidenceLink(
+                artifact_kind="claim-evidence-link",
+                claim_id="claim-present",
+                evidence_ref_id="declared-ref",
+            ),
+        ),
+    )
+    expectation = Expectation(
+        artifact_kind="expectation",
+        expectation_id="expect-ref-only-link",
+        case_id="case-ref-only-link",
+        material_claim_ids=("claim-present",),
+    )
+
+    findings = evaluate_material_claim_evidence(run, expectation)
+
+    assert {finding.target for finding in findings} == {"claim:claim-present"}
+
+
+def test_claim_evidence_links_accept_content_addressed_evidence_items() -> None:
+    run = AgentRunRecord(
+        artifact_kind="agent-run-record",
+        run_id="run-item-link",
+        case_id="case-item-link",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="redacted input",
+        output_summary="redacted output",
         evidence_items=(
             EvidenceItem(
                 artifact_kind="evidence-item",
-                ref_id="item-only-ref",
+                ref_id="item-ref",
                 source_id="source-1",
                 content_digest="a" * 64,
             ),
@@ -349,20 +587,18 @@ def test_claim_evidence_links_must_target_evidence_refs_not_evidence_items() -> 
             ClaimEvidenceLink(
                 artifact_kind="claim-evidence-link",
                 claim_id="claim-present",
-                evidence_ref_id="item-only-ref",
+                evidence_ref_id="item-ref",
             ),
         ),
     )
     expectation = Expectation(
         artifact_kind="expectation",
-        expectation_id="expect-item-only-link",
-        case_id="case-item-only-link",
+        expectation_id="expect-item-link",
+        case_id="case-item-link",
         material_claim_ids=("claim-present",),
     )
 
-    findings = evaluate_material_claim_evidence(run, expectation)
-
-    assert {finding.target for finding in findings} == {"claim:claim-present"}
+    assert evaluate_material_claim_evidence(run, expectation) == ()
 
 
 def _report(variant: Path) -> EvaluationReport:

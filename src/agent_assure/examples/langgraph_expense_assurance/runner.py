@@ -89,6 +89,7 @@ def _run_variant(variant: ExampleVariant) -> VariantRun:
         case_id=CASE_ID,
         fixture_manifest_digest=fixture_manifest_digest,
         configuration_digest=_configuration_digest(variant),
+        require_observed_human_review=True,
     )
     return VariantRun(
         runset=RunSet(
@@ -380,6 +381,11 @@ def _projection() -> FrameworkRunProjection:
         model=MODEL,
         evidence_claim_map={EVIDENCE_REF: (CLAIM_ID,)},
         evidence_source_map={EVIDENCE_REF: SOURCE_ID},
+        evidence_content_digest_map={
+            EVIDENCE_REF: sha256_hexdigest(
+                {"claim_id": CLAIM_ID, "ref_id": EVIDENCE_REF, "source_id": SOURCE_ID}
+            )
+        },
         human_review_required=True,
         human_review_performed=True,
         adapter_id=LangGraphAdapter.adapter_id,

@@ -5,8 +5,6 @@ defaults:
   runner_id: prior_auth.synthetic_rag
   fixture_roots:
     - fixtures/rag
-  required_policy_ids:
-    - evidence-linking
   allowed_tools:
     - coverage_policy_lookup
 cases:

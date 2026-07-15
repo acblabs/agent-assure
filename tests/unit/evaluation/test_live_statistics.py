@@ -1914,6 +1914,14 @@ def _record(
                     "claim_ids": ["claim-receipt-present"],
                 }
             ],
+            "evidence_items": [
+                {
+                    "artifact_kind": "evidence-item",
+                    "ref_id": "ref-receipt-exp-001",
+                    "source_id": "receipt-exp-001",
+                    "content_digest": "8" * 64,
+                }
+            ],
             "claims": [
                 {
                     "artifact_kind": "claim-record",

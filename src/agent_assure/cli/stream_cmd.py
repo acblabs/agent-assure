@@ -16,6 +16,7 @@ from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, read_text_bounded
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
+from agent_assure.privacy.redaction import assert_stream_payload_safe_for_persistence
 from agent_assure.reporting.console import render_evaluation_console
 from agent_assure.reporting.environment import (
     artifact_project_root,
@@ -28,6 +29,7 @@ from agent_assure.reporting.environment import (
 )
 from agent_assure.reporting.json_report import write_evaluation_json
 from agent_assure.reporting.markdown import write_evaluation_markdown
+from agent_assure.runner.fixture_runner import write_runset
 from agent_assure.schema.common import GateState
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.stream import StreamProducerField, StreamRunRecord
@@ -79,8 +81,15 @@ def ingest(
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     diagnostics_path = diagnostics_out or out.parent / "stream-ingestion-diagnostics.json"
-    _write_json(out, result.stream_run.model_dump(mode="json"))
-    _write_json(diagnostics_path, result.diagnostics.model_dump(mode="json"))
+    stream_payload = result.stream_run.model_dump(mode="json")
+    diagnostics_payload = result.diagnostics.model_dump(mode="json")
+    try:
+        assert_stream_payload_safe_for_persistence(stream_payload)
+        assert_stream_payload_safe_for_persistence(diagnostics_payload)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    _write_json(out, stream_payload)
+    _write_json(diagnostics_path, diagnostics_payload)
     console.print(
         "stream ingest: "
         f"events={result.stream_run.accepted_event_count} "
@@ -142,7 +151,7 @@ def evaluate(
     out_dir.mkdir(parents=True, exist_ok=True)
     runset_path = out_dir / "stream-runset.json"
     span_plans_path = out_dir / "stream-span-plans.json"
-    _write_json(runset_path, runset.model_dump(mode="json"))
+    write_runset(runset, runset_path)
     _write_json(
         span_plans_path,
         [plan.model_dump(mode="json") for plan in stream_run_to_span_plans(stream_run)],

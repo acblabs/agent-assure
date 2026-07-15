@@ -5,9 +5,9 @@ translated into privacy-filtered `AgentRunRecord` artifacts. The baseline and
 candidate keep the same final recommendation and required evidence, but the
 candidate changes to an automatic path and reports
 `human_review_required=false`, so deterministic evaluation blocks the process
-regression. The built-in check measures the observed human-review flag; the
-route token is preserved as process evidence but is not compared for string
-equality by this minimal suite.
+regression. The built-in check measures observed human-review routing and
+performed review; the route token is preserved as process evidence but is not
+compared for string equality by this minimal suite.
 
 Run it from the repository root:
 

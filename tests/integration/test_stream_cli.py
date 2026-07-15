@@ -49,7 +49,11 @@ cases:
                 "evt-2",
                 sequence_number=2,
                 event_type="evidence_link_added",
-                attrs={"evidence_ref_id": "ref-stream", "claim_id": "claim-stream"},
+                attrs={
+                    "evidence_ref_id": "ref-stream",
+                    "claim_id": "claim-stream",
+                    "content_digest": "a" * 64,
+                },
             ),
             _event(
                 "evt-3",
@@ -110,6 +114,40 @@ cases:
     assert ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value in reason_codes
     assert (report_dir / "stream-runset.json").exists()
     assert (report_dir / "stream-span-plans.json").exists()
+
+
+def test_stream_cli_rejects_sensitive_privacy_filtered_attributes(tmp_path: Path) -> None:
+    events_path = tmp_path / "events.jsonl"
+    stream_path = tmp_path / "stream-run.json"
+    _write_jsonl(
+        events_path,
+        [
+            _event(
+                "evt-sensitive",
+                sequence_number=1,
+                event_type="run_started",
+                attrs={"source_id": "sk-proj-abcdefghijklmnopqrstuvwxyz"},
+            ),
+        ],
+    )
+
+    ingest_result = RUNNER.invoke(
+        app,
+        [
+            "stream",
+            "ingest",
+            str(events_path),
+            "--sequence-scope",
+            "global",
+            "--out",
+            str(stream_path),
+        ],
+    )
+
+    assert ingest_result.exit_code == 2
+    assert "source_id" in ingest_result.output
+    assert "non-sensitive" in ingest_result.output
+    assert not stream_path.exists()
 
 
 @pytest.mark.parametrize(

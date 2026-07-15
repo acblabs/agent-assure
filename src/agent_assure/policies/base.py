@@ -64,10 +64,7 @@ class GateProfile(StrictModel):
             return self.fail_on_warn
         if result.state is not GateState.fail:
             return False
-        return (
-            result.severity in self.fail_severities
-            or result.reason_code in self.fail_reason_codes
-        )
+        return True
 
 
 class Waiver(StrictModel):
