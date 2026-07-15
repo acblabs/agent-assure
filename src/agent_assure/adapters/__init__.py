@@ -5,6 +5,7 @@ framework event streams into existing agent-assure artifacts; evaluation remains
 framework-neutral.
 """
 
+from agent_assure.adapters.adk import GoogleADKAdapter
 from agent_assure.adapters.base import (
     EXPERIMENTAL_ADAPTER_API,
     FrameworkAdapter,
@@ -20,6 +21,7 @@ __all__ = [
     "FrameworkAdapter",
     "FrameworkObservation",
     "FrameworkRunProjection",
+    "GoogleADKAdapter",
     "LangGraphAdapter",
     "build_run_record_from_observations",
     "stable_observation_id",

@@ -14,6 +14,14 @@
   evaluation, failing closed on malformed evidence removals and case-ID
   conflicts, clearing review state on bypass routes, and mirroring the
   streaming example into packaged resources.
+- Added an experimental Google ADK framework adapter, optional
+  `agent-assure[adk]` dependency metadata, docs, and an offline
+  `adk_process_assurance` example whose candidate preserves the final decision
+  and evidence while bypassing the observed human-review flag.
+- Hardened the Google ADK adapter around the real ADK 2.4 event shape by
+  preferring `custom_metadata`, reading `actions.state_delta`, preserving
+  numeric event timestamps, avoiding per-event IDs as run IDs, and failing
+  closed on malformed observed review flags.
 - Bumped package and active persisted artifact schema metadata to `0.5.0` and
   added the frozen `schemas/v0.5.0` snapshot with stream artifact roots.
 

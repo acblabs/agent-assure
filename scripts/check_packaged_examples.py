@@ -13,6 +13,7 @@ EXAMPLE_RESOURCE_SETS = (
     "prior_auth_synthetic",
     "expense_approval_minimal",
     "langgraph_expense_assurance",
+    "adk_process_assurance",
     "process_measurement_cases",
     "streaming_process_regression",
 )

@@ -107,18 +107,19 @@ path-integral claims.
 Unsupported capabilities are reported as `not_evaluated`. They are not silently
 treated as passing.
 
-Framework adapters are experimental trusted translators. The LangGraph adapter
-reads allowlisted `agent_assure` metadata from framework events and deliberately
-ignores raw event `input`, `output`, message, completion, and tool-argument
-payloads. It rejects raw-payload key names and free-text privacy attribute
-values, and applies the same compact-token rule to adapter-controlled
-top-level labels and usage labels such as `review_route`, `operation`, and
-`cost_basis`. It does not semantically prove that a compact producer-supplied
-label is fully scrubbed. The current projection helper emits fixture-mode
-review artifacts only; protocol-bound live evidence must still use the live
-runner. Framework adapter output can show whether declared process evidence
-survived a framework run, but it does not attest LangGraph application code,
-hidden model behavior, or production trace completeness.
+Framework adapters are experimental trusted translators. The LangGraph and
+Google ADK adapters read allowlisted `agent_assure` metadata from framework
+events and deliberately ignore raw event `input`, `output`, message,
+completion, content-part, function-call, and tool-argument payloads. They
+reject raw-payload key names and free-text privacy attribute values, and apply
+the same compact-token rule to adapter-controlled top-level labels and usage
+labels such as `review_route`, `operation`, and `cost_basis`. They do not
+semantically prove that a compact producer-supplied label is fully scrubbed.
+The current projection helper emits fixture-mode review artifacts only;
+protocol-bound live evidence must still use the live runner. Framework adapter
+output can show whether declared process evidence survived a framework run, but
+it does not attest framework application code, hidden model behavior, or
+production trace completeness.
 
 ## Comparison Boundary
 

@@ -167,6 +167,7 @@ def build_run_record_from_observations(
     fixture_manifest_digest: DigestHex,
     configuration_digest: DigestHex | None = None,
     require_observed_final_decision: bool = True,
+    require_observed_human_review: bool = False,
 ) -> AgentRunRecord:
     ordered = tuple(sorted(observations, key=lambda observation: observation.sequence_number))
     if not ordered:
@@ -190,12 +191,27 @@ def build_run_record_from_observations(
     observation_id = _observation_group_id(ordered)
     observed_recommendation = _last_observed_attribute(ordered, "recommendation")
     observed_outcome = _last_observed_attribute(ordered, "outcome")
+    observed_human_review_required = _last_observed_bool_attribute(
+        ordered,
+        "human_review_required",
+    )
+    observed_human_review_performed = _last_observed_bool_attribute(
+        ordered,
+        "human_review_performed",
+    )
     if require_observed_final_decision and (
         observed_recommendation is None or observed_outcome is None
     ):
         raise ValueError(
             "framework observations must include observed recommendation and outcome "
             "privacy_filtered_attributes"
+        )
+    if require_observed_human_review and (
+        observed_human_review_required is None or observed_human_review_performed is None
+    ):
+        raise ValueError(
+            "framework observations must include observed human_review_required and "
+            "human_review_performed privacy_filtered_attributes"
         )
     recommendation = observed_recommendation or projection.recommendation
     outcome = observed_outcome or projection.outcome
@@ -223,8 +239,16 @@ def build_run_record_from_observations(
         evidence_refs=_evidence_refs(evidence_ref_ids, projection),
         claims=_claim_records(projection.evidence_claim_map),
         claim_evidence_links=_claim_evidence_links(evidence_ref_ids, projection),
-        human_review_required=projection.human_review_required,
-        human_review_performed=projection.human_review_performed,
+        human_review_required=(
+            observed_human_review_required
+            if observed_human_review_required is not None
+            else projection.human_review_required
+        ),
+        human_review_performed=(
+            observed_human_review_performed
+            if observed_human_review_performed is not None
+            else projection.human_review_performed
+        ),
         usage_ledger=usage_ledger,
         usage_summary=usage_summary,
         provenance=Provenance(
@@ -448,6 +472,24 @@ def _last_observed_attribute(
         value = observation.privacy_filtered_attributes.get(key)
         if isinstance(value, str) and value:
             return value
+    return None
+
+
+def _last_observed_bool_attribute(
+    observations: tuple[FrameworkObservation, ...],
+    key: str,
+) -> bool | None:
+    for observation in reversed(observations):
+        if key not in observation.privacy_filtered_attributes:
+            continue
+        value = observation.privacy_filtered_attributes[key]
+        if value == "true":
+            return True
+        if value == "false":
+            return False
+        raise ValueError(
+            f"framework observation attribute {key!r} must be exactly 'true' or 'false'"
+        )
     return None
 
 

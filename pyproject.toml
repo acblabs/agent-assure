@@ -43,6 +43,10 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Experimental adapter targets the Google ADK 2.x event/workflow line.
+adk = [
+  "google-adk>=2.4,<3",
+]
 # Experimental adapter tracks LangGraph 1.x; Sprint 9 smoke validated 1.2.8.
 langgraph = [
   "langgraph>=1.0,<2",
@@ -146,6 +150,8 @@ mypy_path = "src"
 
 [[tool.mypy.overrides]]
 module = [
+  "google.adk",
+  "google.adk.*",
   "jsonschema",
   "jsonschema.*",
   "langgraph",

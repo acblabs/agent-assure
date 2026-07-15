@@ -36,6 +36,17 @@ fixture-mode review artifacts. It is for deterministic offline or declared
 observation records. Final `recommendation` and `outcome` values must be
 observed in privacy-filtered observation attributes; the projection helper does
 not treat static projection values as measured framework output by default.
+When producers emit `human_review_required` or `human_review_performed`,
+values must be the compact strings `"true"` or `"false"`; malformed present
+values fail closed rather than falling back to projection defaults. Observed
+review flags override the projection helper's static defaults. Callers that
+measure a human-review boundary can set `require_observed_human_review=True`
+to fail closed when either review flag is absent. Without that option,
+projection review booleans remain fallback declarations rather than measured
+trajectory evidence. Route labels such as `review_route` remain observable
+evidence, but built-in deterministic evaluation gates the required
+human-review flag rather than route-string equality unless a downstream policy
+adds that invariant.
 Protocol-bound live mode remains the responsibility of the live runner because
 live records require repetition, schedule, cluster, budget, and protocol
 metadata.
@@ -56,10 +67,12 @@ An adapter should:
   an `AgentRunRecord`;
 - emit the observed final `recommendation` and `outcome` as compact
   privacy-filtered attributes on a decision observation;
+- emit observed `human_review_required` and `human_review_performed` compact
+  boolean attributes when human-review routing is part of the measured process;
 - keep provider, tool, and review-route boundaries observable;
 - treat raw framework payloads as input to the application, not as persisted
   assurance evidence.
 
-The adapter API is not a stable plugin API yet. Future ADK or other framework
-integrations should target the same observation contract rather than adding
-framework-specific evaluation paths.
+The adapter API is not a stable plugin API yet. LangGraph, Google ADK, and
+future framework integrations should target the same observation contract
+rather than adding framework-specific evaluation paths.

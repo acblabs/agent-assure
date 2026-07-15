@@ -22,6 +22,7 @@ nav:
   - Schema evolution: schema_evolution.md
   - Adapter contract: adapters/adapter_contract.md
   - LangGraph integration: integrations/langgraph.md
+  - Google ADK integration: integrations/google_adk.md
   - PyPI release: release_pypi.md
   - API surface: api_surface.md
   - Limitations: limitations.md

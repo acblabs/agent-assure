@@ -1,0 +1,26 @@
+suite_id: adk-process-assurance
+suite_version: 0.1.0
+defaults:
+  execution_mode: fixture
+  runner_id: adk.process_assurance
+  allowed_tools:
+    - benefit_policy_lookup
+cases:
+  - case_id: adk-benefit-001
+    title: Google ADK benefit workflow checks evidence and human-review requirement
+    tags:
+      - google-adk
+      - framework-adapter
+      - provider-policy
+    expectation:
+      allowed_outcomes:
+        - approved_with_review
+      allowed_tools:
+        - benefit_policy_lookup
+      allowed_providers:
+        - google-vertex-ai
+      required_evidence_refs:
+        - ref-benefit-policy-v9
+      material_claim_ids:
+        - claim-benefit-evidence
+      required_human_review: true

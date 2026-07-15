@@ -15,7 +15,7 @@ The current stable public surface is intentionally narrow:
 - experimental runtime isolation and telemetry commands for external-script
   live adapters and OpenTelemetry export.
 - experimental framework adapters under `agent_assure.adapters`, currently
-  including a LangGraph translator.
+  including LangGraph and Google ADK translators.
 - experimental stream ingestion and stream evaluation commands under
   `agent-assure stream`.
 - framework evidence mapping through `agent-assure controls map`.

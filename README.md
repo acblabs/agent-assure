@@ -4,6 +4,7 @@
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
   <a href="#integrations"><strong>Integrations</strong></a> &middot;
   <a href="docs/integrations/langgraph.md"><strong>LangGraph</strong></a> &middot;
+  <a href="docs/integrations/google_adk.md"><strong>Google ADK</strong></a> &middot;
   <a href="docs/demo_rag.md"><strong>RAG provenance</strong></a> &middot;
   <a href="docs/claim_boundary.md"><strong>Trust boundary</strong></a>
 </p>
@@ -14,6 +15,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 ![Offline demo](https://img.shields.io/badge/demo-offline%20%2F%20no%20API%20key-0f766e)
 ![LangGraph](https://img.shields.io/badge/LangGraph-experimental-1f6feb)
+![Google ADK](https://img.shields.io/badge/Google%20ADK-experimental-4285f4)
 ![RAG provenance](https://img.shields.io/badge/RAG-provenance-4b5563)
 
 **Block agent process regressions that answer evals miss.**
@@ -45,6 +47,7 @@ expected."
 | --- | --- | --- |
 | Final answer checks | Candidate keeps `recommendation=approve; outcome=approve` while losing the evidence path | `new_failure` after fixture equivalence passes |
 | LangGraph workflows | A graph update keeps the visible decision but drops required policy evidence or decision-node metadata | Privacy-filtered `agent_assure` metadata becomes evaluable run evidence |
+| Google ADK workflows | A multi-agent ADK route keeps the visible decision and evidence but bypasses the required human-review flag | The same framework observation contract feeds ordinary review-boundary controls |
 | RAG retrieval | Same answer and same `retrieval_corpus_digest`, but the retrieved source backing a material claim disappears | `MATERIAL_CLAIM_MISSING_EVIDENCE` |
 | RAG provenance drift | Evidence links stay intact, but the retrieval corpus digest changes | `provenance_only_change` for review, not a blocking finding |
 | Boundaries and routing | Provider, tool, review route, or redaction state changes unexpectedly | Deterministic invariant findings |
@@ -146,6 +149,17 @@ python examples/langgraph_expense_assurance/run_example.py
 If LangGraph is not installed, the example uses the same deterministic fallback
 stream shape so adapter and evaluator behavior remain testable without network
 calls or token spend.
+
+Try the Google ADK process-assurance example:
+
+```bash
+pip install "agent-assure[adk]"
+python examples/adk_process_assurance/run_example.py
+```
+
+The ADK example also runs offline. It uses a synthetic ADK event transcript to
+show a same-decision candidate that preserves evidence while bypassing the
+observed human-review requirement.
 
 Use it in GitHub Actions:
 
@@ -255,6 +269,47 @@ blocks the process regression.
 
 See [`docs/integrations/langgraph.md`](docs/integrations/langgraph.md) for the
 adapter contract and current version notes.
+
+### Google ADK
+
+Status: experimental.
+
+The Google ADK adapter reads privacy-filtered `agent_assure` metadata from
+ADK-style event mappings or event objects. Real ADK apps should prefer
+`custom_metadata` for event labels and `actions.state_delta` for state-update
+events. It ignores raw event content, message parts, function-call arguments,
+completions, and unredacted summaries. Like the LangGraph adapter, it produces
+ordinary `FrameworkObservation` and `AgentRunRecord` artifacts; evaluation
+remains framework-neutral.
+
+```python
+{
+    "custom_metadata": {
+        "agent_assure": {
+            "case_id": "adk-benefit-001",
+            "event_type": "review_route",
+            "sequence_number": 3,
+            "node_name": "review_agent",
+            "review_route": "clinical_review",
+            "redaction_state": "redacted",
+            "privacy_filtered_attributes": {
+                "human_review_required": "true",
+                "human_review_performed": "true"
+            },
+        }
+    }
+}
+```
+
+The included `examples/adk_process_assurance` case keeps the same final
+recommendation and policy evidence across baseline and candidate. The candidate
+changes to an automatic path and reports `human_review_required=false`, so
+deterministic evaluation blocks the process regression. The route token remains
+observable process evidence; this minimal suite gates on the human-review flag,
+not route-string equality.
+
+See [`docs/integrations/google_adk.md`](docs/integrations/google_adk.md) for
+the adapter contract and current version notes.
 
 ### RAG provenance
 
@@ -420,6 +475,7 @@ agent behavior into local release-review evidence:
 flowchart LR
   A[Declared expectations] --> B[Compiled suite]
   LG[LangGraph metadata] --> R[Run records]
+  ADK[Google ADK metadata] --> R
   RAG[RAG fixtures and provenance] --> R
   F[Fixture or live runs] --> R
   B --> E[Evaluate controls]
@@ -513,7 +569,7 @@ model-quality, safety, or clinical-validation claims.
 
 - **Audience:** [AI leaders](docs/for_ai_leaders.md) &middot; [Engineers](docs/for_engineers.md)
 - **Demos:** [Flagship demo](docs/demo_flagship.md) &middot; [RAG provenance demo](docs/demo_rag.md)
-- **Integrations:** [LangGraph integration](docs/integrations/langgraph.md)
+- **Integrations:** [LangGraph integration](docs/integrations/langgraph.md) &middot; [Google ADK integration](docs/integrations/google_adk.md)
 - **Assurance model:** [What this measures](docs/what_this_measures.md) &middot; [Evidence diff](docs/evidence_diff.md)
 - **Security and boundaries:** [Threat model](docs/threat_model.md) &middot; [Current claim boundary](docs/claim_boundary.md)
 - **Governance crosswalks:** [NIST AI RMF](docs/governance_crosswalk_nist_ai_rmf.md) &middot; [OWASP LLM Top 10](docs/governance_crosswalk_owasp_llm.md) &middot; [ISO/IEC 42001](docs/governance_crosswalk_iso42001.md) &middot; [MITRE ATLAS](docs/governance_crosswalk_mitre_atlas.md)
