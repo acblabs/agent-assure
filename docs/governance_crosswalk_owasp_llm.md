@@ -35,7 +35,7 @@ Only the risk IDs referenced by at least one control are listed above.
 | `provider_review_boundary` | `evaluated` | `LLM05` | `forbidden-provider-review-boundary` |
 | `human_review_required` | `evaluated` | `LLM05` | `missing-review-route` |
 | `redaction_required` | `partially_evaluated` | `LLM02` | `persisted-sensitive-content` |
-| `prompt_injection_control_boundary` | `evaluated` | `LLM01` | `prompt-boundary-bypass` |
+| `prompt_injection_control_boundary` | `partially_evaluated` | `LLM01` | `prompt-boundary-bypass` |
 | `live_persisted_policy_results` | `evaluated_when_live` | `LLM02`, `LLM09` | `live-adapter-suppressed-policy-failure` |
 | `live_config_path_confinement` | `evaluated` | `LLM06`, `LLM07` | `live-config-path-traversal` |
 | `live_openai_endpoint_allowlist` | `evaluated` | `LLM05`, `LLM07` | `network-adapter-key-exfiltration` |

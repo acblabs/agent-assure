@@ -450,6 +450,14 @@ def _verdict_explanations(
         lines.append(
             "Only provenance fields changed; provenance changes are reported separately."
         )
+    elif (
+        classification
+        is ComparisonClassification.allowed_behavioral_and_provenance_change
+    ):
+        lines.append(
+            "Behavioral record changes and provenance changes are both present; "
+            "provenance changes are reported separately."
+        )
     return tuple(lines)
 
 

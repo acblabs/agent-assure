@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterator, Mapping, Sequence
 from typing import Any
 
@@ -25,6 +26,7 @@ SENSITIVE_SCAN_SKIP_KEYS = frozenset(
         "completed_at_utc",
     }
 )
+_DIGEST_OR_HASH_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 
 def evaluate_redaction(run: AgentRunRecord) -> tuple[ControlResult, ...]:
@@ -50,7 +52,7 @@ def _iter_sensitive_strings(value: Any, path: str = "") -> Iterator[tuple[str, s
     if isinstance(value, Mapping):
         for key, item in value.items():
             key_text = str(key)
-            if _skip_key(key_text):
+            if _skip_key(key_text, item):
                 continue
             child_path = f"{path}.{key_text}" if path else key_text
             yield from _iter_sensitive_strings(item, child_path)
@@ -61,5 +63,15 @@ def _iter_sensitive_strings(value: Any, path: str = "") -> Iterator[tuple[str, s
             yield from _iter_sensitive_strings(item, child_path)
 
 
-def _skip_key(key: str) -> bool:
-    return key in SENSITIVE_SCAN_SKIP_KEYS or key.endswith("_digest") or key.endswith("_hash")
+def _skip_key(key: str, value: Any) -> bool:
+    return key in SENSITIVE_SCAN_SKIP_KEYS or (
+        key.endswith(("_digest", "_hash")) and _is_digest_like(value)
+    )
+
+
+def _is_digest_like(value: Any) -> bool:
+    if isinstance(value, str):
+        return _DIGEST_OR_HASH_PATTERN.fullmatch(value) is not None
+    if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
+        return all(_is_digest_like(item) for item in value)
+    return False

@@ -91,6 +91,118 @@ def test_live_statistics_aggregate_repeated_observations() -> None:
     assert report.observations[0].policy_bundle_digest == "7" * 64
 
 
+def test_live_statistics_enforces_required_policy_ids() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-missing-required-policy",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(repetition_index=0, linked=True, policy_results=()),
+        ),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    assert report.state is GateState.fail
+    assert report.observations[0].state is GateState.fail
+    finding = next(
+        finding
+        for finding in report.observations[0].findings
+        if finding.control_id == "required_policy_evaluated"
+    )
+    assert finding.target == "provider-selection"
+    assert finding.reason_code is ReasonCode.POLICY_FAILED
+
+
+def test_live_required_policy_failure_is_not_double_counted_as_policy_result() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-failed-required-policy",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=True,
+                policy_results=(
+                    {
+                        "artifact_kind": "policy-result",
+                        "policy_id": "provider-selection",
+                        "state": "fail",
+                        "reason_codes": [ReasonCode.POLICY_FAILED.value],
+                        "severity": "error",
+                        "message": "required provider policy failed",
+                    },
+                ),
+            ),
+        ),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    control_ids = {finding.control_id for finding in report.observations[0].findings}
+    assert report.state is GateState.fail
+    assert "required_policy:provider-selection" in control_ids
+    assert "policy_result:provider-selection" not in control_ids
+
+
+def test_live_statistics_overall_summary_omits_heterogeneous_provider_identity() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
+    protocol_digest = sha256_hexdigest(protocol)
+    second = _record(repetition_index=1, linked=True).model_copy(
+        update={
+            "provider": "other-provider",
+            "model": "other-model",
+            "adapter_id": "other-adapter",
+            "pipeline_id": "candidate-b",
+        }
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-heterogeneous-provider",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="1" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(repetition_index=0, linked=True),
+            second,
+        ),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    assert report.overall.provider is None
+    assert report.overall.model is None
+    assert report.overall.adapter_id is None
+    assert report.overall.pipeline_id == "overall"
+    assert {group.provider for group in report.groups} == {
+        "static-provider",
+        "other-provider",
+    }
+
+
 def test_live_statistics_rejects_duplicate_case_repetition_observations() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=1)
@@ -1622,6 +1734,7 @@ def test_live_trajectory_reports_transition_paths_and_invariants() -> None:
         "provider_call",
         "tool_call",
         "evidence_check",
+        "policy_check",
         "verdict",
     )
     assert report.transition_assumption == "canonical_observable_order"
@@ -1860,6 +1973,7 @@ def _record(
     total_tokens: int | None = None,
     human_review_required: bool = False,
     human_review_performed: bool = False,
+    policy_results: tuple[dict[str, object], ...] | None = None,
 ) -> AgentRunRecord:
     links: list[dict[str, str]] = []
     if linked:
@@ -1929,6 +2043,18 @@ def _record(
                 }
             ],
             "claim_evidence_links": links,
+            "policy_results": list(policy_results)
+            if policy_results is not None
+            else [
+                {
+                    "artifact_kind": "policy-result",
+                    "policy_id": "provider-selection",
+                    "state": "pass",
+                    "reason_codes": [],
+                    "severity": "info",
+                    "message": "provider policy evaluated",
+                }
+            ],
             "human_review_required": human_review_required,
             "human_review_performed": human_review_performed,
             "provenance": Provenance(

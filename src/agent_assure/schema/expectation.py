@@ -22,6 +22,7 @@ class Expectation(PersistedArtifact):
     allowed_providers: tuple[str, ...] = ()
     forbidden_providers: tuple[str, ...] = ()
     allowed_tools: tuple[str, ...] = ()
+    allowed_tools_override: bool = False
     forbidden_tools: tuple[str, ...] = ()
     required_human_review: bool = False
 

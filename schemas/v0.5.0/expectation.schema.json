@@ -27,6 +27,11 @@
       "title": "Allowed Tools",
       "type": "array"
     },
+    "allowed_tools_override": {
+      "default": false,
+      "title": "Allowed Tools Override",
+      "type": "boolean"
+    },
     "artifact_kind": {
       "const": "expectation",
       "default": "expectation",

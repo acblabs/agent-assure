@@ -55,6 +55,50 @@ def test_provenance_only_changes_do_not_create_verdict_findings() -> None:
     assert report.provenance_changes[0].field == "code_digest"
 
 
+def test_identical_runsets_are_classified_as_unchanged() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+
+    report = compare_runsets(compiled, baseline, baseline)
+
+    assert report.comparison_summary.classification is ComparisonClassification.unchanged
+    assert report.control_changes == ()
+    assert report.behavioral_changes == ()
+    assert report.provenance_changes == ()
+
+
+def test_behavior_and_provenance_changes_keep_both_signals_in_classification() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    first = baseline.runs[0]
+    provenance = first.provenance.model_copy(update={"code_digest": "a" * 64})
+    replacement = first.model_copy(
+        update={
+            "output_summary": "redacted output with nonblocking formatting change",
+            "provenance": provenance,
+        }
+    )
+    candidate = baseline.model_copy(
+        update={
+            "runset_id": f"{baseline.runset_id}-behavior-and-provenance",
+            "runs": (replacement, *baseline.runs[1:]),
+        }
+    )
+
+    report = compare_runsets(compiled, baseline, candidate)
+
+    assert (
+        report.comparison_summary.classification
+        is ComparisonClassification.allowed_behavioral_and_provenance_change
+    )
+    assert report.behavioral_changes
+    assert report.provenance_changes
+    assert any(
+        "provenance changes are reported separately" in item
+        for item in report.verdict_explanations
+    )
+
+
 def test_provenance_diff_field_whitelist_tracks_schema_fields() -> None:
     schema_fields = tuple(
         field_name

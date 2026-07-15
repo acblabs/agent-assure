@@ -98,7 +98,7 @@ controls:
       techniques: [AML.T0024, AML.T0057, AML.T0086]
     project_threats: [persisted-sensitive-content]
   - id: prompt_injection_control_boundary
-    status: evaluated
+    status: partially_evaluated
     nist_ai_rmf: [Measure, Manage]
     iso_iec_42001_areas: [human oversight, monitoring]
     owasp_risks: [LLM01]

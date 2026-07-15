@@ -27,6 +27,15 @@ from agent_assure.usage.aggregation import aggregate_usage_segments
 
 _SequenceScopeInput = Literal["global", "producer_local", "producer-local"]
 _ProducerFieldInput = Literal["producer_id", "node_id", "span_id"]
+STREAM_DIGEST_OMITTED_FIELDS = frozenset(
+    {
+        "digest",
+        "event_id",
+        "artifact_kind",
+        "schema_version",
+    }
+)
+STREAM_DIGEST_DEFAULT_OMISSIONS = {"currency": "USD"}
 
 
 @dataclass(frozen=True)
@@ -48,6 +57,7 @@ def ingest_jsonl_events(
     events, duplicate_summaries, source_event_count = _deduplicated_events(path, contract)
     if not events:
         raise ValueError("stream JSONL contains no events")
+    _validate_producer_local_timestamp_order(events, contract)
     ordered = tuple(sorted(events, key=lambda event: _event_sort_key(event, contract)))
     segments = tuple(_usage_segment_for_event(event) for event in ordered)
     usage = aggregate_usage_segments(segment for segment in segments if segment is not None)
@@ -100,6 +110,10 @@ def validate_stream_run_integrity(stream_run: StreamRunRecord) -> None:
             raise ValueError(
                 f"stream event {event.event_id!r} digest does not match payload"
             )
+    _validate_producer_local_timestamp_order(
+        stream_run.events,
+        stream_run.sequence_contract,
+    )
     expected_order = tuple(
         sorted(
             stream_run.events,
@@ -234,11 +248,11 @@ def _digest_payload_projection(value: object) -> object:
         projected: dict[str, object] = {}
         for key, child in value.items():
             field_name = str(key)
-            if field_name in {"digest", "event_id", "artifact_kind", "schema_version"}:
+            if field_name in STREAM_DIGEST_OMITTED_FIELDS:
                 continue
             if child is None:
                 continue
-            if field_name == "currency" and child == "USD":
+            if STREAM_DIGEST_DEFAULT_OMISSIONS.get(field_name) == child:
                 continue
             projected_child = _digest_payload_projection(child)
             if projected_child in ({}, []):
@@ -300,6 +314,44 @@ def _event_sort_key(
         event.sequence_number,
         event.digest,
     )
+
+
+def _validate_producer_local_timestamp_order(
+    events: tuple[StreamEventRecord, ...],
+    contract: StreamSequenceContract,
+) -> None:
+    if contract.scope != "producer_local":
+        return
+    if contract.producer_field is None:
+        raise ValueError("producer-local stream sequencing requires producer_field")
+    by_producer: dict[tuple[str, str], list[StreamEventRecord]] = {}
+    for event in events:
+        producer_value = getattr(event, contract.producer_field)
+        if producer_value is None:
+            raise ValueError(
+                f"producer-local stream event {event.event_id!r} missing "
+                f"{contract.producer_field}"
+            )
+        by_producer.setdefault((event.run_id, producer_value), []).append(event)
+    for (run_id, producer_value), producer_events in by_producer.items():
+        ordered = sorted(producer_events, key=lambda event: event.sequence_number)
+        previous_timestamp: str | None = None
+        previous_event_id: str | None = None
+        for event in ordered:
+            timestamp = _timestamp_sort_value(
+                event.timestamp,
+                required=True,
+                owner=event.event_id,
+            )
+            if previous_timestamp is not None and timestamp < previous_timestamp:
+                raise ValueError(
+                    "producer-local stream timestamps must be monotonic within "
+                    f"run {run_id!r} producer {producer_value!r}: event "
+                    f"{event.event_id!r} sequence {event.sequence_number} is earlier "
+                    f"than event {previous_event_id!r}"
+                )
+            previous_timestamp = timestamp
+            previous_event_id = event.event_id
 
 
 def _timestamp_sort_value(

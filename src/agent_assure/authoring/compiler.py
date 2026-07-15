@@ -25,10 +25,13 @@ def compile_loaded_suite(loaded: LoadedYaml, source_digest: str) -> CompiledSuit
     expectations: list[Expectation] = []
     for case_data in _sequence(data.get("cases", ())):
         case_map = _mapping(case_data)
+        expectation_override = _mapping(case_map.get("expectation", {}))
         expectation_data = _merge_expectation_defaults(
             expectation_defaults,
-            _mapping(case_map.get("expectation", {})),
+            expectation_override,
         )
+        if "allowed_tools" in expectation_override:
+            expectation_data["allowed_tools_override"] = True
         expectation_data.setdefault("case_id", str(case_map["case_id"]))
         expectation_data.setdefault("expectation_id", f"{case_map['case_id']}:expectation")
         expectation_without_digest = Expectation(**expectation_data)

@@ -8,7 +8,7 @@ from agent_assure.schema.run import AgentRunRecord
 def evaluate_tool_allowlist(
     run: AgentRunRecord,
     *,
-    allowed_tools: tuple[str, ...] = (),
+    allowed_tools: tuple[str, ...] | None = None,
     forbidden_tools: tuple[str, ...] = (),
 ) -> tuple[ControlResult, ...]:
     results: list[ControlResult] = []
@@ -26,7 +26,7 @@ def evaluate_tool_allowlist(
         for tool in run.tools
         if tool in forbidden
     )
-    if not allowed_tools:
+    if allowed_tools is None:
         return tuple(results)
     allowed = set(allowed_tools)
     results.extend(

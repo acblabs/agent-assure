@@ -4,7 +4,7 @@ from dataclasses import dataclass, replace
 from datetime import date
 from uuid import uuid5
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
@@ -38,7 +38,12 @@ class ControlResult:
 
 class GateProfile(StrictModel):
     profile_id: str = Field(default="default", min_length=1)
-    fail_severities: tuple[Severity, ...] = (Severity.error, Severity.blocker)
+    fail_severities: tuple[Severity, ...] = (
+        Severity.info,
+        Severity.warning,
+        Severity.error,
+        Severity.blocker,
+    )
     fail_reason_codes: tuple[ReasonCode, ...] = ()
     fail_on_warn: bool = False
     fail_on_not_evaluated: bool = False
@@ -57,6 +62,14 @@ class GateProfile(StrictModel):
             return tuple(coerce_enum(ReasonCode, item) for item in value)
         return coerce_tuple(value)
 
+    @model_validator(mode="after")
+    def _validate_fail_filters(self) -> GateProfile:
+        if not self.fail_severities and not self.fail_reason_codes:
+            raise ValueError(
+                "gate profiles must include at least one fail severity or fail reason code"
+            )
+        return self
+
     def is_blocking(self, result: ControlResult) -> bool:
         if result.state is GateState.not_evaluated:
             return self.fail_on_not_evaluated
@@ -64,7 +77,10 @@ class GateProfile(StrictModel):
             return self.fail_on_warn
         if result.state is not GateState.fail:
             return False
-        return True
+        return (
+            result.severity in self.fail_severities
+            or result.reason_code in self.fail_reason_codes
+        )
 
 
 class Waiver(StrictModel):
@@ -160,6 +176,8 @@ def apply_waivers(
 def rollup_state(results: tuple[ControlResult, ...], profile: GateProfile) -> GateState:
     if any(profile.is_blocking(result) for result in results):
         return GateState.fail
+    if any(result.state is GateState.fail for result in results):
+        return GateState.warn
     if any(result.state is GateState.warn for result in results):
         return GateState.warn
     if any(result.state is GateState.not_evaluated for result in results):

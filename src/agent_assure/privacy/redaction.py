@@ -14,6 +14,7 @@ FAIL_CLOSED_RUNSET_KEYS = frozenset(
         "suite_id",
         "suite_version",
         "protocol_id",
+        "stop_reasons",
         "run_id",
         "case_id",
         "pipeline_id",

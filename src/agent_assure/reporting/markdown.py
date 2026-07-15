@@ -76,6 +76,7 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
             f"- Warning findings: `{report.metrics.warning_findings}`",
             "",
             "Warn-only and waived case findings do not count as failed cases. "
+            "Gate-profile-filtered fail findings count as failed cases and warning controls. "
             "Passed, failed, and unevaluated cases partition total cases. "
             "Global gate failures are reported separately from case pass/fail counts.",
             "",
@@ -229,8 +230,12 @@ def _behavioral_change_heading(report: ComparisonReport) -> str:
     if (
         report.comparison_summary.classification
         is ComparisonClassification.allowed_behavioral_change
+        or report.comparison_summary.classification
+        is ComparisonClassification.allowed_behavioral_and_provenance_change
     ):
         return "Behavioral record changes (non-blocking under current gates)"
+    if report.comparison_summary.classification is ComparisonClassification.unchanged:
+        return "No comparison changes"
     return "Behavioral record changes"
 
 

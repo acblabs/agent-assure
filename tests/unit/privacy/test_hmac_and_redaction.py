@@ -5,6 +5,7 @@ import pytest
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.privacy.redaction import (
+    assert_runset_payload_safe_for_persistence,
     redact_packet_payload,
     redact_runset_payload,
     redact_text,
@@ -150,6 +151,17 @@ def test_runset_redaction_scrubs_sensitive_exclusion_reason() -> None:
     redacted = redact_runset_payload(payload)
 
     assert redacted["runs"][0]["exclusion_reason"] == "patient [REDACTED]"
+
+
+def test_runset_persistence_rejects_sensitive_stop_reasons() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "stop_reasons": ("aborted for patient john.doe@example.com",),
+        "runs": [],
+    }
+
+    with pytest.raises(ValueError, match="stop_reasons"):
+        assert_runset_payload_safe_for_persistence(payload)
 
 
 def test_redaction_still_preserves_scalar_structural_values() -> None:

@@ -135,3 +135,28 @@ cases:
     assert expectation.allowed_outcomes == ("approve",)
     assert expectation.required_human_review is True
     assert expectation.expectation_digest is not None
+
+
+def test_empty_case_tool_allowlist_is_recorded_as_explicit_override(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+defaults:
+  allowed_tools:
+    - suite_tool
+cases:
+  - case_id: case-001
+    title: No tools case
+    expectation:
+      allowed_tools: []
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    compiled = compile_suite(suite)
+    expectation = compiled.resolved_expectations[0]
+
+    assert expectation.allowed_tools == ()
+    assert expectation.allowed_tools_override is True

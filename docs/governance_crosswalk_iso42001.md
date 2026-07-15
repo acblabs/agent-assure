@@ -20,7 +20,7 @@ where deterministic evidence may help a team prepare review material.
 | `provider_review_boundary` | `evaluated` | AI system lifecycle governance; accountability | `forbidden-provider-review-boundary` |
 | `human_review_required` | `evaluated` | human oversight; accountability | `missing-review-route` |
 | `redaction_required` | `partially_evaluated` | transparency; documentation | `persisted-sensitive-content` |
-| `prompt_injection_control_boundary` | `evaluated` | human oversight; monitoring | `prompt-boundary-bypass` |
+| `prompt_injection_control_boundary` | `partially_evaluated` | human oversight; monitoring | `prompt-boundary-bypass` |
 | `live_persisted_policy_results` | `evaluated_when_live` | monitoring; accountability | `live-adapter-suppressed-policy-failure` |
 | `live_config_path_confinement` | `evaluated` | AI system lifecycle governance; monitoring | `live-config-path-traversal` |
 | `live_openai_endpoint_allowlist` | `evaluated` | AI system lifecycle governance; monitoring | `network-adapter-key-exfiltration` |

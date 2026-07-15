@@ -6,7 +6,10 @@ from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
-from agent_assure.evaluation.invariants import evaluate_case
+from agent_assure.evaluation.invariants import (
+    evaluate_case,
+    evaluate_required_policy_results_for_run,
+)
 from agent_assure.live.advanced import evaluate_statistical_invariants
 from agent_assure.live.intervals import (
     bootstrap_mean_interval,
@@ -62,6 +65,7 @@ def evaluate_live_runset(
             run,
             gate_profile=gate_profile,
             allowed_tools=suite.defaults.allowed_tools,
+            required_policy_ids=suite.defaults.required_policy_ids,
         )
         for run in runset.runs
     )
@@ -219,6 +223,7 @@ def _evaluate_observation(
     *,
     gate_profile: GateProfile,
     allowed_tools: tuple[str, ...],
+    required_policy_ids: tuple[str, ...],
 ) -> LiveObservationResult:
     if run.observation_status == "excluded":
         return _observation_result(run, GateState.not_evaluated, ())
@@ -239,7 +244,15 @@ def _evaluate_observation(
             ),
         )
         return _observation_result(run, GateState.fail, findings)
-    results = evaluate_case(case_expectation, run, allowed_tools=allowed_tools)
+    results = (
+        *evaluate_required_policy_results_for_run(run, required_policy_ids),
+        *evaluate_case(
+            case_expectation,
+            run,
+            allowed_tools=allowed_tools,
+            required_policy_ids=required_policy_ids,
+        ),
+    )
     evaluated_findings = tuple(_finding_from_result(result) for result in results)
     state = rollup_state(results, gate_profile)
     return _observation_result(run, state, evaluated_findings)
@@ -297,7 +310,7 @@ def _summarize_group(
     *,
     protocol: LiveProtocolRecord,
 ) -> LiveGroupSummary:
-    first = runs[0] if runs else None
+    identity = _group_identity(group_id, runs)
     included = tuple(
         (run, observation)
         for run, observation in zip(runs, observations, strict=True)
@@ -329,10 +342,10 @@ def _summarize_group(
     return LiveGroupSummary(
         artifact_kind="live-group-summary",
         group_id=group_id,
-        provider=first.provider if first else None,
-        model=first.model if first else None,
-        adapter_id=first.adapter_id if first else None,
-        pipeline_id=first.pipeline_id if first else "overall",
+        provider=identity["provider"],
+        model=identity["model"],
+        adapter_id=identity["adapter_id"],
+        pipeline_id=identity["pipeline_id"] or group_id,
         observations=len(observations),
         included_observations=len(included_observations),
         excluded_observations=excluded_count,
@@ -387,6 +400,35 @@ def _summarize_group(
             ),
         ),
     )
+
+
+def _group_identity(
+    group_id: str,
+    runs: tuple[AgentRunRecord, ...],
+) -> dict[str, str | None]:
+    if not runs:
+        return {
+            "provider": None,
+            "model": None,
+            "adapter_id": None,
+            "pipeline_id": group_id,
+        }
+    fields = ("provider", "model", "adapter_id", "pipeline_id")
+    if group_id == "overall":
+        return {field: _homogeneous_value(runs, field) for field in fields}
+    first = runs[0]
+    return {field: getattr(first, field) for field in fields}
+
+
+def _homogeneous_value(
+    runs: tuple[AgentRunRecord, ...],
+    field_name: str,
+) -> str | None:
+    values = {getattr(run, field_name) for run in runs}
+    if len(values) != 1:
+        return None
+    value = next(iter(values))
+    return value if isinstance(value, str) else None
 
 
 def _groups(

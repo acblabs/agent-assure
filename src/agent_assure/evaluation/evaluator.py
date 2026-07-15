@@ -173,7 +173,7 @@ def evaluate_runset(
     warning_controls = tuple(
         finding
         for result, finding in zip(rollup_results, findings, strict=True)
-        if result.state is GateState.warn
+        if _is_warning_control(result, gate_profile)
     )
     return EvaluationReport(
         candidate_vs_expectations=summary,
@@ -220,13 +220,19 @@ def _metrics(
 ) -> EvaluationMetrics:
     case_ids = {case.case_id for case in suite.cases}
     run_counts = Counter(run.case_id for run in runset.runs)
-    evaluated_cases = {case_id for case_id in case_ids if run_counts[case_id] == 1}
-    blocked_case_ids = {
+    included_singleton_cases = {
+        run.case_id
+        for run in runset.runs
+        if run.case_id in case_ids
+        and run_counts[run.case_id] == 1
+        and run.observation_status != "excluded"
+    }
+    failed_case_ids = {
         result.case_id
         for result in results
-        if result.case_id in case_ids and gate_profile.is_blocking(result)
+        if result.case_id in case_ids and result.state is GateState.fail
     }
-    failed_evaluated_cases = blocked_case_ids & evaluated_cases
+    failed_evaluated_cases = failed_case_ids & included_singleton_cases
     global_blocking_findings = sum(
         1
         for result in results
@@ -236,16 +242,24 @@ def _metrics(
     findings_by_control = Counter(result.control_id for result in results)
     return EvaluationMetrics(
         total_cases=len(case_ids),
-        evaluated_cases=len(evaluated_cases),
-        unevaluated_cases=len(case_ids - evaluated_cases),
-        passed_cases=len(evaluated_cases - failed_evaluated_cases),
-        failed_cases=len(blocked_case_ids),
-        warning_findings=sum(1 for result in results if result.state is GateState.warn),
+        evaluated_cases=len(included_singleton_cases),
+        unevaluated_cases=len(case_ids - included_singleton_cases),
+        passed_cases=len(included_singleton_cases - failed_evaluated_cases),
+        failed_cases=len(failed_evaluated_cases),
+        warning_findings=sum(
+            1 for result in results if _is_warning_control(result, gate_profile)
+        ),
         blocking_findings=sum(1 for result in results if gate_profile.is_blocking(result)),
         global_blocking_findings=global_blocking_findings,
         findings_by_reason=dict(sorted(findings_by_reason.items())),
         findings_by_control=dict(sorted(findings_by_control.items())),
     )
+
+
+def _is_warning_control(result: ControlResult, gate_profile: GateProfile) -> bool:
+    if result.state is GateState.warn:
+        return True
+    return result.state is GateState.fail and not gate_profile.is_blocking(result)
 
 
 def _capabilities(

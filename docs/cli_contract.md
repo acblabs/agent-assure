@@ -41,14 +41,18 @@ denominator is declared. Missing usage is rendered as `not_observed`.
 makes unsupported capabilities blocking.
 
 Evaluation metrics distinguish case-level results from global gate failures.
-`evaluated_cases` counts suite cases with exactly one run record.
-`unevaluated_cases` counts missing or duplicate case records. `failed_cases`
-counts suite cases with blocking findings, including coverage failures for
-missing, duplicate, or excluded records. `passed_cases` counts only evaluated
-cases without blocking findings. Global failures, such as expired waivers,
-incomplete ordinary run sets, missing required policy-result coverage, or
+`evaluated_cases` counts suite cases with exactly one included run record.
+`unevaluated_cases` counts missing, duplicate, or excluded case records.
+`failed_cases` counts evaluated suite cases with fail findings, whether or not
+the selected gate profile makes those findings blocking. `passed_cases` counts
+evaluated suite cases without fail findings. Passed, failed, and unevaluated
+cases partition total cases. Coverage failures for missing, duplicate, or
+excluded records still fail the gate and are counted in `blocking_findings`;
+global failures, such as expired waivers, incomplete ordinary run sets, or
 blocked `not_evaluated` capabilities, are reported separately as
-`global_blocking_findings`.
+`global_blocking_findings`. Gate-profile-filtered fail findings are
+non-blocking, but they roll up to `warn` and appear in warning controls rather
+than being treated as a clean pass.
 
 Waivers bind to a run-set digest, reason code, and exact `finding_id`; expired
 waivers fail closed.
@@ -250,7 +254,8 @@ timestamp, and digest for global streams, and by run ID, timestamp, producer,
 sequence number, and digest for producer-local streams, so out-of-order arrival
 jitter does not change the persisted trajectory.
 The per-event `digest` field is optional for producers. When present, it must
-match the ingestion projection: recursively remove `digest`, `event_id`,
+match the ingestion projection, which is the stable wire contract for
+cross-language producers: recursively remove `digest`, `event_id`,
 `artifact_kind`, and `schema_version`; omit null object fields, empty projected
 object/list fields, and default `currency: "USD"` fields; then SHA-256 hash the
 canonical JSON projection.

@@ -21,7 +21,7 @@ review evidence may help a team prepare its own AI RMF material.
 | `provider_review_boundary` | `evaluated` | Measure; Manage | `forbidden-provider-review-boundary` |
 | `human_review_required` | `evaluated` | Measure; Manage | `missing-review-route` |
 | `redaction_required` | `partially_evaluated` | Measure; Govern | `persisted-sensitive-content` |
-| `prompt_injection_control_boundary` | `evaluated` | Measure; Manage | `prompt-boundary-bypass` |
+| `prompt_injection_control_boundary` | `partially_evaluated` | Measure; Manage | `prompt-boundary-bypass` |
 | `live_persisted_policy_results` | `evaluated_when_live` | Measure; Manage | `live-adapter-suppressed-policy-failure` |
 | `live_config_path_confinement` | `evaluated` | Manage | `live-config-path-traversal` |
 | `live_openai_endpoint_allowlist` | `evaluated` | Manage | `network-adapter-key-exfiltration` |

@@ -3,8 +3,11 @@ from __future__ import annotations
 from datetime import date, timedelta
 from pathlib import Path
 
+import pytest
+
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset, runset_digest
+from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
 from agent_assure.policies.evidence import evaluate_material_claim_evidence
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
@@ -144,6 +147,33 @@ def test_tool_allowlist_failure_is_reachable() -> None:
     mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
 
     report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    assert ReasonCode.FORBIDDEN_TOOL in _reason_codes(report.candidate_vs_expectations)
+
+
+def test_empty_case_tool_allowlist_overrides_suite_defaults() -> None:
+    compiled, runset = _runset(BASELINE)
+    target_case_id = runset.runs[0].case_id
+    resolved_expectations = tuple(
+        expectation.model_copy(
+            update={
+                "allowed_tools": (),
+                "allowed_tools_override": True,
+            }
+        )
+        if expectation.case_id == target_case_id
+        else expectation
+        for expectation in compiled.resolved_expectations
+    )
+    mutated_suite = compiled.model_copy(
+        update={"resolved_expectations": resolved_expectations}
+    )
+    mutated_runset = runset.model_copy(
+        update={"suite_digest": compiled_suite_digest(mutated_suite)}
+    )
+
+    report = evaluate_runset(mutated_suite, mutated_runset)
 
     assert report.candidate_vs_expectations.state is GateState.fail
     assert ReasonCode.FORBIDDEN_TOOL in _reason_codes(report.candidate_vs_expectations)
@@ -311,9 +341,15 @@ def test_required_policy_id_failure_is_verdict_bearing_in_fixture_mode() -> None
     )
     assert finding.case_id == first_run.case_id
     assert finding.state is GateState.fail
+    assert not any(
+        finding.control_id == "policy_result:provider-selection"
+        for finding in report.candidate_vs_expectations.findings
+    )
+    assert report.metrics.findings_by_control["required_policy:provider-selection"] == 1
+    assert "policy_result:provider-selection" not in report.metrics.findings_by_control
 
 
-def test_missing_record_counts_as_unevaluated_and_failed_case() -> None:
+def test_missing_record_counts_as_unevaluated_case_and_blocking_finding() -> None:
     compiled, runset = _runset(BASELINE)
     mutated = runset.model_copy(update={"runs": runset.runs[1:]})
 
@@ -327,7 +363,8 @@ def test_missing_record_counts_as_unevaluated_and_failed_case() -> None:
     assert report.metrics.evaluated_cases == 9
     assert report.metrics.unevaluated_cases == 1
     assert report.metrics.passed_cases == 9
-    assert report.metrics.failed_cases == 1
+    assert report.metrics.failed_cases == 0
+    assert report.metrics.blocking_findings == 1
 
 
 def test_incomplete_runset_fails_ordinary_evaluation() -> None:
@@ -370,7 +407,11 @@ def test_excluded_observation_fails_ordinary_evaluation() -> None:
         if finding.case_id == first_run.case_id and finding.target == "observation_status"
     )
     assert finding.reason_code is ReasonCode.VALID_RECORD_MISSING
-    assert report.metrics.failed_cases == 1
+    assert report.metrics.evaluated_cases == 9
+    assert report.metrics.unevaluated_cases == 1
+    assert report.metrics.passed_cases == 9
+    assert report.metrics.failed_cases == 0
+    assert report.metrics.blocking_findings == 1
 
 
 def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
@@ -449,7 +490,7 @@ def test_fail_on_warn_marks_warning_controls_blocking() -> None:
     assert rollup_state((warning,), GateProfile(fail_on_warn=True)) is GateState.fail
 
 
-def test_failed_control_is_blocking_even_with_non_matching_profile_filters() -> None:
+def test_failed_control_blocks_by_default_and_profile_filters_are_active() -> None:
     low_severity_failure = ControlResult(
         control_id="custom.low_severity_failure",
         case_id="case-1",
@@ -459,10 +500,50 @@ def test_failed_control_is_blocking_even_with_non_matching_profile_filters() -> 
         target="custom",
         message="custom control reported fail",
     )
-    profile = GateProfile(fail_severities=(), fail_reason_codes=())
 
-    assert profile.is_blocking(low_severity_failure) is True
-    assert rollup_state((low_severity_failure,), profile) is GateState.fail
+    severity_profile = GateProfile(
+        fail_severities=(Severity.error,),
+        fail_reason_codes=(),
+    )
+    reason_profile = GateProfile(
+        fail_severities=(),
+        fail_reason_codes=(ReasonCode.POLICY_FAILED,),
+    )
+
+    assert GateProfile().is_blocking(low_severity_failure) is True
+    assert severity_profile.is_blocking(low_severity_failure) is False
+    assert rollup_state((low_severity_failure,), severity_profile) is GateState.warn
+    assert reason_profile.is_blocking(low_severity_failure) is True
+    assert rollup_state((low_severity_failure,), reason_profile) is GateState.fail
+
+
+def test_nonblocking_failure_rolls_up_as_warning_not_clean_pass() -> None:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    profile = GateProfile(
+        fail_severities=(Severity.blocker,),
+        fail_reason_codes=(),
+    )
+
+    report = evaluate_runset(compiled, runset, gate_profile=profile)
+
+    assert report.candidate_vs_expectations.state is GateState.warn
+    assert report.failed_controls == ()
+    assert len(report.warning_controls) == 1
+    assert report.warning_controls[0].state is GateState.fail
+    assert (
+        report.warning_controls[0].reason_code
+        is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
+    )
+    assert report.metrics.blocking_findings == 0
+    assert report.metrics.warning_findings == 1
+    assert report.metrics.evaluated_cases == 10
+    assert report.metrics.passed_cases == 9
+    assert report.metrics.failed_cases == 1
+
+
+def test_gate_profile_rejects_empty_fail_filters() -> None:
+    with pytest.raises(ValueError, match="at least one fail severity or fail reason code"):
+        GateProfile(fail_severities=(), fail_reason_codes=())
 
 
 def test_finding_id_is_stable_across_message_rewording() -> None:

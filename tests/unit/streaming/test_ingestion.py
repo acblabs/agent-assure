@@ -12,6 +12,7 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.streaming.ingestion import (
+    _payload_digest,
     incremental_usage_summaries,
     ingest_jsonl_events,
 )
@@ -103,6 +104,37 @@ def test_stream_ingest_orders_producer_local_events_by_timestamp(
     assert "timestamp, producer" in result.diagnostics.diagnostics[1]
 
 
+def test_stream_ingest_rejects_nonmonotonic_producer_local_timestamps(
+    tmp_path: Path,
+) -> None:
+    path = _jsonl(
+        tmp_path,
+        [
+            _event(
+                "producer-a-1",
+                sequence_number=1,
+                event_type="node_started",
+                producer_id="a",
+                timestamp="2026-07-14T00:00:03Z",
+            ),
+            _event(
+                "producer-a-2",
+                sequence_number=2,
+                event_type="node_completed",
+                producer_id="a",
+                timestamp="2026-07-14T00:00:02Z",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="timestamps must be monotonic"):
+        ingest_jsonl_events(
+            path,
+            sequence_scope="producer_local",
+            producer_field="producer_id",
+        )
+
+
 def test_stream_ingest_rejects_producer_local_events_without_timestamp(
     tmp_path: Path,
 ) -> None:
@@ -186,6 +218,40 @@ def test_stream_ingest_rejects_conflicting_duplicate_digest(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="conflicting digest"):
         ingest_jsonl_events(path, sequence_scope="global")
+
+
+def test_stream_digest_projection_omits_only_wire_default_fields() -> None:
+    base = {
+        "run_id": "run-stream-001",
+        "case_id": "stream-case",
+        "sequence_number": 1,
+        "timestamp": "2026-07-14T00:00:01Z",
+        "event_type": "run_started",
+    }
+    with_defaults = {
+        **base,
+        "artifact_kind": "stream-event-record",
+        "schema_version": "0.5.0",
+        "event_id": "evt-1",
+        "digest": "d" * 64,
+        "producer_id": None,
+        "privacy_filtered_attributes": {},
+        "usage_segment": {"currency": "USD"},
+    }
+
+    assert _payload_digest(with_defaults) == _payload_digest(base)
+    assert _payload_digest(
+        {
+            **with_defaults,
+            "usage_segment": {"currency": "EUR"},
+        }
+    ) != _payload_digest(base)
+    assert _payload_digest(
+        {
+            **with_defaults,
+            "privacy_filtered_attributes": {"note": "reviewed"},
+        }
+    ) != _payload_digest(base)
 
 
 def test_stream_ingest_rejects_producer_local_conflicting_duplicate_digest(

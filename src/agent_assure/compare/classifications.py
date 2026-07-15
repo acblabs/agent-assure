@@ -34,6 +34,10 @@ def choose_comparison_classification(
         for change in control_changes
     ):
         return ComparisonClassification.resolved_failure
+    if not provenance_changes and not behavioral_changes:
+        return ComparisonClassification.unchanged
     if provenance_changes and not behavioral_changes:
         return ComparisonClassification.provenance_only_change
+    if provenance_changes and behavioral_changes:
+        return ComparisonClassification.allowed_behavioral_and_provenance_change
     return ComparisonClassification.allowed_behavioral_change

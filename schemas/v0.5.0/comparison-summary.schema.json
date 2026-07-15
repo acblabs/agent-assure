@@ -5,7 +5,9 @@
         "new_failure",
         "resolved_failure",
         "persistent_failure",
+        "unchanged",
         "allowed_behavioral_change",
+        "allowed_behavioral_and_provenance_change",
         "provenance_only_change",
         "invalid_comparison",
         "not_evaluated"
