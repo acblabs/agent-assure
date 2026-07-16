@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from agent_assure.privacy.redaction import redact_text
+from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.schema.usage import UsageSummary
 
 
@@ -41,13 +41,13 @@ def usage_summary_lines(summary: UsageSummary | None) -> list[str]:
     if summary.cost_basis_ids:
         lines.append(
             "- cost basis: "
-            + ", ".join(f"`{redact_text(cost_basis)}`" for cost_basis in summary.cost_basis_ids)
+            + ", ".join(markdown_code_span(cost_basis) for cost_basis in summary.cost_basis_ids)
         )
     if summary.pricing_snapshot_ids:
         lines.append(
             "- pricing snapshots: "
             + ", ".join(
-                f"`{redact_text(snapshot_id)}`" for snapshot_id in summary.pricing_snapshot_ids
+                markdown_code_span(snapshot_id) for snapshot_id in summary.pricing_snapshot_ids
             )
         )
     if summary.pricing_snapshot_digests:
@@ -55,7 +55,7 @@ def usage_summary_lines(summary: UsageSummary | None) -> list[str]:
             "- pricing snapshot digests: "
             + ", ".join(f"`{digest}`" for digest in summary.pricing_snapshot_digests)
         )
-    lines.extend(f"- limitation: {redact_text(limitation)}" for limitation in summary.limitations)
+    lines.extend(f"- limitation: {markdown_text(limitation)}" for limitation in summary.limitations)
     return lines
 
 

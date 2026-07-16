@@ -7,6 +7,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Literal, Protocol, cast
@@ -44,6 +45,13 @@ EstimatedCostSource = Literal[
 
 DEFAULT_OPENAI_ENDPOINT_HOSTS = ("api.openai.com",)
 MAX_PROVIDER_RESPONSE_BYTES = 1_048_576
+
+
+@dataclass(frozen=True)
+class TrustedLiveExecution:
+    allow_network: bool = False
+    allow_external_script: bool = False
+    allow_script_env: bool = False
 
 
 class LiveProviderRequest(StrictModel):
@@ -186,25 +194,32 @@ class OpenAIChatCompletionsAdapter:
         config: LiveAdapterConfig,
         *,
         base_dir: Path,
-        require_resolvable_endpoint_host: bool = False,
+        require_resolvable_endpoint_host: bool | None = None,
+        trust: TrustedLiveExecution | None = None,
     ) -> None:
         del base_dir
+        require_live_adapter_trust(config, trust)
         if not config.allow_network:
             raise ValueError("openai-chat-completions requires allow_network: true")
         if not config.endpoint_url:
             raise ValueError("openai-chat-completions requires endpoint_url")
         if not config.api_key_env:
             raise ValueError("openai-chat-completions requires api_key_env")
+        require_resolution = (
+            config.allow_network
+            if require_resolvable_endpoint_host is None
+            else require_resolvable_endpoint_host
+        )
         _validate_openai_endpoint(
             config,
-            require_resolvable_endpoint_host=require_resolvable_endpoint_host,
+            require_resolvable_endpoint_host=require_resolution,
         )
         api_key = os.environ.get(config.api_key_env)
         if not api_key:
             raise ValueError(f"environment variable {config.api_key_env!r} is not set")
         self._config = config
         self._api_key = api_key
-        self._require_resolvable_endpoint_host = require_resolvable_endpoint_host
+        self._require_resolvable_endpoint_host = require_resolution
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
         _validate_openai_endpoint(
@@ -253,7 +268,14 @@ class OpenAIChatCompletionsAdapter:
 class ExternalScriptAdapter:
     adapter_id = "external-script"
 
-    def __init__(self, config: LiveAdapterConfig, *, base_dir: Path) -> None:
+    def __init__(
+        self,
+        config: LiveAdapterConfig,
+        *,
+        base_dir: Path,
+        trust: TrustedLiveExecution | None = None,
+    ) -> None:
+        require_live_adapter_trust(config, trust)
         if config.script_path is None:
             raise ValueError("external-script adapter requires script_path")
         self._config = config
@@ -349,7 +371,8 @@ def build_adapter(
     config: LiveAdapterConfig,
     *,
     base_dir: Path,
-    require_resolvable_endpoint_hosts: bool = False,
+    require_resolvable_endpoint_hosts: bool | None = None,
+    trust: TrustedLiveExecution | None = None,
 ) -> LiveProviderAdapter:
     if config.adapter_id == StaticJsonlAdapter.adapter_id:
         return StaticJsonlAdapter(config, base_dir=base_dir)
@@ -358,9 +381,10 @@ def build_adapter(
             config,
             base_dir=base_dir,
             require_resolvable_endpoint_host=require_resolvable_endpoint_hosts,
+            trust=trust,
         )
     if config.adapter_id == ExternalScriptAdapter.adapter_id:
-        return ExternalScriptAdapter(config, base_dir=base_dir)
+        return ExternalScriptAdapter(config, base_dir=base_dir, trust=trust)
     known = ", ".join(adapter_ids())
     raise KeyError(f"unknown live adapter {config.adapter_id!r}; expected one of: {known}")
 
@@ -373,12 +397,50 @@ def adapter_ids() -> tuple[str, ...]:
     )
 
 
+def require_live_adapter_trust(
+    config: LiveAdapterConfig,
+    trust: TrustedLiveExecution | None,
+) -> None:
+    required: list[str] = []
+    if config.allow_network:
+        required.append("allow_network")
+    if config.adapter_id == ExternalScriptAdapter.adapter_id:
+        required.append("allow_external_script")
+    if config.script_env_allowlist:
+        required.append("allow_script_env")
+    missing = [
+        requirement
+        for requirement in required
+        if not _trust_allows(trust, requirement)
+    ]
+    if missing:
+        raise ValueError(
+            "live adapter requires explicit trusted execution capability: "
+            + ", ".join(missing)
+        )
+
+
+def _trust_allows(trust: TrustedLiveExecution | None, requirement: str) -> bool:
+    if trust is None:
+        return False
+    if requirement == "allow_network":
+        return trust.allow_network
+    if requirement == "allow_external_script":
+        return trust.allow_external_script
+    if requirement == "allow_script_env":
+        return trust.allow_script_env
+    return False
+
+
 def _open_no_redirects(
     request: urllib.request.Request,
     *,
     timeout_seconds: int,
 ) -> Any:
-    opener = urllib.request.build_opener(_NoRedirectHandler())
+    opener = urllib.request.build_opener(
+        urllib.request.ProxyHandler({}),
+        _NoRedirectHandler(),
+    )
     return opener.open(request, timeout=timeout_seconds)
 
 
@@ -518,6 +580,8 @@ def _validate_openai_endpoint(
         raise ValueError("openai-chat-completions endpoint_url must use https")
     if not parsed.hostname:
         raise ValueError("openai-chat-completions endpoint_url must include a host")
+    if parsed.username is not None or parsed.password is not None:
+        raise ValueError("openai-chat-completions endpoint_url must not include userinfo")
     host = normalize_endpoint_host(parsed.hostname)
     if is_disallowed_endpoint_host(host):
         raise ValueError(

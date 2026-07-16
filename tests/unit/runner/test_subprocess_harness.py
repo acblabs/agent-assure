@@ -6,7 +6,11 @@ from pathlib import Path
 
 import pytest
 
-from agent_assure.live.adapters import ExternalScriptAdapter, LiveProviderRequest
+from agent_assure.live.adapters import (
+    ExternalScriptAdapter,
+    LiveProviderRequest,
+    TrustedLiveExecution,
+)
 from agent_assure.live.config import LiveAdapterConfig
 from agent_assure.runner import subprocess_harness
 from agent_assure.runner.subprocess_harness import ExternalScriptError
@@ -62,6 +66,7 @@ print(json.dumps({
             script_env=({"name": "CUSTOM_FLAG", "value": "enabled"},),
         ),
         base_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_external_script=True),
     )
     trace_context = trace_context_for_seed("obs-001")
 
@@ -104,6 +109,7 @@ raise SystemExit(7)
             script_executable=sys.executable,
         ),
         base_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_external_script=True),
     )
     trace_context = trace_context_for_seed("obs-002")
 
@@ -144,6 +150,24 @@ def test_external_script_path_cannot_escape_config_dir(tmp_path: Path) -> None:
                 script_executable=sys.executable,
             ),
             base_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_external_script=True),
+        )
+
+
+def test_external_script_adapter_requires_explicit_trust(tmp_path: Path) -> None:
+    script = tmp_path / "adapter.py"
+    script.write_text("print('{}')\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="allow_external_script"):
+        ExternalScriptAdapter(
+            LiveAdapterConfig(
+                adapter_id="external-script",
+                provider="local-script",
+                model="script-model",
+                script_path=script.name,
+                script_executable=sys.executable,
+            ),
+            base_dir=tmp_path,
         )
 
 
@@ -168,6 +192,7 @@ print("x" * 128)
             script_executable=sys.executable,
         ),
         base_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_external_script=True),
     )
 
     with pytest.raises(ExternalScriptError, match="output exceeded byte limit") as raised:

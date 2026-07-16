@@ -212,6 +212,7 @@
         "case_id": {
           "anyOf": [
             {
+              "maxLength": 512,
               "type": "string"
             },
             {
@@ -227,11 +228,13 @@
           "type": "string"
         },
         "event_id": {
+          "maxLength": 512,
           "minLength": 1,
           "title": "Event Id",
           "type": "string"
         },
         "event_type": {
+          "maxLength": 512,
           "minLength": 1,
           "title": "Event Type",
           "type": "string"
@@ -239,6 +242,7 @@
         "node_id": {
           "anyOf": [
             {
+              "maxLength": 512,
               "type": "string"
             },
             {
@@ -262,6 +266,7 @@
         "parent_span_id": {
           "anyOf": [
             {
+              "maxLength": 512,
               "type": "string"
             },
             {
@@ -273,7 +278,11 @@
         },
         "privacy_filtered_attributes": {
           "additionalProperties": {
+            "maxLength": 8192,
             "type": "string"
+          },
+          "propertyNames": {
+            "maxLength": 512
           },
           "title": "Privacy Filtered Attributes",
           "type": "object"
@@ -281,6 +290,7 @@
         "producer_id": {
           "anyOf": [
             {
+              "maxLength": 512,
               "type": "string"
             },
             {
@@ -291,6 +301,7 @@
           "title": "Producer Id"
         },
         "run_id": {
+          "maxLength": 512,
           "minLength": 1,
           "title": "Run Id",
           "type": "string"
@@ -314,6 +325,7 @@
         "span_id": {
           "anyOf": [
             {
+              "maxLength": 512,
               "type": "string"
             },
             {
@@ -326,6 +338,7 @@
         "timestamp": {
           "anyOf": [
             {
+              "maxLength": 512,
               "type": "string"
             },
             {
@@ -338,6 +351,7 @@
         "traceparent": {
           "anyOf": [
             {
+              "maxLength": 512,
               "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
               "type": "string"
             },
@@ -1026,6 +1040,7 @@
     "case_ids": {
       "default": [],
       "items": {
+        "maxLength": 512,
         "type": "string"
       },
       "title": "Case Ids",
@@ -1046,6 +1061,7 @@
     },
     "run_ids": {
       "items": {
+        "maxLength": 512,
         "type": "string"
       },
       "minItems": 1,
@@ -1072,6 +1088,7 @@
       "type": "integer"
     },
     "stream_id": {
+      "maxLength": 512,
       "minLength": 1,
       "title": "Stream Id",
       "type": "string"

@@ -5,7 +5,11 @@ import json
 from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.privacy.redaction import redact_packet_payload, redact_text
+from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.reporting.markdown_safety import (
+    markdown_code_span,
+    markdown_text,
+)
 from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
@@ -109,16 +113,16 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
         "## How to Interpret",
         "",
     ]
-    lines.extend(f"- {redact_text(item)}" for item in packet.interpretation)
+    lines.extend(f"- {markdown_text(item)}" for item in packet.interpretation)
     lines.extend(
         [
             "",
             "## Candidate Summary",
             "",
-            f"- Run set: `{packet.evaluation.runset_id}`",
-            f"- State: `{packet.evaluation.state.value}`",
+            f"- Run set: {markdown_code_span(packet.evaluation.runset_id)}",
+            f"- State: {markdown_code_span(packet.evaluation.state.value)}",
             f"- Findings: `{len(packet.evaluation.findings)}`",
-            f"- Usage summary: `{_usage_presence(packet.usage_summary)}`",
+            f"- Usage summary: {markdown_code_span(_usage_presence(packet.usage_summary))}",
         ]
     )
     if packet.comparison is not None:
@@ -127,10 +131,13 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
                 "",
                 "## Comparison Summary",
                 "",
-                f"- Baseline run set: `{packet.comparison.baseline_runset_id}`",
-                f"- Candidate run set: `{packet.comparison.candidate_runset_id}`",
-                f"- Classification: `{packet.comparison.classification.value}`",
-                f"- Fixture equivalence: `{packet.comparison.fixture_equivalence_state.value}`",
+                "- Baseline run set: "
+                f"{markdown_code_span(packet.comparison.baseline_runset_id)}",
+                "- Candidate run set: "
+                f"{markdown_code_span(packet.comparison.candidate_runset_id)}",
+                f"- Classification: {markdown_code_span(packet.comparison.classification.value)}",
+                "- Fixture equivalence: "
+                f"{markdown_code_span(packet.comparison.fixture_equivalence_state.value)}",
             ]
         )
     if packet.environment is not None:
@@ -139,29 +146,32 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
                 "",
                 "## Environment",
                 "",
-                f"- Platform: `{redact_text(packet.environment.platform)}`",
-                f"- Python: `{redact_text(packet.environment.python_version.splitlines()[0])}`",
-                f"- Git commit: `{packet.environment.git_commit or '<unknown>'}`",
-                f"- Git dirty: `{packet.environment.git_dirty}`",
-                f"- Lockfile: `{packet.environment.lockfile_path or '<none>'}`",
-                f"- Lockfile digest: `{packet.environment.lockfile_digest or '<none>'}`",
+                f"- Platform: {markdown_code_span(packet.environment.platform)}",
+                "- Python: "
+                f"{markdown_code_span(packet.environment.python_version.splitlines()[0])}",
+                f"- Git commit: {markdown_code_span(packet.environment.git_commit or '<unknown>')}",
+                f"- Git dirty: {markdown_code_span(packet.environment.git_dirty)}",
+                f"- Lockfile: {markdown_code_span(packet.environment.lockfile_path or '<none>')}",
+                "- Lockfile digest: "
+                f"{markdown_code_span(packet.environment.lockfile_digest or '<none>')}",
                 "- Dependency inventory: "
-                f"`{packet.environment.dependency_inventory_path or '<none>'}`",
+                f"{markdown_code_span(packet.environment.dependency_inventory_path or '<none>')}",
                 "- Dependency inventory digest: "
-                f"`{packet.environment.dependency_inventory_digest or '<none>'}`",
+                f"{markdown_code_span(packet.environment.dependency_inventory_digest or '<none>')}",
                 f"- Installed packages: `{len(packet.environment.installed_packages)}`",
             ]
         )
     if packet.release_manifest is not None:
         lines.extend(["", "## Release Artifact Manifest", ""])
         lines.extend(
-            f"- `{artifact.role}` `{redact_text(artifact.path)}` `{artifact.sha256}`"
+            f"- {markdown_code_span(artifact.role)} "
+            f"{markdown_code_span(artifact.path)} {markdown_code_span(artifact.sha256)}"
             for artifact in packet.release_manifest.artifacts
         )
     lines.extend(["", "## Measured Usage", ""])
     lines.extend(_packet_usage_lines(packet))
     lines.extend(["", "## Limitations", ""])
-    lines.extend(f"- {redact_text(limitation)}" for limitation in packet.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in packet.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -210,7 +220,7 @@ def _packet_usage_lines(packet: EvidencePacket) -> list[str]:
     if comparison.usage_delta is None:
         lines.append("- Usage delta: `not_observed`")
     else:
-        lines.append(f"- {redact_text(format_usage_delta(comparison.usage_delta))}")
+        lines.append(f"- {markdown_text(format_usage_delta(comparison.usage_delta))}")
     return lines
 
 

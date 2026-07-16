@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 import pytest
 
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
@@ -71,23 +73,65 @@ def test_redaction_removes_common_secret_tokens() -> None:
     slack_token = "xoxb-" + "123456789012-123456789012-secretTOKEN"
     google_key = "AIza" + "1234567890ABCDEFGHIJKLMNOPQRSTUVWXY"
     stripe_key = "sk" + "_live_" + "abcdefghijklmnopqrstuvwxyz"
+    anthropic_key = "sk-ant-" + "abcdefghijklmnopqrstuvwxyz123456"
     raw = (
         "Authorization: Bearer abcdefghijklmnopqrstuvwxyz123456 "
+        "Authorization: Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ== "
         "token=ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH "
         "jwt=eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.signatureABC "
         f"slack={slack_token} "
         f"google={google_key} "
-        f"stripe={stripe_key}"
+        f"stripe={stripe_key} "
+        f"anthropic={anthropic_key} "
+        "aws_secret_access_key=abcdefghijklmnopqrstuvwxyz1234567890 "
+        "password is CorrectHorseBatteryStaple "
+        "mrn: MRN-123456 "
+        "Patient Name: Jane Example"
     )
     redacted = redact_text(raw)
 
     assert "Bearer abcdefghijklmnopqrstuvwxyz123456" not in redacted
+    assert "Basic QWxhZGRpbjpvcGVuIHNlc2FtZQ==" not in redacted
     assert "ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH" not in redacted
     assert "eyJhbGci" not in redacted
     assert slack_token not in redacted
     assert google_key not in redacted
     assert stripe_key not in redacted
+    assert anthropic_key not in redacted
+    assert "abcdefghijklmnopqrstuvwxyz1234567890" not in redacted
+    assert "CorrectHorseBatteryStaple" not in redacted
+    assert "MRN-123456" not in redacted
+    assert "Jane Example" not in redacted
     assert not contains_sensitive_value(redacted)
+
+
+def test_redaction_removes_url_secret_after_prior_query_params() -> None:
+    raw = "see https://example.test/path?foo=one&access_token=abcdefghijklmnopqrstuvwxyz"
+
+    redacted = redact_text(raw)
+
+    assert "abcdefghijklmnopqrstuvwxyz" not in redacted
+    assert "[REDACTED]" in redacted
+
+
+def test_redaction_removes_url_secret_when_path_contains_ampersand() -> None:
+    raw = "see https://example.test/path&audit?token=abcdefghijklmnopqrstuvwxyz"
+
+    redacted = redact_text(raw)
+
+    assert "abcdefghijklmnopqrstuvwxyz" not in redacted
+    assert "[REDACTED]" in redacted
+
+
+def test_url_secret_redaction_rejects_long_nonsecret_url_quickly() -> None:
+    raw = "https://" + ("a" * 64_000)
+
+    started = time.perf_counter()
+    redacted = redact_text(raw)
+    elapsed = time.perf_counter() - started
+
+    assert redacted == raw
+    assert elapsed < 0.5
 
 
 def test_runset_redaction_recurses_persisted_record_fields() -> None:

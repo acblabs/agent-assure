@@ -5,6 +5,7 @@ from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.authoring.yaml_lint import lint_yaml
+from agent_assure.authoring.yaml_nodes import MAX_YAML_BYTES, load_yaml_nodes
 
 
 def test_yaml_ambiguous_scalar_preserves_lexeme(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -106,6 +107,14 @@ cases: []
 
     with pytest.raises(ValueError, match="aliases are not supported"):
         compile_suite(suite)
+
+
+def test_yaml_loader_rejects_oversized_file_before_parse(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_bytes(b"a" * (MAX_YAML_BYTES + 1))
+
+    with pytest.raises(ValueError, match="suite YAML exceeds maximum supported size"):
+        load_yaml_nodes(suite)
 
 
 def test_expectation_defaults_are_resolved_and_digest_recorded(tmp_path) -> None:  # type: ignore[no-untyped-def]

@@ -13,9 +13,16 @@ SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
     re.compile(r"\bA(?:KIA|SIA)[A-Z0-9]{16}\b"),
     re.compile(r"\bgh[pousr]_[A-Za-z0-9_]{30,}\b"),
     re.compile(r"\bsk-(?:proj-)?[A-Za-z0-9_-]{20,}\b"),
+    re.compile(r"\bsk-ant-[A-Za-z0-9_-]{20,}\b"),
     re.compile(r"\bxox[baprs]-[A-Za-z0-9-]{10,}\b"),
     re.compile(r"\bAIza[A-Za-z0-9_-]{35}\b"),
     re.compile(r"\b(?:sk|rk)_live_[A-Za-z0-9]{16,}\b"),
+    re.compile(r"\bAuthorization\s*:\s*Basic\s+[A-Za-z0-9+/=]{12,}", re.IGNORECASE),
+    re.compile(
+        r"(?:^|[^A-Za-z0-9])(?:aws[_-]?)?secret[_-]?access[_-]?key\s*[:=]\s*"
+        r"['\"]?[A-Za-z0-9/+=]{20,}",
+        re.IGNORECASE,
+    ),
     re.compile(
         r"\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|private[_-]?key|secret|"
         r"password|passwd|authorization)\s*[:=]\s*"
@@ -23,7 +30,12 @@ SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
         re.IGNORECASE,
     ),
     re.compile(
-        r"https?://[^\s?#]+[^\s]*[?&](?:api[_-]?key|access[_-]?token|token|secret|password)="
+        r"\b(?:password|passwd|secret|token)\s+(?:is|was)\s+['\"]?[^'\"\s,;]{8,}",
+        re.IGNORECASE,
+    ),
+    re.compile(
+        r"https?://[^\s?#]*\?(?:[^\s#&]*&)*"
+        r"(?:api[_-]?key|access[_-]?token|token|secret|password)="
         r"[^\s&#]+",
         re.IGNORECASE,
     ),
@@ -32,6 +44,8 @@ SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = (
         r"\(?\d{3}\)?[-.\s]\d{3}[-.\s]\d{4}\b",
         re.IGNORECASE,
     ),
+    re.compile(r"\bmrn\s*[:=]\s*[A-Za-z0-9-]{4,}", re.IGNORECASE),
+    re.compile(r"\bpatient\s+name\s*[:=]\s*[^\r\n;]+", re.IGNORECASE),
     re.compile(r"-----BEGIN [A-Z ]*PRIVATE KEY-----"),
 )
 

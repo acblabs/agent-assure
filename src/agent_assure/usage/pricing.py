@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, read_text_bounded
 from agent_assure.schema.common import DigestHex
 from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
 
@@ -22,7 +23,9 @@ _KNOWN_GENERATED_PRICING_LIMITATIONS = frozenset(
 
 
 def load_pricing_snapshot(path: Path) -> UsagePricingSnapshot:
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(
+        read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="pricing snapshot")
+    )
     return UsagePricingSnapshot.model_validate(payload)
 
 

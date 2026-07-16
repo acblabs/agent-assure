@@ -6,8 +6,8 @@ from pathlib import Path
 from agent_assure.privacy.redaction import (
     PRESERVE_PACKET_KEYS,
     redact_artifact_payload,
-    redact_text,
 )
+from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.schema.live import (
     LiveComparisonReport,
     LiveDriftReport,
@@ -78,11 +78,12 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         "",
         "## Summary",
         "",
-        f"- State: `{report.state.value}`",
-        f"- Run set: `{report.runset_id}`",
-        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
-        f"- Completion status: `{report.completion_status}`",
-        f"- Stop reasons: `{', '.join(report.stop_reasons) or 'none'}`",
+        f"- State: {markdown_code_span(report.state.value)}",
+        f"- Run set: {markdown_code_span(report.runset_id)}",
+        f"- Suite: {markdown_code_span(report.suite_id)} "
+        f"version {markdown_code_span(report.suite_version)}",
+        f"- Completion status: {markdown_code_span(report.completion_status)}",
+        f"- Stop reasons: {markdown_code_span(', '.join(report.stop_reasons) or 'none')}",
         f"- Observations: `{report.overall.observations}`",
         f"- Expectation pass rate: `{report.overall.expectation_pass_rate.rate}`",
         f"- Cluster mean pass rate: `{report.overall.expectation_pass_rate.cluster_mean_rate}`",
@@ -94,7 +95,7 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         "effective_n="
         f"`{report.overall.expectation_pass_rate.largest_cluster_effective_n}`",
         "- Confidence interval around "
-        f"`{report.overall.expectation_pass_rate.interval_center}` "
+        f"{markdown_code_span(report.overall.expectation_pass_rate.interval_center)} "
         f"(`{report.overall.expectation_pass_rate.interval_center_value}`): "
         f"`{report.overall.expectation_pass_rate.ci_lower}` to "
         f"`{report.overall.expectation_pass_rate.ci_upper}`",
@@ -105,7 +106,7 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
     for group in report.groups:
         lines.extend(
             [
-                f"- `{redact_text(group.group_id)}` observations=`{group.observations}` "
+                f"- {markdown_code_span(group.group_id)} observations=`{group.observations}` "
                 f"pass_rate=`{group.expectation_pass_rate.rate}` "
                 f"cluster_mean=`{group.expectation_pass_rate.cluster_mean_rate}` "
                 f"ci_center=`{group.expectation_pass_rate.interval_center}` "
@@ -117,14 +118,16 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
     lines.extend(["", "## Observation Provenance", ""])
     for observation in report.observations:
         lines.append(
-            f"- `{observation.case_id}` repetition=`{observation.repetition_index}` "
-            f"tool_schema=`{observation.tool_schema_digest}` "
-            f"policy_bundle=`{observation.policy_bundle_digest}`"
+            f"- {markdown_code_span(observation.case_id)} "
+            f"repetition=`{observation.repetition_index}` "
+            f"tool_schema={markdown_code_span(observation.tool_schema_digest)} "
+            f"policy_bundle={markdown_code_span(observation.policy_bundle_digest)}"
         )
     lines.extend(["", "## Reason-Code Rates", ""])
     if report.overall.reason_code_rates:
         lines.extend(
-            f"- `{rate.label}`: `{rate.numerator}` / `{rate.denominator}` = `{rate.rate}`"
+            f"- {markdown_code_span(rate.label)}: "
+            f"`{rate.numerator}` / `{rate.denominator}` = `{rate.rate}`"
             for rate in report.overall.reason_code_rates
         )
     else:
@@ -133,15 +136,17 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
     if report.statistical_invariants:
         for invariant in report.statistical_invariants:
             lines.append(
-                f"- `{redact_text(invariant.endpoint_id)}` "
-                f"`{invariant.interpretation}` `{invariant.prerequisite_status}` "
+                f"- {markdown_code_span(invariant.endpoint_id)} "
+                f"{markdown_code_span(invariant.interpretation)} "
+                f"{markdown_code_span(invariant.prerequisite_status)} "
                 f"rate=`{invariant.rate}` clusters=`{invariant.cluster_count}` "
-                f"method=`{invariant.analysis_method}`"
+                f"method={markdown_code_span(invariant.analysis_method)}"
             )
             if invariant.rare_event_bound is not None:
                 bound = invariant.rare_event_bound
                 lines.append(
-                    f"  - `{bound.interval_sidedness}` `{bound.confidence_level}` bound: "
+                    f"  - {markdown_code_span(bound.interval_sidedness)} "
+                    f"{markdown_code_span(bound.confidence_level)} bound: "
                     f"events=`{bound.observed_events}` exposure=`{bound.exposure}` "
                     f"upper_rate=`{bound.upper_rate_bound}`"
                 )
@@ -163,14 +168,17 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         for observation in failing:
             for finding in observation.findings:
                 lines.append(
-                    f"- `{observation.case_id}` repetition=`{observation.repetition_index}` "
-                    f"`{finding.control_id}` `{finding.reason_code.value}` "
-                    f"`{finding.state.value}`: {redact_text(finding.message)}"
+                    f"- {markdown_code_span(observation.case_id)} "
+                    f"repetition=`{observation.repetition_index}` "
+                    f"{markdown_code_span(finding.control_id)} "
+                    f"{markdown_code_span(finding.reason_code.value)} "
+                    f"{markdown_code_span(finding.state.value)}: "
+                    f"{markdown_text(finding.message)}"
                 )
     else:
         lines.append("No observation-level findings were emitted.")
     lines.extend(["", "## Limitations", ""])
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -180,13 +188,14 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
         "",
         "## Summary",
         "",
-        f"- State: `{report.state.value}`",
-        f"- Baseline run set: `{report.baseline_runset_id}`",
-        f"- Candidate run set: `{report.candidate_runset_id}`",
-        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
-        f"- Baseline group: `{redact_text(report.baseline_group_id)}`",
-        f"- Candidate group: `{redact_text(report.candidate_group_id)}`",
-        f"- Exploratory: `{str(report.exploratory).lower()}`",
+        f"- State: {markdown_code_span(report.state.value)}",
+        f"- Baseline run set: {markdown_code_span(report.baseline_runset_id)}",
+        f"- Candidate run set: {markdown_code_span(report.candidate_runset_id)}",
+        f"- Suite: {markdown_code_span(report.suite_id)} "
+        f"version {markdown_code_span(report.suite_version)}",
+        f"- Baseline group: {markdown_code_span(report.baseline_group_id)}",
+        f"- Candidate group: {markdown_code_span(report.candidate_group_id)}",
+        f"- Exploratory: {markdown_code_span(str(report.exploratory).lower())}",
         f"- Compared clusters: `{report.compared_clusters}`",
         f"- Effective sample size: `{report.effective_n}`",
         f"- Baseline pass rate: `{report.baseline_pass_rate.rate}`",
@@ -207,8 +216,10 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
     if report.randomization_tests:
         for test in report.randomization_tests:
             lines.append(
-                f"- `{redact_text(test.endpoint_id)}` `{test.analysis_method}` "
-                f"`{test.prerequisite_status}` p=`{test.p_value or 'not_evaluated'}` "
+                f"- {markdown_code_span(test.endpoint_id)} "
+                f"{markdown_code_span(test.analysis_method)} "
+                f"{markdown_code_span(test.prerequisite_status)} "
+                f"p=`{test.p_value or 'not_evaluated'}` "
                 f"adjusted_p=`{test.adjusted_p_value or 'not_evaluated'}` "
                 f"clusters=`{test.compared_clusters}` resamples=`{test.resamples}`"
             )
@@ -221,7 +232,7 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
             "",
         ]
     )
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -231,75 +242,81 @@ def render_live_drift_markdown(report: LiveDriftReport) -> str:
         "",
         "## Summary",
         "",
-        f"- State: `{report.state.value}`",
-        f"- Monitoring status: `{report.monitoring_status}`",
-        f"- Interpretation: `{report.interpretation}`",
-        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
-        f"- Protocol: `{report.protocol_id or 'not_evaluated'}`",
-        f"- Drift plan: `{redact_text(report.drift_plan_id or 'default')}`",
-        f"- Ordering variable: `{report.ordering_variable}`",
-        f"- Observation window: `{report.observation_window_start_utc or 'unknown'}` to "
-        f"`{report.observation_window_end_utc or 'unknown'}`",
+        f"- State: {markdown_code_span(report.state.value)}",
+        f"- Monitoring status: {markdown_code_span(report.monitoring_status)}",
+        f"- Interpretation: {markdown_code_span(report.interpretation)}",
+        f"- Suite: {markdown_code_span(report.suite_id)} "
+        f"version {markdown_code_span(report.suite_version)}",
+        f"- Protocol: {markdown_code_span(report.protocol_id or 'not_evaluated')}",
+        f"- Drift plan: {markdown_code_span(report.drift_plan_id or 'default')}",
+        f"- Ordering variable: {markdown_code_span(report.ordering_variable)}",
+        "- Observation window: "
+        f"{markdown_code_span(report.observation_window_start_utc or 'unknown')} to "
+        f"{markdown_code_span(report.observation_window_end_utc or 'unknown')}",
         "",
         "## Comparability",
         "",
-        f"- Status: `{report.comparability.status}`",
+        f"- Status: {markdown_code_span(report.comparability.status)}",
         f"- Windows: `{report.comparability.compared_windows}`",
-        f"- Suite matches: `{str(report.comparability.suite_matches).lower()}`",
+        f"- Suite matches: {markdown_code_span(str(report.comparability.suite_matches).lower())}",
         f"- Baseline mode matches: "
-        f"`{str(report.comparability.baseline_mode_matches).lower()}`",
+        f"{markdown_code_span(str(report.comparability.baseline_mode_matches).lower())}",
         f"- Analysis method matches: "
-        f"`{str(report.comparability.analysis_method_matches).lower()}`",
+        f"{markdown_code_span(str(report.comparability.analysis_method_matches).lower())}",
         f"- Protocol digest matches: "
-        f"`{str(report.comparability.protocol_digest_matches).lower()}`",
+        f"{markdown_code_span(str(report.comparability.protocol_digest_matches).lower())}",
         f"- Material fields match: "
-        f"`{str(report.comparability.material_fields_match).lower()}`",
+        f"{markdown_code_span(str(report.comparability.material_fields_match).lower())}",
         f"- Tool-schema digest matches: "
-        f"`{str(report.comparability.tool_schema_digest_matches).lower()}`",
+        f"{markdown_code_span(str(report.comparability.tool_schema_digest_matches).lower())}",
         f"- Policy-bundle digest matches: "
-        f"`{str(report.comparability.policy_bundle_digest_matches).lower()}`",
+        f"{markdown_code_span(str(report.comparability.policy_bundle_digest_matches).lower())}",
         "",
         "## Windows",
         "",
     ]
     for window in report.windows:
         lines.append(
-            f"- `{window.window_id}` runset=`{window.runset_id}` "
+            f"- {markdown_code_span(window.window_id)} "
+            f"runset={markdown_code_span(window.runset_id)} "
             f"observations=`{window.observations}` "
             f"included=`{window.included_observations}` "
             f"excluded=`{window.excluded_observations}` "
-            f"start=`{window.observation_window_start_utc or 'unknown'}` "
-            f"end=`{window.observation_window_end_utc or 'unknown'}` "
-            f"provider_version_unknown=`{str(window.provider_version_unknown).lower()}`"
+            f"start={markdown_code_span(window.observation_window_start_utc or 'unknown')} "
+            f"end={markdown_code_span(window.observation_window_end_utc or 'unknown')} "
+            "provider_version_unknown="
+            f"{markdown_code_span(str(window.provider_version_unknown).lower())}"
         )
     lines.extend(["", "## Metric Diagnostics", ""])
     for diagnostic in report.diagnostics:
         lines.append(
-            f"- `{diagnostic.label}` metric=`{diagnostic.metric}` "
-            f"`{diagnostic.interpretation}` `{diagnostic.prerequisite_status}` "
+            f"- {markdown_code_span(diagnostic.label)} "
+            f"metric={markdown_code_span(diagnostic.metric)} "
+            f"{markdown_code_span(diagnostic.interpretation)} "
+            f"{markdown_code_span(diagnostic.prerequisite_status)} "
             f"windows=`{diagnostic.windows}` missing=`{diagnostic.missing_windows}` "
             f"first=`{diagnostic.first_value or 'not_evaluated'}` "
             f"last=`{diagnostic.last_value or 'not_evaluated'}` "
             f"slope=`{diagnostic.slope_per_window or 'not_evaluated'}` "
             f"max_step=`{diagnostic.max_step_change or 'not_evaluated'}` "
-            f"stationarity=`{diagnostic.stationarity_signal}` "
-            f"dependence=`{diagnostic.dependence_signal}`"
+            f"stationarity={markdown_code_span(diagnostic.stationarity_signal)} "
+            f"dependence={markdown_code_span(diagnostic.dependence_signal)}"
         )
         if diagnostic.state_estimate is not None:
             estimate = diagnostic.state_estimate
             lines.append(
-                f"  - `{estimate.state_name}` level="
+                f"  - {markdown_code_span(estimate.state_name)} level="
                 f"`{estimate.latest_level or 'not_evaluated'}` drift="
                 f"`{estimate.latest_drift_per_window or 'not_evaluated'}` "
                 f"alpha=`{estimate.smoothing_alpha}`"
             )
         for reason in diagnostic.review_reasons:
-            lines.append(f"  - review signal: {redact_text(reason)}")
+            lines.append(f"  - review signal: {markdown_text(reason)}")
     lines.extend(["", "## Limitations", ""])
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     if report.comparability.failures:
         lines.extend(["", "## Comparability Failures", ""])
-        lines.extend(f"- {redact_text(failure)}" for failure in report.comparability.failures)
+        lines.extend(f"- {markdown_text(failure)}" for failure in report.comparability.failures)
     return "\n".join(lines) + "\n"
 
 
@@ -309,67 +326,73 @@ def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
         "",
         "## Summary",
         "",
-        f"- State: `{report.state.value}`",
-        f"- Trajectory status: `{report.trajectory_status}`",
-        f"- Interpretation: `{report.interpretation}`",
-        f"- Run set: `{report.runset_id}`",
-        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
-        f"- Protocol: `{report.protocol_id or 'not_evaluated'}`",
-        f"- Trajectory plan: `{redact_text(report.trajectory_plan_id or 'default')}`",
+        f"- State: {markdown_code_span(report.state.value)}",
+        f"- Trajectory status: {markdown_code_span(report.trajectory_status)}",
+        f"- Interpretation: {markdown_code_span(report.interpretation)}",
+        f"- Run set: {markdown_code_span(report.runset_id)}",
+        f"- Suite: {markdown_code_span(report.suite_id)} "
+        f"version {markdown_code_span(report.suite_version)}",
+        f"- Protocol: {markdown_code_span(report.protocol_id or 'not_evaluated')}",
+        f"- Trajectory plan: {markdown_code_span(report.trajectory_plan_id or 'default')}",
         f"- Observations: `{report.observations}`",
         f"- Included: `{report.included_observations}`",
         f"- Excluded: `{report.excluded_observations}`",
-        f"- Transition assumption: `{report.transition_assumption}` "
-        f"`{report.transition_assumption_status}`",
+        f"- Transition assumption: {markdown_code_span(report.transition_assumption)} "
+        f"{markdown_code_span(report.transition_assumption_status)}",
         "",
         "## Paths",
         "",
     ]
     for path in report.paths:
         lines.append(
-            f"- `{path.case_id}` repetition=`{path.repetition_index}` "
-            f"terminal=`{path.terminal_state}` transitions=`{path.transition_count}` "
-            f"states=`{' -> '.join(path.states)}` "
+            f"- {markdown_code_span(path.case_id)} repetition=`{path.repetition_index}` "
+            f"terminal={markdown_code_span(path.terminal_state)} "
+            f"transitions=`{path.transition_count}` "
+            f"states={markdown_code_span(' -> '.join(path.states))} "
             f"tools=`{path.tool_count}` claims=`{path.claim_count}` "
             f"links=`{path.claim_evidence_link_count}` "
-            f"review_required=`{str(path.human_review_required).lower()}` "
-            f"review_performed=`{str(path.human_review_performed).lower()}`"
+            f"review_required={markdown_code_span(str(path.human_review_required).lower())} "
+            f"review_performed={markdown_code_span(str(path.human_review_performed).lower())}"
         )
     lines.extend(["", "## Transition Summary", ""])
     for transition in report.transitions:
         lines.append(
-            f"- `{transition.from_state}` -> `{transition.to_state}` "
+            f"- {markdown_code_span(transition.from_state)} -> "
+            f"{markdown_code_span(transition.to_state)} "
             f"count=`{transition.count}` from_state_count=`{transition.from_state_count}` "
             f"frequency=`{transition.conditional_frequency}` "
-            f"`{transition.prerequisite_status}`"
+            f"{markdown_code_span(transition.prerequisite_status)}"
         )
     lines.extend(["", "## Trajectory Invariants", ""])
     for invariant in report.invariants:
         lines.append(
-            f"- `{redact_text(invariant.invariant_id)}` "
-            f"`{invariant.category}` `{invariant.prerequisite_status}` "
-            f"state=`{invariant.state.value}` affected="
+            f"- {markdown_code_span(invariant.invariant_id)} "
+            f"{markdown_code_span(invariant.category)} "
+            f"{markdown_code_span(invariant.prerequisite_status)} "
+            f"state={markdown_code_span(invariant.state.value)} affected="
             f"`{invariant.affected_observations}` / `{invariant.evaluated_observations}`"
         )
     lines.extend(["", "## History-Dependent Checks", ""])
     for check in report.history_dependent_checks:
         lines.append(
-            f"- `{redact_text(check.check_id)}` `{check.prerequisite_status}` "
+            f"- {markdown_code_span(check.check_id)} "
+            f"{markdown_code_span(check.prerequisite_status)} "
             f"affected=`{check.affected_observations}` dependency="
-            f"{redact_text(check.dependency)}"
+            f"{markdown_text(check.dependency)}"
         )
     lines.extend(["", "## Operational Event Processes", ""])
     for process in report.event_processes:
         lines.append(
-            f"- `{process.event_type}` events=`{process.observed_events}` "
+            f"- {markdown_code_span(process.event_type)} events=`{process.observed_events}` "
             f"exposure=`{process.exposure}` rate=`{process.event_rate}` "
-            f"`{process.prerequisite_status}` burst=`{process.burst_signal}` "
+            f"{markdown_code_span(process.prerequisite_status)} "
+            f"burst={markdown_code_span(process.burst_signal)} "
             f"max_window_count=`{process.max_events_in_burst_window}` "
             f"timestamped=`{process.timestamped_events}` "
             f"missing_timestamps=`{process.missing_timestamp_events}`"
         )
     lines.extend(["", "## Limitations", ""])
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 

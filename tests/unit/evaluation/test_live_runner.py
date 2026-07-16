@@ -11,23 +11,40 @@ import pytest
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.cli.live_cmd import _confirm_trusted_live_config, _trusted_live_config_reasons
+from agent_assure.cli.live_cmd import (
+    _confirm_trusted_live_config,
+    _require_resolvable_endpoint_hosts,
+    _trusted_live_config_reasons,
+)
 from agent_assure.live.adapters import (
     MAX_PROVIDER_RESPONSE_BYTES,
     LiveProviderRequest,
     OpenAIChatCompletionsAdapter,
     StaticJsonlAdapter,
+    TrustedLiveExecution,
     _NoRedirectHandler,
+    _open_no_redirects,
     _read_provider_response,
 )
-from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
+from agent_assure.live.config import (
+    LiveAdapterConfig,
+    LivePromptCase,
+    LiveRunConfig,
+    is_disallowed_endpoint_host,
+    load_live_run_config,
+)
+from agent_assure.live.output_contract import (
+    LiveOutputContractError,
+    parse_live_structured_content,
+)
+from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.live.runner import (
     _is_rate_limit_error,
     _pace_request,
     _token_reservation,
     run_live_suite,
 )
-from agent_assure.schema.common import ReasonCode
+from agent_assure.schema.common import MAX_SUMMARY_CHARS, ReasonCode
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.suite import CompiledSuite
 
@@ -138,13 +155,121 @@ def test_live_cli_ci_requires_trust_config_and_risk_specific_flags() -> None:
             allow_script_env=True,
         )
 
-    _confirm_trusted_live_config(
+    trust = _confirm_trusted_live_config(
         config,
         trust_config=True,
         ci=True,
         allow_network=True,
         allow_external_script=True,
         allow_script_env=True,
+    )
+
+    assert trust.allow_network
+    assert trust.allow_external_script
+    assert trust.allow_script_env
+
+
+def test_live_runner_requires_explicit_external_script_trust(tmp_path: Path) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    script = tmp_path / "adapter.py"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    script.write_text("print('{}')\n", encoding="utf-8")
+    protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
+    protocol_digest = sha256_hexdigest(protocol)
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="expense-live",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path=script.name,
+            script_executable=sys.executable,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        max_requests=1,
+        max_total_cost_usd="1.000000",
+        max_cost_per_observation_usd="1.000000",
+        max_retries=0,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+    )
+
+    with pytest.raises(ValueError, match="allow_external_script"):
+        run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+
+def test_live_run_config_yaml_rejects_aliases_before_validation(tmp_path: Path) -> None:
+    config_path = tmp_path / "live.yaml"
+    config_path.write_text(
+        """
+variant_id: static-live
+pipeline_id: pipeline
+tool_schema_digest: '1111111111111111111111111111111111111111111111111111111111111111'
+policy_bundle_digest: '2222222222222222222222222222222222222222222222222222222222222222'
+adapter:
+  adapter_id: static-jsonl
+  provider: static-provider
+  model: static-model
+  response_jsonl_path: responses.jsonl
+cases:
+  - &case
+    case_id: case-001
+    prompt_path: prompt.txt
+    input_summary: summary
+  - *case
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="aliases are not supported"):
+        load_live_run_config(config_path)
+
+
+def test_live_cli_requires_strict_dns_for_any_configured_network_run() -> None:
+    network_config = LiveRunConfig(
+        variant_id="network-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="openai",
+            model="gpt-test",
+            api_key_env="OPENAI_TEST_KEY",
+            endpoint_url="https://api.openai.com/v1/chat/completions",
+            allow_network=True,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+    local_config = _config(tokens_per_minute=20, max_output_tokens=7)
+
+    assert _require_resolvable_endpoint_hosts(
+        network_config,
+        strict_endpoint_resolution=False,
+    )
+    assert _require_resolvable_endpoint_hosts(
+        local_config,
+        strict_endpoint_resolution=True,
+    )
+    assert not _require_resolvable_endpoint_hosts(
+        local_config,
+        strict_endpoint_resolution=False,
     )
 
 
@@ -191,7 +316,13 @@ raise SystemExit(9)
         protocol_digest=protocol_digest,
     )
 
-    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+    runset = run_live_suite(
+        compiled,
+        config,
+        protocol=protocol,
+        config_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_external_script=True),
+    )
 
     assert len(runset.runs) == 1
     assert runset.runs[0].outcome == "runtime_error"
@@ -274,6 +405,15 @@ def test_static_jsonl_path_cannot_escape_config_dir(tmp_path: Path) -> None:
         )
 
 
+@pytest.mark.parametrize("path_value", ["", ".", "../responses.jsonl", "C:responses.jsonl"])
+def test_live_config_paths_reject_empty_traversal_and_drive_relative_forms(
+    tmp_path: Path,
+    path_value: str,
+) -> None:
+    with pytest.raises(ValueError):
+        resolve_live_config_path(tmp_path, path_value, field_name="response_jsonl_path")
+
+
 def test_static_jsonl_rejects_duplicate_case_repetition_rows(tmp_path: Path) -> None:
     responses = tmp_path / "responses.jsonl"
     row = {
@@ -354,6 +494,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 endpoint_url="http://api.openai.com/v1/chat/completions",
             ),
             base_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_network=True),
         )
 
     with pytest.raises(ValueError, match="allowed_endpoint_hosts"):
@@ -363,6 +504,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 endpoint_url="https://gateway.example.com/v1/chat/completions",
             ),
             base_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_network=True),
         )
 
     with pytest.raises(ValueError, match="localhost, private"):
@@ -373,6 +515,7 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
                 allowed_endpoint_hosts=("127.0.0.1",),
             ),
             base_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_network=True),
         )
 
     with pytest.raises(ValueError, match="localhost, private"):
@@ -382,11 +525,36 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
             allowed_endpoint_hosts=("localhost",),
         )
 
+    with pytest.raises(ValueError, match="localhost, private"):
+        LiveAdapterConfig(
+            **common,
+            endpoint_url="https://metadata.google.internal/v1/chat/completions",
+            allowed_endpoint_hosts=("metadata.google.internal",),
+        )
+
+    with pytest.raises(ValueError, match="localhost, private"):
+        LiveAdapterConfig(
+            **common,
+            endpoint_url="https://100.100.100.200/v1/chat/completions",
+            allowed_endpoint_hosts=("100.100.100.200",),
+        )
+
     with pytest.raises(ValueError, match="bare hostnames"):
         LiveAdapterConfig(
             **common,
             endpoint_url="https://gateway.example.com/v1/chat/completions",
             allowed_endpoint_hosts=("https://gateway.example.com",),
+        )
+
+    with pytest.raises(ValueError, match="userinfo"):
+        OpenAIChatCompletionsAdapter(
+            LiveAdapterConfig(
+                **common,
+                endpoint_url="https://user:pass@gateway.example.com/v1/chat/completions",
+                allowed_endpoint_hosts=("gateway.example.com",),
+            ),
+            base_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_network=True),
         )
 
     adapter = OpenAIChatCompletionsAdapter(
@@ -396,9 +564,45 @@ def test_openai_adapter_requires_https_and_explicit_custom_host_allowlist(
             allowed_endpoint_hosts=("gateway.example.com",),
         ),
         base_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_network=True),
     )
 
     assert adapter.adapter_id == "openai-chat-completions"
+
+
+def test_endpoint_host_screening_normalizes_ipv4_mapped_addresses() -> None:
+    assert is_disallowed_endpoint_host("::ffff:127.0.0.1")
+    assert is_disallowed_endpoint_host("::ffff:100.100.100.200")
+
+
+def test_openai_transport_disables_environment_proxies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class DummyOpener:
+        def open(self, request: urllib.request.Request, *, timeout: int) -> object:
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return object()
+
+    def fake_build_opener(*handlers: object) -> DummyOpener:
+        captured["handlers"] = handlers
+        return DummyOpener()
+
+    monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
+    request = urllib.request.Request("https://api.openai.com/v1/chat/completions")
+
+    _open_no_redirects(request, timeout_seconds=7)
+
+    handlers = captured["handlers"]
+    assert isinstance(handlers, tuple)
+    proxy_handlers = [
+        handler for handler in handlers if isinstance(handler, urllib.request.ProxyHandler)
+    ]
+    assert len(proxy_handlers) == 1
+    assert proxy_handlers[0].proxies == {}
+    assert captured["timeout"] == 7
 
 
 def test_openai_adapter_rejects_allowed_host_resolving_to_private_address(
@@ -433,6 +637,7 @@ def test_openai_adapter_rejects_allowed_host_resolving_to_private_address(
                 allowed_endpoint_hosts=("gateway.example.com",),
             ),
             base_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_network=True),
         )
 
 
@@ -457,13 +662,21 @@ def test_openai_adapter_strict_resolution_rejects_unresolved_allowed_host(
         allowed_endpoint_hosts=("gateway.example.com",),
     )
 
-    OpenAIChatCompletionsAdapter(config, base_dir=tmp_path)
     with pytest.raises(ValueError, match="could not be resolved"):
         OpenAIChatCompletionsAdapter(
             config,
             base_dir=tmp_path,
-            require_resolvable_endpoint_host=True,
+            trust=TrustedLiveExecution(allow_network=True),
         )
+
+    adapter = OpenAIChatCompletionsAdapter(
+        config,
+        base_dir=tmp_path,
+        require_resolvable_endpoint_host=False,
+        trust=TrustedLiveExecution(allow_network=True),
+    )
+
+    assert adapter.adapter_id == "openai-chat-completions"
 
 
 def test_openai_adapter_rechecks_resolution_before_each_request(
@@ -494,6 +707,7 @@ def test_openai_adapter_rechecks_resolution_before_each_request(
         ),
         base_dir=tmp_path,
         require_resolvable_endpoint_host=True,
+        trust=TrustedLiveExecution(allow_network=True),
     )
 
     with pytest.raises(ValueError, match="resolves to localhost, private"):
@@ -536,6 +750,20 @@ def test_openai_provider_response_is_size_bounded() -> None:
 
     with pytest.raises(ValueError, match="provider response exceeded"):
         _read_provider_response(OversizedResponse())
+
+
+def test_live_structured_output_rejects_oversized_summary() -> None:
+    content = json.dumps(
+        {
+            "recommendation": "approve",
+            "outcome": "approve",
+            "output_summary": "x" * (MAX_SUMMARY_CHARS + 1),
+        },
+        sort_keys=True,
+    )
+
+    with pytest.raises(LiveOutputContractError):
+        parse_live_structured_content(content)
 
 
 def test_live_runner_records_post_response_budget_stop(tmp_path: Path) -> None:

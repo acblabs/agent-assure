@@ -129,10 +129,12 @@ operator acknowledgement before execution. Interactive runs prompt for configs
 that execute external scripts, enable network egress, or pass host environment
 variables. Non-interactive CI runs must pass `--trust-config` plus the matching
 risk-specific flags: `--allow-external-script`, `--allow-network`, and/or
-`--allow-script-env`. `--strict-endpoint-resolution` makes live network
-adapter construction and request dispatch fail closed when endpoint DNS
-resolution is unavailable; CI network runs enable that strict policy
-automatically. The OpenAI-compatible
+`--allow-script-env`. Any live config that enables `allow_network: true`
+requires endpoint DNS safety screening to succeed during adapter construction
+and request dispatch. `--strict-endpoint-resolution` is retained for CLI
+compatibility and future endpoint-screened paths; with current network adapters,
+unresolved endpoint hosts already fail closed whenever `allow_network: true`.
+The OpenAI-compatible
 chat-completions adapter uses Python standard-library HTTP support, requires
 explicit `allow_network: true` in the live config, requires HTTPS and an API key
 environment variable, and validates non-default endpoint hosts against the

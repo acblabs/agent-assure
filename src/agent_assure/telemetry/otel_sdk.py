@@ -88,6 +88,8 @@ class OTelExportConfig(StrictModel):
             raise ValueError("OTLP HTTP endpoint must use https")
         if not parsed.hostname:
             raise ValueError("OTLP HTTP endpoint must include a host")
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("OTLP HTTP endpoint must not include userinfo")
         host = normalize_endpoint_host(parsed.hostname)
         if is_disallowed_endpoint_host(host):
             raise ValueError(

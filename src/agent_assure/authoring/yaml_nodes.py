@@ -7,6 +7,8 @@ from typing import Any
 
 import yaml
 
+from agent_assure.io_limits import read_text_bounded
+
 MAX_YAML_BYTES = 1_048_576
 MAX_YAML_NODE_COUNT = 100_000
 MAX_YAML_DEPTH = 80
@@ -28,6 +30,7 @@ class LoadedYaml:
 
 @dataclass
 class _YamlConversionState:
+    label: str = "suite YAML"
     seen_node_ids: set[int] = field(default_factory=set)
     node_count: int = 0
 
@@ -39,22 +42,35 @@ AMBIGUOUS_TAGS = {
 }
 
 
-def load_yaml_nodes(path: Path) -> LoadedYaml:
-    text = path.read_text(encoding="utf-8")
-    if len(text.encode("utf-8")) > MAX_YAML_BYTES:
-        raise ValueError("suite YAML exceeds maximum supported size")
+def load_yaml_nodes(path: Path, *, label: str = "suite YAML") -> LoadedYaml:
+    text = read_text_bounded(path, max_bytes=MAX_YAML_BYTES, label=label)
+    return load_yaml_nodes_text(text, label=label)
+
+
+def load_yaml_nodes_text(text: str, *, label: str = "suite YAML") -> LoadedYaml:
     node = yaml.compose(text)
     warnings: list[YamlWarning] = []
     data = _convert_node(
         node,
         "$",
         warnings,
-        state=_YamlConversionState(),
+        state=_YamlConversionState(label=label),
         depth=0,
     )
     if not isinstance(data, dict):
-        raise ValueError("suite YAML root must be a mapping")
+        raise ValueError(f"{label} root must be a mapping")
     return LoadedYaml(data=data, warnings=tuple(warnings))
+
+
+def validate_yaml_nodes_text(text: str, *, label: str = "suite YAML") -> None:
+    node = yaml.compose(text)
+    _convert_node(
+        node,
+        "$",
+        [],
+        state=_YamlConversionState(label=label),
+        depth=0,
+    )
 
 
 def _convert_node(
@@ -141,14 +157,14 @@ def _record_node_visit(
     depth: int,
 ) -> None:
     if depth > MAX_YAML_DEPTH:
-        raise ValueError("suite YAML exceeds maximum supported nesting depth")
+        raise ValueError(f"{state.label} exceeds maximum supported nesting depth")
     node_id = id(node)
     if node_id in state.seen_node_ids:
         raise ValueError(
-            "suite YAML aliases are not supported because alias expansion can "
+            f"{state.label} aliases are not supported because alias expansion can "
             f"exhaust resources at {path}"
         )
     state.seen_node_ids.add(node_id)
     state.node_count += 1
     if state.node_count > MAX_YAML_NODE_COUNT:
-        raise ValueError("suite YAML exceeds maximum supported node count")
+        raise ValueError(f"{state.label} exceeds maximum supported node count")

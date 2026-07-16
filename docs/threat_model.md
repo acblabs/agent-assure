@@ -44,9 +44,11 @@ malicious model, script, provider, CI checkout, or operator.
   allowed by default; non-default gateways must be listed explicitly in
   `allowed_endpoint_hosts`. Localhost, private, link-local, reserved, multicast,
   and unspecified endpoint hosts are rejected by literal host inspection and
-  by resolved A/AAAA records when DNS resolution is available. Interactive
-  runs can opt into fail-closed DNS screening with
-  `--strict-endpoint-resolution`; CI network runs enable it automatically.
+  by resolved A/AAAA records. Any CLI live run whose config enables
+  `allow_network: true` requires endpoint DNS safety screening to succeed;
+  `--strict-endpoint-resolution` is retained for CLI compatibility and future
+  endpoint-screened paths. With current network adapters, unresolved endpoint
+  hosts already fail closed whenever `allow_network: true`.
   OpenAI-compatible requests repeat DNS screening immediately before dispatch,
   but this is not TLS pinning or socket-level IP pinning.
 - OTLP HTTP export is explicit operator-controlled network egress. OTLP export

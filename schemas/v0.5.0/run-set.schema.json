@@ -172,6 +172,7 @@
         "exclusion_reason": {
           "anyOf": [
             {
+              "maxLength": 8192,
               "type": "string"
             },
             {
@@ -196,6 +197,7 @@
           "type": "boolean"
         },
         "input_summary": {
+          "maxLength": 8192,
           "title": "Input Summary",
           "type": "string"
         },
@@ -246,10 +248,12 @@
           "type": "string"
         },
         "outcome": {
+          "maxLength": 512,
           "title": "Outcome",
           "type": "string"
         },
         "output_summary": {
+          "maxLength": 8192,
           "title": "Output Summary",
           "type": "string"
         },
@@ -380,6 +384,7 @@
           "title": "Rate Limit Events"
         },
         "recommendation": {
+          "maxLength": 512,
           "title": "Recommendation",
           "type": "string"
         },
@@ -1000,11 +1005,13 @@
         },
         "gate_profile": {
           "default": "default",
+          "maxLength": 512,
           "title": "Gate Profile",
           "type": "string"
         },
         "message": {
           "default": "",
+          "maxLength": 8192,
           "title": "Message",
           "type": "string"
         },

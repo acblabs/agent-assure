@@ -9,7 +9,7 @@ from rich.console import Console
 from agent_assure.evaluation.evaluator import load_runset
 from agent_assure.fixtures.loader import compiled_suite_digest, load_compiled_suite
 from agent_assure.io_limits import load_json_bounded
-from agent_assure.live.adapters import adapter_ids
+from agent_assure.live.adapters import TrustedLiveExecution, adapter_ids
 from agent_assure.live.comparison import compare_live_reports, load_live_evaluation_report
 from agent_assure.live.config import load_live_run_config
 from agent_assure.live.drift import build_live_drift_report
@@ -86,14 +86,17 @@ def run(
         bool,
         typer.Option(
             "--strict-endpoint-resolution",
-            help="Fail closed if network endpoint hosts cannot be DNS-screened.",
+            help=(
+                "Compatibility flag; current network adapters already fail closed "
+                "if endpoint hosts cannot be DNS-screened."
+            ),
         ),
     ] = False,
 ) -> None:
     try:
         compiled = load_compiled_suite(compiled_suite)
         live_config = load_live_run_config(config)
-        _confirm_trusted_live_config(
+        trust = _confirm_trusted_live_config(
             live_config,
             trust_config=trust_config,
             ci=ci,
@@ -107,8 +110,11 @@ def run(
             live_config,
             protocol=protocol_record,
             config_dir=config.parent,
-            require_resolvable_endpoint_hosts=strict_endpoint_resolution
-            or (ci and allow_network),
+            require_resolvable_endpoint_hosts=_require_resolvable_endpoint_hosts(
+                live_config,
+                strict_endpoint_resolution=strict_endpoint_resolution,
+            ),
+            trust=trust,
         )
         write_runset(runset, out)
     except (KeyError, ValueError, TypeError) as exc:
@@ -124,10 +130,10 @@ def _confirm_trusted_live_config(
     allow_network: bool,
     allow_external_script: bool,
     allow_script_env: bool,
-) -> None:
+) -> TrustedLiveExecution:
     risks = _trusted_live_config_risks(config)
     if not risks:
-        return
+        return TrustedLiveExecution()
     reasons = tuple(reason for _, reason, _ in risks)
     missing_flags = tuple(
         flag
@@ -146,13 +152,34 @@ def _confirm_trusted_live_config(
         raise ValueError(f"{message}; explicit allow flag(s) required: {flags}")
     if trust_config:
         console.print(f"warning: {message}")
-        return
+        return _trusted_live_execution_for_risks(risks)
     if not typer.confirm(f"{message}. Continue?", default=False):
         raise typer.Abort()
+    return _trusted_live_execution_for_risks(risks)
 
 
 def _trusted_live_config_reasons(config: object) -> tuple[str, ...]:
     return tuple(reason for _, reason, _ in _trusted_live_config_risks(config))
+
+
+def _trusted_live_execution_for_risks(
+    risks: tuple[tuple[str, str, str], ...],
+) -> TrustedLiveExecution:
+    risk_ids = {risk_id for risk_id, _, _ in risks}
+    return TrustedLiveExecution(
+        allow_network="network" in risk_ids,
+        allow_external_script="external-script" in risk_ids,
+        allow_script_env="script-env" in risk_ids,
+    )
+
+
+def _require_resolvable_endpoint_hosts(
+    config: object,
+    *,
+    strict_endpoint_resolution: bool,
+) -> bool:
+    adapter = getattr(config, "adapter", None)
+    return strict_endpoint_resolution or bool(getattr(adapter, "allow_network", False))
 
 
 def _trusted_live_config_risks(config: object) -> tuple[tuple[str, str, str], ...]:

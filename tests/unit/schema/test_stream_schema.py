@@ -7,6 +7,7 @@ import pytest
 from jsonschema import Draft202012Validator
 from pydantic import ValidationError
 
+from agent_assure.schema.common import MAX_LABEL_CHARS, MAX_SUMMARY_CHARS
 from agent_assure.schema.export import SCHEMA_MODELS
 from agent_assure.schema.stream import StreamEventRecord
 from agent_assure.schema.validation import validate_artifact
@@ -66,6 +67,36 @@ def test_stream_event_direct_usage_segment_uses_privacy_filter() -> None:
                     "total_tokens": 12,
                 },
                 "privacy_filtered_attributes": {},
+                "digest": "a" * 64,
+            }
+        )
+
+
+def test_stream_event_rejects_oversized_strings() -> None:
+    with pytest.raises(ValidationError, match="at most"):
+        StreamEventRecord.model_validate(
+            {
+                "artifact_kind": "stream-event-record",
+                "event_id": "x" * (MAX_LABEL_CHARS + 1),
+                "run_id": "run-stream-001",
+                "sequence_number": 1,
+                "event_type": "run_completed",
+                "privacy_filtered_attributes": {},
+                "digest": "a" * 64,
+            }
+        )
+
+    with pytest.raises(ValidationError, match="at most"):
+        StreamEventRecord.model_validate(
+            {
+                "artifact_kind": "stream-event-record",
+                "event_id": "evt-stream-001",
+                "run_id": "run-stream-001",
+                "sequence_number": 1,
+                "event_type": "run_completed",
+                "privacy_filtered_attributes": {
+                    "summary": "x" * (MAX_SUMMARY_CHARS + 1),
+                },
                 "digest": "a" * 64,
             }
         )

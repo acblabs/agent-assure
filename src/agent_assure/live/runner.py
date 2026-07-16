@@ -13,6 +13,7 @@ from agent_assure.live.adapters import (
     LiveProviderAdapter,
     LiveProviderRequest,
     LiveProviderResponse,
+    TrustedLiveExecution,
     build_adapter,
     monotonic_ms,
 )
@@ -47,7 +48,8 @@ def run_live_suite(
     *,
     protocol: LiveProtocolRecord,
     config_dir: Path,
-    require_resolvable_endpoint_hosts: bool = False,
+    require_resolvable_endpoint_hosts: bool | None = None,
+    trust: TrustedLiveExecution | None = None,
 ) -> RunSet:
     _validate_cases(compiled, config)
     _validate_protocol_config(compiled, config, protocol)
@@ -60,6 +62,7 @@ def run_live_suite(
         config.adapter,
         base_dir=config_dir,
         require_resolvable_endpoint_hosts=require_resolvable_endpoint_hosts,
+        trust=trust,
     )
     configuration_digest = _configuration_digest(compiled, config)
     protocol_digest = sha256_hexdigest(protocol)

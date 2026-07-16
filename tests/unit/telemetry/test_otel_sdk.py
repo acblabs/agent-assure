@@ -126,6 +126,8 @@ def test_otel_export_config_rejects_untrusted_http_endpoints() -> None:
         OTelExportConfig(endpoint="http://collector.example.com/v1/traces")
     with pytest.raises(ValueError, match="localhost, private"):
         OTelExportConfig(endpoint="https://127.0.0.1:4318/v1/traces")
+    with pytest.raises(ValueError, match="userinfo"):
+        OTelExportConfig(endpoint="https://user:pass@collector.example.com/v1/traces")
 
 
 def test_otel_export_config_requires_explicit_allowed_endpoint_host(

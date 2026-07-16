@@ -11,6 +11,7 @@
         },
         "composite_key": {
           "items": {
+            "maxLength": 512,
             "type": "string"
           },
           "title": "Composite Key",
@@ -29,12 +30,14 @@
         "duplicate_event_ids": {
           "default": [],
           "items": {
+            "maxLength": 512,
             "type": "string"
           },
           "title": "Duplicate Event Ids",
           "type": "array"
         },
         "kept_event_id": {
+          "maxLength": 512,
           "minLength": 1,
           "title": "Kept Event Id",
           "type": "string"
@@ -114,6 +117,7 @@
     "diagnostics": {
       "default": [],
       "items": {
+        "maxLength": 8192,
         "type": "string"
       },
       "title": "Diagnostics",
@@ -135,6 +139,7 @@
     "run_ids": {
       "default": [],
       "items": {
+        "maxLength": 512,
         "type": "string"
       },
       "title": "Run Ids",
@@ -160,6 +165,7 @@
       "type": "integer"
     },
     "stream_id": {
+      "maxLength": 512,
       "minLength": 1,
       "title": "Stream Id",
       "type": "string"

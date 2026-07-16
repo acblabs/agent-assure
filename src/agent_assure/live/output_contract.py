@@ -3,10 +3,11 @@ from __future__ import annotations
 import json
 from typing import Any
 
+from pydantic import Field
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import StrictModel
-from agent_assure.schema.common import coerce_tuple
+from agent_assure.schema.common import MAX_LABEL_CHARS, MAX_SUMMARY_CHARS, coerce_tuple
 from agent_assure.schema.run import (
     ClaimEvidenceLink,
     ClaimRecord,
@@ -21,9 +22,9 @@ class LiveOutputContractError(ValueError):
 
 
 class LiveStructuredRecord(StrictModel):
-    recommendation: str
-    outcome: str
-    output_summary: str
+    recommendation: str = Field(max_length=MAX_LABEL_CHARS)
+    outcome: str = Field(max_length=MAX_LABEL_CHARS)
+    output_summary: str = Field(max_length=MAX_SUMMARY_CHARS)
     tools: tuple[str, ...] = ()
     evidence_refs: tuple[EvidenceRef, ...] = ()
     evidence_items: tuple[EvidenceItem, ...] = ()

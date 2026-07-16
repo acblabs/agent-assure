@@ -13,13 +13,21 @@ import yaml
 from pydantic import Field
 from pydantic.functional_validators import field_validator
 
+from agent_assure.authoring.yaml_nodes import validate_yaml_nodes_text
 from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, read_text_bounded
 from agent_assure.schema.base import StrictModel
-from agent_assure.schema.common import DigestHex, coerce_tuple
+from agent_assure.schema.common import MAX_SUMMARY_CHARS, DigestHex, coerce_tuple
 
 USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 EndpointResolver = Callable[..., Iterable[Any]]
+DISALLOWED_ENDPOINT_HOSTNAMES = frozenset(
+    {
+        "metadata",
+        "metadata.google.internal",
+    }
+)
+DISALLOWED_ENDPOINT_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"),)
 
 
 @dataclass(frozen=True)
@@ -105,7 +113,7 @@ class LiveAdapterConfig(StrictModel):
 class LivePromptCase(StrictModel):
     case_id: str = Field(min_length=1)
     prompt_path: str = Field(min_length=1)
-    input_summary: str = Field(min_length=1)
+    input_summary: str = Field(min_length=1, max_length=MAX_SUMMARY_CHARS)
     source_group_id: str | None = None
 
 
@@ -144,6 +152,7 @@ def load_live_run_config(path: Path) -> LiveRunConfig:
     if path.suffix.lower() == ".json":
         loaded = json.loads(text)
     else:
+        validate_yaml_nodes_text(text, label="live run config YAML")
         loaded = yaml.safe_load(text)
     if not isinstance(loaded, dict):
         raise TypeError("live run config must be a mapping")
@@ -156,12 +165,16 @@ def normalize_endpoint_host(host: str) -> str:
 
 def is_disallowed_endpoint_host(host: str) -> bool:
     normalized = normalize_endpoint_host(host)
+    if normalized in DISALLOWED_ENDPOINT_HOSTNAMES:
+        return True
     if normalized in {"localhost"} or normalized.endswith(".localhost"):
         return True
     try:
         address = ipaddress.ip_address(normalized)
     except ValueError:
         return False
+    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
+        address = address.ipv4_mapped
     return any(
         (
             address.is_loopback,
@@ -170,6 +183,7 @@ def is_disallowed_endpoint_host(host: str) -> bool:
             address.is_reserved,
             address.is_multicast,
             address.is_unspecified,
+            any(address in network for network in DISALLOWED_ENDPOINT_NETWORKS),
         )
     )
 

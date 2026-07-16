@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
@@ -11,7 +11,12 @@ from agent_assure.adapters.base import (
     validate_privacy_filtered_usage_segment,
 )
 from agent_assure.schema.base import PersistedArtifact, StrictModel
-from agent_assure.schema.common import DigestHex, coerce_tuple
+from agent_assure.schema.common import (
+    MAX_LABEL_CHARS,
+    MAX_SUMMARY_CHARS,
+    DigestHex,
+    coerce_tuple,
+)
 from agent_assure.schema.usage import (
     UsageLedger,
     UsageSegment,
@@ -22,6 +27,9 @@ from agent_assure.telemetry.context import TRACEPARENT_FIELD_PATTERN, validate_t
 
 StreamSequenceScope = Literal["global", "producer_local"]
 StreamProducerField = Literal["producer_id", "node_id", "span_id"]
+StreamLabel = Annotated[str, Field(max_length=MAX_LABEL_CHARS)]
+StreamRequiredLabel = Annotated[str, Field(min_length=1, max_length=MAX_LABEL_CHARS)]
+StreamSummary = Annotated[str, Field(max_length=MAX_SUMMARY_CHARS)]
 
 
 class StreamSequenceContract(StrictModel):
@@ -39,22 +47,26 @@ class StreamSequenceContract(StrictModel):
 
 class StreamEventRecord(PersistedArtifact):
     artifact_kind: Literal["stream-event-record"] = "stream-event-record"
-    event_id: str = Field(min_length=1)
-    run_id: str = Field(min_length=1)
-    case_id: str | None = None
-    producer_id: str | None = None
-    node_id: str | None = None
+    event_id: StreamRequiredLabel
+    run_id: StreamRequiredLabel
+    case_id: StreamLabel | None = None
+    producer_id: StreamLabel | None = None
+    node_id: StreamLabel | None = None
     sequence_number: int = Field(ge=0)
-    timestamp: str | None = None
-    event_type: str = Field(min_length=1)
+    timestamp: StreamLabel | None = None
+    event_type: StreamRequiredLabel
 
     observation: FrameworkObservation | None = None
     usage_segment: UsageSegment | None = None
 
-    span_id: str | None = None
-    parent_span_id: str | None = None
-    traceparent: str | None = Field(default=None, pattern=TRACEPARENT_FIELD_PATTERN)
-    privacy_filtered_attributes: dict[str, str] = Field(default_factory=dict)
+    span_id: StreamLabel | None = None
+    parent_span_id: StreamLabel | None = None
+    traceparent: str | None = Field(
+        default=None,
+        max_length=MAX_LABEL_CHARS,
+        pattern=TRACEPARENT_FIELD_PATTERN,
+    )
+    privacy_filtered_attributes: dict[StreamLabel, StreamSummary] = Field(default_factory=dict)
     digest: DigestHex
 
     @field_validator("traceparent")
@@ -93,9 +105,9 @@ class StreamEventRecord(PersistedArtifact):
 
 class StreamDuplicateSummary(PersistedArtifact):
     artifact_kind: Literal["stream-duplicate-summary"] = "stream-duplicate-summary"
-    composite_key: tuple[str, ...]
-    kept_event_id: str = Field(min_length=1)
-    duplicate_event_ids: tuple[str, ...] = ()
+    composite_key: tuple[StreamLabel, ...]
+    kept_event_id: StreamRequiredLabel
+    duplicate_event_ids: tuple[StreamLabel, ...] = ()
     duplicate_count: int = Field(ge=1)
     digest: DigestHex
 
@@ -109,13 +121,13 @@ class StreamIngestionDiagnostics(PersistedArtifact):
     artifact_kind: Literal["stream-ingestion-diagnostics"] = (
         "stream-ingestion-diagnostics"
     )
-    stream_id: str = Field(min_length=1)
+    stream_id: StreamRequiredLabel
     sequence_contract: StreamSequenceContract
     source_event_count: int = Field(ge=0)
     accepted_event_count: int = Field(ge=0)
     duplicate_event_count: int = Field(ge=0)
-    run_ids: tuple[str, ...] = ()
-    diagnostics: tuple[str, ...] = ()
+    run_ids: tuple[StreamLabel, ...] = ()
+    diagnostics: tuple[StreamSummary, ...] = ()
     duplicates: tuple[StreamDuplicateSummary, ...] = ()
 
     @field_validator("run_ids", "diagnostics", "duplicates", mode="before")
@@ -126,13 +138,13 @@ class StreamIngestionDiagnostics(PersistedArtifact):
 
 class StreamRunRecord(PersistedArtifact):
     artifact_kind: Literal["stream-run"] = "stream-run"
-    stream_id: str = Field(min_length=1)
+    stream_id: StreamRequiredLabel
     sequence_contract: StreamSequenceContract
     source_event_count: int = Field(ge=0)
     accepted_event_count: int = Field(ge=0)
     duplicate_event_count: int = Field(ge=0)
-    run_ids: tuple[str, ...] = Field(min_length=1)
-    case_ids: tuple[str, ...] = ()
+    run_ids: tuple[StreamLabel, ...] = Field(min_length=1)
+    case_ids: tuple[StreamLabel, ...] = ()
     events: tuple[StreamEventRecord, ...] = Field(min_length=1)
     usage_ledger: UsageLedger | None = Field(
         default=None,

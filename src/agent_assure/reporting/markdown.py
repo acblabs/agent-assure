@@ -4,7 +4,7 @@ from pathlib import Path
 
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
-from agent_assure.privacy.redaction import redact_text
+from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.evaluation import Finding
@@ -18,10 +18,11 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
         "",
         "## Candidate vs Expectations",
         "",
-        f"- State: `{summary.state.value}`",
-        f"- Run set: `{report.runset_id}`",
-        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
-        f"- Gate profile: `{report.gate_profile}`",
+        f"- State: {markdown_code_span(summary.state.value)}",
+        f"- Run set: {markdown_code_span(report.runset_id)}",
+        f"- Suite: {markdown_code_span(report.suite_id)} "
+        f"version {markdown_code_span(report.suite_version)}",
+        f"- Gate profile: {markdown_code_span(report.gate_profile)}",
         "",
         "## Why the Candidate Passed or Failed",
         "",
@@ -57,8 +58,9 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
         ]
     )
     lines.extend(
-        f"- `{capability.capability_id}`: `{capability.state.value}` - "
-        f"{redact_text(capability.reason)}"
+        f"- {markdown_code_span(capability.capability_id)}: "
+        f"{markdown_code_span(capability.state.value)} - "
+        f"{markdown_text(capability.reason)}"
         for capability in report.not_evaluated_capabilities
     )
     lines.extend(
@@ -92,7 +94,7 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
             "",
         ]
     )
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -110,21 +112,22 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         "",
         "## Candidate vs Expectations",
         "",
-        f"- State: `{report.candidate_vs_expectations.state.value}`",
-        f"- Candidate run set: `{summary.candidate_runset_id}`",
-        f"- Suite: `{report.suite_id}` version `{report.suite_version}`",
-        f"- Classification: `{summary.classification.value}`",
+        f"- State: {markdown_code_span(report.candidate_vs_expectations.state.value)}",
+        f"- Candidate run set: {markdown_code_span(summary.candidate_runset_id)}",
+        f"- Suite: {markdown_code_span(report.suite_id)} "
+        f"version {markdown_code_span(report.suite_version)}",
+        f"- Classification: {markdown_code_span(summary.classification.value)}",
         "",
         "## Why the Candidate Passed or Failed",
         "",
     ]
-    lines.extend(f"- {redact_text(line)}" for line in report.verdict_explanations)
+    lines.extend(f"- {markdown_text(line)}" for line in report.verdict_explanations)
     lines.extend(
         [
             "",
             "## Fixture-Equivalence Result",
             "",
-            f"- State: `{report.fixture_equivalence.state.value}`",
+            f"- State: {markdown_code_span(report.fixture_equivalence.state.value)}",
         ]
     )
     lines.extend(
@@ -136,8 +139,8 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
             "",
             "## Baseline vs Expectations",
             "",
-            f"- State: `{report.baseline_vs_expectations.state.value}`",
-            f"- Baseline run set: `{summary.baseline_runset_id}`",
+            f"- State: {markdown_code_span(report.baseline_vs_expectations.state.value)}",
+            f"- Baseline run set: {markdown_code_span(summary.baseline_runset_id)}",
         ]
     )
     lines.extend(_finding_lines(report.baseline_vs_expectations.findings) or ["No findings."])
@@ -151,9 +154,11 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
     if report.control_changes:
         lines.extend(
             (
-                f"- `{change.classification.value}` `{change.case_id}` "
-                f"`{change.control_id}` `{change.reason_code.value}` "
-                f"`{redact_text(change.target)}`: {redact_text(change.message)}"
+                f"- {markdown_code_span(change.classification.value)} "
+                f"{markdown_code_span(change.case_id)} "
+                f"{markdown_code_span(change.control_id)} "
+                f"{markdown_code_span(change.reason_code.value)} "
+                f"{markdown_code_span(change.target)}: {markdown_text(change.message)}"
             )
             for change in report.control_changes
         )
@@ -164,9 +169,10 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         lines.append(f"{_behavioral_change_heading(report)}:")
         lines.extend(
             (
-                f"- `{change.case_id}` `{change.field}`: "
-                f"`{redact_text(change.baseline_value)}` -> "
-                f"`{redact_text(change.candidate_value)}`"
+                f"- {markdown_code_span(change.case_id)} "
+                f"{markdown_code_span(change.field)}: "
+                f"{markdown_code_span(change.baseline_value)} -> "
+                f"{markdown_code_span(change.candidate_value)}"
             )
             for change in report.behavioral_changes
         )
@@ -180,9 +186,10 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
     if report.provenance_changes:
         lines.extend(
             (
-                f"- `{change.case_id}` `{change.field}`: "
-                f"`{redact_text(change.baseline_value or '<unset>')}` -> "
-                f"`{redact_text(change.candidate_value or '<unset>')}`"
+                f"- {markdown_code_span(change.case_id)} "
+                f"{markdown_code_span(change.field)}: "
+                f"{markdown_code_span(change.baseline_value or '<unset>')} -> "
+                f"{markdown_code_span(change.candidate_value or '<unset>')}"
             )
             for change in report.provenance_changes
         )
@@ -204,8 +211,9 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
         ]
     )
     lines.extend(
-        f"- `{capability.capability_id}`: `{capability.state.value}` - "
-        f"{redact_text(capability.reason)}"
+        f"- {markdown_code_span(capability.capability_id)}: "
+        f"{markdown_code_span(capability.state.value)} - "
+        f"{markdown_text(capability.reason)}"
         for capability in report.not_evaluated_capabilities
     )
     lines.extend(
@@ -215,7 +223,7 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
             "",
         ]
     )
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     return "\n".join(lines) + "\n"
 
 
@@ -242,9 +250,10 @@ def _behavioral_change_heading(report: ComparisonReport) -> str:
 def _finding_lines(findings: tuple[Finding, ...]) -> list[str]:
     return [
         (
-            f"- `{finding.case_id}` `{finding.control_id}` `{redact_text(finding.target)}` "
-            f"`{finding.reason_code.value}` "
-            f"`{finding.state.value}`: {redact_text(finding.message)}"
+            f"- {markdown_code_span(finding.case_id)} "
+            f"{markdown_code_span(finding.control_id)} {markdown_code_span(finding.target)} "
+            f"{markdown_code_span(finding.reason_code.value)} "
+            f"{markdown_code_span(finding.state.value)}: {markdown_text(finding.message)}"
         )
         for finding in findings
     ]
@@ -257,5 +266,5 @@ def _comparison_usage_lines(report: ComparisonReport) -> list[str]:
     if report.usage_delta is None:
         lines.append("- Usage delta: `not_observed`")
     else:
-        lines.append(f"- {redact_text(format_usage_delta(report.usage_delta))}")
+        lines.append(f"- {markdown_text(format_usage_delta(report.usage_delta))}")
     return lines

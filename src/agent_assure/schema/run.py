@@ -7,6 +7,8 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
+    MAX_LABEL_CHARS,
+    MAX_SUMMARY_CHARS,
     DigestHex,
     ExecutionMode,
     GateState,
@@ -74,8 +76,8 @@ class PolicyResult(PersistedArtifact):
     state: GateState
     reason_codes: tuple[ReasonCode, ...] = ()
     severity: Severity = Severity.info
-    gate_profile: str = "default"
-    message: str = ""
+    gate_profile: str = Field(default="default", max_length=MAX_LABEL_CHARS)
+    message: str = Field(default="", max_length=MAX_SUMMARY_CHARS)
 
     @field_validator("state", mode="before")
     @classmethod
@@ -105,10 +107,10 @@ class AgentRunRecord(PersistedArtifact):
     case_id: str = Field(min_length=1)
     execution_mode: ExecutionMode = ExecutionMode.fixture
     pipeline_id: str = Field(min_length=1)
-    recommendation: str
-    outcome: str
-    input_summary: str
-    output_summary: str
+    recommendation: str = Field(max_length=MAX_LABEL_CHARS)
+    outcome: str = Field(max_length=MAX_LABEL_CHARS)
+    input_summary: str = Field(max_length=MAX_SUMMARY_CHARS)
+    output_summary: str = Field(max_length=MAX_SUMMARY_CHARS)
     observation_status: Literal["included", "excluded"] = "included"
     observation_id: str | None = None
     repetition_index: int | None = Field(default=None, ge=0)
@@ -132,7 +134,7 @@ class AgentRunRecord(PersistedArtifact):
     attempt_count: int | None = Field(default=None, ge=1)
     retry_count: int | None = Field(default=None, ge=0)
     rate_limit_events: int | None = Field(default=None, ge=0)
-    exclusion_reason: str | None = None
+    exclusion_reason: str | None = Field(default=None, max_length=MAX_SUMMARY_CHARS)
     prompt_tokens: int | None = Field(default=None, ge=0)
     completion_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
@@ -188,11 +190,6 @@ class AgentRunRecord(PersistedArtifact):
         if value is None:
             return None
         return validate_traceparent(value)
-
-    @field_validator("input_summary", "output_summary")
-    @classmethod
-    def _validate_summary_type(cls, value: str) -> str:
-        return value
 
     @model_validator(mode="after")
     def _validate_live_metadata(self) -> AgentRunRecord:

@@ -7,6 +7,7 @@ from pydantic import BaseModel, ValidationError
 
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationMetrics, EvaluationReport
+from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES
 from agent_assure.reporting.markdown import render_evaluation_markdown
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
@@ -80,6 +81,14 @@ def test_demo_pricing_snapshot_fixture_is_explicit_and_versioned() -> None:
     assert snapshot.schema_version == "0.4.3"
     assert snapshot.pricing_snapshot_id == "local-demo-pricing-v1"
     assert snapshot.limitations == ("Demo fixture pricing only; not live provider pricing.",)
+
+
+def test_pricing_snapshot_loader_rejects_oversized_file(tmp_path: Path) -> None:
+    snapshot_path = tmp_path / "pricing.json"
+    snapshot_path.write_bytes(b"{" + (b" " * MAX_CONFIG_TEXT_BYTES) + b"}")
+
+    with pytest.raises(ValueError, match="pricing snapshot exceeds maximum supported size"):
+        load_pricing_snapshot(snapshot_path)
 
 
 def test_declared_pricing_snapshot_requires_explicit_provider_model_rate() -> None:

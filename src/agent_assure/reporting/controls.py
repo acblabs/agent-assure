@@ -6,8 +6,8 @@ from pathlib import Path
 from agent_assure.privacy.redaction import (
     PRESERVE_PACKET_KEYS,
     redact_artifact_payload,
-    redact_text,
 )
+from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.schema.controls import (
     ControlConditionEvaluation,
     ControlCoverageItem,
@@ -48,18 +48,18 @@ def render_control_coverage_markdown(report: ControlCoverageReport) -> str:
         "## Claim Boundary",
         "",
     ]
-    lines.extend(f"- {redact_text(limitation)}" for limitation in report.limitations)
+    lines.extend(f"- {markdown_text(limitation)}" for limitation in report.limitations)
     lines.extend(
         [
             "",
             "## Framework Evidence Mapping",
             "",
-            f"- Framework: `{report.framework.value}`",
-            f"- Framework version: `{redact_text(report.framework_version)}`",
-            f"- Mapping version: `{redact_text(report.mapping_version)}`",
-            f"- Mapping digest: `{report.mapping_digest}`",
-            f"- Evidence packet: `{redact_text(report.evidence_packet_id)}`",
-            f"- Evidence packet digest: `{report.evidence_packet_digest}`",
+            f"- Framework: {markdown_code_span(report.framework.value)}",
+            f"- Framework version: {markdown_code_span(report.framework_version)}",
+            f"- Mapping version: {markdown_code_span(report.mapping_version)}",
+            f"- Mapping digest: {markdown_code_span(report.mapping_digest)}",
+            f"- Evidence packet: {markdown_code_span(report.evidence_packet_id)}",
+            f"- Evidence packet digest: {markdown_code_span(report.evidence_packet_digest)}",
             "",
             "## State Counts",
             "",
@@ -67,7 +67,7 @@ def render_control_coverage_markdown(report: ControlCoverageReport) -> str:
     )
     if report.coverage_state_counts:
         lines.extend(
-            f"- `{state}`: `{count}`"
+            f"- {markdown_code_span(state)}: `{count}`"
             for state, count in sorted(report.coverage_state_counts.items())
         )
     else:
@@ -80,12 +80,14 @@ def render_control_coverage_markdown(report: ControlCoverageReport) -> str:
 
 def _item_lines(item: ControlCoverageItem) -> list[str]:
     lines = [
-        f"### `{redact_text(item.control_id)}` {redact_text(item.title)}",
+        f"### {markdown_code_span(item.control_id)} {markdown_text(item.title)}",
         "",
-        f"- State: `{item.coverage_state.value}`",
+        f"- State: {markdown_code_span(item.coverage_state.value)}",
     ]
     if item.mapping_strength is not None:
-        lines.append(f"- Mapping strength: `{item.mapping_strength.value}`")
+        lines.append(
+            f"- Mapping strength: {markdown_code_span(item.mapping_strength.value)}"
+        )
     if item.atlas_tactic_ids:
         lines.append("- ATLAS tactics: " + _code_list(item.atlas_tactic_ids))
     if item.atlas_technique_ids:
@@ -99,7 +101,7 @@ def _item_lines(item: ControlCoverageItem) -> list[str]:
     lines.extend(_condition_line(evaluation) for evaluation in item.condition_evaluations)
     if item.limitations:
         lines.extend(["", "Limitations:"])
-        lines.extend(f"- {redact_text(limitation)}" for limitation in item.limitations)
+        lines.extend(f"- {markdown_text(limitation)}" for limitation in item.limitations)
     lines.append("")
     return lines
 
@@ -107,27 +109,29 @@ def _item_lines(item: ControlCoverageItem) -> list[str]:
 def _condition_line(evaluation: ControlConditionEvaluation) -> str:
     observed = "observed" if evaluation.observed else "not_observed"
     condition = (
-        f" condition `{redact_text(evaluation.condition)}`"
+        f" condition {markdown_code_span(evaluation.condition)}"
         if evaluation.condition is not None
         else ""
     )
     return (
-        f"- `{redact_text(evaluation.rule_id)}` `{evaluation.signal}`{condition}: "
-        f"`{observed}` -> `{evaluation.coverage_state.value}`; "
-        f"{redact_text(evaluation.rationale)}"
+        f"- {markdown_code_span(evaluation.rule_id)} "
+        f"{markdown_code_span(evaluation.signal)}{condition}: "
+        f"{markdown_code_span(observed)} -> "
+        f"{markdown_code_span(evaluation.coverage_state.value)}; "
+        f"{markdown_text(evaluation.rationale)}"
     )
 
 
 def _evidence_ref_line(ref: ControlEvidenceRef) -> str:
     parts = [
-        f"`{redact_text(ref.evidence_kind)}`",
-        f"`{redact_text(ref.evidence_id)}`",
-        f"`{redact_text(ref.field_path)}`",
+        markdown_code_span(ref.evidence_kind),
+        markdown_code_span(ref.evidence_id),
+        markdown_code_span(ref.field_path),
     ]
     if ref.evidence_digest:
-        parts.append(f"`{ref.evidence_digest}`")
-    return " ".join(parts) + f" - {redact_text(ref.description)}"
+        parts.append(markdown_code_span(ref.evidence_digest))
+    return " ".join(parts) + f" - {markdown_text(ref.description)}"
 
 
 def _code_list(values: tuple[str, ...]) -> str:
-    return ", ".join(f"`{redact_text(value)}`" for value in values)
+    return ", ".join(markdown_code_span(value) for value in values)
