@@ -67,6 +67,11 @@ class ReasonCode(StrEnum):
 DigestHex = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 MAX_SUMMARY_CHARS = 8192
 MAX_LABEL_CHARS = 512
+STRICT_RFC3339_TIMESTAMP_PATTERN = (
+    r"^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T"
+    r"(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]+)?"
+    r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
+)
 _SIX_DECIMAL_PLACES = Decimal("0.000001")
 
 

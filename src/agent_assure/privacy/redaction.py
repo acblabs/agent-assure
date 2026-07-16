@@ -4,13 +4,14 @@ import re
 from collections.abc import Iterator, Mapping
 from typing import Any
 
-from agent_assure.privacy.detectors import SENSITIVE_PATTERNS
+from agent_assure.privacy.detectors import PRIVACY_REDACTION_TEXT, SENSITIVE_PATTERNS
 
-REDACTION = "[REDACTED]"
+REDACTION = PRIVACY_REDACTION_TEXT
 _DIGEST_HEX_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 FAIL_CLOSED_RUNSET_KEYS = frozenset(
     {
         "runset_id",
+        "privacy_profile_id",
         "suite_id",
         "suite_version",
         "protocol_id",
@@ -110,6 +111,8 @@ PRESERVE_RUNSET_KEYS = frozenset(
         "artifact_kind",
         "schema_version",
         "runset_id",
+        "privacy_profile_id",
+        "privacy_profile_digest",
         "suite_id",
         "suite_version",
         "execution_mode",
@@ -188,6 +191,8 @@ PRESERVE_PACKET_KEYS = frozenset(
         "artifact_kind",
         "schema_version",
         "packet_id",
+        "privacy_profile_id",
+        "privacy_profile_digest",
         "manifest_id",
         "role",
         "sha256",

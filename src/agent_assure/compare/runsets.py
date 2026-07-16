@@ -28,6 +28,7 @@ from agent_assure.evaluation.evaluator import (
 )
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, ControlResult, GateProfile, Waiver
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.schema.base import PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
     ComparisonClassification,
@@ -200,6 +201,8 @@ def compare_runsets(
         artifact_kind="comparison-summary",
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        privacy_profile_id=baseline.privacy_profile_id,
+        privacy_profile_digest=baseline.privacy_profile_digest,
         classification=classification,
         fixture_equivalence_state=fixture_equivalence.state,
         baseline_state=baseline_report.candidate_vs_expectations.state,
@@ -314,6 +317,15 @@ def verify_fixture_equivalence(baseline: RunSet, candidate: RunSet) -> FixtureEq
 
 
 def _verify_suite_identity(suite: CompiledSuite, baseline: RunSet, candidate: RunSet) -> None:
+    for role, runset in (("baseline", baseline), ("candidate", candidate)):
+        if (
+            runset.privacy_profile_id,
+            runset.privacy_profile_digest,
+        ) != (PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST):
+            raise InvalidComparisonError(
+                f"{role} run set privacy detector profile is incompatible with the "
+                "runtime profile"
+            )
     if baseline.suite_id != candidate.suite_id:
         raise InvalidComparisonError(
             "baseline and candidate run sets reference different suite_id values"
@@ -352,20 +364,28 @@ def _invalid_comparison_report(
     *,
     gate_profile: GateProfile,
 ) -> ComparisonReport:
+    privacy_profile_id = baseline.privacy_profile_id
+    privacy_profile_digest = baseline.privacy_profile_digest
     baseline_summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=baseline.runset_id,
+        privacy_profile_id=privacy_profile_id,
+        privacy_profile_digest=privacy_profile_digest,
         state=GateState.not_evaluated,
     )
     candidate_summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=candidate.runset_id,
+        privacy_profile_id=privacy_profile_id,
+        privacy_profile_digest=privacy_profile_digest,
         state=GateState.not_evaluated,
     )
     summary = ComparisonSummary(
         artifact_kind="comparison-summary",
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        privacy_profile_id=privacy_profile_id,
+        privacy_profile_digest=privacy_profile_digest,
         classification=ComparisonClassification.invalid_comparison,
         fixture_equivalence_state=fixture_equivalence.state,
         baseline_state=baseline_summary.state,

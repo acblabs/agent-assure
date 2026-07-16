@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, render_evidence_diff_html
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
@@ -201,9 +202,29 @@ def test_evidence_diff_html_rejects_packet_state_contradicting_comparison() -> N
         )
 
 
+def test_evidence_diff_html_rejects_mixed_privacy_detector_profiles() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    mismatched_candidate = candidate.model_copy(
+        update={"privacy_profile_digest": "f" * 64}
+    )
+
+    with pytest.raises(ValueError, match="candidate.privacy_profile"):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=mismatched_candidate,
+            comparison_summary=comparison,
+            packet=packet,
+        )
+
+
 def test_evidence_diff_html_rejects_summary_state_contradicting_comparison() -> None:
     baseline, candidate, comparison, packet = _artifacts()
-    baseline_summary = EvaluationSummary(runset_id="baseline", state=GateState.fail)
+    baseline_summary = EvaluationSummary(
+        runset_id="baseline",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.fail,
+    )
     candidate_summary = packet.evaluation
 
     with pytest.raises(ValueError, match="baseline_summary.state"):
@@ -224,6 +245,8 @@ def test_evidence_diff_html_rejects_duplicate_case_ids_before_rendering() -> Non
     )
     baseline = RunSet(
         runset_id="baseline",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id="prior-auth-synthetic",
         suite_version="0.1.0",
         suite_digest=_DIGEST,
@@ -309,12 +332,16 @@ def test_evidence_diff_html_handles_unscoped_findings_without_zero_case_claim() 
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
         findings=(finding,),
     )
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -350,6 +377,8 @@ def test_evidence_diff_html_surfaces_non_claim_process_changed_fields() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.provenance_only_change,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -415,6 +444,8 @@ def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.allowed_behavioral_change,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -462,6 +493,8 @@ def test_evidence_diff_html_surfaces_source_id_only_process_change() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.provenance_only_change,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -546,12 +579,16 @@ def _artifacts(
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
         findings=(finding,),
     )
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -582,6 +619,8 @@ def _artifacts(
 def _runset(runset_id: str, run: AgentRunRecord) -> RunSet:
     return RunSet(
         runset_id=runset_id,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id="prior-auth-synthetic",
         suite_version="0.1.0",
         suite_digest=_DIGEST,

@@ -19,6 +19,7 @@ from agent_assure.live.intervals import difference_t_interval, stable_seed_int, 
 from agent_assure.live.primitives import decimal_string as live_decimal_string
 from agent_assure.live.statistics import _rate_from_values, evaluate_live_runset
 from agent_assure.live.trajectory import build_live_trajectory_report
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.schema.common import (
     ExecutionMode,
     GateState,
@@ -32,8 +33,17 @@ from agent_assure.schema.live import (
     LiveTrajectoryReport,
     OperationalEventType,
 )
+from agent_assure.schema.privacy import PrivacyProfileDigest, PrivacyProfileId
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.run import AgentRunRecord
+from agent_assure.schema.run import RunSet as RunSetModel
+
+
+class RunSet(RunSetModel):
+    """Current-profile RunSet fixture for statistics tests unrelated to privacy."""
+
+    privacy_profile_id: PrivacyProfileId = PRIVACY_PROFILE_ID
+    privacy_profile_digest: PrivacyProfileDigest = PRIVACY_PROFILE_DIGEST
 
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
 

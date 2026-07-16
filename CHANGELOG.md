@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Added versioned privacy detector identity: current RunSets, evaluation
+  summaries, and comparison summaries bind a canonical detector profile
+  digest; evaluation, comparison, evidence packets, and evidence-diff rendering
+  reject incompatible profile combinations while legacy artifact dumps remain
+  unchanged.
+- Clarified that evaluating an unbound legacy RunSet stamps the resulting
+  summary with the evaluation-time runtime profile while leaving the original
+  persistence/redaction profile unknown; comparison remains fail-closed for
+  unbound legacy inputs.
+- Added a full-history CI guard that compares every released schema snapshot
+  with its Git tag baseline, while allowing the active pre-release snapshot to
+  evolve until its matching release tag exists.
 - Added v0.5.0 streaming event ingestion with explicit global or producer-local
   sequencing contracts, JSONL validation, canonical payload digests,
   deterministic jitter sorting, duplicate diagnostics, and conflict failures.

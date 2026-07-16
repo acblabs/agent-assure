@@ -263,7 +263,7 @@ def _runs_by_case(
     runs_by_case: dict[str, AgentRunRecord] = {}
     results: list[ControlResult] = []
     for run in runset.runs:
-        if run.case_id in expected and run.case_id not in runs_by_case:
+        if run.case_id in expected and counts[run.case_id] == 1:
             runs_by_case[run.case_id] = run
     for case_id in expected_case_ids:
         if counts[case_id] == 0:

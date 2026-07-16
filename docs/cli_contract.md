@@ -55,7 +55,9 @@ non-blocking, but they roll up to `warn` and appear in warning controls rather
 than being treated as a clean pass.
 
 Waivers bind to a run-set digest, reason code, and exact `finding_id`; expired
-waivers fail closed.
+waivers fail closed. An expired waiver whose artifact digest still matches is a
+global blocker even when its former finding is no longer emitted; remove or
+renew that waiver explicitly so stale governance exceptions cannot linger.
 
 `compare` writes `comparison-report.json`, `comparison-summary.json`,
 `comparison-report.md`, `dependency-inventory.json`, and
@@ -246,8 +248,12 @@ the key is `run_id + declared producer field + sequence_number`, and every
 event must carry that producer field. Producer-local sequence numbers are not
 globally comparable; each producer-local event must therefore include a
 timestamp, and accepted events are merged by timestamp before producer-local
-sequence tie-breaks. Duplicates with the same composite key, same `event_id`,
-and same canonical payload digest are deduplicated with a diagnostic count.
+sequence tie-breaks. Global timestamps remain optional, but every supplied
+stream timestamp must use strict RFC 3339 date-time syntax with an uppercase
+`T` and either `Z` or a numeric UTC offset. Timestamps are normalized to UTC for
+ordering and latency calculations. Duplicates with the same composite key,
+same `event_id`, and same canonical payload digest are deduplicated with a
+diagnostic count.
 Conflicting duplicate `event_id` or digest values fail closed. At-least-once
 producers must redeliver the same logical event with stable timestamp and
 privacy-filtered payload fields when they expect idempotent deduplication.

@@ -22,6 +22,10 @@ from agent_assure.controls.coverage import (  # noqa: E402
     build_control_coverage_report,
     load_framework_mapping,
 )
+from agent_assure.privacy.detectors import (  # noqa: E402
+    PRIVACY_PROFILE_DIGEST,
+    PRIVACY_PROFILE_ID,
+)
 from agent_assure.reporting.controls import render_control_coverage_markdown  # noqa: E402
 from agent_assure.schema.common import GateState, ReasonCode  # noqa: E402
 from agent_assure.schema.controls import ControlCoverageState, ControlFramework  # noqa: E402
@@ -399,6 +403,8 @@ def _green_packet(*, include_artifact_digest: bool = True) -> EvidencePacket:
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate-runset",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
         findings=(),
     )
@@ -440,6 +446,8 @@ def _packet_with_control_failure(
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate-runset",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
         findings=(finding,),
     )
@@ -472,6 +480,8 @@ def _packet_with_material_evidence_failure() -> EvidencePacket:
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate-runset",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
         findings=(finding,),
     )

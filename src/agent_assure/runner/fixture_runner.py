@@ -24,6 +24,7 @@ from agent_assure.io_limits import (
     MAX_CONFIG_TEXT_BYTES,
     read_text_bounded,
 )
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import (
     assert_runset_payload_safe_for_persistence,
     redact_runset_payload,
@@ -162,6 +163,8 @@ def run_suite(
         runs.append(record)
     return RunSet(
         runset_id=ids.runset_id(compiled.suite_id, variant.variant_id),
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),

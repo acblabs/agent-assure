@@ -64,4 +64,23 @@ class EvidencePacket(PersistedArtifact):
             root=self,
             field_paths=_EVIDENCE_PACKET_USAGE_FIELD_PATHS,
         )
+        if self.comparison is not None:
+            if self.evaluation.runset_id != self.comparison.candidate_runset_id:
+                raise ValueError(
+                    "packet.evaluation.runset_id must match "
+                    "packet.comparison.candidate_runset_id"
+                )
+            evaluation_profile = (
+                self.evaluation.privacy_profile_id,
+                self.evaluation.privacy_profile_digest,
+            )
+            comparison_profile = (
+                self.comparison.privacy_profile_id,
+                self.comparison.privacy_profile_digest,
+            )
+            if evaluation_profile != comparison_profile:
+                raise ValueError(
+                    "evidence packet evaluation and comparison must use the same "
+                    "privacy detector profile"
+                )
         return self

@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
 
@@ -21,6 +20,7 @@ from agent_assure.schema.stream import (
     StreamRunRecord,
     StreamSequenceContract,
     StreamSequenceScope,
+    parse_stream_timestamp_utc,
 )
 from agent_assure.schema.usage import UsageSegment, UsageSummary
 from agent_assure.usage.aggregation import aggregate_usage_segments
@@ -367,20 +367,8 @@ def _timestamp_sort_value(
                 "for cross-producer ordering"
             )
         return ""
-    text = timestamp.replace("Z", "+00:00") if timestamp.endswith("Z") else timestamp
-    try:
-        parsed = datetime.fromisoformat(text)
-    except ValueError as exc:
-        raise ValueError(
-            f"stream event {owner!r} timestamp must be ISO-8601"
-        ) from exc
-    if parsed.tzinfo is None:
-        if required:
-            raise ValueError(
-                f"producer-local stream event {owner!r} timestamp must include timezone"
-            )
-        return parsed.isoformat(timespec="microseconds")
-    return parsed.astimezone(UTC).isoformat(timespec="microseconds")
+    parsed = parse_stream_timestamp_utc(timestamp, owner=f"stream event {owner!r}")
+    return parsed.isoformat(timespec="microseconds")
 
 
 def _usage_segment_for_event(event: StreamEventRecord) -> UsageSegment | None:

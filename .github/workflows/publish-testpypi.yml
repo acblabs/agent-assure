@@ -21,6 +21,8 @@ jobs:
     steps:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
       # actions/setup-python@v5
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -35,6 +37,7 @@ jobs:
           set -euo pipefail
           python scripts/check_version_matches_tag.py "v${EXPECTED_VERSION}"
       - run: make schema-check
+      - run: python scripts/check_tagged_schema_immutability.py --require-release-tags
       - run: make release-check
       # actions/upload-artifact@v4
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -55,6 +58,8 @@ jobs:
     steps:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          fetch-depth: 0
       # actions/setup-python@v5
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -74,6 +79,7 @@ jobs:
           set -euo pipefail
           python scripts/check_version_matches_tag.py "v${EXPECTED_VERSION}"
           make schema-check
+          python scripts/check_tagged_schema_immutability.py --require-release-tags
           python -m twine check dist/*
           python scripts/check_wheel_contents.py --dist dist
           python scripts/smoke_install_wheel.py --dist dist

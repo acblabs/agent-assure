@@ -17,6 +17,13 @@ from agent_assure.schema.common import (
     coerce_enum,
     coerce_tuple,
 )
+from agent_assure.schema.privacy import (
+    PrivacyProfileDigest,
+    PrivacyProfileId,
+    prepare_privacy_profile_input,
+    privacy_profile_json_schema_extra,
+    validate_privacy_profile_binding,
+)
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.usage import (
@@ -230,11 +237,19 @@ class AgentRunRecord(PersistedArtifact):
 
 class RunSet(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=usage_container_json_schema_extra(*_RUN_SET_USAGE_FIELD_PATHS)
+        json_schema_extra=privacy_profile_json_schema_extra(
+            usage_container_json_schema_extra(*_RUN_SET_USAGE_FIELD_PATHS)
+        )
     )
 
     artifact_kind: Literal["run-set"] = "run-set"
     runset_id: str
+    privacy_profile_id: PrivacyProfileId = Field(
+        exclude_if=lambda value: value is None,
+    )
+    privacy_profile_digest: PrivacyProfileDigest = Field(
+        exclude_if=lambda value: value is None,
+    )
     suite_id: str
     suite_version: str
     suite_digest: DigestHex
@@ -258,6 +273,11 @@ class RunSet(PersistedArtifact):
     )
     runs: tuple[AgentRunRecord, ...]
 
+    @model_validator(mode="before")
+    @classmethod
+    def _prepare_privacy_profile(cls, value: object) -> object:
+        return prepare_privacy_profile_input(value, owner="run set")
+
     @field_validator("execution_mode", mode="before")
     @classmethod
     def _coerce_execution_mode(cls, value: object) -> ExecutionMode:
@@ -270,6 +290,12 @@ class RunSet(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_protocol_binding(self) -> RunSet:
+        validate_privacy_profile_binding(
+            self.schema_version,
+            self.privacy_profile_id,
+            self.privacy_profile_digest,
+            owner="run set",
+        )
         validate_usage_field_paths_schema_version(
             self.schema_version,
             owner="run set",

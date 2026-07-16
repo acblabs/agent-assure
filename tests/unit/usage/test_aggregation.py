@@ -8,6 +8,7 @@ from pydantic import BaseModel, ValidationError
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationMetrics, EvaluationReport
 from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting.markdown import render_evaluation_markdown
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
@@ -488,6 +489,8 @@ def test_runset_rejects_usage_summary_that_conflicts_with_ledger() -> None:
     with pytest.raises(ValidationError, match="usage_summary does not match usage_ledger"):
         RunSet(
             runset_id="runset-001",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             suite_id="suite-001",
             suite_version="0.1.0",
             suite_digest="0" * 64,
@@ -685,6 +688,8 @@ def test_report_markdown_uses_measured_language_for_missing_usage() -> None:
     report = EvaluationReport(
         candidate_vs_expectations=EvaluationSummary(
             runset_id="runset-001",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
         ),
         runset_id="runset-001",

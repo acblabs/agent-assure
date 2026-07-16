@@ -17,6 +17,7 @@ from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import compiled_suite_digest
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
@@ -95,6 +96,8 @@ def _run_variant(variant: ExampleVariant) -> VariantRun:
         runset=RunSet(
             artifact_kind="run-set",
             runset_id=_stable_id("runset", variant, CASE_ID),
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),

@@ -1,15 +1,19 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
 from agent_assure.compare.provenance_diff import PROVENANCE_FIELDS
 from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import evaluate_runset
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import EvidenceItem, RunSet
@@ -20,6 +24,7 @@ BASELINE = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
 EVIDENCE_CANDIDATE = Path(
     "examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml"
 )
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_compare_classifies_new_candidate_failure() -> None:
@@ -65,6 +70,57 @@ def test_identical_runsets_are_classified_as_unchanged() -> None:
     assert report.control_changes == ()
     assert report.behavioral_changes == ()
     assert report.provenance_changes == ()
+    assert report.comparison_summary.privacy_profile_id == PRIVACY_PROFILE_ID
+    assert report.comparison_summary.privacy_profile_digest == PRIVACY_PROFILE_DIGEST
+    assert (
+        report.candidate_vs_expectations.privacy_profile_digest
+        == PRIVACY_PROFILE_DIGEST
+    )
+
+
+def test_compare_rejects_mismatched_privacy_detector_profiles() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    candidate = _runset(compiled, BASELINE).model_copy(
+        update={"privacy_profile_digest": "f" * 64}
+    )
+
+    with pytest.raises(InvalidComparisonError, match="privacy detector profile"):
+        compare_runsets(compiled, baseline, candidate)
+
+
+def test_evaluation_rejects_non_runtime_privacy_detector_profile() -> None:
+    compiled = compile_suite(SUITE)
+    runset = _runset(compiled, BASELINE).model_copy(
+        update={
+            "privacy_profile_id": "external/privacy/v9",
+            "privacy_profile_digest": "f" * 64,
+        }
+    )
+
+    with pytest.raises(ValueError, match="incompatible with the runtime profile"):
+        evaluate_runset(compiled, runset)
+
+
+def test_compare_rejects_unbound_legacy_privacy_detector_profile() -> None:
+    compiled = compile_suite(SUITE)
+    legacy = _validated_legacy_runset(compiled)
+
+    with pytest.raises(InvalidComparisonError, match="incompatible with the runtime profile"):
+        compare_runsets(compiled, legacy, legacy)
+
+
+def test_evaluation_accepts_validated_legacy_runset_and_stamps_runtime_profile() -> None:
+    compiled = compile_suite(SUITE)
+    legacy = _validated_legacy_runset(compiled)
+
+    report = evaluate_runset(compiled, legacy)
+
+    assert legacy.privacy_profile_id is None
+    assert legacy.privacy_profile_digest is None
+    assert report.candidate_vs_expectations.schema_version == SCHEMA_VERSION
+    assert report.candidate_vs_expectations.privacy_profile_id == PRIVACY_PROFILE_ID
+    assert report.candidate_vs_expectations.privacy_profile_digest == PRIVACY_PROFILE_DIGEST
 
 
 def test_behavior_and_provenance_changes_keep_both_signals_in_classification() -> None:
@@ -174,6 +230,33 @@ def test_behavior_diff_includes_evidence_item_digest_changes() -> None:
 
 def _runset(compiled: CompiledSuite, variant_path: Path) -> RunSet:
     return run_suite(compiled, load_variant_config(variant_path), SUITE.parent)
+
+
+def _validated_legacy_runset(compiled: CompiledSuite) -> RunSet:
+    current_payload = _runset(compiled, BASELINE).model_dump(mode="json")
+    payload = _legacy_v043_value(current_payload)
+    assert isinstance(payload, dict)
+    schema = json.loads(
+        (ROOT / "schemas" / "v0.4.3" / "run-set.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator(schema).validate(payload)
+    return RunSet.model_validate(payload)
+
+
+def _legacy_v043_value(value: object) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): (
+                "0.4.3" if key == "schema_version" else _legacy_v043_value(nested)
+            )
+            for key, nested in value.items()
+            if key not in {"privacy_profile_id", "privacy_profile_digest"}
+        }
+    if isinstance(value, list):
+        return [_legacy_v043_value(item) for item in value]
+    return value
 
 
 def _with_provenance_digest(runset: RunSet, *, field: str, value: str) -> RunSet:

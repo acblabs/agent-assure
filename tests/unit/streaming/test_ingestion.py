@@ -38,6 +38,40 @@ def test_stream_ingest_sorts_out_of_order_global_events(tmp_path: Path) -> None:
     assert "global run-level sequence" in result.diagnostics.diagnostics[0]
 
 
+def test_stream_ingest_allows_global_event_without_timestamp(tmp_path: Path) -> None:
+    event = _event("evt-1", sequence_number=1, event_type="run_started")
+    event.pop("timestamp")
+
+    result = ingest_jsonl_events(_jsonl(tmp_path, [event]), sequence_scope="global")
+
+    assert result.stream_run.events[0].timestamp is None
+
+
+def test_stream_ingest_rejects_mixed_naive_and_aware_global_timestamps(
+    tmp_path: Path,
+) -> None:
+    path = _jsonl(
+        tmp_path,
+        [
+            _event(
+                "evt-naive",
+                sequence_number=1,
+                event_type="run_started",
+                timestamp="2026-07-14T00:00:01",
+            ),
+            _event(
+                "evt-aware",
+                sequence_number=2,
+                event_type="run_completed",
+                timestamp="2026-07-14T00:00:02Z",
+            ),
+        ],
+    )
+
+    with pytest.raises(ValueError, match="timestamp must include timezone"):
+        ingest_jsonl_events(path, sequence_scope="global")
+
+
 def test_stream_ingest_requires_explicit_producer_field_for_local_sequences(
     tmp_path: Path,
 ) -> None:
@@ -102,6 +136,41 @@ def test_stream_ingest_orders_producer_local_events_by_timestamp(
         "producer-b-1",
     ]
     assert "timestamp, producer" in result.diagnostics.diagnostics[1]
+
+
+def test_stream_ingest_normalizes_offsets_for_producer_local_order(
+    tmp_path: Path,
+) -> None:
+    path = _jsonl(
+        tmp_path,
+        [
+            _event(
+                "producer-b-later",
+                sequence_number=1,
+                event_type="node_completed",
+                producer_id="b",
+                timestamp="2026-07-14T00:00:00Z",
+            ),
+            _event(
+                "producer-a-earlier",
+                sequence_number=1,
+                event_type="node_started",
+                producer_id="a",
+                timestamp="2026-07-14T01:30:00+02:00",
+            ),
+        ],
+    )
+
+    result = ingest_jsonl_events(
+        path,
+        sequence_scope="producer_local",
+        producer_field="producer_id",
+    )
+
+    assert [event.event_id for event in result.stream_run.events] == [
+        "producer-a-earlier",
+        "producer-b-later",
+    ]
 
 
 def test_stream_ingest_rejects_nonmonotonic_producer_local_timestamps(
@@ -327,6 +396,35 @@ def test_stream_usage_aggregation_is_incremental(tmp_path: Path) -> None:
     assert summaries[1].total_tool_calls == 1
     assert stream_run.usage_summary is not None
     assert stream_run.usage_summary.total_tokens == 5
+
+
+def test_stream_projection_normalizes_timestamp_offsets_for_latency(tmp_path: Path) -> None:
+    suite = _suite()
+    stream_run = ingest_jsonl_events(
+        _jsonl(
+            tmp_path,
+            [
+                _event(
+                    "evt-start",
+                    sequence_number=1,
+                    event_type="run_started",
+                    timestamp="2026-07-14T01:00:00+01:00",
+                ),
+                _event(
+                    "evt-complete",
+                    sequence_number=2,
+                    event_type="run_completed",
+                    timestamp="2026-07-14T00:00:01Z",
+                    attrs={"recommendation": "approve", "outcome": "approved"},
+                ),
+            ],
+        ),
+        sequence_scope="global",
+    ).stream_run
+
+    runset = stream_run_to_runset(stream_run, suite)
+
+    assert runset.runs[0].latency_ms == 1_000
 
 
 def test_stream_projection_uses_timestamp_merge_order_for_producer_local_state(
@@ -651,6 +749,8 @@ def test_evidence_diff_renders_stream_operational_and_usage_summary(
     )
     summary = EvaluationSummary(
         runset_id=candidate.runset_id,
+        privacy_profile_id=candidate.privacy_profile_id,
+        privacy_profile_digest=candidate.privacy_profile_digest,
         state=GateState.fail,
         findings=(
             Finding(
@@ -667,6 +767,8 @@ def test_evidence_diff_renders_stream_operational_and_usage_summary(
     comparison = ComparisonSummary(
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        privacy_profile_id=candidate.privacy_profile_id,
+        privacy_profile_digest=candidate.privacy_profile_digest,
         classification="new_failure",
         fixture_equivalence_state="pass",
         baseline_state="pass",

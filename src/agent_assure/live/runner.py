@@ -23,6 +23,7 @@ from agent_assure.live.output_contract import (
     parse_live_structured_content,
 )
 from agent_assure.live.paths import resolve_live_config_path
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_text
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
@@ -271,6 +272,8 @@ def run_live_suite(
     return RunSet(
         artifact_kind="run-set",
         runset_id=_runset_id(compiled.suite_id, config.variant_id, configuration_digest),
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=sha256_hexdigest(compiled.model_dump(mode="json")),

@@ -14,6 +14,10 @@ if str(SRC) not in sys.path:
 
 from agent_assure.authoring.compiler import compile_suite  # noqa: E402
 from agent_assure.fixtures.manifest import build_fixture_manifest  # noqa: E402
+from agent_assure.privacy.detectors import (  # noqa: E402
+    PRIVACY_PROFILE_DIGEST,
+    PRIVACY_PROFILE_ID,
+)
 from agent_assure.reporting.evidence_diff_html import render_evidence_diff_html  # noqa: E402
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode  # noqa: E402
 from agent_assure.schema.comparison import ComparisonSummary  # noqa: E402
@@ -152,12 +156,16 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
         findings=(finding,),
     )
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -186,6 +194,8 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
 def _runset(runset_id: str, run: AgentRunRecord) -> RunSet:
     return RunSet(
         runset_id=runset_id,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id="prior-auth-synthetic",
         suite_version="0.1.0",
         suite_digest=_DIGEST,

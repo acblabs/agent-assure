@@ -5,6 +5,7 @@ import json
 from typer.testing import CliRunner
 
 from agent_assure.cli.main import app
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
@@ -55,6 +56,8 @@ def _packet() -> EvidencePacket:
     )
     summary = EvaluationSummary(
         runset_id="candidate-runset",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
         findings=(finding,),
     )

@@ -114,7 +114,10 @@ flowchart LR
 
 ## Quickstart
 
-Production package: [agent-assure on PyPI](https://pypi.org/project/agent-assure/).
+Published alpha package: [agent-assure on PyPI](https://pypi.org/project/agent-assure/).
+The current published release is `0.4.4`. Features listed under `Unreleased`,
+including the v0.5.0 streaming and Google ADK additions, require a source
+checkout (`python -m pip install -e .`) until v0.5.0 is tagged and published.
 
 Run the flagship demo offline:
 
@@ -153,7 +156,7 @@ calls or token spend.
 Try the Google ADK process-assurance example:
 
 ```bash
-pip install "agent-assure[adk]"
+python -m pip install -e ".[adk]"
 python examples/adk_process_assurance/run_example.py
 ```
 
@@ -175,8 +178,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.5.0
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.5.0
+      - run: python -m pip install agent-assure==0.4.4
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.4.4
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml

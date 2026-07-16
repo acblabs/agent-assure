@@ -54,4 +54,5 @@ schema-staging:
 schema-check:
 	$(PYTHON) scripts/sync_schema_force_includes.py --check
 	$(PYTHON) scripts/check_frozen_schemas.py
+	$(PYTHON) scripts/check_tagged_schema_immutability.py
 	$(PYTHON) scripts/check_schema_staging.py

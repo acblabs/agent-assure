@@ -8,6 +8,7 @@ from typing import Any
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.loader import compiled_suite_digest
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import (
@@ -18,7 +19,11 @@ from agent_assure.schema.run import (
     EvidenceRef,
     RunSet,
 )
-from agent_assure.schema.stream import StreamEventRecord, StreamRunRecord
+from agent_assure.schema.stream import (
+    StreamEventRecord,
+    StreamRunRecord,
+    parse_stream_timestamp_utc,
+)
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary
 from agent_assure.streaming.ingestion import validate_stream_run_integrity
@@ -82,6 +87,8 @@ def stream_run_to_runset(
     return RunSet(
         artifact_kind="run-set",
         runset_id=runset_id,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id=suite.suite_id,
         suite_version=suite.suite_version,
         suite_digest=suite_digest,
@@ -450,9 +457,8 @@ def _latency_ms(started: str | None, completed: str | None) -> int | None:
 
 
 def _parse_timestamp(value: str) -> datetime | None:
-    text = value.replace("Z", "+00:00") if value.endswith("Z") else value
     try:
-        return datetime.fromisoformat(text)
+        return parse_stream_timestamp_utc(value, owner="stream projection")
     except ValueError:
         return None
 

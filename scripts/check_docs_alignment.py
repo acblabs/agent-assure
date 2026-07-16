@@ -156,6 +156,8 @@ def main() -> int:
     failures.extend(_check_forbidden_claims())
     failures.extend(_check_deprecated_report_terminology())
     failures.extend(_check_changelog())
+    failures.extend(_check_citation_version())
+    failures.extend(_check_readme_release_pins())
     failures.extend(_check_claim_traceability())
     failures.extend(_check_schema_reference())
     failures.extend(_check_reason_codes())
@@ -212,9 +214,85 @@ def _check_deprecated_report_terminology() -> list[str]:
 
 def _check_changelog() -> list[str]:
     changelog = ROOT / "CHANGELOG.md"
-    if "## Unreleased" not in changelog.read_text(encoding="utf-8"):
-        return ["CHANGELOG.md must contain an Unreleased section"]
-    return []
+    text = changelog.read_text(encoding="utf-8")
+    failures: list[str] = []
+    if "## Unreleased" not in text:
+        failures.append("CHANGELOG.md must contain an Unreleased section")
+    if _latest_changelog_release(text) is None:
+        failures.append("CHANGELOG.md must contain at least one dated release heading")
+    return failures
+
+
+def _check_citation_version() -> list[str]:
+    citation = ROOT / "CITATION.cff"
+    text = citation.read_text(encoding="utf-8")
+    version_match = re.search(r"^version:\s*([^\s#]+)", text, re.MULTILINE)
+    date_match = re.search(r"^date-released:\s*([^\s#]+)", text, re.MULTILINE)
+    failures: list[str] = []
+    if version_match is None:
+        failures.append("CITATION.cff must declare version")
+    if date_match is None:
+        failures.append("CITATION.cff must declare date-released")
+    latest = _latest_changelog_release(
+        (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    )
+    if latest is None:
+        return failures
+    expected_version, expected_date = latest
+    if version_match is not None and version_match.group(1) != expected_version:
+        failures.append(
+            f"CITATION.cff version {version_match.group(1)!r} does not match latest "
+            f"released version {expected_version!r}"
+        )
+    if date_match is not None and date_match.group(1) != expected_date:
+        failures.append(
+            f"CITATION.cff date-released {date_match.group(1)!r} does not match latest "
+            f"release date {expected_date!r}"
+        )
+    return failures
+
+
+def _check_readme_release_pins() -> list[str]:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    latest = _latest_changelog_release(
+        (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+    )
+    if latest is None:
+        return []
+    expected_version, _ = latest
+    failures: list[str] = []
+    package_match = re.search(r"agent-assure==([0-9]+\.[0-9]+\.[0-9]+)", readme)
+    action_match = re.search(
+        r"acblabs/agent-assure/\.github/actions/agent-assure@v"
+        r"([0-9]+\.[0-9]+\.[0-9]+)",
+        readme,
+    )
+    if package_match is None:
+        failures.append("README.md must pin the published agent-assure package version")
+    elif package_match.group(1) != expected_version:
+        failures.append(
+            f"README.md package pin {package_match.group(1)!r} does not match latest "
+            f"released version {expected_version!r}"
+        )
+    if action_match is None:
+        failures.append("README.md must pin the published composite-action tag")
+    elif action_match.group(1) != expected_version:
+        failures.append(
+            f"README.md action pin {action_match.group(1)!r} does not match latest "
+            f"released version {expected_version!r}"
+        )
+    return failures
+
+
+def _latest_changelog_release(text: str) -> tuple[str, str] | None:
+    match = re.search(
+        r"^## ([0-9]+\.[0-9]+\.[0-9]+) - ([0-9]{4}-[0-9]{2}-[0-9]{2})$",
+        text,
+        re.MULTILINE,
+    )
+    if match is None:
+        return None
+    return match.group(1), match.group(2)
 
 
 def _check_claim_traceability() -> list[str]:

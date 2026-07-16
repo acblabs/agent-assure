@@ -367,6 +367,44 @@ def test_missing_record_counts_as_unevaluated_case_and_blocking_finding() -> Non
     assert report.metrics.blocking_findings == 1
 
 
+def test_duplicate_case_is_not_evaluated_and_is_permutation_invariant() -> None:
+    compiled, runset = _runset(BASELINE)
+    original = runset.runs[0]
+    conflicting = original.model_copy(
+        update={
+            "run_id": f"{original.run_id}-duplicate",
+            "recommendation": "conflicting-recommendation",
+            "outcome": "conflicting-outcome",
+        }
+    )
+    remaining = runset.runs[1:]
+
+    original_first = evaluate_runset(
+        compiled,
+        runset.model_copy(update={"runs": (original, conflicting, *remaining)}),
+    )
+    conflicting_first = evaluate_runset(
+        compiled,
+        runset.model_copy(update={"runs": (conflicting, original, *remaining)}),
+    )
+
+    assert (
+        original_first.candidate_vs_expectations.findings
+        == conflicting_first.candidate_vs_expectations.findings
+    )
+    duplicate_findings = tuple(
+        finding
+        for finding in original_first.candidate_vs_expectations.findings
+        if finding.case_id == original.case_id
+    )
+    assert len(duplicate_findings) == 1
+    assert duplicate_findings[0].target == "duplicate-suite-case"
+    assert duplicate_findings[0].reason_code is ReasonCode.VALID_RECORD_MISSING
+    assert original_first.metrics.evaluated_cases == 9
+    assert original_first.metrics.unevaluated_cases == 1
+    assert original_first.metrics.failed_cases == 0
+
+
 def test_incomplete_runset_fails_ordinary_evaluation() -> None:
     compiled, runset = _runset(BASELINE)
     mutated = runset.model_copy(

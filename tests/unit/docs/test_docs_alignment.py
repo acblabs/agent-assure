@@ -57,6 +57,43 @@ def test_deprecated_report_terminology_checker_allows_current_docs() -> None:
     assert docs_alignment._check_deprecated_report_terminology() == []
 
 
+def test_release_metadata_checkers_accept_current_files() -> None:
+    assert docs_alignment._check_changelog() == []
+    assert docs_alignment._check_citation_version() == []
+    assert docs_alignment._check_readme_release_pins() == []
+
+
+def test_release_metadata_checkers_reject_version_drift(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## Unreleased\n\n## 1.2.2 - 2026-01-01\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CITATION.cff").write_text(
+        "version: 1.2.3\ndate-released: 2026-01-02\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "README.md").write_text(
+        "pip install agent-assure==1.2.3\n"
+        "uses: acblabs/agent-assure/.github/actions/agent-assure@v1.2.3\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    assert docs_alignment._check_changelog() == []
+    assert docs_alignment._check_citation_version() == [
+        "CITATION.cff version '1.2.3' does not match latest released version '1.2.2'",
+        "CITATION.cff date-released '2026-01-02' does not match latest release date "
+        "'2026-01-01'",
+    ]
+    assert docs_alignment._check_readme_release_pins() == [
+        "README.md package pin '1.2.3' does not match latest released version '1.2.2'",
+        "README.md action pin '1.2.3' does not match latest released version '1.2.2'",
+    ]
+
+
 def test_live_protocol_checker_accepts_current_documents() -> None:
     assert docs_alignment._check_live_protocol() == []
 

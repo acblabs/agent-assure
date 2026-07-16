@@ -6,6 +6,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.runner.ids import DeterministicIds
 from agent_assure.schema.run import AgentRunRecord, RunSet
@@ -111,6 +112,8 @@ def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id="suite-001",
         suite_version="0.1.0",
         suite_digest="0" * 64,
@@ -145,6 +148,8 @@ def test_write_runset_rejects_sensitive_preserved_decision_fields(tmp_path) -> N
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id="suite-001",
         suite_version="0.1.0",
         suite_digest="0" * 64,
@@ -172,6 +177,8 @@ def test_write_runset_rejects_sensitive_preserved_provider_metadata(tmp_path) ->
     runset = RunSet(
         artifact_kind="run-set",
         runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         suite_id="suite-001",
         suite_version="0.1.0",
         suite_digest="0" * 64,

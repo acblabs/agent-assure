@@ -102,6 +102,51 @@
               ]
             }
           }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "privacy_profile_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "privacy_profile_digest"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": [
+                    "schema_version"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "schema_version": {
+                    "const": "0.5.0"
+                  }
+                },
+                "required": [
+                  "schema_version"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "privacy_profile_id",
+              "privacy_profile_digest"
+            ]
+          }
         }
       ],
       "properties": {
@@ -166,6 +211,16 @@
         "fixture_equivalence_state": {
           "$ref": "#/$defs/GateState",
           "default": "not_evaluated"
+        },
+        "privacy_profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Privacy Profile Digest",
+          "type": "string"
+        },
+        "privacy_profile_id": {
+          "minLength": 1,
+          "title": "Privacy Profile Id",
+          "type": "string"
         },
         "provenance_changes": {
           "default": [],
@@ -494,6 +549,51 @@
               ]
             }
           }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "privacy_profile_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "privacy_profile_digest"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": [
+                    "schema_version"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "schema_version": {
+                    "const": "0.5.0"
+                  }
+                },
+                "required": [
+                  "schema_version"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "privacy_profile_id",
+              "privacy_profile_digest"
+            ]
+          }
         }
       ],
       "properties": {
@@ -521,6 +621,16 @@
           },
           "title": "Findings",
           "type": "array"
+        },
+        "privacy_profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Privacy Profile Digest",
+          "type": "string"
+        },
+        "privacy_profile_id": {
+          "minLength": 1,
+          "title": "Privacy Profile Id",
+          "type": "string"
         },
         "runset_id": {
           "title": "Runset Id",

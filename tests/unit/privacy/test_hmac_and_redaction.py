@@ -1,11 +1,18 @@
 from __future__ import annotations
 
+import hashlib
 import time
 
 import pytest
+import rfc8785
 
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
-from agent_assure.privacy.detectors import contains_sensitive_value
+from agent_assure.privacy.detectors import (
+    PRIVACY_PROFILE_DIGEST,
+    PRIVACY_PROFILE_ID,
+    contains_sensitive_value,
+    privacy_profile_manifest,
+)
 from agent_assure.privacy.redaction import (
     assert_runset_payload_safe_for_persistence,
     redact_packet_payload,
@@ -17,6 +24,41 @@ from agent_assure.reporting.usage import usage_summary_lines
 from agent_assure.schema.usage import UsageSummary
 
 TEST_HMAC_KEY = b"agent-assure-test-suite-key-32-bytes"
+
+
+def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
+    manifest = privacy_profile_manifest()
+
+    assert manifest["profile_id"] == PRIVACY_PROFILE_ID
+    assert PRIVACY_PROFILE_DIGEST == hashlib.sha256(rfc8785.dumps(manifest)).hexdigest()
+    assert PRIVACY_PROFILE_DIGEST == (
+        "d26b72a9e8a6b46b2850f7e0e68a1ca2aae3711892df5c8dc387391ea5c652da"
+    )
+    assert [item["pattern_id"] for item in manifest["detectors"]] == [
+        "us-ssn",
+        "email-address",
+        "payment-card-like-number",
+        "labeled-date-of-birth",
+        "labeled-sensitive-record-value",
+        "bearer-token",
+        "json-web-token",
+        "aws-access-key-id",
+        "github-token",
+        "openai-api-key",
+        "anthropic-api-key",
+        "slack-token",
+        "google-api-key",
+        "stripe-live-key",
+        "http-basic-authorization",
+        "aws-secret-access-key-assignment",
+        "generic-secret-assignment",
+        "generic-secret-prose",
+        "url-query-secret",
+        "labeled-north-american-phone-number",
+        "medical-record-number",
+        "patient-name",
+        "private-key-header",
+    ]
 
 
 def test_hmac_requires_explicit_key_and_is_stable() -> None:
@@ -208,9 +250,34 @@ def test_runset_persistence_rejects_sensitive_stop_reasons() -> None:
         assert_runset_payload_safe_for_persistence(payload)
 
 
+def test_runset_persistence_fail_closes_on_sensitive_privacy_profile_id() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "privacy_profile_id": "profile jane@example.com",
+        "privacy_profile_digest": "1" * 64,
+        "runs": [],
+    }
+
+    with pytest.raises(ValueError, match="privacy_profile_id"):
+        assert_runset_payload_safe_for_persistence(payload)
+
+
+def test_runset_persistence_does_not_scan_schema_constrained_profile_digest() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": "1" * 64,
+        "runs": [],
+    }
+
+    assert_runset_payload_safe_for_persistence(payload)
+
+
 def test_redaction_still_preserves_scalar_structural_values() -> None:
     payload = {
         "artifact_kind": "run-set",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
         "runs": [
             {
                 "local_debug_reference": "debug-001",
@@ -222,6 +289,8 @@ def test_redaction_still_preserves_scalar_structural_values() -> None:
     redacted = redact_runset_payload(payload)
 
     assert redacted["artifact_kind"] == "run-set"
+    assert redacted["privacy_profile_id"] == PRIVACY_PROFILE_ID
+    assert redacted["privacy_profile_digest"] == PRIVACY_PROFILE_DIGEST
     assert redacted["runs"][0]["local_debug_reference"] == "debug-001"
     assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
 

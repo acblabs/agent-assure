@@ -24,6 +24,9 @@ Current digest behavior:
   query digests, not raw query text, while committed query-vector keys select
   the offline fixture vectors used for retrieval;
 - HMAC-SHA256 is used for sensitive low-entropy correlations.
+- privacy detector semantics are represented by a versioned profile ID and a
+  SHA-256 digest over an RFC 8785 canonical manifest containing the ordered
+  patterns, flags, detection/redaction algorithms, and replacement text.
 
 The current schema keeps fixture-mode provenance narrow while allowing live
 records to carry optional operational metadata such as timestamps, token counts,
@@ -31,3 +34,11 @@ latency, and estimated cost as schema-normalized strings and integers. RunSet
 digests are exact artifact digests over persisted fields, not a separate
 observed-value-free provenance projection. Release replay is the place where
 environment-bearing review artifacts use explicit stable projections.
+Privacy profile digests participate in ordinary artifact digests because the
+profile ID and digest are persisted fields. On a bound RunSet, they identify
+the declared persistence-time detector semantics; on an evaluation summary,
+they identify the detector semantics applied by that evaluation. A current
+summary produced from an unbound legacy RunSet does not recover the RunSet's
+unknown original redaction profile. Profile bindings determine whether current
+evidence can be compared; they do not prove that the implementation ran, that
+redaction is complete, or that an artifact was produced by a trusted party.

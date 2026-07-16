@@ -11,6 +11,7 @@ from agent_assure.artifact_io import file_sha256
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.main import app
 from agent_assure.fixtures.loader import write_compiled_suite
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
@@ -33,6 +34,8 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="baseline",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
         ).model_dump(mode="json"),
     )
@@ -41,6 +44,8 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.warn,
         ).model_dump(mode="json"),
     )
@@ -49,6 +54,8 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.fail,
         ).model_dump(mode="json"),
     )
@@ -67,6 +74,8 @@ def test_ci_gate_exits_two_for_invalid_comparison(tmp_path: Path) -> None:
         artifact_kind="comparison-summary",
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.invalid_comparison,
         fixture_equivalence_state=GateState.fail,
     )
@@ -179,6 +188,8 @@ def test_demo_markers_do_not_affect_core_commands(tmp_path: Path, env_var: str) 
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.fail,
         ).model_dump(mode="json"),
     )
@@ -250,6 +261,8 @@ def test_core_commands_accept_out_dir_outside_cwd(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
         ).model_dump(mode="json"),
     )
@@ -259,6 +272,8 @@ def test_core_commands_accept_out_dir_outside_cwd(tmp_path: Path) -> None:
             artifact_kind="comparison-summary",
             baseline_runset_id="baseline",
             candidate_runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             classification=ComparisonClassification.provenance_only_change,
             fixture_equivalence_state=GateState.pass_,
         ).model_dump(mode="json"),

@@ -4,9 +4,12 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from agent_assure.cli.main import app
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting.packet import build_evidence_packet
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification, GateState
@@ -25,12 +28,16 @@ def test_evidence_packet_schema_exists() -> None:
         evaluation=EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="runset-001",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.not_evaluated,
         ),
         comparison=ComparisonSummary(
             artifact_kind="comparison-summary",
             baseline_runset_id="baseline",
-            candidate_runset_id="candidate",
+            candidate_runset_id="runset-001",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             classification=ComparisonClassification.provenance_only_change,
         ),
         interpretation=("read candidate state first",),
@@ -46,16 +53,70 @@ def test_evidence_packet_schema_exists() -> None:
     assert packet.schema_version == SCHEMA_VERSION
 
 
+def test_evidence_packet_rejects_mismatched_privacy_detector_profiles() -> None:
+    evaluation = EvaluationSummary(
+        runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest="f" * 64,
+        classification=ComparisonClassification.unchanged,
+    )
+
+    with pytest.raises(ValidationError, match="same privacy detector profile"):
+        EvidencePacket(
+            packet_id="packet-mismatch",
+            interpretation=(),
+            evaluation=evaluation,
+            comparison=comparison,
+            limitations=(),
+        )
+
+
+def test_evidence_packet_rejects_evaluation_for_a_different_candidate() -> None:
+    evaluation = EvaluationSummary(
+        runset_id="stale-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.unchanged,
+    )
+
+    with pytest.raises(ValidationError, match="candidate_runset_id"):
+        EvidencePacket(
+            packet_id="packet-stale-candidate",
+            interpretation=(),
+            evaluation=evaluation,
+            comparison=comparison,
+            limitations=(),
+        )
+
+
 def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: Path) -> None:
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
     )
     comparison = ComparisonSummary(
         artifact_kind="comparison-summary",
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
         fixture_equivalence_state=GateState.pass_,
         baseline_state=GateState.pass_,
@@ -116,6 +177,8 @@ def test_packet_id_excludes_local_environment_and_exact_file_digests() -> None:
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
         environment=EnvironmentInfo(
             artifact_kind="environment-info",

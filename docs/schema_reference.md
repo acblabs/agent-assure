@@ -60,7 +60,12 @@ rollup alone.
 `AgentRunRecord` and `RunSet` remain lean in fixture mode. They persist
 deterministic case identity, summaries, outcomes, evidence references,
 claim-evidence links, provider/model labels, tool names, and
-fixture/provenance bindings. Live records may additionally persist
+fixture/provenance bindings. Current RunSets also require a
+`privacy_profile_id` and canonical `privacy_profile_digest` identifying the
+detector semantics applied by persistence and evaluation. Evaluation and
+comparison summaries carry the same pair, and packet/report assembly rejects
+incoherent profile bindings. Accepted pre-v0.5.0 artifacts omit the pair and
+remain serializable against their frozen schemas. Live records may additionally persist
 observation IDs, repetition and schedule indexes, cluster/source-group IDs,
 adapter IDs, provider response IDs, resolved provider-version fields,
 request/completion timestamps, trace context, attempt/retry/rate-limit
@@ -190,7 +195,10 @@ Streaming root artifacts:
   through nested objects and arrays; then hash the canonical JSON projection
   with SHA-256. Arrays preserve their non-null projected elements. Producers
   that rely on idempotent redelivery should keep timestamps and
-  privacy-filtered payload fields stable for the same logical event.
+  privacy-filtered payload fields stable for the same logical event. Global
+  timestamps are optional; any timestamp that is present must use strict RFC
+  3339 date-time syntax with an uppercase `T` and either `Z` or a numeric UTC
+  offset. Producer-local streams require a timestamp on every event.
 - `stream-ingestion-diagnostics` records the declared sequencing contract,
   source event count, accepted event count, duplicate count, run IDs, duplicate
   summaries, and ingestion diagnostics. Duplicate summaries are emitted only

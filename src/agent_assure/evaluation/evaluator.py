@@ -22,7 +22,8 @@ from agent_assure.policies.base import (
     rollup_state,
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
-from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, StrictModel
 from agent_assure.schema.common import GateState, ReasonCode, Severity, coerce_enum
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
@@ -117,6 +118,13 @@ def evaluate_runset(
     waivers: tuple[Waiver, ...] = (),
     today: date | None = None,
 ) -> EvaluationReport:
+    if runset.schema_version == SCHEMA_VERSION and (
+        runset.privacy_profile_id,
+        runset.privacy_profile_digest,
+    ) != (PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST):
+        raise ValueError(
+            "run set privacy detector profile is incompatible with the runtime profile"
+        )
     if runset.suite_id != suite.suite_id:
         raise ValueError(
             f"run set suite_id {runset.suite_id!r} does not match compiled suite {suite.suite_id!r}"
@@ -161,6 +169,8 @@ def evaluate_runset(
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=runset.runset_id,
+        privacy_profile_id=runset.privacy_profile_id or PRIVACY_PROFILE_ID,
+        privacy_profile_digest=runset.privacy_profile_digest or PRIVACY_PROFILE_DIGEST,
         state=state,
         findings=findings,
         usage_summary=usage_summary,

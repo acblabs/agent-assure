@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
 from agent_assure.schema.common import MAX_LABEL_CHARS, MAX_SUMMARY_CHARS
@@ -69,6 +70,27 @@ def test_stream_event_direct_usage_segment_uses_privacy_filter() -> None:
                 "privacy_filtered_attributes": {},
                 "digest": "a" * 64,
             }
+        )
+
+
+def test_stream_event_and_jsonschema_reject_naive_timestamp() -> None:
+    payload = {
+        "artifact_kind": "stream-event-record",
+        "event_id": "evt-stream-naive-time",
+        "run_id": "run-stream-001",
+        "case_id": "stream-case",
+        "sequence_number": 1,
+        "timestamp": "2026-07-14T00:00:01",
+        "event_type": "run_started",
+        "privacy_filtered_attributes": {},
+        "digest": "a" * 64,
+    }
+
+    with pytest.raises(ValidationError, match="timestamp must include timezone"):
+        StreamEventRecord.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(StreamEventRecord.model_json_schema(mode="validation")).validate(
+            payload
         )
 
 

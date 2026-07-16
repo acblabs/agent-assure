@@ -1,6 +1,7 @@
 # Schema Evolution
 
-Active released schema snapshot: `schemas/v0.5.0/`.
+Active schema snapshot: `schemas/v0.5.0/`. It is a release candidate until a
+matching `v0.5.0` tag exists and immutable after that tag.
 
 Persisted artifact `schema_version`: `0.5.0`.
 
@@ -17,13 +18,25 @@ Use these directories as the release lifecycle:
   and the package-only v0.4.0 through v0.4.2 releases.
 - `schemas/v0.4.3/` contains the release schema snapshot for v0.4.3
   and the package-only v0.4.4 release.
-- `schemas/v0.5.0/` contains the active release schema snapshot for v0.5.0.
+- `schemas/v0.5.0/` contains the active v0.5.0 snapshot; it is a candidate
+  before the matching tag and a released snapshot afterward.
 - `schemas/unreleased/` is the development export target for the next release.
 
-Automation has two separate checks:
+Before a matching release tag exists, an active versioned directory is a
+release candidate and may be regenerated as the candidate schema changes. Once
+that tag exists, the directory is immutable: subsequent schema changes must
+bump `SCHEMA_VERSION` and use a new `schemas/vX.Y.Z/` directory. Schema checks
+enforce both active-candidate parity and released-snapshot immutability. The
+historical `v0.1.0` snapshot predates this policy and uses `v0.2.0`, when that
+snapshot stabilized, as its immutable baseline.
 
-- frozen schema parity exports the current release schema surface to
+Automation has complementary checks:
+
+- frozen schema parity exports the active schema surface to
   `schemas/v0.5.0/` and fails if those committed files drift;
+- tagged-schema immutability compares every released snapshot with its local
+  full-history Git tag baseline; its dedicated CI job requires release tags
+  rather than silently skipping when history is unavailable;
 - schema packaging consistency discovers frozen `schemas/v*` directories and
   fails if `pyproject.toml` does not force-include the same directories under
   `agent_assure/schema_resources/`;
@@ -54,6 +67,31 @@ current schema version, JSON Schema `$id`, frozen schema directory, package
 schema resources, and release gates together. A release that changes behavioral producer obligations
 without changing JSON shape must publish a versioned producer contract and
 document the compatibility boundary.
+
+The v0.5.0 artifact shape requires `privacy_profile_id` and
+`privacy_profile_digest` on RunSets, evaluation summaries, and comparison
+summaries. Earlier accepted schema versions do not gain those fields: replay
+loads them as unbound legacy artifacts and omits runtime-only nulls from model
+dumps. This preserves frozen legacy JSON and digest identity.
+
+Evaluating an unbound legacy RunSet applies the current runtime detector and
+binds the resulting current evaluation summary to that evaluation-time
+profile. It does not establish which detector or redaction rules were used
+when the legacy RunSet was originally persisted.
+
+## Privacy Detector Producer Contract
+
+Current contract ID: `agent-assure/privacy-detectors/v1`.
+
+Current producers persist the profile ID and the SHA-256 digest of the RFC 8785
+canonical detector manifest. The manifest binds ordered pattern IDs,
+expressions and flags, detection and redaction algorithms, and replacement
+text. A pattern, flag, ordering, algorithm, or replacement change must update
+the canonical digest. Any behaviorally incompatible detector change must also
+version the profile ID and document whether cross-profile comparison is
+supported. The current comparator supports only identical profiles implemented
+by the running package; it fails closed rather than treating cross-profile
+results as equivalent.
 
 The release tag validator expects package and schema versions to match unless
 the package version is listed in its explicit release-to-schema mapping. The
@@ -188,7 +226,7 @@ process-assurance positioning, bundled deterministic measurement cases,
 evidence-diff rendering for operational counters and measured usage, and
 control-map behavior hardening.
 
-The v0.5.0 schema release adds streaming event roots:
+The v0.5.0 schema surface adds streaming event roots:
 `stream-event-record`, `stream-ingestion-diagnostics`, and `stream-run`.
 New persisted artifacts emit `schema_version: 0.5.0`, while usage roots keep
 their v0.4.3 usage schema label. Stream ingestion records an explicit global or

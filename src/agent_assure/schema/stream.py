@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from pydantic import Field, model_validator
@@ -14,6 +16,7 @@ from agent_assure.schema.base import PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
+    STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     coerce_tuple,
 )
@@ -30,6 +33,23 @@ StreamProducerField = Literal["producer_id", "node_id", "span_id"]
 StreamLabel = Annotated[str, Field(max_length=MAX_LABEL_CHARS)]
 StreamRequiredLabel = Annotated[str, Field(min_length=1, max_length=MAX_LABEL_CHARS)]
 StreamSummary = Annotated[str, Field(max_length=MAX_SUMMARY_CHARS)]
+StreamTimestamp = Annotated[
+    str,
+    Field(max_length=MAX_LABEL_CHARS, pattern=STRICT_RFC3339_TIMESTAMP_PATTERN),
+]
+
+
+def parse_stream_timestamp_utc(value: str, *, owner: str) -> datetime:
+    text = value.replace("Z", "+00:00") if value.endswith("Z") else value
+    try:
+        parsed = datetime.fromisoformat(text)
+    except ValueError as exc:
+        raise ValueError(f"{owner} timestamp must use strict RFC 3339 date-time syntax") from exc
+    if parsed.tzinfo is None:
+        raise ValueError(f"{owner} timestamp must include timezone")
+    if re.fullmatch(STRICT_RFC3339_TIMESTAMP_PATTERN, value) is None:
+        raise ValueError(f"{owner} timestamp must use strict RFC 3339 date-time syntax")
+    return parsed.astimezone(UTC)
 
 
 class StreamSequenceContract(StrictModel):
@@ -53,7 +73,7 @@ class StreamEventRecord(PersistedArtifact):
     producer_id: StreamLabel | None = None
     node_id: StreamLabel | None = None
     sequence_number: int = Field(ge=0)
-    timestamp: StreamLabel | None = None
+    timestamp: StreamTimestamp | None = None
     event_type: StreamRequiredLabel
 
     observation: FrameworkObservation | None = None
@@ -75,6 +95,16 @@ class StreamEventRecord(PersistedArtifact):
         if value is None:
             return None
         return validate_traceparent(value)
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def _validate_timestamp(cls, value: object) -> object:
+        if value is None:
+            return None
+        if not isinstance(value, str):
+            return value
+        parse_stream_timestamp_utc(value, owner="stream event")
+        return value
 
     @model_validator(mode="after")
     def _validate_event(self) -> StreamEventRecord:

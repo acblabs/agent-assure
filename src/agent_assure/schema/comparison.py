@@ -13,6 +13,13 @@ from agent_assure.schema.common import (
     coerce_tuple,
 )
 from agent_assure.schema.environment import EnvironmentInfo
+from agent_assure.schema.privacy import (
+    PrivacyProfileDigest,
+    PrivacyProfileId,
+    prepare_privacy_profile_input,
+    privacy_profile_json_schema_extra,
+    validate_privacy_profile_binding,
+)
 from agent_assure.schema.usage import (
     UsageSummary,
     UsageSummaryDelta,
@@ -29,14 +36,20 @@ _COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (
 
 class ComparisonSummary(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=usage_container_json_schema_extra(
-            *_COMPARISON_SUMMARY_USAGE_FIELD_PATHS
+        json_schema_extra=privacy_profile_json_schema_extra(
+            usage_container_json_schema_extra(*_COMPARISON_SUMMARY_USAGE_FIELD_PATHS)
         )
     )
 
     artifact_kind: Literal["comparison-summary"] = "comparison-summary"
     baseline_runset_id: str
     candidate_runset_id: str
+    privacy_profile_id: PrivacyProfileId = Field(
+        exclude_if=lambda value: value is None,
+    )
+    privacy_profile_digest: PrivacyProfileDigest = Field(
+        exclude_if=lambda value: value is None,
+    )
     classification: ComparisonClassification
     fixture_equivalence_state: GateState = GateState.not_evaluated
     baseline_state: GateState = GateState.not_evaluated
@@ -56,6 +69,11 @@ class ComparisonSummary(PersistedArtifact):
         default=None,
         exclude_if=lambda value: value is None,
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _prepare_privacy_profile(cls, value: object) -> object:
+        return prepare_privacy_profile_input(value, owner="comparison summary")
 
     @field_validator("classification", mode="before")
     @classmethod
@@ -79,6 +97,12 @@ class ComparisonSummary(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> ComparisonSummary:
+        validate_privacy_profile_binding(
+            self.schema_version,
+            self.privacy_profile_id,
+            self.privacy_profile_digest,
+            owner="comparison summary",
+        )
         validate_usage_field_paths_schema_version(
             self.schema_version,
             owner="comparison summary",
