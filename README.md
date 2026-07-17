@@ -15,7 +15,7 @@
   <a href="https://pypi.org/project/agent-assure/"><img src="https://img.shields.io/pypi/pyversions/agent-assure.svg" alt="Python versions"></a>
   <a href="https://github.com/acblabs/agent-assure/actions/workflows/ci.yml"><img src="https://github.com/acblabs/agent-assure/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
-  <img src="https://img.shields.io/badge/status-beta-2ea44f" alt="Status: beta">
+  <img src="https://img.shields.io/badge/status-RC-8250df" alt="Status: RC">
 </p>
 
 **Same answer. Different process. Catch the regression before it ships.**
@@ -285,7 +285,7 @@ Variation is handled according to its source:
 
 ## Integrations and maturity
 
-`agent-assure` is a beta-stage project. The CLI and persisted artifacts are the
+`agent-assure` is a release-candidate project. The CLI and persisted artifacts are the
 primary supported integration surface; framework adapters and streaming support
 remain explicitly experimental.
 
