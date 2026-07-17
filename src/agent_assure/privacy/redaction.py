@@ -7,6 +7,7 @@ from typing import Any
 from agent_assure.privacy.detectors import PRIVACY_REDACTION_TEXT, SENSITIVE_PATTERNS
 
 REDACTION = PRIVACY_REDACTION_TEXT
+REDACTION_MASK_CHARACTER = "\u2588"
 _DIGEST_HEX_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 FAIL_CLOSED_RUNSET_KEYS = frozenset(
     {
@@ -80,6 +81,16 @@ def redact_text(value: str) -> str:
     return redacted
 
 
+def mask_sensitive_text_preserving_length(value: str) -> str:
+    masked = value
+    for pattern in SENSITIVE_PATTERNS:
+        masked = pattern.sub(
+            lambda match: REDACTION_MASK_CHARACTER * len(match.group(0)),
+            masked,
+        )
+    return masked
+
+
 def redact_run_record_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
     redacted = redact_artifact_payload(payload, preserve_keys=PRESERVE_RUNSET_KEYS)
     return dict(redacted) if isinstance(redacted, Mapping) else dict(payload)
@@ -93,17 +104,13 @@ def redact_runset_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 def assert_runset_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
     for path, key, value in _iter_string_fields(payload):
         if key in FAIL_CLOSED_RUNSET_KEYS and _contains_sensitive_value(value):
-            raise ValueError(
-                f"runset preserved field contains sensitive-looking content: {path}"
-            )
+            raise ValueError(f"runset preserved field contains sensitive-looking content: {path}")
 
 
 def assert_stream_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
     for path, key, value in _iter_string_fields(payload):
         if key in FAIL_CLOSED_STREAM_KEYS and _contains_sensitive_value(value):
-            raise ValueError(
-                f"stream preserved field contains sensitive-looking content: {path}"
-            )
+            raise ValueError(f"stream preserved field contains sensitive-looking content: {path}")
 
 
 PRESERVE_RUNSET_KEYS = frozenset(

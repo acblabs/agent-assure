@@ -16,10 +16,12 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     RAG_CORPUS_VERSION_SKEW_VARIANT_ID,
     RAG_RERANKER_REGRESSION_VARIANT_ID,
     CounterfactualFamilyEvaluation,
+    RagFixtureError,
     _int_sequence,
     _string_tuple,
     evaluate_counterfactual_families,
     load_counterfactual_query_families,
+    load_policy_corpus,
     normalize_query,
     retrieval_diff_summary,
     retrieval_output_payload,
@@ -36,9 +38,7 @@ RERANKER_VARIANT = EXAMPLE / "variants" / "candidate_rag_reranker_regression.yam
 SKEW_VARIANT = EXAMPLE / "variants" / "candidate_rag_corpus_version_skew.yaml"
 REQUEST = EXAMPLE / "fixtures" / "rag" / "requests" / "rag-pt-duration.json"
 RETRIEVAL_OUTPUTS = EXAMPLE / "fixtures" / "rag" / "retrieval_outputs"
-COUNTERFACTUAL_FAMILIES = (
-    EXAMPLE / "fixtures" / "rag" / "counterfactual_query_families.json"
-)
+COUNTERFACTUAL_FAMILIES = EXAMPLE / "fixtures" / "rag" / "counterfactual_query_families.json"
 COUNTERFACTUAL_FAMILY_ID = "rag-pt-duration-equivalent-v1"
 
 
@@ -104,17 +104,9 @@ def test_counterfactual_baseline_preserves_required_evidence_across_query_varian
     assert set(report["required_ref_coverage_bps_by_variant"].values()) == {10000}
     assert set(report["required_ref_support_preserved_by_variant"].values()) == {True}
     assert set(report["required_source_support_preserved_by_variant"].values()) == {True}
-    assert set(
-        report["required_material_claim_support_preserved_by_variant"].values()
-    ) == {True}
+    assert set(report["required_material_claim_support_preserved_by_variant"].values()) == {True}
     assert set(report["missing_refs_by_variant"].values()) == {()}
-    assert len(
-        {
-            item["query_digest"]
-            for item in variant_payloads
-            if isinstance(item, dict)
-        }
-    ) == 4
+    assert len({item["query_digest"] for item in variant_payloads if isinstance(item, dict)}) == 4
     assert "query_digest" in json.dumps(report, sort_keys=True)
     assert "Does this member qualify" not in json.dumps(report, sort_keys=True)
     assert "three months of PT" not in json.dumps(report, sort_keys=True)
@@ -146,9 +138,7 @@ def test_counterfactual_candidate_preserves_decision_but_loses_material_support(
     assert report["preserved_required_ref_support"] is True
     assert report["preserved_required_source_support"] is False
     assert report["preserved_material_claim_support"] is False
-    assert report["escalated_variants"] == (
-        "rag-pt-duration-three-months-pt",
-    )
+    assert report["escalated_variants"] == ("rag-pt-duration-three-months-pt",)
     assert report["retrieval_jaccard_bps_by_variant"] == {
         "rag-pt-duration-twelve-weeks": 10000,
         "rag-pt-duration-three-months-pt": 5000,
@@ -171,11 +161,11 @@ def test_counterfactual_candidate_preserves_decision_but_loses_material_support(
     assert set(report["missing_refs_by_variant"].values()) == {()}
     assert set(report["missing_material_claim_ids_by_variant"].values()) == {
         (),
-        ("claim-duration",)
+        ("claim-duration",),
     }
     assert set(report["missing_source_ids_by_variant"].values()) == {
         (),
-        ("policy:acme-health:pt-coverage:duration-limit",)
+        ("policy:acme-health:pt-coverage:duration-limit",),
     }
     assert "Can this patient receive three months" not in json.dumps(report, sort_keys=True)
     assert "physcial therapy" not in json.dumps(report, sort_keys=True)
@@ -366,12 +356,7 @@ def test_rag_retrieval_rejects_invalid_chunk_date_range(tmp_path: Path) -> None:
     suite_root = tmp_path / "prior_auth_synthetic"
     shutil.copytree(EXAMPLE, suite_root)
     chunk_path = (
-        suite_root
-        / "fixtures"
-        / "rag"
-        / "policy_corpus"
-        / "current"
-        / "duration_limit.json"
+        suite_root / "fixtures" / "rag" / "policy_corpus" / "current" / "duration_limit.json"
     )
     chunk = _json(chunk_path)
     chunk["expires_date"] = chunk["effective_date"]
@@ -383,6 +368,19 @@ def test_rag_retrieval_rejects_invalid_chunk_date_range(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="expires_date must be after effective_date"):
         retrieve_for_variant(suite_root, _request(), variant_id=RAG_BASELINE_VARIANT_ID)
+
+
+def test_rag_manifest_rejects_paths_outside_suite_root(tmp_path: Path) -> None:
+    suite_root = tmp_path / "prior_auth_synthetic"
+    shutil.copytree(EXAMPLE, suite_root)
+    manifest_path = suite_root / "fixtures" / "rag" / "corpus_manifest.json"
+    manifest = _json(manifest_path)
+    manifest["vector_manifest_path"] = "../../../outside.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    (tmp_path / "outside.json").write_text("{}", encoding="utf-8")
+
+    with pytest.raises(RagFixtureError, match="escapes suite root"):
+        load_policy_corpus(suite_root)
 
 
 def test_rag_hero_candidate_preserves_decision_and_fails_material_claim_link() -> None:
@@ -432,8 +430,7 @@ def test_rag_corpus_version_skew_is_provenance_only_when_evidence_stays_intact()
         is ComparisonClassification.provenance_only_change
     )
     assert any(
-        change.field == "retrieval_corpus_digest"
-        for change in comparison.provenance_changes
+        change.field == "retrieval_corpus_digest" for change in comparison.provenance_changes
     )
 
 

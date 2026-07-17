@@ -54,8 +54,11 @@ verdict-bearing redaction findings for sensitive-looking content. Raw
 sensitive-looking values are still allowed at model construction so evaluation
 can fail closed when external producers submit unsafe records.
 
-The bundled fixture HMAC key is accepted only for the repository's synthetic
-example runners. Non-synthetic fixture runs must pass an explicit key, or use
+The bundled fixture HMAC key is accepted only when the compiled-suite digest,
+complete fixture-manifest digest, and runner identity match a bundled synthetic
+example's reviewed, pinned identity. Fixture JSON is parsed from the exact byte
+buffer rechecked against that approved manifest. Non-synthetic or modified
+fixture runs must pass an explicit key of at least 32 bytes, or use
 `agent-assure suite run --hmac-key-env ENV` to read one from the environment.
 HMAC-derived subject tokens are pseudonyms for correlation, not anonymized
 values; operators must protect the HMAC key and avoid relying on tokens as

@@ -6,7 +6,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, read_text_bounded
+from agent_assure.io_limits import load_json_bounded
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, write_evidence_diff_html
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -87,14 +87,10 @@ def render(
         out_path = _required_path(out, "--out")
         packet_model = _load_packet(packet) if packet is not None else None
         baseline_summary_model = (
-            _load_evaluation_summary(baseline_summary)
-            if baseline_summary is not None
-            else None
+            _load_evaluation_summary(baseline_summary) if baseline_summary is not None else None
         )
         candidate_summary_model = (
-            _load_evaluation_summary(candidate_summary)
-            if candidate_summary is not None
-            else None
+            _load_evaluation_summary(candidate_summary) if candidate_summary is not None else None
         )
         write_evidence_diff_html(
             baseline=_load_runset(baseline_path),
@@ -127,23 +123,19 @@ def _required_path(path: Path | None, option_name: str) -> Path:
 
 
 def _load_runset(path: Path) -> RunSet:
-    return RunSet.model_validate_json(_artifact_json_text(path))
+    return RunSet.model_validate(load_json_bounded(path))
 
 
 def _load_evaluation_summary(path: Path) -> EvaluationSummary:
-    return EvaluationSummary.model_validate_json(_artifact_json_text(path))
+    return EvaluationSummary.model_validate(load_json_bounded(path))
 
 
 def _load_comparison_summary(path: Path) -> ComparisonSummary:
-    return ComparisonSummary.model_validate_json(_artifact_json_text(path))
+    return ComparisonSummary.model_validate(load_json_bounded(path))
 
 
 def _load_packet(path: Path) -> EvidencePacket:
-    return EvidencePacket.model_validate_json(_artifact_json_text(path))
-
-
-def _artifact_json_text(path: Path) -> str:
-    return read_text_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="artifact JSON")
+    return EvidencePacket.model_validate(load_json_bounded(path))
 
 
 def _artifact_paths(

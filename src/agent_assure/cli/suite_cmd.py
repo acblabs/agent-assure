@@ -9,6 +9,7 @@ from rich.console import Console
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.authoring.yaml_lint import lint_yaml
+from agent_assure.canonical.hmac_tokens import MIN_HMAC_KEY_BYTES
 from agent_assure.fixtures.loader import load_compiled_suite, write_compiled_suite
 from agent_assure.fixtures.manifest import (
     build_fixture_manifest,
@@ -24,10 +25,12 @@ console = Console()
 
 @app.command("lint")
 def lint(path: Annotated[Path, typer.Argument(exists=True, readable=True)]) -> None:
-    warnings = lint_yaml(path)
-    for warning in warnings:
-        console.print(f"{warning.path}:{warning.line}:{warning.column}: warning: {warning.message}")
     try:
+        warnings = lint_yaml(path)
+        for warning in warnings:
+            console.print(
+                f"{warning.path}:{warning.line}:{warning.column}: warning: {warning.message}"
+            )
         compile_suite(path)
     except Exception as exc:
         raise typer.BadParameter(f"suite lint failed: {exc}") from exc
@@ -43,15 +46,20 @@ def compile_cmd(
         typer.Option("--manifest", help="Fixture manifest JSON output path."),
     ] = None,
 ) -> None:
-    compiled = compile_suite(path)
-    if compiled.defaults.execution_mode is ExecutionMode.live:
-        raise typer.BadParameter(
-            "live execution mode is handled by the agent-assure live command namespace"
+    try:
+        compiled = compile_suite(path)
+        if compiled.defaults.execution_mode is ExecutionMode.live:
+            raise typer.BadParameter(
+                "live execution mode is handled by the agent-assure live command namespace"
+            )
+        fixture_manifest = (
+            build_fixture_manifest(compiled, path.parent) if manifest is not None else None
         )
+    except (OSError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
     write_compiled_suite(compiled, out)
     console.print(f"compiled suite: {out}")
-    if manifest is not None:
-        fixture_manifest = build_fixture_manifest(compiled, path.parent)
+    if manifest is not None and fixture_manifest is not None:
         write_fixture_manifest(fixture_manifest, manifest)
         console.print(f"fixture manifest: {manifest}")
 
@@ -86,26 +94,29 @@ def run_cmd(
         ),
     ] = None,
 ) -> None:
-    execution_mode = coerce_enum(ExecutionMode, mode)
-    if execution_mode is ExecutionMode.live:
-        raise typer.BadParameter(
-            "live execution mode is handled by the agent-assure live command namespace"
+    try:
+        execution_mode = coerce_enum(ExecutionMode, mode)
+        if execution_mode is ExecutionMode.live:
+            raise typer.BadParameter(
+                "live execution mode is handled by the agent-assure live command namespace"
+            )
+        compiled = load_compiled_suite(compiled_suite, expected_digest=suite_digest)
+        variant_config = load_variant_config(variant)
+        root = suite_root or _infer_suite_root(compiled_suite, variant)
+        source_yaml = source or _default_source_yaml(root)
+        expected_manifest = load_fixture_manifest(manifest) if manifest is not None else None
+        hmac_key = _hmac_key_from_env(hmac_key_env)
+        runset = run_suite(
+            compiled,
+            variant_config,
+            root,
+            mode=execution_mode,
+            expected_manifest=expected_manifest,
+            source_yaml=source_yaml,
+            **({"hmac_key": hmac_key} if hmac_key is not None else {}),
         )
-    compiled = load_compiled_suite(compiled_suite, expected_digest=suite_digest)
-    variant_config = load_variant_config(variant)
-    root = suite_root or _infer_suite_root(compiled_suite, variant)
-    source_yaml = source or _default_source_yaml(root)
-    expected_manifest = load_fixture_manifest(manifest) if manifest is not None else None
-    hmac_key = _hmac_key_from_env(hmac_key_env)
-    runset = run_suite(
-        compiled,
-        variant_config,
-        root,
-        mode=execution_mode,
-        expected_manifest=expected_manifest,
-        source_yaml=source_yaml,
-        **({"hmac_key": hmac_key} if hmac_key is not None else {}),
-    )
+    except (KeyError, OSError, TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
     write_runset(runset, out)
     console.print(f"run set: {out}")
 
@@ -129,4 +140,10 @@ def _hmac_key_from_env(name: str | None) -> bytes | None:
     value = os.environ.get(name)
     if not value:
         raise typer.BadParameter(f"hmac key environment variable {name!r} is not set")
-    return value.encode("utf-8")
+    key = value.encode("utf-8")
+    if len(key) < MIN_HMAC_KEY_BYTES:
+        raise typer.BadParameter(
+            f"hmac key environment variable {name!r} must contain at least "
+            f"{MIN_HMAC_KEY_BYTES} UTF-8 bytes"
+        )
+    return key

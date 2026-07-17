@@ -14,7 +14,7 @@ from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
-from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, read_text_bounded
+from agent_assure.io_limits import load_json_bounded
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
 from agent_assure.privacy.redaction import assert_stream_payload_safe_for_persistence
 from agent_assure.reporting.console import render_evaluation_console
@@ -125,7 +125,7 @@ def evaluate(
 ) -> None:
     try:
         compiled = _load_suite(suite)
-        stream_run = StreamRunRecord.model_validate_json(_artifact_json_text(stream_run_path))
+        stream_run = StreamRunRecord.model_validate(load_json_bounded(stream_run_path))
         runset = stream_run_to_runset(stream_run, compiled, source_path=stream_run_path)
         source_root = source_project_root((suite, stream_run_path), default_root=Path.cwd())
         artifact_root = artifact_project_root(
@@ -229,7 +229,3 @@ def _write_json(path: Path, payload: object) -> None:
         encoding="utf-8",
         newline="\n",
     )
-
-
-def _artifact_json_text(path: Path) -> str:
-    return read_text_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="artifact JSON")

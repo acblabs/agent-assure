@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from agent_assure.canonical.manifest import posix_manifest_path
-from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, read_text_bounded
+from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, load_json_bounded
 
 
 class FixturePathError(ValueError):
@@ -44,12 +43,11 @@ class FixtureResolver:
 
     def read_json(self, relative_path: str | Path) -> dict[str, Any]:
         resolved = self.resolve(relative_path)
-        payload = json.loads(
-            read_text_bounded(resolved, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="fixture JSON")
+        return load_json_bounded(
+            resolved,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label=f"fixture JSON {relative_path}",
         )
-        if not isinstance(payload, dict):
-            raise ValueError(f"fixture JSON root must be an object: {relative_path}")
-        return payload
 
 
 def _normalize_relative_path(relative_path: str | Path) -> str:

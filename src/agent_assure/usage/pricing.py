@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, read_text_bounded
+from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, load_json_bounded
 from agent_assure.schema.common import DigestHex
 from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
 
 DECLARED_PRICING_LIMITATION = (
     "Cost is estimated from a declared pricing snapshot with a persisted content digest."
 )
-_DEMO_FIXTURE_PRICING_LIMITATION = (
-    "Demo fixture pricing only; not live provider pricing."
-)
+_DEMO_FIXTURE_PRICING_LIMITATION = "Demo fixture pricing only; not live provider pricing."
 _KNOWN_GENERATED_PRICING_LIMITATIONS = frozenset(
     {
         DECLARED_PRICING_LIMITATION,
@@ -23,8 +20,10 @@ _KNOWN_GENERATED_PRICING_LIMITATIONS = frozenset(
 
 
 def load_pricing_snapshot(path: Path) -> UsagePricingSnapshot:
-    payload = json.loads(
-        read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="pricing snapshot")
+    payload = load_json_bounded(
+        path,
+        max_bytes=MAX_CONFIG_TEXT_BYTES,
+        label="pricing snapshot",
     )
     return UsagePricingSnapshot.model_validate(payload)
 
@@ -42,9 +41,7 @@ def estimate_segment_cost(
     if segment.estimated_cost_microusd is not None and not overwrite:
         return segment
     if segment.prompt_tokens is None or segment.completion_tokens is None:
-        raise ValueError(
-            "declared pricing snapshots require prompt_tokens and completion_tokens"
-        )
+        raise ValueError("declared pricing snapshots require prompt_tokens and completion_tokens")
     price = _price_for_segment(segment, snapshot)
     estimated_cost = _estimated_cost(segment, price)
     source_limitations = _limitations_to_preserve(segment, overwrite=overwrite)
@@ -76,8 +73,7 @@ def estimate_segment_costs(
     overwrite: bool = False,
 ) -> tuple[UsageSegment, ...]:
     return tuple(
-        estimate_segment_cost(segment, snapshot, overwrite=overwrite)
-        for segment in segments
+        estimate_segment_cost(segment, snapshot, overwrite=overwrite) for segment in segments
     )
 
 
@@ -109,16 +105,13 @@ def _price_for_segment(
         if price.provider == segment.provider and price.model == segment.model:
             return price
     raise ValueError(
-        "pricing snapshot has no rate for "
-        f"provider={segment.provider!r}, model={segment.model!r}"
+        f"pricing snapshot has no rate for provider={segment.provider!r}, model={segment.model!r}"
     )
 
 
 def _estimated_cost(segment: UsageSegment, price: UsagePricingModel) -> int:
     if segment.prompt_tokens is None or segment.completion_tokens is None:
-        raise ValueError(
-            "declared pricing snapshots require prompt_tokens and completion_tokens"
-        )
+        raise ValueError("declared pricing snapshots require prompt_tokens and completion_tokens")
     cached_tokens = segment.cached_tokens or 0
     reasoning_tokens = segment.reasoning_tokens or 0
     if cached_tokens > segment.prompt_tokens:

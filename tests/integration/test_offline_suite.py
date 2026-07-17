@@ -61,4 +61,4 @@ def test_suite_run_cli_checks_expected_compiled_suite_digest(tmp_path) -> None: 
     )
     assert result.exit_code != 0
     assert result.exception is not None
-    assert "compiled suite digest mismatch" in str(result.exception)
+    assert "compiled suite digest mismatch" in result.output

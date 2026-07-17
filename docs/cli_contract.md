@@ -26,6 +26,17 @@ Current commands:
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
 
+Externally supplied JSON artifacts, configurations, JSONL records, provider
+responses, and external-script output retain their existing byte limits and
+also enforce a shared maximum of 80 object/array nesting levels. JSON objects
+with duplicate member names (including escape-equivalent names) and non-finite
+numeric values are rejected. Over-depth input fails closed as input validation,
+structured-output validation, or a runtime failure, as appropriate to the
+calling boundary. Suite, live-config, variant, and waiver YAML uses the safe
+loader and structural validation; aliases and merge keys, duplicate mapping
+keys, non-string mapping keys, node depth over 80, and excessive node counts are
+rejected. These rules are deliberate parser compatibility constraints.
+
 `evaluate` writes `evaluation-report.json`, `evaluation-summary.json`,
 `evaluation-report.md`, `dependency-inventory.json`, and
 `release-artifact-manifest.json`, and prints a Rich console summary. The JSON
@@ -127,10 +138,17 @@ payload includes the original prompt text. Subprocess spawn failures, timeouts,
 nonzero exits, invalid stdout, and stdout that fails the structured output
 contract create redacted `emergency-process-record` artifacts on the RunSet and
 a structured-output or runtime-failure live record. Risky live configs require
-operator acknowledgement before execution. Interactive runs prompt for configs
-that execute external scripts, enable network egress, or pass host environment
-variables. Non-interactive CI runs must pass `--trust-config` plus the matching
-risk-specific flags: `--allow-external-script`, `--allow-network`, and/or
+operator acknowledgement before execution. Prompt-driven runs (without
+`--trust-config`) require a separate, default-deny confirmation for each
+capability a config requests: external-script execution, network egress, and/or
+selected host environment variables. Prompts identify the configured script,
+the endpoint host for endpoint-bound adapters, and environment variable names
+without displaying variable values; sensitive-looking configured display text
+is redacted. External scripts are explicitly identified as unsandboxed host code
+that can access caller-readable files and networks;
+their `endpoint_url` is not presented as an enforced destination. Non-interactive
+CI runs must pass `--trust-config` plus the matching risk-specific flags:
+`--allow-external-script`, `--allow-network`, and/or
 `--allow-script-env`. Any live config that enables `allow_network: true`
 requires endpoint DNS safety screening to succeed during adapter construction
 and request dispatch. `--strict-endpoint-resolution` is retained for CLI

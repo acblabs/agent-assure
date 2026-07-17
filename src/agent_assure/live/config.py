@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import ipaddress
-import json
 import socket
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
@@ -9,17 +8,21 @@ from decimal import Decimal
 from pathlib import Path
 from typing import Any
 
-import yaml
 from pydantic import Field
 from pydantic.functional_validators import field_validator
 
-from agent_assure.authoring.yaml_nodes import validate_yaml_nodes_text
-from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, read_text_bounded
+from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
+from agent_assure.io_limits import (
+    MAX_CONFIG_TEXT_BYTES,
+    loads_json_bounded,
+    read_text_bounded,
+)
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import MAX_SUMMARY_CHARS, DigestHex, coerce_tuple
 
 USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
+ENV_VAR_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 EndpointResolver = Callable[..., Iterable[Any]]
 DISALLOWED_ENDPOINT_HOSTNAMES = frozenset(
     {
@@ -43,7 +46,7 @@ class EndpointResolutionStatus:
 
 
 class LiveScriptEnvVar(StrictModel):
-    name: str = Field(min_length=1, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    name: str = Field(min_length=1, pattern=ENV_VAR_NAME_PATTERN)
     value: str
 
 
@@ -150,10 +153,9 @@ class LiveRunConfig(StrictModel):
 def load_live_run_config(path: Path) -> LiveRunConfig:
     text = read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="live run config")
     if path.suffix.lower() == ".json":
-        loaded = json.loads(text)
+        loaded = loads_json_bounded(text, label="live run config JSON")
     else:
-        validate_yaml_nodes_text(text, label="live run config YAML")
-        loaded = yaml.safe_load(text)
+        loaded = safe_load_yaml_text(text, label="live run config YAML")
     if not isinstance(loaded, dict):
         raise TypeError("live run config must be a mapping")
     return LiveRunConfig.model_validate(loaded)
@@ -232,9 +234,7 @@ def assert_endpoint_resolution_allowed(
     status = resolve_endpoint_host(host, resolver=resolver)
     if status.resolution_failed:
         if require_resolution:
-            raise ValueError(
-                f"{label} endpoint host could not be resolved for safety screening"
-            )
+            raise ValueError(f"{label} endpoint host could not be resolved for safety screening")
         return
     if status.has_disallowed_address:
         raise ValueError(

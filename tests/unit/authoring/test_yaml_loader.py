@@ -1,11 +1,34 @@
 from __future__ import annotations
 
 import pytest
+import yaml
 from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.authoring.yaml_lint import lint_yaml
-from agent_assure.authoring.yaml_nodes import MAX_YAML_BYTES, load_yaml_nodes
+from agent_assure.authoring.yaml_nodes import (
+    MAX_YAML_BYTES,
+    load_yaml_nodes,
+    load_yaml_nodes_text,
+    validate_yaml_nodes_text,
+)
+
+
+def test_yaml_node_composition_explicitly_uses_safe_loader(monkeypatch) -> None:  # type: ignore[no-untyped-def]
+    compose = yaml.compose
+    loaders: list[type[yaml.SafeLoader]] = []
+
+    def record_loader(text: str, *, Loader: type[yaml.SafeLoader]):  # type: ignore[no-untyped-def, name-defined]
+        loaders.append(Loader)
+        return compose(text, Loader=Loader)
+
+    monkeypatch.setattr("agent_assure.authoring.yaml_nodes.yaml.compose", record_loader)
+
+    loaded = load_yaml_nodes_text("suite_id: demo\n")
+    validate_yaml_nodes_text("suite_id: demo\n")
+
+    assert loaded.data == {"suite_id": "demo"}
+    assert loaders == [yaml.SafeLoader, yaml.SafeLoader]
 
 
 def test_yaml_ambiguous_scalar_preserves_lexeme(tmp_path) -> None:  # type: ignore[no-untyped-def]
@@ -91,6 +114,56 @@ cases: []
         compile_suite(suite)
 
 
+def test_yaml_structural_error_redacts_sensitive_mapping_key() -> None:
+    secret = "Bearer ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    text = f'"{secret}": first\n"{secret}": second\n'
+
+    with pytest.raises(ValueError, match="duplicate YAML mapping key") as raised:
+        validate_yaml_nodes_text(text, label="test YAML")
+
+    assert secret not in str(raised.value)
+    assert "[REDACTED]" in str(raised.value)
+
+
+@pytest.mark.parametrize("escaped_key", (r"\u001b[2Jspoof", r"evil\nline"))
+def test_yaml_structural_error_escapes_control_characters(escaped_key: str) -> None:
+    text = f'"{escaped_key}": first\n"{escaped_key}": second\n'
+
+    with pytest.raises(ValueError, match="duplicate YAML mapping key") as raised:
+        validate_yaml_nodes_text(text, label="test YAML")
+
+    message = str(raised.value)
+    assert "\x1b" not in message
+    assert "evil\nline" not in message
+
+
+def test_yaml_ambiguous_scalar_warning_redacts_sensitive_value() -> None:
+    value = "4111111111111111"
+
+    loaded = load_yaml_nodes_text(f"card: {value}\n")
+
+    assert value not in loaded.warnings[0].message
+    assert "[REDACTED]" in loaded.warnings[0].message
+
+
+def test_yaml_warning_preserves_clean_structural_path() -> None:
+    loaded = load_yaml_nodes_text("value: 00123\n")
+
+    assert loaded.warnings[0].path == "$.value"
+
+
+def test_yaml_structural_error_redacts_sensitive_key_split_across_lines() -> None:
+    escaped_key = r"4111\n1111\n1111\n1111"
+    text = f'"{escaped_key}": first\n"{escaped_key}": second\n'
+
+    with pytest.raises(ValueError, match="duplicate YAML mapping key") as raised:
+        validate_yaml_nodes_text(text, label="test YAML")
+
+    message = str(raised.value)
+    assert "4111" not in message
+    assert "[REDACTED]" in message
+
+
 def test_yaml_aliases_are_rejected_before_expansion(tmp_path) -> None:  # type: ignore[no-untyped-def]
     suite = tmp_path / "suite.yaml"
     suite.write_text(
@@ -107,6 +180,17 @@ cases: []
 
     with pytest.raises(ValueError, match="aliases are not supported"):
         compile_suite(suite)
+
+
+def test_yaml_inline_merge_keys_are_rejected() -> None:
+    with pytest.raises(ValueError, match="merge keys are not supported"):
+        validate_yaml_nodes_text("outer:\n  <<: {key: value}\n")
+
+
+@pytest.mark.parametrize("key", ("1", "01", "true", "null"))
+def test_yaml_non_string_mapping_keys_are_rejected(key: str) -> None:
+    with pytest.raises(ValueError, match="mapping keys must be strings"):
+        validate_yaml_nodes_text(f"{key}: value\n")
 
 
 def test_yaml_loader_rejects_oversized_file_before_parse(tmp_path) -> None:  # type: ignore[no-untyped-def]

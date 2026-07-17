@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Annotated
+from urllib.parse import urlparse
 
 import typer
 from rich.console import Console
@@ -16,6 +17,7 @@ from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.runner import run_live_suite
 from agent_assure.live.statistics import evaluate_live_runset
 from agent_assure.live.trajectory import build_live_trajectory_report
+from agent_assure.privacy.redaction import redact_text
 from agent_assure.reporting.live import (
     write_live_comparison_json,
     write_live_comparison_markdown,
@@ -144,17 +146,20 @@ def _confirm_trusted_live_config(
     )
     message = "live config requires trust: " + "; ".join(reasons)
     if ci and not trust_config:
-        raise ValueError(
-            f"{message}; --ci is non-interactive only and requires --trust-config"
-        )
+        raise ValueError(f"{message}; --ci is non-interactive only and requires --trust-config")
     if (ci or trust_config) and missing_flags:
         flags = ", ".join(missing_flags)
         raise ValueError(f"{message}; explicit allow flag(s) required: {flags}")
     if trust_config:
-        console.print(f"warning: {message}")
+        console.print(f"warning: {message}", markup=False)
         return _trusted_live_execution_for_risks(risks)
-    if not typer.confirm(f"{message}. Continue?", default=False):
-        raise typer.Abort()
+    console.print(f"warning: {message}", markup=False)
+    for risk_id, reason, _ in risks:
+        if not typer.confirm(
+            f"Grant {risk_id!r} capability? {reason}",
+            default=False,
+        ):
+            raise typer.Abort()
     return _trusted_live_execution_for_risks(risks)
 
 
@@ -187,27 +192,55 @@ def _trusted_live_config_risks(config: object) -> tuple[tuple[str, str, str], ..
     if adapter is None:
         return ()
     risks: list[tuple[str, str, str]] = []
-    if getattr(adapter, "adapter_id", None) == "external-script":
+    adapter_id = getattr(adapter, "adapter_id", None)
+    if adapter_id == "external-script":
+        script_path = getattr(adapter, "script_path", None) or "<missing>"
+        configured_launcher = getattr(adapter, "script_executable", None)
+        if configured_launcher is not None:
+            launcher = configured_launcher
+        elif Path(str(script_path)).suffix.lower() == ".py":
+            launcher = "current Python"
+        else:
+            launcher = "direct execution"
+        displayed_launcher = redact_text(str(launcher))
+        displayed_script_path = redact_text(str(script_path))
         risks.append(
             (
                 "external-script",
-                "external-script executes host code with caller privileges",
+                "external-script executes unsandboxed host code with caller privileges and "
+                "may access caller-readable files and networks "
+                f"(launcher={displayed_launcher!r}, script={displayed_script_path!r})",
                 "--allow-external-script",
             )
         )
     if getattr(adapter, "allow_network", False):
+        if adapter_id == "external-script":
+            network_reason = (
+                "allow_network acknowledges that external-script host code can make "
+                "arbitrary network connections; endpoint_url is not enforced"
+            )
+        else:
+            endpoint = getattr(adapter, "endpoint_url", None)
+            endpoint_host = urlparse(endpoint).hostname if endpoint else None
+            destination = endpoint_host or "an unspecified external destination"
+            network_reason = (
+                f"allow_network can send prompts and metadata to {redact_text(destination)!r}"
+            )
         risks.append(
             (
                 "network",
-                "allow_network can send prompts and metadata to a configured endpoint",
+                network_reason,
                 "--allow-network",
             )
         )
     if getattr(adapter, "script_env_allowlist", ()):
+        env_names = ", ".join(
+            repr(redact_text(name)) for name in getattr(adapter, "script_env_allowlist", ())
+        )
         risks.append(
             (
                 "script-env",
-                "script_env_allowlist passes selected host environment variables",
+                f"script_env_allowlist passes selected host environment variables ({env_names})",
                 "--allow-script-env",
             )
         )

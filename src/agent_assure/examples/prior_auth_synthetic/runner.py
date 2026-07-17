@@ -73,6 +73,7 @@ def run_prior_auth_case_rag(
         context.suite_root,
         fixtures.request,
         variant_id=variant.variant_id,
+        fixture_bytes_reader=context.read_fixture_bytes,
     )
     tool_output = dict(fixtures.tool_output)
     tool_output["evidence"] = tuple(

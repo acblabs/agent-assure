@@ -10,7 +10,6 @@ from rich.console import Console
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     load_json_bounded,
-    read_text_bounded,
 )
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.telemetry import SpanPlan
@@ -35,10 +34,17 @@ def preview(
         typer.Option("--out", help="Optional span-plan JSON output path."),
     ] = None,
 ) -> None:
-    record = AgentRunRecord.model_validate_json(
-        read_text_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="OTel preview input")
-    )
-    span_plan = run_record_to_span_plan(record)
+    try:
+        record = AgentRunRecord.model_validate(
+            load_json_bounded(
+                path,
+                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                label="OTel preview input",
+            )
+        )
+        span_plan = run_record_to_span_plan(record)
+    except (TypeError, ValueError) as exc:
+        raise typer.BadParameter(str(exc)) from exc
     payload = json.dumps(span_plan.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
     if out is None:
         console.print(payload)

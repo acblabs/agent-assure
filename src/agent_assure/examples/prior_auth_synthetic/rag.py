@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from decimal import Decimal, InvalidOperation, localcontext
@@ -11,6 +11,11 @@ from pathlib import Path
 from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    loads_json_bounded,
+    read_bytes_bounded,
+)
 from agent_assure.runner.evidence import EvidenceAssociation
 from agent_assure.runner.fixture_values import required_string
 from agent_assure.schema.common import decimal_string
@@ -28,13 +33,62 @@ _COUNTERFACTUAL_FAMILIES = "counterfactual_query_families.json"
 _SCORE_QUANTUM = Decimal("0.000001")
 _NORMALIZED_QUERY_PATTERN = re.compile(r"\s+")
 _ISO_DATE_PATTERN = re.compile(r"\d{4}-\d{2}-\d{2}")
-_FILE_DIGEST_CHUNK_BYTES = 65536
 
 RagVariantMode = Literal["baseline", "reranker_drops_secondary_claim_source", "corpus_version_skew"]
+FixtureBytesReader = Callable[[Path], bytes]
 
 
 class RagFixtureError(ValueError):
     """Raised when committed RAG fixture metadata does not match artifact bytes."""
+
+
+@dataclass(frozen=True)
+class _RagFixtureReader:
+    suite_root: Path
+    verified_bytes_reader: FixtureBytesReader | None = None
+
+    @property
+    def resolved_root(self) -> Path:
+        return self.suite_root.resolve()
+
+    def resolve(self, path: Path) -> Path:
+        candidate = path.resolve()
+        try:
+            candidate.relative_to(self.resolved_root)
+        except ValueError as exc:
+            raise RagFixtureError(f"RAG fixture path escapes suite root: {path}") from exc
+        return candidate
+
+    def read_bytes(self, path: Path) -> bytes:
+        resolved = self.resolve(path)
+        label = self._label(resolved)
+        if self.verified_bytes_reader is None:
+            return read_bytes_bounded(
+                resolved,
+                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                label=f"RAG fixture {label}",
+            )
+        data = self.verified_bytes_reader(resolved)
+        if len(data) > MAX_ARTIFACT_JSON_BYTES:
+            raise ValueError(f"RAG fixture {label} exceeds maximum supported size")
+        return data
+
+    def read_json_object(self, path: Path) -> dict[str, object]:
+        resolved = self.resolve(path)
+        label = self._label(resolved)
+        payload = loads_json_bounded(
+            self.read_bytes(resolved).decode("utf-8"),
+            label=f"RAG fixture JSON {label}",
+        )
+        if not isinstance(payload, dict):
+            raise ValueError(f"RAG fixture JSON {label} root must be an object")
+        return {str(key): value for key, value in payload.items()}
+
+    def sha256(self, path: Path) -> str:
+        return hashlib.sha256(self.read_bytes(path)).hexdigest()
+
+    def _label(self, resolved: Path) -> str:
+        return resolved.relative_to(self.resolved_root).as_posix()
 
 
 @dataclass(frozen=True)
@@ -199,32 +253,21 @@ class CounterfactualFamilyEvaluation:
 
     @property
     def preserved_required_ref_support(self) -> bool:
-        return all(
-            item.preserved_required_ref_support
-            for item in self.variant_evaluations
-        )
+        return all(item.preserved_required_ref_support for item in self.variant_evaluations)
 
     @property
     def preserved_required_source_support(self) -> bool:
-        return all(
-            item.preserved_required_source_support
-            for item in self.variant_evaluations
-        )
+        return all(item.preserved_required_source_support for item in self.variant_evaluations)
 
     @property
     def preserved_material_claim_support(self) -> bool:
         return all(
-            item.preserved_required_material_claim_support
-            for item in self.variant_evaluations
+            item.preserved_required_material_claim_support for item in self.variant_evaluations
         )
 
     @property
     def escalated_variants(self) -> tuple[str, ...]:
-        return tuple(
-            item.query_variant_id
-            for item in self.variant_evaluations
-            if item.escalated
-        )
+        return tuple(item.query_variant_id for item in self.variant_evaluations if item.escalated)
 
     def report_payload(self) -> dict[str, object]:
         return {
@@ -305,9 +348,14 @@ def retrieve_for_variant(
     request: dict[str, object],
     *,
     variant_id: str,
+    fixture_bytes_reader: FixtureBytesReader | None = None,
 ) -> RetrievalResult:
     mode = rag_mode_for_variant(variant_id)
-    corpus = load_policy_corpus(suite_root, manifest_name=_manifest_name_for_mode(mode))
+    corpus = load_policy_corpus(
+        suite_root,
+        manifest_name=_manifest_name_for_mode(mode),
+        fixture_bytes_reader=fixture_bytes_reader,
+    )
     return retrieve_policy_chunks(corpus, request, variant_mode=mode)
 
 
@@ -315,21 +363,23 @@ def load_policy_corpus(
     suite_root: Path,
     *,
     manifest_name: str = _CURRENT_CORPUS_MANIFEST,
+    fixture_bytes_reader: FixtureBytesReader | None = None,
 ) -> PolicyCorpus:
+    reader = _RagFixtureReader(suite_root, fixture_bytes_reader)
     fixture_root = suite_root / _FIXTURE_ROOT
     manifest_path = fixture_root / manifest_name
-    manifest = _read_json_object(manifest_path)
+    manifest = reader.read_json_object(manifest_path)
 
     vector_manifest_path = fixture_root / _string(manifest, "vector_manifest_path")
-    vector_manifest_digest = _file_sha256(vector_manifest_path)
+    vector_manifest_digest = reader.sha256(vector_manifest_path)
     _assert_digest(
         observed=vector_manifest_digest,
         expected=_string(manifest, "vector_manifest_digest"),
         label=f"{manifest_name}:vector_manifest_digest",
     )
 
-    vector_manifest = _read_json_object(vector_manifest_path)
-    vectors = _load_vectors(fixture_root, vector_manifest, vector_manifest_digest)
+    vector_manifest = reader.read_json_object(vector_manifest_path)
+    vectors = _load_vectors(reader, fixture_root, vector_manifest, vector_manifest_digest)
     chunking_config = _mapping(manifest.get("chunking_config"), "chunking_config")
     chunking_config_digest = sha256_hexdigest(chunking_config)
     _assert_digest(
@@ -338,7 +388,7 @@ def load_policy_corpus(
         label=f"{manifest_name}:chunking_config_digest",
     )
 
-    chunks = _load_manifest_chunks(fixture_root, manifest)
+    chunks = _load_manifest_chunks(reader, fixture_root, manifest)
     retrieval_corpus_digest = _retrieval_corpus_digest(
         corpus_id=_string(manifest, "corpus_id"),
         corpus_version=_string(manifest, "corpus_version"),
@@ -495,8 +545,7 @@ def retrieval_diff_summary(
         "rank_changes": tuple(rank_changes),
         "missing_required_source_ids": missing_required,
         "corpus_digest_changed": (
-            baseline.corpus.retrieval_corpus_digest
-            != candidate.corpus.retrieval_corpus_digest
+            baseline.corpus.retrieval_corpus_digest != candidate.corpus.retrieval_corpus_digest
         ),
         "baseline_retrieval_corpus_digest": baseline.corpus.retrieval_corpus_digest,
         "candidate_retrieval_corpus_digest": candidate.corpus.retrieval_corpus_digest,
@@ -531,6 +580,7 @@ def load_counterfactual_query_families(
     *,
     fixture_name: str = _COUNTERFACTUAL_FAMILIES,
     compiled_suite: CompiledSuite | None = None,
+    fixture_bytes_reader: FixtureBytesReader | None = None,
 ) -> tuple[CounterfactualQueryFamily, ...]:
     """Load fixture-authored metamorphic RAG query families.
 
@@ -539,7 +589,8 @@ def load_counterfactual_query_families(
     is supplied; family JSON should only declare the RAG-specific query variants
     and source-ID requirements.
     """
-    payload = _read_json_object(suite_root / _FIXTURE_ROOT / fixture_name)
+    reader = _RagFixtureReader(suite_root, fixture_bytes_reader)
+    payload = reader.read_json_object(suite_root / _FIXTURE_ROOT / fixture_name)
     schema_version = _string(payload, "schema_version")
     if schema_version != "counterfactual-rag-family-v1":
         raise ValueError(f"unsupported counterfactual family schema: {schema_version}")
@@ -564,6 +615,7 @@ def evaluate_counterfactual_families(
     canonical_decision_matches_family_expectation: bool | None = None,
     reference_variant_id: str = RAG_BASELINE_VARIANT_ID,
     fixture_name: str = _COUNTERFACTUAL_FAMILIES,
+    fixture_bytes_reader: FixtureBytesReader | None = None,
 ) -> tuple[CounterfactualFamilyEvaluation, ...]:
     return tuple(
         evaluate_counterfactual_family(
@@ -574,11 +626,13 @@ def evaluate_counterfactual_families(
                 canonical_decision_matches_family_expectation
             ),
             reference_variant_id=reference_variant_id,
+            fixture_bytes_reader=fixture_bytes_reader,
         )
         for family in load_counterfactual_query_families(
             suite_root,
             fixture_name=fixture_name,
             compiled_suite=compiled_suite,
+            fixture_bytes_reader=fixture_bytes_reader,
         )
     )
 
@@ -590,13 +644,16 @@ def evaluate_counterfactual_family(
     variant_id: str,
     canonical_decision_matches_family_expectation: bool | None = None,
     reference_variant_id: str = RAG_BASELINE_VARIANT_ID,
+    fixture_bytes_reader: FixtureBytesReader | None = None,
 ) -> CounterfactualFamilyEvaluation:
-    source_request = _counterfactual_source_request(suite_root, family)
+    reader = _RagFixtureReader(suite_root, fixture_bytes_reader)
+    source_request = _counterfactual_source_request(reader, family)
     reference_mode = rag_mode_for_variant(reference_variant_id)
     reference_manifest_name = _manifest_name_for_mode(reference_mode)
     reference_corpus = load_policy_corpus(
         suite_root,
         manifest_name=reference_manifest_name,
+        fixture_bytes_reader=fixture_bytes_reader,
     )
     reference_retrieval = retrieve_policy_chunks(
         reference_corpus,
@@ -611,6 +668,7 @@ def evaluate_counterfactual_family(
         else load_policy_corpus(
             suite_root,
             manifest_name=variant_manifest_name,
+            fixture_bytes_reader=fixture_bytes_reader,
         )
     )
     return CounterfactualFamilyEvaluation(
@@ -648,11 +706,7 @@ def normalize_query(query: str) -> str:
 
 
 def _manifest_name_for_mode(mode: RagVariantMode) -> str:
-    return (
-        _SKEWED_CORPUS_MANIFEST
-        if mode == "corpus_version_skew"
-        else _CURRENT_CORPUS_MANIFEST
-    )
+    return _SKEWED_CORPUS_MANIFEST if mode == "corpus_version_skew" else _CURRENT_CORPUS_MANIFEST
 
 
 def _load_counterfactual_family_with_context(
@@ -728,11 +782,7 @@ def _counterfactual_family_from_payload(
             case_id=canonical_case_id,
         )
     if allowed_outcomes is None:
-        allowed_outcomes = (
-            (expected_recommendation,)
-            if expected_recommendation is not None
-            else ()
-        )
+        allowed_outcomes = (expected_recommendation,) if expected_recommendation is not None else ()
 
     required_evidence_refs = _optional_string_tuple(mapping.get("required_evidence_refs"))
     if expectation is not None:
@@ -742,9 +792,7 @@ def _counterfactual_family_from_payload(
             field_name="required_evidence_refs",
             case_id=canonical_case_id,
         )
-    required_material_claim_ids = _optional_string_tuple(
-        mapping.get("required_material_claim_ids")
-    )
+    required_material_claim_ids = _optional_string_tuple(mapping.get("required_material_claim_ids"))
     if expectation is not None:
         required_material_claim_ids = _field_or_expectation_tuple(
             observed=required_material_claim_ids,
@@ -795,11 +843,11 @@ def _counterfactual_variant_from_payload(
 
 
 def _counterfactual_source_request(
-    suite_root: Path,
+    reader: _RagFixtureReader,
     family: CounterfactualQueryFamily,
 ) -> dict[str, object]:
-    request = _read_json_object(
-        suite_root / _FIXTURE_ROOT / "requests" / f"{family.source_fixture_id}.json"
+    request = reader.read_json_object(
+        reader.suite_root / _FIXTURE_ROOT / "requests" / f"{family.source_fixture_id}.json"
     )
     case_id = _string(request, "case_id")
     if case_id != family.canonical_case_id:
@@ -864,11 +912,7 @@ def _evaluate_counterfactual_variant(
     retrieved_source_ids = retrieval.retrieved_source_ids
     retrieved_material_claim_ids = tuple(
         sorted(
-            {
-                claim_id
-                for item in retrieval.retrieved_chunks
-                for claim_id in item.chunk.claim_ids
-            }
+            {claim_id for item in retrieval.retrieved_chunks for claim_id in item.chunk.claim_ids}
         )
     )
     missing_refs = _missing(family.required_evidence_refs, retrieved_ref_ids)
@@ -889,10 +933,7 @@ def _evaluate_counterfactual_variant(
     # slightly conservative at exact boundaries.
     retrieval_drift_exceeded = 10000 - retrieval_jaccard_bps > family.allowed_retrieval_drift_bps
     escalated = bool(
-        missing_refs
-        or missing_sources
-        or missing_material_claim_ids
-        or retrieval_drift_exceeded
+        missing_refs or missing_sources or missing_material_claim_ids or retrieval_drift_exceeded
     )
     return CounterfactualVariantEvaluation(
         query_variant_id=variant.query_variant_id,
@@ -948,9 +989,7 @@ def _lowest_required_score(
 ) -> str | None:
     required_refs = set(required_evidence_refs)
     scores = tuple(
-        item.score
-        for item in retrieval.retrieved_chunks
-        if item.chunk.ref_id in required_refs
+        item.score for item in retrieval.retrieved_chunks if item.chunk.ref_id in required_refs
     )
     if not scores:
         return None
@@ -1010,9 +1049,7 @@ def _apply_reranker(
         return ranked
     drop_claim_ids = set(config.drop_claim_ids)
     filtered = tuple(
-        item
-        for item in ranked
-        if not drop_claim_ids.intersection(item.chunk.claim_ids)
+        item for item in ranked if not drop_claim_ids.intersection(item.chunk.claim_ids)
     )
     return tuple(
         RetrievedChunk(chunk=item.chunk, rank=index + 1, score=item.score)
@@ -1021,6 +1058,7 @@ def _apply_reranker(
 
 
 def _load_manifest_chunks(
+    reader: _RagFixtureReader,
     fixture_root: Path,
     manifest: dict[str, object],
 ) -> tuple[PolicyChunk, ...]:
@@ -1028,7 +1066,7 @@ def _load_manifest_chunks(
     for entry in _sequence(manifest.get("chunks"), "chunks"):
         entry_map = _mapping(entry, "chunks[]")
         chunk_path = fixture_root / _string(entry_map, "path")
-        payload = _read_json_object(chunk_path)
+        payload = reader.read_json_object(chunk_path)
         chunk = _chunk_from_payload(payload)
         for field_name in ("chunk_id", "ref_id", "source_id"):
             expected = _string(entry_map, field_name)
@@ -1070,18 +1108,19 @@ def _chunk_from_payload(payload: dict[str, object]) -> PolicyChunk:
 
 
 def _load_vectors(
+    reader: _RagFixtureReader,
     fixture_root: Path,
     vector_manifest: dict[str, object],
     vector_manifest_digest: str,
 ) -> VectorStore:
     vector_path = fixture_root / _string(vector_manifest, "cached_vectors_path")
-    cached_vectors_sha256 = _file_sha256(vector_path)
+    cached_vectors_sha256 = reader.sha256(vector_path)
     _assert_digest(
         observed=cached_vectors_sha256,
         expected=_string(vector_manifest, "cached_vectors_sha256"),
         label=f"{vector_path}:cached_vectors_sha256",
     )
-    payload = _read_json_object(vector_path)
+    payload = reader.read_json_object(vector_path)
     dimensions = _positive_int(payload.get("dimensions"), "dimensions")
     scale = _positive_int(payload.get("scale"), "scale")
     vectors_payload = _mapping(payload.get("vectors"), "vectors")
@@ -1136,8 +1175,7 @@ def _chunk_matches_filters(
 ) -> bool:
     expected_fields = ("payer", "policy_domain", "section_type")
     if any(
-        getattr(chunk, field_name) != _string(filters, field_name)
-        for field_name in expected_fields
+        getattr(chunk, field_name) != _string(filters, field_name) for field_name in expected_fields
     ):
         return False
     if chunk.effective_date > as_of_date:
@@ -1153,9 +1191,7 @@ def _quantized_cosine(left: tuple[int, ...], right: tuple[int, ...]) -> str:
     numerator = Decimal(sum(a * b for a, b in zip(left, right, strict=True)))
     with localcontext() as context:
         context.prec = 64
-        score = (numerator / (left_norm_sq.sqrt() * right_norm_sq.sqrt())).quantize(
-            _SCORE_QUANTUM
-        )
+        score = (numerator / (left_norm_sq.sqrt() * right_norm_sq.sqrt())).quantize(_SCORE_QUANTUM)
     return decimal_string(score)
 
 
@@ -1166,26 +1202,9 @@ def _vector_for(store: VectorStore, key: str) -> tuple[int, ...]:
         raise ValueError(f"cached vector is missing: {key}") from exc
 
 
-def _file_sha256(path: Path) -> str:
-    hasher = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(_FILE_DIGEST_CHUNK_BYTES), b""):
-            hasher.update(chunk)
-    return hasher.hexdigest()
-
-
-def _read_json_object(path: Path) -> dict[str, object]:
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError(f"JSON root must be an object: {path}")
-    return {str(key): value for key, value in payload.items()}
-
-
 def _assert_digest(*, observed: str, expected: str, label: str) -> None:
     if observed != expected:
-        raise RagFixtureError(
-            f"{label} digest mismatch: observed {observed}, expected {expected}"
-        )
+        raise RagFixtureError(f"{label} digest mismatch: observed {observed}, expected {expected}")
 
 
 def _mapping(value: object, label: str) -> dict[str, object]:

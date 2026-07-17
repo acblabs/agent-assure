@@ -10,6 +10,7 @@ import pytest
 
 from agent_assure.demo.common import (
     DEMO_MARKER_FILENAME,
+    MAX_DEMO_MARKER_BYTES,
     DemoError,
     ExpectedCommandResult,
     demo_subprocess_env,
@@ -57,6 +58,30 @@ def test_prepare_output_dir_cleans_owned_directory(tmp_path: Path) -> None:
     assert not stale.exists()
     marker = out_dir / DEMO_MARKER_FILENAME
     assert json.loads(marker.read_text(encoding="utf-8")) == {"owner": "agent-assure-demo"}
+
+
+@pytest.mark.parametrize(
+    "marker_payload",
+    (
+        ('{"nested":' * 81) + "null" + ("}" * 81),
+        " " * (MAX_DEMO_MARKER_BYTES + 1),
+    ),
+)
+def test_prepare_output_dir_treats_unbounded_marker_as_unowned(
+    tmp_path: Path,
+    marker_payload: str,
+) -> None:
+    out_dir = tmp_path / "demo"
+    out_dir.mkdir()
+    marker = out_dir / DEMO_MARKER_FILENAME
+    keep = out_dir / "keep.txt"
+    marker.write_text(marker_payload, encoding="utf-8")
+    keep.write_text("keep", encoding="utf-8")
+
+    with pytest.raises(DemoError, match="without agent-assure demo ownership marker"):
+        prepare_output_dir(out_dir, clean=True)
+
+    assert keep.read_text(encoding="utf-8") == "keep"
 
 
 def test_prepare_output_dir_cleans_legacy_demo_directory(tmp_path: Path) -> None:
@@ -139,9 +164,5 @@ def test_run_cli_command_records_timeout_logs(
             timeout_seconds=1,
         )
 
-    assert (tmp_path / "logs" / "slow.stdout.txt").read_text(encoding="utf-8") == (
-        "partial stdout"
-    )
-    assert (tmp_path / "logs" / "slow.stderr.txt").read_text(encoding="utf-8") == (
-        "partial stderr"
-    )
+    assert (tmp_path / "logs" / "slow.stdout.txt").read_text(encoding="utf-8") == ("partial stdout")
+    assert (tmp_path / "logs" / "slow.stderr.txt").read_text(encoding="utf-8") == ("partial stderr")

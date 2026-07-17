@@ -18,6 +18,7 @@ from agent_assure.canonical.normalize import normalize_decimal
 from agent_assure.io_limits import (
     MAX_STATIC_JSONL_BYTES,
     MAX_STATIC_JSONL_LINE_BYTES,
+    loads_json_bounded,
     read_text_bounded,
 )
 from agent_assure.live.config import (
@@ -250,7 +251,10 @@ class OpenAIChatCompletionsAdapter:
                 http_request,
                 timeout_seconds=self._config.timeout_seconds,
             ) as response:
-                payload = json.loads(_read_provider_response(response).decode("utf-8"))
+                payload = loads_json_bounded(
+                    _read_provider_response(response).decode("utf-8"),
+                    label="provider response JSON",
+                )
         except urllib.error.HTTPError as exc:
             retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
             raise LiveProviderRequestError(
@@ -333,8 +337,11 @@ class ExternalScriptAdapter:
         )
         completed = run_external_script(invocation)
         try:
-            loaded = json.loads(completed.stdout)
-        except json.JSONDecodeError as exc:
+            loaded = loads_json_bounded(
+                completed.stdout,
+                label="external script stdout JSON",
+            )
+        except ValueError as exc:
             emergency = invalid_output_emergency(
                 invocation,
                 completed,
@@ -408,15 +415,10 @@ def require_live_adapter_trust(
         required.append("allow_external_script")
     if config.script_env_allowlist:
         required.append("allow_script_env")
-    missing = [
-        requirement
-        for requirement in required
-        if not _trust_allows(trust, requirement)
-    ]
+    missing = [requirement for requirement in required if not _trust_allows(trust, requirement)]
     if missing:
         raise ValueError(
-            "live adapter requires explicit trusted execution capability: "
-            + ", ".join(missing)
+            "live adapter requires explicit trusted execution capability: " + ", ".join(missing)
         )
 
 
@@ -512,7 +514,10 @@ def _load_jsonl_responses(path: Path) -> dict[tuple[str, int | None], dict[str, 
             continue
         if len(line.encode("utf-8")) > MAX_STATIC_JSONL_LINE_BYTES:
             raise ValueError(f"{path}:{line_number}: static response line exceeded byte limit")
-        payload = json.loads(line)
+        payload = loads_json_bounded(
+            line,
+            label=f"{path}:{line_number}: static response JSON",
+        )
         if not isinstance(payload, dict):
             raise ValueError(f"{path}:{line_number}: static response must be an object")
         case_id = payload.get("case_id")
@@ -593,9 +598,7 @@ def _validate_openai_endpoint(
         for host_name in (*DEFAULT_OPENAI_ENDPOINT_HOSTS, *config.allowed_endpoint_hosts)
     }
     if host not in allowed_hosts:
-        raise ValueError(
-            "openai-chat-completions endpoint host must be in allowed_endpoint_hosts"
-        )
+        raise ValueError("openai-chat-completions endpoint host must be in allowed_endpoint_hosts")
     assert_endpoint_resolution_allowed(
         host,
         label="openai-chat-completions",

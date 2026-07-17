@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import subprocess
 import tempfile
 import threading
@@ -13,13 +14,19 @@ from typing import BinaryIO, Literal
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.privacy.redaction import redact_text
+from agent_assure.privacy.redaction import (
+    REDACTION,
+    REDACTION_MASK_CHARACTER,
+    mask_sensitive_text_preserving_length,
+)
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
 from agent_assure.schema.runtime import EmergencyProcessRecord
 
 FailureKind = Literal["spawn_failed", "timeout", "nonzero_exit", "invalid_output"]
 MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES = 1_048_576
+MAX_EMERGENCY_SUMMARY_SOURCE_CHARS = 500
+_REDACTION_MASK_RUN = re.compile(f"{re.escape(REDACTION_MASK_CHARACTER)}+")
 
 
 class ExternalScriptError(RuntimeError):
@@ -289,9 +296,7 @@ def _process_env(invocation: ExternalScriptInvocation) -> dict[str, str]:
     # Child environments are allowlist-only; callers that resolve helper
     # executables by bare name must explicitly allowlist PATH.
     env = {
-        name: os.environ[name]
-        for name in invocation.environment_allowlist
-        if name in os.environ
+        name: os.environ[name] for name in invocation.environment_allowlist if name in os.environ
     }
     env.update(dict(invocation.environment))
     if invocation.traceparent is not None:
@@ -341,7 +346,12 @@ def _emergency_record(
         exit_code=exit_code,
         stdout_bytes=stdout_bytes if stdout_bytes is not None else _byte_count(stdout),
         stderr_bytes=stderr_bytes if stderr_bytes is not None else _byte_count(stderr),
-        stderr_summary=_summary(stderr),
+        stderr_summary=_summary(
+            stderr,
+            source_truncated=(
+                stderr_bytes is not None and stderr_bytes > MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES
+            ),
+        ),
         safe_error_code=safe.code,
         safe_error_message=safe.message,
         local_debug_reference=safe.local_debug_reference,
@@ -350,13 +360,17 @@ def _emergency_record(
     )
 
 
-def _summary(value: str | None) -> str | None:
+def _summary(value: str | None, *, source_truncated: bool = False) -> str | None:
     if value is None:
+        return None
+    if source_truncated:
         return None
     compact = " ".join(value.split())
     if not compact:
         return None
-    return redact_text(compact[:500])
+    masked = mask_sensitive_text_preserving_length(compact)
+    source_prefix = masked[:MAX_EMERGENCY_SUMMARY_SOURCE_CHARS]
+    return _REDACTION_MASK_RUN.sub(REDACTION, source_prefix)[:MAX_EMERGENCY_SUMMARY_SOURCE_CHARS]
 
 
 def _decode_sample(sample: bytearray) -> str:

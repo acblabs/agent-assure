@@ -29,9 +29,14 @@ malicious model, script, provider, CI checkout, or operator.
 - The external-script adapter runs without a shell and receives only declared
   environment variables plus runner-injected request and trace context. It is
   not a sandbox; the configured script still executes with the caller's host
-  privileges. Interactive CLI runs ask for explicit trusted-config
-  acknowledgement before running external scripts, live network configs, or
-  configs that pass host environment variables. Non-interactive CI runs must
+  privileges and can access caller-readable files and networks regardless of an
+  endpoint declaration. Prompt-driven CLI runs (without `--trust-config`) require
+  a separate default-deny confirmation for external-script execution, declared
+  live network access, and selected host environment variables whenever the
+  config requests those capabilities. The prompts identify the configured script,
+  the endpoint host for endpoint-bound adapters, and environment-variable names
+  without displaying their values; sensitive-looking configured display text is
+  redacted. Non-interactive CI runs must
   pass `--trust-config` plus the matching risk-specific flags
   (`--allow-external-script`, `--allow-network`, and/or `--allow-script-env`);
   `--ci` alone only suppresses prompts and does not grant trust. CI network
@@ -81,8 +86,13 @@ malicious model, script, provider, CI checkout, or operator.
   digests, or cost-basis labels are treated as observable metadata for review
   rather than proof of business impact. Future renderers that show segment
   metadata labels directly should route those labels through redaction.
-- The bundled fixture HMAC key is synthetic-example-only. Non-synthetic fixture
-  runs must provide an explicit key rather than reusing the repository default.
+- The bundled fixture HMAC key is synthetic-example-only. Its use requires the
+  compiled-suite digest, complete fixture-manifest digest, and runner identity
+  to match reviewed, pinned constants for a bundled example. Each fixture is
+  parsed from the same byte buffer whose size and digest are rechecked against
+  the approved manifest. Non-synthetic or modified fixture runs must provide an
+  explicit key of at least 32 bytes rather than reusing the public repository
+  default.
 
 ## Release Boundary
 

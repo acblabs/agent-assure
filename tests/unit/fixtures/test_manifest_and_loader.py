@@ -33,6 +33,14 @@ def test_fixture_resolver_rejects_absolute_paths() -> None:
         resolver.resolve("/tmp/outside.json")
 
 
+def test_fixture_resolver_json_errors_identify_relative_path(tmp_path: Path) -> None:
+    fixture = tmp_path / "bad.json"
+    fixture.write_text("[]", encoding="utf-8")
+
+    with pytest.raises(ValueError, match=r"fixture JSON bad\.json root must be an object"):
+        FixtureResolver(tmp_path).read_json("bad.json")
+
+
 def test_fixture_manifest_paths_are_posix_normalized() -> None:
     compiled = compile_suite(SUITE)
     manifest = build_fixture_manifest(compiled, SUITE.parent)
@@ -80,9 +88,7 @@ def test_case_fixture_requires_complete_triplet(tmp_path) -> None:  # type: igno
         json.dumps({"case_id": "case-001", "member_id": "SYN-MEMBER-001"}),
         encoding="utf-8",
     )
-    (
-        tmp_path / "fixtures" / "root-a" / "model_outputs" / "case-fixture.json"
-    ).write_text(
+    (tmp_path / "fixtures" / "root-a" / "model_outputs" / "case-fixture.json").write_text(
         json.dumps(
             {
                 "human_review_performed": False,

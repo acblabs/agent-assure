@@ -11,6 +11,7 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.io_limits import (
     MAX_STATIC_JSONL_BYTES,
     MAX_STATIC_JSONL_LINE_BYTES,
+    loads_json_bounded,
     read_text_bounded,
 )
 from agent_assure.schema.stream import (
@@ -101,15 +102,11 @@ def validate_stream_run_integrity(stream_run: StreamRunRecord) -> None:
     for event in stream_run.events:
         key = _composite_key(event, stream_run.sequence_contract, line_number=None)
         if key in by_key:
-            raise ValueError(
-                "stream run contains duplicate composite key " + _format_key(key)
-            )
+            raise ValueError("stream run contains duplicate composite key " + _format_key(key))
         by_key[key] = event
         computed_digest = _payload_digest(event.model_dump(mode="json"))
         if event.digest != computed_digest:
-            raise ValueError(
-                f"stream event {event.event_id!r} digest does not match payload"
-            )
+            raise ValueError(f"stream event {event.event_id!r} digest does not match payload")
     _validate_producer_local_timestamp_order(
         stream_run.events,
         stream_run.sequence_contract,
@@ -206,7 +203,10 @@ def _deduplicated_events(
 
 def _event_from_line(line: str, *, line_number: int) -> StreamEventRecord:
     try:
-        payload = json.loads(line)
+        payload = loads_json_bounded(
+            line,
+            label=f"line {line_number}: stream JSONL event",
+        )
     except json.JSONDecodeError as exc:
         raise ValueError(f"line {line_number}: invalid JSONL event") from exc
     if not isinstance(payload, dict):
@@ -260,11 +260,7 @@ def _digest_payload_projection(value: object) -> object:
             projected[field_name] = projected_child
         return projected
     if isinstance(value, list | tuple):
-        return [
-            _digest_payload_projection(item)
-            for item in value
-            if item is not None
-        ]
+        return [_digest_payload_projection(item) for item in value if item is not None]
     return value
 
 
@@ -281,10 +277,7 @@ def _composite_key(
     producer_value = getattr(event, contract.producer_field)
     if producer_value is None:
         prefix = f"line {line_number}: " if line_number is not None else ""
-        raise ValueError(
-            f"{prefix}producer-local stream event missing "
-            f"{contract.producer_field}"
-        )
+        raise ValueError(f"{prefix}producer-local stream event missing {contract.producer_field}")
     return (event.run_id, contract.producer_field, producer_value, str(event.sequence_number))
 
 
@@ -304,8 +297,7 @@ def _event_sort_key(
     producer_value = getattr(event, contract.producer_field)
     if producer_value is None:
         raise ValueError(
-            f"producer-local stream event {event.event_id!r} missing "
-            f"{contract.producer_field}"
+            f"producer-local stream event {event.event_id!r} missing {contract.producer_field}"
         )
     return (
         event.run_id,
@@ -329,8 +321,7 @@ def _validate_producer_local_timestamp_order(
         producer_value = getattr(event, contract.producer_field)
         if producer_value is None:
             raise ValueError(
-                f"producer-local stream event {event.event_id!r} missing "
-                f"{contract.producer_field}"
+                f"producer-local stream event {event.event_id!r} missing {contract.producer_field}"
             )
         by_producer.setdefault((event.run_id, producer_value), []).append(event)
     for (run_id, producer_value), producer_events in by_producer.items():
@@ -417,10 +408,7 @@ def _diagnostic_messages(
         (
             "deterministic order: run_id, sequence_number, timestamp, digest"
             if contract.scope == "global"
-            else (
-                "deterministic order: run_id, timestamp, producer, "
-                "sequence_number, digest"
-            )
+            else ("deterministic order: run_id, timestamp, producer, sequence_number, digest")
         ),
     ]
     if duplicates:

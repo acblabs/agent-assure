@@ -8,6 +8,7 @@ import urllib.request
 from pathlib import Path
 
 import pytest
+import typer
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -110,6 +111,210 @@ def test_live_cli_trust_detector_flags_external_scripts_and_network() -> None:
     assert any("external-script" in reason for reason in reasons)
     assert any("allow_network" in reason for reason in reasons)
     assert any("script_env_allowlist" in reason for reason in reasons)
+
+
+def test_live_cli_network_trust_reason_displays_only_endpoint_host() -> None:
+    config = LiveRunConfig(
+        variant_id="network-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="provider",
+            model="model",
+            endpoint_url="https://api.example.test/v1?token=do-not-display",
+            allow_network=True,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    reasons = _trusted_live_config_reasons(config)
+
+    assert reasons == ("allow_network can send prompts and metadata to 'api.example.test'",)
+    assert "do-not-display" not in reasons[0]
+
+
+def test_live_cli_external_script_prompt_matches_direct_launcher_and_network_scope() -> None:
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.exe",
+            endpoint_url="https://misleading.example.test/path?token=do-not-display",
+            allow_network=True,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    reasons = _trusted_live_config_reasons(config)
+
+    assert "launcher='direct execution'" in reasons[0]
+    assert "current Python" not in reasons[0]
+    assert "arbitrary network connections" in reasons[1]
+    assert "misleading.example.test" not in reasons[1]
+    assert "do-not-display" not in reasons[1]
+
+
+def test_live_cli_trust_reasons_redact_sensitive_configured_paths() -> None:
+    secret = "Bearer ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path=f"{secret}.py",
+            script_executable=secret,
+            script_env_allowlist=(secret,),
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+
+    reasons = _trusted_live_config_reasons(config)
+
+    assert all(secret not in reason for reason in reasons)
+    assert all("[REDACTED]" in reason for reason in reasons)
+
+
+def test_live_config_accepts_windows_style_script_allowlist_name() -> None:
+    config = LiveAdapterConfig(
+        adapter_id="external-script",
+        provider="local-script",
+        model="script-model",
+        script_path="adapter.py",
+        script_env_allowlist=("ProgramFiles(x86)",),
+    )
+
+    assert config.script_env_allowlist == ("ProgramFiles(x86)",)
+
+
+def test_live_cli_interactive_trust_confirms_each_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            script_executable="python",
+            allow_network=True,
+            script_env_allowlist=("OPENAI_API_KEY",),
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+    prompts: list[str] = []
+
+    def approve(prompt: str, *, default: bool) -> bool:
+        assert default is False
+        prompts.append(prompt)
+        return True
+
+    monkeypatch.setattr(typer, "confirm", approve)
+
+    trust = _confirm_trusted_live_config(
+        config,
+        trust_config=False,
+        ci=False,
+        allow_network=False,
+        allow_external_script=False,
+        allow_script_env=False,
+    )
+
+    assert trust == TrustedLiveExecution(
+        allow_network=True,
+        allow_external_script=True,
+        allow_script_env=True,
+    )
+    assert len(prompts) == 3
+    assert "adapter.py" in prompts[0]
+    assert "network" in prompts[1]
+    assert "OPENAI_API_KEY" in prompts[2]
+
+
+def test_live_cli_interactive_trust_aborts_on_any_denied_capability(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    config = LiveRunConfig(
+        variant_id="external-live",
+        pipeline_id="pipeline",
+        tool_schema_digest="1" * 64,
+        policy_bundle_digest="2" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            allow_network=True,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-001",
+                prompt_path="prompt.txt",
+                input_summary="summary",
+            ),
+        ),
+    )
+    answers = iter((True, False))
+    prompts: list[str] = []
+
+    def answer(prompt: str, *, default: bool) -> bool:
+        assert default is False
+        prompts.append(prompt)
+        return next(answers)
+
+    monkeypatch.setattr(typer, "confirm", answer)
+
+    with pytest.raises(typer.Abort):
+        _confirm_trusted_live_config(
+            config,
+            trust_config=False,
+            ci=False,
+            allow_network=False,
+            allow_external_script=False,
+            allow_script_env=False,
+        )
+
+    assert len(prompts) == 2
+    assert "external-script" in prompts[0]
+    assert "network" in prompts[1]
 
 
 def test_live_cli_ci_requires_trust_config_and_risk_specific_flags() -> None:
@@ -353,9 +558,7 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
-    assert runset.runs[0].policy_results[0].reason_codes == (
-        ReasonCode.STRUCTURED_OUTPUT_INVALID,
-    )
+    assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.STRUCTURED_OUTPUT_INVALID,)
     assert runset.runs[0].traceparent is not None
 
 

@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-import json
 from typing import Any
 
 from pydantic import Field
 from pydantic.functional_validators import field_validator
 
+from agent_assure.io_limits import loads_json_bounded
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import MAX_LABEL_CHARS, MAX_SUMMARY_CHARS, coerce_tuple
 from agent_assure.schema.run import (
@@ -71,8 +71,8 @@ def _parse_json_object(content: str) -> dict[str, Any]:
             if text.startswith("json"):
                 text = text[4:].strip()
     try:
-        payload = json.loads(text)
-    except json.JSONDecodeError as exc:
+        payload = loads_json_bounded(text, label="live structured output JSON")
+    except ValueError as exc:
         raise LiveOutputContractError("live structured output was not valid JSON") from exc
     if not isinstance(payload, dict):
         raise LiveOutputContractError("live structured output JSON root must be an object")

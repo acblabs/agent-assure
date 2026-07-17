@@ -10,7 +10,10 @@ from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
 
+from agent_assure.io_limits import loads_json_bounded, read_text_bounded
+
 DEMO_MARKER_FILENAME = ".agent-assure-demo-owned.json"
+MAX_DEMO_MARKER_BYTES = 1024
 DEMO_COMMAND_TIMEOUT_SECONDS = 30
 PACKAGE_IMPORT_ROOT = Path(__file__).resolve().parents[2]
 _NETWORK_GUARD_DIRNAME = ".runtime"
@@ -108,8 +111,7 @@ def prepare_output_dir(out_dir: Path, *, clean: bool) -> Path:
             and any(resolved.iterdir())
         ):
             raise DemoError(
-                "demo output path already exists and is not empty or demo-owned: "
-                f"{resolved}"
+                f"demo output path already exists and is not empty or demo-owned: {resolved}"
             )
     resolved.mkdir(parents=True, exist_ok=True)
     _write_ownership_marker(resolved)
@@ -251,11 +253,16 @@ def _clean_owned_output_dir(path: Path) -> None:
 
 def _has_ownership_marker(path: Path) -> bool:
     marker = path / DEMO_MARKER_FILENAME
-    if not marker.is_file():
-        return False
     try:
-        payload = json.loads(marker.read_text(encoding="utf-8"))
-    except json.JSONDecodeError:
+        if not marker.is_file():
+            return False
+        text = read_text_bounded(
+            marker,
+            max_bytes=MAX_DEMO_MARKER_BYTES,
+            label="demo ownership marker",
+        )
+        payload = loads_json_bounded(text, label="demo ownership marker JSON")
+    except (OSError, ValueError):
         return False
     return isinstance(payload, dict) and payload == {"owner": "agent-assure-demo"}
 
