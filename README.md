@@ -1,88 +1,60 @@
 # agent-assure
 
+### Local-first process assurance and release evidence for AI agents
+
 <p align="center">
   <a href="#quickstart"><strong>Quickstart</strong></a> &middot;
-  <a href="#integrations"><strong>Integrations</strong></a> &middot;
-  <a href="docs/integrations/langgraph.md"><strong>LangGraph</strong></a> &middot;
-  <a href="docs/integrations/google_adk.md"><strong>Google ADK</strong></a> &middot;
-  <a href="docs/demo_rag.md"><strong>RAG provenance</strong></a> &middot;
-  <a href="docs/claim_boundary.md"><strong>Trust boundary</strong></a>
+  <a href="#where-it-fits"><strong>Where it fits</strong></a> &middot;
+  <a href="#assurance-model"><strong>Assurance model</strong></a> &middot;
+  <a href="#integrations-and-maturity"><strong>Integrations</strong></a> &middot;
+  <a href="#claim-boundary"><strong>Claim boundary</strong></a>
 </p>
 
 [![PyPI](https://img.shields.io/pypi/v/agent-assure.svg)](https://pypi.org/project/agent-assure/)
 [![Python](https://img.shields.io/pypi/pyversions/agent-assure.svg)](https://pypi.org/project/agent-assure/)
 [![CI](https://github.com/acblabs/agent-assure/actions/workflows/ci.yml/badge.svg)](https://github.com/acblabs/agent-assure/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-![Offline demo](https://img.shields.io/badge/demo-offline%20%2F%20no%20API%20key-0f766e)
-![LangGraph](https://img.shields.io/badge/LangGraph-experimental-1f6feb)
-![Google ADK](https://img.shields.io/badge/Google%20ADK-experimental-4285f4)
-![RAG provenance](https://img.shields.io/badge/RAG-provenance-4b5563)
+![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
 
-**Block agent process regressions that answer evals miss.**
+**Same answer. Different process. Catch the regression before it ships.**
 
-`agent-assure` is a local-first process assurance toolkit for agentic AI
-pipelines. It produces deterministic review artifacts and CI-gate signals when
-a candidate agent preserves the visible decision but changes the governed
-process, evidence path, RAG retrieval provenance, or framework workflow metadata
-around it.
+`agent-assure` verifies whether an agent change preserves declared process
+controls—not only the visible answer. It turns privacy-filtered run evidence
+into controlled baseline-to-candidate comparisons, human-readable evidence
+diffs, portable evidence packets, and CI gate signals.
 
 > **Core thesis:** Output equivalence is not process equivalence.
 
-Teams shipping agent changes often discover too late that the answer stayed
-the same while the evidence trail, retrieval sources, provider boundary, or
-review route quietly changed.
-
-<img src="docs/assets/flagship-evidence-diff.png" alt="Agent Assure evidence diff report showing same approval, broken evidence trail, and CI blocked." width="100%">
-
-<sub>Flagship evidence diff: the visible approval stayed stable, but the
-material evidence trail regressed and the CI gate blocked the candidate.</sub>
-
-## What it catches
-
-`agent-assure` is built for the release-review gap between "the answer still
-looks right" and "the governed process still matched the controls reviewers
-expected."
-
-| Surface | Regression it can make visible | Review signal |
-| --- | --- | --- |
-| Final answer checks | Candidate keeps `recommendation=approve; outcome=approve` while losing the evidence path | `new_failure` after fixture equivalence passes |
-| LangGraph workflows | A graph update keeps the visible decision but drops required policy evidence or decision-node metadata | Privacy-filtered `agent_assure` metadata becomes evaluable run evidence |
-| Google ADK workflows | A multi-agent ADK route keeps the visible decision and evidence but bypasses required performed review | The same framework observation contract feeds ordinary review-boundary controls |
-| RAG retrieval | Same answer and same `retrieval_corpus_digest`, but the retrieved source backing a material claim disappears | `MATERIAL_CLAIM_MISSING_EVIDENCE` |
-| RAG provenance drift | Evidence links stay intact, but the retrieval corpus digest changes | `provenance_only_change` for review, not a blocking finding |
-| Boundaries and routing | Provider, tool, review route, or redaction state changes unexpectedly | Deterministic invariant findings |
-| Measured usage | Candidate uses more or less measured tokens, tool calls, retries, or declared estimated cost | Usage delta evidence beside, not instead of, governance findings |
-| Streaming agents | Replayed, duplicated, or out-of-order events hide mid-run evidence removal, review bypass, or retry bursts | Idempotent ingestion, jitter-tolerant ordering, and ordinary process findings |
-| CI release gates | A blocking process invariant fails before merge or release | Nonzero exit code plus local evidence packet |
-
-## The 30-second story
-
-The flagship demo compares a passing baseline with an evidence-normalization
-candidate under the same deterministic fixtures:
+**Surface regressions in:** evidence links · RAG provenance · human-review
+routing · provider and tool boundaries · privacy and redaction state · retries
+and usage · streaming event integrity
 
 ```text
-baseline:  recommendation=approve; outcome=approve
-candidate: recommendation=approve; outcome=approve
+baseline decision:       approve
+candidate decision:      approve
+output-only check:       pass
 
-decision fields: preserved
-missing evidence link: claim-duration
-classification: new_failure
-CI gate: blocked as expected
+required evidence link:  missing
+classification:          new_failure
+configured CI gate:      blocked
 ```
 
-The point is deliberately narrow and reviewable: the business decision did not
-change, but the governed evidence path did. `agent-assure` catches that process
-regression before release.
+**The answer did not change. The governed process did.**
 
-The same evaluator model is used by the RAG provenance demo and LangGraph
-adapter, so retrieval and graph-process regressions become reviewable in the
-same packet-and-gate flow.
+<img src="docs/assets/flagship-evidence-diff.png"
+     alt="Agent Assure evidence diff showing the same visible approval, a missing material evidence link, a new-failure classification, and a blocked CI gate."
+     width="100%">
+
+<sub>The visible approval stayed stable, but the material evidence trail
+regressed and the configured release gate blocked the candidate.</sub>
+
+<details>
+<summary><strong>Verified flagship regression graph</strong></summary>
 
 ### Flagship regression at a glance
 
-The diagram makes the gate logic explicit: fixture equivalence gates the
-comparison, the visible answer stays stable, and the candidate still fails the
-material evidence invariant.
+This diagram is checked in CI against the bundled flagship fixtures, keeping
+README claims aligned with the evidence produced by the project itself.
 
 ```mermaid
 flowchart LR
@@ -112,57 +84,30 @@ flowchart LR
     Compare --> NewFailure["Classification: new_failure"]
 ```
 
+</details>
+
 ## Quickstart
-
-Published alpha package: [agent-assure on PyPI](https://pypi.org/project/agent-assure/).
-The current published release is `0.5.0`.
-
-Run the flagship demo offline:
 
 ```bash
 pip install agent-assure
 agent-assure demo flagship
 ```
 
-The demo runs with bundled deterministic fixtures. It writes local review
-artifacts under `.tmp/demo/flagship` by default, including the generated
-`evidence-diff.html` report previewed above as a PNG.
+The flagship demo runs against bundled deterministic fixtures—no provider API
+key, network call, or token spend. It writes local review artifacts under
+`.tmp/demo/flagship`, including the static `evidence-diff.html` report shown
+above.
 
-Try the RAG provenance demo:
-
-```bash
-agent-assure demo rag --out .tmp/demo/rag --clean
+```text
+visible decision: preserved
+material evidence: missing
+classification: new_failure
+CI gate: blocked
 ```
 
-Explore the broader process-assurance fixture cases:
+### GitHub Actions example
 
-```bash
-agent-assure demo measurement-cases --out .tmp/measurement-cases --clean
-```
-
-From a repository checkout, try the LangGraph expense-assurance example:
-
-```bash
-pip install "agent-assure[langgraph]"
-python examples/langgraph_expense_assurance/run_example.py
-```
-
-If LangGraph is not installed, the example uses the same deterministic fallback
-stream shape so adapter and evaluator behavior remain testable without network
-calls or token spend.
-
-Try the Google ADK process-assurance example:
-
-```bash
-python -m pip install -e ".[adk]"
-python examples/adk_process_assurance/run_example.py
-```
-
-The ADK example also runs offline. It uses a synthetic ADK event transcript to
-show a same-decision candidate that preserves evidence while bypassing the
-observed human-review requirement.
-
-Use it in GitHub Actions:
+Pin both the package and composite action in release workflows:
 
 ```yaml
 name: agent-assure
@@ -185,339 +130,268 @@ jobs:
           report-mode: full
 ```
 
-The composite action lives at
-`.github/actions/agent-assure/action.yml`. Use `report-mode: full` when you
-want complete review artifacts and `report-mode: fail-fast` when you want
-shorter blocking feedback. Point `suite`, `baseline-variant`, and
-`candidate-variant` at files in your repository; the paths above are this
-project's bundled fixtures, shown as a runnable illustration. The bundled
-candidate is expected to fail because it keeps the same visible decision while
-dropping a material evidence link.
+`full` produces the complete review artifacts; `fail-fast` gives shorter
+blocking feedback. The bundled candidate is intentionally expected to fail
+because its declared blocking invariant is violated. More generally, the
+configured gate follows declared expectations and policies, the selected gate
+profile, and explicit strictness flags.
 
-## Integrations
+<details>
+<summary><strong>Additional offline demos</strong></summary>
 
-### Streaming event ingestion
-
-Status: experimental.
-
-`agent-assure` can ingest privacy-filtered JSONL event streams from asynchronous
-or multi-agent runtimes, then evaluate the projected run with the same
-expectation engine used by fixture, RAG, and framework-adapter flows.
-
-```bash
-agent-assure stream ingest examples/streaming_process_regression/events/candidate_evidence_removed.jsonl \
-  --sequence-scope global \
-  --out .tmp/streaming/stream-run.json
-
-agent-assure stream evaluate .tmp/streaming/stream-run.json \
-  --suite examples/streaming_process_regression/suite.yaml \
-  --out-dir .tmp/streaming/report
-```
-
-Stream ingestion is intentionally explicit about idempotency and arrival jitter:
-
-- **Idempotency:** the sequencing contract declares the composite key. For
-  global streams it is `run_id + sequence_number`; for producer-local streams it
-  is `run_id + producer_id|node_id|span_id + sequence_number`. Duplicate events
-  with the same composite key, `event_id`, and canonical payload digest are
-  deduplicated and counted. Conflicting duplicate `event_id` or digest values
-  fail closed. At-least-once producers should redeliver the same logical event
-  with stable timestamp and privacy-filtered payload fields.
-- **Jitter handling:** accepted events are persisted in deterministic order by
-  run ID, sequence number, timestamp, and digest for globally sequenced streams.
-  Producer-local streams use timestamp to merge independent producer counters,
-  so timestamped events are required for that mode. Out-of-order arrival does
-  not change the projected process trajectory.
-
-The stream projection derives evidence-link state, review-route state,
-retry/rate-limit counters, usage summaries, and ordered span-plan events. It
-does not persist raw prompts, raw tool arguments, raw token chunks, or
-unredacted model output. The bundled retry-burst stream is review evidence by
-default, not a blocking gate failure unless the suite declares a retry-related
-expectation or policy.
-
-### LangGraph
-
-Status: experimental.
-
-The LangGraph adapter reads only privacy-filtered `agent_assure` metadata from
-LangGraph events or streamed node updates. It ignores raw event `data.input`,
-`data.output`, messages, completions, and tool arguments. Application nodes
-emit compact labels or digests, then `agent-assure` converts those observations
-into ordinary `AgentRunRecord` artifacts for the same evaluator used by fixture
-and CI flows.
-
-```python
-{
-    "agent_assure": {
-        "case_id": "lg-exp-001",
-        "event_type": "tool_call",
-        "sequence_number": 2,
-        "tool_name": "expense_policy_lookup",
-        "evidence_refs": ["ref-expense-policy-v3"],
-        "redaction_state": "redacted",
-        "privacy_filtered_attributes": {
-            "policy_version": "expense-policy-v3"
-        },
-    }
-}
-```
-
-The included `examples/langgraph_expense_assurance` case keeps the same final
-recommendation and review route across baseline and candidate. The candidate
-omits the required policy evidence reference, so deterministic evaluation
-blocks the process regression.
-
-See [`docs/integrations/langgraph.md`](docs/integrations/langgraph.md) for the
-adapter contract and current version notes.
-
-### Google ADK
-
-Status: experimental.
-
-The Google ADK adapter reads privacy-filtered `agent_assure` metadata from
-ADK-style event mappings or event objects. Real ADK apps should prefer
-`custom_metadata` for event labels and `actions.state_delta` for state-update
-events. It ignores raw event content, message parts, function-call arguments,
-completions, and unredacted summaries. Like the LangGraph adapter, it produces
-ordinary `FrameworkObservation` and `AgentRunRecord` artifacts; evaluation
-remains framework-neutral.
-
-```python
-{
-    "custom_metadata": {
-        "agent_assure": {
-            "case_id": "adk-benefit-001",
-            "event_type": "review_route",
-            "sequence_number": 3,
-            "node_name": "review_agent",
-            "review_route": "clinical_review",
-            "redaction_state": "redacted",
-            "privacy_filtered_attributes": {
-                "human_review_required": "true",
-                "human_review_performed": "true"
-            },
-        }
-    }
-}
-```
-
-The included `examples/adk_process_assurance` case keeps the same final
-recommendation and policy evidence across baseline and candidate. The candidate
-changes to an automatic path and reports `human_review_required=false`, so
-deterministic evaluation blocks the process regression. The route token remains
-observable process evidence; this minimal suite gates on human-review routing
-and performed-review observation, not route-string equality.
-
-See [`docs/integrations/google_adk.md`](docs/integrations/google_adk.md) for
-the adapter contract and current version notes.
-
-### RAG provenance
-
-The RAG demo stages a synthetic prior-authorization case with committed policy
-chunks, a corpus manifest, scaled-integer cached vectors, retrieval outputs,
-and counterfactual query-family fixtures.
+Run the RAG provenance and broader process-measurement fixtures:
 
 ```bash
 agent-assure demo rag --out .tmp/demo/rag --clean
+agent-assure demo measurement-cases --out .tmp/measurement-cases --clean
 ```
 
-Expected punchline:
+From a repository checkout, ingest and evaluate the streaming JSONL example:
 
-```text
-output equivalence: preserved
-retrieval corpus digest: unchanged
-missing evidence link: claim-duration
-classification: new_failure
-CI gate: blocked as expected
+```bash
+agent-assure stream ingest examples/streaming_process_regression/events/candidate_evidence_removed.jsonl --sequence-scope global --out .tmp/streaming/stream-run.json
+agent-assure stream evaluate .tmp/streaming/stream-run.json --suite examples/streaming_process_regression/suite.yaml --out-dir .tmp/streaming/report
 ```
 
-The hero candidate keeps `recommendation=approve; outcome=approve` and the same
-`retrieval_corpus_digest`, but drops the retrieved source supporting
-`claim-duration`; the existing material-claim evidence invariant catches the
-regression.
+See the [streaming example](examples/streaming_process_regression/README.md)
+for its sequencing, duplicate, and arrival-jitter contract.
 
-| Candidate shape | Decision | Corpus digest | Evidence links | Classification |
-| --- | --- | --- | --- | --- |
-| Reranker regression | Preserved | Unchanged | Missing `claim-duration` source | `new_failure` |
-| Corpus-version skew | Preserved | Changed | Preserved | `provenance_only_change` |
+Run the framework examples from the repository root:
 
-The counterfactual query-family fixtures use committed query-vector keys and
-report query digests rather than raw query text. They recompute retrieval
-evidence support for authored variants; they do not prove semantic equivalence
-between natural-language queries.
+```bash
+python examples/langgraph_expense_assurance/run_example.py
+python examples/adk_process_assurance/run_example.py
+```
 
-See [`docs/demo_rag.md`](docs/demo_rag.md) for the full demo boundary.
+> Both framework examples run without provider calls or token spend. The
+> LangGraph example also has a deterministic fallback when LangGraph is not
+> installed. The Google ADK example runs from a synthetic ADK event transcript.
 
-## Governance crosswalks
+</details>
 
-`agent-assure` controls are tagged against four external governance frameworks
-so reviewers can line up local process evidence with the language their
-programs already use. The source mapping lives in the machine-readable
-[`docs/threat_coverage_matrix.yaml`](docs/threat_coverage_matrix.yaml), with CI
-checks for taxonomy tag shape, pinned ATLAS IDs, and selected Markdown/YAML
-consistency.
+## Where it fits
 
-| Framework | What is mapped | Crosswalk |
+`agent-assure` does not replace output evaluation, observability, runtime
+guardrails, or enterprise governance. It supplies a focused release-review
+layer for declared process controls and portable engineering evidence.
+
+| Category | Primarily optimized for | Where `agent-assure` adds value |
 | --- | --- | --- |
-| NIST AI RMF | Controls tagged by `Govern` / `Map` / `Measure` / `Manage` function | [NIST AI RMF crosswalk](docs/governance_crosswalk_nist_ai_rmf.md) |
-| OWASP Top 10 for LLM Applications 2025 | Controls tagged by related `LLM01`–`LLM10` risk IDs | [OWASP LLM Top 10 crosswalk](docs/governance_crosswalk_owasp_llm.md) |
-| ISO/IEC 42001 | Controls tagged by reviewer-facing concept areas | [ISO/IEC 42001 crosswalk](docs/governance_crosswalk_iso42001.md) |
-| MITRE ATLAS 2026.06 | Controls mapped to adversary tactics and techniques with a stated mapping strength | [MITRE ATLAS crosswalk](docs/governance_crosswalk_mitre_atlas.md) |
+| **Output and agent evals** | Scoring responses, trajectories, tool use, components, and datasets | Declared process invariants, fixture-equivalent comparisons, digest-bound evidence lineage, and explicit release-gate semantics |
+| **Observability and tracing** | Capturing, querying, visualizing, and monitoring runtime behavior | Converts privacy-filtered observations into controlled release-review evidence; it is not trying to be the production trace warehouse |
+| **Governance and GRC** | AI inventory, policies, approvals, risk workflows, organizational controls, and audit programs | Supplies engineering-side release evidence that can feed governance workflows; it is not the enterprise system of record |
+| **Runtime guardrails** | Enforcing policy during requests, tool calls, or agent actions | Tests whether a candidate release preserved declared boundaries, evidence requirements, and review behavior before deployment |
+| **`agent-assure`** | **Local process-regression assurance at change and release time** | **Expectation-driven comparisons, portable evidence packets, and CI-native gate decisions** |
 
-These are planning crosswalks and review aids, not framework conformance,
-complete coverage, or third-party assurance claims. Scope limits and declared
-gaps are kept visible where the current mapping records them.
+`agent-assure` is a particularly strong fit when the release decision must be
+local, reproducible, CI-enforceable, and traceable to declared controls.
 
-## How agent-assure is different
+It converts declared controls and controlled run evidence into a local,
+reproducible, digest-bound release decision with ordinary CI enforcement and
+no required hosted control plane.
 
-`agent-assure` is a local-first assurance layer designed for agentic AI release
-review. It runs where engineering changes are already reviewed, writes evidence
-into the caller's workspace, and can block a PR or release when a declared
-process invariant fails.
+## Built for release owners and builders
 
-| Common pattern | `agent-assure` approach |
+| AI and ML leaders | AI and ML engineers |
 | --- | --- |
-| Dashboard waits for a human to notice drift | Local CLI writes review artifacts where the change is built |
-| A separate platform owns the release workflow | `pip install` and a composite GitHub Action fit ordinary CI |
-| Approval depends on manual dashboard review | Deterministic exit codes can block PRs or releases |
-| Final-answer checks miss changed evidence paths | Process invariants check evidence, boundaries, routing, redaction, and provenance |
-| Full-lifecycle governance platform required | Focused release-review evidence and CI gates |
-| Code diffs or output similarity stand in for process review | Deterministic process invariants, plus protocol-bound stochastic review for live behavior |
-| Artifacts stay in a hosted dashboard | Portable JSON, Markdown, static HTML, digests, and evidence packets stay in the workspace |
-| Broad trust claims blur the boundary | Explicit boundary: measured evidence for human review |
+| Surface silent process drift that unchanged final answers can conceal | Declare process expectations in YAML |
+| Establish repeatable change control for agent releases | Run deterministic offline fixtures |
+| Review portable evidence instead of relying on screenshots or anecdotes | Compare baseline and candidate runs under equivalent inputs |
+| Connect engineering evidence to governance and release review | Project framework events into strict run records |
+| Preserve review artifacts in the team’s workspace | Produce JSON, Markdown, static HTML, and ordinary CI exit codes |
+| Understand the limits and uncertainty of stochastic live evidence | Use protocol-bound repeated runs and statistical summaries |
 
-Why it matters:
+Security and governance reviewers can inspect which controls were evaluated,
+which evidence supported each finding, which artifacts and detector profiles
+were used, and why the configured gate passed or failed.
 
-- **Local-first review:** teams can inspect evidence packets, Markdown reports,
-  and static HTML diffs from the same workspace where the change was built.
-- **CI-native release gates:** gate logic ships in the package and returns
-  ordinary exit codes, so no external service decides pass or fail.
-- **Process-aware regression checks:** a candidate can keep the same visible
-  decision while losing evidence, changing review routing, or crossing a
-  provider/tool boundary.
-- **Protocol-bound live review:** when live provider behavior is involved,
-  declared protocols preserve repeated observations, clustering, interval
-  bounds, paired tests, drift summaries, and trajectory signals instead of
-  relying only on deterministic diffs or output similarity.
+## What it catches
 
-## Who it is for
+| Surface | Example process regression | Review result |
+| --- | --- | --- |
+| **Evidence path** | The final recommendation stays the same, but a material claim loses its supporting evidence link | Deterministic blocking finding such as `MATERIAL_CLAIM_MISSING_EVIDENCE` |
+| **RAG retrieval** | The answer and corpus digest remain stable, but the retrieved source supporting a material claim disappears | `new_failure` |
+| **RAG provenance** | Evidence support remains intact, but the retrieval corpus identity changes | `provenance_only_change` for review rather than an automatic blocking finding |
+| **Human review** | A candidate preserves the answer but bypasses required observed review | Review-boundary finding |
+| **Provider, tool, and privacy boundaries** | Provider, tool, route, redaction state, or detector identity changes unexpectedly | Declared invariant or compatibility finding |
+| **Usage and reliability** | Retries, tool calls, tokens, latency, rate-limit events, or declared estimated cost change materially | Measured delta evidence; blocking only when a suite or policy declares it |
+| **Streaming execution** | Duplicate, replayed, conflicting, or out-of-order events obscure evidence removal or review bypass | Idempotent projection, deterministic ordering, or fail-closed conflict |
+| **Stochastic live behavior** | Repeated observations drift outside a declared protocol or comparison boundary | Protocol-bound statistical review with explicit uncertainty and limitations |
 
-### AI leaders
+A surfaced difference may be a finding, a review-only signal, or a configured
+blocking condition. Not every difference blocks a release.
 
-An agent change can pass every answer-quality eval and still quietly stop
-citing the policy that justified its decision. That regression may not show up
-in a final-answer test; `agent-assure` turns silent process drift into a
-blocking CI signal before release.
+## Assurance model
 
-- **Hidden process drift:** surface lost evidence links, changed review routes,
-  provider/tool boundary changes, redaction changes, retries, and provenance
-  drift.
-- **Release evidence:** produce evidence packets, Markdown reports, and static
-  HTML evidence diffs reviewers can inspect, archive, or attach to release
-  review.
-- **Eval complement:** answer-quality evals ask whether the response is good;
-  `agent-assure` asks whether the governed path to that response still matches
-  declared controls.
+**Deterministic where possible. Statistical where necessary. Traceable
+throughout.**
 
-### AI engineers
+| Pillar | What it means in `agent-assure` |
+| --- | --- |
+| **Reproducible** | Fixed fixtures, controlled baseline-to-candidate inputs, strict artifacts, canonical serialization, versioned schemas, and digest-bound manifests |
+| **Traceable** | Declared expectations connect to observations, findings, evaluations, comparisons, evidence packets, release manifests, and gate state |
+| **Fail-closed** | Malformed, conflicting, incompatible, ambiguous, or unbound evidence does not silently degrade into a passing review |
+| **Statistically bounded** | Stochastic live behavior is evaluated through declared repeated-run protocols with clustering, uncertainty, comparison prerequisites, drift signals, and explicit low-data limitations |
 
-Use `agent-assure` when you need reproducible checks around agent pipelines,
-framework integrations, and retrieval systems.
+### Key assurance properties
 
-- **Strict artifacts:** compile YAML suites and live protocols into strict JSON
-  artifacts.
-- **Offline fixtures:** run baseline and candidate variants with no provider API
-  key, network call, or token spend.
-- **Controlled comparisons:** compare only after fixture equivalence passes, so
-  verdicts are tied to controlled input material rather than incidental drift.
-- **Shared run model:** project LangGraph metadata, fixture runs, and RAG
-  provenance into the same run-record and evaluator model.
+| Term | Meaning in this project |
+| --- | --- |
+| **Process invariance** | Declared evidence, routing, boundary, privacy, provenance, and operational expectations remain true across an implementation change |
+| **Provenance** | Source IDs, query and corpus digests, provider/model/tool identity, detector-profile identity, and artifact digests record where evidence originated |
+| **Evidence lineage** | A digest-linked chain connects authored expectations and fixture material to run records, evaluations, comparisons, packets, and release manifests |
+| **Idempotency and arrival jitter** | Exact redelivery does not alter the projected stream, conflicting duplicates fail closed, and accepted out-of-order events are normalized under an explicit sequence contract |
+| **Observability boundary** | The toolkit consumes and emits privacy-filtered structured observations and OpenTelemetry-aligned span evidence without positioning itself as the production trace store |
+| **Statistical evidence** | Rates, intervals, cluster and effective-sample information, paired comparisons where valid, trajectory signals, and drift summaries characterize uncertainty rather than claiming a probability of safety or compliance |
 
-### AI security engineers
+Evidence packets are **audit-supporting artifacts**, not attestations. They can
+make a release decision **review-defensible** by preserving declared rules,
+observations, limitations, digests, environment and dependency context, and
+gate state. They do not make the decision legally or regulatorily defensible.
 
-Use `agent-assure` when review needs to inspect observable controls without
-persisting raw sensitive material in reports.
+### Versioned privacy-detector identity
 
-- **Observable controls:** check material claim-evidence links, provider/tool
-  boundaries, review routing, redaction state, and policy controls.
-- **Reviewable provenance:** inspect fixture manifest digests, retrieval corpus
-  digests, source IDs, query digests, artifact digests, and dependency
-  inventory.
-- **Explicit boundary:** keep findings as release-review evidence, not safety,
-  compliance, clinical, or provider-quality decisions.
+“Privacy-filtered” is reviewable only when an artifact identifies the detector
+profile that produced it. v0.5.0 binds current run and summary artifacts to a
+canonical detector-profile digest and rejects incompatible profile combinations.
 
-## What it produces
+The digest identifies and binds the recorded profile. It does not independently
+prove that the profile was complete, correct, or impossible to bypass. See the
+[privacy model](docs/privacy_model.md).
 
-The flagship run writes artifacts that reviewers can inspect, archive, attach
-to release review, or upload from CI:
+### Protocol-bound live evidence
 
-- `.tmp/demo/flagship/demo-summary.json`
-- `.tmp/demo/flagship/baseline-report/evaluation-report.md`
-- `.tmp/demo/flagship/evidence-report/evaluation-report.md`
-- `.tmp/demo/flagship/comparison-report/comparison-report.md`
-- `.tmp/demo/flagship/ci-report/evidence-packet.json`
-- `.tmp/demo/flagship/evidence-diff.html`
+Live providers are stochastic, and repeated observations may be correlated by
+case, document, provider window, retry pattern, or tool path. `agent-assure`
+therefore keeps live conclusions bounded by a declared protocol, data boundary,
+provider/model configuration, and execution window.
 
-The evidence diff is a single local HTML file with inline CSS and escaped
-dynamic content. It does not load external JavaScript, CSS, fonts, or network
-resources.
+Reports preserve repeated observations, clustering and effective-sample
+information, uncertainty intervals, paired comparisons when their design
+requirements are met, drift and trajectory summaries, and explicit exploratory
+labels for low-data analyses. See [live calibration](docs/live_calibration.md),
+the [experiment protocol](docs/measurement/experiment_protocol.md), and the
+[live-mode roadmap](docs/live_mode_roadmap.md).
 
-Evidence packets can also include summaries, limitations, artifact digests,
-dependency inventory, environment context, release manifests, measured usage
-summaries, declared estimated cost deltas, and CI-gate state.
+Variation is handled according to its source:
 
-## Architecture
+- Fixture equivalence controls input-material drift.
+- Canonicalization controls serialization variation.
+- Sequence contracts and deterministic projection control event-arrival variation.
+- Cluster-aware summaries and intervals characterize live sampling variation.
+- Retry bursts and operational volatility remain evidence and are not automatically blocking.
 
-At the highest level, `agent-assure` turns declared expectations and observed
-agent behavior into local release-review evidence:
+## Integrations and maturity
+
+`agent-assure` is an alpha project. The CLI and persisted artifacts are the
+primary supported integration surface; framework adapters and streaming support
+remain explicitly experimental.
+
+| Surface | Purpose | v0.5.0 status | Documentation |
+| --- | --- | --- | --- |
+| **CLI, YAML, and versioned JSON artifacts** | Author, compile, run, evaluate, compare, package evidence, and gate releases | Primary supported surface | [CLI contract](docs/cli_contract.md) |
+| **GitHub Actions** | Run declared suites and return ordinary CI pass/fail results | Packaged and documented | [Composite action](.github/actions/agent-assure/action.yml) |
+| **RAG provenance** | Compare corpus, query, source, retrieval, and material claim-evidence behavior | Reference implementation and demo | [RAG demo](docs/demo_rag.md) |
+| **Streaming JSONL** | Project asynchronous or multi-agent events under explicit sequencing, duplicate, and jitter contracts | Experimental; new in v0.5.0 | [Streaming example](examples/streaming_process_regression/README.md) |
+| **LangGraph** | Project privacy-filtered graph metadata into the shared run-record model | Experimental | [LangGraph integration](docs/integrations/langgraph.md) |
+| **Google ADK** | Project privacy-filtered `custom_metadata` and `actions.state_delta` observations | Experimental | [Google ADK integration](docs/integrations/google_adk.md) |
+| **Live adapters** | Run static JSONL, isolated external scripts, or OpenAI-compatible chat-completions subjects under declared live protocols | Experimental, time-bound evidence | [Adapter contract](docs/adapters/adapter_contract.md) |
+| **OpenTelemetry** | Propagate W3C trace context, generate aligned span plans, and optionally export through the SDK/OTLP path | Optional integration; alignment only | [OpenTelemetry alignment](docs/otel_alignment.md) |
+| **Governance crosswalks** | Map packet-resident evidence to external framework concepts for review handoff | Planning and review aid | [Threat coverage matrix](docs/threat_coverage_matrix.yaml) |
+
+Framework adapters consume only privacy-filtered `agent_assure` metadata and
+project it into the same framework-neutral run-record and evaluator model. They
+ignore raw prompts, messages, completions, tool arguments, token chunks, and
+unredacted summaries.
+
+## From declared control to release decision
 
 ```mermaid
 flowchart LR
-  A[Declared expectations] --> B[Compiled suite]
-  LG[LangGraph metadata] --> R[Run records]
-  ADK[Google ADK metadata] --> R
-  RAG[RAG fixtures and provenance] --> R
-  F[Fixture or live runs] --> R
-  B --> E[Evaluate controls]
-  R --> E
-  E --> C[Compare process evidence]
-  C --> P[Evidence packet]
-  P --> G[CI gate]
-  G -->|blocking regression| X[Release blocked]
+    A[Declared controls] --> C[Canonical run evidence]
+    B[Privacy-filtered observations] --> C
+    C --> D[Invariant evaluation]
+    D --> E[Baseline vs candidate comparison]
+    E --> F[Evidence packet]
+    F --> G[Configured CI gate]
+    F --> H[Release or governance review]
 ```
 
-The broader toolkit includes YAML authoring, strict schemas, canonical digests,
-fixture and live execution paths, privacy-filtered reporting, release replay,
-and optional OpenTelemetry-aligned span-plan export. See
-[`docs/architecture.md`](docs/architecture.md) for the implementation map.
+```text
+suite or live protocol
+  → fixture, corpus, or execution manifest
+  → RunSet
+  → evaluation summary
+  → comparison summary
+  → evidence packet
+  → configured CI gate
+  → release manifest
+```
 
-## Detailed walkthroughs
+The flagship flow produces machine-readable JSON, reviewer-facing Markdown,
+a self-contained static HTML evidence diff, canonical digests, environment and
+dependency context, declared limitations, and gate state. The HTML report loads
+no external JavaScript, CSS, fonts, or network resources.
 
-### Five-minute fixture walkthrough
+Learn how these artifacts connect in [evidence packets](docs/evidence_packets.md),
+[evidence diffs](docs/evidence_diff.md), [release evidence](docs/release_evidence.md),
+and the [architecture overview](docs/architecture.md).
 
-The full command-by-command showcase lives in
-[`docs/showcase.md`](docs/showcase.md). It compiles the synthetic
-prior-authorization suite, runs baseline and candidate variants under identical
-fixtures, evaluates both run sets, compares them, builds an evidence packet,
-and shows the expected `new_failure` gate for the missing `claim-duration`
-evidence link.
+Released schema snapshots remain available for historical replay and digest
+verification. Digest replay is a reproducibility check, not a cryptographic
+signature. Cosign bundles provide workflow-identity evidence when generated
+and verified.
 
-### Small generic example
+## Governance crosswalks
 
-The expense-approval example is a compact non-healthcare suite using the same
-offline fixture and expectation method. See
-[`docs/demo_expense.md`](docs/demo_expense.md) and
-[`examples/expense_approval_minimal/`](examples/expense_approval_minimal/).
+`agent-assure` can map packet-resident evidence to the language used by existing
+governance and security programs.
 
-### Schemas and development
+| Framework | Mapping |
+| --- | --- |
+| **[NIST AI RMF](docs/governance_crosswalk_nist_ai_rmf.md)** | Controls tagged to `Govern`, `Map`, `Measure`, and `Manage` functions |
+| **[OWASP Top 10 for LLM Applications 2025](docs/governance_crosswalk_owasp_llm.md)** | Controls tagged to related `LLM01`–`LLM10` risk identifiers |
+| **[ISO/IEC 42001](docs/governance_crosswalk_iso42001.md)** | Controls tagged to reviewer-facing concept areas |
+| **[MITRE ATLAS 2026.06](docs/governance_crosswalk_mitre_atlas.md)** | Controls mapped to relevant tactics and techniques with stated mapping strength |
 
-Schema changes are versioned. Development work uses `schemas/unreleased/`.
-Stable releases freeze a copy into `schemas/vX.Y.Z/`. The release gate verifies
-the latest frozen schema directory, while schema staging exports the current
-development schema surface to `schemas/unreleased/`.
+These crosswalks are planning and review aids. They do not establish framework
+conformance, complete coverage, third-party assurance, or endorsement, and they
+are not certifications.
 
-From a repository checkout:
+## Claim boundary
+
+> **Measured evidence, not a blanket trust claim.**
+
+`agent-assure` supports human release review. It does not establish regulatory
+compliance or replace domain, legal, clinical, security, provider-quality,
+model-quality, or business-impact review.
+
+This project is not a compliance attestation. It is not a safety claim.
+
+| `agent-assure` is | `agent-assure` is not |
+| --- | --- |
+| Release-review evidence for declared process expectations | A legal or regulatory determination |
+| A deterministic and protocol-bound measurement toolkit | A safety determination |
+| A way to surface evidence, routing, privacy, boundary, provenance, usage, and stream-integrity regressions | A general model-quality benchmark |
+| A local artifact and CI-gate workflow | A production observability backend or enterprise governance system of record |
+| An engineering evidence source for human and governance review | A replacement for organizational accountability |
+
+Live conclusions remain bounded by the declared protocol, data boundary,
+provider/model configuration, and execution window. Review the
+[claim boundary](docs/claim_boundary.md), [limitations](docs/limitations.md),
+[threat model](docs/threat_model.md), and [privacy model](docs/privacy_model.md).
+
+## Learn more
+
+- **Start:** [Documentation](docs/index.md) · [For AI leaders](docs/for_ai_leaders.md) · [For engineers](docs/for_engineers.md)
+- **Demos:** [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)
+- **Integrations:** [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) · [Adapter contract](docs/adapters/adapter_contract.md)
+- **Assurance:** [What this measures](docs/what_this_measures.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
+- **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
+- **Project:** [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [License](LICENSE)
+
+<details>
+<summary><strong>Development from a repository checkout</strong></summary>
 
 ```bash
 pip install -e ".[dev]"
@@ -529,48 +403,9 @@ pytest
 python -m build
 ```
 
-Dependency locking for release builds is documented in
-[`docs/dependency_locking.md`](docs/dependency_locking.md). Release bundle
-reproduction, SBOM generation, and cosign verification are documented in
-[`docs/release_evidence.md`](docs/release_evidence.md).
+</details>
 
-The installed package includes bundled deterministic examples for reproducible
-local demos. The top-level `examples/` tree mirrors those packaged resources
-for repository-oriented docs and tests; `scripts/check_packaged_examples.py`
-keeps the copies aligned. They are not a stable extension API; see
-[`docs/api_surface.md`](docs/api_surface.md).
+## Citing
 
-## Claim boundary and what this is not
-
-`agent-assure` produces local review evidence, traceability, evidence mapping,
-artifact digests, and CI-gate signals. It does not replace legal, regulatory,
-clinical, provider-quality, model-quality, or business-impact review.
-
-This project is not a compliance attestation.
-
-It is not a safety claim.
-
-The governance crosswalks above map local controls to NIST AI RMF, the OWASP
-LLM Top 10, ISO/IEC 42001, and MITRE ATLAS as planning and review aids. They do
-not establish conformance with, complete coverage of, or third-party acceptance
-by any of those frameworks.
-
-| `agent-assure` is | `agent-assure` is not |
-| --- | --- |
-| Release-review evidence for declared process expectations | A substitute for legal, regulatory, clinical, provider-quality, or business-impact review |
-| A deterministic and protocol-bound measurement toolkit | A safety determination |
-| A way to surface evidence, routing, redaction, boundary, and provenance regressions | A general model-quality benchmark |
-| A local artifact and CI-gate workflow | A hosted governance platform or legal approval workflow |
-
-Live results remain bounded by the declared protocol, data boundary,
-provider/model configuration, and execution window. They are not general
-model-quality, safety, or clinical-validation claims.
-
-## Learn more
-
-- **Audience:** [AI leaders](docs/for_ai_leaders.md) &middot; [Engineers](docs/for_engineers.md)
-- **Demos:** [Flagship demo](docs/demo_flagship.md) &middot; [RAG provenance demo](docs/demo_rag.md)
-- **Integrations:** [LangGraph integration](docs/integrations/langgraph.md) &middot; [Google ADK integration](docs/integrations/google_adk.md)
-- **Assurance model:** [What this measures](docs/what_this_measures.md) &middot; [Evidence diff](docs/evidence_diff.md)
-- **Security and boundaries:** [Threat model](docs/threat_model.md) &middot; [Current claim boundary](docs/claim_boundary.md)
-- **Governance crosswalks:** [NIST AI RMF](docs/governance_crosswalk_nist_ai_rmf.md) &middot; [OWASP LLM Top 10](docs/governance_crosswalk_owasp_llm.md) &middot; [ISO/IEC 42001](docs/governance_crosswalk_iso42001.md) &middot; [MITRE ATLAS](docs/governance_crosswalk_mitre_atlas.md)
+This project ships a [`CITATION.cff`](CITATION.cff). Use GitHub’s
+**Cite this repository** control for generated citation formats.
