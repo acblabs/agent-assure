@@ -10,11 +10,13 @@
   <a href="#claim-boundary"><strong>Claim boundary</strong></a>
 </p>
 
-[![PyPI](https://img.shields.io/pypi/v/agent-assure.svg)](https://pypi.org/project/agent-assure/)
-[![Python](https://img.shields.io/pypi/pyversions/agent-assure.svg)](https://pypi.org/project/agent-assure/)
-[![CI](https://github.com/acblabs/agent-assure/actions/workflows/ci.yml/badge.svg)](https://github.com/acblabs/agent-assure/actions/workflows/ci.yml)
-[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-![Status: alpha](https://img.shields.io/badge/status-alpha-orange)
+<p align="center">
+  <a href="https://pypi.org/project/agent-assure/"><img src="https://img.shields.io/badge/pypi-v0.5.0-blue" alt="PyPI v0.5.0"></a>
+  <a href="https://pypi.org/project/agent-assure/"><img src="https://img.shields.io/pypi/pyversions/agent-assure.svg" alt="Python versions"></a>
+  <a href="https://github.com/acblabs/agent-assure/actions/workflows/ci.yml"><img src="https://github.com/acblabs/agent-assure/actions/workflows/ci.yml/badge.svg" alt="CI status"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="License: MIT"></a>
+  <img src="https://img.shields.io/badge/status-beta-2ea44f" alt="Status: beta">
+</p>
 
 **Same answer. Different process. Catch the regression before it ships.**
 
@@ -283,7 +285,7 @@ Variation is handled according to its source:
 
 ## Integrations and maturity
 
-`agent-assure` is an alpha project. The CLI and persisted artifacts are the
+`agent-assure` is a beta-stage project. The CLI and persisted artifacts are the
 primary supported integration surface; framework adapters and streaming support
 remain explicitly experimental.
 
