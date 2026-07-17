@@ -115,9 +115,7 @@ flowchart LR
 ## Quickstart
 
 Published alpha package: [agent-assure on PyPI](https://pypi.org/project/agent-assure/).
-The current published release is `0.4.4`. Features listed under `Unreleased`,
-including the v0.5.0 streaming and Google ADK additions, require a source
-checkout (`python -m pip install -e .`) until v0.5.0 is tagged and published.
+The current published release is `0.5.0`.
 
 Run the flagship demo offline:
 
@@ -178,8 +176,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.4.4
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.4.4
+      - run: python -m pip install agent-assure==0.5.0
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.5.0
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml

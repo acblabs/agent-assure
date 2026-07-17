@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- No unreleased changes.
+
+## 0.5.0 - 2026-07-17
+
 - Added versioned privacy detector identity: current RunSets, evaluation
   summaries, and comparison summaries bind a canonical detector profile
   digest; evaluation, comparison, evidence packets, and evidence-diff rendering
@@ -36,6 +40,13 @@
   closed on malformed observed review flags.
 - Bumped package and active persisted artifact schema metadata to `0.5.0` and
   added the frozen `schemas/v0.5.0` snapshot with stream artifact roots.
+- Hardened security boundaries for untrusted inputs by adding strict bounded
+  JSON loading, YAML structural caps with explicit `SafeLoader` composition,
+  duplicate-key and non-finite-number rejection, and safer CLI error handling.
+- Hardened live execution and fixture integrity by fail-closing truncated
+  emergency stderr summaries, requiring per-capability interactive trust
+  prompts, pinning bundled fixture identities, and rereading manifest-approved
+  fixture bytes exactly at execution time.
 
 ## 0.4.4 - 2026-07-12
 
