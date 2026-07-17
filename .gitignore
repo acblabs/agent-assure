@@ -16,4 +16,3 @@ __pycache__/
 *.key
 *.pem
 credentials.json
-agent_assure_final_implementation_plan.md
