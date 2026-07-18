@@ -1,0 +1,133 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="800"
+     height="660"
+     viewBox="0 0 800 660"
+     preserveAspectRatio="xMidYMid meet"
+     role="img"
+     aria-labelledby="flagship-proof-title flagship-proof-desc">
+  <title id="flagship-proof-title">Flagship fixture demo: same decision, broken evidence trail, configured gate blocked</title>
+  <desc id="flagship-proof-desc">
+    In the bundled deterministic synthetic fixture demo, baseline and candidate both retain
+    recommendation approve and outcome approve. Zero recommendation or outcome fields change
+    across ten cases. The candidate loses the claim-duration evidence link, producing
+    MATERIAL_CLAIM_MISSING_EVIDENCE, a new_failure comparison, and a blocked configured CI gate.
+  </desc>
+
+  <style>
+    text {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+    .canvas { fill: #0d1b2a; }
+    .eyebrow {
+      fill: #78d6ce;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 1.4px;
+    }
+    .headline {
+      fill: #ffffff;
+      font-size: 34px;
+      font-weight: 800;
+    }
+    .subtitle {
+      fill: #dfe7f0;
+      font-size: 17px;
+      font-weight: 550;
+    }
+    .card {
+      fill: #f8fafc;
+      stroke: #aebdcb;
+      stroke-width: 1.5;
+    }
+    .card-label {
+      fill: #536171;
+      font-size: 15px;
+      font-weight: 800;
+      letter-spacing: 1px;
+    }
+    .value {
+      fill: #111827;
+      font-size: 31px;
+      font-weight: 800;
+    }
+    .detail {
+      fill: #536171;
+      font-size: 17px;
+      font-weight: 600;
+    }
+    .reason {
+      fill: #b42318;
+      font-size: 13px;
+      font-weight: 800;
+    }
+    .chip-text {
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: 0.6px;
+    }
+    .footer {
+      fill: #dfe7f0;
+      font-size: 13px;
+      font-weight: 750;
+      letter-spacing: 0.35px;
+    }
+    .mark {
+      fill: #ffffff;
+      font-size: 43px;
+      font-weight: 900;
+    }
+  </style>
+
+  <rect class="canvas" width="800" height="660" rx="24"/>
+
+  <g aria-hidden="true">
+    <text class="eyebrow" x="40" y="34">AGENT-ASSURE · FLAGSHIP PROOF</text>
+    <rect x="704" y="28" width="56" height="56" rx="14" fill="#0f766e"/>
+    <text class="mark" x="732" y="70" text-anchor="middle">&#8800;</text>
+    <text class="headline" x="40" y="78">Same decision. Broken evidence trail.</text>
+    <text class="headline" x="40" y="119">Configured gate blocked.</text>
+    <text class="subtitle" x="40" y="147">A governed process regression that a final-decision check would miss.</text>
+
+    <!-- Visible decision -->
+    <rect class="card" x="40" y="174" width="350" height="185" rx="16"/>
+    <rect x="40" y="174" width="8" height="185" rx="4" fill="#166534"/>
+    <text class="card-label" x="66" y="207">VISIBLE DECISION</text>
+    <text class="value" x="66" y="253">approve → approve</text>
+    <text class="detail" x="66" y="286">recommendation + outcome</text>
+    <rect x="66" y="307" width="112" height="28" rx="8" fill="#e8f6ee" stroke="#8fcaa7"/>
+    <text class="chip-text" x="80" y="326" fill="#166534">PRESERVED</text>
+
+    <!-- Decision fields -->
+    <rect class="card" x="410" y="174" width="350" height="185" rx="16"/>
+    <rect x="410" y="174" width="8" height="185" rx="4" fill="#166534"/>
+    <text class="card-label" x="436" y="207">DECISION FIELDS</text>
+    <text class="value" x="436" y="253">0 changed</text>
+    <text class="detail" x="436" y="282">recommendation + outcome</text>
+    <text class="detail" x="436" y="305">across 10 fixture cases</text>
+    <rect x="436" y="317" width="112" height="28" rx="8" fill="#e8f6ee" stroke="#8fcaa7"/>
+    <text class="chip-text" x="450" y="336" fill="#166534">PRESERVED</text>
+
+    <!-- Material evidence -->
+    <rect class="card" x="40" y="379" width="350" height="185" rx="16"/>
+    <rect x="40" y="379" width="8" height="185" rx="4" fill="#b42318"/>
+    <text class="card-label" x="66" y="412">MATERIAL EVIDENCE</text>
+    <text class="value" x="66" y="458">claim-duration</text>
+    <text class="detail" x="66" y="488">linked → missing</text>
+    <rect x="66" y="508" width="174" height="28" rx="8" fill="#fff1f0" stroke="#f2ada7"/>
+    <text class="chip-text" x="80" y="527" fill="#b42318">MISSING EVIDENCE</text>
+    <text class="reason" x="66" y="551">MATERIAL_CLAIM_MISSING_EVIDENCE</text>
+
+    <!-- Release signal -->
+    <rect class="card" x="410" y="379" width="350" height="185" rx="16"/>
+    <rect x="410" y="379" width="8" height="185" rx="4" fill="#155e75"/>
+    <text class="card-label" x="436" y="412">RELEASE SIGNAL</text>
+    <text class="value" x="436" y="458">new_failure</text>
+    <text class="detail" x="436" y="488">configured CI gate: blocked</text>
+    <rect x="436" y="508" width="88" height="28" rx="8" fill="#e6f5f8" stroke="#91cdd9"/>
+    <text class="chip-text" x="450" y="527" fill="#155e75">BLOCKED</text>
+    <text class="detail" x="436" y="551">expected fixture result</text>
+
+    <line x1="40" y1="594" x2="760" y2="594" stroke="#78d6ce" stroke-opacity="0.45"/>
+    <text class="footer" x="40" y="625">BUNDLED DETERMINISTIC FIXTURE DEMO · NO PROVIDER OR NETWORK CALL · NOT A BENCHMARK</text>
+  </g>
+</svg>

@@ -1,0 +1,159 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="720"
+     height="520"
+     viewBox="0 0 720 520"
+     preserveAspectRatio="xMidYMid meet"
+     role="img"
+     aria-labelledby="lifecycle-title lifecycle-desc">
+  <title id="lifecycle-title">Local agent-assure evidence lifecycle</title>
+  <desc id="lifecycle-desc">
+    Inside the local assurance boundary, a declared suite with expectations and canonical
+    baseline and candidate RunSets are peer inputs to invariant evaluation and a
+    fixture-equivalent comparison. The resulting evidence packet supports a configured CI
+    gate and human release or governance review.
+  </desc>
+
+  <defs>
+    <marker id="arrow-teal" viewBox="0 0 10 10" refX="8" refY="5"
+            markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#78d6ce"/>
+    </marker>
+  </defs>
+
+  <style>
+    text {
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    }
+    .canvas { fill: #0d1b2a; }
+    .eyebrow {
+      fill: #78d6ce;
+      font-size: 13px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+    }
+    .headline {
+      fill: #ffffff;
+      font-size: 28px;
+      font-weight: 800;
+    }
+    .mark {
+      fill: #ffffff;
+      font-size: 36px;
+      font-weight: 900;
+    }
+    .boundary-label {
+      fill: #78d6ce;
+      font-size: 13px;
+      font-weight: 850;
+      letter-spacing: 1px;
+    }
+    .node-title {
+      fill: #111827;
+      font-size: 21px;
+      font-weight: 800;
+    }
+    .node-detail {
+      fill: #536171;
+      font-size: 16px;
+      font-weight: 650;
+    }
+    .stage-label {
+      fill: #0f766e;
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: 0.9px;
+    }
+    .consumer-label {
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: 0.8px;
+    }
+    .consumer-title {
+      fill: #111827;
+      font-size: 19px;
+      font-weight: 800;
+    }
+    .consumer-detail {
+      fill: #536171;
+      font-size: 14px;
+      font-weight: 650;
+    }
+    .supports {
+      fill: #dfe7f0;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.6px;
+    }
+  </style>
+
+  <rect class="canvas" width="720" height="520" rx="22"/>
+
+  <g aria-hidden="true">
+    <text class="eyebrow" x="28" y="29">AGENT-ASSURE · LOCAL ASSURANCE LIFECYCLE</text>
+    <text class="headline" x="28" y="61">From expectations to release evidence</text>
+    <rect x="652" y="20" width="44" height="44" rx="11" fill="#0f766e"/>
+    <text class="mark" x="674" y="54" text-anchor="middle">&#8800;</text>
+
+    <rect x="24" y="84" width="672" height="326" rx="18"
+          fill="#1b2b3f" stroke="#78d6ce" stroke-width="2"/>
+    <text class="boundary-label" x="44" y="109">LOCAL ASSURANCE BOUNDARY</text>
+
+    <!-- Peer inputs -->
+    <rect x="44" y="126" width="292" height="70" rx="12"
+          fill="#f8fafc" stroke="#aebdcb" stroke-width="1.5"/>
+    <text class="node-title" x="190" y="155" text-anchor="middle">
+      <tspan x="190">Declared suite</tspan>
+      <tspan class="node-detail" x="190" dy="23">+ expectations</tspan>
+    </text>
+
+    <rect x="384" y="126" width="292" height="70" rx="12"
+          fill="#f8fafc" stroke="#aebdcb" stroke-width="1.5"/>
+    <text class="node-title" x="530" y="155" text-anchor="middle">
+      <tspan x="530">Canonical baseline</tspan>
+      <tspan class="node-detail" x="530" dy="23">+ candidate RunSets</tspan>
+    </text>
+
+    <path d="M 190 198 V 214 H 360 M 530 198 V 214 H 360"
+          fill="none" stroke="#78d6ce" stroke-width="3"/>
+    <circle cx="360" cy="214" r="4.5" fill="#78d6ce"/>
+    <line x1="360" y1="218" x2="360" y2="231"
+          stroke="#78d6ce" stroke-width="3" marker-end="url(#arrow-teal)"/>
+
+    <!-- Evaluation and comparison -->
+    <rect x="104" y="236" width="512" height="72" rx="12"
+          fill="#e6f6f3" stroke="#8ed4cc" stroke-width="2"/>
+    <text class="stage-label" x="360" y="257" text-anchor="middle">EVALUATE + COMPARE</text>
+    <text class="node-title" x="360" y="283" text-anchor="middle">Invariant evaluation</text>
+    <text class="node-detail" x="360" y="301" text-anchor="middle">Fixture-equivalent comparison</text>
+
+    <line x1="360" y1="310" x2="360" y2="324"
+          stroke="#78d6ce" stroke-width="3" marker-end="url(#arrow-teal)"/>
+
+    <!-- Portable result -->
+    <rect x="206" y="329" width="308" height="58" rx="12"
+          fill="#e8f6ee" stroke="#8fcaa7" stroke-width="2"/>
+    <text class="stage-label" x="360" y="349" text-anchor="middle" fill="#166534">PORTABLE RESULT</text>
+    <text class="node-title" x="360" y="375" text-anchor="middle">Evidence packet</text>
+
+    <!-- Evidence supports two distinct review consumers. -->
+    <line x1="360" y1="389" x2="360" y2="421"
+          stroke="#78d6ce" stroke-width="3"/>
+    <text class="supports" x="372" y="405">SUPPORTS</text>
+    <path d="M 360 421 H 188 V 435 M 360 421 H 532 V 435"
+          fill="none" stroke="#78d6ce" stroke-width="3"/>
+    <path d="M 188 428 V 442" stroke="#78d6ce" stroke-width="3"
+          marker-end="url(#arrow-teal)"/>
+    <path d="M 532 428 V 442" stroke="#78d6ce" stroke-width="3"
+          marker-end="url(#arrow-teal)"/>
+
+    <rect x="24" y="446" width="328" height="58" rx="12"
+          fill="#e6f5f8" stroke="#91cdd9" stroke-width="2"/>
+    <text class="consumer-label" x="42" y="468" fill="#155e75">CONFIGURED CI GATE</text>
+    <text class="consumer-title" x="42" y="490">Gate signal + exit code</text>
+
+    <rect x="368" y="446" width="328" height="58" rx="12"
+          fill="#fff7df" stroke="#eac96b" stroke-width="2"/>
+    <text class="consumer-label" x="386" y="468" fill="#8a5a00">HUMAN REVIEW</text>
+    <text class="consumer-title" x="386" y="490">Release / governance review</text>
+  </g>
+</svg>
