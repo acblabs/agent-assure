@@ -31,6 +31,17 @@ from agent_assure.schema.live import (
     LiveRate,
     LiveTrajectoryReport,
 )
+from agent_assure.schema.mutation import (
+    AssuranceEvidenceDescriptor,
+    AssuranceMutationOperator,
+    AssuranceMutationResult,
+    ExpectedDetectionContract,
+    IndependenceClass,
+    MutationResultState,
+    OperatorImplementationComponent,
+    finding_target_digest,
+    mutation_implementation_digest,
+)
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import (
     ReleaseArtifact,
@@ -60,6 +71,9 @@ from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary, U
 
 __all__ = [
     "AgentRunRecord",
+    "AssuranceEvidenceDescriptor",
+    "AssuranceMutationOperator",
+    "AssuranceMutationResult",
     "ClaimEvidenceLink",
     "ClaimRecord",
     "CompiledSuite",
@@ -82,11 +96,13 @@ __all__ = [
     "ExecutionMode",
     "Expectation",
     "ExpectationChangeRecord",
+    "ExpectedDetectionContract",
     "FixtureManifest",
     "FixtureManifestEntry",
     "Finding",
     "GateState",
     "InstalledPackage",
+    "IndependenceClass",
     "LiveComparisonReport",
     "LiveDriftReport",
     "LiveDistribution",
@@ -96,6 +112,8 @@ __all__ = [
     "LiveProtocolRecord",
     "LiveRate",
     "LiveTrajectoryReport",
+    "MutationResultState",
+    "OperatorImplementationComponent",
     "PersistedArtifact",
     "PacketArtifactDigest",
     "PolicyResult",
@@ -116,4 +134,6 @@ __all__ = [
     "UsageSegment",
     "UsageSummary",
     "UsageSummaryDelta",
+    "finding_target_digest",
+    "mutation_implementation_digest",
 ]

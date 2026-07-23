@@ -3,6 +3,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
@@ -17,6 +19,53 @@ def test_claim_boundary_rejects_iso_pass_language() -> None:
     )
 
     assert [violation.label for violation in violations] == ["ISO pass"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Agent Assure ships proof-carrying releases.",
+        "Agent Assure ships proof carrying releases.",
+        "Agent Assure ships PROOF-CARRYING releases.",
+    ),
+)
+def test_claim_boundary_rejects_proof_carrying_category_language(text: str) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        text,
+        path=Path("README.md"),
+    )
+
+    assert [violation.label for violation in violations] == [
+        "proof-carrying category"
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        (
+            "Agent Assure uses evidence-carrying release language, not "
+            "proof-carrying release language."
+        ),
+        "Do not describe Agent Assure releases as proof-carrying.",
+    ),
+)
+def test_claim_boundary_allows_approved_proof_carrying_limitations(text: str) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        text,
+        path=Path("docs/evidence_carrying_releases.md"),
+    )
+
+    assert violations == []
+
+
+def test_claim_boundary_allows_evidence_carrying_category_language() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "Agent Assure supports evidence-carrying releases.",
+        path=Path("docs/evidence_carrying_releases.md"),
+    )
+
+    assert violations == []
 
 
 def test_claim_boundary_allows_reviewed_limitation_phrase() -> None:
@@ -177,6 +226,8 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     (docs / "demo_flagship.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "demo_expense.md").write_text("Measured evidence\n", encoding="utf-8")
     (docs / "evidence_diff.md").write_text("Measured evidence\n", encoding="utf-8")
+    evidence_carrying_releases = docs / "evidence_carrying_releases.md"
+    evidence_carrying_releases.write_text("Measured evidence\n", encoding="utf-8")
     (docs / "claim_boundary.md").write_text("Measured evidence\n", encoding="utf-8")
     post_dir.mkdir()
     post = post_dir / "output_equivalence_is_not_process_equivalence.md"
@@ -207,6 +258,7 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     assert changelog in paths
     assert docs / "for_ai_leaders.md" in paths
     assert docs / "for_engineers.md" in paths
+    assert evidence_carrying_releases in paths
     assert process_doc in paths
     assert release_note in paths
     assert post in paths

@@ -16,3 +16,4 @@ __pycache__/
 *.key
 *.pem
 credentials.json
+/changes.patch

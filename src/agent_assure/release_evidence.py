@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from agent_assure.artifact_io import file_sha256, git_output
+from agent_assure.artifact_io import file_sha256, git_output, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.reporting.environment import release_artifact
 from agent_assure.schema.release import (
@@ -70,6 +70,7 @@ def build_digest_replay(
     source_ref: str | None = None,
 ) -> ReleaseDigestReplay:
     root = project_root.resolve()
+    _require_unique_replay_inputs(artifacts)
     resolved_commit = (
         source_commit if source_commit is not None else git_output(root, "rev-parse", "HEAD")
     )
@@ -82,11 +83,9 @@ def build_digest_replay(
 
 
 def write_digest_replay(replay: ReleaseDigestReplay, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(replay.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 
@@ -114,6 +113,7 @@ def verify_digest_replay(
             require_current_commit=require_current_commit,
         )
     )
+    findings.extend(_artifact_identity_findings(replay.artifacts))
     artifacts_by_role = _artifacts_by_role(replay.artifacts)
     for role in required_roles:
         if role not in artifacts_by_role:
@@ -232,10 +232,53 @@ def _artifacts_by_role(
 ) -> dict[str, ReleaseReplayArtifact]:
     by_role: dict[str, ReleaseReplayArtifact] = {}
     for artifact in artifacts:
-        # First-wins is only a presence index; every listed artifact is still
-        # verified in order below.
         by_role.setdefault(artifact.role, artifact)
     return by_role
+
+
+def _require_unique_replay_inputs(artifacts: tuple[tuple[str, Path], ...]) -> None:
+    seen_roles: set[str] = set()
+    seen_paths: set[Path] = set()
+    for role, path in artifacts:
+        resolved = path.resolve()
+        if role in seen_roles:
+            raise ValueError(f"duplicate release replay role: {role}")
+        if resolved in seen_paths:
+            raise ValueError(f"duplicate release replay path: {path}")
+        seen_roles.add(role)
+        seen_paths.add(resolved)
+
+
+def _artifact_identity_findings(
+    artifacts: tuple[ReleaseReplayArtifact, ...],
+) -> tuple[DigestReplayFinding, ...]:
+    findings: list[DigestReplayFinding] = []
+    seen_roles: set[str] = set()
+    seen_paths: set[str] = set()
+    for artifact in artifacts:
+        if artifact.role in seen_roles:
+            findings.append(
+                DigestReplayFinding(
+                    role=artifact.role,
+                    path=artifact.path,
+                    expected="unique",
+                    actual=artifact.role,
+                    message=f"duplicate release replay role: {artifact.role}",
+                )
+            )
+        if artifact.path in seen_paths:
+            findings.append(
+                DigestReplayFinding(
+                    role=artifact.role,
+                    path=artifact.path,
+                    expected="unique",
+                    actual=artifact.path,
+                    message=f"duplicate release replay path: {artifact.path}",
+                )
+            )
+        seen_roles.add(artifact.role)
+        seen_paths.add(artifact.path)
+    return tuple(findings)
 
 
 def _commit_findings(
@@ -420,10 +463,29 @@ def _stable_manifest_projection(
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
         raise ValueError("release artifact manifest artifacts must be a list")
+    _require_unique_manifest_artifacts(artifacts)
     projected["artifacts"] = [
         _stable_manifest_artifact_projection(artifact, project_root) for artifact in artifacts
     ]
     return projected
+
+
+def _require_unique_manifest_artifacts(artifacts: list[object]) -> None:
+    seen_roles: set[str] = set()
+    seen_paths: set[str] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, dict):
+            raise ValueError("release artifact manifest entry must be an object")
+        role = artifact.get("role")
+        path = artifact.get("path")
+        if not isinstance(role, str) or not isinstance(path, str):
+            raise ValueError("release artifact manifest entries require string role and path")
+        if role in seen_roles:
+            raise ValueError(f"duplicate release artifact manifest role: {role}")
+        if path in seen_paths:
+            raise ValueError(f"duplicate release artifact manifest path: {path}")
+        seen_roles.add(role)
+        seen_paths.add(path)
 
 
 def _stable_manifest_artifact_projection(

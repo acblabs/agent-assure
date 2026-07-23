@@ -26,6 +26,10 @@ process expectations—not only whether it preserves the visible answer. It turn
 privacy-filtered run evidence into reproducible comparisons, reviewer-facing
 artifacts, portable evidence packets, and ordinary CI gate signals.
 
+It is a local-first Agent Release Assurance Compiler for Evidence-Carrying
+Agent Releases: declared controls and privacy-filtered artifacts remain bound
+to method identity, prerequisites, provenance, assumptions, and limitations.
+
 **Local-first · offline flagship demo · versioned artifacts · CI-native · no
 hosted control plane required**
 
@@ -206,6 +210,10 @@ jobs:
 `full` produces the complete review artifacts; `fail-fast` gives shorter
 blocking feedback. The configured gate follows declared expectations and
 policies, the selected gate profile, and explicit strictness flags.
+The composite action uploads only the packet, manifest, summaries, and CI
+diagnostics by default. Set `upload-full-artifacts: "true"` only when the
+workflow is approved to retain compiled suites, fixture data, and RunSets; the
+default retention period is 14 days.
 
 </details>
 
@@ -336,6 +344,7 @@ provider/model configuration, and execution window. Review the
 - **Demos:** [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)
 - **Integrations:** [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) · [Adapter contract](docs/adapters/adapter_contract.md)
 - **Assurance:** [What this measures](docs/what_this_measures.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
+- **Evidence-carrying releases:** [Contracts and single-operator guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
 - **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
 - **Project:** [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [License](LICENSE)
 

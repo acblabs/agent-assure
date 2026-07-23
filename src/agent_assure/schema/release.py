@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from typing import Literal
+from collections.abc import Iterable
+from typing import Literal, Self
 
-from pydantic.functional_validators import field_validator
+from pydantic.functional_validators import field_validator, model_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import DigestHex, coerce_tuple
@@ -30,6 +31,14 @@ class ReleaseArtifactManifest(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _require_unique_artifact_identities(self) -> Self:
+        _require_unique_roles_and_paths(
+            ((artifact.role, artifact.path) for artifact in self.artifacts),
+            label="release artifact manifest",
+        )
+        return self
 
 
 ReplayDigestMode = Literal["raw-sha256", "replay-stable-json-sha256"]
@@ -59,3 +68,27 @@ class ReleaseDigestReplay(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _require_unique_artifact_identities(self) -> Self:
+        _require_unique_roles_and_paths(
+            ((artifact.role, artifact.path) for artifact in self.artifacts),
+            label="release digest replay",
+        )
+        return self
+
+
+def _require_unique_roles_and_paths(
+    identities: Iterable[tuple[str, str]],
+    *,
+    label: str,
+) -> None:
+    seen_roles: set[str] = set()
+    seen_paths: set[str] = set()
+    for role, path in identities:
+        if role in seen_roles:
+            raise ValueError(f"{label} contains duplicate artifact role: {role}")
+        if path in seen_paths:
+            raise ValueError(f"{label} contains duplicate artifact path: {path}")
+        seen_roles.add(role)
+        seen_paths.add(path)

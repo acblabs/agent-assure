@@ -42,8 +42,11 @@ from agent_assure.schema.suite import CompiledSuite
 
 BUDGET_STOP_REASONS = {
     "budget_exhausted",
+    "cost_budget_exhausted_before_attempt",
     "cost_budget_exceeded_after_response",
+    "generated_token_budget_exhausted_before_attempt",
     "generated_token_budget_exceeded_after_response",
+    "token_budget_exhausted_before_attempt",
     "token_budget_exceeded_after_response",
     "token_budget_exhausted",
     "generated_token_budget_exhausted",
@@ -205,15 +208,41 @@ def _verify_protocol_obligations(runset: RunSet, protocol: LiveProtocolRecord) -
     total_cost = sum(Decimal(run.estimated_cost_usd or "0.000000") for run in runset.runs)
     if total_cost > Decimal(protocol.max_total_cost_usd):
         raise ValueError("live RunSet cost exceeds protocol max_total_cost_usd")
+    committed_cost = sum(
+        Decimal(run.cost_budget_committed_usd or run.estimated_cost_usd or "0.000000")
+        for run in runset.runs
+    )
+    if committed_cost > Decimal(protocol.max_total_cost_usd):
+        raise ValueError("live RunSet committed cost exceeds protocol max_total_cost_usd")
     if protocol.max_total_tokens is not None:
         total_tokens = sum(run.total_tokens or 0 for run in runset.runs)
         if total_tokens > protocol.max_total_tokens:
             raise ValueError("live RunSet total_tokens exceeds protocol max_total_tokens")
+        committed_total_tokens = sum(
+            run.total_token_budget_committed
+            if run.total_token_budget_committed is not None
+            else run.total_tokens or 0
+            for run in runset.runs
+        )
+        if committed_total_tokens > protocol.max_total_tokens:
+            raise ValueError(
+                "live RunSet committed total tokens exceed protocol max_total_tokens"
+            )
     if protocol.max_generated_tokens is not None:
         generated_tokens = sum(run.completion_tokens or 0 for run in runset.runs)
         if generated_tokens > protocol.max_generated_tokens:
             raise ValueError(
                 "live RunSet completion_tokens exceeds protocol max_generated_tokens"
+            )
+        committed_generated_tokens = sum(
+            run.generated_token_budget_committed
+            if run.generated_token_budget_committed is not None
+            else run.completion_tokens or 0
+            for run in runset.runs
+        )
+        if committed_generated_tokens > protocol.max_generated_tokens:
+            raise ValueError(
+                "live RunSet committed generated tokens exceed protocol max_generated_tokens"
             )
 
 

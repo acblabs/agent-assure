@@ -2,6 +2,9 @@
 
 ## Differentiators
 
+- Evidence-carrying release contracts: versioned evidence descriptors,
+  deterministic mutation operators, normative expected-detection contracts,
+  provenance, independence classes, and replayable single-operator results.
 - Local-first assurance: commands run from a `pip` install and write review
   artifacts in the caller's workspace without a hosted governance platform.
 - Offline fixture assurance: included fixture demos and CI gates run without a
@@ -32,6 +35,15 @@
 
 ## Implemented
 
+- Agent Release Assurance Compiler positioning with four strict
+  evidence-carrying `/v1` contract roots and a closed built-in registry for
+  `drop-material-evidence-link`, `bypass-required-human-review`, and
+  `inject-forbidden-tool`.
+- Single-operator `controls mutate` execution with source immutability,
+  before/after validation, exact changed paths, normative detector matching,
+  privacy-minimized expected/observed target bindings, deterministic result
+  digests, and distinct caught, survived, invalid, inapplicable, and
+  execution-error exits.
 - Offline package and CLI skeleton.
 - Strict immutable persisted schemas for suites, expectations, run records,
   evaluation summaries, comparisons, packets, and span plans.
@@ -149,6 +161,11 @@
 
 ## Explicitly unsupported
 
+- Production observability backend or hosted governance system of record.
+- Public executable mutation plugins, composed mutations, or automatic
+  mutation generation.
+- Verdict-bearing LLM-derived judgments.
+- Stable bounded model checking or conformal certification.
 - Safety certification.
 - Regulatory compliance certification.
 - Clinical validation.

@@ -13,7 +13,9 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
   a forbidden provider without the required review boundary.
   This is a review-boundary control, not a pure provider allowlist: a forbidden
   provider routed through the required review boundary does not emit this reason.
-- `FORBIDDEN_TOOL`: a tool was outside a configured allowlist.
+- `FORBIDDEN_TOOL`: a tool was explicitly forbidden or was outside an
+  effective configured allowlist. Explicit prohibition takes precedence when
+  both conditions apply.
 - `STRUCTURED_OUTPUT_INVALID`: structured output failed validation.
 - `REDACTION_FAILED`: redaction did not satisfy the configured check.
 - `RAW_SENSITIVE_CONTENT`: persisted summaries contain sensitive-looking content.
@@ -23,4 +25,7 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `FIXTURE_EQUIVALENCE_FAILED`: compared runs do not share equivalent fixture material.
 - `NON_NFC_STRING`: canonicalization rejected a non-NFC string.
 - `NON_FINITE_NUMBER`: canonicalization rejected a non-finite number.
+- `LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED`: a descriptor attempted to use an
+  LLM-derived advisory judgment as verdict-bearing evidence. LLM-derived
+  judgments remain advisory and segregated from release gates.
 - `NOT_EVALUATED`: a capability was explicitly not evaluated.

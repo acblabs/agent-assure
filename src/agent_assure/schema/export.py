@@ -6,6 +6,7 @@ from typing import TypeAlias
 
 from pydantic import BaseModel
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.base import SCHEMA_VERSION
@@ -20,6 +21,12 @@ from agent_assure.schema.live import (
     LiveEvaluationReport,
     LiveProtocolRecord,
     LiveTrajectoryReport,
+)
+from agent_assure.schema.mutation import (
+    AssuranceEvidenceDescriptor,
+    AssuranceMutationOperator,
+    AssuranceMutationResult,
+    ExpectedDetectionContract,
 )
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
@@ -41,9 +48,22 @@ from agent_assure.schema.usage import (
 )
 
 SchemaModel: TypeAlias = type[BaseModel]
+BASE_PERSISTED_IDENTITY_FIELDS = ("artifact_kind", "schema_version")
+CONTRACT_IDENTITY_FIELDS = ("schema_name", "contract_id", "contract_version")
+CONTRACT_ARTIFACT_KINDS = frozenset(
+    {
+        "assurance-evidence-descriptor",
+        "assurance-mutation-operator",
+        "assurance-mutation-result",
+        "expected-detection-contract",
+    }
+)
 
 SCHEMA_MODELS: dict[str, SchemaModel] = {
     "agent-run-record": AgentRunRecord,
+    "assurance-evidence-descriptor": AssuranceEvidenceDescriptor,
+    "assurance-mutation-operator": AssuranceMutationOperator,
+    "assurance-mutation-result": AssuranceMutationResult,
     "compiled-suite": CompiledSuite,
     "comparison-report": ComparisonReport,
     "comparison-summary": ComparisonSummary,
@@ -55,6 +75,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "environment-info": EnvironmentInfo,
     "expectation": Expectation,
     "expectation-change-record": ExpectationChangeRecord,
+    "expected-detection-contract": ExpectedDetectionContract,
     "fixture-manifest": FixtureManifest,
     "live-comparison-report": LiveComparisonReport,
     "live-drift-report": LiveDriftReport,
@@ -84,11 +105,37 @@ def model_for_kind(kind: str) -> SchemaModel:
         raise KeyError(f"unknown artifact kind {kind!r}; expected one of: {known}") from exc
 
 
+def persisted_identity_fields_for_kind(kind: str) -> tuple[str, ...]:
+    if kind in CONTRACT_ARTIFACT_KINDS:
+        return (*BASE_PERSISTED_IDENTITY_FIELDS, *CONTRACT_IDENTITY_FIELDS)
+    return BASE_PERSISTED_IDENTITY_FIELDS
+
+
+def require_persisted_identity_in_schema(
+    schema: dict[str, object],
+    kind: str,
+) -> None:
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        raise ValueError(f"{kind} schema has no root properties")
+    required_value = schema.get("required", ())
+    if not isinstance(required_value, list | tuple):
+        raise ValueError(f"{kind} schema has a malformed required declaration")
+    required = list(required_value)
+    for field_name in persisted_identity_fields_for_kind(kind):
+        if field_name not in properties:
+            raise ValueError(f"{kind} schema has no persisted identity field {field_name}")
+        if field_name not in required:
+            required.append(field_name)
+    schema["required"] = required
+
+
 def export_json_schemas(out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for kind, model in sorted(SCHEMA_MODELS.items()):
         schema = model.model_json_schema(mode="validation")
+        require_persisted_identity_in_schema(schema, kind)
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
         schema["$id"] = (
             f"https://acblabs.github.io/agent-assure/schemas/v{SCHEMA_VERSION}/"
@@ -96,10 +143,9 @@ def export_json_schemas(out_dir: Path) -> list[Path]:
         )
         schema.setdefault("properties", {})
         path = out_dir / f"{kind}.schema.json"
-        path.write_text(
+        write_text_atomic(
+            path,
             json.dumps(schema, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-            newline="\n",
         )
         written.append(path)
     return written

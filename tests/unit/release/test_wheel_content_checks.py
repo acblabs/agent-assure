@@ -5,7 +5,12 @@ import tarfile
 import zipfile
 from pathlib import Path
 
-from scripts.check_wheel_contents import inspect_sdist, inspect_wheel, required_archive_paths
+from scripts.check_wheel_contents import (
+    inspect_sdist,
+    inspect_wheel,
+    required_archive_paths,
+    validate_distribution_directory,
+)
 from scripts.schema_versions import frozen_schema_versions, schema_packaging_failures
 from scripts.sync_schema_force_includes import replace_force_include_block
 
@@ -31,6 +36,7 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
 
     assert "agent_assure/schema_resources/v0.3.0/agent-run-record.schema.json" in required
     assert "agent_assure/schema_resources/v0.3.0/evidence-packet.schema.json" in required
+    assert "agent_assure/mutation/introduction_snapshots.json" in required
     assert (
         "agent_assure/examples/prior_auth_synthetic/fixtures/rag/"
         "counterfactual_query_families.json"
@@ -201,6 +207,35 @@ def test_inspect_sdist_reports_unreleased_schema_files(tmp_path: Path) -> None:
     forbidden = inspect_sdist(sdist)
 
     assert "agent_assure-0.3.1/schemas/unreleased/usage-summary.schema.json" in forbidden
+
+
+def test_distribution_directory_rejects_unexpected_files(tmp_path: Path) -> None:
+    (tmp_path / "agent_assure-0.6.0-py3-none-any.whl").write_bytes(b"wheel")
+    (tmp_path / "agent_assure-0.6.0.tar.gz").write_bytes(b"sdist")
+    (tmp_path / "unexpected.txt").write_text("unexpected\n", encoding="utf-8")
+
+    try:
+        validate_distribution_directory(tmp_path)
+    except ValueError as exc:
+        assert "unexpected distribution directory entries" in str(exc)
+        assert "unexpected.txt" in str(exc)
+    else:
+        raise AssertionError("expected an extra distribution file to fail")
+
+
+def test_distribution_directory_accepts_only_matching_signature_bundles(
+    tmp_path: Path,
+) -> None:
+    wheel = tmp_path / "agent_assure-0.6.0-py3-none-any.whl"
+    sdist = tmp_path / "agent_assure-0.6.0.tar.gz"
+    wheel.write_bytes(b"wheel")
+    sdist.write_bytes(b"sdist")
+    wheel.with_name(f"{wheel.name}.bundle").write_text("bundle\n", encoding="utf-8")
+    sdist.with_name(f"{sdist.name}.bundle").write_text("bundle\n", encoding="utf-8")
+
+    assert validate_distribution_directory(
+        tmp_path, allow_signature_bundles=True
+    ) == (wheel, sdist)
 
 
 def _write_tar_member(archive: tarfile.TarFile, name: str, content: str) -> None:

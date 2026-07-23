@@ -21,6 +21,7 @@ DIST = ROOT / "dist"
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/cli/main.py",
+    "agent_assure/mutation/introduction_snapshots.json",
     "agent_assure/examples/",
     "agent_assure/examples/prior_auth_synthetic/",
     "agent_assure/examples/prior_auth_synthetic/suite.yaml",
@@ -143,6 +144,10 @@ FORBIDDEN_SDIST_EXACT_PATHS = (
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     try:
+        validate_distribution_directory(
+            args.dist,
+            allow_signature_bundles=args.allow_signature_bundles,
+        )
         wheel = find_single_wheel(args.dist)
         sdist = find_single_sdist(args.dist)
         missing, forbidden = inspect_wheel(wheel)
@@ -181,7 +186,50 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         default=DIST,
         help="Directory containing exactly one built wheel and sdist. Defaults to dist/.",
     )
+    parser.add_argument(
+        "--allow-signature-bundles",
+        action="store_true",
+        help="Allow and require one .bundle sidecar for each wheel and sdist.",
+    )
     return parser.parse_args(argv)
+
+
+def validate_distribution_directory(
+    dist_dir: Path,
+    *,
+    allow_signature_bundles: bool = False,
+) -> tuple[Path, Path]:
+    if not dist_dir.is_dir() or dist_dir.is_symlink():
+        raise ValueError(f"distribution path is not a regular directory: {dist_dir}")
+    entries = tuple(sorted(dist_dir.iterdir(), key=lambda path: path.name))
+    unsafe = [path.name for path in entries if path.is_symlink() or not path.is_file()]
+    if unsafe:
+        raise ValueError(
+            "distribution directory contains non-regular entries: " + ", ".join(unsafe)
+        )
+    wheels = tuple(path for path in entries if path.suffix == ".whl")
+    sdists = tuple(path for path in entries if path.name.endswith(".tar.gz"))
+    if len(wheels) != 1 or len(sdists) != 1:
+        raise ValueError(
+            "expected exactly one wheel and one source distribution in "
+            f"{dist_dir}; found {len(wheels)} wheel(s) and {len(sdists)} sdist(s)"
+        )
+    distributions = (wheels[0], sdists[0])
+    allowed = set(distributions)
+    if allow_signature_bundles:
+        bundles = tuple(path.with_name(f"{path.name}.bundle") for path in distributions)
+        missing_bundles = [path.name for path in bundles if path not in entries]
+        if missing_bundles:
+            raise ValueError(
+                "missing distribution signature bundle(s): " + ", ".join(missing_bundles)
+            )
+        allowed.update(bundles)
+    unexpected = [path.name for path in entries if path not in allowed]
+    if unexpected:
+        raise ValueError(
+            "unexpected distribution directory entries: " + ", ".join(unexpected)
+        )
+    return distributions
 
 
 def find_single_wheel(dist_dir: Path) -> Path:

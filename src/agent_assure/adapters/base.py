@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Protocol, runtime_checkable
 
@@ -9,7 +10,7 @@ from pydantic.functional_validators import field_validator
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.schema.base import StrictModel
-from agent_assure.schema.common import DigestHex, ExecutionMode
+from agent_assure.schema.common import MAX_SUMMARY_CHARS, DigestHex, ExecutionMode
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import (
     AgentRunRecord,
@@ -22,6 +23,9 @@ from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary
 from agent_assure.usage.aggregation import aggregate_usage_segments
 
 EXPERIMENTAL_ADAPTER_API = "agent-assure-framework-adapters/experimental-v0"
+MAX_PRIVACY_FILTERED_ATTRIBUTES = 64
+MAX_PRIVACY_FILTERED_KEY_CHARS = 128
+_PRIVACY_FILTERED_KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.-]{0,127}$")
 
 _RAW_PAYLOAD_KEYS = frozenset(
     {
@@ -299,15 +303,32 @@ def stable_observation_id(
 
 
 def validate_no_raw_payload_keys(payload: Mapping[str, object], *, owner: str) -> None:
+    if len(payload) > MAX_PRIVACY_FILTERED_ATTRIBUTES:
+        raise ValueError(
+            f"{owner} must contain no more than {MAX_PRIVACY_FILTERED_ATTRIBUTES} entries"
+        )
     for key in payload:
-        if _looks_like_raw_payload_key(str(key)):
+        key_text = str(key)
+        if len(key_text) > MAX_PRIVACY_FILTERED_KEY_CHARS:
+            raise ValueError(f"{owner} contains an overlong mapping key")
+        if _PRIVACY_FILTERED_KEY_PATTERN.fullmatch(key_text) is None:
+            raise ValueError(
+                f"{owner} mapping keys must use compact ASCII attribute-key syntax"
+            )
+        if contains_sensitive_value(key_text):
+            raise ValueError(f"{owner} contains a sensitive-looking mapping key")
+        if _looks_like_raw_payload_key(key_text):
             raise ValueError(f"{owner} contains raw payload key {key!r}")
 
 
 def validate_privacy_filtered_mapping(payload: Mapping[str, str], *, owner: str) -> None:
     validate_no_raw_payload_keys(payload, owner=owner)
     for key, value in payload.items():
-        if _looks_like_raw_payload_value(value) or contains_sensitive_value(value):
+        if (
+            len(value) > MAX_SUMMARY_CHARS
+            or _looks_like_raw_payload_value(value)
+            or contains_sensitive_value(value)
+        ):
             raise ValueError(
                 f"{owner} value for {key!r} must be a compact filtered token, "
                 "label, digest, or other non-sensitive value"
@@ -560,4 +581,4 @@ def _looks_like_raw_payload_key(key: str) -> bool:
 
 
 def _looks_like_raw_payload_value(value: str) -> bool:
-    return "\n" in value or "\r" in value or "\t" in value or " " in value
+    return any(character.isspace() or ord(character) == 0x7F for character in value)

@@ -14,6 +14,7 @@ for import_path in (ROOT, SRC, SCRIPTS):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
+from agent_assure.artifact_io import git_output  # noqa: E402
 from agent_assure.release_evidence import build_digest_replay, write_digest_replay  # noqa: E402
 from agent_assure.reporting.environment import (  # noqa: E402
     build_release_manifest,
@@ -28,6 +29,9 @@ from agent_assure.reporting.packet import (  # noqa: E402
 from agent_assure.reporting.sbom import build_sbom, write_sbom  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
 from agent_assure.schema.validation import load_json  # noqa: E402
+from scripts.check_mutation_release_provenance import (  # noqa: E402
+    registered_release_provenance_failures,
+)
 from scripts.reproduce_release import (  # noqa: E402
     ReleaseCommand,
     release_artifacts,
@@ -45,6 +49,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--out", type=Path, default=DEFAULT_OUT)
     parser.add_argument("--write-digests", type=Path, default=None)
     parser.add_argument("--source-ref", default=None)
+    parser.add_argument(
+        "--expected-release",
+        required=True,
+        help="Package/tag release version that mutation provenance must declare.",
+    )
     parser.add_argument("--suite", default="examples/prior_auth_synthetic/suite.yaml")
     parser.add_argument(
         "--baseline-variant",
@@ -60,7 +69,24 @@ def main(argv: Sequence[str] | None = None) -> int:
         action="store_true",
         help="Skip Python sdist/wheel build and emit only evidence plus SBOM.",
     )
+    parser.add_argument(
+        "--require-clean-source",
+        action="store_true",
+        help="Fail before and after generation unless the Git source tree is clean.",
+    )
     args = parser.parse_args(argv)
+
+    if args.require_clean_source and not _require_clean_source("before release generation"):
+        return 2
+
+    provenance_failures = registered_release_provenance_failures(
+        expected_release=args.expected_release,
+    )
+    if provenance_failures:
+        print("release provenance validation failed:", file=sys.stderr)
+        for failure in provenance_failures:
+            print(f"- {failure}", file=sys.stderr)
+        return 2
 
     out = args.out
     out.mkdir(parents=True, exist_ok=True)
@@ -102,6 +128,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     replay_path = args.write_digests or out / "release-digest-replay.json"
     write_digest_replay(replay, replay_path)
 
+    if args.require_clean_source and not _require_clean_source("after release generation"):
+        return 2
+
     print(f"release bundle artifacts: {out}")
     print(f"release digest replay: {replay_path}")
     print("release manifest extras: " + ", ".join(artifact.role for artifact in extra_artifacts))
@@ -118,7 +147,52 @@ def _build_distributions(dist_dir: Path, *, logs_dir: Path) -> tuple[int, tuple[
     )
     if result:
         return result, ()
-    return 0, tuple(sorted(path for path in dist_dir.iterdir() if path.is_file()))
+    try:
+        artifacts = _validated_distribution_paths(dist_dir)
+    except ValueError as exc:
+        print(f"release distribution error: {exc}", file=sys.stderr)
+        return 2, ()
+    return 0, artifacts
+
+
+def _validated_distribution_paths(dist_dir: Path) -> tuple[Path, ...]:
+    entries = tuple(sorted(dist_dir.iterdir(), key=lambda path: path.name))
+    unsafe = [path.name for path in entries if path.is_symlink() or not path.is_file()]
+    if unsafe:
+        raise ValueError(
+            "distribution directory contains non-regular entries: " + ", ".join(unsafe)
+        )
+    wheels = tuple(path for path in entries if path.suffix == ".whl")
+    sdists = tuple(path for path in entries if path.name.endswith(".tar.gz"))
+    expected = {*wheels, *sdists}
+    unexpected = [path.name for path in entries if path not in expected]
+    if len(wheels) != 1 or len(sdists) != 1 or unexpected:
+        details = [
+            f"wheels={len(wheels)}",
+            f"source-distributions={len(sdists)}",
+        ]
+        if unexpected:
+            details.append("unexpected=" + ",".join(unexpected))
+        raise ValueError("expected exactly one wheel and one sdist (" + "; ".join(details) + ")")
+    return tuple(entries)
+
+
+def _require_clean_source(stage: str) -> bool:
+    status = git_output(
+        ROOT,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        allow_empty=True,
+    )
+    if status is None:
+        print(f"release source validation failed {stage}: git status unavailable", file=sys.stderr)
+        return False
+    if status:
+        print(f"release source validation failed {stage}: source tree is dirty", file=sys.stderr)
+        print(status, file=sys.stderr)
+        return False
+    return True
 
 
 def _distribution_command(dist_dir: Path) -> ReleaseCommand:

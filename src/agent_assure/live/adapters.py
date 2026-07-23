@@ -10,9 +10,10 @@ import urllib.request
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Literal, Protocol, Self
 
 from pydantic import Field
+from pydantic.functional_validators import model_validator
 
 from agent_assure.canonical.normalize import normalize_decimal
 from agent_assure.io_limits import (
@@ -82,7 +83,23 @@ class LiveProviderResponse(StrictModel):
     completion_tokens: int | None = Field(default=None, ge=0)
     total_tokens: int | None = Field(default=None, ge=0)
     estimated_cost_usd: str = Field(default="0.000000", pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
-    estimated_cost_source: EstimatedCostSource = "adapter_reported"
+    estimated_cost_source: EstimatedCostSource = "not_reported"
+
+    @model_validator(mode="after")
+    def _validate_token_accounting(self) -> Self:
+        if self.total_tokens is None:
+            return self
+        if self.prompt_tokens is not None and self.total_tokens < self.prompt_tokens:
+            raise ValueError("total_tokens must not be less than prompt_tokens")
+        if self.completion_tokens is not None and self.total_tokens < self.completion_tokens:
+            raise ValueError("total_tokens must not be less than completion_tokens")
+        if (
+            self.prompt_tokens is not None
+            and self.completion_tokens is not None
+            and self.total_tokens != self.prompt_tokens + self.completion_tokens
+        ):
+            raise ValueError("total_tokens must equal prompt_tokens + completion_tokens")
+        return self
 
 
 class LiveProviderAdapter(Protocol):
@@ -183,7 +200,10 @@ class StaticJsonlAdapter:
             completion_tokens=_optional_int(payload.get("completion_tokens")),
             total_tokens=_optional_int(payload.get("total_tokens")),
             estimated_cost_usd=_normal_cost(payload.get("estimated_cost_usd", "0.000000")),
-            estimated_cost_source=_cost_source(payload.get("estimated_cost_source")),
+            estimated_cost_source=_cost_source(
+                payload.get("estimated_cost_source"),
+                cost_was_reported="estimated_cost_usd" in payload,
+            ),
         )
 
 
@@ -195,7 +215,6 @@ class OpenAIChatCompletionsAdapter:
         config: LiveAdapterConfig,
         *,
         base_dir: Path,
-        require_resolvable_endpoint_host: bool | None = None,
         trust: TrustedLiveExecution | None = None,
     ) -> None:
         del base_dir
@@ -206,27 +225,15 @@ class OpenAIChatCompletionsAdapter:
             raise ValueError("openai-chat-completions requires endpoint_url")
         if not config.api_key_env:
             raise ValueError("openai-chat-completions requires api_key_env")
-        require_resolution = (
-            config.allow_network
-            if require_resolvable_endpoint_host is None
-            else require_resolvable_endpoint_host
-        )
-        _validate_openai_endpoint(
-            config,
-            require_resolvable_endpoint_host=require_resolution,
-        )
+        _validate_openai_endpoint(config)
         api_key = os.environ.get(config.api_key_env)
         if not api_key:
             raise ValueError(f"environment variable {config.api_key_env!r} is not set")
         self._config = config
         self._api_key = api_key
-        self._require_resolvable_endpoint_host = require_resolution
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
-        _validate_openai_endpoint(
-            self._config,
-            require_resolvable_endpoint_host=self._require_resolvable_endpoint_host,
-        )
+        _validate_openai_endpoint(self._config)
         body: dict[str, Any] = {
             "model": self._config.model,
             "messages": [{"role": "user", "content": request.prompt}],
@@ -378,7 +385,6 @@ def build_adapter(
     config: LiveAdapterConfig,
     *,
     base_dir: Path,
-    require_resolvable_endpoint_hosts: bool | None = None,
     trust: TrustedLiveExecution | None = None,
 ) -> LiveProviderAdapter:
     if config.adapter_id == StaticJsonlAdapter.adapter_id:
@@ -387,7 +393,6 @@ def build_adapter(
         return OpenAIChatCompletionsAdapter(
             config,
             base_dir=base_dir,
-            require_resolvable_endpoint_host=require_resolvable_endpoint_hosts,
             trust=trust,
         )
     if config.adapter_id == ExternalScriptAdapter.adapter_id:
@@ -486,7 +491,11 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,
         estimated_cost_usd=_estimate_cost(config, prompt_tokens, completion_tokens),
-        estimated_cost_source=_openai_cost_source(config),
+        estimated_cost_source=_openai_cost_source(
+            config,
+            prompt_tokens,
+            completion_tokens,
+        ),
     )
 
 
@@ -497,11 +506,16 @@ def _estimate_cost(
 ) -> str:
     prompt_rate = _optional_decimal(config.cost_per_1k_prompt_tokens_usd)
     completion_rate = _optional_decimal(config.cost_per_1k_completion_tokens_usd)
-    if prompt_rate is None and completion_rate is None:
+    if (
+        prompt_rate is None
+        or completion_rate is None
+        or prompt_tokens is None
+        or completion_tokens is None
+    ):
         return "0.000000"
-    prompt_cost = Decimal(prompt_tokens or 0) * (prompt_rate or Decimal("0")) / Decimal("1000")
+    prompt_cost = Decimal(prompt_tokens) * prompt_rate / Decimal("1000")
     completion_cost = (
-        Decimal(completion_tokens or 0) * (completion_rate or Decimal("0")) / Decimal("1000")
+        Decimal(completion_tokens) * completion_rate / Decimal("1000")
     )
     return normalize_decimal(prompt_cost + completion_cost)
 
@@ -561,7 +575,10 @@ def _script_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
         completion_tokens=_optional_int(payload.get("completion_tokens")),
         total_tokens=_optional_int(payload.get("total_tokens")),
         estimated_cost_usd=_normal_cost(payload.get("estimated_cost_usd", "0.000000")),
-        estimated_cost_source=_cost_source(payload.get("estimated_cost_source")),
+        estimated_cost_source=_cost_source(
+            payload.get("estimated_cost_source"),
+            cost_was_reported="estimated_cost_usd" in payload,
+        ),
     )
 
 
@@ -576,8 +593,6 @@ def _script_argv(config: LiveAdapterConfig, script: Path) -> tuple[str, ...]:
 
 def _validate_openai_endpoint(
     config: LiveAdapterConfig,
-    *,
-    require_resolvable_endpoint_host: bool,
 ) -> None:
     endpoint = config.endpoint_url or ""
     parsed = urllib.parse.urlparse(endpoint)
@@ -602,7 +617,6 @@ def _validate_openai_endpoint(
     assert_endpoint_resolution_allowed(
         host,
         label="openai-chat-completions",
-        require_resolution=require_resolvable_endpoint_host,
     )
 
 
@@ -630,16 +644,28 @@ def _normal_cost(value: object) -> str:
     return "0.000000"
 
 
-def _cost_source(value: object) -> EstimatedCostSource:
+def _cost_source(
+    value: object,
+    *,
+    cost_was_reported: bool,
+) -> EstimatedCostSource:
+    if not cost_was_reported:
+        return "not_reported"
     if value in {"adapter_reported", "local_estimate", "not_reported", "provider_reported"}:
-        return cast(EstimatedCostSource, value)
+        return value
     return "adapter_reported"
 
 
-def _openai_cost_source(config: LiveAdapterConfig) -> EstimatedCostSource:
+def _openai_cost_source(
+    config: LiveAdapterConfig,
+    prompt_tokens: int | None,
+    completion_tokens: int | None,
+) -> EstimatedCostSource:
     if (
         config.cost_per_1k_prompt_tokens_usd is None
-        and config.cost_per_1k_completion_tokens_usd is None
+        or config.cost_per_1k_completion_tokens_usd is None
+        or prompt_tokens is None
+        or completion_tokens is None
     ):
         return "not_reported"
     return "local_estimate"

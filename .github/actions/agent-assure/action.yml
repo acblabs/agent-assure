@@ -24,9 +24,17 @@ inputs:
     required: false
     default: agent-assure-reports
   upload-reports:
-    description: Upload reports even when the gate fails.
+    description: Upload the selected report artifact even when the gate fails.
     required: false
     default: "true"
+  upload-full-artifacts:
+    description: Opt in to uploading raw compiled suites, fixtures, and RunSets in addition to reports.
+    required: false
+    default: "false"
+  retention-days:
+    description: Number of days GitHub retains the uploaded report artifact.
+    required: false
+    default: "14"
 runs:
   using: composite
   steps:
@@ -82,10 +90,31 @@ runs:
           args+=(--baseline "${AGENT_ASSURE_ACTION_OUT_DIR}/baseline.runset.json")
         fi
         "${args[@]}"
-    - name: Upload reports
-      if: always() && inputs.upload-reports == 'true'
+    - name: Upload minimal reports
+      if: >-
+        always() && inputs.upload-reports == 'true' &&
+        inputs.upload-full-artifacts != 'true'
+      # actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      with:
+        name: ${{ inputs.upload-name }}
+        path: |
+          ${{ inputs.out-dir }}/reports/evidence-packet.json
+          ${{ inputs.out-dir }}/reports/evidence-packet.md
+          ${{ inputs.out-dir }}/reports/release-artifact-manifest.json
+          ${{ inputs.out-dir }}/reports/evaluation-summary.json
+          ${{ inputs.out-dir }}/reports/comparison-summary.json
+          ${{ inputs.out-dir }}/reports/ci-diagnostics.json
+        if-no-files-found: warn
+        retention-days: ${{ inputs.retention-days }}
+    - name: Upload full assurance artifacts
+      if: >-
+        always() && inputs.upload-reports == 'true' &&
+        inputs.upload-full-artifacts == 'true'
       # actions/upload-artifact@v4
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: ${{ inputs.upload-name }}
         path: ${{ inputs.out-dir }}
+        if-no-files-found: warn
+        retention-days: ${{ inputs.retention-days }}

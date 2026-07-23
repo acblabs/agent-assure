@@ -2,7 +2,56 @@
 
 ## Unreleased
 
-- No unreleased changes.
+- Added strict evidence descriptor, deterministic mutation operator,
+  expected-detection, and mutation-result contracts with canonical
+  self-digests, provenance, independence classes, and privacy-minimized
+  findings.
+- Added three deterministic built-in control challenges and single-operator
+  `controls mutate` execution with bounded input, source immutability,
+  before/after validation, canonical output artifacts, and documented semantic
+  exit codes.
+- Bound expected and observed finding targets with privacy-minimized digests,
+  aligned exact and wildcard JSON Pointer validation across Pydantic and JSON
+  Schema, and added specific safe diagnostics for subject incompatibilities.
+- Made the built-in catalog lazy and package-resource aware, and separated
+  immutable target-control creation snapshots from live implementation
+  component identity with fail-closed release verification.
+- Bound mutation and built-in evaluator identity to reviewed transitive source
+  manifests, and made release provenance replay those implementation components
+  at the claimed introduction commit. Release workflows now fetch full history
+  for that verification.
+- Closed evaluator-identity gaps by binding the complete packaged first-party
+  Python tree, package initializers, frozen legacy RunSet schemas, runtime
+  dependency versions, and the canonical RunSet digest carried by each v0.6
+  evaluation report.
+- Made network retry budgets conservative per attempt: ambiguous failed calls
+  retain declared cost and token reservations, later attempts fail before
+  exceeding local ceilings, v0.6 live records persist committed amounts, and
+  rate-limit thresholds now stop dispatch across the entire run.
+- Pinned the optional OpenTelemetry API, SDK, and OTLP HTTP exporter to the
+  exact tested 1.44.0 tuple, added a
+  dedicated hash-locked real-exporter CI contract, and made private OTLP HTTP
+  transport incompatibilities fail closed before span egress.
+- Canonicalized tool-policy findings by deduplicating and sorting tool names,
+  with explicit `forbidden_tools` taking precedence over allowlist failures.
+  This can change finding order, count, messages, IDs, and derived report
+  digests for duplicate or overlapping tool declarations.
+- Expanded RunSet persistence checks to reject sensitive-looking content in
+  redactable string fields while exempting valid structural digests and
+  designated preserved, non-fail-closed fields.
+- Required explicit wire discriminators on raw v0.6 artifacts, strengthened
+  RFC 3339 run-timestamp validation and privacy checks, bound mutation results
+  to verified non-zero evaluator identity except for an explicit unavailable
+  sentinel reserved for pre-evaluation catalog-integrity errors, constrained
+  the core method to its ordered canonical prerequisite set, and limited
+  missing evidence-subject digests to non-verdict-bearing results with
+  unsatisfied prerequisites.
+- Added architecture decisions that bound the product as an assurance compiler,
+  preserve method assumptions and limitations, constrain signature claims,
+  separate deterministic and stochastic semantics, keep LLM-derived judgments
+  advisory, and defer stable formal or conformal method commitments.
+- Added the `v0.6.0` schema candidate while preserving the frozen `v0.5.0`
+  snapshot byte-for-byte.
 
 ## 0.5.0 - 2026-07-17
 

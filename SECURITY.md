@@ -1,6 +1,16 @@
 # Security
 
-Please report suspected vulnerabilities privately through the repository owner.
+Please report suspected vulnerabilities through GitHub Private Vulnerability
+Reporting at
+<https://github.com/acblabs/agent-assure/security/advisories/new>. Do not open a
+public issue for an unremediated vulnerability. If that private form is
+unavailable, contact the maintainers listed in `.github/CODEOWNERS` without
+including exploit details in a public channel.
+
+Maintainers should acknowledge a private report within three business days,
+provide an initial severity and remediation assessment within seven business
+days, and coordinate disclosure after a fix is available. These are response
+targets rather than a guarantee.
 
 Do not place production secrets, raw prompts, raw model outputs, tool arguments,
 or sensitive identifiers in fixtures or persisted artifacts.
@@ -25,6 +35,10 @@ controls.
   tool evaluates the records but does not attest provider behavior.
 - Pattern redaction is a guardrail, not comprehensive DLP or PHI
   de-identification.
+- The bundled demo's Python `sitecustomize` network guard is advisory
+  defense-in-depth for trusted bundled code, not a sandbox or network-isolation
+  boundary. Demo subprocess environments are minimized, but hostile code can
+  bypass Python-level monkeypatches.
 - HTTPS, endpoint allowlisting, and DNS safety screening reduce SSRF risk but do
   not provide TLS pinning, socket-level IP pinning, or protection from a fully
   compromised resolver.

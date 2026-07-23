@@ -8,7 +8,7 @@ Install the optional dependency when running a real LangGraph graph:
 pip install "agent-assure[langgraph]"
 ```
 
-The optional extra uses LangGraph's stable 1.x line. The current Sprint 9
+The optional extra uses LangGraph's stable 1.x line. The current integration
 smoke target was verified against LangGraph 1.2.8 on July 7, 2026; the
 integration remains experimental and does not yet maintain a broader version
 matrix. The adapter itself can be imported without LangGraph installed so

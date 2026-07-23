@@ -84,17 +84,19 @@ def test_prepare_output_dir_treats_unbounded_marker_as_unowned(
     assert keep.read_text(encoding="utf-8") == "keep"
 
 
-def test_prepare_output_dir_cleans_legacy_demo_directory(tmp_path: Path) -> None:
+def test_prepare_output_dir_refuses_legacy_name_only_without_ownership_marker(
+    tmp_path: Path,
+) -> None:
     out_dir = tmp_path / "demo"
     out_dir.mkdir()
     stale = out_dir / "demo-summary.json"
     stale.write_text("{}\n", encoding="utf-8")
 
-    prepared = prepare_output_dir(out_dir, clean=True)
+    with pytest.raises(DemoError, match="without agent-assure demo ownership marker"):
+        prepare_output_dir(out_dir, clean=True)
 
-    assert prepared == out_dir
-    assert not stale.exists()
-    assert (out_dir / DEMO_MARKER_FILENAME).is_file()
+    assert stale.read_text(encoding="utf-8") == "{}\n"
+    assert not (out_dir / DEMO_MARKER_FILENAME).exists()
 
 
 def test_command_metadata_redacts_absolute_paths(tmp_path: Path) -> None:
@@ -138,6 +140,23 @@ def test_demo_subprocess_env_blocks_child_process_network(tmp_path: Path) -> Non
 
     assert result.returncode != 0
     assert "network access is disabled for agent-assure demo subprocesses" in result.stderr
+
+
+def test_demo_subprocess_env_drops_parent_secrets_and_pythonpath(tmp_path: Path) -> None:
+    env = demo_subprocess_env(
+        tmp_path,
+        env={
+            "PATH": os.environ.get("PATH", ""),
+            "PYTHONPATH": "untrusted-import-root",
+            "GITHUB_TOKEN": "secret-token",
+            "AWS_SECRET_ACCESS_KEY": "secret-key",
+        },
+    )
+
+    assert "GITHUB_TOKEN" not in env
+    assert "AWS_SECRET_ACCESS_KEY" not in env
+    assert "untrusted-import-root" not in env["PYTHONPATH"]
+    assert env["PYTHONNOUSERSITE"] == "1"
 
 
 def test_run_cli_command_records_timeout_logs(

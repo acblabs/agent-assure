@@ -1,7 +1,7 @@
 # agent-assure
 
-`agent-assure` is a local-first process assurance toolkit for agentic AI
-pipelines.
+`agent-assure` is a local-first Agent Release Assurance Compiler for
+Evidence-Carrying Agent Releases.
 
 The core thesis is simple: output equivalence is not process equivalence. A
 candidate pipeline can preserve the visible decision while changing the
@@ -26,6 +26,7 @@ evidence link. The CI gate blocks that process regression as expected.
 - [For AI leaders](for_ai_leaders.md)
 - [For engineers](for_engineers.md)
 - [What this measures](what_this_measures.md)
+- [Evidence-carrying release contracts](evidence_carrying_releases.md)
 - [Flagship demo](demo_flagship.md)
 - [RAG provenance demo](demo_rag.md)
 - [Evidence diff](evidence_diff.md)

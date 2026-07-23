@@ -5,12 +5,14 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_run_record_payload
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.validation import validate_artifact_payload
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -78,8 +80,38 @@ def test_live_mode_is_schema_recognized() -> None:
         schedule_index=0,
         cluster_id="case-001",
         adapter_id="static-jsonl",
+        cost_budget_committed_usd="0.000000",
+        generated_token_budget_committed=0,
+        total_token_budget_committed=0,
     )
     assert record.execution_mode is ExecutionMode.live
+
+
+def test_run_timestamps_are_calendar_valid_rfc3339() -> None:
+    record = _record(
+        started_at_utc="2026-07-21T12:34:56.123456Z",
+        completed_at_utc="2026-07-21T08:34:57-04:00",
+    )
+    assert record.started_at_utc == "2026-07-21T12:34:56.123456Z"
+
+    with pytest.raises(ValidationError, match="valid RFC 3339 date-time"):
+        _record(started_at_utc="2026-02-31T12:00:00Z")
+
+
+@pytest.mark.parametrize(
+    "timestamp",
+    ("2026-07-21T12:00:00", "patient: Alice", "2026-7-21T12:00:00Z"),
+)
+def test_run_timestamp_shape_has_model_and_jsonschema_parity(timestamp: str) -> None:
+    payload = _record().model_dump(mode="json")
+    payload["started_at_utc"] = timestamp
+
+    with pytest.raises(ValidationError):
+        AgentRunRecord.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            AgentRunRecord.model_json_schema(mode="validation")
+        ).validate(payload)
 
 
 def test_runset_is_first_class_schema() -> None:
@@ -95,6 +127,26 @@ def test_runset_is_first_class_schema() -> None:
         runs=(_record(),),
     )
     assert runset.artifact_kind == "run-set"
+
+
+@pytest.mark.parametrize("identity_field", ("artifact_kind", "schema_version"))
+def test_raw_runset_requires_explicit_persisted_identity(identity_field: str) -> None:
+    payload = RunSet(
+        runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(),
+    ).model_dump(mode="json")
+    del payload[identity_field]
+
+    with pytest.raises(ValueError, match="explicit identity fields before parsing"):
+        validate_artifact_payload(payload, "run-set")
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(payload)
 
 
 def test_current_runset_requires_explicit_privacy_profile_binding() -> None:

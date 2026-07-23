@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 from pathlib import Path
 
 from agent_assure.schema.export import export_json_schemas
@@ -8,8 +9,22 @@ from scripts.check_frozen_schemas import check_frozen_schema_dir, compare_schema
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_committed_v050_schema_snapshot_matches_exporter() -> None:
-    assert check_frozen_schema_dir(ROOT / "schemas" / "v0.5.0") == []
+def test_committed_v060_schema_snapshot_matches_exporter() -> None:
+    assert check_frozen_schema_dir(ROOT / "schemas" / "v0.6.0") == []
+
+
+def test_committed_v050_schema_snapshot_remains_byte_identical() -> None:
+    schema_dir = ROOT / "schemas" / "v0.5.0"
+    schema_files = tuple(sorted(schema_dir.glob("*.schema.json")))
+    digest = hashlib.sha256()
+    for path in schema_files:
+        digest.update(path.name.encode("utf-8"))
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+
+    assert len(schema_files) == 30
+    assert digest.hexdigest() == "d0c7f4bec1dfd5f9f9e51f559473000e0437b2d614aa3027da5c4f4eb62faf4e"
 
 
 def test_committed_v043_schema_snapshot_remains_historical() -> None:

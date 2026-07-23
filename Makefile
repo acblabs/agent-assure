@@ -1,8 +1,10 @@
 PYTHON ?= $(or $(wildcard .venv/Scripts/python.exe),$(wildcard .venv/bin/python),python)
 SOURCE_CLI_PYTHON := $(PYTHON)
 SCHEMA_DIR ?= $(shell $(PYTHON) scripts/schema_target.py)
+PROJECT_VERSION := $(shell $(PYTHON) -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+EXPECTED_RELEASE ?= $(PROJECT_VERSION)
 
-.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-force-includes schema-staging schema-check release-bundle check release-check demo
+.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-force-includes schema-staging schema-check release-provenance release-bundle check release-check demo
 
 test:
 	$(PYTHON) -m pytest
@@ -19,8 +21,11 @@ clean-dist:
 build: clean-dist
 	$(PYTHON) -m build --no-isolation
 
-release-bundle:
-	$(PYTHON) scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+release-provenance:
+	$(PYTHON) scripts/check_mutation_release_provenance.py --expected-release "$(EXPECTED_RELEASE)"
+
+release-bundle: release-provenance
+	$(PYTHON) scripts/build_release_bundle.py --expected-release "$(EXPECTED_RELEASE)" --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 
 docs-align:
 	$(PYTHON) scripts/check_docs_alignment.py
@@ -33,7 +38,7 @@ examples-parity:
 
 check: lint type test docs-align claim-boundary examples-parity build
 
-release-check: check schema-check
+release-check: check schema-check release-provenance
 	$(PYTHON) -m twine check dist/*
 	$(PYTHON) scripts/check_wheel_contents.py
 	$(PYTHON) scripts/smoke_install_wheel.py

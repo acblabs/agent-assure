@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.privacy.redaction import (
     PRESERVE_PACKET_KEYS,
     redact_artifact_payload,
@@ -28,15 +29,13 @@ def write_control_coverage_report(
         preserve_keys=PRESERVE_PACKET_KEYS,
     )
     ControlCoverageReport.model_validate(payload)
-    json_path.write_text(
+    write_text_atomic(
+        json_path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
-    markdown_path.write_text(
+    write_text_atomic(
+        markdown_path,
         render_control_coverage_markdown(report),
-        encoding="utf-8",
-        newline="\n",
     )
     return json_path, markdown_path
 

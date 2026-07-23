@@ -13,6 +13,7 @@ from agent_assure.adapters import (
     LangGraphAdapter,
     build_run_record_from_observations,
 )
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
@@ -155,10 +156,9 @@ def main(argv: list[str] | None = None) -> int:
     summary = run_offline_example()
     if out_dir is not None:
         out_dir.mkdir(parents=True, exist_ok=True)
-        (out_dir / "summary.json").write_text(
+        write_text_atomic(
+            out_dir / "summary.json",
             json.dumps(summary, indent=2, sort_keys=True) + "\n",
-            encoding="utf-8",
-            newline="\n",
         )
         _write_json(
             out_dir / "baseline.runset.json",
@@ -428,10 +428,9 @@ def _stable_id(prefix: str, variant: ExampleVariant, case_id: str) -> str:
 
 
 def _write_json(path: Path, payload: object) -> None:
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 

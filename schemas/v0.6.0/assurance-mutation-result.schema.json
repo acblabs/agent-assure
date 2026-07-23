@@ -1,0 +1,886 @@
+{
+  "$defs": {
+    "AuthorshipRelationship": {
+      "enum": [
+        "same",
+        "separate",
+        "unknown"
+      ],
+      "title": "AuthorshipRelationship",
+      "type": "string"
+    },
+    "EvidenceEvaluationBasis": {
+      "enum": [
+        "deterministic",
+        "stochastic",
+        "human_reviewed",
+        "llm_advisory"
+      ],
+      "title": "EvidenceEvaluationBasis",
+      "type": "string"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "IndependenceClass": {
+      "enum": [
+        "external_preexisting",
+        "third_party_contributed",
+        "first_party_precontrol",
+        "first_party_postcontrol",
+        "unknown"
+      ],
+      "title": "IndependenceClass",
+      "type": "string"
+    },
+    "MutationResultState": {
+      "enum": [
+        "caught",
+        "survived",
+        "inapplicable",
+        "invalid_operator",
+        "invalid_subject",
+        "execution_error"
+      ],
+      "title": "MutationResultState",
+      "type": "string"
+    },
+    "ObservedFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "control_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Control Id",
+          "type": "string"
+        },
+        "finding_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        },
+        "target_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target Digest"
+        }
+      },
+      "required": [
+        "finding_id",
+        "control_id",
+        "state",
+        "reason_code"
+      ],
+      "title": "ObservedFinding",
+      "type": "object"
+    },
+    "OperatorAuthorship": {
+      "additionalProperties": false,
+      "properties": {
+        "relationship_to_control_author": {
+          "$ref": "#/$defs/AuthorshipRelationship"
+        }
+      },
+      "required": [
+        "relationship_to_control_author"
+      ],
+      "title": "OperatorAuthorship",
+      "type": "object"
+    },
+    "OperatorImplementationComponent": {
+      "additionalProperties": false,
+      "properties": {
+        "component_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "relative_path": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^(?:agent_assure/(?:[A-Za-z0-9_./-]+\\.py|mutation/introduction_snapshots\\.json)|schemas/v[0-9]+\\.[0-9]+\\.[0-9]+/[A-Za-z0-9_.-]+\\.schema\\.json)$",
+          "title": "Relative Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "component_id",
+        "relative_path",
+        "sha256"
+      ],
+      "title": "OperatorImplementationComponent",
+      "type": "object"
+    },
+    "OperatorOrigin": {
+      "additionalProperties": false,
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/OperatorOriginKind"
+        },
+        "references": {
+          "items": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "title": "References",
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "references"
+      ],
+      "title": "OperatorOrigin",
+      "type": "object"
+    },
+    "OperatorOriginKind": {
+      "enum": [
+        "external_preexisting",
+        "third_party_contributed",
+        "first_party",
+        "unknown"
+      ],
+      "title": "OperatorOriginKind",
+      "type": "string"
+    },
+    "OperatorProvenance": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "introduced_at_commit": {
+                "type": "string"
+              },
+              "introduced_in_release": {
+                "type": "string"
+              },
+              "introduction_components": {
+                "minItems": 1
+              },
+              "origin": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "external_preexisting",
+                      "third_party_contributed",
+                      "first_party"
+                    ]
+                  }
+                }
+              },
+              "target_controls": {
+                "minItems": 1
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "implementation_components": {
+                "maxItems": 0
+              }
+            },
+            "required": [
+              "implementation_components"
+            ]
+          },
+          "then": {
+            "properties": {
+              "authorship": {
+                "properties": {
+                  "relationship_to_control_author": {
+                    "const": "unknown"
+                  }
+                }
+              },
+              "implementation_digest": {
+                "const": "0000000000000000000000000000000000000000000000000000000000000000"
+              },
+              "introduced_at_commit": {
+                "type": "null"
+              },
+              "introduced_in_release": {
+                "type": "null"
+              },
+              "introduction_components": {
+                "maxItems": 0
+              },
+              "origin": {
+                "properties": {
+                  "kind": {
+                    "const": "unknown"
+                  }
+                }
+              },
+              "target_controls": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "authorship": {
+          "$ref": "#/$defs/OperatorAuthorship"
+        },
+        "implementation_components": {
+          "items": {
+            "$ref": "#/$defs/OperatorImplementationComponent"
+          },
+          "title": "Implementation Components",
+          "type": "array"
+        },
+        "implementation_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Implementation Digest",
+          "type": "string"
+        },
+        "introduced_at_commit": {
+          "anyOf": [
+            {
+              "pattern": "^git:(?:[a-f0-9]{40}|uncommitted)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Introduced At Commit"
+        },
+        "introduced_in_release": {
+          "anyOf": [
+            {
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Introduced In Release"
+        },
+        "introduction_components": {
+          "items": {
+            "$ref": "#/$defs/OperatorImplementationComponent"
+          },
+          "title": "Introduction Components",
+          "type": "array"
+        },
+        "operator_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Operator Id",
+          "type": "string"
+        },
+        "operator_version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "title": "Operator Version",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/OperatorOrigin"
+        },
+        "target_controls": {
+          "items": {
+            "$ref": "#/$defs/TargetControlProvenance"
+          },
+          "title": "Target Controls",
+          "type": "array"
+        }
+      },
+      "required": [
+        "operator_id",
+        "operator_version",
+        "implementation_digest",
+        "implementation_components",
+        "introduction_components",
+        "origin",
+        "target_controls",
+        "authorship"
+      ],
+      "title": "OperatorProvenance",
+      "type": "object"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "TargetControlProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "control_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Control Id",
+          "type": "string"
+        },
+        "digest_at_operator_creation": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Digest At Operator Creation",
+          "type": "string"
+        },
+        "first_seen_commit": {
+          "pattern": "^git:[a-f0-9]{40}$",
+          "title": "First Seen Commit",
+          "type": "string"
+        }
+      },
+      "required": [
+        "control_id",
+        "first_seen_commit",
+        "digest_at_operator_creation"
+      ],
+      "title": "TargetControlProvenance",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.0/assurance-mutation-result.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "caught",
+              "survived"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "changed_paths": {
+            "minItems": 1
+          },
+          "expected_finding_target_digest": {
+            "type": "string"
+          },
+          "mutated_digest": {
+            "type": "string"
+          },
+          "source_digest": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "source_digest",
+          "mutated_digest",
+          "expected_finding_target_digest",
+          "changed_paths"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "enum": [
+              "inapplicable",
+              "invalid_operator",
+              "invalid_subject",
+              "execution_error"
+            ]
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "changed_paths": {
+            "maxItems": 0
+          },
+          "expected_finding_target_digest": {
+            "type": "null"
+          },
+          "matched_finding_ids": {
+            "maxItems": 0
+          },
+          "mutated_digest": {
+            "type": "null"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "caught"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "matched_finding_ids": {
+            "minItems": 1
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "state": {
+            "const": "survived"
+          }
+        },
+        "required": [
+          "state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "matched_finding_ids": {
+            "maxItems": 0
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluator_implementation_digest": {
+            "const": "0000000000000000000000000000000000000000000000000000000000000000"
+          }
+        },
+        "required": [
+          "evaluator_implementation_digest"
+        ]
+      },
+      "then": {
+        "properties": {
+          "diagnostic_code": {
+            "const": "catalog_integrity_error"
+          },
+          "state": {
+            "const": "execution_error"
+          }
+        },
+        "required": [
+          "state",
+          "diagnostic_code"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "independence_class": {
+            "const": "external_preexisting"
+          }
+        },
+        "required": [
+          "independence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "properties": {
+                  "kind": {
+                    "const": "external_preexisting"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "independence_class": {
+            "const": "third_party_contributed"
+          }
+        },
+        "required": [
+          "independence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "properties": {
+                  "kind": {
+                    "const": "third_party_contributed"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "independence_class": {
+            "const": "first_party_precontrol"
+          }
+        },
+        "required": [
+          "independence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "properties": {
+                  "kind": {
+                    "const": "first_party"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "independence_class": {
+            "const": "first_party_postcontrol"
+          }
+        },
+        "required": [
+          "independence_class"
+        ]
+      },
+      "then": {
+        "properties": {
+          "provenance": {
+            "properties": {
+              "origin": {
+                "properties": {
+                  "kind": {
+                    "const": "first_party"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "artifact_kind": {
+      "const": "assurance-mutation-result",
+      "default": "assurance-mutation-result",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "changed_paths": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+$",
+        "type": "string"
+      },
+      "title": "Changed Paths",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "contract_id": {
+      "const": "AssuranceMutationResult/v1",
+      "default": "AssuranceMutationResult/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "diagnostic_code": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Diagnostic Code"
+    },
+    "evaluator_evaluation_basis": {
+      "$ref": "#/$defs/EvidenceEvaluationBasis"
+    },
+    "evaluator_implementation_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Evaluator Implementation Digest",
+      "type": "string"
+    },
+    "evaluator_implementation_version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Evaluator Implementation Version",
+      "type": "string"
+    },
+    "evaluator_method_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Evaluator Method Id",
+      "type": "string"
+    },
+    "evaluator_population_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Evaluator Population Id",
+      "type": "string"
+    },
+    "evaluator_protocol_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evaluator Protocol Digest"
+    },
+    "expected_detection_contract_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Expected Detection Contract Digest",
+      "type": "string"
+    },
+    "expected_finding_target_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Expected Finding Target Digest"
+    },
+    "implementation_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Implementation Digest",
+      "type": "string"
+    },
+    "independence_class": {
+      "$ref": "#/$defs/IndependenceClass"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "matched_finding_ids": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "title": "Matched Finding Ids",
+      "type": "array",
+      "uniqueItems": true
+    },
+    "mutated_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Mutated Digest"
+    },
+    "observed_findings": {
+      "items": {
+        "$ref": "#/$defs/ObservedFinding"
+      },
+      "title": "Observed Findings",
+      "type": "array"
+    },
+    "operator_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Operator Digest",
+      "type": "string"
+    },
+    "operator_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Operator Id",
+      "type": "string"
+    },
+    "operator_version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Operator Version",
+      "type": "string"
+    },
+    "provenance": {
+      "$ref": "#/$defs/OperatorProvenance"
+    },
+    "result_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Result Digest",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "assurance-mutation-result",
+      "default": "assurance-mutation-result",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.0",
+      "default": "0.6.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "seed": {
+      "maximum": 9007199254740991,
+      "minimum": 0,
+      "title": "Seed",
+      "type": "integer"
+    },
+    "source_artifact_kind": {
+      "const": "run-set",
+      "default": "run-set",
+      "title": "Source Artifact Kind",
+      "type": "string"
+    },
+    "source_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Digest"
+    },
+    "state": {
+      "$ref": "#/$defs/MutationResultState"
+    }
+  },
+  "required": [
+    "result_digest",
+    "operator_id",
+    "operator_version",
+    "operator_digest",
+    "implementation_digest",
+    "expected_detection_contract_digest",
+    "evaluator_method_id",
+    "evaluator_implementation_digest",
+    "evaluator_implementation_version",
+    "evaluator_evaluation_basis",
+    "evaluator_population_id",
+    "seed",
+    "changed_paths",
+    "observed_findings",
+    "matched_finding_ids",
+    "state",
+    "provenance",
+    "independence_class",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "AssuranceMutationResult",
+  "type": "object"
+}

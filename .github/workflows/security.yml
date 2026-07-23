@@ -1,0 +1,74 @@
+name: security
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  schedule:
+    - cron: "23 11 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  dependency-review:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # actions/dependency-review-action@v5.0.0
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294
+        with:
+          fail-on-severity: moderate
+
+  dependency-audit:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        lockfile:
+          - requirements.lock
+          - requirements-langgraph.lock
+          - requirements-adk.lock
+          - requirements-otel.lock
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: ${{ matrix.lockfile }}
+          require-hashes: true
+          no-deps: true
+
+  codeql:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # github/codeql-action/init@v4.35.2
+      - uses: github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225
+        with:
+          languages: python
+          queries: security-extended
+      # github/codeql-action/analyze@v4.35.2
+      - uses: github/codeql-action/analyze@95e58e9a2cdfd71adc6e0353d5c52f41a045d225
+        with:
+          category: /language:python

@@ -21,6 +21,31 @@ def test_tool_allowlist_empty_tuple_forbids_all_tools() -> None:
     assert results[0].target == "tool:unexpected_tool"
 
 
+def test_forbidden_and_non_allowlisted_tool_emits_one_canonical_finding() -> None:
+    run = _run(tools=("z-tool", "blocked-tool", "blocked-tool", "a-tool"))
+
+    first = evaluate_tool_allowlist(
+        run,
+        allowed_tools=("safe-tool",),
+        forbidden_tools=("blocked-tool",),
+    )
+    second = evaluate_tool_allowlist(
+        _run(tools=tuple(reversed(run.tools))),
+        allowed_tools=("safe-tool",),
+        forbidden_tools=("blocked-tool",),
+    )
+
+    assert first == second
+    assert tuple(result.target for result in first) == (
+        "tool:a-tool",
+        "tool:blocked-tool",
+        "tool:z-tool",
+    )
+    assert len({result.finding_id for result in first}) == len(first)
+    blocked = next(result for result in first if result.target == "tool:blocked-tool")
+    assert blocked.message == "tool 'blocked-tool' is explicitly forbidden"
+
+
 def _run(*, tools: tuple[str, ...]) -> AgentRunRecord:
     return AgentRunRecord(
         artifact_kind="agent-run-record",

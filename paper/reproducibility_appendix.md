@@ -104,7 +104,7 @@ raw payloads and does not emit `gen_ai.response.tokens` or generic
 ## Release Replay
 
 ```bash
-python scripts/build_release_bundle.py --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/build_release_bundle.py --expected-release 0.6.0 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 

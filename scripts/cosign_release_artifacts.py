@@ -155,30 +155,61 @@ def verify_modified_packet_fails(
 def release_artifacts(release_dir: Path) -> tuple[Path, ...]:
     fixed = (
         release_dir / "reports" / "evidence-packet.json",
+        release_dir / "reports" / "evidence-packet.md",
         release_dir / "reports" / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",
     )
-    dist_dir = release_dir / "dist"
-    dist_artifacts = (
-        tuple(
-            sorted(
-                path
-                for path in dist_dir.iterdir()
-                if path.is_file() and not path.name.endswith(".bundle")
-            )
-        )
-        if dist_dir.is_dir()
-        else ()
-    )
-    artifacts = (*fixed, *dist_artifacts)
-    missing = [path for path in artifacts if not path.is_file()]
+    release_notes = release_dir / "release-notes.md"
+    optional = (release_notes,) if release_notes.exists() else ()
+    fixed_and_optional = (*fixed, *optional)
+    missing = [
+        path for path in fixed_and_optional if not path.is_file() or path.is_symlink()
+    ]
     if missing:
         raise RuntimeError(
             "missing release artifact(s): "
             + ", ".join(_display_path(path) for path in missing)
         )
-    return artifacts
+    dist_dir = release_dir / "dist"
+    dist_artifacts = _distribution_artifacts(dist_dir)
+    return (*fixed_and_optional, *dist_artifacts)
+
+
+def _distribution_artifacts(dist_dir: Path) -> tuple[Path, Path]:
+    if not dist_dir.is_dir() or dist_dir.is_symlink():
+        raise RuntimeError(f"missing release distribution directory: {_display_path(dist_dir)}")
+    entries = tuple(sorted(dist_dir.iterdir(), key=lambda path: path.name))
+    unsafe = [path for path in entries if path.is_symlink() or not path.is_file()]
+    if unsafe:
+        raise RuntimeError(
+            "non-regular release distribution entry: "
+            + ", ".join(_display_path(path) for path in unsafe)
+        )
+    distributions = tuple(
+        path
+        for path in entries
+        if path.suffix == ".whl" or path.name.endswith(".tar.gz")
+    )
+    wheels = tuple(path for path in distributions if path.suffix == ".whl")
+    sdists = tuple(path for path in distributions if path.name.endswith(".tar.gz"))
+    allowed_bundle_names = {f"{path.name}.bundle" for path in distributions}
+    unexpected = [
+        path
+        for path in entries
+        if path not in distributions and path.name not in allowed_bundle_names
+    ]
+    if len(wheels) != 1 or len(sdists) != 1 or unexpected:
+        details = [
+            f"{len(wheels)} wheel(s)",
+            f"{len(sdists)} sdist(s)",
+        ]
+        if unexpected:
+            details.append(
+                "unexpected " + ", ".join(_display_path(path) for path in unexpected)
+            )
+        raise RuntimeError("invalid release distribution set: " + "; ".join(details))
+    return wheels[0], sdists[0]
 
 
 def verify_blob(

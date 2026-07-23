@@ -23,8 +23,15 @@ from agent_assure.policies.base import (
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, StrictModel
-from agent_assure.schema.common import GateState, ReasonCode, Severity, coerce_enum
+from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.schema.common import (
+    DigestHex,
+    GateState,
+    ReasonCode,
+    Severity,
+    coerce_enum,
+    coerce_tuple,
+)
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.run import RunSet
@@ -40,6 +47,37 @@ _EVALUATION_REPORT_USAGE_FIELD_PATHS = (
     ("usage_summary",),
     ("candidate_vs_expectations", "usage_summary"),
 )
+_EVALUATION_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
+    *_EVALUATION_REPORT_USAGE_FIELD_PATHS
+)
+_EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version"],
+            "properties": {"schema_version": {"const": "0.6.0"}},
+        },
+        "then": {
+            "required": ["runset_digest"],
+            "properties": {"runset_digest": {"type": "string"}},
+        },
+    }
+)
+
+RunSetCompatibilityCode = Literal[
+    "privacy_profile_incompatible",
+    "suite_binding_mismatch",
+    "fixture_binding_mismatch",
+]
+
+
+class RunSetCompatibilityError(ValueError):
+    """A safe-to-classify incompatibility between a RunSet and evaluation context."""
+
+    diagnostic_code: RunSetCompatibilityCode
+
+    def __init__(self, diagnostic_code: RunSetCompatibilityCode, message: str) -> None:
+        super().__init__(message)
+        self.diagnostic_code = diagnostic_code
 
 
 class EvaluationMetrics(StrictModel):
@@ -68,14 +106,13 @@ class CapabilityReport(StrictModel):
 
 class EvaluationReport(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=usage_container_json_schema_extra(
-            *_EVALUATION_REPORT_USAGE_FIELD_PATHS
-        )
+        json_schema_extra=_EVALUATION_REPORT_JSON_SCHEMA_EXTRA
     )
 
     artifact_kind: Literal["evaluation-report"] = "evaluation-report"
     candidate_vs_expectations: EvaluationSummary
     runset_id: str
+    runset_digest: DigestHex | None = Field(default=None, exclude_if=lambda value: value is None)
     suite_id: str
     suite_version: str
     gate_profile: str
@@ -90,8 +127,21 @@ class EvaluationReport(PersistedArtifact):
         "or live model quality",
     )
 
+    @field_validator(
+        "failed_controls",
+        "warning_controls",
+        "not_evaluated_capabilities",
+        "limitations",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        return coerce_tuple(value)
+
     @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> EvaluationReport:
+        if self.schema_version == "0.6.0" and self.runset_digest is None:
+            raise ValueError("evaluation report requires runset_digest at schema_version 0.6.0")
         validate_usage_field_paths_schema_version(
             self.schema_version,
             owner="evaluation report",
@@ -118,29 +168,7 @@ def evaluate_runset(
     waivers: tuple[Waiver, ...] = (),
     today: date | None = None,
 ) -> EvaluationReport:
-    if runset.schema_version == SCHEMA_VERSION and (
-        runset.privacy_profile_id,
-        runset.privacy_profile_digest,
-    ) != (PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST):
-        raise ValueError(
-            "run set privacy detector profile is incompatible with the runtime profile"
-        )
-    if runset.suite_id != suite.suite_id:
-        raise ValueError(
-            f"run set suite_id {runset.suite_id!r} does not match compiled suite {suite.suite_id!r}"
-        )
-    if runset.suite_version != suite.suite_version:
-        raise ValueError(
-            f"run set suite_version {runset.suite_version!r} does not match compiled suite "
-            f"{suite.suite_version!r}"
-        )
-    expected_suite_digest = compiled_suite_digest(suite)
-    if runset.suite_digest != expected_suite_digest:
-        raise ValueError(
-            f"run set suite_digest {runset.suite_digest!r} does not match compiled suite digest "
-            f"{expected_suite_digest!r}"
-        )
-    _verify_run_fixture_binding(runset)
+    validate_runset_compatibility(suite, runset)
     resolver = ExpectationResolver(suite)
     artifact_digest = runset_digest(runset)
     raw_results = evaluate_runset_controls(
@@ -188,6 +216,7 @@ def evaluate_runset(
     return EvaluationReport(
         candidate_vs_expectations=summary,
         runset_id=runset.runset_id,
+        runset_digest=artifact_digest,
         suite_id=suite.suite_id,
         suite_version=suite.suite_version,
         gate_profile=gate_profile.profile_id,
@@ -197,6 +226,41 @@ def evaluate_runset(
         warning_controls=warning_controls,
         not_evaluated_capabilities=capabilities,
     )
+
+
+def validate_runset_compatibility(suite: CompiledSuite, runset: RunSet) -> None:
+    """Validate the bindings every evaluator must honor before scoring a RunSet.
+
+    Mutation evaluators may replace the scoring implementation, but they may not
+    bypass the suite, fixture-manifest, or privacy-profile trust bindings.
+    """
+    if runset.privacy_profile_id is not None and (
+        runset.privacy_profile_id,
+        runset.privacy_profile_digest,
+    ) != (PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST):
+        raise RunSetCompatibilityError(
+            "privacy_profile_incompatible",
+            "run set privacy detector profile is incompatible with the runtime profile"
+        )
+    if runset.suite_id != suite.suite_id:
+        raise RunSetCompatibilityError(
+            "suite_binding_mismatch",
+            f"run set suite_id {runset.suite_id!r} does not match compiled suite {suite.suite_id!r}"
+        )
+    if runset.suite_version != suite.suite_version:
+        raise RunSetCompatibilityError(
+            "suite_binding_mismatch",
+            f"run set suite_version {runset.suite_version!r} does not match compiled suite "
+            f"{suite.suite_version!r}"
+        )
+    expected_suite_digest = compiled_suite_digest(suite)
+    if runset.suite_digest != expected_suite_digest:
+        raise RunSetCompatibilityError(
+            "suite_binding_mismatch",
+            f"run set suite_digest {runset.suite_digest!r} does not match compiled suite digest "
+            f"{expected_suite_digest!r}"
+        )
+    _verify_run_fixture_binding(runset)
 
 
 def _finding_from_result(result: ControlResult) -> Finding:
@@ -216,7 +280,8 @@ def _verify_run_fixture_binding(runset: RunSet) -> None:
     for run in runset.runs:
         run_digest = run.provenance.fixture_manifest_digest
         if run_digest != runset.fixture_manifest_digest:
-            raise ValueError(
+            raise RunSetCompatibilityError(
+                "fixture_binding_mismatch",
                 f"run {run.run_id!r} fixture_manifest_digest {run_digest!r} does not match "
                 f"run set fixture_manifest_digest {runset.fixture_manifest_digest!r}"
             )

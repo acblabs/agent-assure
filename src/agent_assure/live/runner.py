@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import random
 import time
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from uuid import uuid5
 
@@ -17,7 +19,12 @@ from agent_assure.live.adapters import (
     build_adapter,
     monotonic_ms,
 )
-from agent_assure.live.config import LivePromptCase, LiveRunConfig
+from agent_assure.live.config import (
+    MAX_LIVE_REQUESTS,
+    MAX_LIVE_RETRY_BACKOFF_SECONDS,
+    LivePromptCase,
+    LiveRunConfig,
+)
 from agent_assure.live.output_contract import (
     LiveOutputContractError,
     parse_live_structured_content,
@@ -43,39 +50,96 @@ class LiveBudgetExceededError(ValueError):
         self.stop_reason = stop_reason
 
 
+@dataclass
+class _LiveRequestBudget:
+    maximum: int
+    used: int = 0
+
+    @property
+    def exhausted(self) -> bool:
+        return self.used >= self.maximum
+
+    def consume(self) -> None:
+        if self.exhausted:
+            raise LiveBudgetExceededError(
+                "request_budget_exhausted",
+                "configured max_requests was exhausted before another adapter attempt",
+            )
+        self.used += 1
+
+
+@dataclass
+class _LiveRateLimitBudget:
+    maximum: int
+    observed: int = 0
+
+    def record(self) -> None:
+        self.observed += 1
+        if self.observed > self.maximum:
+            raise LiveBudgetExceededError(
+                "rate_limit_budget_exhausted",
+                "provider rate-limit events exceeded the configured run-wide maximum",
+            )
+
+
+@dataclass
+class _LiveAttemptState:
+    attempt_count: int = 0
+    retry_count: int = 0
+    rate_limit_events: int = 0
+
+
 def run_live_suite(
     compiled: CompiledSuite,
     config: LiveRunConfig,
     *,
     protocol: LiveProtocolRecord,
     config_dir: Path,
-    require_resolvable_endpoint_hosts: bool | None = None,
     trust: TrustedLiveExecution | None = None,
 ) -> RunSet:
+    # Pydantic's model_copy(update=...) intentionally skips validation. Treat
+    # this library API as the final execution boundary and reconstruct both
+    # caller-provided contracts before using any budget or adapter fields.
+    config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
+    protocol = LiveProtocolRecord.model_validate(protocol.model_dump(mode="json"))
     _validate_cases(compiled, config)
     _validate_protocol_config(compiled, config, protocol)
-    schedule = _schedule(config)
-    if config.max_requests is not None and len(schedule) > config.max_requests:
+    planned_observations = _planned_observation_count(config)
+    if planned_observations > MAX_LIVE_REQUESTS:
         raise ValueError(
-            f"planned live requests ({len(schedule)}) exceed max_requests ({config.max_requests})"
+            f"planned live observations ({planned_observations}) exceed the hard limit "
+            f"({MAX_LIVE_REQUESTS})"
         )
+    if config.max_requests is None:
+        raise ValueError("live execution requires an explicit max_requests attempt budget")
+    if planned_observations > config.max_requests:
+        raise ValueError(
+            f"planned live observations ({planned_observations}) exceed max_requests "
+            f"({config.max_requests})"
+        )
+    schedule = _schedule(config)
+    request_budget = _LiveRequestBudget(config.max_requests)
+    rate_limit_budget = _LiveRateLimitBudget(config.max_rate_limit_events)
     adapter = build_adapter(
         config.adapter,
         base_dir=config_dir,
-        require_resolvable_endpoint_hosts=require_resolvable_endpoint_hosts,
         trust=trust,
     )
     configuration_digest = _configuration_digest(compiled, config)
     protocol_digest = sha256_hexdigest(protocol)
-    spent = Decimal("0")
-    total_tokens_spent = 0
-    generated_tokens_spent = 0
+    committed_cost = Decimal("0")
+    committed_total_tokens = 0
+    committed_generated_tokens = 0
     cost_budget = Decimal(config.max_total_cost_usd) if config.max_total_cost_usd else None
     max_observation_cost = Decimal(config.max_cost_per_observation_usd)
+    attempt_cost_reservation = (
+        max_observation_cost if config.adapter.allow_network else Decimal("0")
+    )
     last_request_started: float | None = None
     token_window_started: float | None = None
     tokens_window_reserved = 0
     stop_reasons: set[str] = set()
+    terminal_stop_reason: str | None = None
     runs: list[AgentRunRecord] = []
     emergency_records: list[EmergencyProcessRecord] = []
     for schedule_index, prompt_case, repetition_index in schedule:
@@ -92,7 +156,56 @@ def run_live_suite(
             repetition_index,
         )
         trace_context = trace_context_for_seed(observation_id)
-        if cost_budget is not None and spent + max_observation_cost > cost_budget:
+        if terminal_stop_reason is not None:
+            accounting_unavailable = terminal_stop_reason in {
+                "cost_accounting_unavailable",
+                "token_accounting_unavailable",
+            }
+            runs.append(
+                _error_record(
+                    compiled,
+                    config,
+                    prompt_case,
+                    repetition_index,
+                    schedule_index,
+                    configuration_digest,
+                    "live_budget_accounting_unavailable"
+                    if accounting_unavailable
+                    else "live_execution_stopped",
+                    "budget accounting became unavailable after an earlier response"
+                    if accounting_unavailable
+                    else "live execution stopped after an earlier terminal policy event",
+                    cluster_by=protocol.cluster_by,
+                    exclusion_reason=(
+                        "budget_accounting_unavailable"
+                        if accounting_unavailable
+                        else "terminal_policy_stop"
+                    ),
+                    trace_context=trace_context,
+                    reason_code=ReasonCode.POLICY_FAILED,
+                )
+            )
+            continue
+        if request_budget.exhausted:
+            stop_reasons.add("request_budget_exhausted")
+            runs.append(
+                _error_record(
+                    compiled,
+                    config,
+                    prompt_case,
+                    repetition_index,
+                    schedule_index,
+                    configuration_digest,
+                    "live_request_budget_exhausted",
+                    "configured max_requests attempt budget was exhausted",
+                    cluster_by=protocol.cluster_by,
+                    exclusion_reason="budget_exhausted",
+                    trace_context=trace_context,
+                    reason_code=ReasonCode.POLICY_FAILED,
+                )
+            )
+            continue
+        if cost_budget is not None and committed_cost + max_observation_cost > cost_budget:
             stop_reasons.add("budget_exhausted")
             runs.append(
                 _error_record(
@@ -110,7 +223,10 @@ def run_live_suite(
                 )
             )
             continue
-        if config.max_total_tokens is not None and total_tokens_spent >= config.max_total_tokens:
+        if (
+            config.max_total_tokens is not None
+            and committed_total_tokens >= config.max_total_tokens
+        ):
             stop_reasons.add("token_budget_exhausted")
             runs.append(
                 _error_record(
@@ -131,7 +247,7 @@ def run_live_suite(
         if (
             config.max_generated_tokens is not None
             and config.adapter.max_output_tokens is not None
-            and generated_tokens_spent + config.adapter.max_output_tokens
+            and committed_generated_tokens + config.adapter.max_output_tokens
             > config.max_generated_tokens
         ):
             stop_reasons.add("generated_token_budget_exhausted")
@@ -165,29 +281,144 @@ def run_live_suite(
             tracestate=trace_context.tracestate,
         )
         token_reservation = _token_reservation(prompt, config)
-        token_window_started, tokens_window_reserved = _pace_request(
-            config,
-            last_request_started,
-            token_window_started,
-            tokens_window_reserved,
-            token_reservation,
+        generated_token_reservation = (
+            (config.adapter.max_output_tokens or 0)
+            if config.adapter.allow_network
+            else 0
         )
-        last_request_started = time.perf_counter()
+        total_token_reservation = (
+            _prompt_token_upper_bound(prompt) + generated_token_reservation
+            if config.adapter.allow_network
+            else 0
+        )
+        observation_committed_cost = Decimal("0")
+        observation_committed_generated_tokens = 0
+        observation_committed_total_tokens = 0
+
+        def pace_attempt(
+            reserved_tokens: int = token_reservation,
+            generated_reservation: int = generated_token_reservation,
+            total_reservation: int = total_token_reservation,
+        ) -> None:
+            nonlocal committed_cost, committed_generated_tokens, committed_total_tokens
+            nonlocal last_request_started, observation_committed_cost
+            nonlocal observation_committed_generated_tokens
+            nonlocal observation_committed_total_tokens
+            nonlocal token_window_started, tokens_window_reserved
+            if (
+                cost_budget is not None
+                and committed_cost + attempt_cost_reservation > cost_budget
+            ):
+                raise LiveBudgetExceededError(
+                    "cost_budget_exhausted_before_attempt",
+                    "configured live cost budget cannot reserve another adapter attempt",
+                )
+            if (
+                config.max_generated_tokens is not None
+                and committed_generated_tokens + generated_reservation
+                > config.max_generated_tokens
+            ):
+                raise LiveBudgetExceededError(
+                    "generated_token_budget_exhausted_before_attempt",
+                    "configured generated-token budget cannot reserve another adapter attempt",
+                )
+            if (
+                config.max_total_tokens is not None
+                and committed_total_tokens + total_reservation
+                > config.max_total_tokens
+            ):
+                raise LiveBudgetExceededError(
+                    "token_budget_exhausted_before_attempt",
+                    "configured total-token budget cannot reserve another adapter attempt",
+                )
+            token_window_started, tokens_window_reserved = _pace_request(
+                config,
+                last_request_started,
+                token_window_started,
+                tokens_window_reserved,
+                reserved_tokens,
+            )
+            # A failed or timed-out network request may still be billable. Reserve
+            # the declared per-observation ceiling for every dispatched attempt;
+            # ambiguous failed-attempt reservations are never released.
+            committed_cost += attempt_cost_reservation
+            observation_committed_cost += attempt_cost_reservation
+            committed_generated_tokens += generated_reservation
+            observation_committed_generated_tokens += generated_reservation
+            committed_total_tokens += total_reservation
+            observation_committed_total_tokens += total_reservation
+            last_request_started = time.perf_counter()
+
         started = _utc_now()
         start = time.perf_counter()
         response: LiveProviderResponse | None = None
-        attempt_count = 0
-        retry_count = 0
-        rate_limit_events = 0
+        attempt_state = _LiveAttemptState()
         try:
-            response, attempt_count, retry_count, rate_limit_events = _complete_with_retries(
+            response = _complete_with_retries(
                 adapter,
                 request,
                 config,
+                request_budget=request_budget,
+                rate_limit_budget=rate_limit_budget,
+                attempt_state=attempt_state,
+                before_attempt=pace_attempt,
             )
             latency_ms = monotonic_ms(start)
             completed = _utc_now()
+            response_total_tokens = _response_total_tokens(response)
+            response_cost = Decimal(response.estimated_cost_usd)
+            if not (
+                config.adapter.allow_network
+                and response.estimated_cost_source == "not_reported"
+            ):
+                committed_cost += response_cost - attempt_cost_reservation
+                observation_committed_cost += response_cost - attempt_cost_reservation
+            if response.completion_tokens is not None:
+                committed_generated_tokens += (
+                    response.completion_tokens - generated_token_reservation
+                )
+                observation_committed_generated_tokens += (
+                    response.completion_tokens - generated_token_reservation
+                )
+            if response_total_tokens is not None:
+                committed_total_tokens += response_total_tokens - total_token_reservation
+                observation_committed_total_tokens += (
+                    response_total_tokens - total_token_reservation
+                )
+            if (
+                observation_committed_total_tokens
+                < observation_committed_generated_tokens
+            ):
+                commitment_gap = (
+                    observation_committed_generated_tokens
+                    - observation_committed_total_tokens
+                )
+                committed_total_tokens += commitment_gap
+                observation_committed_total_tokens += commitment_gap
+            if response_total_tokens is not None and response_total_tokens > token_reservation:
+                tokens_window_reserved += response_total_tokens - token_reservation
             _verify_response_budgets(response, config)
+            if cost_budget is not None and committed_cost > cost_budget:
+                raise LiveBudgetExceededError(
+                    "cost_budget_exceeded_after_response",
+                    "configured total live cost budget was exceeded after response",
+                )
+            if (
+                config.max_generated_tokens is not None
+                and committed_generated_tokens > config.max_generated_tokens
+            ):
+                raise LiveBudgetExceededError(
+                    "generated_token_budget_exceeded_after_response",
+                    "configured generated-token budget was exceeded after response",
+                )
+            if (
+                config.max_total_tokens is not None
+                and committed_total_tokens > config.max_total_tokens
+            ):
+                raise LiveBudgetExceededError(
+                    "token_budget_exceeded_after_response",
+                    "configured total-token budget was exceeded after response",
+                )
             record = _record_from_response(
                 compiled,
                 config,
@@ -197,39 +428,38 @@ def run_live_suite(
                 configuration_digest,
                 response,
                 prompt_digest=prompt_digest,
+                cost_budget_committed_usd=observation_committed_cost,
+                generated_token_budget_committed=(
+                    observation_committed_generated_tokens
+                ),
+                total_token_budget_committed=observation_committed_total_tokens,
                 cluster_by=protocol.cluster_by,
-                attempt_count=attempt_count,
-                retry_count=retry_count,
-                rate_limit_events=rate_limit_events,
+                attempt_count=attempt_state.attempt_count,
+                retry_count=attempt_state.retry_count,
+                rate_limit_events=attempt_state.rate_limit_events,
                 started_at_utc=started,
                 completed_at_utc=completed,
                 latency_ms=latency_ms,
                 trace_context=trace_context,
             )
-            spent += Decimal(record.estimated_cost_usd or "0.000000")
-            total_tokens_spent += record.total_tokens or 0
-            generated_tokens_spent += record.completion_tokens or 0
-            if record.total_tokens is not None and record.total_tokens > token_reservation:
-                tokens_window_reserved += record.total_tokens - token_reservation
-            if (
-                config.max_generated_tokens is not None
-                and generated_tokens_spent > config.max_generated_tokens
-            ):
-                raise LiveBudgetExceededError(
-                    "generated_token_budget_exceeded_after_response",
-                    "configured generated-token budget was exceeded after response",
-                )
-            if config.max_total_tokens is not None and total_tokens_spent > config.max_total_tokens:
-                raise LiveBudgetExceededError(
-                    "token_budget_exceeded_after_response",
-                    "configured total-token budget was exceeded after response",
-                )
         except Exception as exc:
             emergency = emergency_from_exception(exc)
             if emergency is not None:
                 emergency_records.append(emergency)
             if isinstance(exc, LiveBudgetExceededError):
                 stop_reasons.add(exc.stop_reason)
+                if exc.stop_reason in {
+                    "cost_accounting_unavailable",
+                    "token_accounting_unavailable",
+                    "cost_budget_exhausted_before_attempt",
+                    "cost_budget_exceeded_after_response",
+                    "generated_token_budget_exhausted_before_attempt",
+                    "generated_token_budget_exceeded_after_response",
+                    "rate_limit_budget_exhausted",
+                    "token_budget_exhausted_before_attempt",
+                    "token_budget_exceeded_after_response",
+                }:
+                    terminal_stop_reason = exc.stop_reason
             reason_code = (
                 ReasonCode.STRUCTURED_OUTPUT_INVALID
                 if isinstance(exc, LiveOutputContractError)
@@ -240,6 +470,10 @@ def run_live_suite(
             category = (
                 "live_structured_output_invalid"
                 if isinstance(exc, LiveOutputContractError)
+                else "live_budget_accounting_unavailable"
+                if isinstance(exc, LiveBudgetExceededError)
+                and exc.stop_reason
+                in {"cost_accounting_unavailable", "token_accounting_unavailable"}
                 else "live_budget_exceeded_after_response"
                 if isinstance(exc, LiveBudgetExceededError)
                 else "live_adapter_error"
@@ -257,14 +491,19 @@ def run_live_suite(
                 str(exc),
                 cluster_by=protocol.cluster_by,
                 prompt_digest=prompt_digest,
-                attempt_count=max(attempt_count, 1),
-                retry_count=retry_count,
-                rate_limit_events=rate_limit_events,
+                attempt_count=attempt_state.attempt_count or None,
+                retry_count=attempt_state.retry_count,
+                rate_limit_events=attempt_state.rate_limit_events,
                 started_at_utc=started,
                 completed_at_utc=completed,
                 latency_ms=latency_ms,
                 trace_context=trace_context,
                 response=response,
+                cost_budget_committed_usd=observation_committed_cost,
+                generated_token_budget_committed=(
+                    observation_committed_generated_tokens
+                ),
+                total_token_budget_committed=observation_committed_total_tokens,
                 reason_code=reason_code,
                 exc=exc,
             )
@@ -298,6 +537,9 @@ def _record_from_response(
     response: LiveProviderResponse,
     prompt_digest: str,
     *,
+    cost_budget_committed_usd: Decimal,
+    generated_token_budget_committed: int,
+    total_token_budget_committed: int,
     cluster_by: str,
     attempt_count: int,
     retry_count: int,
@@ -360,6 +602,9 @@ def _record_from_response(
             "total_tokens": total_tokens,
             "estimated_cost_usd": response.estimated_cost_usd,
             "estimated_cost_source": response.estimated_cost_source,
+            "cost_budget_committed_usd": _cost_string(cost_budget_committed_usd),
+            "generated_token_budget_committed": generated_token_budget_committed,
+            "total_token_budget_committed": total_token_budget_committed,
             "tools": payload.tools,
             "evidence_refs": payload.evidence_refs,
             "evidence_items": payload.evidence_items,
@@ -399,6 +644,9 @@ def _error_record(
     latency_ms: int | None = None,
     trace_context: RuntimeTraceContext | None = None,
     response: LiveProviderResponse | None = None,
+    cost_budget_committed_usd: Decimal = Decimal("0"),
+    generated_token_budget_committed: int = 0,
+    total_token_budget_committed: int = 0,
     reason_code: ReasonCode = ReasonCode.RUNTIME_FAILED,
     exc: Exception | None = None,
 ) -> AgentRunRecord:
@@ -426,8 +674,7 @@ def _error_record(
         outcome="excluded" if exclusion_reason else "runtime_error",
         input_summary=redact_text(prompt_case.input_summary),
         output_summary=(
-            f"live observation failed; code={safe.code}; "
-            f"debug_ref={safe.local_debug_reference}"
+            f"live observation failed; code={safe.code}; debug_ref={safe.local_debug_reference}"
         ),
         observation_status="excluded" if exclusion_reason else "included",
         observation_id=_observation_id(
@@ -469,6 +716,9 @@ def _error_record(
         total_tokens=_response_total_tokens(response) if response else None,
         estimated_cost_usd=response.estimated_cost_usd if response else "0.000000",
         estimated_cost_source=response.estimated_cost_source if response else "not_reported",
+        cost_budget_committed_usd=_cost_string(cost_budget_committed_usd),
+        generated_token_budget_committed=generated_token_budget_committed,
+        total_token_budget_committed=total_token_budget_committed,
         policy_results=(
             PolicyResult(
                 artifact_kind="policy-result",
@@ -497,9 +747,13 @@ def _error_record(
 def _response_total_tokens(response: LiveProviderResponse) -> int | None:
     if response.total_tokens is not None:
         return response.total_tokens
-    if response.prompt_tokens is None and response.completion_tokens is None:
+    if response.prompt_tokens is None or response.completion_tokens is None:
         return None
-    return (response.prompt_tokens or 0) + (response.completion_tokens or 0)
+    return response.prompt_tokens + response.completion_tokens
+
+
+def _cost_string(value: Decimal) -> str:
+    return f"{value:.6f}"
 
 
 def _validate_cases(compiled: CompiledSuite, config: LiveRunConfig) -> None:
@@ -578,6 +832,26 @@ def _validate_protocol_config(
         raise ValueError("tokens_per_minute requires adapter max_output_tokens")
     if protocol.max_generated_tokens is not None and config.adapter.max_output_tokens is None:
         raise ValueError("max_generated_tokens requires adapter max_output_tokens")
+    if config.adapter.adapter_id == "openai-chat-completions" and (
+        config.adapter.cost_per_1k_prompt_tokens_usd is None
+        or config.adapter.cost_per_1k_completion_tokens_usd is None
+    ):
+        raise ValueError(
+            "openai-chat-completions requires prompt and completion pricing rates "
+            "to enforce the declared cost ceilings"
+        )
+    if config.adapter.allow_network and config.adapter.max_output_tokens is None:
+        raise ValueError(
+            "network live execution requires adapter max_output_tokens so the "
+            "per-attempt cost ceiling is bounded"
+        )
+    if (
+        config.adapter.allow_network
+        and Decimal(config.max_cost_per_observation_usd) <= Decimal("0")
+    ):
+        raise ValueError(
+            "network live execution requires a positive max_cost_per_observation_usd"
+        )
     if (
         protocol.max_generated_tokens is not None
         and config.adapter.max_output_tokens is not None
@@ -586,44 +860,60 @@ def _validate_protocol_config(
         raise ValueError("adapter max_output_tokens exceeds protocol max_generated_tokens")
 
 
-def _schedule(config: LiveRunConfig) -> list[tuple[int, LivePromptCase, int]]:
+def _planned_observation_count(config: LiveRunConfig) -> int:
+    return len(config.cases) * config.repetitions
+
+
+def _schedule(config: LiveRunConfig) -> Iterator[tuple[int, LivePromptCase, int]]:
     rng = random.Random(config.randomization_seed)
-    schedule: list[tuple[int, LivePromptCase, int]] = []
     schedule_index = 0
     for repetition_index in range(config.repetitions):
         block = list(config.cases)
         rng.shuffle(block)
         for prompt_case in block:
-            schedule.append((schedule_index, prompt_case, repetition_index))
+            yield schedule_index, prompt_case, repetition_index
             schedule_index += 1
-    return schedule
 
 
 def _complete_with_retries(
     adapter: LiveProviderAdapter,
     request: LiveProviderRequest,
     config: LiveRunConfig,
-) -> tuple[LiveProviderResponse, int, int, int]:
-    retry_count = 0
-    rate_limit_events = 0
+    *,
+    request_budget: _LiveRequestBudget,
+    rate_limit_budget: _LiveRateLimitBudget,
+    attempt_state: _LiveAttemptState,
+    before_attempt: Callable[[], None],
+) -> LiveProviderResponse:
     max_attempts = config.max_retries + 1
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
+        before_attempt()
+        request_budget.consume()
+        attempt_state.attempt_count += 1
         try:
             response = adapter.complete(request)
             if not isinstance(response, LiveProviderResponse):
                 raise TypeError("live adapter returned an invalid response object")
-            return response, attempt, retry_count, rate_limit_events
+            return LiveProviderResponse.model_validate(response.model_dump(mode="python"))
         except Exception as exc:
             last_exc = exc
             if _is_rate_limit_error(exc):
-                rate_limit_events += 1
-                if rate_limit_events > config.max_rate_limit_events:
-                    break
+                attempt_state.rate_limit_events += 1
+                rate_limit_budget.record()
             if attempt >= max_attempts:
                 break
-            retry_count += 1
-            _sleep_before_retry(config, retry_count, _retry_after_seconds(exc))
+            if request_budget.exhausted:
+                raise LiveBudgetExceededError(
+                    "request_budget_exhausted",
+                    "configured max_requests was exhausted before a retry",
+                ) from exc
+            attempt_state.retry_count += 1
+            _sleep_before_retry(
+                config,
+                attempt_state.retry_count,
+                _retry_after_seconds(exc),
+            )
     if last_exc is None:
         raise RuntimeError("live adapter failed without an exception")
     raise last_exc
@@ -636,7 +926,11 @@ def _sleep_before_retry(
 ) -> None:
     initial = Decimal(config.retry_initial_backoff_seconds)
     maximum = Decimal(config.retry_max_backoff_seconds)
+    if maximum > MAX_LIVE_RETRY_BACKOFF_SECONDS:
+        raise RuntimeError("configured retry backoff exceeds the hard safety limit")
     if retry_after_seconds is not None:
+        if retry_after_seconds < 0:
+            raise RuntimeError("provider Retry-After must not be negative")
         if retry_after_seconds > maximum:
             raise RuntimeError("provider Retry-After exceeds configured retry_max_backoff_seconds")
         seconds = retry_after_seconds
@@ -648,17 +942,21 @@ def _sleep_before_retry(
 
 def _retry_after_seconds(exc: Exception) -> Decimal | None:
     value = getattr(exc, "retry_after_seconds", None)
-    if value is not None:
-        return Decimal(str(value))
-    headers = getattr(exc, "headers", None)
-    if headers is not None:
+    if value is None:
+        headers = getattr(exc, "headers", None)
+        if headers is None:
+            return None
         raw = headers.get("Retry-After")
-        if raw is not None:
-            try:
-                return Decimal(str(raw))
-            except Exception:
-                return None
-    return None
+        if raw is None:
+            return None
+        value = raw
+    text = str(value)
+    if len(text) > 32:
+        raise RuntimeError("provider Retry-After value exceeds the supported length")
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError) as parse_error:
+        raise RuntimeError("provider Retry-After value is not a decimal delay") from parse_error
 
 
 def _pace_request(
@@ -694,11 +992,35 @@ def _token_reservation(prompt: str, config: LiveRunConfig) -> int:
     output_tokens = config.adapter.max_output_tokens
     if output_tokens is None:
         raise ValueError("tokens_per_minute requires adapter max_output_tokens")
-    # Prompt characters deliberately overestimate prompt tokens for conservative TPM pacing.
-    return len(prompt) + output_tokens
+    return _prompt_token_upper_bound(prompt) + output_tokens
+
+
+def _prompt_token_upper_bound(prompt: str) -> int:
+    # Byte-fallback tokenizers cannot emit more ordinary-text tokens than the
+    # UTF-8 byte length. Bytes are conservative where Unicode character count is not.
+    return len(prompt.encode("utf-8"))
 
 
 def _verify_response_budgets(response: LiveProviderResponse, config: LiveRunConfig) -> None:
+    if (
+        config.adapter.allow_network
+        and response.estimated_cost_source == "not_reported"
+    ):
+        raise LiveBudgetExceededError(
+            "cost_accounting_unavailable",
+            "provider response omitted usage required to enforce cost ceilings",
+        )
+    response_total_tokens = _response_total_tokens(response)
+    if config.max_total_tokens is not None and response_total_tokens is None:
+        raise LiveBudgetExceededError(
+            "token_accounting_unavailable",
+            "provider response omitted usage required to enforce max_total_tokens",
+        )
+    if config.max_generated_tokens is not None and response.completion_tokens is None:
+        raise LiveBudgetExceededError(
+            "token_accounting_unavailable",
+            "provider response omitted usage required to enforce max_generated_tokens",
+        )
     if Decimal(response.estimated_cost_usd) > Decimal(config.max_cost_per_observation_usd):
         raise LiveBudgetExceededError(
             "cost_budget_exceeded_after_response",
@@ -706,8 +1028,8 @@ def _verify_response_budgets(response: LiveProviderResponse, config: LiveRunConf
         )
     if (
         config.max_total_tokens is not None
-        and response.total_tokens is not None
-        and response.total_tokens > config.max_total_tokens
+        and response_total_tokens is not None
+        and response_total_tokens > config.max_total_tokens
     ):
         raise LiveBudgetExceededError(
             "token_budget_exceeded_after_response",

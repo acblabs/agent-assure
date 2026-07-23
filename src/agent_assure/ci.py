@@ -6,6 +6,7 @@ from datetime import date
 from pathlib import Path
 from typing import Literal
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.compare.runsets import ComparisonReport, InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
@@ -346,7 +347,7 @@ def write_diagnostics(
 ) -> None:
     payload = decision.model_dump()
     payload["report_paths"] = [str(report_path) for report_path in report_paths]
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
 
 
 def _decision_for_state(

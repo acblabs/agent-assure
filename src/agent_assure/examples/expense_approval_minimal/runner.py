@@ -60,5 +60,9 @@ def run_expense_case(
 
 def _input_summary(case: SuiteCase, fixtures: LoadedFixtures, context: RunnerContext) -> str:
     employee_id = fixtures.request.get("employee_id")
-    employee_token = hmac_sha256_token(str(employee_id or case.case_id), key=context.hmac_key)[:32]
+    employee_token = hmac_sha256_token(
+        str(employee_id or case.case_id),
+        key=context.hmac_key,
+        context="agent-assure/expense-approval/employee-token/v1",
+    )[:32]
     return f"case={case.case_id}; employee_token={employee_token}; fixture={fixtures.fixture_id}"

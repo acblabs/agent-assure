@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.resolver import FixtureResolver
 from agent_assure.io_limits import (
@@ -39,10 +40,9 @@ def load_fixture_manifest(path: Path) -> FixtureManifest:
 
 def write_fixture_manifest(manifest: FixtureManifest, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 

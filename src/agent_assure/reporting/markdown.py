@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
@@ -101,7 +102,7 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
 def write_evaluation_markdown(report: EvaluationReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "evaluation-report.md"
-    path.write_text(render_evaluation_markdown(report), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_evaluation_markdown(report))
     return path
 
 
@@ -230,7 +231,7 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
 def write_comparison_markdown(report: ComparisonReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "comparison-report.md"
-    path.write_text(render_comparison_markdown(report), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_comparison_markdown(report))
     return path
 
 

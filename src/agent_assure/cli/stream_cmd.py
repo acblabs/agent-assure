@@ -9,6 +9,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
@@ -223,9 +224,4 @@ def _write_release_manifest(
 
 
 def _write_json(path: Path, payload: object) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import ctypes
 import json
 import os
 import re
+import signal
 import subprocess
 import tempfile
 import threading
@@ -10,7 +12,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import BinaryIO, Literal
+from typing import Any, BinaryIO, Literal
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -26,7 +28,11 @@ from agent_assure.schema.runtime import EmergencyProcessRecord
 FailureKind = Literal["spawn_failed", "timeout", "nonzero_exit", "invalid_output"]
 MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES = 1_048_576
 MAX_EMERGENCY_SUMMARY_SOURCE_CHARS = 500
+OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS = 0.5
+PROCESS_TERMINATION_GRACE_SECONDS = 1.0
 _REDACTION_MASK_RUN = re.compile(f"{re.escape(REDACTION_MASK_CHARACTER)}+")
+_WINDOWS_JOBS: dict[int, int] = {}
+_WINDOWS_JOBS_LOCK = threading.Lock()
 
 
 class ExternalScriptError(RuntimeError):
@@ -72,6 +78,7 @@ class _ProcessOutputCapture:
         self.limit_exceeded = False
         self._lock = threading.Lock()
         self._threads: list[threading.Thread] = []
+        self._finalized = False
 
     def start(self) -> None:
         for stream_name, pipe in (
@@ -101,14 +108,31 @@ class _ProcessOutputCapture:
                 and not self.limit_exceeded
             ):
                 self.limit_exceeded = True
-                try:
-                    self.process.kill()
-                except OSError:
-                    pass
+                _terminate_process_tree(self.process)
 
-    def join(self) -> None:
+    def join(self, *, timeout_seconds: float) -> bool:
+        deadline = time.monotonic() + timeout_seconds
         for thread in self._threads:
-            thread.join()
+            thread.join(max(0.0, deadline - time.monotonic()))
+        return not any(thread.is_alive() for thread in self._threads)
+
+    def finalize(self) -> None:
+        if self._finalized:
+            return
+        # Never wait indefinitely for EOF: an escaped descendant may retain an
+        # inherited pipe handle. The daemon readers can finish later without
+        # holding the caller past this deadline.
+        self.join(timeout_seconds=OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS)
+        self._finalized = True
+
+    def snapshot(self) -> tuple[bytes, int, bytes, int]:
+        with self._lock:
+            return (
+                bytes(self.stdout_sample),
+                self.stdout_bytes,
+                bytes(self.stderr_sample),
+                self.stderr_bytes,
+            )
 
 
 def _capture_process_output(process: subprocess.Popen[bytes]) -> _ProcessOutputCapture:
@@ -128,8 +152,13 @@ def _read_process_stream(
             if not chunk:
                 return
             capture.add(stream_name, chunk)
+    except (OSError, ValueError):
+        return
     finally:
-        pipe.close()
+        try:
+            pipe.close()
+        except (OSError, ValueError):
+            pass
 
 
 def _append_sample(sample: bytearray, chunk: bytes) -> None:
@@ -143,11 +172,12 @@ def _collected_output(
 ) -> tuple[str, int, str, int]:
     if capture is None:
         return "", 0, "", 0
+    stdout_sample, stdout_bytes, stderr_sample, stderr_bytes = capture.snapshot()
     return (
-        _decode_sample(capture.stdout_sample),
-        capture.stdout_bytes,
-        _decode_sample(capture.stderr_sample),
-        capture.stderr_bytes,
+        _decode_sample(stdout_sample),
+        stdout_bytes,
+        _decode_sample(stderr_sample),
+        stderr_bytes,
     )
 
 
@@ -177,15 +207,22 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
+                **_process_group_options(),
             )
+            if not _attach_windows_kill_on_close_job(process):
+                _terminate_process_tree(process)
+                _wait_for_terminated_process(process)
+                raise OSError(
+                    "external script could not be placed in a kill-on-close process job"
+                )
             capture = _capture_process_output(process)
             returncode = process.wait(timeout=invocation.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
             if process is not None:
-                process.kill()
-                process.wait()
+                _terminate_process_tree(process)
+                _wait_for_terminated_process(process)
             if capture is not None:
-                capture.join()
+                capture.finalize()
             duration_ms = _duration_ms(started)
             completed_at_utc = _utc_now()
             stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
@@ -216,8 +253,10 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             )
             raise ExternalScriptError("external script could not be started", emergency) from exc
         finally:
+            if process is not None:
+                _release_process_tree(process)
             if capture is not None:
-                capture.join()
+                capture.finalize()
         stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
     duration_ms = _duration_ms(started)
     completed_at_utc = _utc_now()
@@ -373,7 +412,7 @@ def _summary(value: str | None, *, source_truncated: bool = False) -> str | None
     return _REDACTION_MASK_RUN.sub(REDACTION, source_prefix)[:MAX_EMERGENCY_SUMMARY_SOURCE_CHARS]
 
 
-def _decode_sample(sample: bytearray) -> str:
+def _decode_sample(sample: bytes | bytearray) -> str:
     return bytes(sample[:MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES]).decode(
         "utf-8",
         errors="replace",
@@ -398,3 +437,185 @@ def _emergency_id(invocation: ExternalScriptInvocation, failure_kind: FailureKin
     digest = command_digest(invocation.argv, invocation.cwd)
     key = f"{failure_kind}:{invocation.observation_id}:{digest}"
     return f"emergency-{uuid5(AGENT_ASSURE_NAMESPACE, key)}"
+
+
+def _process_group_options() -> dict[str, Any]:
+    if os.name == "nt":
+        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+    return {"start_new_session": True}
+
+
+def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
+    if os.name == "nt":
+        if not _terminate_windows_job(process.pid):
+            _terminate_windows_process_tree(process.pid)
+    else:
+        _kill_posix_process_group(process.pid)
+    if process.poll() is None:
+        try:
+            process.kill()
+        except OSError:
+            pass
+
+
+def _release_process_tree(process: subprocess.Popen[bytes]) -> None:
+    if os.name == "nt":
+        _close_windows_job(process.pid)
+        return
+    # External adapters are synchronous. Do not allow a successfully exited
+    # adapter parent to leave descendants running or holding capture pipes.
+    _kill_posix_process_group(process.pid)
+
+
+def _kill_posix_process_group(pid: int) -> None:
+    killpg_name = "killpg"
+    sigkill_name = "SIGKILL"
+    killpg = getattr(os, killpg_name, None)
+    sigkill = getattr(signal, sigkill_name, None)
+    if killpg is None or sigkill is None:
+        return
+    try:
+        killpg(pid, sigkill)
+    except OSError:
+        pass
+
+
+def _attach_windows_kill_on_close_job(process: subprocess.Popen[bytes]) -> bool:
+    if os.name != "nt":
+        return True
+    process_handle = getattr(process, "_handle", None)
+    if process_handle is None:
+        return False
+    kernel32 = _windows_kernel32()
+    job = kernel32.CreateJobObjectW(None, None)
+    if not job:
+        return False
+    info = _WindowsJobObjectExtendedLimitInformation()
+    info.BasicLimitInformation.LimitFlags = 0x00002000  # JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+    configured = kernel32.SetInformationJobObject(
+        job,
+        9,  # JobObjectExtendedLimitInformation
+        ctypes.byref(info),
+        ctypes.sizeof(info),
+    )
+    assigned = configured and kernel32.AssignProcessToJobObject(
+        job,
+        ctypes.c_void_p(int(process_handle)),
+    )
+    if not assigned:
+        kernel32.CloseHandle(job)
+        return False
+    with _WINDOWS_JOBS_LOCK:
+        _WINDOWS_JOBS[process.pid] = int(job)
+    return True
+
+
+def _terminate_windows_job(pid: int) -> bool:
+    handle = _pop_windows_job(pid)
+    if handle is None:
+        return False
+    kernel32 = _windows_kernel32()
+    try:
+        kernel32.TerminateJobObject(ctypes.c_void_p(handle), 1)
+    finally:
+        kernel32.CloseHandle(ctypes.c_void_p(handle))
+    return True
+
+
+def _close_windows_job(pid: int) -> None:
+    handle = _pop_windows_job(pid)
+    if handle is not None:
+        _windows_kernel32().CloseHandle(ctypes.c_void_p(handle))
+
+
+def _pop_windows_job(pid: int) -> int | None:
+    with _WINDOWS_JOBS_LOCK:
+        return _WINDOWS_JOBS.pop(pid, None)
+
+
+def _windows_kernel32() -> Any:
+    kernel32 = ctypes.windll.kernel32
+    kernel32.CreateJobObjectW.argtypes = (ctypes.c_void_p, ctypes.c_wchar_p)
+    kernel32.CreateJobObjectW.restype = ctypes.c_void_p
+    kernel32.SetInformationJobObject.argtypes = (
+        ctypes.c_void_p,
+        ctypes.c_int,
+        ctypes.c_void_p,
+        ctypes.c_uint32,
+    )
+    kernel32.SetInformationJobObject.restype = ctypes.c_int
+    kernel32.AssignProcessToJobObject.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
+    kernel32.AssignProcessToJobObject.restype = ctypes.c_int
+    kernel32.TerminateJobObject.argtypes = (ctypes.c_void_p, ctypes.c_uint32)
+    kernel32.TerminateJobObject.restype = ctypes.c_int
+    kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
+    kernel32.CloseHandle.restype = ctypes.c_int
+    return kernel32
+
+
+class _WindowsJobObjectBasicLimitInformation(ctypes.Structure):
+    _fields_ = (
+        ("PerProcessUserTimeLimit", ctypes.c_longlong),
+        ("PerJobUserTimeLimit", ctypes.c_longlong),
+        ("LimitFlags", ctypes.c_uint32),
+        ("MinimumWorkingSetSize", ctypes.c_size_t),
+        ("MaximumWorkingSetSize", ctypes.c_size_t),
+        ("ActiveProcessLimit", ctypes.c_uint32),
+        ("Affinity", ctypes.c_size_t),
+        ("PriorityClass", ctypes.c_uint32),
+        ("SchedulingClass", ctypes.c_uint32),
+    )
+
+
+class _WindowsIoCounters(ctypes.Structure):
+    _fields_ = (
+        ("ReadOperationCount", ctypes.c_ulonglong),
+        ("WriteOperationCount", ctypes.c_ulonglong),
+        ("OtherOperationCount", ctypes.c_ulonglong),
+        ("ReadTransferCount", ctypes.c_ulonglong),
+        ("WriteTransferCount", ctypes.c_ulonglong),
+        ("OtherTransferCount", ctypes.c_ulonglong),
+    )
+
+
+class _WindowsJobObjectExtendedLimitInformation(ctypes.Structure):
+    _fields_ = (
+        ("BasicLimitInformation", _WindowsJobObjectBasicLimitInformation),
+        ("IoInfo", _WindowsIoCounters),
+        ("ProcessMemoryLimit", ctypes.c_size_t),
+        ("JobMemoryLimit", ctypes.c_size_t),
+        ("PeakProcessMemoryUsed", ctypes.c_size_t),
+        ("PeakJobMemoryUsed", ctypes.c_size_t),
+    )
+
+
+def _terminate_windows_process_tree(pid: int) -> None:
+    system_root = Path(os.environ.get("SystemRoot", r"C:\Windows"))
+    taskkill = system_root / "System32" / "taskkill.exe"
+    if not taskkill.is_file():
+        return
+    try:
+        subprocess.run(
+            [str(taskkill), "/PID", str(pid), "/T", "/F"],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=PROCESS_TERMINATION_GRACE_SECONDS,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+
+
+def _wait_for_terminated_process(process: subprocess.Popen[bytes]) -> None:
+    try:
+        process.wait(timeout=PROCESS_TERMINATION_GRACE_SECONDS)
+    except subprocess.TimeoutExpired:
+        try:
+            process.kill()
+        except OSError:
+            pass
+        try:
+            process.wait(timeout=PROCESS_TERMINATION_GRACE_SECONDS)
+        except subprocess.TimeoutExpired:
+            pass

@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import Field
 from pydantic.functional_validators import field_validator
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.canonical.hmac_tokens import MIN_HMAC_KEY_BYTES
@@ -65,25 +66,25 @@ _BUNDLED_SYNTHETIC_SUITE_IDENTITIES = {
     # mutable package resources at runtime. Updating a bundled example requires
     # an explicit review and update of its identity here.
     "expense-approval-minimal": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="6f3c7ffb120407335e309c08f7e4ab90f790e7ddabd0a33eff66a0cca854486c",
-        fixture_manifest_digest="4ef579a221182d1bb0c0381499f52055b143a3835a7ce9648343dbf5ddf9e56b",
+        compiled_suite_digest="520f599fe4c7689d29f43dd459b0533775ada696f89ebf3117a1d6ad20b3a90c",
+        fixture_manifest_digest="023315a41f8be15f874423d5c4f9c922dc5828011ca5ccd1f69f4160eac7cc5a",
         allowed_runner_ids=frozenset({"expense_approval.minimal"}),
     ),
     "prior-auth-synthetic": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="32bb447bb8a9551d624e8afeca640d585277bb53f80f39d2a8b4d78738d43c6d",
-        fixture_manifest_digest="6bab362f96eba3b0189f08a3ec78e71f1a9aef02797d54332baf6b418e7f1e36",
+        compiled_suite_digest="2666c31420431af9a1f4fbcc61ca379888fcc0d579357f76743745cd2fd18884",
+        fixture_manifest_digest="eabdf861f88b34cd532e29bc4127083e0dc9c72b7d91f54a1afe07a98e8f79fa",
         allowed_runner_ids=frozenset(
             {"prior_auth.synthetic", "prior_auth.synthetic_evidence_refactor"}
         ),
     ),
     "prior-auth-synthetic-rag": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="5f8b811233e15e1966201e6af0f510ab21f37c6d50f0271d5ad638e58debde94",
-        fixture_manifest_digest="a547c2acef76674f6128f44d0d06cbf2ad622790e27de0d8ad803f04b1961b88",
+        compiled_suite_digest="e67fb50b3d6405aae59f6d7fa9193c26f13b31c2b80229bf3054b37e2dfc45fc",
+        fixture_manifest_digest="f1947cfd73264bc8f59ebdd47c25153c1a41999e8a744c00ff4124df19110e23",
         allowed_runner_ids=frozenset({"prior_auth.synthetic_rag"}),
     ),
     "process-measurement-cases": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="2f251b3c74605850705862b6a688abb7d033119c39d37e9932df520115e3b9a1",
-        fixture_manifest_digest="3c01aa9feb7095d79988ba7b3dd1f5774c84d74870d467fe5a206dac3f49e129",
+        compiled_suite_digest="3ed53a917685c78885a6f7f76dd5ff5ba6f75ea6e47496d4edfcdb016ba87bc1",
+        fixture_manifest_digest="ab7bf58c7e18355785495bdbfb9797495bb51e2e52a4d26f176f658939f30fd7",
         allowed_runner_ids=frozenset({"process_measurement.synthetic"}),
     ),
 }
@@ -315,10 +316,9 @@ def write_runset(runset: RunSet, path: Path) -> None:
     payload = redact_runset_payload(runset.model_dump(mode="json"))
     assert_runset_payload_safe_for_persistence(payload)
     RunSet.model_validate(payload)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 

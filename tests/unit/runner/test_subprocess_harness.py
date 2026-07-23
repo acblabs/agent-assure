@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import json
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -13,7 +15,11 @@ from agent_assure.live.adapters import (
 )
 from agent_assure.live.config import LiveAdapterConfig
 from agent_assure.runner import subprocess_harness
-from agent_assure.runner.subprocess_harness import ExternalScriptError
+from agent_assure.runner.subprocess_harness import (
+    ExternalScriptError,
+    ExternalScriptInvocation,
+    run_external_script,
+)
 from agent_assure.telemetry.context import trace_context_for_seed
 
 
@@ -310,3 +316,117 @@ def test_external_script_stderr_summary_does_not_pull_clipped_secret_across_limi
     emergency = raised.value.emergency_record
     assert emergency.stderr_bytes > limit
     assert emergency.stderr_summary is None
+
+
+def test_external_script_timeout_terminates_descendant_process_tree(tmp_path: Path) -> None:
+    marker = tmp_path / "descendant-survived.txt"
+    script = tmp_path / "spawn_descendant.py"
+    child_code = (
+        "import pathlib,time; "
+        "time.sleep(2); "
+        f"pathlib.Path({str(marker)!r}).write_text('survived', encoding='utf-8')"
+    )
+    script.write_text(
+        "import subprocess,sys,time\n"
+        f"child = subprocess.Popen([sys.executable, '-c', {child_code!r}])\n"
+        "print(child.pid, flush=True)\n"
+        "time.sleep(60)\n",
+        encoding="utf-8",
+    )
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=1,
+        request_payload={},
+        observation_id="obs-tree-timeout",
+        run_id="run-tree-timeout",
+        case_id="case-tree-timeout",
+        adapter_id="external-script",
+    )
+    started = time.monotonic()
+
+    with pytest.raises(ExternalScriptError, match="timed out") as raised:
+        run_external_script(invocation)
+
+    assert time.monotonic() - started < 4
+    assert raised.value.emergency_record.stdout_bytes > 0
+    time.sleep(2)
+    assert not marker.exists()
+
+
+def test_external_script_fails_closed_when_tree_containment_is_unavailable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = tmp_path / "wait.py"
+    script.write_text("import time\ntime.sleep(60)\n", encoding="utf-8")
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=10,
+        request_payload={},
+        observation_id="obs-tree-setup",
+        run_id="run-tree-setup",
+        case_id="case-tree-setup",
+        adapter_id="external-script",
+    )
+    terminated: list[int] = []
+    terminate = subprocess_harness._terminate_process_tree
+
+    monkeypatch.setattr(
+        subprocess_harness,
+        "_attach_windows_kill_on_close_job",
+        lambda process: False,
+    )
+
+    def record_termination(process: object) -> None:
+        terminated.append(process.pid)  # type: ignore[attr-defined]
+        terminate(process)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(subprocess_harness, "_terminate_process_tree", record_termination)
+
+    with pytest.raises(ExternalScriptError, match="could not be started") as raised:
+        run_external_script(invocation)
+
+    assert terminated
+    assert raised.value.emergency_record.failure_kind == "spawn_failed"
+
+
+def test_output_limit_uses_process_tree_termination(monkeypatch: pytest.MonkeyPatch) -> None:
+    class FakeProcess:
+        stdout = None
+        stderr = None
+
+    terminated: list[object] = []
+    fake_process = FakeProcess()
+    monkeypatch.setattr(subprocess_harness, "MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES", 4)
+    monkeypatch.setattr(
+        subprocess_harness,
+        "_terminate_process_tree",
+        lambda process: terminated.append(process),
+    )
+    capture = subprocess_harness._ProcessOutputCapture(fake_process)  # type: ignore[arg-type]
+
+    capture.add("stdout", b"12345")
+
+    assert terminated == [fake_process]
+
+
+def test_output_capture_finalize_never_joins_reader_without_a_deadline() -> None:
+    class FakeProcess:
+        stdout = None
+        stderr = None
+
+    release_reader = threading.Event()
+    reader = threading.Thread(target=release_reader.wait, daemon=True)
+    capture = subprocess_harness._ProcessOutputCapture(FakeProcess())  # type: ignore[arg-type]
+    capture._threads.append(reader)
+    reader.start()
+    started = time.monotonic()
+
+    capture.finalize()
+
+    assert time.monotonic() - started < 1
+    assert reader.is_alive()
+    release_reader.set()
+    reader.join(timeout=1)

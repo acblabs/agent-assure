@@ -4,8 +4,8 @@ Status: accepted
 
 ## Context
 
-Sprint 7 adds RAG provenance assurance without destabilizing the existing
-flagship prior-authorization demo. The existing `shared-source-multi-claim`
+The RAG provenance example adds assurance coverage without destabilizing the
+existing flagship prior-authorization demo. The existing `shared-source-multi-claim`
 case already demonstrates a missing material claim link, but its fixture path is
 not a retrieval-shaped example.
 
@@ -17,7 +17,7 @@ Use a RAG-specific suite inside the existing `prior_auth_synthetic` example:
 - `examples/prior_auth_synthetic/fixtures/rag/`
 - `examples/prior_auth_synthetic/variants/rag_*.yaml`
 
-Sprint 8 extends that fixture tree with
+The counterfactual-query extension adds
 `fixtures/rag/counterfactual_query_families.json`. The family JSON declares
 authored query variants and RAG-specific source-ID requirements while inheriting
 case-level decision, required-ref, and material-claim expectations from

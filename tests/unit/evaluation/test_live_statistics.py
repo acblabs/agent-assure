@@ -790,6 +790,29 @@ def test_live_statistics_rejects_cumulative_total_token_budget_violation() -> No
         evaluate_live_runset(compiled, runset, protocol=protocol)
 
 
+def test_live_record_rejects_understated_budget_commitments() -> None:
+    with pytest.raises(ValueError, match="commitment cannot be below estimated cost"):
+        _record(
+            repetition_index=0,
+            linked=True,
+            cost="1.000000",
+            cost_budget_committed="0.500000",
+        )
+
+    with pytest.raises(
+        ValueError,
+        match="generated-token budget commitment cannot be below completion_tokens",
+    ):
+        _record(
+            repetition_index=0,
+            linked=True,
+            completion_tokens=10,
+            total_tokens=10,
+            generated_token_budget_committed=5,
+            total_token_budget_committed=10,
+        )
+
+
 def test_live_comparison_reports_pass_rate_difference() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
@@ -1971,6 +1994,9 @@ def _record(
     linked: bool,
     latency_ms: int = 100,
     cost: str = "0.000000",
+    cost_budget_committed: str | None = None,
+    generated_token_budget_committed: int | None = None,
+    total_token_budget_committed: int | None = None,
     exclusion_reason: str | None = None,
     cluster_id: str = "exp-001",
     started_at_utc: str | None = None,
@@ -2029,6 +2055,20 @@ def _record(
             "total_tokens": total_tokens,
             "estimated_cost_usd": cost,
             "estimated_cost_source": "adapter_reported",
+            "cost_budget_committed_usd": cost_budget_committed or cost,
+            "generated_token_budget_committed": (
+                completion_tokens
+                if generated_token_budget_committed is None and completion_tokens is not None
+                else generated_token_budget_committed or 0
+            ),
+            "total_token_budget_committed": (
+                total_tokens
+                if total_token_budget_committed is None and total_tokens is not None
+                else total_token_budget_committed
+                or generated_token_budget_committed
+                or completion_tokens
+                or 0
+            ),
             "tools": ["expense_policy_check", "receipt_check"],
             "evidence_refs": [
                 {

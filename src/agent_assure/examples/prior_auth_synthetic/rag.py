@@ -584,7 +584,7 @@ def load_counterfactual_query_families(
 ) -> tuple[CounterfactualQueryFamily, ...]:
     """Load fixture-authored metamorphic RAG query families.
 
-    The Sprint 8 fixture keeps case-level decision and material-claim
+    The bundled fixture keeps case-level decision and material-claim
     expectations single-sourced in ``rag_suite.yaml`` whenever ``compiled_suite``
     is supplied; family JSON should only declare the RAG-specific query variants
     and source-ID requirements.

@@ -18,6 +18,14 @@ Changing any manifest entry changes the digest; changing detector behavior
 also requires an intentional profile-ID version decision. The digest is a
 reproducibility and compatibility anchor, not a signature or attestation.
 
+Each scalar privacy scan is capped at 16,384 characters. A longer scalar is
+treated as sensitive and redacted in full instead of being evaluated by the
+backtracking regular-expression engine. Semantics-preserving literal guards
+also skip detectors whose mandatory marker is absent. Mapping keys are scanned
+as well as values; sensitive-looking or control-character-bearing keys fail
+closed at persistence and telemetry boundaries rather than becoming attribute
+names.
+
 Evaluation fails closed when a current-schema RunSet declares a detector
 profile different from the runtime profile. Baseline/candidate comparison
 requires both RunSets to declare the identical runtime-implemented profile;
@@ -49,6 +57,9 @@ IDs, provider/model version labels, pricing labels, evidence identifiers,
 script names, or debug references contain sensitive-looking values. This keeps
 schema-owned identifiers stable when they are clean, but prevents sensitive
 content from surviving solely because a field is structurally preserved.
+Run `started_at_utc` and `completed_at_utc` values are also bounded,
+calendar-valid RFC 3339 strings and remain subject to fail-closed sensitive
+content scanning even though clean timestamp structure is preserved.
 Evaluation similarly scans persisted run-record strings and emits
 verdict-bearing redaction findings for sensitive-looking content. Raw
 sensitive-looking values are still allowed at model construction so evaluation
@@ -83,6 +94,39 @@ sensitive identifiers.
 Current reports surface usage summaries and limitations; any future renderer
 that displays segment labels directly should pass them through the standard
 redaction path.
+
+OpenTelemetry export is a separate final egress boundary. It recursively scans
+precomputed span plans and externally supplied RunSets immediately before SDK
+initialization, validates W3C `traceparent` and `tracestate`, and caps span,
+event, attribute, key, and value cardinality. String values and canonical
+decimal integer representations are scanned both independently and together
+with their attribute keys, preventing numeric identifiers or split label/value
+pairs from bypassing context-sensitive detectors. Authentication headers must
+be loaded from an environment variable or protected file; secret values are
+not accepted directly in process arguments. The OTLP transport ignores ambient
+proxy, SDK header, credential-provider, and client-certificate settings and
+does not follow redirects. SDK resource attributes, propagator selection,
+sampling, span limits, and OTLP compression are project-pinned rather than
+inherited from the process environment. Plans without an explicit trace carrier
+start from an empty root context, and export, flush, or shutdown failures prevent
+a successful result.
+
+## Assurance Mutation Boundary
+
+Assurance mutation starts from a validated, privacy-filtered RunSet and changes
+only paths owned by that schema. The ordinary result persists source and
+transformed digests, exact changed paths, reason codes, bounded finding
+summaries, operator identity, provenance, independence class, and limitations.
+It binds the selected expected finding target and each observed finding target
+with domain-separated digests rather than copying their target strings. It does
+not copy raw prompts, completions, messages, tool arguments, tool results, token
+chunks, credentials, or unredacted summaries into the result.
+
+The transformed RunSet remains subject to the normal recursive redaction,
+privacy-profile binding, and fail-closed sensitive-field checks. Clearly
+labeled synthetic fixtures may carry synthetic content for reproducibility;
+that exception does not permit caller content to bypass ordinary persistence
+rules.
 
 RunSet persistence and packet/report projection intentionally apply different
 policies to usage provenance IDs. RunSets preserve clean schema-owned usage IDs

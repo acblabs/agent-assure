@@ -4,6 +4,7 @@ from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset, runset_digest
@@ -48,6 +49,17 @@ def test_baseline_evaluation_passes_with_not_evaluated_capabilities_separate() -
         capability.state is GateState.not_evaluated
         for capability in report.not_evaluated_capabilities
     )
+
+
+def test_v06_evaluation_report_binds_exact_runset_content() -> None:
+    compiled, runset = _runset(BASELINE)
+    report = evaluate_runset(compiled, runset)
+
+    assert report.runset_digest == runset_digest(runset)
+    payload = report.model_dump(mode="json")
+    payload.pop("runset_digest")
+    with pytest.raises(ValidationError, match="requires runset_digest"):
+        EvaluationReport.model_validate(payload)
 
 
 def test_evidence_candidate_fails_material_claim_invariant() -> None:

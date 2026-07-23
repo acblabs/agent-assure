@@ -22,12 +22,38 @@ This scope does not establish safety assurance, prove regulatory compliance,
 validate clinical workflows, assess provider quality, or provide production
 PHI de-identification.
 
+## Assurance Mutation Boundary
+
+A single-operator result covers one exact source digest, operator version,
+implementation digest, seed, expected-detection contract, and configured
+control set. `caught` means the required target-control finding and gate effect
+were observed. `survived` means an applicable, valid transformation did not
+satisfy that detector contract. `inapplicable`, invalid, and execution-error
+states remain separate.
+
+The three built-in operators are authored after the controls they challenge,
+so their independence class is `first_party_postcontrol`. They are useful
+deterministic checks, but they can share assumptions with the target controls
+and are weaker independence evidence than an external pre-existing or
+third-party-contributed challenge.
+
+These authored transformations are not a random sample of production failures.
+Their results do not estimate failure prevalence or the probability that a
+release is safe. The initial command applies one operator at a time; it does
+not compose transformations, discover new ones, or claim catalog completeness.
+
 Live stochastic work requires an explicit run configuration and a matching
 machine-readable protocol record. Reports support declared pass-rate,
 outcome-rate, reason-code, exclusion-rate, cost, and latency analyses with
 cluster/effective-sample metadata, completion status, stop reasons, and
 tool-schema/policy-bundle provenance checks; they are not general model-quality
 claims.
+Network retries reserve the declared per-attempt ceiling conservatively, and
+ambiguous failed attempts retain that commitment, but agent-assure cannot prove
+what a provider ultimately bills. Use provider-side spend caps when invoice-level
+enforcement is required. Token commitments use prompt UTF-8 bytes plus the
+declared output cap; undisclosed provider-added prompt tokens remain an external
+billing uncertainty.
 
 ## Measurement Boundary
 
@@ -167,9 +193,9 @@ HTTP stack is not pinned to a screened address.
 Optional OpenTelemetry export is a projection from persisted, privacy-filtered
 span plans. OTLP HTTP export requires an explicit HTTPS endpoint and an explicit
 allowed endpoint host; ambient SDK endpoint defaults are not used, and DNS
-safety screening fails closed by default. It is useful for correlation, but it
-is not live SDK instrumentation of adapter HTTP calls or external subprocess
-execution.
+safety screening is mandatory and always rejects unresolved hosts. It is useful
+for correlation, but it is not live SDK instrumentation of adapter HTTP calls
+or external subprocess execution.
 Catastrophic host termination, production workload isolation, and distributed
 tracing beyond the local W3C context propagated by the live runner remain out
 of scope.

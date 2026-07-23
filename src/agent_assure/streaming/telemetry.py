@@ -3,9 +3,13 @@ from __future__ import annotations
 from collections import defaultdict
 
 from agent_assure.schema.stream import StreamEventRecord, StreamRunRecord
-from agent_assure.schema.telemetry import SpanAttribute, SpanEvent, SpanPlan
+from agent_assure.schema.telemetry import MAX_OTEL_EVENTS, SpanAttribute, SpanEvent, SpanPlan
 from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
-from agent_assure.telemetry.privacy_filter import safe_attribute
+from agent_assure.telemetry.privacy_filter import (
+    safe_attribute,
+    safe_attribute_key_segment,
+    safe_otel_name,
+)
 from agent_assure.telemetry.semconv_lock import SEMCONV_CHECKSUM, SEMCONV_COMMIT
 
 
@@ -24,17 +28,23 @@ def _span_plan_for_run(
     run_id: str,
     events: tuple[StreamEventRecord, ...],
 ) -> SpanPlan:
+    if len(events) > MAX_OTEL_EVENTS:
+        raise ValueError(
+            f"stream run exceeds OpenTelemetry event limit of {MAX_OTEL_EVENTS} per span"
+        )
     attrs: dict[str, str | int | bool] = {
         "agent_assure.operation.name": "stream_ingestion",
         "agent_assure.schema_version": stream_run.schema_version,
-        "agent_assure.stream.id": stream_run.stream_id,
-        "agent_assure.stream.run_id": run_id,
+        "agent_assure.stream.id": safe_attribute(stream_run.stream_id),
+        "agent_assure.stream.run_id": safe_attribute(run_id),
         "agent_assure.stream.event_count": len(events),
         "agent_assure.stream.sequence_scope": stream_run.sequence_contract.scope,
         "agent_assure.stream.duplicate_event_count": stream_run.duplicate_event_count,
     }
     if stream_run.sequence_contract.producer_field is not None:
-        attrs["agent_assure.stream.producer_field"] = stream_run.sequence_contract.producer_field
+        attrs["agent_assure.stream.producer_field"] = safe_attribute(
+            stream_run.sequence_contract.producer_field
+        )
     trace_context = _trace_context(run_id, events)
     return SpanPlan(
         artifact_kind="span-plan",
@@ -67,10 +77,11 @@ def _event_to_span_event(event: StreamEventRecord) -> SpanEvent:
     if segment is not None:
         _usage_attrs(attrs, segment)
     for key, value in sorted(event.privacy_filtered_attributes.items()):
-        attrs[f"agent_assure.stream.attr.{key}"] = safe_attribute(value)
+        safe_key = safe_attribute_key_segment(key)
+        attrs[f"agent_assure.stream.attr.{safe_key}"] = safe_attribute(value)
     return SpanEvent(
         artifact_kind="span-event",
-        name=f"agent_assure.stream.{safe_attribute(event.event_type)}",
+        name=safe_otel_name(event.event_type, prefix="agent_assure.stream."),
         attributes=tuple(_attribute(key, attrs[key]) for key in sorted(attrs)),
     )
 

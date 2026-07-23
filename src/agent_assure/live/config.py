@@ -6,10 +6,10 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any
+from typing import Any, Self
 
 from pydantic import Field
-from pydantic.functional_validators import field_validator
+from pydantic.functional_validators import field_validator, model_validator
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.io_limits import (
@@ -31,6 +31,11 @@ DISALLOWED_ENDPOINT_HOSTNAMES = frozenset(
     }
 )
 DISALLOWED_ENDPOINT_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"),)
+MAX_LIVE_CASES = 10_000
+MAX_LIVE_REPETITIONS = 100_000
+MAX_LIVE_REQUESTS = 100_000
+MAX_LIVE_RETRIES = 10
+MAX_LIVE_RETRY_BACKOFF_SECONDS = Decimal("300.000000")
 
 
 @dataclass(frozen=True)
@@ -112,6 +117,18 @@ class LiveAdapterConfig(StrictModel):
             normalized.append(cleaned)
         return tuple(normalized)
 
+    @model_validator(mode="after")
+    def _validate_pricing_rates(self) -> Self:
+        rates = (
+            self.cost_per_1k_prompt_tokens_usd,
+            self.cost_per_1k_completion_tokens_usd,
+        )
+        if sum(rate is not None for rate in rates) == 1:
+            raise ValueError(
+                "prompt and completion pricing rates must be configured together"
+            )
+        return self
+
 
 class LivePromptCase(StrictModel):
     case_id: str = Field(min_length=1)
@@ -126,15 +143,15 @@ class LiveRunConfig(StrictModel):
     tool_schema_digest: DigestHex
     policy_bundle_digest: DigestHex
     adapter: LiveAdapterConfig
-    cases: tuple[LivePromptCase, ...]
-    repetitions: int = Field(default=1, ge=1)
+    cases: tuple[LivePromptCase, ...] = Field(min_length=1, max_length=MAX_LIVE_CASES)
+    repetitions: int = Field(default=1, ge=1, le=MAX_LIVE_REPETITIONS)
     randomization_seed: int = Field(default=0, ge=0)
-    max_requests: int | None = Field(default=None, ge=1)
+    max_requests: int | None = Field(default=None, ge=1, le=MAX_LIVE_REQUESTS)
     max_total_cost_usd: str | None = Field(default=None, pattern=USD_PATTERN)
     max_cost_per_observation_usd: str = Field(default="0.000000", pattern=USD_PATTERN)
     max_generated_tokens: int | None = Field(default=None, ge=1)
     max_total_tokens: int | None = Field(default=None, ge=1)
-    max_retries: int = Field(default=2, ge=0)
+    max_retries: int = Field(default=2, ge=0, le=MAX_LIVE_RETRIES)
     retry_initial_backoff_seconds: str = Field(default="1.000000", pattern=DECIMAL_PATTERN)
     retry_max_backoff_seconds: str = Field(default="8.000000", pattern=DECIMAL_PATTERN)
     requests_per_minute: int | None = Field(default=None, ge=1)
@@ -148,6 +165,32 @@ class LiveRunConfig(StrictModel):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_planned_request_bounds(self) -> Self:
+        planned_observations = len(self.cases) * self.repetitions
+        if planned_observations > MAX_LIVE_REQUESTS:
+            raise ValueError(
+                f"planned live observations ({planned_observations}) exceed the hard limit "
+                f"({MAX_LIVE_REQUESTS})"
+            )
+        if self.max_requests is not None and planned_observations > self.max_requests:
+            raise ValueError(
+                f"planned live observations ({planned_observations}) exceed max_requests "
+                f"({self.max_requests})"
+            )
+        initial_backoff = Decimal(self.retry_initial_backoff_seconds)
+        maximum_backoff = Decimal(self.retry_max_backoff_seconds)
+        if maximum_backoff > MAX_LIVE_RETRY_BACKOFF_SECONDS:
+            raise ValueError(
+                "retry_max_backoff_seconds exceeds the hard limit of "
+                f"{MAX_LIVE_RETRY_BACKOFF_SECONDS} seconds"
+            )
+        if initial_backoff > maximum_backoff:
+            raise ValueError(
+                "retry_initial_backoff_seconds must not exceed retry_max_backoff_seconds"
+            )
+        return self
 
 
 def load_live_run_config(path: Path) -> LiveRunConfig:
@@ -190,14 +233,6 @@ def is_disallowed_endpoint_host(host: str) -> bool:
     )
 
 
-def has_disallowed_resolved_address(
-    host: str,
-    *,
-    resolver: EndpointResolver | None = None,
-) -> bool:
-    return resolve_endpoint_host(host, resolver=resolver).has_disallowed_address
-
-
 def resolve_endpoint_host(
     host: str,
     *,
@@ -217,25 +252,30 @@ def resolve_endpoint_host(
     addresses: list[str] = []
     for result in results:
         try:
-            address = result[4][0]
-        except (IndexError, TypeError):
+            address = ipaddress.ip_address(str(result[4][0]))
+        except (IndexError, TypeError, ValueError):
             continue
         addresses.append(str(address))
-    return EndpointResolutionStatus(host=normalized, addresses=tuple(sorted(set(addresses))))
+    unique_addresses = tuple(sorted(set(addresses)))
+    if not unique_addresses:
+        return EndpointResolutionStatus(
+            host=normalized,
+            addresses=(),
+            resolution_failed=True,
+            error="resolver returned no usable IP addresses",
+        )
+    return EndpointResolutionStatus(host=normalized, addresses=unique_addresses)
 
 
 def assert_endpoint_resolution_allowed(
     host: str,
     *,
     label: str,
-    require_resolution: bool,
     resolver: EndpointResolver | None = None,
 ) -> None:
     status = resolve_endpoint_host(host, resolver=resolver)
     if status.resolution_failed:
-        if require_resolution:
-            raise ValueError(f"{label} endpoint host could not be resolved for safety screening")
-        return
+        raise ValueError(f"{label} endpoint host could not be resolved for safety screening")
     if status.has_disallowed_address:
         raise ValueError(
             f"{label} endpoint host resolves to localhost, private, link-local, "

@@ -95,6 +95,9 @@ def run(
         ),
     ] = False,
 ) -> None:
+    # Kept as a no-op compatibility flag: endpoint DNS screening is now
+    # mandatory for endpoint-bound network adapters and cannot be disabled.
+    del strict_endpoint_resolution
     try:
         compiled = load_compiled_suite(compiled_suite)
         live_config = load_live_run_config(config)
@@ -112,10 +115,6 @@ def run(
             live_config,
             protocol=protocol_record,
             config_dir=config.parent,
-            require_resolvable_endpoint_hosts=_require_resolvable_endpoint_hosts(
-                live_config,
-                strict_endpoint_resolution=strict_endpoint_resolution,
-            ),
             trust=trust,
         )
         write_runset(runset, out)
@@ -176,15 +175,6 @@ def _trusted_live_execution_for_risks(
         allow_external_script="external-script" in risk_ids,
         allow_script_env="script-env" in risk_ids,
     )
-
-
-def _require_resolvable_endpoint_hosts(
-    config: object,
-    *,
-    strict_endpoint_resolution: bool,
-) -> bool:
-    adapter = getattr(config, "adapter", None)
-    return strict_endpoint_resolution or bool(getattr(adapter, "allow_network", False))
 
 
 def _trusted_live_config_risks(config: object) -> tuple[tuple[str, str, str], ...]:

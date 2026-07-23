@@ -6,7 +6,7 @@ import platform
 from importlib import metadata
 from pathlib import Path
 
-from agent_assure.artifact_io import file_sha256, git_output
+from agent_assure.artifact_io import file_sha256, git_output, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
@@ -50,7 +50,6 @@ def collect_environment(
 
 
 def write_dependency_inventory(environment: EnvironmentInfo, path: Path) -> str:
-    path.parent.mkdir(parents=True, exist_ok=True)
     payload = {
         "artifact_kind": "dependency-inventory",
         "format": "agent-assure-dependency-inventory-v0.1",
@@ -68,7 +67,7 @@ def write_dependency_inventory(environment: EnvironmentInfo, path: Path) -> str:
             for package in environment.installed_packages
         ],
     }
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return file_sha256(path)
 
 
@@ -173,6 +172,7 @@ def build_release_manifest(
     environment: EnvironmentInfo,
     manifest_id: str | None = None,
 ) -> ReleaseArtifactManifest:
+    _require_unique_release_artifacts(artifacts)
     payload = {
         "artifacts": [artifact.model_dump(mode="json") for artifact in artifacts],
         "environment": environment.model_dump(mode="json"),
@@ -185,12 +185,22 @@ def build_release_manifest(
     )
 
 
+def _require_unique_release_artifacts(artifacts: tuple[ReleaseArtifact, ...]) -> None:
+    seen_roles: set[str] = set()
+    seen_paths: set[str] = set()
+    for artifact in artifacts:
+        if artifact.role in seen_roles:
+            raise ValueError(f"duplicate release artifact role: {artifact.role}")
+        if artifact.path in seen_paths:
+            raise ValueError(f"duplicate release artifact path: {artifact.path}")
+        seen_roles.add(artifact.role)
+        seen_paths.add(artifact.path)
+
+
 def write_release_manifest(manifest: ReleaseArtifactManifest, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 
@@ -216,7 +226,7 @@ def _package_name(dist: metadata.Distribution) -> str:
 
 
 def _git_dirty(project_root: Path) -> bool | None:
-    output = git_output(project_root, "status", "--porcelain")
+    output = git_output(project_root, "status", "--porcelain", allow_empty=True)
     if output is None:
         return None
     return bool(output)

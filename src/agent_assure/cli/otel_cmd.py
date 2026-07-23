@@ -1,25 +1,32 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Annotated, Literal, cast
 
 import typer
 from rich.console import Console
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     load_json_bounded,
+    read_text_bounded,
 )
+from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
 from agent_assure.schema.run import AgentRunRecord, RunSet
-from agent_assure.schema.telemetry import SpanPlan
+from agent_assure.schema.telemetry import MAX_OTEL_SPANS_PER_EXPORT, SpanPlan
 from agent_assure.telemetry.otel_mapping import run_record_to_span_plan
 from agent_assure.telemetry.otel_sdk import (
+    MAX_OTEL_HEADER_VALUE_CHARS,
+    OpenTelemetryExportError,
     OpenTelemetryUnavailable,
     OTelExportConfig,
     OTelHeader,
     emit_span_plans,
 )
+from agent_assure.telemetry.privacy_filter import assert_span_plan_safe_for_export
 
 app = typer.Typer(help="OpenTelemetry-aligned preview utilities.")
 console = Console()
@@ -49,8 +56,7 @@ def preview(
     if out is None:
         console.print(payload)
         return
-    out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(payload, encoding="utf-8", newline="\n")
+    write_text_atomic(out, payload)
     console.print(f"span plan: {out}")
 
 
@@ -82,10 +88,32 @@ def export(
     ] = 10,
     header: Annotated[
         list[str] | None,
-        typer.Option("--header", help="OTLP HTTP header as name=value."),
+        typer.Option(
+            "--header",
+            help="Disabled: use --header-env or --header-file so secrets do not enter argv.",
+        ),
+    ] = None,
+    header_env: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--header-env",
+            help="OTLP header as NAME=ENV_VAR; reads the value from the process environment.",
+        ),
+    ] = None,
+    header_file: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--header-file",
+            help="OTLP header as NAME=PATH; reads a bounded value from a protected file.",
+        ),
     ] = None,
 ) -> None:
     try:
+        if header:
+            raise ValueError(
+                "--header is disabled because it exposes secrets in process arguments; "
+                "use --header-env NAME=ENV_VAR or --header-file NAME=PATH"
+            )
         plans = _span_plans_from_path(path)
         config = OTelExportConfig(
             protocol=_parse_protocol(protocol),
@@ -93,10 +121,10 @@ def export(
             allowed_endpoint_hosts=tuple(allowed_endpoint_host or ()),
             service_name=service_name,
             timeout_seconds=timeout_seconds,
-            headers=_parse_headers(header or []),
+            headers=_load_headers(header_env or [], header_file or []),
         )
         result = emit_span_plans(plans, config)
-    except OpenTelemetryUnavailable as exc:
+    except (OpenTelemetryExportError, OpenTelemetryUnavailable) as exc:
         raise typer.BadParameter(str(exc)) from exc
     except (TypeError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -113,25 +141,51 @@ def _span_plans_from_path(path: Path) -> tuple[SpanPlan, ...]:
         raise ValueError("OTel export input must be a JSON object")
     artifact_kind = payload.get("artifact_kind")
     if artifact_kind == "agent-run-record":
+        assert_runset_payload_safe_for_persistence(payload)
         return (run_record_to_span_plan(AgentRunRecord.model_validate(payload)),)
     if artifact_kind == "run-set":
+        assert_runset_payload_safe_for_persistence(payload)
         runset = RunSet.model_validate(payload)
+        if len(runset.runs) > MAX_OTEL_SPANS_PER_EXPORT:
+            raise ValueError(
+                f"RunSet exceeds OpenTelemetry span limit of {MAX_OTEL_SPANS_PER_EXPORT}"
+            )
         return tuple(run_record_to_span_plan(record) for record in runset.runs)
     if artifact_kind == "span-plan":
-        return (SpanPlan.model_validate(payload),)
+        plan = SpanPlan.model_validate(payload)
+        assert_span_plan_safe_for_export(plan)
+        return (plan,)
     raise ValueError(
         "OTel export input artifact_kind must be agent-run-record, run-set, or span-plan"
     )
 
 
-def _parse_headers(values: list[str]) -> tuple[OTelHeader, ...]:
+def _load_headers(
+    environment_references: list[str],
+    file_references: list[str],
+) -> tuple[OTelHeader, ...]:
     headers: list[OTelHeader] = []
-    for value in values:
-        name, separator, header_value = value.partition("=")
-        if not separator or not name or not header_value:
-            raise ValueError("OTLP headers must use name=value syntax")
-        headers.append(OTelHeader(name=name, value=header_value))
+    for reference in environment_references:
+        name, variable_name = _parse_header_reference(reference, source="environment")
+        if variable_name not in os.environ:
+            raise ValueError(f"OTLP header environment variable is not set: {variable_name}")
+        headers.append(OTelHeader(name=name, value=os.environ[variable_name]))
+    for reference in file_references:
+        name, path_text = _parse_header_reference(reference, source="file")
+        value = read_text_bounded(
+            Path(path_text),
+            max_bytes=MAX_OTEL_HEADER_VALUE_CHARS,
+            label="OTLP header file",
+        ).rstrip("\r\n")
+        headers.append(OTelHeader(name=name, value=value))
     return tuple(headers)
+
+
+def _parse_header_reference(value: str, *, source: str) -> tuple[str, str]:
+    name, separator, reference = value.partition("=")
+    if not separator or not name or not reference:
+        raise ValueError(f"OTLP header {source} references must use NAME=REFERENCE syntax")
+    return name, reference
 
 
 def _parse_protocol(value: str) -> OTelProtocol:

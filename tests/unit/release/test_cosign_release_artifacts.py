@@ -15,6 +15,7 @@ def test_release_artifacts_include_fixed_files_and_distributions(tmp_path: Path)
     dist.mkdir()
     for path in (
         reports / "evidence-packet.json",
+        reports / "evidence-packet.md",
         reports / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",
@@ -29,6 +30,7 @@ def test_release_artifacts_include_fixed_files_and_distributions(tmp_path: Path)
     assert dist / "agent_assure-0.3.0.tar.gz.bundle" not in artifacts
     assert artifacts == (
         reports / "evidence-packet.json",
+        reports / "evidence-packet.md",
         reports / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",
@@ -50,6 +52,33 @@ def test_release_artifacts_reports_missing_required_file(tmp_path: Path) -> None
         raise AssertionError("expected missing artifacts to fail")
 
 
+def test_release_artifacts_reject_unexpected_distribution_file(tmp_path: Path) -> None:
+    release_dir = tmp_path / "release"
+    reports = release_dir / "reports"
+    dist = release_dir / "dist"
+    reports.mkdir(parents=True)
+    dist.mkdir()
+    for path in (
+        reports / "evidence-packet.json",
+        reports / "evidence-packet.md",
+        reports / "release-artifact-manifest.json",
+        release_dir / "release-digest-replay.json",
+        release_dir / "sbom.cdx.json",
+        dist / "agent_assure-0.6.0-py3-none-any.whl",
+        dist / "agent_assure-0.6.0.tar.gz",
+        dist / "unexpected.zip",
+    ):
+        path.write_text("{}\n", encoding="utf-8")
+
+    try:
+        release_artifacts(release_dir)
+    except RuntimeError as exc:
+        assert "invalid release distribution set" in str(exc)
+        assert "unexpected.zip" in str(exc)
+    else:
+        raise AssertionError("expected an extra distribution file to fail")
+
+
 def test_workflow_identity_uses_reviewed_github_shape() -> None:
     assert (
         workflow_identity(
@@ -62,28 +91,27 @@ def test_workflow_identity_uses_reviewed_github_shape() -> None:
     )
 
 
-def test_pypi_publish_verifies_signatures_before_replay() -> None:
+def test_signature_verification_is_unprivileged_and_precedes_publish() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    pypi_job = workflow[workflow.index("  pypi-publish:") :]
+    verify_job = workflow.split("  verify-signatures:\n", maxsplit=1)[1].split(
+        "  github-release:\n", maxsplit=1
+    )[0]
+    pypi_job = workflow.split("  pypi-publish:\n", maxsplit=1)[1]
 
-    signature_index = pypi_job.index(
-        "\n      - name: Verify downloaded release bundle signatures\n"
-    )
-    replay_index = pypi_job.index("\n      - name: Verify downloaded release bundle\n")
-    stage_index = pypi_job.index("\n      - name: Stage PyPI package files\n")
-
-    assert signature_index < replay_index < stage_index
-    signature_step = pypi_job[signature_index:replay_index]
-    assert "python scripts/cosign_release_artifacts.py verify" in signature_step
-    assert "--workflow-name release" in signature_step
-    assert "--workflow-path .github/workflows/release.yml" in signature_step
+    assert "id-token: write" not in verify_job
+    assert "python scripts/cosign_release_artifacts.py verify" in verify_job
+    assert "--workflow-name release" in verify_job
+    assert "--workflow-path .github/workflows/release.yml" in verify_job
+    assert "needs: [verify-signatures, github-release]" in pypi_job
 
 
 def test_release_workflow_uses_canonical_release_gate() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    build_job = workflow[: workflow.index("  pypi-publish:")]
+    build_job = workflow.split("  build:\n", maxsplit=1)[1].split(
+        "  reproduce:\n", maxsplit=1
+    )[0]
 
-    assert "\n      - run: make release-check\n" in build_job
+    assert "\n      - run: make release-check EXPECTED_RELEASE=" in build_job
     assert "\n      - run: python scripts/update_golden.py\n" in build_job
     assert "\n      - run: mypy src\n" not in build_job
 

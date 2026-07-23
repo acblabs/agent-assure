@@ -14,6 +14,7 @@ PrivacyProfileId: TypeAlias = Annotated[str, Field(min_length=1)] | SkipJsonSche
 PrivacyProfileDigest: TypeAlias = DigestHex | SkipJsonSchema[None]
 
 _PRIVACY_PROFILE_FIELDS = ("privacy_profile_id", "privacy_profile_digest")
+_PRIVACY_PROFILE_SCHEMA_VERSIONS = ("0.5.0", "0.6.0")
 
 
 def privacy_profile_json_schema_extra(
@@ -43,7 +44,9 @@ def privacy_profile_json_schema_extra(
                         {
                             "required": ["schema_version"],
                             "properties": {
-                                "schema_version": {"const": SCHEMA_VERSION}
+                                "schema_version": {
+                                    "enum": list(_PRIVACY_PROFILE_SCHEMA_VERSIONS)
+                                }
                             },
                         },
                     ]
@@ -68,7 +71,7 @@ def prepare_privacy_profile_input(value: Any, *, owner: str) -> Any:
     if not isinstance(value, Mapping):
         return value
     schema_version = value.get("schema_version", SCHEMA_VERSION)
-    if schema_version == SCHEMA_VERSION:
+    if schema_version in _PRIVACY_PROFILE_SCHEMA_VERSIONS:
         return value
     supplied = [field_name for field_name in _PRIVACY_PROFILE_FIELDS if field_name in value]
     if supplied:
@@ -88,7 +91,7 @@ def validate_privacy_profile_binding(
     *,
     owner: str,
 ) -> None:
-    if schema_version == SCHEMA_VERSION:
+    if schema_version in _PRIVACY_PROFILE_SCHEMA_VERSIONS:
         missing = [
             field_name
             for field_name, field_value in (

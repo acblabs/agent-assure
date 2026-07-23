@@ -2,19 +2,23 @@ from __future__ import annotations
 
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.run import AgentRunRecord
-from agent_assure.schema.telemetry import SpanAttribute, SpanEvent, SpanPlan
+from agent_assure.schema.telemetry import MAX_OTEL_EVENTS, SpanAttribute, SpanEvent, SpanPlan
 from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
-from agent_assure.telemetry.privacy_filter import safe_attribute
+from agent_assure.telemetry.privacy_filter import safe_attribute, safe_tracestate
 from agent_assure.telemetry.semconv_lock import SEMCONV_CHECKSUM, SEMCONV_COMMIT
 
 
 def run_record_to_span_plan(record: AgentRunRecord) -> SpanPlan:
+    if len(record.tools) > MAX_OTEL_EVENTS:
+        raise ValueError(
+            f"run record exceeds OpenTelemetry event limit of {MAX_OTEL_EVENTS} tool calls"
+        )
     attributes: dict[str, str | int | bool] = {
         "agent_assure.schema_version": record.schema_version,
         "agent_assure.operation.name": _operation_name(record),
-        "agent_assure.run_id": record.run_id,
-        "agent_assure.case_id": record.case_id,
-        "agent_assure.pipeline_id": record.pipeline_id,
+        "agent_assure.run_id": safe_attribute(record.run_id),
+        "agent_assure.case_id": safe_attribute(record.case_id),
+        "agent_assure.pipeline_id": safe_attribute(record.pipeline_id),
         "agent_assure.execution_mode": record.execution_mode.value,
         "agent_assure.recommendation": safe_attribute(record.recommendation),
         "agent_assure.outcome": safe_attribute(record.outcome),
@@ -53,7 +57,7 @@ def run_record_to_span_plan(record: AgentRunRecord) -> SpanPlan:
         for tool_name in record.tools
     )
     trace_context = (
-        RuntimeTraceContext(record.traceparent, record.tracestate)
+        RuntimeTraceContext(record.traceparent, safe_tracestate(record.tracestate))
         if record.traceparent is not None
         else trace_context_for_seed(record.run_id)
     )

@@ -473,14 +473,21 @@ available. It must not use parallelism, account rotation, or region rotation to
 bypass limits. If rate-limit failures exceed the predeclared threshold, the run
 must stop cleanly and be marked incomplete or inconclusive.
 
+The implementation caps configured retry backoff at 300 seconds and rejects a
+provider `Retry-After` value above the configured maximum. Missing, malformed,
+negative, or unbounded delay values cannot create an indefinite sleep.
+
 The default live configuration treats the first rate-limit event as fatal unless
 `max_rate_limit_events` is explicitly raised. Protocols that intend to exercise
 backoff and `Retry-After` handling must declare that allowance before execution.
 
 When a tokens-per-minute cap is declared, the live configuration must provide a
 maximum generated-token reservation. The runner paces requests using the prompt
-character count plus that reservation before each provider call, then reconciles
-the window with observed token usage when the provider reports it.
+UTF-8 byte length plus that reservation before each provider call, then
+reconciles the window with observed token usage when the provider reports it.
+The byte count is a conservative content-token bound for byte-fallback
+tokenizers; provider-added hidden prompt tokens remain outside a provable local
+billing bound.
 
 Rate-limit events are operational findings. They must be reported with redacted
 metadata and included in reliability summaries.
@@ -495,18 +502,34 @@ Every live protocol instance must define hard budgets before execution:
 - warning threshold and stop threshold;
 - policy for incomplete analysis when the budget is exhausted.
 
-Budget thresholds must be enforced mechanically. The runner must stop before
-dispatch when known budget reservations would exceed a hard limit, and must
-also reconcile cost and token usage after an accepted provider response. If a
+Budget thresholds must be enforced mechanically. For network execution, the
+runner requires `max_output_tokens` and a positive per-attempt ceiling, reserves
+that full ceiling before every initial or retry attempt, and retains the
+reservation for failed or timed-out attempts whose billing outcome is
+ambiguous. A successful accounted response replaces only its own reservation
+with the observed or locally estimated cost. The runner must stop before
+dispatch when those conservative commitments would exceed the local limit, and
+must also reconcile cost and token usage after an accepted provider response. If a
 response pushes a run over budget after reconciliation, the run must be marked
 incomplete and stop before the next observation. Budget increases are not
 allowed after any operational telemetry or interim analysis is reviewed.
+OpenAI-compatible runs require both prompt and completion pricing rates. If a
+network response lacks usage needed to estimate cost, or a response lacks usage
+needed for a declared token ceiling, accounting fails closed and no later
+provider request is dispatched.
 Reports must separate estimated cost, provider-reported cost, and cost inferred
-from token pricing tables.
+from token pricing tables. Each v0.6 live record also carries
+`cost_budget_committed_usd`, which is the amount charged against the local
+dispatch budget and can exceed observed cost after ambiguous failed attempts.
+Network attempts apply the same retain-on-ambiguity rule to generated-token and
+total-token ceilings, using `max_output_tokens` and the prompt UTF-8 byte bound;
+records persist both token commitments separately from reported usage.
 
 Cost measurements are time-bound to the provider pricing information recorded
 with the run. They are not production cost projections unless a separate
-production workload model is declared.
+production workload model is declared. The local dispatch limit is not a
+billing guarantee: provider-side spend caps and post-run invoice reconciliation
+remain necessary where a strict financial ceiling matters.
 
 ## Live-Run Ethics and Safety Limits
 

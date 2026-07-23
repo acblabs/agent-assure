@@ -4,7 +4,12 @@ import re
 from collections.abc import Iterator, Mapping
 from typing import Any
 
-from agent_assure.privacy.detectors import PRIVACY_REDACTION_TEXT, SENSITIVE_PATTERNS
+from agent_assure.privacy.detectors import (
+    MAX_PRIVACY_SCAN_CHARS,
+    PRIVACY_REDACTION_TEXT,
+    contains_sensitive_value,
+    sensitive_patterns_for,
+)
 
 REDACTION = PRIVACY_REDACTION_TEXT
 REDACTION_MASK_CHARACTER = "\u2588"
@@ -34,6 +39,8 @@ FAIL_CLOSED_RUNSET_KEYS = frozenset(
         "provider_sdk",
         "provider_region",
         "provider_response_id",
+        "started_at_utc",
+        "completed_at_utc",
         "currency",
         "cost_basis",
         "cost_basis_ids",
@@ -75,15 +82,19 @@ FAIL_CLOSED_STREAM_KEYS = FAIL_CLOSED_RUNSET_KEYS | frozenset(
 
 
 def redact_text(value: str) -> str:
+    if len(value) > MAX_PRIVACY_SCAN_CHARS:
+        return REDACTION
     redacted = value
-    for pattern in SENSITIVE_PATTERNS:
+    for pattern in sensitive_patterns_for(value):
         redacted = pattern.sub(REDACTION, redacted)
     return redacted
 
 
 def mask_sensitive_text_preserving_length(value: str) -> str:
+    if len(value) > MAX_PRIVACY_SCAN_CHARS:
+        return REDACTION_MASK_CHARACTER * len(value)
     masked = value
-    for pattern in SENSITIVE_PATTERNS:
+    for pattern in sensitive_patterns_for(value):
         masked = pattern.sub(
             lambda match: REDACTION_MASK_CHARACTER * len(match.group(0)),
             masked,
@@ -102,12 +113,21 @@ def redact_runset_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def assert_runset_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
+    _assert_mapping_keys_safe(payload, owner="runset")
     for path, key, value in _iter_string_fields(payload):
-        if key in FAIL_CLOSED_RUNSET_KEYS and _contains_sensitive_value(value):
-            raise ValueError(f"runset preserved field contains sensitive-looking content: {path}")
+        if _is_valid_structural_digest(key, value):
+            continue
+        if key in PRESERVE_RUNSET_KEYS and key not in FAIL_CLOSED_RUNSET_KEYS:
+            continue
+        if _contains_sensitive_value(value):
+            field_kind = "preserved field" if key in FAIL_CLOSED_RUNSET_KEYS else "field"
+            raise ValueError(
+                f"runset {field_kind} contains sensitive-looking content: {path}"
+            )
 
 
 def assert_stream_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
+    _assert_mapping_keys_safe(payload, owner="stream")
     for path, key, value in _iter_string_fields(payload):
         if key in FAIL_CLOSED_STREAM_KEYS and _contains_sensitive_value(value):
             raise ValueError(f"stream preserved field contains sensitive-looking content: {path}")
@@ -252,10 +272,7 @@ def redact_artifact_payload(
             return value
         return redact_text(value)
     if isinstance(value, Mapping):
-        return {
-            key: _redact_mapping_item(key, item, preserve_keys=preserve_keys)
-            for key, item in value.items()
-        }
+        return _redact_mapping(value, preserve_keys=preserve_keys)
     if isinstance(value, tuple):
         return tuple(
             redact_artifact_payload(
@@ -310,6 +327,32 @@ def _redact_mapping_item(
     )
 
 
+def _redact_mapping(
+    value: Mapping[Any, Any],
+    *,
+    preserve_keys: frozenset[str],
+) -> dict[Any, Any]:
+    redacted: dict[Any, Any] = {}
+    for key, item in value.items():
+        redacted_key = _redact_mapping_key(key)
+        if redacted_key in redacted:
+            raise ValueError("redaction would create duplicate mapping keys")
+        redacted[redacted_key] = _redact_mapping_item(
+            key,
+            item,
+            preserve_keys=preserve_keys,
+        )
+    return redacted
+
+
+def _redact_mapping_key(key: object) -> object:
+    if not isinstance(key, str):
+        return key
+    if _contains_control_character(key):
+        return REDACTION
+    return redact_text(key)
+
+
 def _is_invalid_digest_scalar(key: object, item: object) -> bool:
     return (
         isinstance(key, str)
@@ -320,7 +363,33 @@ def _is_invalid_digest_scalar(key: object, item: object) -> bool:
 
 
 def _contains_sensitive_value(value: str) -> bool:
-    return any(pattern.search(value) is not None for pattern in SENSITIVE_PATTERNS)
+    return contains_sensitive_value(value)
+
+
+def _assert_mapping_keys_safe(value: Any, *, owner: str, path: str = "$") -> None:
+    if isinstance(value, Mapping):
+        for index, (key, item) in enumerate(value.items()):
+            key_path = f"{path}.<key:{index}>"
+            if isinstance(key, str) and (
+                _contains_control_character(key) or contains_sensitive_value(key)
+            ):
+                raise ValueError(f"{owner} mapping key contains unsafe content: {key_path}")
+            _assert_mapping_keys_safe(item, owner=owner, path=f"{path}.{key}")
+        return
+    if isinstance(value, tuple | list):
+        for index, item in enumerate(value):
+            _assert_mapping_keys_safe(item, owner=owner, path=f"{path}[{index}]")
+
+
+def _contains_control_character(value: str) -> bool:
+    return any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)
+
+
+def _is_valid_structural_digest(key: str, value: str) -> bool:
+    return (
+        (key.endswith("_digest") or key.endswith("_digests"))
+        and _DIGEST_HEX_PATTERN.fullmatch(value) is not None
+    )
 
 
 def _iter_string_fields(value: Any, path: str = "$") -> Iterator[tuple[str, str, str]]:

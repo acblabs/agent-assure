@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from datetime import datetime
+from decimal import Decimal
 from typing import Literal
 
 from pydantic import ConfigDict, Field, model_validator
@@ -9,6 +11,7 @@ from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
+    STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     ExecutionMode,
     GateState,
@@ -33,11 +36,41 @@ from agent_assure.schema.usage import (
     validate_usage_field_paths_schema_version,
     validate_usage_summary_consistency,
 )
-from agent_assure.telemetry.context import TRACEPARENT_FIELD_PATTERN, validate_traceparent
+from agent_assure.telemetry.context import (
+    TRACEPARENT_FIELD_PATTERN,
+    validate_traceparent,
+    validate_tracestate,
+)
 
 _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
+)
+_RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
+    *_RUN_RECORD_USAGE_FIELD_PATHS
+)
+_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version", "execution_mode"],
+            "properties": {
+                "schema_version": {"const": "0.6.0"},
+                "execution_mode": {"const": "live"},
+            },
+        },
+        "then": {
+            "required": [
+                "cost_budget_committed_usd",
+                "generated_token_budget_committed",
+                "total_token_budget_committed",
+            ],
+            "properties": {
+                "cost_budget_committed_usd": {"type": "string"},
+                "generated_token_budget_committed": {"type": "integer"},
+                "total_token_budget_committed": {"type": "integer"},
+            },
+        },
+    }
 )
 _RUN_SET_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
@@ -106,7 +139,7 @@ class PolicyResult(PersistedArtifact):
 
 class AgentRunRecord(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
+        json_schema_extra=_RUN_RECORD_JSON_SCHEMA_EXTRA
     )
 
     artifact_kind: Literal["agent-run-record"] = "agent-run-record"
@@ -135,8 +168,16 @@ class AgentRunRecord(PersistedArtifact):
     provider_response_id: str | None = None
     traceparent: str | None = Field(default=None, pattern=TRACEPARENT_FIELD_PATTERN)
     tracestate: str | None = None
-    started_at_utc: str | None = None
-    completed_at_utc: str | None = None
+    started_at_utc: str | None = Field(
+        default=None,
+        max_length=MAX_LABEL_CHARS,
+        pattern=STRICT_RFC3339_TIMESTAMP_PATTERN,
+    )
+    completed_at_utc: str | None = Field(
+        default=None,
+        max_length=MAX_LABEL_CHARS,
+        pattern=STRICT_RFC3339_TIMESTAMP_PATTERN,
+    )
     latency_ms: int | None = Field(default=None, ge=0)
     attempt_count: int | None = Field(default=None, ge=1)
     retry_count: int | None = Field(default=None, ge=0)
@@ -155,6 +196,21 @@ class AgentRunRecord(PersistedArtifact):
         "not_reported",
         "provider_reported",
     ] | None = None
+    cost_budget_committed_usd: str | None = Field(
+        default=None,
+        pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
+        exclude_if=lambda value: value is None,
+    )
+    generated_token_budget_committed: int | None = Field(
+        default=None,
+        ge=0,
+        exclude_if=lambda value: value is None,
+    )
+    total_token_budget_committed: int | None = Field(
+        default=None,
+        ge=0,
+        exclude_if=lambda value: value is None,
+    )
     tools: tuple[str, ...] = ()
     evidence_refs: tuple[EvidenceRef, ...] = ()
     evidence_items: tuple[EvidenceItem, ...] = ()
@@ -198,6 +254,33 @@ class AgentRunRecord(PersistedArtifact):
             return None
         return validate_traceparent(value)
 
+    @field_validator("tracestate")
+    @classmethod
+    def _validate_tracestate(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        return validate_tracestate(value)
+
+    @field_validator("run_id", "case_id", "pipeline_id")
+    @classmethod
+    def _validate_exported_identifier(cls, value: str) -> str:
+        if len(value) > MAX_LABEL_CHARS:
+            raise ValueError(f"identifier must contain no more than {MAX_LABEL_CHARS} characters")
+        if any(ord(character) < 0x20 or ord(character) == 0x7F for character in value):
+            raise ValueError("identifier must not contain control characters")
+        return value
+
+    @field_validator("started_at_utc", "completed_at_utc")
+    @classmethod
+    def _validate_rfc3339_timestamp(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError as exc:
+            raise ValueError("timestamp is not a valid RFC 3339 date-time") from exc
+        return value
+
     @model_validator(mode="after")
     def _validate_live_metadata(self) -> AgentRunRecord:
         validate_usage_field_paths_schema_version(
@@ -224,8 +307,42 @@ class AgentRunRecord(PersistedArtifact):
             )
             if getattr(self, field_name) is None
         ]
+        if self.schema_version == "0.6.0" and self.cost_budget_committed_usd is None:
+            missing.append("cost_budget_committed_usd")
+        if self.schema_version == "0.6.0" and self.generated_token_budget_committed is None:
+            missing.append("generated_token_budget_committed")
+        if self.schema_version == "0.6.0" and self.total_token_budget_committed is None:
+            missing.append("total_token_budget_committed")
         if missing:
             raise ValueError("live run records require: " + ", ".join(missing))
+        if (
+            self.estimated_cost_usd is not None
+            and self.cost_budget_committed_usd is not None
+            and Decimal(self.cost_budget_committed_usd) < Decimal(self.estimated_cost_usd)
+        ):
+            raise ValueError("cost budget commitment cannot be below estimated cost")
+        if (
+            self.completion_tokens is not None
+            and self.generated_token_budget_committed is not None
+            and self.generated_token_budget_committed < self.completion_tokens
+        ):
+            raise ValueError(
+                "generated-token budget commitment cannot be below completion_tokens"
+            )
+        if (
+            self.total_tokens is not None
+            and self.total_token_budget_committed is not None
+            and self.total_token_budget_committed < self.total_tokens
+        ):
+            raise ValueError("total-token budget commitment cannot be below total_tokens")
+        if (
+            self.generated_token_budget_committed is not None
+            and self.total_token_budget_committed is not None
+            and self.generated_token_budget_committed > self.total_token_budget_committed
+        ):
+            raise ValueError(
+                "generated-token budget commitment cannot exceed total-token commitment"
+            )
         if self.observation_status == "excluded" and not self.exclusion_reason:
             raise ValueError("excluded live run records require exclusion_reason")
         if self.total_tokens is not None:

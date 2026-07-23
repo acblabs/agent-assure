@@ -1,0 +1,38 @@
+{
+  "bypass-required-human-review": [
+    {
+      "component_id": "mutation.catalog",
+      "relative_path": "agent_assure/mutation/catalog.py",
+      "sha256": "1187ce27fab137cd0b18b82b456cebe23186b160d916113c2a6dd27c4d9bf915"
+    },
+    {
+      "component_id": "mutation.operators",
+      "relative_path": "agent_assure/mutation/operators.py",
+      "sha256": "7e5d514056ec31ff4614dd8324fe6152ccc288ec664339a83c6f3f35397ac4b7"
+    }
+  ],
+  "drop-material-evidence-link": [
+    {
+      "component_id": "mutation.catalog",
+      "relative_path": "agent_assure/mutation/catalog.py",
+      "sha256": "1187ce27fab137cd0b18b82b456cebe23186b160d916113c2a6dd27c4d9bf915"
+    },
+    {
+      "component_id": "mutation.operators",
+      "relative_path": "agent_assure/mutation/operators.py",
+      "sha256": "7e5d514056ec31ff4614dd8324fe6152ccc288ec664339a83c6f3f35397ac4b7"
+    }
+  ],
+  "inject-forbidden-tool": [
+    {
+      "component_id": "mutation.catalog",
+      "relative_path": "agent_assure/mutation/catalog.py",
+      "sha256": "1187ce27fab137cd0b18b82b456cebe23186b160d916113c2a6dd27c4d9bf915"
+    },
+    {
+      "component_id": "mutation.operators",
+      "relative_path": "agent_assure/mutation/operators.py",
+      "sha256": "7e5d514056ec31ff4614dd8324fe6152ccc288ec664339a83c6f3f35397ac4b7"
+    }
+  ]
+}

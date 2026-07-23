@@ -693,6 +693,7 @@ def test_report_markdown_uses_measured_language_for_missing_usage() -> None:
             state=GateState.pass_,
         ),
         runset_id="runset-001",
+        runset_digest="a" * 64,
         suite_id="suite-001",
         suite_version="0.1.0",
         gate_profile="default",

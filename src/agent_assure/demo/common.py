@@ -10,6 +10,7 @@ from importlib.resources import files
 from importlib.resources.abc import Traversable
 from pathlib import Path
 
+from agent_assure.artifact_io import write_bytes_atomic, write_text_atomic
 from agent_assure.io_limits import loads_json_bounded, read_text_bounded
 
 DEMO_MARKER_FILENAME = ".agent-assure-demo-owned.json"
@@ -17,21 +18,26 @@ MAX_DEMO_MARKER_BYTES = 1024
 DEMO_COMMAND_TIMEOUT_SECONDS = 30
 PACKAGE_IMPORT_ROOT = Path(__file__).resolve().parents[2]
 _NETWORK_GUARD_DIRNAME = ".runtime"
-_LEGACY_DEMO_TOP_LEVEL_NAMES = frozenset(
+_DEMO_ENV_ALLOWLIST = frozenset(
     {
-        _NETWORK_GUARD_DIRNAME,
-        "baseline-report",
-        "baseline.runset.json",
-        "candidate-evidence-normalization.runset.json",
-        "ci-report",
-        "comparison-report",
-        "demo-summary.json",
-        "evidence-diff.html",
-        "evidence-report",
-        "example",
-        "logs",
-        "prior-auth.compiled.json",
-        "prior-auth.fixture-manifest.json",
+        "APPDATA",
+        "COMSPEC",
+        "HOME",
+        "LANG",
+        "LC_ALL",
+        "LOCALAPPDATA",
+        "PATH",
+        "PATHEXT",
+        "PROGRAMDATA",
+        "SYSTEMDRIVE",
+        "SYSTEMROOT",
+        "TEMP",
+        "TMP",
+        "TMPDIR",
+        "TZ",
+        "USERPROFILE",
+        "VIRTUAL_ENV",
+        "WINDIR",
     }
 )
 _NETWORK_GUARD_SOURCE = """
@@ -105,11 +111,7 @@ def prepare_output_dir(out_dir: Path, *, clean: bool) -> Path:
         _assert_safe_output_dir(resolved)
         if clean:
             _clean_owned_output_dir(resolved)
-        elif (
-            not _has_ownership_marker(resolved)
-            and not _is_legacy_demo_output_dir(resolved)
-            and any(resolved.iterdir())
-        ):
+        elif not _has_ownership_marker(resolved) and any(resolved.iterdir()):
             raise DemoError(
                 f"demo output path already exists and is not empty or demo-owned: {resolved}"
             )
@@ -159,14 +161,14 @@ def run_cli_command(
             timeout=timeout_seconds,
         )
     except subprocess.TimeoutExpired as exc:
-        stdout_path.write_text(_timeout_output(exc.stdout), encoding="utf-8", newline="\n")
-        stderr_path.write_text(_timeout_output(exc.stderr), encoding="utf-8", newline="\n")
+        write_text_atomic(stdout_path, _timeout_output(exc.stdout))
+        write_text_atomic(stderr_path, _timeout_output(exc.stderr))
         raise DemoError(
             f"{name} exceeded {timeout_seconds} second timeout. "
             f"See {stdout_path} and {stderr_path}."
         ) from exc
-    stdout_path.write_text(result.stdout, encoding="utf-8", newline="\n")
-    stderr_path.write_text(result.stderr, encoding="utf-8", newline="\n")
+    write_text_atomic(stdout_path, result.stdout)
+    write_text_atomic(stderr_path, result.stderr)
     command_result = ExpectedCommandResult(
         name=name,
         expected_exit_codes=expected_exit_codes,
@@ -184,24 +186,24 @@ def run_cli_command(
 
 
 def demo_subprocess_env(out_dir: Path, *, env: dict[str, str] | None = None) -> dict[str, str]:
-    resolved_env = dict(env or os.environ)
+    source_env = os.environ if env is None else env
+    resolved_env = {
+        key: value for key, value in source_env.items() if key.upper() in _DEMO_ENV_ALLOWLIST
+    }
     guard_dir = _ensure_network_guard(out_dir)
-    existing_pythonpath = resolved_env.get("PYTHONPATH")
     pythonpath_parts = [str(guard_dir), str(PACKAGE_IMPORT_ROOT)]
-    if existing_pythonpath:
-        pythonpath_parts.append(existing_pythonpath)
     resolved_env["PYTHONPATH"] = os.pathsep.join(pythonpath_parts)
+    resolved_env["PYTHONDONTWRITEBYTECODE"] = "1"
+    resolved_env["PYTHONIOENCODING"] = "utf-8"
+    resolved_env["PYTHONNOUSERSITE"] = "1"
+    resolved_env["PYTHONSAFEPATH"] = "1"
     resolved_env["AGENT_ASSURE_DEMO_NETWORK_DISABLED"] = "1"
     return resolved_env
 
 
 def write_json(path: Path, payload: dict[str, object]) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
     return path
 
 
@@ -218,7 +220,7 @@ def _copy_resource_tree(resource: Traversable, destination: Path) -> None:
             _copy_resource_tree(child, destination / child.name)
         return
     destination.parent.mkdir(parents=True, exist_ok=True)
-    destination.write_bytes(resource.read_bytes())
+    write_bytes_atomic(destination, resource.read_bytes())
 
 
 def _assert_safe_output_dir(path: Path) -> None:
@@ -233,11 +235,7 @@ def _assert_safe_output_dir(path: Path) -> None:
 
 
 def _clean_owned_output_dir(path: Path) -> None:
-    if (
-        any(path.iterdir())
-        and not _has_ownership_marker(path)
-        and not _is_legacy_demo_output_dir(path)
-    ):
+    if any(path.iterdir()) and not _has_ownership_marker(path):
         raise DemoError(
             "refusing to clean existing directory without agent-assure demo ownership marker: "
             f"{path}"
@@ -267,28 +265,18 @@ def _has_ownership_marker(path: Path) -> bool:
     return isinstance(payload, dict) and payload == {"owner": "agent-assure-demo"}
 
 
-def _is_legacy_demo_output_dir(path: Path) -> bool:
-    child_names = {child.name for child in path.iterdir()}
-    return bool(child_names) and child_names <= _LEGACY_DEMO_TOP_LEVEL_NAMES
-
-
 def _write_ownership_marker(path: Path) -> None:
     marker = path / DEMO_MARKER_FILENAME
-    marker.write_text(
+    write_text_atomic(
+        marker,
         json.dumps({"owner": "agent-assure-demo"}, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 
 def _ensure_network_guard(out_dir: Path) -> Path:
     guard_dir = out_dir / _NETWORK_GUARD_DIRNAME
     guard_dir.mkdir(parents=True, exist_ok=True)
-    (guard_dir / "sitecustomize.py").write_text(
-        _NETWORK_GUARD_SOURCE,
-        encoding="utf-8",
-        newline="\n",
-    )
+    write_text_atomic(guard_dir / "sitecustomize.py", _NETWORK_GUARD_SOURCE)
     return guard_dir
 
 

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.authoring.yaml_nodes import load_yaml_nodes
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.io_limits import load_json_bounded
@@ -23,10 +24,9 @@ def load_compiled_suite(path: Path, *, expected_digest: str | None = None) -> Co
 
 def write_compiled_suite(compiled: CompiledSuite, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(compiled.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 

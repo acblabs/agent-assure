@@ -5,6 +5,11 @@ between trusted repository artifacts and untrusted run or adapter output. It
 helps detect governance regressions in structured records; it does not sandbox a
 malicious model, script, provider, CI checkout, or operator.
 
+The bundled demos also install a Python-level `sitecustomize` socket guard and
+use a minimized subprocess environment. Those controls reduce accidental
+network use by trusted demo code; they are advisory defense-in-depth and are not
+a network-isolation boundary against hostile Python or native code.
+
 ## Trusted Inputs
 
 - Compiled suites, expectations, fixture manifests, policy bundles, and release
@@ -51,14 +56,16 @@ malicious model, script, provider, CI checkout, or operator.
   and unspecified endpoint hosts are rejected by literal host inspection and
   by resolved A/AAAA records. Any CLI live run whose config enables
   `allow_network: true` requires endpoint DNS safety screening to succeed;
-  `--strict-endpoint-resolution` is retained for CLI compatibility and future
-  endpoint-screened paths. With current network adapters, unresolved endpoint
-  hosts already fail closed whenever `allow_network: true`.
+  `--strict-endpoint-resolution` is retained for CLI compatibility only.
+  Endpoint-bound network adapters always fail closed when endpoint hosts cannot
+  be resolved for screening.
   OpenAI-compatible requests repeat DNS screening immediately before dispatch,
   but this is not TLS pinning or socket-level IP pinning.
 - OTLP HTTP export is explicit operator-controlled network egress. OTLP export
   requires an explicit HTTPS endpoint and an explicit endpoint-host allowlist;
-  SDK environment-default endpoints are not used. Localhost, private,
+  SDK environment-default endpoints, headers, credential-provider sessions,
+  client certificates, and proxy configuration are not used. The project-owned
+  HTTP session disables redirects and ambient Requests configuration. Localhost, private,
   link-local, reserved, multicast, and unspecified endpoint hosts are rejected
   by literal host inspection and by resolved A/AAAA records. OTLP endpoint DNS
   screening fails closed when resolution is unavailable.
@@ -77,6 +84,15 @@ malicious model, script, provider, CI checkout, or operator.
 - Evaluation recursively scans persisted run-record strings for sensitive-looking
   content while skipping digest/hash/provenance metadata. This is a guardrail,
   not production PHI de-identification or comprehensive DLP.
+- Privacy scanning includes mapping keys and fails closed on individual scalar
+  values above the bounded detector budget. OpenTelemetry export repeats the
+  recursive sensitive-content check at the final egress boundary and applies
+  explicit span, event, attribute, key, and value limits. Its SDK resource,
+  trace propagator, root context, sampler, span limits, and OTLP compression are
+  explicitly constructed rather than selected from ambient SDK settings.
+  Exporter failure results, exceptions, incomplete flushes, shutdown failures,
+  or missing exported spans fail the operation instead of being logged as
+  success.
 - Raw prompts and raw provider responses are not persisted in RunSet artifacts,
   but a trusted live adapter or external script sees the prompt it is asked to
   process.
@@ -104,6 +120,26 @@ malicious model, script, provider, CI checkout, or operator.
 - Release evidence does not establish safety assurance, regulatory compliance,
   clinical validity, live model quality, or dependency vulnerability status.
 
+## Assurance Mutation Boundary
+
+- Built-in mutation operators are trusted package code identified by version,
+  implementation digest, declared compatible schemas, preconditions, and
+  permitted changed paths. The implementation digest is an identity anchor,
+  not an independent code review.
+- The engine validates the source and transformed subject, works from an
+  immutable copy, and fails closed when an undeclared path changes.
+- A mutation is caught only when its expected-detection contract matches an
+  observed finding from the target control and the declared gate effect. An
+  unrelated parse, schema, runtime, or policy failure does not count.
+- Operator execution does not load caller-supplied executable plugins, invoke
+  caller-supplied shell text, or require network access.
+- Reports minimize content to paths, digests, reason codes, bounded summaries,
+  provenance, and limitations.
+- Fixed mutation outputs are staged before commit, replacement failures roll
+  back the prior generation, stale transformed subjects are removed, and the
+  source RunSet may not alias a fixed output through a path, symlink, junction,
+  or hardlink.
+
 ## Out Of Scope
 
 - Host isolation for malicious local scripts or compromised CI jobs.
@@ -113,3 +149,6 @@ malicious model, script, provider, CI checkout, or operator.
   screening.
 - Comprehensive secret discovery, PHI de-identification, malware detection, or
   supply-chain attestation beyond digest replay and optional cosign signing.
+- Isolation from a malicious installed package or compromised built-in
+  operator implementation.
+- Discovery of every possible control bypass or failure mode.

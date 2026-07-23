@@ -28,6 +28,8 @@ APPROVED_LIMITATION_SENTENCES = (
     "This is not a compliance attestation.",
     "This report is not a compliance attestation.",
     "This project is not a compliance attestation.",
+    "Agent Assure uses evidence-carrying release language, not proof-carrying release language.",
+    "Do not describe Agent Assure releases as proof-carrying.",
     (
         "This report maps observed `agent-assure` evidence to selected framework concepts "
         "for human review."
@@ -52,6 +54,10 @@ APPROVED_LIMITATION_SENTENCES = (
 
 RESTRICTED_PATTERNS = (
     RestrictedPattern("compliant", re.compile(r"\bcompliant\b", re.IGNORECASE)),
+    RestrictedPattern(
+        "proof-carrying category",
+        re.compile(r"\bproof[-\s]+carrying\b", re.IGNORECASE),
+    ),
     RestrictedPattern(
         "certified/certification",
         re.compile(r"\bcertif(?:y|ies|ied|ication)\b", re.IGNORECASE),
@@ -147,6 +153,7 @@ DEFAULT_SCAN_FILES = (
     Path("docs/demo_flagship.md"),
     Path("docs/demo_expense.md"),
     Path("docs/evidence_diff.md"),
+    Path("docs/evidence_carrying_releases.md"),
     Path("docs/claim_boundary.md"),
     Path("docs/posts/output_equivalence_is_not_process_equivalence.md"),
     Path("docs/assets/flagship_demo_transcript.txt"),

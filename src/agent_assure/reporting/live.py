@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.privacy.redaction import (
     PRESERVE_PACKET_KEYS,
     redact_artifact_payload,
@@ -47,28 +48,28 @@ def write_live_trajectory_json(report: LiveTrajectoryReport, out_dir: Path) -> P
 def write_live_evaluation_markdown(report: LiveEvaluationReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-evaluation-report.md"
-    path.write_text(render_live_evaluation_markdown(report), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_live_evaluation_markdown(report))
     return path
 
 
 def write_live_comparison_markdown(report: LiveComparisonReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-comparison-report.md"
-    path.write_text(render_live_comparison_markdown(report), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_live_comparison_markdown(report))
     return path
 
 
 def write_live_drift_markdown(report: LiveDriftReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-drift-report.md"
-    path.write_text(render_live_drift_markdown(report), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_live_drift_markdown(report))
     return path
 
 
 def write_live_trajectory_markdown(report: LiveTrajectoryReport, out_dir: Path) -> Path:
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-trajectory-report.md"
-    path.write_text(render_live_trajectory_markdown(report), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_live_trajectory_markdown(report))
     return path
 
 
@@ -397,13 +398,12 @@ def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
 
 
 def _write_json(payload: dict[str, object], path: Path) -> None:
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(
             redact_artifact_payload(payload, preserve_keys=PRESERVE_PACKET_KEYS),
             indent=2,
             sort_keys=True,
         )
         + "\n",
-        encoding="utf-8",
-        newline="\n",
     )

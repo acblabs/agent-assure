@@ -49,8 +49,9 @@ protocol-bound live artifacts; they do not persist raw prompts, raw outputs,
 tool arguments, sensitive identifiers, or unredacted summaries, and they are
 not independent provenance roots or release-verdict shortcuts.
 
-RunSet `runset_digest` is an exact artifact digest used for waiver scoping and
-local reproducibility. Release replay uses role-specific stable projections for
+The canonical RunSet digest is used for waiver scoping and local
+reproducibility; v0.6 evaluation reports persist it as `runset_digest` to bind
+the report to exact subject content. Release replay uses role-specific stable projections for
 environment-bearing reports, packets, and manifests, and excludes only the
 defined environment fields for each role.
 

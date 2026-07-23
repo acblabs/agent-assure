@@ -4,6 +4,7 @@ import hashlib
 import json
 from pathlib import Path
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.privacy.redaction import redact_packet_payload
 from agent_assure.reporting.markdown_safety import (
@@ -95,10 +96,9 @@ def write_evidence_packet(packet: EvidencePacket, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     payload = redact_packet_payload(packet.model_dump(mode="json"))
     EvidencePacket.model_validate(payload)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
 
 
@@ -177,7 +177,7 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
 
 def write_evidence_packet_markdown(packet: EvidencePacket, path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(render_evidence_packet_markdown(packet), encoding="utf-8", newline="\n")
+    write_text_atomic(path, render_evidence_packet_markdown(packet))
 
 
 def _packet_id(

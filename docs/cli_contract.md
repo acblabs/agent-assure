@@ -12,6 +12,7 @@ Current commands:
 - `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
 - `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
+- `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure live adapters`
@@ -24,7 +25,13 @@ Current commands:
 - `agent-assure stream evaluate STREAM_RUN_JSON --suite SUITE_YAML_OR_COMPILED_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
-- `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header NAME=VALUE]`
+- `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header-env NAME=ENV_VAR] [--header-file NAME=PATH]`
+
+OTLP authentication values are never accepted directly in command-line arguments. Use
+`--header-env` to read a value from an environment variable or `--header-file` to read it
+from a protected, bounded UTF-8 file. The legacy `--header NAME=VALUE` form is rejected
+because process arguments are commonly retained in shell history and exposed to local
+process inspection.
 
 Externally supplied JSON artifacts, configurations, JSONL records, provider
 responses, and external-script output retain their existing byte limits and
@@ -106,6 +113,25 @@ claim-boundary limitations, and does not infer passing local controls from an
 evaluation-summary rollup alone. Built-in mappings cover NIST AI RMF, OWASP LLM
 Top 10 2025, ISO/IEC 42001, and the pinned MITRE ATLAS 2026.06 catalog.
 
+`controls mutate` validates a compiled suite and RunSet, applies exactly one
+built-in deterministic operator to an immutable copy, validates the transformed
+subject, evaluates the normative expected-detection contract, and writes a
+canonical `assurance-mutation-result`. When a transformed subject is produced,
+the command writes it beside the result. The exact filenames are
+`assurance-mutation-result.json`, `assurance-evidence-descriptor.json`, and,
+for `caught` or `survived`, `mutated-runset.json`. Reports contain exact changed paths,
+digests, reason codes, bounded finding summaries, operator and evaluator
+provenance, independence class, and limitations; they do not copy raw prompt,
+completion, message, or tool payload content. The same source digest, operator
+version, bound built-in evaluator identity, and seed produce identical
+transformed bytes and result digest.
+
+The three fixed files are staged and replaced as one rollback-capable
+generation. A generation without a transformed subject removes an older
+fixed-name `mutated-runset.json`. Both suite and RunSet input aliases with any
+fixed output, through resolved paths, symlinks, junctions, or hardlinks, are
+rejected before persistence.
+
 `ci` evaluates a candidate RunSet, optionally compares it with a baseline, writes
 reports, builds a packet, writes a dependency inventory and release manifest,
 then gates the result. `--report-mode full` writes all deterministic findings.
@@ -149,11 +175,11 @@ that can access caller-readable files and networks;
 their `endpoint_url` is not presented as an enforced destination. Non-interactive
 CI runs must pass `--trust-config` plus the matching risk-specific flags:
 `--allow-external-script`, `--allow-network`, and/or
-`--allow-script-env`. Any live config that enables `allow_network: true`
-requires endpoint DNS safety screening to succeed during adapter construction
-and request dispatch. `--strict-endpoint-resolution` is retained for CLI
-compatibility and future endpoint-screened paths; with current network adapters,
-unresolved endpoint hosts already fail closed whenever `allow_network: true`.
+`--allow-script-env`. Every endpoint-bound network adapter requires endpoint
+DNS safety screening to succeed during adapter construction and request
+dispatch. `--strict-endpoint-resolution` is retained for CLI
+compatibility only; endpoint DNS screening is mandatory for endpoint-bound
+network adapters and cannot be disabled.
 The OpenAI-compatible
 chat-completions adapter uses Python standard-library HTTP support, requires
 explicit `allow_network: true` in the live config, requires HTTPS and an API key
@@ -162,14 +188,30 @@ declared allowlist. Literal localhost/private/link-local/reserved/multicast
 hosts are rejected, resolved A/AAAA results are screened at adapter
 construction, and OpenAI-compatible requests repeat that screen immediately
 before dispatch. This is DNS safety screening, not TLS pinning or socket-level
-IP pinning. OpenAI cost is recorded as a local estimate when token
-pricing is configured and as not reported otherwise; it is not a billing
-assertion. Live run records store redacted
+IP pinning. OpenAI runs must configure both prompt and completion pricing rates
+before dispatch. Every network run also requires `max_output_tokens` and a
+positive per-attempt cost ceiling. Before each network attempt, including a
+retry, the runner reserves the full per-observation ceiling against the total
+budget. A failed or timed-out attempt retains that reservation because the
+provider may have processed and billed it; only a successful response with
+usable accounting replaces its own reservation with the observed or locally
+estimated amount. The committed amount is persisted as
+`cost_budget_committed_usd`. Generated- and total-token ceilings use the same
+retain-on-ambiguity rule, reserving `max_output_tokens` plus the prompt UTF-8
+byte length per network attempt and persisting both token commitments. If a
+network response omits the usage needed for cost
+accounting, or any response omits usage needed for a declared token ceiling,
+the observation fails budget policy and later requests are not dispatched.
+Configured retry backoff is capped at 300 seconds. These controls bound local
+dispatch using conservative commitments; they cannot prove the provider's final
+invoice or replace provider-side spending limits. OpenAI cost remains a local
+estimate rather than a billing assertion. Live run records store redacted
 summaries, provider/model labels, resolved provider-version metadata when
 required by the protocol, observation IDs, trace context, cluster/source-group
 IDs, repetition and schedule indexes, attempt/retry/rate-limit counters,
 inclusion or exclusion state, timestamps, token counts when available,
-estimated cost, estimated-cost source, latency, and provenance digests. They do
+estimated cost, estimated-cost source, conservative cost/token-budget
+commitments, latency, and provenance digests. They do
 not persist raw prompts or raw provider outputs.
 
 The default `max_rate_limit_events` value is `0`, so the first rate-limit
@@ -333,7 +375,17 @@ OTLP export requires installing the optional `agent-assure[otel]` dependencies.
 OTLP HTTP export requires an explicit HTTPS `--endpoint` and the endpoint host
 must be supplied through `--allowed-endpoint-host`; SDK environment-default
 endpoints are not used by `agent-assure`. OTLP endpoint DNS screening fails
-closed by default when the host cannot be resolved.
+closed and is mandatory; an unresolved host is always rejected.
+The OTLP transport passes an explicit endpoint and non-empty validated header
+map to the SDK, uses a project-owned Requests session with `trust_env` disabled,
+does not follow redirects, pins no compression, and clears ambient SDK
+client-certificate state. Export constructs a resource containing only the
+validated `service.name`, uses the W3C trace-context propagator directly, starts
+unparented plans from an explicit empty context, and pins an always-on sampler
+and schema-aligned span limits. Ambient SDK resource, propagator, sampler, and
+limit settings are not used; an ambient SDK-disabled state fails closed.
+Exporter results, exceptions, flush completion, shutdown, and the exact number
+of exported spans are checked before the command reports success.
 The exporter extracts any span-plan `traceparent` as parent context and emits
 only attributes and events already present in the span plan. It is projection
 from persisted span plans, not live instrumentation of the adapter HTTP request
@@ -352,6 +404,25 @@ Exit-code mapping:
 Tooling, IO, unexpected runtime, and internal errors are emitted by the command
 that encounters them; current commands do not reserve a distinct stable exit
 code for that class.
+
+The development-RFC `controls mutate` command has a documented exit map because callers must
+distinguish the mutation result from input and execution failures:
+
+- `0`: `caught`;
+- `1`: `survived`;
+- `2`: invalid (`invalid_operator` or `invalid_subject`);
+- `3`: `inapplicable`;
+- `4`: `execution_error`.
+
+The result artifact preserves `invalid_operator` or `invalid_subject` even
+though both states share exit `2`.
+
+`invalid_subject` diagnostics distinguish bounded schema validation, privacy
+violations, runtime privacy-profile incompatibility, suite binding, and fixture
+binding without echoing source identifiers or digests. Unexpected evaluator
+exceptions are `execution_error`, not subject validation failures. Catalog
+identity failures also exit `4` with the bounded `catalog_integrity_error`
+diagnostic.
 
 Default roll-up precedence for comparison exits is `invalid_comparison`, then
 `fail`, then `warn`, then `not_evaluated`, then `pass`.

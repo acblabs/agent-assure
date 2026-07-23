@@ -2,12 +2,15 @@ from __future__ import annotations
 
 import hashlib
 import time
+from typing import Any
 
 import pytest
 import rfc8785
 
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
+from agent_assure.policies.privacy import evaluate_redaction
 from agent_assure.privacy.detectors import (
+    MAX_PRIVACY_SCAN_CHARS,
     PRIVACY_PROFILE_DIGEST,
     PRIVACY_PROFILE_ID,
     contains_sensitive_value,
@@ -15,15 +18,18 @@ from agent_assure.privacy.detectors import (
 )
 from agent_assure.privacy.redaction import (
     assert_runset_payload_safe_for_persistence,
+    redact_artifact_payload,
     redact_packet_payload,
     redact_runset_payload,
     redact_text,
 )
 from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.reporting.usage import usage_summary_lines
+from agent_assure.schema.run import AgentRunRecord
 from agent_assure.schema.usage import UsageSummary
 
 TEST_HMAC_KEY = b"agent-assure-test-suite-key-32-bytes"
+TEST_HMAC_CONTEXT = "agent-assure/tests/member-token/v1"
 
 
 def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
@@ -32,7 +38,7 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     assert manifest["profile_id"] == PRIVACY_PROFILE_ID
     assert PRIVACY_PROFILE_DIGEST == hashlib.sha256(rfc8785.dumps(manifest)).hexdigest()
     assert PRIVACY_PROFILE_DIGEST == (
-        "d26b72a9e8a6b46b2850f7e0e68a1ca2aae3711892df5c8dc387391ea5c652da"
+        "fb47c76f31526fef7c892434fb3354a37ddc8f162025235b23231129c5a137f1"
     )
     assert [item["pattern_id"] for item in manifest["detectors"]] == [
         "us-ssn",
@@ -62,30 +68,69 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
 
 
 def test_hmac_requires_explicit_key_and_is_stable() -> None:
-    assert hmac_sha256_token("member-001", key=TEST_HMAC_KEY) == hmac_sha256_token(
-        "member-001", key=TEST_HMAC_KEY
+    assert hmac_sha256_token(
+        "member-001", key=TEST_HMAC_KEY, context=TEST_HMAC_CONTEXT
+    ) == hmac_sha256_token(
+        "member-001", key=TEST_HMAC_KEY, context=TEST_HMAC_CONTEXT
     )
-    assert hmac_sha256_token("member-001", key=TEST_HMAC_KEY) != hmac_sha256_token(
-        "member-002", key=TEST_HMAC_KEY
+    assert hmac_sha256_token(
+        "member-001", key=TEST_HMAC_KEY, context=TEST_HMAC_CONTEXT
+    ) != hmac_sha256_token(
+        "member-002", key=TEST_HMAC_KEY, context=TEST_HMAC_CONTEXT
     )
 
 
-def test_hmac_has_no_default_key() -> None:
+def test_hmac_has_no_default_key_or_context() -> None:
     with pytest.raises(TypeError):
         hmac_sha256_token("member-001")  # type: ignore[call-arg]
+    with pytest.raises(TypeError):
+        hmac_sha256_token("member-001", key=TEST_HMAC_KEY)  # type: ignore[call-arg]
 
 
 def test_hmac_rejects_short_key() -> None:
     with pytest.raises(ValueError, match="at least 32 bytes"):
-        hmac_sha256_token("member-001", key=b"")
+        hmac_sha256_token("member-001", key=b"", context=TEST_HMAC_CONTEXT)
     with pytest.raises(ValueError, match="at least 32 bytes"):
-        hmac_sha256_token("member-001", key=b"short-key")
+        hmac_sha256_token("member-001", key=b"short-key", context=TEST_HMAC_CONTEXT)
 
 
 def test_hmac_verify_uses_constant_time_helper() -> None:
-    token = hmac_sha256_token("member-001", key=TEST_HMAC_KEY)
-    assert verify_hmac_token(token, "member-001", key=TEST_HMAC_KEY)
-    assert not verify_hmac_token(token, "member-002", key=TEST_HMAC_KEY)
+    token = hmac_sha256_token(
+        "member-001", key=TEST_HMAC_KEY, context=TEST_HMAC_CONTEXT
+    )
+    assert verify_hmac_token(
+        token,
+        "member-001",
+        key=TEST_HMAC_KEY,
+        context=TEST_HMAC_CONTEXT,
+    )
+    assert not verify_hmac_token(
+        token,
+        "member-002",
+        key=TEST_HMAC_KEY,
+        context=TEST_HMAC_CONTEXT,
+    )
+
+
+def test_hmac_tokens_are_domain_separated_and_nfc_normalized() -> None:
+    first = hmac_sha256_token(
+        "caf\N{LATIN SMALL LETTER E WITH ACUTE}",
+        key=TEST_HMAC_KEY,
+        context="agent-assure/tests/first-field/v1",
+    )
+    canonically_equivalent = hmac_sha256_token(
+        "cafe\N{COMBINING ACUTE ACCENT}",
+        key=TEST_HMAC_KEY,
+        context="agent-assure/tests/first-field/v1",
+    )
+    other_domain = hmac_sha256_token(
+        "caf\N{LATIN SMALL LETTER E WITH ACUTE}",
+        key=TEST_HMAC_KEY,
+        context="agent-assure/tests/second-field/v1",
+    )
+
+    assert first == canonically_equivalent
+    assert first != other_domain
 
 
 def test_redaction_removes_sensitive_values() -> None:
@@ -172,8 +217,57 @@ def test_url_secret_redaction_rejects_long_nonsecret_url_quickly() -> None:
     redacted = redact_text(raw)
     elapsed = time.perf_counter() - started
 
-    assert redacted == raw
+    assert redacted == "[REDACTED]"
     assert elapsed < 0.5
+
+
+def test_privacy_scan_fails_closed_on_adversarial_overlong_email_shape() -> None:
+    raw = ("a." * MAX_PRIVACY_SCAN_CHARS) + "@"
+
+    started = time.perf_counter()
+    sensitive = contains_sensitive_value(raw)
+    elapsed = time.perf_counter() - started
+
+    assert sensitive is True
+    assert redact_text(raw) == "[REDACTED]"
+    assert elapsed < 0.1
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        ("a." * ((MAX_PRIVACY_SCAN_CHARS - 1) // 2)) + "@",
+        ("http://a?tokenx" * 2_000)[:MAX_PRIVACY_SCAN_CHARS],
+    ),
+)
+def test_privacy_scan_handles_bounded_near_misses_linearly(raw: str) -> None:
+    started = time.perf_counter()
+    sensitive = contains_sensitive_value(raw)
+    elapsed = time.perf_counter() - started
+
+    assert sensitive is False
+    assert elapsed < 0.5
+
+
+def test_redaction_scans_mapping_keys_without_silent_collision() -> None:
+    redacted = redact_artifact_payload({"jane@example.com": "safe"})
+
+    assert redacted == {"[REDACTED]": "safe"}
+
+    with pytest.raises(ValueError, match="duplicate mapping keys"):
+        redact_artifact_payload(
+            {
+                "jane@example.com": "first",
+                "john@example.com": "second",
+            }
+        )
+
+
+def test_runset_persistence_rejects_sensitive_and_control_mapping_keys() -> None:
+    with pytest.raises(ValueError, match="mapping key"):
+        assert_runset_payload_safe_for_persistence({"jane@example.com": "safe"})
+    with pytest.raises(ValueError, match="mapping key"):
+        assert_runset_payload_safe_for_persistence({"unsafe\nkey": "safe"})
 
 
 def test_runset_redaction_recurses_persisted_record_fields() -> None:
@@ -250,6 +344,59 @@ def test_runset_persistence_rejects_sensitive_stop_reasons() -> None:
         assert_runset_payload_safe_for_persistence(payload)
 
 
+@pytest.mark.parametrize("field_name", ("started_at_utc", "completed_at_utc"))
+def test_runset_persistence_fail_closes_on_sensitive_timestamp_fields(
+    field_name: str,
+) -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "runs": [{field_name: "patient: Alice"}],
+    }
+
+    redacted = redact_runset_payload(payload)
+    assert redacted["runs"][0][field_name] == "patient: Alice"
+    with pytest.raises(ValueError, match=field_name):
+        assert_runset_payload_safe_for_persistence(redacted)
+
+
+def test_redaction_policy_scans_timestamp_fields_even_after_model_copy() -> None:
+    run = AgentRunRecord(
+        run_id="run-001",
+        case_id="case-001",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="summary",
+        output_summary="summary",
+    ).model_copy(update={"started_at_utc": "patient: Alice"})
+
+    findings = evaluate_redaction(run)
+
+    assert any(finding.target == "started_at_utc" for finding in findings)
+
+
+def test_redaction_policy_scans_identifiers_and_tracestate() -> None:
+    run = AgentRunRecord(
+        run_id="run-001",
+        case_id="case-001",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="summary",
+        output_summary="summary",
+    ).model_copy(
+        update={
+            "run_id": "jane@example.com",
+            "tracestate": "vendor=john@example.com",
+        }
+    )
+
+    findings = evaluate_redaction(run)
+
+    assert any(finding.target == "run_id" for finding in findings)
+    assert any(finding.target == "tracestate" for finding in findings)
+
+
 def test_runset_persistence_fail_closes_on_sensitive_privacy_profile_id() -> None:
     payload = {
         "artifact_kind": "run-set",
@@ -271,6 +418,26 @@ def test_runset_persistence_does_not_scan_schema_constrained_profile_digest() ->
     }
 
     assert_runset_payload_safe_for_persistence(payload)
+
+
+def test_runset_persistence_rejects_sensitive_content_in_redactable_summary() -> None:
+    payload: dict[str, Any] = {
+        "artifact_kind": "run-set",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "runs": [
+            {
+                "input_summary": "Bearer abcdefghijklmnopqrstuvwxyz123456",
+                "provenance": {"configuration_digest": "a" * 64},
+            }
+        ],
+    }
+
+    with pytest.raises(ValueError, match="input_summary"):
+        assert_runset_payload_safe_for_persistence(payload)
+
+    assert payload["privacy_profile_digest"] == PRIVACY_PROFILE_DIGEST
+    assert payload["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
 
 
 def test_redaction_still_preserves_scalar_structural_values() -> None:

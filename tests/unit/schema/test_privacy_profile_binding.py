@@ -42,12 +42,17 @@ def test_current_artifact_schemas_require_privacy_profile_pair() -> None:
         ),
     )
     for model, payload in artifacts:
+        identified_payload = {
+            **payload,
+            "artifact_kind": model.model_fields["artifact_kind"].default,
+            "schema_version": "0.6.0",
+        }
         validator = Draft202012Validator(model.model_json_schema())
         with pytest.raises(JsonSchemaValidationError):
-            validator.validate(payload)
+            validator.validate(identified_payload)
         validator.validate(
             {
-                **payload,
+                **identified_payload,
                 "privacy_profile_id": PRIVACY_PROFILE_ID,
                 "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
             }

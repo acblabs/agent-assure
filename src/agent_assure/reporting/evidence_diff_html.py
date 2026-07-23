@@ -5,6 +5,7 @@ from collections.abc import Mapping
 from html import escape
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
+from agent_assure.artifact_io import write_text_atomic
 from agent_assure.privacy.redaction import redact_text
 from agent_assure.reporting.evidence_diff_style import evidence_diff_css as _css
 from agent_assure.reporting.evidence_diff_view import (
@@ -53,7 +54,8 @@ def write_evidence_diff_html(
     artifact_paths: Mapping[str, PathValue] | None = None,
 ) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
-    out.write_text(
+    write_text_atomic(
+        out,
         render_evidence_diff_html(
             baseline=baseline,
             candidate=candidate,
@@ -64,8 +66,6 @@ def write_evidence_diff_html(
             title=title,
             artifact_paths=artifact_paths,
         ),
-        encoding="utf-8",
-        newline="\n",
     )
     return out
 

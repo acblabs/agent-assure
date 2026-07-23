@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import sys
 from collections.abc import Callable
@@ -33,6 +34,7 @@ from agent_assure.schema.run import (  # noqa: E402
     EvidenceRef,
     RunSet,
 )
+from agent_assure.schema.validation import validate_artifact_payload  # noqa: E402
 
 SUITE_YAML = ROOT / "examples" / "prior_auth_synthetic" / "suite.yaml"
 SUITE_ROOT = SUITE_YAML.parent
@@ -53,11 +55,27 @@ JSON_GOLDENS: dict[Path, Callable[[], Any]] = {
 TEXT_GOLDENS: dict[Path, Callable[[], str]] = {
     REPORT_GOLDEN_ROOT / "flagship-evidence-diff.html": lambda: _evidence_diff_html(),
 }
+LEGACY_REPLAY_GOLDENS: dict[Path, tuple[str, str]] = {
+    COMPILED_GOLDEN_ROOT / "prior_auth_synthetic.v0.5.0.compiled.json": (
+        "compiled-suite",
+        "2bef8d9900846b91952f0a550ddfc9dcaf8e5bfb65a221099b80bc7ac61ddfba",
+    ),
+    COMPILED_GOLDEN_ROOT / "prior_auth_synthetic.v0.5.0.fixture-manifest.json": (
+        "fixture-manifest",
+        "afcdeb6f18e211cf38e285fd079a57b7c0f17312112378c4006e987c69d291a4",
+    ),
+}
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Check or update deterministic golden artifacts.")
-    parser.add_argument(
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--check",
+        action="store_true",
+        help="Check committed goldens for drift (the default mode).",
+    )
+    mode.add_argument(
         "--update-golden",
         action="store_true",
         help="Rewrite golden files instead of checking for drift.",
@@ -76,6 +94,13 @@ def main() -> int:
             path,
             factory(),
             update=args.update_golden,
+            failures=failures,
+        )
+    for path, (artifact_kind, expected_sha256) in LEGACY_REPLAY_GOLDENS.items():
+        _check_legacy_replay_golden(
+            path,
+            artifact_kind=artifact_kind,
+            expected_sha256=expected_sha256,
             failures=failures,
         )
     if failures:
@@ -112,6 +137,34 @@ def _check_or_update_golden(
     existing = path.read_text(encoding="utf-8")
     if existing != generated:
         failures.append(f"golden drift: {path.relative_to(ROOT)}")
+
+
+def _check_legacy_replay_golden(
+    path: Path,
+    *,
+    artifact_kind: str,
+    expected_sha256: str,
+    failures: list[str],
+) -> None:
+    """Keep released replay evidence immutable and exercise its frozen schema."""
+    if not path.exists():
+        failures.append(f"missing legacy replay golden: {path.relative_to(ROOT)}")
+        return
+    raw = path.read_bytes()
+    if hashlib.sha256(raw).hexdigest() != expected_sha256:
+        failures.append(f"legacy replay golden drift: {path.relative_to(ROOT)}")
+        return
+    try:
+        payload = json.loads(raw)
+        if not isinstance(payload, dict):
+            raise ValueError("artifact root must be an object")
+        validation_path = validate_artifact_payload(payload, artifact_kind)
+        if validation_path != "frozen-jsonschema":
+            raise ValueError(f"unexpected validation path: {validation_path}")
+    except Exception as exc:
+        failures.append(
+            f"legacy replay golden is invalid: {path.relative_to(ROOT)} ({exc})"
+        )
 
 
 def _evidence_diff_html() -> str:

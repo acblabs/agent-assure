@@ -278,6 +278,37 @@ def test_release_digest_replay_rejects_unknown_top_level_role(tmp_path: Path) ->
     )
 
 
+def test_release_digest_replay_build_rejects_duplicate_roles(tmp_path: Path) -> None:
+    artifacts = _write_core_artifacts(tmp_path)
+
+    with pytest.raises(ValueError, match="duplicate release replay role"):
+        build_digest_replay(
+            (*artifacts, ("compiled-suite", tmp_path / "fixture-manifest.json")),
+            project_root=tmp_path,
+        )
+
+
+def test_release_digest_replay_verification_rejects_duplicate_roles(
+    tmp_path: Path,
+) -> None:
+    artifacts = _write_core_artifacts(tmp_path)
+    replay = build_digest_replay(artifacts, project_root=tmp_path)
+    duplicate = replay.artifacts[0].model_copy(update={"path": replay.artifacts[1].path})
+    tampered = replay.model_copy(update={"artifacts": (*replay.artifacts, duplicate)})
+
+    verification = verify_digest_replay(
+        tampered,
+        artifact_root=tmp_path,
+        required_roles=CORE_RELEASE_ROLES,
+    )
+
+    assert not verification.ok
+    assert any(
+        "duplicate release replay role" in finding.message
+        for finding in verification.findings
+    )
+
+
 def test_release_digest_replay_rejects_escaped_artifact_path(tmp_path: Path) -> None:
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)

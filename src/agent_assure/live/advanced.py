@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections import defaultdict
 from decimal import Decimal, localcontext
-from typing import Literal, cast
+from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.live.intervals import percentile_interval, seeded_random, stable_seed_int
@@ -33,10 +33,6 @@ _MAX_EXACT_PERMUTATION_CLUSTERS = 20
 _MONTE_CARLO_RESAMPLES = 10000
 _ICC_BOOTSTRAP_ITERATIONS = 1000
 _POISSON_BOUND_TOLERANCE = Decimal("0.000000000001")
-_RandomizationMethod = Literal[
-    "paired_cluster_permutation_exact",
-    "paired_cluster_permutation_monte_carlo",
-]
 _IccUncertaintyMethod = Literal["cluster_bootstrap_percentile", "not_evaluated"]
 _ObservedIccConfirmatoryUse = Literal[
     "disabled",
@@ -110,7 +106,7 @@ def evaluate_paired_randomization_test(
         endpoint_id=endpoint.endpoint_id,
         label=endpoint.label,
         interpretation=endpoint.interpretation,
-        analysis_method=cast(_RandomizationMethod, protocol.analysis_method),
+        analysis_method=protocol.analysis_method,
         prerequisite_status=prerequisite_status,
         exchangeability_assumption=endpoint.exchangeability_assumption,
         compared_clusters=len(differences),

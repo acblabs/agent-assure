@@ -1,27 +1,31 @@
 # PyPI Release Runbook
 
-This runbook covers the Python package upload path for `agent-assure` v0.5.0.
+This runbook covers the Python package upload path for `agent-assure` v0.6.0.
 The default path is GitHub Trusted Publishing with OIDC. Local `twine upload`
 is a fallback only when Trusted Publishing is unavailable.
 
 ## Release Shape
 
 The signed GitHub release bundle remains the source of release evidence,
-digests, SBOM, GitHub release assets, and final PyPI package files. Final PyPI
-publishing happens inside `.github/workflows/release.yml` after the release
-bundle is built, checked, signed, verified, and uploaded as a workflow
-artifact. The PyPI job downloads that release bundle artifact and publishes
-the wheel and source distribution from `.tmp/release/dist/`; it does not rebuild
-package files or upload signature sidecars.
+digests, SBOM, GitHub release assets, and final PyPI package files. An
+unprivileged job builds and tests the bundle. A second fresh job rebuilds it,
+hashes the actual bytes of every future signing input from both copies, and
+fails on any mismatch without trusting manifest-declared hashes. It then
+promotes only the independently rebuilt, byte-matched signing allowlist under a
+new artifact ID. A minimal OIDC job downloads only that promoted artifact and
+signs the fixed file set; it cannot access the original build artifact through
+its job dependencies and does not check out or execute package code. A separate
+non-OIDC job verifies every signature and promotes the signed bundle and an
+exact wheel-plus-sdist artifact. The PyPI job has only two steps: download that
+exact verified distribution artifact ID and invoke Trusted Publishing. It does
+not check out, rebuild, import, or smoke-test package code.
 
 The workflows have distinct roles:
 
-- `.github/workflows/release.yml` builds the signed GitHub release bundle and
-  uploads GitHub release assets. On release tags, it also publishes the package
-  files from that same release bundle to PyPI. The PyPI job verifies the
-  downloaded release bundle signatures against the release workflow identity,
-  replays the downloaded release bundle digests, and rechecks the staged
-  wheel/source distribution immediately before upload.
+- `.github/workflows/release.yml` separates unprivileged build, independent
+  reproduction, minimal OIDC signing, non-OIDC verification/staging, GitHub
+  release creation, and PyPI publication. GitHub releases are created once;
+  existing releases and assets are never replaced by the workflow.
 - `.github/workflows/publish-testpypi.yml` manually publishes a separately
   built TestPyPI candidate from the selected ref. Use a unique package version
   for each TestPyPI candidate. The workflow validates the requested version
@@ -30,8 +34,9 @@ The workflows have distinct roles:
 Release, evidence, and TestPyPI workflows use Python 3.14, matching the
 checked-in `requirements.lock` generator version. The tag validator checks the
 package version, exported schema version constants, and matching frozen schema
-directory before package upload. For the v0.5.0 package release, the active
-schema is `0.5.0` and the frozen schema directory is `schemas/v0.5.0`.
+directory before package upload. For the v0.6.0 package release, the active
+schema is `0.6.0` and the candidate schema directory is `schemas/v0.6.0` until
+the matching tag freezes it.
 
 ## Owner Setup
 
@@ -42,14 +47,21 @@ Complete this setup before the first TestPyPI publish attempt:
    `.github/workflows/publish-testpypi.yml`.
 3. Configure the PyPI Trusted Publisher for this repository and
    `.github/workflows/release.yml`.
-4. Configure GitHub environments named `testpypi` and `pypi`.
-5. Protect the `pypi` environment with manual approval.
-6. Do not store PyPI API tokens unless Trusted Publishing is unavailable.
+4. Configure GitHub environments named `signing`, `testpypi`, `pypi`, and
+   `github-release`.
+5. Protect all four privileged environments with required reviewers. Enforce
+   immutable `v*` tag rules and require release tags to point to commits on the
+   default branch. The release job independently re-reads and peels the remote
+   tag immediately before creation and requires the resulting commit to equal
+   the signed workflow SHA; tag rules remain defense in depth against the
+   unavoidable interval between that check and GitHub's release-create API.
+6. Restrict environment deployment branches/tags to the intended release refs.
+7. Do not store PyPI API tokens unless Trusted Publishing is unavailable.
 
 ## Credential Timing
 
 1. Complete account creation, 2FA setup, Trusted Publisher configuration, and
-   GitHub environment setup during Sprint 1 owner setup.
+   GitHub environment setup during release-owner onboarding.
 2. Use Trusted Publishing/OIDC as the default release path. In that path, do
    not create, paste, store, or commit a PyPI API token, and do not run local
    `twine upload`.
@@ -88,11 +100,11 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 schema_review_dir="$(mktemp -d)"
-agent-assure schema export --out "${schema_review_dir}/v0.5.0"
-git diff --no-index -- schemas/v0.5.0 "${schema_review_dir}/v0.5.0"
+agent-assure schema export --out "${schema_review_dir}/v0.6.0"
+git diff --no-index -- schemas/v0.6.0 "${schema_review_dir}/v0.6.0"
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.5.0
+python scripts/check_version_matches_tag.py v0.6.0
 rm -rf "${schema_review_dir}"
 ```
 
@@ -106,17 +118,17 @@ python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 $SchemaReviewRoot = Join-Path $env:TEMP "agent-assure-schema-review"
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force -ErrorAction SilentlyContinue
-$SchemaReview = Join-Path $SchemaReviewRoot "v0.5.0"
+$SchemaReview = Join-Path $SchemaReviewRoot "v0.6.0"
 agent-assure schema export --out $SchemaReview
-git diff --no-index -- schemas/v0.5.0 $SchemaReview
+git diff --no-index -- schemas/v0.6.0 $SchemaReview
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.5.0
+python scripts/check_version_matches_tag.py v0.6.0
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
 
 If the schema review diff is intentional, run `make schemas`, review
-`git diff -- schemas/v0.5.0`, run `make schema-force-includes`, then rerun
+`git diff -- schemas/v0.6.0`, run `make schema-force-includes`, then rerun
 `make schema-check` before continuing.
 
 ## Temporary Virtual Environments
@@ -143,22 +155,46 @@ Remove-Item -LiteralPath $ReleaseTemp -Recurse -Force
 
 ## TestPyPI Candidate
 
+Before creating a candidate, every built-in mutation operator must have an
+immutable `introduced_at_commit`. The implementation must be committed first;
+only then may a follow-up provenance commit replace `git:uncommitted` with that
+implementation commit. Do not stamp the working tree or an arbitrary later
+commit. Before stamping, freeze the catalog and transformation binding digests
+in the operator's authored `introduction_components` snapshot and the canonical
+`agent_assure/mutation/introduction_snapshots.json` document. `make
+release-check` reads that document from the claimed commit, requires the carried
+snapshot to match it, and then replays its component digests and the
+target-control creation snapshot. Local and CI release validation therefore
+require full Git history. The complete current `implementation_components`
+manifest still determines the implementation identity being released, but its
+bytes are not compared with a historical commit; later maintenance is therefore
+allowed to change current identity without rewriting introduction history. The
+guard additionally requires
+`introduced_in_release` not to be newer than the expected package/tag version,
+using release-candidate-aware SemVer precedence; historical operators therefore
+remain valid in later releases while future-dated declarations fail. It also
+requires the introduction commit to be in the release commit's ancestry and
+each target control's `first_seen_commit` to precede the operator introduction.
+A remaining `git:uncommitted` value is an intentional hard release blocker. An
+operator intended for an RC must truthfully name that RC or an earlier version;
+a stable `0.6.0` introduction is correctly considered newer than `0.6.0rc2`.
+
 TestPyPI package versions are immutable. A second upload of the same version
 will fail, so each release candidate needs a unique version such as
-`0.5.0rc1`, then `0.5.0rc2` if another candidate is needed.
+`0.6.0rc1`, then `0.6.0rc2` if another candidate is needed.
 
 1. Create a candidate ref whose package metadata already contains the unique
-   candidate version, for example `project.version = "0.5.0rc1"` and
-   `agent_assure.__version__ = "0.5.0rc1"`.
+   candidate version, for example `project.version = "0.6.0rc1"` and
+   `agent_assure.__version__ = "0.6.0rc1"`.
 2. Build and verify locally with `make release-check`.
 3. Run the `Publish to TestPyPI` workflow manually from that ref and set
-   `expected-version` explicitly to the same value, for example `0.5.0rc1`.
+   `expected-version` explicitly to the same value, for example `0.6.0rc1`.
    The workflow intentionally has no default version because the selected ref
    must already contain matching package metadata.
 4. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package
-version to `0.5.0` before creating the final `v0.5.0` tag.
+version to `0.6.0` before creating the final `v0.6.0` tag.
 
 CI, WSL, or Git Bash:
 
@@ -169,7 +205,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps \
   --index-url https://test.pypi.org/simple/ \
-  agent-assure==0.5.0rc1
+  agent-assure==0.6.0rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out /tmp/agent-assure-testpypi-schemas
@@ -193,7 +229,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps `
   --index-url https://test.pypi.org/simple/ `
-  agent-assure==0.5.0rc1
+  agent-assure==0.6.0rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out $SchemaTemp
@@ -230,32 +266,40 @@ git checkout main
 git pull
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.5.0
-git tag v0.5.0
-git push origin v0.5.0
+python scripts/check_version_matches_tag.py v0.6.0
+git tag v0.6.0
+git push origin v0.6.0
 ```
 
-The PyPI publish job in `.github/workflows/release.yml` runs only on matching
-tags. It blocks if `v0.5.0` does not match `project.version = "0.5.0"` and
-`agent_assure.__version__ = "0.5.0"`, if the active schema constants do not
-match the mapped release schema version `0.5.0`, or if `schemas/v0.5.0` is
-missing. It publishes package files
-from the release bundle artifact produced by the release build; it does not run
-a second package build. Before upload, it verifies the downloaded release
-bundle with cosign against `.github/workflows/release.yml`, verifies the same
-bundle with `agent-assure release replay`, stages only `.whl` and `.tar.gz`
-files, then runs `twine check`, wheel-content verification, and the clean wheel
-smoke install on the staged upload directory.
+The release workflow runs only its privileged jobs on matching tags. It blocks
+if `v0.6.0` does not match `project.version = "0.6.0"` and
+`agent_assure.__version__ = "0.6.0"`, if the active schema constants do not
+match the mapped release schema version `0.6.0`, or if `schemas/v0.6.0` is
+missing. The tag must resolve to `GITHUB_SHA`, be an ancestor of the default
+branch, have matching release notes, and start and finish generation with a
+clean source tree. A fresh job independently rebuilds the complete signing
+allowlist, compares the actual bytes of the downloaded packet JSON, packet
+Markdown, manifest, replay, release notes, SBOM, wheel, and source distribution
+against that rebuild, and replays the independently rebuilt digests. It stages
+only byte-matched files from the independent build under a new artifact ID.
+Manifest claims alone cannot satisfy this gate.
+
+After keyless signing, a non-OIDC verification job checks the exact workflow
+identity, rejects modified-blob verification, validates the signed distribution
+directory, and promotes both the complete verified signed bundle and a staged
+`.whl`/`.tar.gz` pair. GitHub Release consumes the verifier-promoted full-bundle
+ID; the PyPI publisher consumes the verifier-promoted distribution ID and
+invokes the pinned publication action. Neither publisher executes project code.
 
 PyPI receives only the wheel and source distribution. The release packet,
 manifest, SBOM, digest replay file, and signature bundles live on the GitHub
 release and are the cryptographic provenance chain for the package files.
 
-If the PyPI publish job fails after the release build succeeds, rerun the failed
-job from the same workflow run so it reuses the uploaded release bundle
-artifact. Do not push a replacement tag or start a fresh build for the same
-version unless the release is being deliberately re-cut before any package file
-has been accepted by PyPI.
+If publication fails after verification succeeds, rerun the failed publisher
+job from the same workflow run so it downloads the same content-addressed
+distribution artifact. The GitHub release job intentionally refuses to replace
+an existing release or asset. Do not push a replacement tag or create a fresh
+build for the same version.
 
 After the workflow publishes to PyPI, validate the final package from a clean
 environment.

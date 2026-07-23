@@ -6,7 +6,7 @@ import uuid
 from pathlib import Path
 
 from agent_assure import __version__
-from agent_assure.artifact_io import file_sha256
+from agent_assure.artifact_io import file_sha256, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 
@@ -68,10 +68,9 @@ def build_sbom(
 
 def write_sbom(sbom: JsonObject, path: Path) -> str:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    write_text_atomic(
+        path,
         json.dumps(sbom, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
-        newline="\n",
     )
     return file_sha256(path)
 

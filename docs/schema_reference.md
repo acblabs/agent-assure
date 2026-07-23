@@ -1,15 +1,32 @@
 # Schema Reference
 
-Schema version: `0.5.0`.
+Current schema version: `0.6.0`.
 
-Persisted artifacts include `schema_version` and `artifact_kind`. The current
-models emit `schema_version: 0.5.0` and continue to accept legacy
-`schema_version: 0.2.0`, `schema_version: 0.3.1`, and
-`schema_version: 0.4.3` artifacts for replay. Usage roots still emit their
-own v0.4.3 usage schema label because sprint 13 reuses that shape.
+Persisted artifacts include `schema_version` and `artifact_kind`. Current
+models emit `schema_version: 0.6.0` and continue to accept legacy
+`schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`, and
+`schema_version: 0.5.0` artifacts where their compatibility contracts permit
+those labels. Historical artifacts validate against their frozen schema
+snapshots. Usage roots retain their established compatibility rules for older
+usage schema labels.
+
+At schema version `0.6.0`, `evaluation-report` requires `runset_digest`, the
+canonical digest of the exact RunSet content evaluated. Mutation execution
+checks this binding for both source and candidate reports so equal `runset_id`
+labels cannot make stale report content admissible.
+
+Every v0.6 live `agent-run-record` also requires
+`cost_budget_committed_usd`, `generated_token_budget_committed`, and
+`total_token_budget_committed`. These fields record conservative amounts
+charged against local dispatch ceilings, including retained reservations for
+network attempts whose billing or generation outcome is ambiguous; they are
+distinct from provider-reported usage and estimated invoice cost.
 
 Exported roots:
 
+- `assurance-evidence-descriptor`
+- `assurance-mutation-operator`
+- `assurance-mutation-result`
 - `agent-run-record`
 - `compiled-suite`
 - `comparison-report`
@@ -22,6 +39,7 @@ Exported roots:
 - `evidence-packet`
 - `expectation`
 - `expectation-change-record`
+- `expected-detection-contract`
 - `fixture-manifest`
 - `live-comparison-report`
 - `live-drift-report`
@@ -40,6 +58,45 @@ Exported roots:
 - `usage-segment`
 - `usage-summary`
 - `usage-summary-delta`
+
+Evidence-carrying release roots use persisted `schema_version: 0.6.0` and a
+separate semantic contract identity:
+
+- `assurance-evidence-descriptor` is `AssuranceEvidenceDescriptor/v1` and has
+  an `evidence_digest` computed without its own digest field;
+- `assurance-mutation-operator` is `AssuranceMutationOperator/v1` and has an
+  `operator_digest` computed without its own digest field;
+- `expected-detection-contract` is `ExpectedDetectionContract/v1` and has a
+  `contract_digest` computed without its own digest field; and
+- `assurance-mutation-result` is `AssuranceMutationResult/v1` and has a
+  `result_digest` computed without its own digest field.
+
+Each root carries `contract_version: 1.0.0`. Contract version identifies the
+method semantics, while persisted schema version identifies JSON shape. The
+result binds source and transformed digests, operator identity and
+implementation digest, evaluator method ID/version/implementation digest,
+seed, exact changed paths, expected-detection contract digest, selected
+finding-target digest, observed findings with target digests, provenance,
+independence class, semantic state, and limitations. Evaluator implementation
+identity is non-zero except that the all-zero unavailable sentinel is permitted
+only for `execution_error` with `catalog_integrity_error`, before evaluator
+identity can be established. A matched
+finding must carry the selected target digest. Permitted operator paths expose
+single-segment wildcard-template syntax in JSON Schema, while result paths are
+exact JSON Pointers. See `docs/evidence_carrying_releases.md` for field
+semantics.
+
+Known-operator provenance carries two canonically ordered component sets. The
+complete current `implementation_components` manifest derives the current
+implementation digest. The authored `introduction_components` snapshot freezes
+the catalog and transformation bindings from first introduction. The release
+guard first matches that carried snapshot to the snapshot document stored in
+the immutable introduction commit, then replays only those historical bindings,
+plus the authored target-control creation digest, against LF-normalized Git
+blobs. Current implementation bytes are not required to equal their historical
+versions. Unknown-operator results keep both component sets,
+introduction facts, and target-control provenance explicitly unknown rather than
+inventing those facts.
 
 `AgentRunRecord` intentionally has no persisted `otel_attributes` field. OTel
 attributes are derived from structured fields during span-plan projection.

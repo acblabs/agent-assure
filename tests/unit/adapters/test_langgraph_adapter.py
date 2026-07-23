@@ -6,6 +6,7 @@ import pytest
 
 from agent_assure.adapters import (
     FrameworkAdapter,
+    FrameworkObservation,
     FrameworkRunProjection,
     LangGraphAdapter,
     build_run_record_from_observations,
@@ -13,6 +14,26 @@ from agent_assure.adapters import (
 
 RAW_PROMPT = "Employee E-7788 raw reimbursement prompt with receipt R-44119"
 RAW_TOOL_ARGS = '{"employee_id":"E-7788","receipt_id":"R-44119"}'
+
+
+def test_framework_observation_rejects_unsafe_privacy_mapping_keys() -> None:
+    base = {
+        "observation_id": "observation-001",
+        "framework": "langgraph",
+        "run_id": "run-001",
+        "sequence_number": 1,
+        "event_type": "decision",
+    }
+    with pytest.raises(ValueError, match="mapping keys"):
+        FrameworkObservation(
+            **base,
+            privacy_filtered_attributes={"jane@example.com": "safe"},
+        )
+    with pytest.raises(ValueError, match="no more than 64 entries"):
+        FrameworkObservation(
+            **base,
+            privacy_filtered_attributes={f"safe_{index}": "safe" for index in range(65)},
+        )
 
 
 def test_langgraph_adapter_converts_events_deterministically() -> None:

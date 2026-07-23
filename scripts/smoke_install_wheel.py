@@ -23,6 +23,10 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv if argv is not None else sys.argv[1:])
     try:
         wheel = find_single_wheel(args.dist)
+        run(
+            [sys.executable, "-c", _direct_wheel_zip_import_assertion(wheel)],
+            cwd=ROOT,
+        )
         with tempfile.TemporaryDirectory(prefix="agent-assure-wheel-smoke-") as temp:
             temp_dir = Path(temp)
             venv_dir = temp_dir / ".venv"
@@ -81,6 +85,10 @@ def main(argv: list[str] | None = None) -> int:
                 cwd=temp_dir,
             )
             run([str(agent_assure), "--version"], cwd=temp_dir)
+            run(
+                [str(agent_assure), "controls", "mutate", "--help"],
+                cwd=temp_dir,
+            )
             run(
                 [str(agent_assure), "schema", "export", "--out", str(schema_dir)],
                 cwd=temp_dir,
@@ -200,6 +208,21 @@ def _wheel_import_assertion(venv_dir: Path) -> str:
         f"expected = Path({expected_prefix!r}); "
         "actual = Path(agent_assure.__file__).resolve(); "
         "actual.relative_to(expected)"
+    )
+
+
+def _direct_wheel_zip_import_assertion(wheel: Path) -> str:
+    wheel_path = str(wheel.resolve())
+    return (
+        "import sys; "
+        f"wheel = {wheel_path!r}; "
+        "sys.path.insert(0, wheel); "
+        "import agent_assure; "
+        "assert wheel in agent_assure.__file__; "
+        "from agent_assure.cli.main import app; "
+        "assert app is not None; "
+        "from agent_assure.mutation.catalog import registered_operators; "
+        "assert len(registered_operators()) == 3"
     )
 
 

@@ -9,12 +9,18 @@ nav:
   - For AI leaders: for_ai_leaders.md
   - For engineers: for_engineers.md
   - What this measures: what_this_measures.md
+  - Evidence-carrying releases: evidence_carrying_releases.md
+  - Architecture: architecture.md
+  - CLI contract: cli_contract.md
+  - Schema reference: schema_reference.md
   - Process assurance vs answer-quality evals: measurement/process_assurance_vs_answer_quality_eval.md
   - Flagship demo: demo_flagship.md
   - RAG demo: demo_rag.md
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
+  - Privacy model: privacy_model.md
+  - Threat model: threat_model.md
   - NIST AI RMF crosswalk: governance_crosswalk_nist_ai_rmf.md
   - OWASP LLM Top 10 crosswalk: governance_crosswalk_owasp_llm.md
   - ISO/IEC 42001 crosswalk: governance_crosswalk_iso42001.md
@@ -26,3 +32,10 @@ nav:
   - PyPI release: release_pypi.md
   - API surface: api_surface.md
   - Limitations: limitations.md
+  - Architecture decisions:
+      - Assurance compiler boundary: adr/0010-assurance-compiler-boundary.md
+      - Evidence method boundaries: adr/0011-evidence-method-boundaries.md
+      - Signature claim boundary: adr/0012-signature-claim-boundary.md
+      - Deterministic and stochastic semantics: adr/0013-deterministic-and-stochastic-semantics.md
+      - LLM judgments are advisory: adr/0014-llm-judgments-are-advisory.md
+      - Formal and conformal scope: adr/0015-formal-and-conformal-scope.md

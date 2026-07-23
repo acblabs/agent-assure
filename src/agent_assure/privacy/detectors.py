@@ -9,6 +9,11 @@ import rfc8785
 
 PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v1"
 PRIVACY_REDACTION_TEXT = "[REDACTED]"
+# Privacy scanning is intentionally fail-closed above this per-scalar bound.  This
+# prevents a single JSON string from turning the backtracking regular-expression
+# engine into an unbounded CPU sink. Persisted model fields are normally much
+# smaller than this limit.
+MAX_PRIVACY_SCAN_CHARS = 16_384
 
 
 @dataclass(frozen=True)
@@ -22,7 +27,8 @@ PRIVACY_DETECTOR_DEFINITIONS: tuple[PrivacyDetectorDefinition, ...] = (
     PrivacyDetectorDefinition("us-ssn", r"\b\d{3}-\d{2}-\d{4}\b"),
     PrivacyDetectorDefinition(
         "email-address",
-        r"\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b",
+        r"(?<![A-Z0-9._%+-])[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}"
+        r"(?![A-Z0-9._%+-])",
         ("IGNORECASE",),
     ),
     PrivacyDetectorDefinition("payment-card-like-number", r"\b(?:\d[ -]?){12,15}\d\b"),
@@ -80,7 +86,7 @@ PRIVACY_DETECTOR_DEFINITIONS: tuple[PrivacyDetectorDefinition, ...] = (
     ),
     PrivacyDetectorDefinition(
         "url-query-secret",
-        r"https?://[^\s?#]*\?(?:[^\s#&]*&)*"
+        r"https?://[^\s?#]{0,4096}\?[^\s#]{0,8192}?"
         r"(?:api[_-]?key|access[_-]?token|token|secret|password)="
         r"[^\s&#]+",
         ("IGNORECASE",),
@@ -121,6 +127,54 @@ SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     _compile_detector(definition) for definition in PRIVACY_DETECTOR_DEFINITIONS
 )
 
+# These are semantics-preserving guards: every corresponding expression requires
+# at least one listed marker. Avoiding a regex search when its required marker is
+# absent removes the worst common adversarial shape (for example, a long dotted
+# string with no ``@`` for the email detector).
+_REQUIRED_MARKERS: dict[str, tuple[str, ...]] = {
+    "us-ssn": ("-",),
+    "email-address": ("@",),
+    "labeled-date-of-birth": ("dob", "date of birth"),
+    "labeled-sensitive-record-value": ("patient", "member", "ssn", "dob"),
+    "bearer-token": ("bearer",),
+    "json-web-token": ("eyj",),
+    "aws-access-key-id": ("akia", "asia"),
+    "github-token": ("ghp_", "gho_", "ghu_", "ghs_", "ghr_"),
+    "openai-api-key": ("sk-",),
+    "anthropic-api-key": ("sk-ant-",),
+    "slack-token": ("xox",),
+    "google-api-key": ("aiza",),
+    "stripe-live-key": ("_live_",),
+    "http-basic-authorization": ("authorization",),
+    "aws-secret-access-key-assignment": ("secret",),
+    "generic-secret-assignment": (
+        "api",
+        "access",
+        "client",
+        "private",
+        "secret",
+        "password",
+        "passwd",
+        "authorization",
+    ),
+    "generic-secret-prose": ("password", "passwd", "secret", "token"),
+    "url-query-secret": (
+        "api_key=",
+        "api-key=",
+        "apikey=",
+        "access_token=",
+        "access-token=",
+        "accesstoken=",
+        "token=",
+        "secret=",
+        "password=",
+    ),
+    "labeled-north-american-phone-number": ("phone", "tel", "mobile"),
+    "medical-record-number": ("mrn",),
+    "patient-name": ("patient",),
+    "private-key-header": ("private key",),
+}
+
 
 def privacy_profile_manifest() -> dict[str, Any]:
     """Return the canonical detector semantics bound to persisted artifacts."""
@@ -130,6 +184,8 @@ def privacy_profile_manifest() -> dict[str, Any]:
         "detection_algorithm": "ordered-any-search",
         "redaction_algorithm": "ordered-sequential-substitution",
         "redaction_text": PRIVACY_REDACTION_TEXT,
+        "max_scalar_characters": MAX_PRIVACY_SCAN_CHARS,
+        "over_limit_action": "treat-sensitive-and-redact-entire-scalar",
         "detectors": [
             {
                 "pattern_id": definition.pattern_id,
@@ -147,4 +203,21 @@ PRIVACY_PROFILE_DIGEST = hashlib.sha256(
 
 
 def contains_sensitive_value(value: str) -> bool:
-    return any(pattern.search(value) is not None for pattern in SENSITIVE_PATTERNS)
+    if len(value) > MAX_PRIVACY_SCAN_CHARS:
+        return True
+    return any(pattern.search(value) is not None for pattern in sensitive_patterns_for(value))
+
+
+def sensitive_patterns_for(value: str) -> tuple[re.Pattern[str], ...]:
+    """Return detectors whose mandatory literal marker is present in ``value``."""
+    lowered = value.lower()
+    return tuple(
+        pattern
+        for definition, pattern in zip(
+            PRIVACY_DETECTOR_DEFINITIONS,
+            SENSITIVE_PATTERNS,
+            strict=True,
+        )
+        if not (markers := _REQUIRED_MARKERS.get(definition.pattern_id))
+        or any(marker in lowered for marker in markers)
+    )

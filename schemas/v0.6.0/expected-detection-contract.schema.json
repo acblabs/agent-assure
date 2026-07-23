@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "FindingSelector": {
+      "additionalProperties": false,
+      "properties": {
+        "control_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Control Id",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "target": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Target"
+        }
+      },
+      "required": [
+        "control_id",
+        "reason_code"
+      ],
+      "title": "FindingSelector",
+      "type": "object"
+    },
+    "GateEffect": {
+      "enum": [
+        "block",
+        "review",
+        "informational",
+        "ignore"
+      ],
+      "title": "GateEffect",
+      "type": "string"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "RequiredFindingAlternatives": {
+      "additionalProperties": false,
+      "properties": {
+        "any_of": {
+          "items": {
+            "$ref": "#/$defs/FindingSelector"
+          },
+          "minItems": 1,
+          "title": "Any Of",
+          "type": "array"
+        }
+      },
+      "required": [
+        "any_of"
+      ],
+      "title": "RequiredFindingAlternatives",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.0/expected-detection-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "expected-detection-contract",
+      "default": "expected-detection-contract",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "contract_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Contract Digest",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "ExpectedDetectionContract/v1",
+      "default": "ExpectedDetectionContract/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "expected_gate_effect": {
+      "$ref": "#/$defs/GateEffect"
+    },
+    "operator_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Operator Id",
+      "type": "string"
+    },
+    "prohibited_substitutes": {
+      "items": {
+        "$ref": "#/$defs/FindingSelector"
+      },
+      "title": "Prohibited Substitutes",
+      "type": "array"
+    },
+    "required_findings": {
+      "$ref": "#/$defs/RequiredFindingAlternatives"
+    },
+    "schema_name": {
+      "const": "expected-detection-contract",
+      "default": "expected-detection-contract",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.0",
+      "default": "0.6.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "secondary_findings_allowed": {
+      "title": "Secondary Findings Allowed",
+      "type": "boolean"
+    },
+    "target_control_ids": {
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Target Control Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "contract_digest",
+    "operator_id",
+    "target_control_ids",
+    "required_findings",
+    "prohibited_substitutes",
+    "expected_gate_effect",
+    "secondary_findings_allowed",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ExpectedDetectionContract",
+  "type": "object"
+}

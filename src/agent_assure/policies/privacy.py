@@ -13,17 +13,7 @@ SENSITIVE_SCAN_SKIP_KEYS = frozenset(
     {
         "artifact_kind",
         "schema_version",
-        "run_id",
-        "case_id",
-        "observation_id",
-        "pipeline_id",
-        "variant_id",
-        "suite_id",
-        "suite_version",
         "traceparent",
-        "tracestate",
-        "started_at_utc",
-        "completed_at_utc",
     }
 )
 _DIGEST_OR_HASH_PATTERN = re.compile(r"^[a-f0-9]{64}$")
@@ -42,6 +32,7 @@ def evaluate_redaction(run: AgentRunRecord) -> tuple[ControlResult, ...]:
         )
         for field_name, value in _iter_sensitive_strings(run.model_dump(mode="json"))
         if contains_sensitive_value(value)
+        or (field_name.endswith(".<mapping-key>") and _contains_control_character(value))
     )
 
 
@@ -50,11 +41,18 @@ def _iter_sensitive_strings(value: Any, path: str = "") -> Iterator[tuple[str, s
         yield path or "$", value
         return
     if isinstance(value, Mapping):
-        for key, item in value.items():
+        for index, (key, item) in enumerate(value.items()):
             key_text = str(key)
+            unsafe_key = contains_sensitive_value(key_text) or _contains_control_character(
+                key_text
+            )
+            if unsafe_key:
+                key_path = f"{path or '$'}[{index}].<mapping-key>"
+                yield key_path, key_text
             if _skip_key(key_text, item):
                 continue
-            child_path = f"{path}.{key_text}" if path else key_text
+            safe_path_key = f"<key:{index}>" if unsafe_key else key_text
+            child_path = f"{path}.{safe_path_key}" if path else safe_path_key
             yield from _iter_sensitive_strings(item, child_path)
         return
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
@@ -75,3 +73,7 @@ def _is_digest_like(value: Any) -> bool:
     if isinstance(value, Sequence) and not isinstance(value, str | bytes | bytearray):
         return all(_is_digest_like(item) for item in value)
     return False
+
+
+def _contains_control_character(value: str) -> bool:
+    return any(ord(character) < 0x20 or ord(character) == 0x7F for character in value)

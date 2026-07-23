@@ -5,6 +5,15 @@ It can also emit OpenTelemetry SDK spans and export OTLP HTTP data when the
 optional `agent-assure[otel]` dependencies are installed. This remains an
 implementation feature, not a claim of adoption by the OpenTelemetry project.
 
+The API, SDK, and OTLP HTTP exporter optional dependencies are pinned to the
+exact tested OpenTelemetry 1.44.0 tuple. The hardened OTLP HTTP transport checks
+the upstream exporter's private endpoint, header, TLS, compression, session,
+timeout, and client-certificate state before a span can be sent. A dependency
+or private-contract mismatch
+fails as unavailable instead of silently falling back to ambient exporter
+configuration. A dedicated hash-locked CI job runs this contract against the
+real SDK and OTLP HTTP exporter.
+
 The implemented trace path is intentionally narrow and auditable:
 
 - live runs create or accept W3C `traceparent` context;
