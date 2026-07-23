@@ -72,10 +72,15 @@ def evaluate_paired_randomization_test(
     prerequisite_status: EndpointPrerequisiteStatus,
     limitations: tuple[str, ...] = (),
 ) -> PairedRandomizationTestResult | None:
-    if protocol.analysis_method not in {
+    analysis_method: Literal[
         "paired_cluster_permutation_exact",
         "paired_cluster_permutation_monte_carlo",
-    }:
+    ]
+    if protocol.analysis_method == "paired_cluster_permutation_exact":
+        analysis_method = "paired_cluster_permutation_exact"
+    elif protocol.analysis_method == "paired_cluster_permutation_monte_carlo":
+        analysis_method = "paired_cluster_permutation_monte_carlo"
+    else:
         return None
     plan = protocol.advanced_analysis_plan
     if plan is None:
@@ -88,7 +93,7 @@ def evaluate_paired_randomization_test(
         p_value, resamples, exhaustive = _permutation_p_value(
             differences,
             margin=margin,
-            method=protocol.analysis_method,
+            method=analysis_method,
             seed=seed_material,
         )
         adjusted_p_value = _adjust_p_value(
@@ -106,7 +111,7 @@ def evaluate_paired_randomization_test(
         endpoint_id=endpoint.endpoint_id,
         label=endpoint.label,
         interpretation=endpoint.interpretation,
-        analysis_method=protocol.analysis_method,
+        analysis_method=analysis_method,
         prerequisite_status=prerequisite_status,
         exchangeability_assumption=endpoint.exchangeability_assumption,
         compared_clusters=len(differences),

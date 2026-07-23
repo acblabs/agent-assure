@@ -651,8 +651,14 @@ def _cost_source(
 ) -> EstimatedCostSource:
     if not cost_was_reported:
         return "not_reported"
-    if value in {"adapter_reported", "local_estimate", "not_reported", "provider_reported"}:
-        return value
+    if value == "adapter_reported":
+        return "adapter_reported"
+    if value == "local_estimate":
+        return "local_estimate"
+    if value == "not_reported":
+        return "not_reported"
+    if value == "provider_reported":
+        return "provider_reported"
     return "adapter_reported"
 
 

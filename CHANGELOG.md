@@ -32,6 +32,13 @@
   exact tested 1.44.0 tuple, added a
   dedicated hash-locked real-exporter CI contract, and made private OTLP HTTP
   transport incompatibilities fail closed before span egress.
+- Aligned the OpenTelemetry contract tests with the fail-closed exporter,
+  exercised real console emission and real pinned OTLP HTTP private transport
+  construction without network egress, and removed the stale DNS-resolution
+  opt-out expectation.
+- Restricted repository-schema precedence to verified `src` checkouts so an
+  installed wheel uses its reviewed packaged frozen schemas instead of an
+  unrelated adjacent `schemas` directory.
 - Canonicalized tool-policy findings by deduplicating and sorting tool names,
   with explicit `forbidden_tools` taking precedence over allowlist failures.
   This can change finding order, count, messages, IDs, and derived report

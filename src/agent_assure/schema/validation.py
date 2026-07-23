@@ -14,6 +14,7 @@ from agent_assure.schema.export import (
     persisted_identity_fields_for_kind,
     require_persisted_identity_in_schema,
 )
+from agent_assure.source_layout import source_checkout_component
 
 MAX_FROZEN_SCHEMA_BYTES = 1 * 1024 * 1024
 FROZEN_SCHEMA_VERSIONS = frozenset(
@@ -92,11 +93,9 @@ def _legacy_frozen_schema(schema_version: str, kind: str) -> dict[str, Any] | No
         raise ValueError(f"unsupported frozen schema_version {schema_version!r}")
     # model_for_kind is an explicit allowlist for the filename component.
     model_for_kind(kind)
-    schema_root = (_repo_root() / "schemas").resolve()
-    schema_path = (schema_root / f"v{schema_version}" / f"{kind}.schema.json").resolve()
-    if not schema_path.is_relative_to(schema_root):
-        raise ValueError("frozen schema path escaped the trusted schema root")
-    if schema_path.is_file():
+    relative_path = f"schemas/v{schema_version}/{kind}.schema.json"
+    schema_path = source_checkout_component(__file__, relative_path)
+    if schema_path is not None and schema_path.is_file():
         return load_json_bounded(
             schema_path,
             max_bytes=MAX_FROZEN_SCHEMA_BYTES,
@@ -197,7 +196,3 @@ def _validate_json_schema(schema: dict[str, Any], payload: dict[str, Any]) -> No
         schema,
         registry=_NO_REMOTE_SCHEMA_REGISTRY,
     ).validate(payload)
-
-
-def _repo_root() -> Path:
-    return Path(__file__).resolve().parents[3]

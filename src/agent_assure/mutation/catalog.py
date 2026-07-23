@@ -8,7 +8,6 @@ from dataclasses import dataclass
 from functools import lru_cache
 from importlib import resources
 from importlib.resources.abc import Traversable
-from pathlib import Path
 from typing import cast
 
 from agent_assure.mutation import operators
@@ -32,6 +31,7 @@ from agent_assure.schema.mutation import (
 )
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.source_layout import source_checkout_component
 
 TargetResolver = Callable[
     [CompiledSuite, RunSet, Mapping[str, object]],
@@ -435,8 +435,8 @@ def _read_packaged_component(relative_path: str) -> bytes:
         for part in relative_path.removeprefix("agent_assure/").split("/"):
             component = component.joinpath(part)
     elif relative_path in _FROZEN_RUNSET_SCHEMA_PATHS:
-        repository_component = Path(__file__).resolve().parents[3] / relative_path
-        if repository_component.is_file():
+        repository_component = source_checkout_component(__file__, relative_path)
+        if repository_component is not None and repository_component.is_file():
             try:
                 return repository_component.read_bytes()
             except Exception as exc:
