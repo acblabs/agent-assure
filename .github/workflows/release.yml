@@ -14,7 +14,9 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PYTHON_VERSION: "3.14"
+  # Evidence identity binds the exact runtime. Keep release evidence on one
+  # reviewed patch release while the compatibility CI matrix remains broad.
+  PYTHON_VERSION: "3.14.6"
   COSIGN_VERSION: "v3.0.6"
   SOURCE_DATE_EPOCH: "1783036800"
 

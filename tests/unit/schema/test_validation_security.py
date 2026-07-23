@@ -3,8 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from referencing.exceptions import Unresolvable
 
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.schema import validation
 
 
@@ -15,6 +17,26 @@ def test_legacy_schema_version_cannot_traverse_schema_root() -> None:
     }
 
     with pytest.raises(ValueError, match="unsupported frozen schema_version"):
+        validation.validate_artifact_payload(payload, "run-set")
+
+
+def test_frozen_runset_preserves_optional_artifact_kind_contract() -> None:
+    payload = {
+        "schema_version": "0.5.0",
+        "runset_id": "runset-legacy",
+        "suite_id": "suite-legacy",
+        "suite_version": "0.5.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "runs": [],
+    }
+
+    assert validation.validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
+
+    payload["artifact_kind"] = "compiled-suite"
+    with pytest.raises(JsonSchemaValidationError):
         validation.validate_artifact_payload(payload, "run-set")
 
 

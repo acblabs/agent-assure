@@ -84,18 +84,26 @@ def bypass_required_human_review_targets(
             or not run.human_review_performed
         ):
             continue
-        targets.append(
-            MutationTarget(
-                identity=f"{run.case_id}\0{run.run_id}",
-                expected_finding_target="human_review_required",
-                changes=(
-                    PayloadChange(
-                        path=f"/runs/{run_index}/human_review_required",
-                        value=False,
+        targets.extend(
+            (
+                MutationTarget(
+                    identity=f"{run.case_id}\0{run.run_id}\0routing",
+                    expected_finding_target="human_review_required",
+                    changes=(
+                        PayloadChange(
+                            path=f"/runs/{run_index}/human_review_required",
+                            value=False,
+                        ),
                     ),
-                    PayloadChange(
-                        path=f"/runs/{run_index}/human_review_performed",
-                        value=False,
+                ),
+                MutationTarget(
+                    identity=f"{run.case_id}\0{run.run_id}\0completion",
+                    expected_finding_target="human_review_performed",
+                    changes=(
+                        PayloadChange(
+                            path=f"/runs/{run_index}/human_review_performed",
+                            value=False,
+                        ),
                     ),
                 ),
             )
@@ -119,24 +127,27 @@ def inject_forbidden_tool_targets(
         existing_tools = set(run.tools)
         forbidden_candidates = sorted(set(expectation.forbidden_tools) - existing_tools)
         if forbidden_candidates:
-            tool = forbidden_candidates[0]
-        elif effective_allowed is not None:
-            tool = _synthetic_forbidden_tool(existing_tools | set(effective_allowed))
-        else:
+            targets.append(
+                _tool_injection_target(
+                    run_index,
+                    run,
+                    raw_runs,
+                    forbidden_candidates[0],
+                    branch="explicit",
+                )
+            )
+        if effective_allowed is None:
             continue
-        raw_run = _raw_run(raw_runs, run_index)
-        raw_tools = list(_raw_sequence(raw_run, "tools"))
-        raw_tools.append(tool)
+        synthetic_tool = _synthetic_forbidden_tool(
+            existing_tools | set(effective_allowed) | set(expectation.forbidden_tools)
+        )
         targets.append(
-            MutationTarget(
-                identity=f"{run.case_id}\0{run.run_id}\0{tool}",
-                expected_finding_target=f"tool:{tool}",
-                changes=(
-                    PayloadChange(
-                        path=f"/runs/{run_index}/tools",
-                        value=raw_tools,
-                    ),
-                ),
+            _tool_injection_target(
+                run_index,
+                run,
+                raw_runs,
+                synthetic_tool,
+                branch="allowlist",
             )
         )
     return tuple(sorted(targets, key=lambda item: item.identity))
@@ -173,6 +184,29 @@ def _synthetic_forbidden_tool(disallowed: set[str]) -> str:
     while f"{base}-{suffix}" in disallowed:
         suffix += 1
     return f"{base}-{suffix}"
+
+
+def _tool_injection_target(
+    run_index: int,
+    run: AgentRunRecord,
+    raw_runs: list[object],
+    tool: str,
+    *,
+    branch: str,
+) -> MutationTarget:
+    raw_run = _raw_run(raw_runs, run_index)
+    raw_tools = list(_raw_sequence(raw_run, "tools"))
+    raw_tools.append(tool)
+    return MutationTarget(
+        identity=f"{run.case_id}\0{run.run_id}\0{branch}\0{tool}",
+        expected_finding_target=f"tool:{tool}",
+        changes=(
+            PayloadChange(
+                path=f"/runs/{run_index}/tools",
+                value=raw_tools,
+            ),
+        ),
+    )
 
 
 def _raw_runs(source_payload: Mapping[str, object]) -> list[object]:

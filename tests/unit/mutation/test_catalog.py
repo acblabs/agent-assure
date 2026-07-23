@@ -158,7 +158,7 @@ def test_target_control_provenance_uses_authored_creation_snapshot() -> None:
         assert target.digest_at_operator_creation == creation_digest
 
 
-def test_introduction_snapshot_is_authored_and_matches_introduction_sources() -> None:
+def test_introduction_snapshot_is_authored_and_stable() -> None:
     snapshots = {
         tuple(
             (component.component_id, component.relative_path, component.sha256)
@@ -168,14 +168,18 @@ def test_introduction_snapshot_is_authored_and_matches_introduction_sources() ->
     }
 
     assert len(snapshots) == 1
-    snapshot = next(iter(snapshots))
-    assert tuple(path for _, path, _ in snapshot) == (
-        "agent_assure/mutation/catalog.py",
-        "agent_assure/mutation/operators.py",
+    assert next(iter(snapshots)) == (
+        (
+            "mutation.catalog",
+            "agent_assure/mutation/catalog.py",
+            "1187ce27fab137cd0b18b82b456cebe23186b160d916113c2a6dd27c4d9bf915",
+        ),
+        (
+            "mutation.operators",
+            "agent_assure/mutation/operators.py",
+            "7e5d514056ec31ff4614dd8324fe6152ccc288ec664339a83c6f3f35397ac4b7",
+        ),
     )
-    for _, relative_path, digest in snapshot:
-        source = (_SOURCE_ROOT / relative_path).read_bytes()
-        assert digest == implementation_component_sha256(relative_path, source)
 
 
 def test_introduction_snapshot_rejects_duplicate_json_keys() -> None:

@@ -80,6 +80,8 @@ def test_controls_mutate_accepts_yaml_and_persists_canonical_reproducible_artifa
     assert yaml_result.exit_code == 0, yaml_result.output
     assert json_result.exit_code == 0, json_result.output
     assert "mutation state: caught" in yaml_result.output
+    assert "caught this exact fixture transformation" in yaml_result.output
+    assert "not a broader model, planner, or red-team robustness result" in yaml_result.output
     assert files.runset.read_bytes() == source_bytes
 
     result_path = yaml_out / MUTATION_RESULT_FILENAME

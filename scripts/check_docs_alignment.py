@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import re
+import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from urllib.parse import unquote, urlsplit
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
@@ -135,6 +137,17 @@ FLAGSHIP_README_DIAGRAM_REQUIRED_EDGES = (
     r"\bCompare\b\s*-->\s*\bNewFailure\b",
 )
 
+MARKDOWN_INLINE_IMAGE_PATTERN = re.compile(
+    r"!\[[^\]\r\n]*\]\(\s*"
+    r"(?:<(?P<angle_target>[^>\r\n]+)>|(?P<plain_target>[^\s)\r\n]+))",
+)
+HTML_IMAGE_PATTERN = re.compile(
+    r"""<img\b[^>]*?\bsrc\s*=\s*"""
+    r"""(?:"(?P<double_quoted_target>[^"]*)"|'(?P<single_quoted_target>[^']*)'|"""
+    r"""(?P<unquoted_target>[^\s>]+))""",
+    re.IGNORECASE | re.DOTALL,
+)
+
 
 @dataclass(frozen=True)
 class FlagshipShowcaseFacts:
@@ -153,6 +166,7 @@ class FlagshipShowcaseFacts:
 def main() -> int:
     failures: list[str] = []
     failures.extend(_check_public_docs_exist())
+    failures.extend(_check_readme_local_image_assets())
     failures.extend(_check_forbidden_claims())
     failures.extend(_check_deprecated_report_terminology())
     failures.extend(_check_changelog())
@@ -180,6 +194,112 @@ def _check_public_docs_exist() -> list[str]:
         for path in PUBLIC_DOCS
         if not path.exists()
     ]
+
+
+def _check_readme_local_image_assets() -> list[str]:
+    readme = ROOT / "README.md"
+    if not readme.exists():
+        return []
+
+    repository_root = ROOT.resolve()
+    local_assets: dict[str, Path] = {}
+    failures: list[str] = []
+    for target in _readme_image_targets(readme.read_text(encoding="utf-8")):
+        parsed = urlsplit(target)
+        if parsed.scheme or parsed.netloc or target.startswith("/") or not parsed.path:
+            continue
+        display_target = unquote(parsed.path).replace("\\", "/")
+        asset_path = (readme.parent / unquote(parsed.path)).resolve()
+        if not asset_path.is_relative_to(repository_root):
+            failures.append(f"README.md image asset points outside repository: {display_target}")
+            continue
+        local_assets[display_target] = asset_path
+
+    existing_assets: dict[str, Path] = {}
+    for display_target, asset_path in sorted(local_assets.items()):
+        if not asset_path.is_file():
+            failures.append(f"README.md image asset does not exist: {display_target}")
+        else:
+            existing_assets[display_target] = asset_path
+
+    if not existing_assets:
+        return failures
+
+    try:
+        tracked_paths = _git_tracked_paths(ROOT)
+    except RuntimeError as exc:
+        failures.append(f"could not inspect Git-tracked README image assets: {exc}")
+        return failures
+    if tracked_paths is None:
+        return failures
+
+    for display_target, asset_path in sorted(existing_assets.items()):
+        repository_path = asset_path.relative_to(repository_root).as_posix()
+        if repository_path not in tracked_paths:
+            failures.append(f"README.md image asset is not tracked by Git: {display_target}")
+    return failures
+
+
+def _readme_image_targets(text: str) -> tuple[str, ...]:
+    searchable_text = _without_fenced_code(text)
+    targets: list[str] = []
+    for match in MARKDOWN_INLINE_IMAGE_PATTERN.finditer(searchable_text):
+        target = match.group("angle_target") or match.group("plain_target")
+        if target:
+            targets.append(target.strip())
+    for match in HTML_IMAGE_PATTERN.finditer(searchable_text):
+        target = (
+            match.group("double_quoted_target")
+            or match.group("single_quoted_target")
+            or match.group("unquoted_target")
+        )
+        if target:
+            targets.append(target.strip())
+    return tuple(dict.fromkeys(targets))
+
+
+def _without_fenced_code(text: str) -> str:
+    lines: list[str] = []
+    in_fence = False
+    fence_char = ""
+    fence_len = 0
+    for line in text.splitlines(keepends=True):
+        fence = re.match(r"^[ \t]{0,3}([`~]{3,})", line)
+        if fence:
+            marker = fence.group(1)
+            if not in_fence:
+                in_fence = True
+                fence_char = marker[0]
+                fence_len = len(marker)
+            elif marker[0] == fence_char and len(marker) >= fence_len:
+                in_fence = False
+                fence_char = ""
+                fence_len = 0
+            lines.append("\n" if line.endswith(("\n", "\r")) else "")
+            continue
+        lines.append(line if not in_fence else ("\n" if line.endswith(("\n", "\r")) else ""))
+    return "".join(lines)
+
+
+def _git_tracked_paths(repository_root: Path) -> set[str] | None:
+    if not (repository_root / ".git").exists():
+        return None
+    try:
+        completed = subprocess.run(
+            ["git", "-C", str(repository_root), "ls-files", "-z"],
+            check=False,
+            capture_output=True,
+        )
+    except OSError as exc:
+        raise RuntimeError(f"git ls-files could not start: {exc}") from exc
+    if completed.returncode != 0:
+        detail = completed.stderr.decode("utf-8", errors="replace").strip()
+        raise RuntimeError(detail or f"git ls-files exited {completed.returncode}")
+    return {
+        path.decode("utf-8", errors="surrogateescape")
+        for path in completed.stdout.split(b"\0")
+        if path
+    }
 
 
 def _check_forbidden_claims() -> list[str]:

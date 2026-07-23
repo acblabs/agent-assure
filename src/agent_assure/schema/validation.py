@@ -43,10 +43,10 @@ def validate_artifact_payload(payload: dict[str, Any], kind: str) -> str:
     # Resolve the requested kind before any artifact-controlled value is used
     # to select a frozen schema filename.
     model = model_for_kind(kind)
-    _require_raw_persisted_identity(payload, kind)
     legacy_result = _validate_legacy_frozen_schema(payload, kind)
     if legacy_result is not None:
         return legacy_result
+    _require_raw_persisted_identity(payload, kind)
     schema = model.model_json_schema(mode="validation")
     require_persisted_identity_in_schema(schema, kind)
     schema["$schema"] = _DRAFT_2020_12_URI
@@ -82,9 +82,6 @@ def _validate_legacy_frozen_schema(payload: dict[str, Any], kind: str) -> str | 
         )
     _prepare_frozen_schema(schema, schema_version=schema_version, kind=kind)
     _validate_json_schema(schema, payload)
-    artifact_kind = payload.get("artifact_kind")
-    if artifact_kind != kind:
-        raise ValueError(f"artifact_kind {artifact_kind!r} does not match requested kind {kind!r}")
     return "frozen-jsonschema"
 
 
@@ -140,7 +137,6 @@ def _prepare_frozen_schema(
         raise ValueError("frozen schema has no root properties")
     _require_property_accepts_identity(properties, "artifact_kind", kind)
     _require_property_accepts_identity(properties, "schema_version", schema_version)
-    require_persisted_identity_in_schema(schema, kind)
     _reject_nonlocal_schema_references(schema)
 
 

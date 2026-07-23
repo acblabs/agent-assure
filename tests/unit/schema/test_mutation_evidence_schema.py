@@ -16,7 +16,11 @@ from agent_assure.schema.export import SCHEMA_MODELS
 from agent_assure.schema.mutation import (
     ASSURANCE_MUTATION_METHOD_ID,
     ASSURANCE_MUTATION_PREREQUISITE_CHECK_IDS,
+    HUMAN_REVIEW_SUFFICIENCY_CHECK_ID,
+    HUMAN_REVIEW_SUFFICIENCY_LIMITATION,
     RFC8785_SAFE_INTEGER_MAX,
+    STOCHASTIC_SUFFICIENCY_CHECK_ID,
+    STOCHASTIC_SUFFICIENCY_LIMITATION,
     AssuranceEvidenceDescriptor,
     AssuranceMutationOperator,
     AssuranceMutationResult,
@@ -236,9 +240,7 @@ def _evidence_descriptor_values() -> dict[str, object]:
             expires_at=None,
             invalidated_by=("suite_digest_change",),
         ),
-        "dependencies": (
-            EvidenceDependency(evidence_id="mutation-result-001", digest=_DIGEST_C),
-        ),
+        "dependencies": (EvidenceDependency(evidence_id="mutation-result-001", digest=_DIGEST_C),),
         "producer": EvidenceProducer(name="agent-assure", version="0.6.0"),
     }
 
@@ -408,6 +410,157 @@ def test_llm_advisory_evidence_is_permanently_non_verdict_bearing() -> None:
         _evidence_descriptor(method=method)
 
 
+@pytest.mark.parametrize(
+    ("basis", "check_id"),
+    (
+        (
+            EvidenceEvaluationBasis.stochastic,
+            STOCHASTIC_SUFFICIENCY_CHECK_ID,
+        ),
+        (
+            EvidenceEvaluationBasis.human_reviewed,
+            HUMAN_REVIEW_SUFFICIENCY_CHECK_ID,
+        ),
+    ),
+)
+def test_nondeterministic_evidence_remains_nonverdict_without_typed_sufficiency(
+    basis: EvidenceEvaluationBasis,
+    check_id: str,
+) -> None:
+    method = EvidenceMethod(
+        method_id=f"assurance-mutation/test-{basis.value}/v1",
+        implementation_digest=_DIGEST_C,
+        implementation_version="1.0.0",
+        evaluation_basis=basis,
+    )
+    prerequisites = EvidencePrerequisites(
+        state=PrerequisiteState.unmet,
+        checks=(
+            *_satisfied_mutation_prerequisite_checks(),
+            PrerequisiteCheck(
+                check_id=check_id,
+                state=PrerequisiteState.unmet,
+            ),
+        ),
+    )
+    descriptor = _evidence_descriptor(
+        method=method,
+        scope=EvidenceScope(
+            suite_digest=_DIGEST_B,
+            protocol_digest=_DIGEST_A,
+            population_id="review-population-v1",
+        ),
+        result=EvidenceResult(
+            state=EvidenceState.prerequisites_unmet,
+            verdict_bearing=False,
+        ),
+        prerequisites=prerequisites,
+    )
+
+    assert descriptor.result.verdict_bearing is False
+    verdict_payload = descriptor.model_dump(mode="json")
+    verdict_payload["result"]["verdict_bearing"] = True
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            AssuranceEvidenceDescriptor.model_json_schema(mode="validation")
+        ).validate(verdict_payload)
+    with pytest.raises(ValidationError, match="typed sufficiency artifact"):
+        _evidence_descriptor(
+            method=method,
+            scope=EvidenceScope(
+                suite_digest=_DIGEST_B,
+                protocol_digest=_DIGEST_A,
+                population_id="review-population-v1",
+            ),
+            result=EvidenceResult(
+                state=EvidenceState.supported,
+                verdict_bearing=True,
+            ),
+            prerequisites=EvidencePrerequisites(
+                state=PrerequisiteState.satisfied,
+                checks=(
+                    *_satisfied_mutation_prerequisite_checks(),
+                    PrerequisiteCheck(
+                        check_id=check_id,
+                        state=PrerequisiteState.satisfied,
+                    ),
+                ),
+            ),
+        )
+
+    missing_check_payload = descriptor.model_dump(mode="json")
+    missing_check_payload["prerequisites"]["checks"].pop()
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            AssuranceEvidenceDescriptor.model_json_schema(mode="validation")
+        ).validate(missing_check_payload)
+    base_checks = list(_satisfied_mutation_prerequisite_checks())
+    base_checks[-1] = PrerequisiteCheck(
+        check_id=base_checks[-1].check_id,
+        state=PrerequisiteState.unmet,
+    )
+    with pytest.raises(ValidationError, match="typed sufficiency artifact"):
+        _evidence_descriptor(
+            method=method,
+            scope=EvidenceScope(
+                suite_digest=_DIGEST_B,
+                protocol_digest=_DIGEST_A,
+                population_id="review-population-v1",
+            ),
+            result=EvidenceResult(
+                state=EvidenceState.prerequisites_unmet,
+                verdict_bearing=False,
+            ),
+            prerequisites=EvidencePrerequisites(
+                state=PrerequisiteState.unmet,
+                checks=tuple(base_checks),
+            ),
+        )
+
+
+@pytest.mark.parametrize(
+    ("basis", "limitation"),
+    (
+        (
+            EvidenceEvaluationBasis.stochastic,
+            STOCHASTIC_SUFFICIENCY_LIMITATION,
+        ),
+        (
+            EvidenceEvaluationBasis.human_reviewed,
+            HUMAN_REVIEW_SUFFICIENCY_LIMITATION,
+        ),
+    ),
+)
+def test_nondeterministic_mutation_result_requires_explicit_nonverdict_limitation(
+    basis: EvidenceEvaluationBasis,
+    limitation: str,
+) -> None:
+    common = {
+        "evaluator_method_id": f"assurance-mutation/test-{basis.value}/v1",
+        "evaluator_evaluation_basis": basis,
+        "evaluator_protocol_digest": _DIGEST_A,
+    }
+
+    with pytest.raises(ValidationError, match="non-verdict sufficiency limitation"):
+        _mutation_result(**common)
+
+    result = _mutation_result(
+        **common,
+        limitations=(
+            "Detection is scoped to this subject.",
+            limitation,
+        ),
+    )
+
+    assert limitation in result.limitations
+    invalid_payload = result.model_dump(mode="json")
+    invalid_payload["limitations"].remove(limitation)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+            invalid_payload
+        )
+
+
 def test_unmet_prerequisites_cannot_be_verdict_bearing() -> None:
     prerequisites = EvidencePrerequisites(
         state=PrerequisiteState.unmet,
@@ -430,9 +583,9 @@ def test_satisfied_prerequisites_require_nonempty_checks_in_both_validators() ->
     with pytest.raises(ValidationError, match="at least one explicit check"):
         EvidencePrerequisites.model_validate(payload)
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            EvidencePrerequisites.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(EvidencePrerequisites.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
 
 def test_core_mutation_evidence_requires_exact_canonical_checks() -> None:
@@ -487,11 +640,7 @@ def test_unavailable_subject_digest_is_explicit_and_nonverdict_only() -> None:
                 if check_id == "subject-valid"
                 else PrerequisiteState.not_evaluated
             ),
-            reason_codes=(
-                ()
-                if check_id == "subject-valid"
-                else (ReasonCode.NOT_EVALUATED,)
-            ),
+            reason_codes=(() if check_id == "subject-valid" else (ReasonCode.NOT_EVALUATED,)),
         )
         for check_id in ASSURANCE_MUTATION_PREREQUISITE_CHECK_IDS
     )
@@ -592,6 +741,69 @@ def test_detector_contract_rejects_duplicate_or_prohibited_normative_selectors()
         RequiredFindingAlternatives(any_of=(selector, selector))
     with pytest.raises(ValidationError, match="must be disjoint"):
         _detector_contract(prohibited_substitutes=(selector,))
+
+
+@pytest.mark.parametrize(
+    ("mutation", "expected_path"),
+    (
+        ("unknown-target", ("target_control_ids", 0)),
+        ("duplicate-target", ("target_control_ids",)),
+        (
+            "unknown-required-selector",
+            ("required_findings", "any_of", 0, "control_id"),
+        ),
+        ("unknown-prohibited-selector", ("prohibited_substitutes", 0, "control_id")),
+    ),
+)
+def test_detector_contract_control_vocabulary_has_invalid_schema_parity(
+    mutation: str,
+    expected_path: tuple[str | int, ...],
+) -> None:
+    payload = _detector_contract().model_dump(mode="json")
+    if mutation == "unknown-target":
+        payload["target_control_ids"][0] = "unknown_control"
+    elif mutation == "duplicate-target":
+        payload["target_control_ids"] = [
+            "material_claims_have_evidence",
+            "material_claims_have_evidence",
+        ]
+    elif mutation == "unknown-required-selector":
+        payload["required_findings"]["any_of"][0]["control_id"] = "unknown_control"
+    else:
+        payload["prohibited_substitutes"][0]["control_id"] = "unknown_control"
+
+    with pytest.raises(ValidationError):
+        ExpectedDetectionContract.model_validate(payload)
+    errors = tuple(
+        Draft202012Validator(
+            ExpectedDetectionContract.model_json_schema(mode="validation")
+        ).iter_errors(payload)
+    )
+    assert any(tuple(error.absolute_path) == expected_path for error in errors)
+
+
+def test_detector_contract_documents_runtime_only_relational_constraints() -> None:
+    schema = ExpectedDetectionContract.model_json_schema(mode="validation")
+    comment = schema["$comment"]
+
+    assert "Canonical target-ID ordering" in comment
+    assert "relational constraints enforced by the runtime model" in comment
+    required = RequiredFindingAlternatives(
+        any_of=(
+            FindingSelector(
+                control_id="human_review_required",
+                reason_code=ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT,
+            ),
+        )
+    )
+    with pytest.raises(ValidationError, match="canonically sorted"):
+        _detector_contract(
+            target_control_ids=(
+                "material_claims_have_evidence",
+                "human_review_required",
+            ),
+            required_findings=required,
+        )
 
 
 def test_operator_rejects_invalid_paths_or_identity_mismatches() -> None:
@@ -709,9 +921,9 @@ def test_mutation_result_requires_bound_evaluator_identity() -> None:
     with pytest.raises(ValidationError):
         AssuranceMutationResult.model_validate(payload)
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            AssuranceMutationResult.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
     payload = _mutation_result().model_dump(mode="json")
     payload["evaluator_implementation_digest"] = "0" * 64
@@ -721,9 +933,9 @@ def test_mutation_result_requires_bound_evaluator_identity() -> None:
             context={"skip_self_digest": True},
         )
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            AssuranceMutationResult.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
 
 def test_unavailable_evaluator_identity_is_limited_to_catalog_bootstrap_failure() -> None:
@@ -737,9 +949,9 @@ def test_unavailable_evaluator_identity_is_limited_to_catalog_bootstrap_failure(
         evaluator_implementation_digest="0" * 64,
         diagnostic_code="catalog_integrity_error",
     )
-    Draft202012Validator(
-        AssuranceMutationResult.model_json_schema(mode="validation")
-    ).validate(result.model_dump(mode="json"))
+    Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+        result.model_dump(mode="json")
+    )
 
     for state, diagnostic_code in (
         (MutationResultState.invalid_subject, "catalog_integrity_error"),
@@ -767,9 +979,9 @@ def test_mutation_seed_is_bounded_to_rfc8785_safe_integer_domain() -> None:
     payload = _mutation_result().model_dump(mode="json")
     payload["seed"] = RFC8785_SAFE_INTEGER_MAX + 1
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            AssuranceMutationResult.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
 
 @pytest.mark.parametrize(
@@ -788,9 +1000,9 @@ def test_mutation_result_jsonschema_enforces_state_and_provenance_rules(
     payload.update(update)
 
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            AssuranceMutationResult.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
 
 def test_operator_provenance_jsonschema_rejects_known_facts_without_manifest() -> None:
@@ -798,9 +1010,9 @@ def test_operator_provenance_jsonschema_rejects_known_facts_without_manifest() -
     payload["implementation_components"] = []
 
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            OperatorProvenance.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(OperatorProvenance.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
 
 def test_caught_result_requires_observed_normative_match() -> None:
@@ -821,15 +1033,11 @@ def test_mutated_results_bind_matches_to_a_privacy_minimized_target_digest() -> 
         _mutation_result(expected_finding_target_digest=None)
     with pytest.raises(ValidationError, match="carry the expected target digest"):
         _mutation_result(
-            observed_findings=(
-                _observed_finding().model_copy(update={"target_digest": _DIGEST_C}),
-            )
+            observed_findings=(_observed_finding().model_copy(update={"target_digest": _DIGEST_C}),)
         )
     with pytest.raises(ValidationError, match="carry the expected target digest"):
         _mutation_result(
-            observed_findings=(
-                _observed_finding().model_copy(update={"target_digest": None}),
-            )
+            observed_findings=(_observed_finding().model_copy(update={"target_digest": None}),)
         )
 
 
@@ -837,9 +1045,7 @@ def test_finding_target_digest_has_a_stable_domain_separated_vector() -> None:
     assert finding_target_digest(_FINDING_TARGET) == (
         "53a78f37084baac5c9bc8d43bbef99e476bdc8a6959a56ba8cab5338768b1f10"
     )
-    assert finding_target_digest(_FINDING_TARGET) != finding_target_digest(
-        "tool:claim-selected"
-    )
+    assert finding_target_digest(_FINDING_TARGET) != finding_target_digest("tool:claim-selected")
     with pytest.raises(TypeError, match="must be a string"):
         finding_target_digest(1)  # type: ignore[arg-type]
 
@@ -894,9 +1100,9 @@ def test_exact_json_pointer_corpus_has_model_and_jsonschema_parity(pointer: str)
     payload = result.model_dump(mode="json")
 
     AssuranceMutationResult.model_validate(payload)
-    Draft202012Validator(
-        AssuranceMutationResult.model_json_schema(mode="validation")
-    ).validate(payload)
+    Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+        payload
+    )
 
 
 @pytest.mark.parametrize(
@@ -920,9 +1126,9 @@ def test_invalid_exact_json_pointer_corpus_is_rejected_by_both_validators(
     with pytest.raises(ValidationError):
         AssuranceMutationResult.model_validate(payload)
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            AssuranceMutationResult.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(AssuranceMutationResult.model_json_schema(mode="validation")).validate(
+            payload
+        )
 
 
 @pytest.mark.parametrize(
@@ -939,9 +1145,9 @@ def test_json_pointer_template_corpus_has_model_and_jsonschema_parity(pointer: s
     payload = operator.model_dump(mode="json")
 
     AssuranceMutationOperator.model_validate(payload)
-    Draft202012Validator(
-        AssuranceMutationOperator.model_json_schema(mode="validation")
-    ).validate(payload)
+    Draft202012Validator(AssuranceMutationOperator.model_json_schema(mode="validation")).validate(
+        payload
+    )
 
 
 @pytest.mark.parametrize(

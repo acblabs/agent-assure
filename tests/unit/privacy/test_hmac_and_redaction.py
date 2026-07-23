@@ -7,6 +7,7 @@ from typing import Any
 import pytest
 import rfc8785
 
+import agent_assure.privacy.detectors as privacy_detectors
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.policies.privacy import evaluate_redaction
 from agent_assure.privacy.detectors import (
@@ -38,7 +39,7 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     assert manifest["profile_id"] == PRIVACY_PROFILE_ID
     assert PRIVACY_PROFILE_DIGEST == hashlib.sha256(rfc8785.dumps(manifest)).hexdigest()
     assert PRIVACY_PROFILE_DIGEST == (
-        "fb47c76f31526fef7c892434fb3354a37ddc8f162025235b23231129c5a137f1"
+        "e8c987965ea7457f1be0f17e3bfbb0c2978f042b3e6985bc3d49ada3d90814de"
     )
     assert [item["pattern_id"] for item in manifest["detectors"]] == [
         "us-ssn",
@@ -65,6 +66,26 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
         "patient-name",
         "private-key-header",
     ]
+    markers_by_detector = {
+        item["pattern_id"]: item["required_markers"] for item in manifest["detectors"]
+    }
+    assert markers_by_detector["email-address"] == ["@"]
+    assert markers_by_detector["payment-card-like-number"] == []
+
+
+def test_privacy_profile_manifest_identity_changes_with_required_markers(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = hashlib.sha256(rfc8785.dumps(privacy_profile_manifest())).hexdigest()
+    monkeypatch.setitem(
+        privacy_detectors._REQUIRED_MARKERS,
+        "email-address",
+        ("@", "mailto:"),
+    )
+
+    after = hashlib.sha256(rfc8785.dumps(privacy_profile_manifest())).hexdigest()
+
+    assert after != before
 
 
 def test_hmac_requires_explicit_key_and_is_stable() -> None:

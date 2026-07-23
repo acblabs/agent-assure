@@ -8,10 +8,12 @@ install from the checked-in `requirements.lock` with
 The lockfile path and digest are captured in the evidence packet environment
 section.
 
-`requirements.lock` is generated from `pyproject.toml` with Python 3.14 and
+`requirements.lock` is generated from `pyproject.toml` with Python 3.14.6 and
 `pip-compile --all-build-deps --extra=dev --generate-hashes`. Python 3.14 is
-part of the supported CI matrix and is the canonical release environment until
-a cross-OS reproducibility matrix exists.
+part of the supported CI matrix. Python 3.14.6 is the canonical producer for
+release and evidence workflows until an intentional runtime-identity update or
+a cross-OS reproducibility matrix is reviewed. Compatibility CI continues to
+exercise the supported minor versions independently.
 
 To refresh the lockfile:
 

@@ -191,6 +191,9 @@ def privacy_profile_manifest() -> dict[str, Any]:
                 "pattern_id": definition.pattern_id,
                 "expression": definition.expression,
                 "flags": list(definition.flags),
+                "required_markers": list(
+                    _REQUIRED_MARKERS.get(definition.pattern_id, ())
+                ),
             }
             for definition in PRIVACY_DETECTOR_DEFINITIONS
         ],

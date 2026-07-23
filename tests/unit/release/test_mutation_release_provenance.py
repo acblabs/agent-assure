@@ -24,13 +24,12 @@ from scripts.check_mutation_release_provenance import (
 
 _INTRODUCTION_COMMIT = "git:" + "a" * 40
 _RELEASE_COMMIT = "git:" + "b" * 40
+_AUTHORED_INTRODUCTION_COMMIT = "git:208f304574fc7bb3b7ed7b821c745b951f2783c8"
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
-def _current_source(relative_path: str) -> bytes:
-    if relative_path.startswith("agent_assure/"):
-        return (_REPOSITORY_ROOT / "src" / relative_path).read_bytes()
-    return (_REPOSITORY_ROOT / relative_path).read_bytes()
+def _introduction_source(relative_path: str) -> bytes:
+    return _git_creation_source(_AUTHORED_INTRODUCTION_COMMIT, relative_path)
 
 
 def _release_ready_provenance(
@@ -42,7 +41,7 @@ def _release_ready_provenance(
         target.model_copy(
             update={
                 "digest_at_operator_creation": lf_normalized_sha256(
-                    _current_source(target_control_component_path(target.control_id))
+                    _introduction_source(target_control_component_path(target.control_id))
                 )
             }
         )
@@ -57,16 +56,17 @@ def _release_ready_provenance(
     )
 
 
-def test_unfilled_operator_commits_fail_registered_release_validation() -> None:
+def test_registered_operator_provenance_replays_at_introduction_commit() -> None:
     failures = registered_release_provenance_failures(
         expected_release="0.6.0",
-        release_commit=_RELEASE_COMMIT,
+        release_commit="git:" + subprocess.check_output(
+            ["git", "rev-parse", "HEAD"],
+            cwd=_REPOSITORY_ROOT,
+            text=True,
+        ).strip(),
     )
 
-    assert failures == tuple(
-        f"operator {operator_id!r} has no immutable introduction commit"
-        for operator_id in sorted(item.descriptor.operator_id for item in registered_operators())
-    )
+    assert failures == ()
 
 
 def test_release_validation_accepts_immutable_introduction_commits() -> None:
@@ -77,7 +77,9 @@ def test_release_validation_accepts_immutable_introduction_commits() -> None:
             target.model_copy(
                 update={
                     "digest_at_operator_creation": lf_normalized_sha256(
-                        _current_source(target_control_component_path(target.control_id))
+                        _introduction_source(
+                            target_control_component_path(target.control_id)
+                        )
                     )
                 }
             )
@@ -107,7 +109,7 @@ def test_release_validation_accepts_immutable_introduction_commits() -> None:
     def creation_source_loader(commit: str, relative_path: str) -> bytes:
         assert commit == _INTRODUCTION_COMMIT
         requests.append((commit, relative_path))
-        return _current_source(relative_path)
+        return _introduction_source(relative_path)
 
     assert (
         release_provenance_failures(
@@ -159,7 +161,7 @@ def test_release_validation_rejects_creation_digest_mismatch() -> None:
     def source_loader(_commit: str, relative_path: str) -> bytes:
         if relative_path == target_path:
             return b"changed target control\n"
-        return _current_source(relative_path)
+        return _introduction_source(relative_path)
 
     failures = release_provenance_failures(
         (provenance,),
@@ -184,7 +186,7 @@ def test_release_validation_rejects_commit_that_predates_mutation_implementation
     def pre_mutation_source_loader(_commit: str, relative_path: str) -> bytes:
         if relative_path.startswith("agent_assure/mutation/"):
             raise FileNotFoundError(relative_path)
-        return _current_source(relative_path)
+        return _introduction_source(relative_path)
 
     failures = release_provenance_failures(
         (provenance,),
@@ -217,7 +219,9 @@ def test_release_validation_requires_catalog_and_operator_binding_components() -
         (provenance,),
         expected_release="0.6.0",
         release_commit=_RELEASE_COMMIT,
-        creation_source_loader=lambda _commit, relative_path: _current_source(relative_path),
+        creation_source_loader=lambda _commit, relative_path: _introduction_source(
+            relative_path
+        ),
         ancestry_checker=lambda _ancestor, _descendant: True,
     )
 
@@ -243,7 +247,7 @@ def test_release_validation_rejects_rewritten_introduction_snapshot() -> None:
         (provenance,),
         expected_release="0.6.0",
         release_commit=_RELEASE_COMMIT,
-        creation_source_loader=lambda _commit, relative_path: _current_source(
+        creation_source_loader=lambda _commit, relative_path: _introduction_source(
             relative_path
         ),
         ancestry_checker=lambda _ancestor, _descendant: True,
@@ -301,7 +305,7 @@ def test_later_release_accepts_evolved_current_implementation() -> None:
             (evolved,),
             expected_release="0.7.0",
             release_commit=_RELEASE_COMMIT,
-            creation_source_loader=lambda _commit, relative_path: _current_source(
+            creation_source_loader=lambda _commit, relative_path: _introduction_source(
                 relative_path
             ),
             ancestry_checker=lambda _ancestor, _descendant: True,
@@ -317,7 +321,9 @@ def test_release_validation_rejects_future_introduction_release() -> None:
         (provenance,),
         expected_release="0.6.0",
         release_commit=_RELEASE_COMMIT,
-        creation_source_loader=lambda _commit, relative_path: _current_source(relative_path),
+        creation_source_loader=lambda _commit, relative_path: _introduction_source(
+            relative_path
+        ),
         ancestry_checker=lambda _ancestor, _descendant: True,
     )
 
@@ -337,7 +343,9 @@ def test_release_validation_rejects_introduction_outside_release_ancestry() -> N
         (provenance,),
         expected_release="0.6.0",
         release_commit=_RELEASE_COMMIT,
-        creation_source_loader=lambda _commit, relative_path: _current_source(relative_path),
+        creation_source_loader=lambda _commit, relative_path: _introduction_source(
+            relative_path
+        ),
         ancestry_checker=ancestry_checker,
     )
 
@@ -358,7 +366,9 @@ def test_release_validation_rejects_first_seen_commit_after_introduction() -> No
         (provenance,),
         expected_release="0.6.0",
         release_commit=_RELEASE_COMMIT,
-        creation_source_loader=lambda _commit, relative_path: _current_source(relative_path),
+        creation_source_loader=lambda _commit, relative_path: _introduction_source(
+            relative_path
+        ),
         ancestry_checker=ancestry_checker,
     )
 
@@ -397,7 +407,7 @@ def test_release_validation_accepts_historical_introduction_release(
             (provenance,),
             expected_release=expected_release,
             release_commit=_RELEASE_COMMIT,
-            creation_source_loader=lambda _commit, relative_path: _current_source(
+            creation_source_loader=lambda _commit, relative_path: _introduction_source(
                 relative_path
             ),
             ancestry_checker=lambda _ancestor, _descendant: True,
@@ -413,7 +423,9 @@ def test_stable_introduction_is_newer_than_release_candidate() -> None:
         (provenance,),
         expected_release="0.6.0rc2",
         release_commit=_RELEASE_COMMIT,
-        creation_source_loader=lambda _commit, relative_path: _current_source(relative_path),
+        creation_source_loader=lambda _commit, relative_path: _introduction_source(
+            relative_path
+        ),
         ancestry_checker=lambda _ancestor, _descendant: True,
     )
 
@@ -448,8 +460,15 @@ def test_git_creation_source_maps_package_and_schema_components_from_repo_root(
     ]
 
 
-def test_release_bundle_fails_before_creating_output_with_unfilled_commits() -> None:
-    out = Path(".tmp/release-provenance-guard-test-output")
+def test_release_bundle_fails_before_creating_output_with_invalid_provenance(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    out = tmp_path / "release"
+    monkeypatch.setattr(
+        "scripts.build_release_bundle.registered_release_provenance_failures",
+        lambda **_kwargs: ("operator provenance is incomplete",),
+    )
 
     assert not out.exists()
     assert (

@@ -4,9 +4,9 @@
      viewBox="0 0 800 660"
      preserveAspectRatio="xMidYMid meet"
      role="img"
-     aria-labelledby="flagship-proof-title flagship-proof-desc">
-  <title id="flagship-proof-title">Flagship fixture demo: same decision, broken evidence trail, configured gate blocked</title>
-  <desc id="flagship-proof-desc">
+     aria-labelledby="flagship-evidence-title flagship-evidence-desc">
+  <title id="flagship-evidence-title">Flagship fixture demo: same decision, broken evidence trail, configured gate blocked</title>
+  <desc id="flagship-evidence-desc">
     In the bundled deterministic synthetic fixture demo, baseline and candidate both retain
     recommendation approve and outcome approve. Zero recommendation or outcome fields change
     across ten cases. The candidate loses the claim-duration evidence link, producing
@@ -81,7 +81,7 @@
   <rect class="canvas" width="800" height="660" rx="24"/>
 
   <g aria-hidden="true">
-    <text class="eyebrow" x="40" y="34">AGENT-ASSURE · FLAGSHIP PROOF</text>
+    <text class="eyebrow" x="40" y="34">AGENT-ASSURE · FLAGSHIP EVIDENCE</text>
     <rect x="704" y="28" width="56" height="56" rx="14" fill="#0f766e"/>
     <text class="mark" x="732" y="70" text-anchor="middle">&#8800;</text>
     <text class="headline" x="40" y="78">Same decision. Broken evidence trail.</text>

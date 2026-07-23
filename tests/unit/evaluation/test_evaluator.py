@@ -523,6 +523,68 @@ def test_fail_on_not_evaluated_marks_capabilities_blocking() -> None:
     assert report.metrics.global_blocking_findings == len(report.failed_controls)
 
 
+def test_case_scoped_tool_policies_are_reported_as_evaluated() -> None:
+    compiled, runset = _runset(BASELINE)
+    tools_by_case = {run.case_id: run.tools for run in runset.runs}
+    case_scoped = compiled.model_copy(
+        update={
+            "defaults": compiled.defaults.model_copy(update={"allowed_tools": ()}),
+            "resolved_expectations": tuple(
+                expectation.model_copy(
+                    update={
+                        "allowed_tools": tools_by_case[expectation.case_id],
+                        "allowed_tools_override": True,
+                    }
+                )
+                for expectation in compiled.resolved_expectations
+            ),
+        }
+    )
+    bound_runset = runset.model_copy(
+        update={"suite_digest": compiled_suite_digest(case_scoped)}
+    )
+
+    report = evaluate_runset(
+        case_scoped,
+        bound_runset,
+        gate_profile=GateProfile(fail_on_not_evaluated=True),
+    )
+
+    assert "tool_allowlist" not in {
+        capability.capability_id for capability in report.not_evaluated_capabilities
+    }
+    assert not any(
+        finding.control_id == "tool_allowlist"
+        and finding.reason_code is ReasonCode.NOT_EVALUATED
+        for finding in report.candidate_vs_expectations.findings
+    )
+
+
+def test_forbidden_tool_policy_is_reported_as_evaluated_without_default_allowlist() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_expectation = compiled.resolved_expectations[0]
+    forbidden_only = compiled.model_copy(
+        update={
+            "defaults": compiled.defaults.model_copy(update={"allowed_tools": ()}),
+            "resolved_expectations": (
+                first_expectation.model_copy(
+                    update={"forbidden_tools": ("never-used-tool",)}
+                ),
+                *compiled.resolved_expectations[1:],
+            ),
+        }
+    )
+    bound_runset = runset.model_copy(
+        update={"suite_digest": compiled_suite_digest(forbidden_only)}
+    )
+
+    report = evaluate_runset(forbidden_only, bound_runset)
+
+    assert "tool_allowlist" not in {
+        capability.capability_id for capability in report.not_evaluated_capabilities
+    }
+
+
 def test_fail_on_warn_marks_warning_controls_blocking() -> None:
     warning = ControlResult(
         control_id="policy.warning",

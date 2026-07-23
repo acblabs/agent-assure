@@ -43,6 +43,42 @@ def test_claim_boundary_rejects_proof_carrying_category_language(text: str) -> N
 @pytest.mark.parametrize(
     "text",
     (
+        "Release Proofs for Review",
+        "AGENT-ASSURE - FLAGSHIP PROOF",
+        "AGENT-ASSURE - FLAGSHIP-PROOF",
+        "How this README proof is verified against the fixtures",
+    ),
+)
+def test_claim_boundary_rejects_release_facing_proof_labels(text: str) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        text,
+        path=Path("README.md"),
+    )
+
+    assert [violation.label for violation in violations] == ["release proof"]
+
+
+def test_claim_boundary_rejects_release_facing_proof_filename(tmp_path: Path) -> None:
+    visual = tmp_path / "flagship-proof.svg"
+    visual.write_text("<svg><text>Measured evidence</text></svg>", encoding="utf-8")
+
+    violations = claim_boundaries.scan_files((visual,))
+
+    assert [violation.label for violation in violations] == ["release proof"]
+
+
+def test_claim_boundary_rejects_internal_sprint_labels() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "This is outside the Sprint 1 operator set.",
+        path=Path("docs/release_notes/v0.6.0.md"),
+    )
+
+    assert [violation.label for violation in violations] == ["internal sprint label"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
         (
             "Agent Assure uses evidence-carrying release language, not "
             "proof-carrying release language."
@@ -235,6 +271,8 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     assets_dir.mkdir()
     transcript = assets_dir / "flagship_demo_transcript.txt"
     transcript.write_text("Measured evidence\n", encoding="utf-8")
+    visual = assets_dir / "flagship-evidence.svg"
+    visual.write_text("<svg><text>Measured evidence</text></svg>\n", encoding="utf-8")
     social_dir.mkdir()
     video_script = social_dir / "demo_video_script.md"
     video_script.write_text("Measured evidence\n", encoding="utf-8")
@@ -263,6 +301,7 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     assert release_note in paths
     assert post in paths
     assert transcript in paths
+    assert visual in paths
     assert video_script in paths
     assert golden_html in paths
     assert out_of_scope_doc not in paths

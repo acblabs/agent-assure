@@ -33,7 +33,7 @@ to method identity, prerequisites, provenance, assumptions, and limitations.
 **Local-first · offline flagship demo · versioned artifacts · CI-native · no
 hosted control plane required**
 
-<img src="docs/assets/flagship-proof.svg"
+<img src="docs/assets/flagship-evidence.svg"
      alt="Bundled deterministic flagship fixture: the baseline and candidate both approve with zero decision-field changes across ten cases, but the candidate loses the claim-duration evidence link, producing a new-failure classification and a blocked configured CI gate."
      width="100%">
 
@@ -96,7 +96,7 @@ Key artifacts are written under `.tmp/demo/flagship`:
 | `evidence-diff.html` | Self-contained reviewer-facing evidence diff |
 
 <details>
-<summary><strong>How this README proof is verified against the fixtures</strong></summary>
+<summary><strong>How this README evidence view is verified against the fixtures</strong></summary>
 
 ### Flagship regression at a glance
 
@@ -198,8 +198,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.5.0
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.5.0
+      - run: python -m pip install agent-assure==0.6.0
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.0
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -281,16 +281,19 @@ plane.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.5.0`).**
+**Current maturity: Release Candidate (RC, `v0.6.0`).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.
 Framework adapters, streaming, and live execution remain experimental.
+The RC label applies only to the primary surface; development-RFC contracts
+remain explicitly non-stable.
 
 | If you have… | Start with… | Maturity |
 | --- | --- | --- |
 | YAML suites or versioned JSON artifacts | [CLI contract](docs/cli_contract.md) | Primary supported surface |
 | A GitHub release workflow | [Composite action](.github/actions/agent-assure/action.yml) | Packaged and documented |
+| Built-in control mutations | [Evidence-carrying releases](docs/evidence_carrying_releases.md) | Development RFC |
 | RAG retrieval evidence | [RAG provenance demo](docs/demo_rag.md) | Reference implementation |
 | JSONL or multi-agent events | [Streaming example](examples/streaming_process_regression/README.md) | Experimental |
 | LangGraph or Google ADK events | [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) | Experimental |

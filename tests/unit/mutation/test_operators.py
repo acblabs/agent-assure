@@ -105,7 +105,7 @@ def test_drop_material_evidence_link_is_inapplicable_without_backed_link() -> No
     )
 
 
-def test_bypass_required_review_changes_exactly_two_flags_without_mutation() -> None:
+def test_bypass_required_review_isolates_routing_and_completion_without_mutation() -> None:
     expectation = _expectation("review-case", required_human_review=True)
     suite = _suite((expectation,))
     subject = _runset(
@@ -126,13 +126,19 @@ def test_bypass_required_review_changes_exactly_two_flags_without_mutation() -> 
         source_payload,
     )
 
-    assert len(targets) == 1
-    target = targets[0]
-    assert target.identity == "review-case\0run-review-case"
-    assert target.expected_finding_target == "human_review_required"
-    assert tuple((change.path, change.value) for change in target.changes) == (
-        ("/runs/0/human_review_required", False),
-        ("/runs/0/human_review_performed", False),
+    assert tuple(target.identity for target in targets) == (
+        "review-case\0run-review-case\0completion",
+        "review-case\0run-review-case\0routing",
+    )
+    assert tuple(target.expected_finding_target for target in targets) == (
+        "human_review_performed",
+        "human_review_required",
+    )
+    assert tuple(
+        tuple((change.path, change.value) for change in target.changes) for target in targets
+    ) == (
+        (("/runs/0/human_review_performed", False),),
+        (("/runs/0/human_review_required", False),),
     )
 
 
@@ -161,7 +167,7 @@ def test_bypass_required_review_is_inapplicable_after_review_was_bypassed() -> N
     )
 
 
-def test_inject_forbidden_tool_prefers_declared_forbidden_tool_without_mutation() -> None:
+def test_inject_forbidden_tool_isolates_explicit_and_allowlist_branches() -> None:
     expectation = _expectation(
         "declared-tool-case",
         forbidden_tools=("z-forbidden-tool", "a-forbidden-tool"),
@@ -177,12 +183,27 @@ def test_inject_forbidden_tool_prefers_declared_forbidden_tool_without_mutation(
         source_payload,
     )
 
-    assert len(targets) == 1
-    target = targets[0]
-    assert target.identity == ("declared-tool-case\0run-declared-tool-case\0a-forbidden-tool")
-    assert target.expected_finding_target == "tool:a-forbidden-tool"
-    assert tuple((change.path, change.value) for change in target.changes) == (
-        ("/runs/0/tools", ["safe-tool", "a-forbidden-tool"]),
+    assert tuple(target.identity for target in targets) == (
+        (
+            "declared-tool-case\0run-declared-tool-case\0allowlist\0"
+            "agent-assure.synthetic-forbidden-tool"
+        ),
+        "declared-tool-case\0run-declared-tool-case\0explicit\0a-forbidden-tool",
+    )
+    assert tuple(target.expected_finding_target for target in targets) == (
+        "tool:agent-assure.synthetic-forbidden-tool",
+        "tool:a-forbidden-tool",
+    )
+    assert tuple(
+        tuple((change.path, change.value) for change in target.changes) for target in targets
+    ) == (
+        (
+            (
+                "/runs/0/tools",
+                ["safe-tool", "agent-assure.synthetic-forbidden-tool"],
+            ),
+        ),
+        (("/runs/0/tools", ["safe-tool", "a-forbidden-tool"]),),
     )
 
 
@@ -201,6 +222,10 @@ def test_inject_forbidden_tool_uses_synthetic_sentinel_for_allowlist() -> None:
 
     assert len(targets) == 1
     target = targets[0]
+    assert target.identity == (
+        "allowlist-tool-case\0run-allowlist-tool-case\0allowlist\0"
+        "agent-assure.synthetic-forbidden-tool"
+    )
     assert target.expected_finding_target == "tool:agent-assure.synthetic-forbidden-tool"
     assert tuple((change.path, change.value) for change in target.changes) == (
         (
@@ -244,19 +269,23 @@ def test_inject_forbidden_tool_is_inapplicable_without_tool_boundary() -> None:
         (
             bypass_required_human_review_targets,
             (
-                "a-case\0run-a-case",
-                "z-case\0run-z-case",
+                "a-case\0run-a-case\0completion",
+                "a-case\0run-a-case\0routing",
+                "z-case\0run-z-case\0completion",
+                "z-case\0run-z-case\0routing",
             ),
             (
+                "/runs/1/human_review_performed",
                 "/runs/1/human_review_required",
+                "/runs/0/human_review_performed",
                 "/runs/0/human_review_required",
             ),
         ),
         (
             inject_forbidden_tool_targets,
             (
-                "a-case\0run-a-case\0a-forbidden-tool",
-                "z-case\0run-z-case\0z-forbidden-tool",
+                "a-case\0run-a-case\0explicit\0a-forbidden-tool",
+                "z-case\0run-z-case\0explicit\0z-forbidden-tool",
             ),
             (
                 "/runs/1/tools",

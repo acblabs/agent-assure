@@ -1,17 +1,21 @@
 # API Surface
 
 The current public surface is intentionally narrow and status-qualified.
-The stable released v0.5.0 surface consists of:
+The v0.6.0 release-candidate surface consists of:
 
 - the `agent-assure` CLI;
-- package release v0.5.0, which uses the v0.5.0 frozen release schema snapshot
-  under `schemas/v0.5.0`, with
+- package candidate v0.6.0, which uses the active v0.6.0 schema snapshot
+  under `schemas/v0.6.0`, with
   earlier release schema sets retained under `schemas/v0.1.0`,
-  `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`, and
-  `schemas/v0.4.3`;
+  `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,
+  `schemas/v0.4.3`, and `schemas/v0.5.0`;
 - importable schema models under `agent_assure.schema`;
-- fixture-mode helpers used by the bundled examples.
+- fixture-mode helpers used by the bundled examples; and
 - framework evidence mapping through `agent-assure controls map`.
+
+> The release-candidate label applies only to this primary surface. It does
+> not promote the experimental or development-RFC surfaces below into stable
+> compatibility commitments.
 
 The development package additionally exposes non-stable surfaces:
 
@@ -30,7 +34,8 @@ The development package additionally exposes non-stable surfaces:
   `AssuranceMutationResult/v1` persisted contracts.
 
 The `/v1` suffix identifies the proposed method-contract generation; it does
-not make an RFC surface a stable compatibility commitment before release.
+not make an RFC surface a stable compatibility commitment. Promotion requires
+an explicit status change in a later release.
 
 The wheel also includes `agent_assure.examples.*` modules so the offline example
 suites remain reproducible after installation. These modules are bundled

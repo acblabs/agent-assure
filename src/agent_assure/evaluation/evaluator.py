@@ -185,7 +185,7 @@ def evaluate_runset(
     )
     capabilities = _capabilities(
         DEFAULT_NOT_EVALUATED_CAPABILITIES,
-        suite_has_tool_allowlist=bool(suite.defaults.allowed_tools),
+        suite_has_tool_policy=_suite_has_tool_policy(suite),
     )
     capability_results = _capability_results(capabilities)
     rollup_results = adjusted_results
@@ -340,7 +340,7 @@ def _is_warning_control(result: ControlResult, gate_profile: GateProfile) -> boo
 def _capabilities(
     capabilities: tuple[CapabilityStatus, ...],
     *,
-    suite_has_tool_allowlist: bool,
+    suite_has_tool_policy: bool,
 ) -> tuple[CapabilityReport, ...]:
     reports = [
         CapabilityReport(
@@ -350,15 +350,26 @@ def _capabilities(
         )
         for capability in capabilities
     ]
-    if not suite_has_tool_allowlist:
+    if not suite_has_tool_policy:
         reports.append(
             CapabilityReport(
                 capability_id="tool_allowlist",
                 state=GateState.not_evaluated,
-                reason="suite defaults do not configure allowed_tools",
+                reason="suite and case expectations do not configure a tool policy",
             )
         )
     return tuple(reports)
+
+
+def _suite_has_tool_policy(suite: CompiledSuite) -> bool:
+    if suite.defaults.allowed_tools:
+        return True
+    return any(
+        expectation.allowed_tools_override
+        or bool(expectation.allowed_tools)
+        or bool(expectation.forbidden_tools)
+        for expectation in suite.resolved_expectations
+    )
 
 
 def _capability_results(

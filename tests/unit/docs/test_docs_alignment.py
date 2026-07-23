@@ -63,6 +63,75 @@ def test_release_metadata_checkers_accept_current_files() -> None:
     assert docs_alignment._check_readme_release_pins() == []
 
 
+def test_readme_local_image_asset_checker_rejects_missing_asset(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "README.md").write_text(
+        '# Project\n\n<img src="docs/assets/missing.svg" alt="Missing">\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    assert docs_alignment._check_readme_local_image_assets() == [
+        "README.md image asset does not exist: docs/assets/missing.svg"
+    ]
+
+
+def test_readme_local_image_asset_checker_rejects_untracked_asset(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    asset = tmp_path / "docs" / "assets" / "diagram.svg"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("<svg/>", encoding="utf-8")
+    (tmp_path / "README.md").write_text(
+        "![Diagram](docs/assets/diagram.svg)\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+    monkeypatch.setattr(docs_alignment, "_git_tracked_paths", lambda _root: set())
+
+    assert docs_alignment._check_readme_local_image_assets() == [
+        "README.md image asset is not tracked by Git: docs/assets/diagram.svg"
+    ]
+
+
+def test_readme_local_image_asset_checker_accepts_tracked_asset_and_remote_image(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    asset = tmp_path / "docs" / "assets" / "diagram.svg"
+    asset.parent.mkdir(parents=True)
+    asset.write_text("<svg/>", encoding="utf-8")
+    (tmp_path / "README.md").write_text(
+        "![Diagram](docs/assets/diagram.svg#overview)\n"
+        '<img src="https://example.com/status.svg" alt="Remote">\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+    monkeypatch.setattr(
+        docs_alignment,
+        "_git_tracked_paths",
+        lambda _root: {"docs/assets/diagram.svg"},
+    )
+
+    assert docs_alignment._check_readme_local_image_assets() == []
+
+
+def test_readme_local_image_asset_checker_ignores_fenced_examples(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "README.md").write_text(
+        "```markdown\n![Example](docs/assets/not-a-real-image.svg)\n```\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    assert docs_alignment._check_readme_local_image_assets() == []
+
+
 def test_release_metadata_checkers_reject_version_drift(
     tmp_path: Path,
     monkeypatch,

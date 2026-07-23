@@ -33,7 +33,11 @@ from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.mutation import (
     ASSURANCE_MUTATION_METHOD_ID,
+    HUMAN_REVIEW_SUFFICIENCY_CHECK_ID,
+    HUMAN_REVIEW_SUFFICIENCY_LIMITATION,
     RFC8785_SAFE_INTEGER_MAX,
+    STOCHASTIC_SUFFICIENCY_CHECK_ID,
+    STOCHASTIC_SUFFICIENCY_LIMITATION,
     EvidenceEvaluationBasis,
     EvidenceState,
     MutationResultState,
@@ -74,22 +78,22 @@ class _TypeSensitiveMapping(Mapping[str, object]):
 _OPERATOR_CASES = (
     (
         "drop-material-evidence-link",
-        ("/runs/0/claim_evidence_links",),
+        (("/runs/0/claim_evidence_links",),),
         "material_claims_have_evidence",
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
     ),
     (
         "bypass-required-human-review",
         (
-            "/runs/0/human_review_performed",
-            "/runs/0/human_review_required",
+            ("/runs/0/human_review_performed",),
+            ("/runs/0/human_review_required",),
         ),
         "human_review_required",
         ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT,
     ),
     (
         "inject-forbidden-tool",
-        ("/runs/0/tools",),
+        (("/runs/0/tools",),),
         "tool_allowlist",
         ReasonCode.FORBIDDEN_TOOL,
     ),
@@ -102,7 +106,7 @@ _OPERATOR_CASES = (
 )
 def test_registered_operator_is_caught_only_by_its_normative_detector(
     operator_id: str,
-    expected_paths: tuple[str, ...],
+    expected_paths: tuple[tuple[str, ...], ...],
     expected_control: str,
     expected_reason: ReasonCode,
 ) -> None:
@@ -118,12 +122,14 @@ def test_registered_operator_is_caught_only_by_its_normative_detector(
     )
 
     assert execution.result.state is MutationResultState.caught
-    assert execution.result.changed_paths == expected_paths
+    assert execution.result.changed_paths in expected_paths
     assert execution.result.source_digest == sha256_hexdigest(source_payload)
     assert execution.mutated_payload is not None
     assert execution.result.mutated_digest == sha256_hexdigest(execution.mutated_payload)
     assert source_payload == source_before
-    assert _different_pointers(source_payload, execution.mutated_payload) == set(expected_paths)
+    assert _different_pointers(source_payload, execution.mutated_payload) == set(
+        execution.result.changed_paths
+    )
     assert execution.result.matched_finding_ids
     assert execution.result.expected_finding_target_digest is not None
     observed_ids = tuple(finding.finding_id for finding in execution.result.observed_findings)
@@ -141,6 +147,58 @@ def test_registered_operator_is_caught_only_by_its_normative_detector(
     assert execution.evidence_descriptor.result.state is EvidenceState.supported
     assert execution.evidence_descriptor.result.verdict_bearing is True
     assert execution.evidence_descriptor.prerequisites.state is PrerequisiteState.satisfied
+    result_payload = execution.result.model_dump(mode="json")
+    assert "diagnostic_exception_class" not in result_payload
+    assert "local_debug_reference" not in result_payload
+
+
+@pytest.mark.parametrize(
+    ("operator_id", "expected_branches"),
+    (
+        (
+            "bypass-required-human-review",
+            frozenset({"routing", "completion"}),
+        ),
+        (
+            "inject-forbidden-tool",
+            frozenset({"explicit-forbidden", "allowlist"}),
+        ),
+    ),
+)
+def test_signature_operators_exercise_each_detector_branch_end_to_end(
+    operator_id: str,
+    expected_branches: frozenset[str],
+) -> None:
+    suite, source_payload = _fixture()
+    source_tools = set(cast(list[dict[str, object]], source_payload["runs"])[0]["tools"])
+    seen: set[str] = set()
+
+    for seed in range(64):
+        execution = execute_mutation(
+            suite,
+            source_payload,
+            operator_id=operator_id,
+            seed=seed,
+            generated_at=_GENERATED_AT,
+        )
+
+        assert execution.result.state is MutationResultState.caught
+        assert execution.mutated_payload is not None
+        if operator_id == "bypass-required-human-review":
+            changed_path = execution.result.changed_paths[0]
+            branch = "routing" if changed_path.endswith("/human_review_required") else "completion"
+        else:
+            mutated_run = cast(
+                list[dict[str, object]],
+                execution.mutated_payload["runs"],
+            )[0]
+            added_tool = next(iter(set(cast(list[str], mutated_run["tools"])) - source_tools))
+            branch = "explicit-forbidden" if added_tool == "blocked-tool-case-a" else "allowlist"
+        seen.add(branch)
+        if seen == set(expected_branches):
+            break
+
+    assert seen == set(expected_branches)
 
 
 def test_type_sensitive_mapping_does_not_spuriously_fail_immutability() -> None:
@@ -377,6 +435,47 @@ def test_custom_evaluator_basis_and_scope_are_preserved_in_evidence() -> None:
     )
     assert execution.evidence_descriptor.scope.protocol_digest == protocol_digest
     assert execution.evidence_descriptor.scope.population_id == "held-out-population-v1"
+    assert STOCHASTIC_SUFFICIENCY_LIMITATION in execution.result.limitations
+    assert STOCHASTIC_SUFFICIENCY_LIMITATION in (execution.evidence_descriptor.limitations)
+    assert execution.evidence_descriptor.result.state is EvidenceState.prerequisites_unmet
+    assert execution.evidence_descriptor.result.verdict_bearing is False
+    assert execution.evidence_descriptor.prerequisites.state is PrerequisiteState.unmet
+    assert _prerequisite_states(execution)[STOCHASTIC_SUFFICIENCY_CHECK_ID] is (
+        PrerequisiteState.unmet
+    )
+
+
+def test_human_reviewed_evaluator_is_nonverdict_without_typed_review_evidence() -> None:
+    suite, source_payload = _fixture()
+    binding = MutationEvaluatorBinding(
+        evaluator=_without_detector(
+            "material_claims_have_evidence",
+            ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+        ),
+        method_id="assurance-mutation/test-human-reviewed-evaluator/v1",
+        implementation_version="1.0.0",
+        implementation_digest="e" * 64,
+        evaluation_basis=EvidenceEvaluationBasis.human_reviewed,
+        protocol_digest="f" * 64,
+        population_id="reviewed-fixture-population-v1",
+    )
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+        evaluator_binding=binding,
+    )
+
+    assert execution.result.state is MutationResultState.survived
+    assert execution.evidence_descriptor.result.state is EvidenceState.prerequisites_unmet
+    assert execution.evidence_descriptor.result.verdict_bearing is False
+    assert HUMAN_REVIEW_SUFFICIENCY_LIMITATION in execution.result.limitations
+    assert _prerequisite_states(execution)[HUMAN_REVIEW_SUFFICIENCY_CHECK_ID] is (
+        PrerequisiteState.unmet
+    )
 
 
 def test_stochastic_evaluator_requires_protocol_identity() -> None:
@@ -565,7 +664,7 @@ def test_prohibited_substitute_produces_invalid_operator_and_is_privacy_minimize
         subject: RunSet,
     ) -> EvaluationReport:
         report = evaluate_runset(compiled, subject)
-        if subject.runs[0].human_review_required:
+        if subject.runs[0].human_review_required and subject.runs[0].human_review_performed:
             return report
         substitute = _finding(
             finding_id="finding-prohibited-runtime-substitute",
@@ -795,7 +894,57 @@ def test_untyped_evaluator_value_error_is_an_execution_error() -> None:
 
     assert execution.result.state is MutationResultState.execution_error
     assert execution.result.diagnostic_code == "source_evaluation_error"
+    assert execution.result.diagnostic_exception_class == "ValueError"
+    assert execution.result.local_debug_reference is not None
+    assert execution.result.local_debug_reference.startswith("debug-")
     assert execution.mutated_payload is None
+
+
+@pytest.mark.parametrize("failure_stage", ("resolve-targets", "select-target"))
+def test_operator_applicability_failures_include_privacy_safe_debug_identity(
+    monkeypatch: pytest.MonkeyPatch,
+    failure_stage: str,
+) -> None:
+    suite, source_payload = _fixture()
+    sensitive_error = "Bearer abcdefghijklmnopqrstuvwxyz123456"
+    registered = resolve_operator("drop-material-evidence-link")
+    assert registered is not None
+
+    if failure_stage == "resolve-targets":
+
+        def fail_targets(*_args: object) -> tuple[MutationTarget, ...]:
+            raise RuntimeError(sensitive_error)
+
+        monkeypatch.setattr(
+            mutation_execution,
+            "resolve_operator",
+            lambda _operator_id: RegisteredOperator(
+                descriptor=registered.descriptor,
+                resolve_targets=fail_targets,
+                limitations=registered.limitations,
+            ),
+        )
+    else:
+
+        def fail_selection(*_args: object, **_kwargs: object) -> MutationTarget | None:
+            raise RuntimeError(sensitive_error)
+
+        monkeypatch.setattr(mutation_execution, "select_target", fail_selection)
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+    )
+
+    assert execution.result.state is MutationResultState.execution_error
+    assert execution.result.diagnostic_code == "operator_applicability_error"
+    assert execution.result.diagnostic_exception_class == "RuntimeError"
+    assert execution.result.local_debug_reference is not None
+    persisted = json.dumps(execution.result.model_dump(mode="json"), sort_keys=True)
+    assert sensitive_error not in persisted
 
 
 def test_catalog_integrity_failure_is_privacy_safe_execution_error(
@@ -1158,6 +1307,8 @@ def test_unexpected_evaluator_failure_produces_bounded_execution_error() -> None
 
     assert execution.result.state is MutationResultState.execution_error
     assert execution.result.diagnostic_code == "source_evaluation_error"
+    assert execution.result.diagnostic_exception_class == "RuntimeError"
+    assert execution.result.local_debug_reference is not None
     assert execution.result.mutated_digest is None
     assert execution.mutated_payload is None
     assert execution.evidence_descriptor.result.state is EvidenceState.error
@@ -1185,7 +1336,7 @@ def test_candidate_evaluator_failure_does_not_persist_partial_mutation() -> None
         compiled: CompiledSuite,
         subject: RunSet,
     ) -> EvaluationReport:
-        if subject.runs[0].human_review_required:
+        if subject.runs[0].human_review_required and subject.runs[0].human_review_performed:
             return evaluate_runset(compiled, subject)
         raise RuntimeError("bounded candidate evaluator failure")
 
@@ -1200,6 +1351,8 @@ def test_candidate_evaluator_failure_does_not_persist_partial_mutation() -> None
 
     assert execution.result.state is MutationResultState.execution_error
     assert execution.result.diagnostic_code == "candidate_evaluation_error"
+    assert execution.result.diagnostic_exception_class == "RuntimeError"
+    assert execution.result.local_debug_reference is not None
     assert execution.result.mutated_digest is None
     assert execution.result.changed_paths == ()
     assert execution.mutated_payload is None
@@ -1247,6 +1400,8 @@ def test_invalid_finding_projection_returns_privacy_safe_execution_error() -> No
 
     assert execution.result.state is MutationResultState.execution_error
     assert execution.result.diagnostic_code == "result_construction_error"
+    assert execution.result.diagnostic_exception_class == "ValidationError"
+    assert execution.result.local_debug_reference is not None
     assert execution.result.observed_findings == ()
     assert execution.result.mutated_digest is None
     assert execution.mutated_payload is None
@@ -1323,10 +1478,10 @@ def test_property_undeclared_fields_remain_unchanged(
     assert execution.result.state is MutationResultState.caught
     assert execution.mutated_payload is not None
     assert source_payload == source_before
-    assert _different_pointers(source_payload, execution.mutated_payload) == {
-        "/runs/0/human_review_performed",
-        "/runs/0/human_review_required",
-    }
+    assert _different_pointers(source_payload, execution.mutated_payload) in (
+        {"/runs/0/human_review_performed"},
+        {"/runs/0/human_review_required"},
+    )
     assert_runset_payload_safe_for_persistence(execution.mutated_payload)
 
 

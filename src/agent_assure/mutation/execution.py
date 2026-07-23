@@ -36,11 +36,16 @@ from agent_assure.mutation.paths import (
 from agent_assure.mutation.selection import select_target
 from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
+from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.schema.common import ExecutionMode, ReasonCode
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.mutation import (
     ASSURANCE_MUTATION_METHOD_ID,
+    HUMAN_REVIEW_SUFFICIENCY_CHECK_ID,
+    HUMAN_REVIEW_SUFFICIENCY_LIMITATION,
     RFC8785_SAFE_INTEGER_MAX,
+    STOCHASTIC_SUFFICIENCY_CHECK_ID,
+    STOCHASTIC_SUFFICIENCY_LIMITATION,
     AssuranceEvidenceDescriptor,
     AssuranceMutationResult,
     AuthorshipRelationship,
@@ -117,9 +122,7 @@ class MutationEvaluatorBinding:
             }
             and self.protocol_digest is None
         ):
-            raise ValueError(
-                "stochastic and human-reviewed evaluators require a protocol digest"
-            )
+            raise ValueError("stochastic and human-reviewed evaluators require a protocol digest")
         if _MACHINE_ID.fullmatch(self.population_id) is None:
             raise ValueError("mutation evaluator population_id must be a machine identifier")
 
@@ -197,8 +200,7 @@ def execute_mutation(
         built_in_binding = _built_in_evaluator_binding()
         if evaluator_binding is not None and (
             evaluator_binding.method_id == built_in_binding.method_id
-            or evaluator_binding.implementation_digest
-            == built_in_binding.implementation_digest
+            or evaluator_binding.implementation_digest == built_in_binding.implementation_digest
         ):
             raise ValueError("custom evaluator binding cannot reuse built-in evaluator identity")
     except CatalogIntegrityError:
@@ -211,8 +213,7 @@ def execute_mutation(
             evaluator_binding=None,
             diagnostic_code="catalog_integrity_error",
             limitations=(
-                "The built-in evaluator could not establish its packaged implementation "
-                "identity.",
+                "The built-in evaluator could not establish its packaged implementation identity.",
             ),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
@@ -340,7 +341,11 @@ def execute_mutation(
             limitations=("The source is incompatible with the selected evaluation context.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
-    except Exception:
+    except Exception as exc:
+        exception_class, debug_reference = _safe_internal_diagnostic(
+            "source_evaluation_error",
+            exc,
+        )
         result = _failure_result(
             state=MutationResultState.execution_error,
             operator=operator,
@@ -349,13 +354,19 @@ def execute_mutation(
             seed=seed,
             evaluator_binding=binding,
             diagnostic_code="source_evaluation_error",
+            diagnostic_exception_class=exception_class,
+            local_debug_reference=debug_reference,
             limitations=("Source evaluation ended with a bounded internal execution error.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
 
     try:
         targets = operator.resolve_targets(suite, subject, raw_source)
-    except Exception:
+    except Exception as exc:
+        exception_class, debug_reference = _safe_internal_diagnostic(
+            "operator_applicability_error",
+            exc,
+        )
         result = _failure_result(
             state=MutationResultState.execution_error,
             operator=operator,
@@ -364,6 +375,8 @@ def execute_mutation(
             seed=seed,
             evaluator_binding=binding,
             diagnostic_code="operator_applicability_error",
+            diagnostic_exception_class=exception_class,
+            local_debug_reference=debug_reference,
             limitations=("Operator applicability ended with a bounded internal error.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
@@ -388,7 +401,11 @@ def execute_mutation(
             operator_version=operator.descriptor.operator_version,
             seed=seed,
         )
-    except Exception:
+    except Exception as exc:
+        exception_class, debug_reference = _safe_internal_diagnostic(
+            "operator_applicability_error",
+            exc,
+        )
         result = _failure_result(
             state=MutationResultState.execution_error,
             operator=operator,
@@ -397,6 +414,8 @@ def execute_mutation(
             seed=seed,
             evaluator_binding=binding,
             diagnostic_code="operator_applicability_error",
+            diagnostic_exception_class=exception_class,
+            local_debug_reference=debug_reference,
             limitations=("Operator applicability ended with a bounded internal error.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
@@ -548,7 +567,11 @@ def execute_mutation(
             limitations=("The validated mutation could not satisfy evaluation bindings.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
-    except Exception:
+    except Exception as exc:
+        exception_class, debug_reference = _safe_internal_diagnostic(
+            "candidate_evaluation_error",
+            exc,
+        )
         result = _failure_result(
             state=MutationResultState.execution_error,
             operator=operator,
@@ -557,6 +580,8 @@ def execute_mutation(
             seed=seed,
             evaluator_binding=binding,
             diagnostic_code="candidate_evaluation_error",
+            diagnostic_exception_class=exception_class,
+            local_debug_reference=debug_reference,
             limitations=("Candidate evaluation ended with a bounded internal execution error.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
@@ -583,6 +608,13 @@ def execute_mutation(
             return _execution_without_mutation(suite, result, generated_at=generated_at)
 
         result_state = MutationResultState(assessment.state)
+        result_limitations = {
+            *operator.limitations,
+            *assessment.limitations,
+        }
+        basis_limitation = _basis_sufficiency_limitation(binding.evaluation_basis)
+        if basis_limitation is not None:
+            result_limitations.add(basis_limitation)
         result = AssuranceMutationResult.build(
             source_digest=source_digest,
             mutated_digest=mutated_digest,
@@ -608,14 +640,18 @@ def execute_mutation(
             provenance=operator.descriptor.provenance,
             independence_class=operator.descriptor.independence_class,
             diagnostic_code=None,
-            limitations=tuple(sorted(set((*operator.limitations, *assessment.limitations)))),
+            limitations=tuple(sorted(result_limitations)),
         )
         descriptor = build_evidence_descriptor(
             result,
             suite_digest=compiled_suite_digest(suite),
             generated_at=generated_at,
         )
-    except Exception:
+    except Exception as exc:
+        exception_class, debug_reference = _safe_internal_diagnostic(
+            "result_construction_error",
+            exc,
+        )
         failure = _failure_result(
             state=MutationResultState.execution_error,
             operator=operator,
@@ -624,6 +660,8 @@ def execute_mutation(
             seed=seed,
             evaluator_binding=binding,
             diagnostic_code="result_construction_error",
+            diagnostic_exception_class=exception_class,
+            local_debug_reference=debug_reference,
             limitations=("Result construction ended with a bounded internal execution error.",),
         )
         return _execution_without_mutation(
@@ -718,6 +756,8 @@ def _failure_result(
     evaluator_binding: MutationEvaluatorBinding | None,
     diagnostic_code: str,
     limitations: tuple[str, ...],
+    diagnostic_exception_class: str | None = None,
+    local_debug_reference: str | None = None,
     observed_findings: tuple[ObservedFinding, ...] = (),
 ) -> AssuranceMutationResult:
     if operator is None:
@@ -792,6 +832,8 @@ def _failure_result(
         provenance=provenance,
         independence_class=independence_class,
         diagnostic_code=diagnostic_code,
+        diagnostic_exception_class=diagnostic_exception_class,
+        local_debug_reference=local_debug_reference,
         limitations=limitations,
     )
 
@@ -858,9 +900,15 @@ def build_evidence_descriptor(
     generated_at: str,
 ) -> AssuranceEvidenceDescriptor:
     state = result.state
+    basis_sufficiency_check_id = _basis_sufficiency_check_id(result.evaluator_evaluation_basis)
+    completed_assessment = state in {
+        MutationResultState.caught,
+        MutationResultState.survived,
+    }
+    basis_sufficiency_unavailable = completed_assessment and basis_sufficiency_check_id is not None
     prerequisite_state = (
         PrerequisiteState.satisfied
-        if state in {MutationResultState.caught, MutationResultState.survived}
+        if completed_assessment and not basis_sufficiency_unavailable
         else PrerequisiteState.unmet
     )
     evidence_state = (
@@ -868,8 +916,10 @@ def build_evidence_descriptor(
         if state is MutationResultState.caught
         else EvidenceState.contradicted
     )
-    verdict_bearing = state in {MutationResultState.caught, MutationResultState.survived}
-    if state is MutationResultState.inapplicable:
+    verdict_bearing = completed_assessment and not basis_sufficiency_unavailable
+    if basis_sufficiency_unavailable:
+        evidence_state = EvidenceState.prerequisites_unmet
+    elif state is MutationResultState.inapplicable:
         evidence_state = EvidenceState.prerequisites_unmet
     elif state is MutationResultState.invalid_operator:
         evidence_state = EvidenceState.prerequisites_unmet
@@ -998,7 +1048,7 @@ def _prerequisite_checks(
             }:
                 states["operator-applicable"] = PrerequisiteState.satisfied
         states["mutation-execution-completed"] = PrerequisiteState.unmet
-    return tuple(
+    checks = tuple(
         PrerequisiteCheck(
             check_id=check_id,
             state=states[check_id],
@@ -1010,6 +1060,59 @@ def _prerequisite_checks(
         )
         for check_id in check_ids
     )
+    basis_check_id = _basis_sufficiency_check_id(result.evaluator_evaluation_basis)
+    if basis_check_id is None:
+        return checks
+    basis_state = (
+        PrerequisiteState.unmet
+        if state in {MutationResultState.caught, MutationResultState.survived}
+        else PrerequisiteState.not_evaluated
+    )
+    return (
+        *checks,
+        PrerequisiteCheck(
+            check_id=basis_check_id,
+            state=basis_state,
+            reason_codes=(
+                (ReasonCode.NOT_EVALUATED,)
+                if basis_state is PrerequisiteState.not_evaluated
+                else ()
+            ),
+        ),
+    )
+
+
+def _basis_sufficiency_check_id(
+    basis: EvidenceEvaluationBasis,
+) -> str | None:
+    if basis is EvidenceEvaluationBasis.stochastic:
+        return STOCHASTIC_SUFFICIENCY_CHECK_ID
+    if basis is EvidenceEvaluationBasis.human_reviewed:
+        return HUMAN_REVIEW_SUFFICIENCY_CHECK_ID
+    return None
+
+
+def _basis_sufficiency_limitation(basis: EvidenceEvaluationBasis) -> str | None:
+    if basis is EvidenceEvaluationBasis.stochastic:
+        return STOCHASTIC_SUFFICIENCY_LIMITATION
+    if basis is EvidenceEvaluationBasis.human_reviewed:
+        return HUMAN_REVIEW_SUFFICIENCY_LIMITATION
+    return None
+
+
+def _safe_internal_diagnostic(
+    diagnostic_code: str,
+    exc: BaseException,
+) -> tuple[str, str]:
+    diagnostic = safe_error(
+        diagnostic_code,
+        "Mutation execution ended with a bounded internal error.",
+        exc,
+    )
+    exception_class = diagnostic.exception_class
+    if _MACHINE_ID.fullmatch(exception_class) is None or contains_sensitive_value(exception_class):
+        exception_class = "InternalError"
+    return exception_class, diagnostic.local_debug_reference
 
 
 def _safe_digest(payload: Mapping[str, object]) -> str | None:

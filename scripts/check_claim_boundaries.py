@@ -59,6 +59,17 @@ RESTRICTED_PATTERNS = (
         re.compile(r"\bproof[-\s]+carrying\b", re.IGNORECASE),
     ),
     RestrictedPattern(
+        "release proof",
+        re.compile(
+            r"\b(?:release|flagship|readme|fixture|evidence)[-\s]+proofs?\b",
+            re.IGNORECASE,
+        ),
+    ),
+    RestrictedPattern(
+        "internal sprint label",
+        re.compile(r"\bsprint\s+[0-9]+\b", re.IGNORECASE),
+    ),
+    RestrictedPattern(
         "certified/certification",
         re.compile(r"\bcertif(?:y|ies|ied|ication)\b", re.IGNORECASE),
     ),
@@ -161,6 +172,7 @@ DEFAULT_SCAN_FILES = (
 )
 
 DEFAULT_SCAN_GLOBS = (
+    "docs/assets/*.svg",
     "docs/release_notes/*.md",
     "tests/golden/reports/**/*evidence-diff*.html",
     "tests/golden/reports/**/*control-coverage*.*",
@@ -181,6 +193,7 @@ def main(argv: list[str] | None = None) -> int:
 def scan_files(paths: tuple[Path, ...]) -> list[ClaimBoundaryViolation]:
     violations: list[ClaimBoundaryViolation] = []
     for path in paths:
+        violations.extend(find_claim_boundary_violations(path.name, path=path))
         text = path.read_text(encoding="utf-8")
         violations.extend(find_claim_boundary_violations(text, path=path))
     return violations

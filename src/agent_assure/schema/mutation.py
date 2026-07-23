@@ -23,21 +23,33 @@ from agent_assure.schema.common import (
 )
 
 CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
-ASSURANCE_MUTATION_METHOD_ID: Literal["assurance-mutation/core/v1"] = (
-    "assurance-mutation/core/v1"
-)
+ASSURANCE_MUTATION_METHOD_ID: Literal["assurance-mutation/core/v1"] = "assurance-mutation/core/v1"
 ASSURANCE_MUTATION_PREREQUISITE_CHECK_IDS = (
     "subject-valid",
     "operator-valid",
     "operator-applicable",
     "mutation-execution-completed",
 )
-IMPLEMENTATION_MANIFEST_CONTRACT: Literal[
+STOCHASTIC_SUFFICIENCY_CHECK_ID: Literal["statistical-sufficiency-established"] = (
+    "statistical-sufficiency-established"
+)
+HUMAN_REVIEW_SUFFICIENCY_CHECK_ID: Literal["human-review-sufficiency-established"] = (
+    "human-review-sufficiency-established"
+)
+STOCHASTIC_SUFFICIENCY_LIMITATION = (
+    "Stochastic mutation assessment is non-verdict until a typed statistical "
+    "sufficiency artifact is supported and validated."
+)
+HUMAN_REVIEW_SUFFICIENCY_LIMITATION = (
+    "Human-reviewed mutation assessment is non-verdict until a typed independent "
+    "review-sufficiency artifact is supported and validated."
+)
+IMPLEMENTATION_MANIFEST_CONTRACT: Literal["AssuranceMutationImplementationManifest/v1"] = (
     "AssuranceMutationImplementationManifest/v1"
-] = "AssuranceMutationImplementationManifest/v1"
-FINDING_TARGET_DIGEST_CONTRACT: Literal[
+)
+FINDING_TARGET_DIGEST_CONTRACT: Literal["AssuranceMutationFindingTarget/v1"] = (
     "AssuranceMutationFindingTarget/v1"
-] = "AssuranceMutationFindingTarget/v1"
+)
 _SEMVER_PATTERN = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 _MACHINE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
@@ -112,9 +124,7 @@ def _evidence_prerequisites_json_schema_extra(schema: dict[str, Any]) -> None:
                 "properties": {
                     "checks": {
                         "minItems": 1,
-                        "items": {
-                            "properties": {"state": {"const": "satisfied"}}
-                        },
+                        "items": {"properties": {"state": {"const": "satisfied"}}},
                     }
                 }
             },
@@ -139,9 +149,7 @@ def _evidence_descriptor_json_schema_extra(schema: dict[str, Any]) -> None:
                 "properties": {
                     "method": {
                         "required": ["method_id"],
-                        "properties": {
-                            "method_id": {"const": ASSURANCE_MUTATION_METHOD_ID}
-                        },
+                        "properties": {"method_id": {"const": ASSURANCE_MUTATION_METHOD_ID}},
                     }
                 },
             },
@@ -171,16 +179,90 @@ def _evidence_descriptor_json_schema_extra(schema: dict[str, Any]) -> None:
             },
             "then": {
                 "properties": {
-                    "result": {
-                        "properties": {"verdict_bearing": {"const": False}}
-                    },
+                    "result": {"properties": {"verdict_bearing": {"const": False}}},
                     "prerequisites": {
-                        "properties": {
-                            "state": {"enum": ["unmet", "not_evaluated"]}
-                        }
+                        "properties": {"state": {"enum": ["unmet", "not_evaluated"]}}
                     },
                 }
             },
+        },
+        *_non_deterministic_evidence_json_schema_rules(),
+    )
+
+
+def _non_deterministic_evidence_json_schema_rules() -> tuple[dict[str, Any], ...]:
+    rules: list[dict[str, Any]] = []
+    for basis, check_id in (
+        ("stochastic", STOCHASTIC_SUFFICIENCY_CHECK_ID),
+        ("human_reviewed", HUMAN_REVIEW_SUFFICIENCY_CHECK_ID),
+    ):
+        rules.append(
+            {
+                "if": {
+                    "required": ["method"],
+                    "properties": {
+                        "method": {
+                            "required": ["evaluation_basis"],
+                            "properties": {"evaluation_basis": {"const": basis}},
+                        }
+                    },
+                },
+                "then": {
+                    "properties": {
+                        "scope": {
+                            "required": ["protocol_digest"],
+                            "properties": {"protocol_digest": {"type": "string"}},
+                        },
+                        "result": {"properties": {"verdict_bearing": {"const": False}}},
+                        "prerequisites": {
+                            "properties": {
+                                "state": {"enum": ["unmet", "not_evaluated"]},
+                                "checks": {
+                                    "contains": {
+                                        "required": ["check_id", "state"],
+                                        "properties": {
+                                            "check_id": {"const": check_id},
+                                            "state": {"enum": ["unmet", "not_evaluated"]},
+                                        },
+                                    }
+                                },
+                            }
+                        },
+                    }
+                },
+            }
+        )
+    return tuple(rules)
+
+
+def _expected_detection_contract_json_schema_extra(schema: dict[str, Any]) -> None:
+    _require_contract_identity_json_schema(schema)
+    known_controls = list(_built_in_policy_ids())
+    schema["$comment"] = (
+        "JSON Schema enforces the finite control vocabulary and target-ID uniqueness. "
+        "Canonical target-ID ordering, required-selector membership in target_control_ids, "
+        "and required/prohibited selector disjointness are relational constraints enforced "
+        "by the runtime model because JSON Schema 2020-12 cannot express them directly."
+    )
+    _append_json_schema_rules(
+        schema,
+        {
+            "properties": {
+                "target_control_ids": {
+                    "items": {"enum": known_controls},
+                    "uniqueItems": True,
+                },
+                "required_findings": {
+                    "properties": {
+                        "any_of": {
+                            "items": {"properties": {"control_id": {"enum": known_controls}}}
+                        }
+                    }
+                },
+                "prohibited_substitutes": {
+                    "items": {"properties": {"control_id": {"enum": known_controls}}}
+                },
+            }
         },
     )
 
@@ -199,14 +281,10 @@ def _operator_provenance_json_schema_extra(schema: dict[str, Any]) -> None:
                     "introduction_components": {"maxItems": 0},
                     "introduced_at_commit": {"type": "null"},
                     "introduced_in_release": {"type": "null"},
-                    "origin": {
-                        "properties": {"kind": {"const": "unknown"}}
-                    },
+                    "origin": {"properties": {"kind": {"const": "unknown"}}},
                     "target_controls": {"maxItems": 0},
                     "authorship": {
-                        "properties": {
-                            "relationship_to_control_author": {"const": "unknown"}
-                        }
+                        "properties": {"relationship_to_control_author": {"const": "unknown"}}
                     },
                 }
             },
@@ -236,6 +314,9 @@ def _operator_provenance_json_schema_extra(schema: dict[str, Any]) -> None:
 def _mutation_result_json_schema_extra(schema: dict[str, Any]) -> None:
     _require_contract_identity_json_schema(schema)
     properties = schema.get("properties", {})
+    dependent_required = schema.setdefault("dependentRequired", {})
+    dependent_required["diagnostic_exception_class"] = ["local_debug_reference"]
+    dependent_required["local_debug_reference"] = ["diagnostic_exception_class"]
     for field_name in ("changed_paths", "matched_finding_ids"):
         if field_name in properties:
             properties[field_name]["uniqueItems"] = True
@@ -298,9 +379,7 @@ def _mutation_result_json_schema_extra(schema: dict[str, Any]) -> None:
         {
             "if": {
                 "required": ["evaluator_implementation_digest"],
-                "properties": {
-                    "evaluator_implementation_digest": {"const": "0" * 64}
-                },
+                "properties": {"evaluator_implementation_digest": {"const": "0" * 64}},
             },
             "then": {
                 "required": ["state", "diagnostic_code"],
@@ -326,16 +405,34 @@ def _mutation_result_json_schema_extra(schema: dict[str, Any]) -> None:
             "then": {
                 "properties": {
                     "provenance": {
-                        "properties": {
-                            "origin": {
-                                "properties": {"kind": {"const": origin_kind}}
-                            }
-                        }
+                        "properties": {"origin": {"properties": {"kind": {"const": origin_kind}}}}
                     }
                 }
             },
         }
         for independence_class, origin_kind in origin_by_independence.items()
+    )
+    rules.extend(
+        {
+            "if": {
+                "required": ["state", "evaluator_evaluation_basis"],
+                "properties": {
+                    "state": {"enum": mutated_states},
+                    "evaluator_evaluation_basis": {"const": basis},
+                },
+            },
+            "then": {
+                "properties": {
+                    "limitations": {
+                        "contains": {"const": limitation},
+                    }
+                }
+            },
+        }
+        for basis, limitation in (
+            ("stochastic", STOCHASTIC_SUFFICIENCY_LIMITATION),
+            ("human_reviewed", HUMAN_REVIEW_SUFFICIENCY_LIMITATION),
+        )
     )
     _append_json_schema_rules(schema, *rules)
 
@@ -374,9 +471,7 @@ class SelfDigestedArtifact(PersistedArtifact):
         if not isinstance(value, Mapping):
             return value
         missing = [
-            field_name
-            for field_name in _SELF_DIGESTED_IDENTITY_FIELDS
-            if field_name not in value
+            field_name for field_name in _SELF_DIGESTED_IDENTITY_FIELDS if field_name not in value
         ]
         if missing:
             raise ValueError(
@@ -390,9 +485,7 @@ class SelfDigestedArtifact(PersistedArtifact):
         if isinstance(info.context, dict) and info.context.get("skip_self_digest") is True:
             return self
         digest_field = self._digest_field
-        expected = _canonical_sha256(
-            self.model_dump(mode="json", exclude={digest_field})
-        )
+        expected = _canonical_sha256(self.model_dump(mode="json", exclude={digest_field}))
         if getattr(self, digest_field) != expected:
             raise ValueError(f"{digest_field} does not match the canonical artifact projection")
         return self
@@ -579,8 +672,10 @@ class EvidencePrerequisites(FrozenStrictModel):
             check.state is not PrerequisiteState.satisfied for check in self.checks
         ):
             raise ValueError("satisfied prerequisites cannot contain an unmet check")
-        if self.state is not PrerequisiteState.satisfied and self.checks and all(
-            check.state is PrerequisiteState.satisfied for check in self.checks
+        if (
+            self.state is not PrerequisiteState.satisfied
+            and self.checks
+            and all(check.state is PrerequisiteState.satisfied for check in self.checks)
         ):
             raise ValueError("unsatisfied prerequisites require a non-satisfied check")
         return self
@@ -627,16 +722,10 @@ class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
 
     model_config = ConfigDict(json_schema_extra=_evidence_descriptor_json_schema_extra)
 
-    artifact_kind: Literal["assurance-evidence-descriptor"] = (
-        "assurance-evidence-descriptor"
-    )
+    artifact_kind: Literal["assurance-evidence-descriptor"] = "assurance-evidence-descriptor"
     schema_version: Literal["0.6.0"] = "0.6.0"
-    schema_name: Literal["assurance-evidence-descriptor"] = (
-        "assurance-evidence-descriptor"
-    )
-    contract_id: Literal["AssuranceEvidenceDescriptor/v1"] = (
-        "AssuranceEvidenceDescriptor/v1"
-    )
+    schema_name: Literal["assurance-evidence-descriptor"] = "assurance-evidence-descriptor"
+    contract_id: Literal["AssuranceEvidenceDescriptor/v1"] = "AssuranceEvidenceDescriptor/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
     evidence_digest: DigestHex
     evidence_id: str = Field(
@@ -668,9 +757,7 @@ class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
     @model_validator(mode="after")
     def _validate_evidence_semantics(self) -> AssuranceEvidenceDescriptor:
         prerequisites_met = self.prerequisites.state is PrerequisiteState.satisfied
-        if self.subject.digest is None and (
-            prerequisites_met or self.result.verdict_bearing
-        ):
+        if self.subject.digest is None and (prerequisites_met or self.result.verdict_bearing):
             raise ValueError(
                 "an unavailable subject digest requires non-verdict evidence "
                 "with unsatisfied prerequisites"
@@ -699,9 +786,28 @@ class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
             }
             and self.scope.protocol_digest is None
         ):
-            raise ValueError(
-                "stochastic and human-reviewed evidence requires a protocol digest"
+            raise ValueError("stochastic and human-reviewed evidence requires a protocol digest")
+        basis_sufficiency_check = {
+            EvidenceEvaluationBasis.stochastic: STOCHASTIC_SUFFICIENCY_CHECK_ID,
+            EvidenceEvaluationBasis.human_reviewed: HUMAN_REVIEW_SUFFICIENCY_CHECK_ID,
+        }.get(self.method.evaluation_basis)
+        if basis_sufficiency_check is not None:
+            matching_checks = tuple(
+                check
+                for check in self.prerequisites.checks
+                if check.check_id == basis_sufficiency_check
             )
+            if (
+                len(matching_checks) != 1
+                or matching_checks[0].state is PrerequisiteState.satisfied
+                or self.prerequisites.state is PrerequisiteState.satisfied
+                or self.result.verdict_bearing
+            ):
+                raise ValueError(
+                    f"{self.method.evaluation_basis.value} evidence cannot be "
+                    "verdict-bearing until a typed sufficiency artifact is supported; "
+                    f"it requires one non-satisfied {basis_sufficiency_check!r} check"
+                )
         if self.method.method_id == ASSURANCE_MUTATION_METHOD_ID:
             check_ids = tuple(check.check_id for check in self.prerequisites.checks)
             if check_ids != ASSURANCE_MUTATION_PREREQUISITE_CHECK_IDS:
@@ -745,6 +851,8 @@ class RequiredFindingAlternatives(FrozenStrictModel):
 class ExpectedDetectionContract(SelfDigestedArtifact):
     _digest_field = "contract_digest"
 
+    model_config = ConfigDict(json_schema_extra=_expected_detection_contract_json_schema_extra)
+
     artifact_kind: Literal["expected-detection-contract"] = "expected-detection-contract"
     schema_version: Literal["0.6.0"] = "0.6.0"
     schema_name: Literal["expected-detection-contract"] = "expected-detection-contract"
@@ -779,9 +887,7 @@ class ExpectedDetectionContract(SelfDigestedArtifact):
         known_controls = set(_built_in_policy_ids())
         unknown = sorted(set(self.target_control_ids) - known_controls)
         all_selectors = (*self.required_findings.any_of, *self.prohibited_substitutes)
-        unknown.extend(
-            sorted({selector.control_id for selector in all_selectors} - known_controls)
-        )
+        unknown.extend(sorted({selector.control_id for selector in all_selectors} - known_controls))
         if unknown:
             labels = ", ".join(sorted(set(unknown)))
             raise ValueError("expected detector references unknown controls: " + labels)
@@ -819,6 +925,7 @@ class OperatorOrigin(FrozenStrictModel):
     @classmethod
     def _coerce_references(cls, value: object) -> object:
         return coerce_tuple(value)
+
 
 class TargetControlProvenance(FrozenStrictModel):
     control_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
@@ -898,8 +1005,7 @@ class OperatorProvenance(FrozenStrictModel):
                 and self.introduced_at_commit is None
                 and self.introduced_in_release is None
                 and not self.target_controls
-                and self.authorship.relationship_to_control_author
-                is AuthorshipRelationship.unknown
+                and self.authorship.relationship_to_control_author is AuthorshipRelationship.unknown
             ):
                 return self
             if self.origin.kind is OperatorOriginKind.unknown:
@@ -937,9 +1043,7 @@ class OperatorProvenance(FrozenStrictModel):
             (component.component_id, component.relative_path) for component in components
         )
         if component_keys != tuple(sorted(set(component_keys))):
-            raise ValueError(
-                f"{label} components must be unique and canonically sorted"
-            )
+            raise ValueError(f"{label} components must be unique and canonically sorted")
         component_ids = tuple(component.component_id for component in components)
         if len(set(component_ids)) != len(component_ids):
             raise ValueError(f"{label} component IDs must be unique")
@@ -1076,6 +1180,14 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     provenance: OperatorProvenance
     independence_class: IndependenceClass
     diagnostic_code: MachineIdentifier | None = None
+    diagnostic_exception_class: MachineIdentifier | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    local_debug_reference: MachineIdentifier | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     limitations: tuple[BoundedSummary, ...] = Field(min_length=1)
 
     @field_validator(
@@ -1120,6 +1232,18 @@ class AssuranceMutationResult(SelfDigestedArtifact):
                 "unavailable evaluator implementation identity is reserved for "
                 "catalog bootstrap failures"
             )
+        diagnostic_identity = (
+            self.diagnostic_exception_class,
+            self.local_debug_reference,
+        )
+        if (diagnostic_identity[0] is None) != (diagnostic_identity[1] is None):
+            raise ValueError(
+                "diagnostic exception class and local debug reference must appear together"
+            )
+        if diagnostic_identity[0] is not None and (
+            self.state is not MutationResultState.execution_error or self.diagnostic_code is None
+        ):
+            raise ValueError("internal diagnostic identity is reserved for execution errors")
         if (
             self.evaluator_evaluation_basis
             in {
@@ -1130,6 +1254,19 @@ class AssuranceMutationResult(SelfDigestedArtifact):
         ):
             raise ValueError(
                 "stochastic and human-reviewed evaluator identities require a protocol digest"
+            )
+        required_sufficiency_limitation = {
+            EvidenceEvaluationBasis.stochastic: STOCHASTIC_SUFFICIENCY_LIMITATION,
+            EvidenceEvaluationBasis.human_reviewed: HUMAN_REVIEW_SUFFICIENCY_LIMITATION,
+        }.get(self.evaluator_evaluation_basis)
+        if (
+            self.state in {MutationResultState.caught, MutationResultState.survived}
+            and required_sufficiency_limitation is not None
+            and required_sufficiency_limitation not in self.limitations
+        ):
+            raise ValueError(
+                "non-deterministic mutation results require the canonical "
+                "non-verdict sufficiency limitation"
             )
         _validate_independence_origin(self.independence_class, self.provenance.origin.kind)
         mutated_states = {MutationResultState.caught, MutationResultState.survived}
@@ -1157,8 +1294,7 @@ class AssuranceMutationResult(SelfDigestedArtifact):
             raise ValueError("matched findings must be present in observed findings")
         observed_by_id = {item.finding_id: item for item in self.observed_findings}
         if any(
-            observed_by_id[finding_id].target_digest
-            != self.expected_finding_target_digest
+            observed_by_id[finding_id].target_digest != self.expected_finding_target_digest
             for finding_id in self.matched_finding_ids
         ):
             raise ValueError("matched findings must carry the expected target digest")
@@ -1235,9 +1371,7 @@ def mutation_implementation_digest(
             "contract_id": IMPLEMENTATION_MANIFEST_CONTRACT,
             "operator_id": operator_id,
             "operator_version": operator_version,
-            "components": [
-                component.model_dump(mode="json") for component in components
-            ],
+            "components": [component.model_dump(mode="json") for component in components],
         }
     )
 

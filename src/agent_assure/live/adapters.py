@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import os
+import socket
 import sys
 import time
 import urllib.error
@@ -116,10 +117,12 @@ class LiveProviderRequestError(RuntimeError):
         *,
         status_code: int | None = None,
         retry_after_seconds: str | None = None,
+        retryable: bool = False,
     ) -> None:
         super().__init__(message)
         self.status_code = status_code
         self.retry_after_seconds = retry_after_seconds
+        self.retryable = retryable
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -271,7 +274,11 @@ class OpenAIChatCompletionsAdapter:
             ) from exc
         except urllib.error.URLError as exc:
             raise LiveProviderRequestError(
-                f"provider request failed: {exc.__class__.__name__}"
+                f"provider request failed: {exc.__class__.__name__}",
+                retryable=isinstance(
+                    exc.reason,
+                    (TimeoutError, ConnectionError, socket.gaierror),
+                ),
             ) from exc
         return _openai_response(payload, self._config)
 

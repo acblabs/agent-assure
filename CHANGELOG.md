@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.0 - 2026-07-23
+
 - Added strict evidence descriptor, deterministic mutation operator,
   expected-detection, and mutation-result contracts with canonical
   self-digests, provenance, independence classes, and privacy-minimized
@@ -28,6 +30,19 @@
   retain declared cost and token reservations, later attempts fail before
   exceeding local ceilings, v0.6 live records persist committed amounts, and
   rate-limit thresholds now stop dispatch across the entire run.
+- Restricted live-provider retries to transient transport failures, HTTP 408,
+  HTTP 429, HTTP 5xx, and explicitly retryable provider errors; permanent
+  request and response-shape failures now fail on the first attempt.
+- Preserved frozen legacy validation semantics, completed immutable mutation
+  introduction provenance, and pinned the canonical release-evidence producer
+  to the exact reviewed Python runtime.
+- Bound mandatory privacy detector guards into the privacy-profile digest,
+  made tool-policy capability reporting account for case-scoped expectations,
+  and kept stochastic or human-reviewed mutation results non-verdict-bearing
+  until their declared sufficiency basis is met.
+- Added privacy-safe exception diagnostics, branch-isolated human-review and
+  tool-policy mutation targets, and matching cross-field constraints across
+  the Pydantic and published JSON Schema contracts.
 - Pinned the optional OpenTelemetry API, SDK, and OTLP HTTP exporter to the
   exact tested 1.44.0 tuple, added a
   dedicated hash-locked real-exporter CI contract, and made private OTLP HTTP

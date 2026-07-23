@@ -145,6 +145,11 @@ def mutate(
     console.print(f"evidence descriptor: {paths.evidence_descriptor}")
     if paths.mutated_runset is not None:
         console.print(f"mutated run set: {paths.mutated_runset}")
+    if execution.result.state is MutationResultState.caught:
+        console.print(
+            "scope: the expected detector caught this exact fixture transformation; "
+            "this is not a broader model, planner, or red-team robustness result"
+        )
     exit_code = _MUTATION_EXIT_CODES[execution.result.state]
     if exit_code:
         raise typer.Exit(exit_code)

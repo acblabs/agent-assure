@@ -15,7 +15,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  PYTHON_VERSION: "3.14"
+  # Match the canonical release-evidence producer exactly.
+  PYTHON_VERSION: "3.14.6"
   SOURCE_DATE_EPOCH: "1783036800"
 
 jobs:

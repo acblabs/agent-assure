@@ -901,6 +901,8 @@ def _complete_with_retries(
             if _is_rate_limit_error(exc):
                 attempt_state.rate_limit_events += 1
                 rate_limit_budget.record()
+            if not _is_retryable_error(exc):
+                raise
             if attempt >= max_attempts:
                 break
             if request_budget.exhausted:
@@ -1053,6 +1055,17 @@ def _is_rate_limit_error(exc: Exception) -> bool:
         return True
     text = str(exc).lower()
     return "429" in text or "retry-after" in text
+
+
+def _is_retryable_error(exc: Exception) -> bool:
+    status_code = getattr(exc, "status_code", None)
+    if type(status_code) is int:
+        return status_code in {408, 429} or 500 <= status_code <= 599
+    if getattr(exc, "retryable", False) is True:
+        return True
+    if getattr(exc, "retry_after_seconds", None) is not None:
+        return True
+    return isinstance(exc, (TimeoutError, ConnectionError))
 
 
 def _read_prompt(config_dir: Path, prompt_path: str) -> str:

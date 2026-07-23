@@ -220,7 +220,7 @@ def _registered_operator(
         implementation_digest=implementation_digest,
         implementation_components=implementation_components,
         introduction_components=_introduction_components(operator_id),
-        introduced_at_commit="git:uncommitted",
+        introduced_at_commit="git:208f304574fc7bb3b7ed7b821c745b951f2783c8",
         introduced_in_release="0.6.0",
         origin=OperatorOrigin(
             kind=OperatorOriginKind.first_party,

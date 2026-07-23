@@ -31,8 +31,9 @@ The workflows have distinct roles:
   for each TestPyPI candidate. The workflow validates the requested version
   through a strict release-version parser before building or uploading.
 
-Release, evidence, and TestPyPI workflows use Python 3.14, matching the
-checked-in `requirements.lock` generator version. The tag validator checks the
+Release, evidence, and TestPyPI workflows use the exact Python 3.14.6 canonical
+producer, matching the checked-in `requirements.lock` generator version. The
+compatibility CI matrix remains minor-version based. The tag validator checks the
 package version, exported schema version constants, and matching frozen schema
 directory before package upload. For the v0.6.0 package release, the active
 schema is `0.6.0` and the candidate schema directory is `schemas/v0.6.0` until

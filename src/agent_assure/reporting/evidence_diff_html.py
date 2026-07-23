@@ -796,9 +796,9 @@ def _evidence_packet_page(
         5,
         "\n".join(
             (
-                '<section class="page-intro" aria-labelledby="packet-proof">',
+                '<section class="page-intro" aria-labelledby="packet-evidence">',
                 '<p class="eyebrow">Evidence packet appendix</p>',
-                '<h2 id="packet-proof">Release Proofs for Review</h2>',
+                '<h2 id="packet-evidence">Release Evidence for Review</h2>',
                 (
                     '<p class="section-lede">'
                     "Fixture equivalence, artifact paths, and SHA-256 digests make the "

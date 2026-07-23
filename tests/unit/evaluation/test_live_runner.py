@@ -20,6 +20,7 @@ from agent_assure.live import runner as live_runner
 from agent_assure.live.adapters import (
     MAX_PROVIDER_RESPONSE_BYTES,
     LiveProviderRequest,
+    LiveProviderRequestError,
     LiveProviderResponse,
     OpenAIChatCompletionsAdapter,
     StaticJsonlAdapter,
@@ -45,6 +46,7 @@ from agent_assure.live.output_contract import (
 from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.live.runner import (
     _is_rate_limit_error,
+    _is_retryable_error,
     _pace_request,
     _token_reservation,
     run_live_suite,
@@ -66,6 +68,23 @@ def test_rate_limit_detection_uses_status_or_retry_after_metadata() -> None:
     assert _is_rate_limit_error(StatusCodeError("too many requests"))
     assert _is_rate_limit_error(RetryAfterError("provider backoff requested"))
     assert not _is_rate_limit_error(RuntimeError("generated accurately"))
+
+
+def test_retryability_is_limited_to_declared_transient_failures() -> None:
+    class ProviderError(RuntimeError):
+        def __init__(self, status_code: int) -> None:
+            super().__init__(f"provider returned HTTP {status_code}")
+            self.status_code = status_code
+
+    assert _is_retryable_error(TimeoutError("provider timed out"))
+    assert _is_retryable_error(ConnectionResetError("connection reset"))
+    assert _is_retryable_error(ProviderError(408))
+    assert _is_retryable_error(ProviderError(429))
+    assert _is_retryable_error(ProviderError(503))
+    assert not _is_retryable_error(ProviderError(400))
+    assert not _is_retryable_error(ValueError("malformed provider response"))
+    assert not _is_retryable_error(TypeError("adapter programming error"))
+    assert not _is_retryable_error(RuntimeError("unclassified failure"))
 
 
 def test_tokens_per_minute_reserves_prompt_utf8_bytes_plus_max_output_tokens() -> None:
@@ -760,7 +779,7 @@ def test_max_requests_counts_retry_attempts(
         def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
             self.calls += 1
             if self.calls == 1:
-                raise RuntimeError("transient provider failure")
+                raise TimeoutError("transient provider failure")
             return LiveProviderResponse(
                 content=json.dumps(
                     {
@@ -797,6 +816,66 @@ def test_max_requests_counts_retry_attempts(
     assert pace_calls[0] > 0
     assert runset.runs[1].exclusion_reason == "budget_exhausted"
     assert runset.stop_reasons == ("request_budget_exhausted",)
+
+
+def test_permanent_provider_error_is_not_retried(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    payload = _protocol_payload(compiled)
+    payload.update({"max_requests": 3, "max_retries": 2})
+    protocol = LiveProtocolRecord.model_validate(payload)
+    config = LiveRunConfig(
+        variant_id="permanent-provider-error-live",
+        pipeline_id="expense-live",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="fake",
+            provider="fake-provider",
+            model="fake-model",
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        max_requests=3,
+        max_total_cost_usd=protocol.max_total_cost_usd,
+        max_cost_per_observation_usd=protocol.max_cost_per_observation_usd,
+        max_retries=2,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+    )
+
+    class BadRequestAdapter:
+        adapter_id = "fake"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            self.calls += 1
+            raise LiveProviderRequestError(
+                "provider request failed: HTTP 400",
+                status_code=400,
+            )
+
+    adapter = BadRequestAdapter()
+    monkeypatch.setattr(live_runner, "build_adapter", lambda *_args, **_kwargs: adapter)
+    monkeypatch.setattr(live_runner, "_sleep_before_retry", lambda *_args: None)
+
+    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert adapter.calls == 1
+    assert runset.runs[0].attempt_count == 1
+    assert runset.runs[0].retry_count == 0
+    assert runset.runs[0].outcome == "runtime_error"
 
 
 def test_network_retry_reserves_ambiguous_failed_attempt_cost_before_dispatch(
@@ -1132,7 +1211,9 @@ def test_malformed_adapter_usage_becomes_a_sanitized_error_record(
     compiled = compile_suite(SUITE)
     prompt = tmp_path / "prompt.txt"
     prompt.write_text("Return an expense decision.", encoding="utf-8")
-    protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
+    payload = _protocol_payload(compiled)
+    payload.update({"max_requests": 3, "max_retries": 2})
+    protocol = LiveProtocolRecord.model_validate(payload)
     config = LiveRunConfig(
         variant_id="malformed-live",
         pipeline_id="expense-live",
@@ -1150,10 +1231,10 @@ def test_malformed_adapter_usage_becomes_a_sanitized_error_record(
                 input_summary="expense request",
             ),
         ),
-        max_requests=1,
+        max_requests=3,
         max_total_cost_usd=protocol.max_total_cost_usd,
         max_cost_per_observation_usd=protocol.max_cost_per_observation_usd,
-        max_retries=0,
+        max_retries=2,
         protocol_id=protocol.protocol_id,
         protocol_digest=sha256_hexdigest(protocol),
     )
@@ -1161,7 +1242,11 @@ def test_malformed_adapter_usage_becomes_a_sanitized_error_record(
     class MalformedAdapter:
         adapter_id = "fake"
 
+        def __init__(self) -> None:
+            self.calls = 0
+
         def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            self.calls += 1
             return LiveProviderResponse.model_construct(
                 content="{}",
                 provider="fake-provider",
@@ -1171,15 +1256,16 @@ def test_malformed_adapter_usage_becomes_a_sanitized_error_record(
                 total_tokens=0,
             )
 
-    monkeypatch.setattr(
-        live_runner,
-        "build_adapter",
-        lambda *_args, **_kwargs: MalformedAdapter(),
-    )
+    adapter = MalformedAdapter()
+    monkeypatch.setattr(live_runner, "build_adapter", lambda *_args, **_kwargs: adapter)
+    monkeypatch.setattr(live_runner, "_sleep_before_retry", lambda *_args: None)
 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
+    assert adapter.calls == 1
     assert len(runset.runs) == 1
+    assert runset.runs[0].attempt_count == 1
+    assert runset.runs[0].retry_count == 0
     assert runset.runs[0].outcome == "runtime_error"
     assert runset.runs[0].prompt_tokens is None
     assert runset.runs[0].total_tokens is None

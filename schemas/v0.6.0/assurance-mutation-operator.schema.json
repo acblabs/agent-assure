@@ -10,7 +10,72 @@
       "type": "string"
     },
     "ExpectedDetectionContract": {
+      "$comment": "JSON Schema enforces the finite control vocabulary and target-ID uniqueness. Canonical target-ID ordering, required-selector membership in target_control_ids, and required/prohibited selector disjointness are relational constraints enforced by the runtime model because JSON Schema 2020-12 cannot express them directly.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "properties": {
+            "prohibited_substitutes": {
+              "items": {
+                "properties": {
+                  "control_id": {
+                    "enum": [
+                      "runtime_success_required",
+                      "structured_output_required",
+                      "evidence_required",
+                      "material_claims_have_evidence",
+                      "tool_allowlist",
+                      "provider_review_boundary",
+                      "human_review_required",
+                      "redaction_required",
+                      "prompt_injection_control_boundary"
+                    ]
+                  }
+                }
+              }
+            },
+            "required_findings": {
+              "properties": {
+                "any_of": {
+                  "items": {
+                    "properties": {
+                      "control_id": {
+                        "enum": [
+                          "runtime_success_required",
+                          "structured_output_required",
+                          "evidence_required",
+                          "material_claims_have_evidence",
+                          "tool_allowlist",
+                          "provider_review_boundary",
+                          "human_review_required",
+                          "redaction_required",
+                          "prompt_injection_control_boundary"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            "target_control_ids": {
+              "items": {
+                "enum": [
+                  "runtime_success_required",
+                  "structured_output_required",
+                  "evidence_required",
+                  "material_claims_have_evidence",
+                  "tool_allowlist",
+                  "provider_review_boundary",
+                  "human_review_required",
+                  "redaction_required",
+                  "prompt_injection_control_boundary"
+                ]
+              },
+              "uniqueItems": true
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "expected-detection-contract",

@@ -13,7 +13,8 @@ The detector semantics have an explicit compatibility identity. Current
 `privacy_profile_id: agent-assure/privacy-detectors/v1` and a
 `privacy_profile_digest`. The digest is SHA-256 over an RFC 8785 canonical
 manifest containing the ordered detector IDs, regular expressions and flags,
-the search and substitution algorithms, and the redaction replacement text.
+their mandatory literal guards, the search and substitution algorithms, and
+the redaction replacement text.
 Changing any manifest entry changes the digest; changing detector behavior
 also requires an intentional profile-ID version decision. The digest is a
 reproducibility and compatibility anchor, not a signature or attestation.

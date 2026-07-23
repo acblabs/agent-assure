@@ -635,8 +635,72 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluator_evaluation_basis": {
+            "const": "stochastic"
+          },
+          "state": {
+            "enum": [
+              "caught",
+              "survived"
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "evaluator_evaluation_basis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "limitations": {
+            "contains": {
+              "const": "Stochastic mutation assessment is non-verdict until a typed statistical sufficiency artifact is supported and validated."
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluator_evaluation_basis": {
+            "const": "human_reviewed"
+          },
+          "state": {
+            "enum": [
+              "caught",
+              "survived"
+            ]
+          }
+        },
+        "required": [
+          "state",
+          "evaluator_evaluation_basis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "limitations": {
+            "contains": {
+              "const": "Human-reviewed mutation assessment is non-verdict until a typed independent review-sufficiency artifact is supported and validated."
+            }
+          }
+        }
+      }
     }
   ],
+  "dependentRequired": {
+    "diagnostic_exception_class": [
+      "local_debug_reference"
+    ],
+    "local_debug_reference": [
+      "diagnostic_exception_class"
+    ]
+  },
   "properties": {
     "artifact_kind": {
       "const": "assurance-mutation-result",
@@ -681,6 +745,21 @@
       ],
       "default": null,
       "title": "Diagnostic Code"
+    },
+    "diagnostic_exception_class": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Diagnostic Exception Class"
     },
     "evaluator_evaluation_basis": {
       "$ref": "#/$defs/EvidenceEvaluationBasis"
@@ -757,6 +836,21 @@
       "minItems": 1,
       "title": "Limitations",
       "type": "array"
+    },
+    "local_debug_reference": {
+      "anyOf": [
+        {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Local Debug Reference"
     },
     "matched_finding_ids": {
       "items": {

@@ -492,6 +492,144 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "evaluation_basis": {
+                "const": "stochastic"
+              }
+            },
+            "required": [
+              "evaluation_basis"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prerequisites": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "check_id": {
+                      "const": "statistical-sufficiency-established"
+                    },
+                    "state": {
+                      "enum": [
+                        "unmet",
+                        "not_evaluated"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "check_id",
+                    "state"
+                  ]
+                }
+              },
+              "state": {
+                "enum": [
+                  "unmet",
+                  "not_evaluated"
+                ]
+              }
+            }
+          },
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
+          },
+          "scope": {
+            "properties": {
+              "protocol_digest": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "protocol_digest"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "evaluation_basis": {
+                "const": "human_reviewed"
+              }
+            },
+            "required": [
+              "evaluation_basis"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prerequisites": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "check_id": {
+                      "const": "human-review-sufficiency-established"
+                    },
+                    "state": {
+                      "enum": [
+                        "unmet",
+                        "not_evaluated"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "check_id",
+                    "state"
+                  ]
+                }
+              },
+              "state": {
+                "enum": [
+                  "unmet",
+                  "not_evaluated"
+                ]
+              }
+            }
+          },
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
+          },
+          "scope": {
+            "properties": {
+              "protocol_digest": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "protocol_digest"
+            ]
+          }
+        }
+      }
     }
   ],
   "properties": {
