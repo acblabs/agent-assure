@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, BinaryIO, Literal
+from typing import Any, BinaryIO, Literal, cast
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -534,7 +534,8 @@ def _pop_windows_job(pid: int) -> int | None:
 
 
 def _windows_kernel32() -> Any:
-    kernel32 = ctypes.windll.kernel32
+    windll = cast(Any, vars(ctypes)["windll"])
+    kernel32 = windll.kernel32
     kernel32.CreateJobObjectW.argtypes = (ctypes.c_void_p, ctypes.c_wchar_p)
     kernel32.CreateJobObjectW.restype = ctypes.c_void_p
     kernel32.SetInformationJobObject.argtypes = (

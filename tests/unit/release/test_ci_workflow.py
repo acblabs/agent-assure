@@ -62,6 +62,8 @@ def test_otel_contract_installs_locked_dependencies_and_cannot_silently_skip() -
         "OTLPSpanExporter"
     ) in otel_job
     assert "--fail-on-skip" in otel_job
+    assert '--basetemp "$RUNNER_TEMP/pytest-otel-contract"' in otel_job
+    assert "--basetemp .tmp/pytest-otel-contract" not in otel_job
     assert "tests/unit/telemetry/test_otel_sdk.py" in otel_job
     assert "tests/unit/test_otel_cli.py" in otel_job
     assert "test_emit_span_plans_pins_resource_sampler_limits_and_root_context" not in otel_job

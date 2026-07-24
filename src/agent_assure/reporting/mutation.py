@@ -439,7 +439,9 @@ def _lock_file(handle: BinaryIO) -> None:
             handle.write(b"\0")
             handle.flush()
         handle.seek(0)
-        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        locking = cast(Callable[[int, int, int], None], vars(msvcrt)["locking"])
+        lock_ex = cast(int, vars(msvcrt)["LK_LOCK"])
+        locking(handle.fileno(), lock_ex, 1)
         return
     import fcntl
 
@@ -453,7 +455,9 @@ def _unlock_file(handle: BinaryIO) -> None:
     if os.name == "nt":
         import msvcrt
 
-        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        locking = cast(Callable[[int, int, int], None], vars(msvcrt)["locking"])
+        lock_un = cast(int, vars(msvcrt)["LK_UNLCK"])
+        locking(handle.fileno(), lock_un, 1)
         return
     import fcntl
 

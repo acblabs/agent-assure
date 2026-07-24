@@ -86,6 +86,6 @@ jobs:
       - name: Exercise the real SDK and OTLP HTTP private contract
         run: >-
           pytest -q -p no:cacheprovider --fail-on-skip
-          --basetemp .tmp/pytest-otel-contract
+          --basetemp "$RUNNER_TEMP/pytest-otel-contract"
           tests/unit/telemetry/test_otel_sdk.py
           tests/unit/test_otel_cli.py
