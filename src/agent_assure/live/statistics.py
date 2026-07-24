@@ -30,12 +30,14 @@ from agent_assure.policies.base import (
 from agent_assure.schema.common import GateState, ReasonCode, Severity
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.live import (
+    LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION,
     LiveDistribution,
     LiveEvaluationReport,
     LiveGroupSummary,
     LiveObservationResult,
     LiveProtocolRecord,
     LiveRate,
+    StatisticalInvariantResult,
 )
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.suite import CompiledSuite
@@ -87,6 +89,11 @@ def evaluate_live_runset(
         observations,
         protocol=protocol,
     )
+    statistical_invariants = evaluate_statistical_invariants(
+        tuple(runset.runs),
+        observations,
+        protocol,
+    )
     stop_reasons = _stop_reasons(runset)
     completion_status: Literal["complete", "incomplete"]
     if stop_reasons or runset.completion_status == "incomplete":
@@ -98,10 +105,17 @@ def evaluate_live_runset(
         runset_id=runset.runset_id,
         suite_id=suite.suite_id,
         suite_version=suite.suite_version,
+        suite_digest=runset.suite_digest,
+        configuration_digest=runset.fixture_manifest_digest,
         protocol_id=protocol.protocol_id,
         protocol_digest=sha256_hexdigest(protocol),
         baseline_mode=protocol.baseline_mode,
         analysis_method=protocol.analysis_method,
+        exploratory=_report_exploratory(
+            protocol,
+            overall,
+            statistical_invariants,
+        ),
         cluster_by=protocol.cluster_by,
         planned_repetitions=protocol.planned_repetitions,
         planned_observations=protocol.planned_observations,
@@ -114,11 +128,7 @@ def evaluate_live_runset(
         observations=observations,
         overall=overall,
         groups=groups,
-        statistical_invariants=evaluate_statistical_invariants(
-            tuple(runset.runs),
-            observations,
-            protocol,
-        ),
+        statistical_invariants=statistical_invariants,
     )
 
 
@@ -127,6 +137,19 @@ def _verify_live_binding(
     runset: RunSet,
     protocol: LiveProtocolRecord,
 ) -> None:
+    suite_digest = sha256_hexdigest(suite)
+    if protocol.suite_id != suite.suite_id:
+        raise ValueError(
+            f"live protocol suite_id {protocol.suite_id!r} does not match compiled suite "
+            f"{suite.suite_id!r}"
+        )
+    if protocol.suite_version != suite.suite_version:
+        raise ValueError(
+            f"live protocol suite_version {protocol.suite_version!r} does not match "
+            f"compiled suite {suite.suite_version!r}"
+        )
+    if protocol.suite_digest != suite_digest:
+        raise ValueError("live protocol suite_digest does not match compiled suite")
     if runset.suite_id != suite.suite_id:
         raise ValueError(
             f"run set suite_id {runset.suite_id!r} does not match compiled suite {suite.suite_id!r}"
@@ -136,38 +159,71 @@ def _verify_live_binding(
             f"run set suite_version {runset.suite_version!r} does not match compiled suite "
             f"{suite.suite_version!r}"
         )
+    if runset.suite_digest != suite_digest:
+        raise ValueError("live RunSet suite_digest does not match compiled suite")
+    if runset.suite_digest != protocol.suite_digest:
+        raise ValueError("live RunSet suite_digest does not match protocol")
     if runset.execution_mode.value != "live":
         raise ValueError("live evaluation requires a RunSet with execution_mode='live'")
     protocol_digest = sha256_hexdigest(protocol)
     if runset.protocol_id != protocol.protocol_id or runset.protocol_digest != protocol_digest:
         raise ValueError("live RunSet protocol binding does not match protocol")
-    _verify_protocol_obligations(runset, protocol)
+    _verify_protocol_obligations(suite, runset, protocol)
 
 
-def _verify_protocol_obligations(runset: RunSet, protocol: LiveProtocolRecord) -> None:
+def _verify_protocol_obligations(
+    suite: CompiledSuite,
+    runset: RunSet,
+    protocol: LiveProtocolRecord,
+) -> None:
     if len(runset.runs) != protocol.planned_observations:
         raise ValueError("live RunSet observation count does not match protocol")
     repetitions = {run.repetition_index for run in runset.runs if run.repetition_index is not None}
-    if len(repetitions) != protocol.planned_repetitions:
+    expected_repetitions = set(range(protocol.planned_repetitions))
+    if repetitions != expected_repetitions:
         raise ValueError("live RunSet repetitions do not match protocol")
-    clusters = {run.cluster_id for run in runset.runs if run.cluster_id is not None}
-    if len(clusters) != protocol.planned_clusters:
-        raise ValueError("live RunSet cluster count does not match protocol")
+    known_case_ids = {case.case_id for case in suite.cases}
     allowed_exclusions = set(protocol.allowed_exclusion_reasons)
     seen_run_ids: set[str] = set()
     seen_observation_ids: set[str] = set()
+    seen_schedule_indexes: set[int] = set()
     seen_schedule_cells: set[tuple[str, int]] = set()
+    case_prompt_digests: dict[str, set[str]] = defaultdict(set)
+    case_source_groups: dict[str, set[str | None]] = defaultdict(set)
+    arm_identities: set[
+        tuple[
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str | None,
+            str,
+        ]
+    ] = set()
     for run in runset.runs:
         if run.run_id in seen_run_ids:
             raise ValueError(f"live RunSet duplicate run_id {run.run_id!r}")
         seen_run_ids.add(run.run_id)
         # Live protocol identity defects are structural, so they raise before
         # rate evaluation rather than becoming report-shaped observations.
-        if run.observation_id is None or run.repetition_index is None or run.cluster_id is None:
+        if (
+            run.observation_id is None
+            or run.repetition_index is None
+            or run.schedule_index is None
+            or run.randomization_block_id is None
+            or run.cluster_id is None
+        ):
             raise ValueError("live RunSet run missing observation metadata")
         if run.observation_id in seen_observation_ids:
             raise ValueError(f"live RunSet duplicate observation_id {run.observation_id!r}")
         seen_observation_ids.add(run.observation_id)
+        if run.schedule_index in seen_schedule_indexes:
+            raise ValueError(f"live RunSet duplicate schedule_index {run.schedule_index}")
+        seen_schedule_indexes.add(run.schedule_index)
+        if run.case_id not in known_case_ids:
+            raise ValueError(f"live RunSet case_id {run.case_id!r} is not in the compiled suite")
         schedule_cell = (run.case_id, run.repetition_index)
         if schedule_cell in seen_schedule_cells:
             raise ValueError(
@@ -175,6 +231,48 @@ def _verify_protocol_obligations(runset: RunSet, protocol: LiveProtocolRecord) -
                 f"case_id={run.case_id!r}, repetition_index={run.repetition_index}"
             )
         seen_schedule_cells.add(schedule_cell)
+        expected_block_id = f"repetition:{run.repetition_index}"
+        if run.randomization_block_id != expected_block_id:
+            raise ValueError(
+                "live run randomization_block_id does not match repetition_index"
+            )
+        if run.provenance.configuration_digest != runset.fixture_manifest_digest:
+            raise ValueError(
+                "live run provenance configuration_digest does not match "
+                "RunSet fixture_manifest_digest"
+            )
+        if run.provenance.prompt_digest is None:
+            raise ValueError("live run provenance prompt_digest is required")
+        if run.provenance.model_identifier != run.model:
+            raise ValueError(
+                "live run provenance model_identifier does not match run model identity"
+            )
+        case_prompt_digests[run.case_id].add(run.provenance.prompt_digest)
+        case_source_groups[run.case_id].add(run.source_group_id)
+        expected_cluster_id = (
+            run.source_group_id if protocol.cluster_by == "source_group_id" else run.case_id
+        )
+        if expected_cluster_id is None:
+            raise ValueError(
+                "source_group_id clustering requires source_group_id on every live run"
+            )
+        if run.cluster_id != expected_cluster_id:
+            raise ValueError(
+                f"live run cluster_id {run.cluster_id!r} does not match "
+                f"protocol.cluster_by={protocol.cluster_by!r}"
+            )
+        arm_identities.add(
+            (
+                run.provider,
+                run.model,
+                run.resolved_model,
+                run.provider_api_version,
+                run.provider_sdk,
+                run.provider_region,
+                run.adapter_id,
+                run.pipeline_id,
+            )
+        )
         if run.exclusion_reason and run.exclusion_reason not in allowed_exclusions:
             raise ValueError(f"live exclusion reason {run.exclusion_reason!r} is not declared")
         if run.retry_count is not None and run.retry_count > protocol.max_retries:
@@ -205,6 +303,36 @@ def _verify_protocol_obligations(runset: RunSet, protocol: LiveProtocolRecord) -
             raise ValueError("live run provenance tool_schema_digest does not match protocol")
         if run.provenance.policy_bundle_digest != protocol.policy_bundle_digest:
             raise ValueError("live run provenance policy_bundle_digest does not match protocol")
+    if any(len(digests) != 1 for digests in case_prompt_digests.values()):
+        raise ValueError("live RunSet prompt_digest must be stable within each case")
+    if any(len(source_groups) != 1 for source_groups in case_source_groups.values()):
+        raise ValueError("live RunSet source_group_id must be stable within each case")
+    if len(arm_identities) != 1:
+        raise ValueError("live RunSet must contain one homogeneous execution arm")
+    if seen_schedule_indexes != set(range(protocol.planned_observations)):
+        raise ValueError(
+            "live RunSet schedule_index values must cover the complete planned schedule"
+        )
+    case_ids = set(case_prompt_digests)
+    expected_schedule_cells = {
+        (case_id, repetition_index)
+        for case_id in case_ids
+        for repetition_index in expected_repetitions
+    }
+    if seen_schedule_cells != expected_schedule_cells:
+        raise ValueError(
+            "live RunSet observations must form the complete frozen case/repetition schedule"
+        )
+    planned_clusters = {
+        case_id
+        if protocol.cluster_by == "case_id"
+        else next(iter(case_source_groups[case_id]))
+        for case_id in case_ids
+    }
+    if None in planned_clusters or len(planned_clusters) != protocol.planned_clusters:
+        raise ValueError(
+            "live RunSet cluster count derived from frozen cases does not match protocol"
+        )
     total_cost = sum(Decimal(run.estimated_cost_usd or "0.000000") for run in runset.runs)
     if total_cost > Decimal(protocol.max_total_cost_usd):
         raise ValueError("live RunSet cost exceeds protocol max_total_cost_usd")
@@ -307,6 +435,15 @@ def _observation_result(
         run_id=run.run_id,
         case_id=run.case_id,
         repetition_index=run.repetition_index or 0,
+        schedule_index=run.schedule_index or 0,
+        randomization_block_id=_required_text(
+            run.randomization_block_id,
+            "randomization_block_id",
+        ),
+        prompt_digest=_required_digest(
+            run.provenance.prompt_digest,
+            "prompt_digest",
+        ),
         provider=run.provider,
         model=run.model,
         resolved_model=run.resolved_model,
@@ -645,6 +782,32 @@ def _report_state(
     return GateState.pass_
 
 
+def _report_exploratory(
+    protocol: LiveProtocolRecord,
+    overall: LiveGroupSummary,
+    statistical_invariants: tuple[StatisticalInvariantResult, ...],
+) -> bool:
+    if not LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION:
+        return True
+    if protocol.cluster_by == "source_group_id":
+        return True
+    if protocol.analysis_method == "exploratory":
+        return True
+    if not statistical_invariants:
+        return overall.expectation_pass_rate.exploratory
+    primary = tuple(
+        invariant for invariant in statistical_invariants if invariant.role == "primary"
+    )
+    if len(primary) != 1:
+        return True
+    primary_result = primary[0]
+    return (
+        overall.expectation_pass_rate.exploratory
+        or primary_result.interpretation != "confirmatory"
+        or primary_result.prerequisite_status != "met"
+    )
+
+
 def _finding_from_result(result: ControlResult) -> Finding:
     return Finding(
         artifact_kind="finding",
@@ -661,6 +824,12 @@ def _finding_from_result(result: ControlResult) -> Finding:
 def _required_digest(value: str | None, field_name: str) -> str:
     if value is None:
         raise ValueError(f"live observation missing provenance {field_name}")
+    return value
+
+
+def _required_text(value: str | None, field_name: str) -> str:
+    if not value:
+        raise ValueError(f"live observation missing {field_name}")
     return value
 
 
@@ -690,6 +859,8 @@ def _reported_rate_analysis_method(
 
 
 def _rate_exploratory(cluster_count: int, analysis_method: str) -> bool:
+    if analysis_method.startswith("exploratory_"):
+        return True
     if cluster_count < 30:
         return True
     return analysis_method == "descriptive_cluster_bootstrap_percentile" and cluster_count < 50

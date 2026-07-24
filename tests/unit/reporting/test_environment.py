@@ -163,6 +163,7 @@ def test_git_output_disables_repository_execution_hooks_and_unsafe_environment(
     command = captured["args"]
     assert isinstance(command, list)
     assert "core.fsmonitor=false" in command
+    assert f"safe.directory={tmp_path.resolve()}" in command
     assert any(str(part).startswith("core.hooksPath=") for part in command)
     git_environment = captured["env"]
     assert isinstance(git_environment, dict)
@@ -181,9 +182,19 @@ def test_git_output_disables_repository_execution_hooks_and_unsafe_environment(
     assert git_environment["GIT_NO_REPLACE_OBJECTS"] == "1"
 
 
-def test_git_output_rejects_unreviewed_commands(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "args",
+    (
+        ("log", "-1"),
+        ("status", "--porcelain"),
+    ),
+)
+def test_git_output_rejects_unreviewed_commands(
+    tmp_path: Path,
+    args: tuple[str, ...],
+) -> None:
     with pytest.raises(ValueError, match="unsupported read-only git command"):
-        artifact_io.git_output(tmp_path, "log", "-1")
+        artifact_io.git_output(tmp_path, *args)
 
 
 def test_release_manifest_rejects_duplicate_roles(tmp_path: Path) -> None:
@@ -212,7 +223,10 @@ def test_collect_environment_records_a_clean_tree_as_false(
     ) -> str | None:
         if args == ("rev-parse", "HEAD"):
             return "a" * 40
-        if args == ("status", "--porcelain") and allow_empty:
+        if (
+            args == ("status", "--porcelain=v1", "--untracked-files=all")
+            and allow_empty
+        ):
             return ""
         return None
 
@@ -222,6 +236,31 @@ def test_collect_environment_records_a_clean_tree_as_false(
 
     assert info.git_commit == "a" * 40
     assert info.git_dirty is False
+
+
+def test_git_dirty_includes_untracked_files_when_repository_config_hides_them(
+    tmp_path: Path,
+) -> None:
+    git = artifact_io._resolve_git_executable()
+    if git is None:
+        pytest.skip("git executable is unavailable")
+    subprocess.run(
+        [git, "init"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    subprocess.run(
+        [git, "config", "status.showUntrackedFiles", "no"],
+        cwd=tmp_path,
+        check=True,
+        capture_output=True,
+        text=True,
+    )
+    (tmp_path / "untracked.txt").write_text("evidence\n", encoding="utf-8")
+
+    assert environment._git_dirty(tmp_path) is True
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:

@@ -52,6 +52,7 @@ FINDING_TARGET_DIGEST_CONTRACT: Literal["AssuranceMutationFindingTarget/v1"] = (
 )
 _SEMVER_PATTERN = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
 _MACHINE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+_ISO_DATE_PATTERN = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
 _SELF_DIGESTED_IDENTITY_FIELDS = (
     "artifact_kind",
@@ -187,6 +188,20 @@ def _evidence_descriptor_json_schema_extra(schema: dict[str, Any]) -> None:
             },
         },
         *_non_deterministic_evidence_json_schema_rules(),
+        {
+            "if": {
+                "required": ["method"],
+                "properties": {
+                    "method": {
+                        "required": ["evaluation_basis"],
+                        "properties": {"evaluation_basis": {"const": "llm_advisory"}},
+                    }
+                },
+            },
+            "then": {
+                "properties": {"result": {"properties": {"verdict_bearing": {"const": False}}}}
+            },
+        },
     )
 
 
@@ -434,6 +449,26 @@ def _mutation_result_json_schema_extra(schema: dict[str, Any]) -> None:
             ("human_reviewed", HUMAN_REVIEW_SUFFICIENCY_LIMITATION),
         )
     )
+    rules.append(
+        {
+            "if": {
+                "required": ["evaluator_evaluation_basis"],
+                "properties": {"evaluator_evaluation_basis": {"const": "llm_advisory"}},
+            },
+            "then": {
+                "properties": {
+                    "state": {
+                        "enum": [
+                            "inapplicable",
+                            "invalid_operator",
+                            "invalid_subject",
+                            "execution_error",
+                        ]
+                    }
+                }
+            },
+        }
+    )
     _append_json_schema_rules(schema, *rules)
 
 
@@ -573,6 +608,19 @@ class EvidenceScope(FrozenStrictModel):
         max_length=MAX_LABEL_CHARS,
         pattern=_MACHINE_ID_PATTERN,
     )
+    gate_profile_id: MachineIdentifier
+    gate_profile_digest: DigestHex
+    waiver_set_digest: DigestHex
+    evaluation_date: str = Field(pattern=_ISO_DATE_PATTERN)
+
+    @field_validator("evaluation_date")
+    @classmethod
+    def _validate_evaluation_date(cls, value: str) -> str:
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError("evaluation_date must be a valid YYYY-MM-DD date") from exc
+        return value
 
 
 class EvidenceMethod(FrozenStrictModel):
@@ -1172,6 +1220,10 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     evaluator_evaluation_basis: EvidenceEvaluationBasis
     evaluator_protocol_digest: DigestHex | None = None
     evaluator_population_id: MachineIdentifier
+    gate_profile_id: MachineIdentifier
+    gate_profile_digest: DigestHex
+    waiver_set_digest: DigestHex
+    evaluation_date: str = Field(pattern=_ISO_DATE_PATTERN)
     seed: int = Field(ge=0, le=RFC8785_SAFE_INTEGER_MAX)
     changed_paths: tuple[ExactJsonPointer, ...]
     observed_findings: tuple[ObservedFinding, ...]
@@ -1215,6 +1267,15 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     @classmethod
     def _coerce_independence_class(cls, value: object) -> IndependenceClass:
         return coerce_enum(IndependenceClass, value)
+
+    @field_validator("evaluation_date")
+    @classmethod
+    def _validate_evaluation_date(cls, value: str) -> str:
+        try:
+            datetime.strptime(value, "%Y-%m-%d")
+        except ValueError as exc:
+            raise ValueError("evaluation_date must be a valid YYYY-MM-DD date") from exc
+        return value
 
     @model_validator(mode="after")
     def _validate_result_state(self) -> AssuranceMutationResult:
@@ -1268,6 +1329,11 @@ class AssuranceMutationResult(SelfDigestedArtifact):
                 "non-deterministic mutation results require the canonical "
                 "non-verdict sufficiency limitation"
             )
+        if (
+            self.state in {MutationResultState.caught, MutationResultState.survived}
+            and self.evaluator_evaluation_basis is EvidenceEvaluationBasis.llm_advisory
+        ):
+            raise ValueError(ReasonCode.LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED.value)
         _validate_independence_origin(self.independence_class, self.provenance.origin.kind)
         mutated_states = {MutationResultState.caught, MutationResultState.survived}
         if self.state in mutated_states:

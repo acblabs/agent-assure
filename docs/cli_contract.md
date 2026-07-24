@@ -12,7 +12,7 @@ Current commands:
 - `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
 - `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
-- `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER]`
+- `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure live adapters`
@@ -118,19 +118,29 @@ built-in deterministic operator to an immutable copy, validates the transformed
 subject, evaluates the normative expected-detection contract, and writes a
 canonical `assurance-mutation-result`. When a transformed subject is produced,
 the command writes it beside the result. The exact filenames are
-`assurance-mutation-result.json`, `assurance-evidence-descriptor.json`, and,
-for `caught` or `survived`, `mutated-runset.json`. Reports contain exact changed paths,
-digests, reason codes, bounded finding summaries, operator and evaluator
-provenance, independence class, and limitations; they do not copy raw prompt,
-completion, message, or tool payload content. The same source digest, operator
-version, bound built-in evaluator identity, and seed produce identical
-transformed bytes and result digest.
+`assurance-mutation-result.json`, `assurance-evidence-descriptor.json`,
+`mutation-generation-manifest.json`, and, for `caught` or `survived`,
+`mutated-runset.json`. Reports contain exact changed paths, digests, reason
+codes, bounded finding summaries, operator and evaluator provenance,
+independence class, and limitations; they do not copy raw prompt, completion,
+message, or tool payload content. The result and descriptor bind the canonical
+gate-profile digest, the order-independent waiver-set digest (including an
+explicit empty set), and the evaluation date. The same source digest, operator
+version, bound evaluator and gate configuration, evaluation date, and seed
+produce identical transformed bytes and result digest.
 
-The three fixed files are staged and replaced as one rollback-capable
-generation. A generation without a transformed subject removes an older
-fixed-name `mutated-runset.json`. Both suite and RunSet input aliases with any
-fixed output, through resolved paths, symlinks, junctions, or hardlinks, are
-rejected before persistence.
+The artifact files are staged and replaced as one rollback-capable generation.
+Writers are serialized per output directory, and the generation manifest is
+published last as the atomic commit marker after the member files are durable.
+Readers must validate and consume the fixed files while holding the shared
+generation lock through
+`open_validated_mutation_artifact_generation`; a torn or interrupted
+replacement therefore fails closed without a validation-to-read race.
+`validate_mutation_artifact_generation` is a point-in-time diagnostic only. A
+generation without a transformed subject removes an older fixed-name
+`mutated-runset.json`. Suite, RunSet, and waiver input aliases with any fixed
+output, through resolved paths, symlinks, junctions, or hardlinks, are rejected
+before persistence.
 
 `ci` evaluates a candidate RunSet, optionally compares it with a baseline, writes
 reports, builds a packet, writes a dependency inventory and release manifest,
@@ -228,8 +238,8 @@ pooled and cluster-mean rates, cluster counts, design effects, effective sample
 sizes, largest-cluster sensitivity values, interval-center metadata that states
 whether a confidence interval is around a cluster mean or pooled rate,
 per-observation tool-schema and policy-bundle provenance digests, exploratory
-flags, provider/model group summaries, latency distributions, estimated-cost
-distributions,
+flags, suite and execution-configuration digests, provider/model group
+summaries, latency distributions, estimated-cost distributions,
 observation-level findings, optional protocol-declared statistical-invariant
 results, and limitations. Statistical-invariant results can include rare-event
 one-sided Poisson upper bounds at the protocol confidence level and observed
@@ -257,7 +267,9 @@ whose exchangeability declaration, identical included cluster sets, identical
 included case/repetition sets within clusters, or exact-enumeration
 prerequisites are not met cannot produce a confirmatory pass. When all paired
 cluster differences are identical, the limitations section labels the
-zero-width empirical interval as degenerate. A non-inferiority gate failure
+zero-width empirical interval as degenerate and the comparison cannot produce a
+confirmatory interval pass. Paired sign-flip randomization is limited to a zero
+non-inferiority margin. A non-inferiority gate failure
 means the interval did not rule out a drop larger than the margin; it is a
 fail-closed gate result, not proof of candidate inferiority. The comparison is
 time-bound to the reports being compared and is not a general provider-quality

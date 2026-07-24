@@ -106,6 +106,31 @@ claims:
       commands: [agent-assure ci, agent-assure packet build, agent-assure ci gate, agent-assure release replay]
       docs: [docs/cli_contract.md, docs/evidence_packets.md, docs/release_evidence.md]
     limitations: Packet, dependency-inventory, manifest, and replay digests are reproducibility anchors; replay uses stable projections for environment-bearing review artifacts and cross-checks manifest-listed child digests when files are available, but remains separate from cryptographic signatures or attestations.
+  - id: assurance-evidence-descriptors
+    claim: Development-RFC assurance evidence descriptors bind a mutation result to its subject, method implementation, suite, gate profile, waiver set, evaluation date, prerequisites, limitations, dependencies, and invalidation triggers.
+    evidence:
+      schemas: [assurance-evidence-descriptor, assurance-mutation-result]
+      code: [src/agent_assure/schema/mutation.py, src/agent_assure/mutation/execution.py]
+      tests: [tests/unit/schema/test_mutation_evidence_schema.py, tests/unit/mutation/test_execution.py]
+      docs: [docs/evidence_carrying_releases.md, docs/schema_reference.md]
+    limitations: Descriptor digests and dependency bindings establish reproducibility and scope, not independent validation, safety, compliance, or adversarial robustness.
+  - id: deterministic-control-mutation
+    claim: The development-RFC controls mutate command applies one registered deterministic fixture transformation, validates before and after artifacts, evaluates its normative expected-detection contract under the recorded gate and waiver configuration, and publishes a generation manifest for coherent fixed-name outputs.
+    evidence:
+      schemas: [assurance-mutation-operator, expected-detection-contract, assurance-mutation-result]
+      code: [src/agent_assure/mutation, src/agent_assure/reporting/mutation.py, src/agent_assure/cli/controls_cmd.py]
+      tests: [tests/unit/mutation/test_execution.py, tests/integration/test_controls_mutate_cli.py]
+      commands: [agent-assure controls mutate]
+      docs: [docs/evidence_carrying_releases.md, docs/cli_contract.md]
+    limitations: Current built-ins are first-party post-control synthetic challenges. A caught result is scoped to the exact operator, target, subject, evaluator, and gate configuration; it is not a general mutation score or red-team result.
+  - id: mutation-independence-classes
+    claim: Mutation results and evidence descriptors persist an explicit independence class and provenance origin so first-party post-control evidence is distinguishable from independently produced evidence.
+    evidence:
+      schemas: [assurance-evidence-descriptor, assurance-mutation-result]
+      code: [src/agent_assure/schema/mutation.py, src/agent_assure/mutation/execution.py]
+      tests: [tests/unit/mutation/test_execution.py, tests/unit/schema/test_mutation_evidence_schema.py]
+      docs: [docs/evidence_carrying_releases.md, docs/cli_contract.md]
+    limitations: An independence label is a scope declaration, not proof that organizational, implementation, or evaluator independence was achieved.
   - id: signed-release-evidence
     claim: Release evidence, its human-readable packet, manifest, replay, release notes, SBOM, wheel, and source distribution can be signed keylessly in a tag-only minimal GitHub Actions OIDC job only after every downloaded signing input is byte-matched to an independent rebuild and promoted under a new artifact ID, then verified without OIDC before publication from verifier-promoted artifacts.
     evidence:

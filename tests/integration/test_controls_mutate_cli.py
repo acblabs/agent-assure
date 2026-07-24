@@ -3,7 +3,10 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
+import time
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from functools import partial
 from pathlib import Path
@@ -35,7 +38,12 @@ from agent_assure.reporting import mutation as mutation_reporting
 from agent_assure.reporting.mutation import (
     EVIDENCE_DESCRIPTOR_FILENAME,
     MUTATED_RUNSET_FILENAME,
+    MUTATION_GENERATION_MANIFEST_FILENAME,
+    MUTATION_OUTPUT_LOCK_FILENAME,
     MUTATION_RESULT_FILENAME,
+    ensure_inputs_do_not_alias_mutation_output,
+    open_validated_mutation_artifact_generation,
+    validate_mutation_artifact_generation,
     write_mutation_artifacts,
 )
 from agent_assure.runner.fixture_runner import write_runset
@@ -66,6 +74,13 @@ class _FixtureFiles:
     runset: Path
 
 
+def test_controls_mutate_refuses_a_filesystem_root_output_directory() -> None:
+    filesystem_root = Path(Path.cwd().anchor)
+
+    with pytest.raises(ValueError, match="filesystem root"):
+        ensure_inputs_do_not_alias_mutation_output((), filesystem_root)
+
+
 def test_controls_mutate_accepts_yaml_and_persists_canonical_reproducible_artifacts(
     tmp_path: Path,
 ) -> None:
@@ -81,7 +96,9 @@ def test_controls_mutate_accepts_yaml_and_persists_canonical_reproducible_artifa
     assert json_result.exit_code == 0, json_result.output
     assert "mutation state: caught" in yaml_result.output
     assert "caught this exact fixture transformation" in yaml_result.output
-    assert "not a broader model, planner, or red-team robustness result" in yaml_result.output
+    normalized_output = " ".join(yaml_result.output.split())
+    assert "not a broader model, planner, or red-team robustness result" in normalized_output
+    assert "independence_class=first_party_postcontrol" in normalized_output
     assert files.runset.read_bytes() == source_bytes
 
     result_path = yaml_out / MUTATION_RESULT_FILENAME
@@ -129,6 +146,65 @@ def test_controls_mutate_maps_survived_to_exit_one(
     assert result.exit_code == 1, result.output
     assert _read_object(out / MUTATION_RESULT_FILENAME)["state"] == "survived"
     assert (out / MUTATED_RUNSET_FILENAME).is_file()
+
+
+def test_controls_mutate_cli_applies_and_binds_waiver_gate_configuration(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    baseline_out = tmp_path / "gate-config-baseline"
+    baseline = _invoke_mutate(files.compiled_suite, files.runset, baseline_out)
+    assert baseline.exit_code == 0, baseline.output
+    baseline_result = _read_object(baseline_out / MUTATION_RESULT_FILENAME)
+    matched_ids = cast(list[str], baseline_result["matched_finding_ids"])
+    waiver = tmp_path / "mutation-waiver.json"
+    waiver.write_text(
+        json.dumps(
+            {
+                "waiver_id": "waiver-cli-mutation-target",
+                "owner": "test-owner",
+                "rationale": "exercise configured mutation gate",
+                "reason_code": "MATERIAL_CLAIM_MISSING_EVIDENCE",
+                "finding_id": matched_ids[0],
+                "artifact_digest": baseline_result["mutated_digest"],
+                "expires_on": "2026-08-01",
+                "reviewer": "test-reviewer",
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    waived_out = tmp_path / "gate-config-waived"
+    waived = _invoke_mutate(
+        files.compiled_suite,
+        files.runset,
+        waived_out,
+        extra_args=("--waiver", str(waiver), "--today", "2026-07-20"),
+    )
+    assert waived.exit_code == 1, waived.output
+    waived_result = _read_object(waived_out / MUTATION_RESULT_FILENAME)
+    assert waived_result["state"] == "survived"
+    assert waived_result["gate_profile_id"] == "default"
+    assert waived_result["evaluation_date"] == "2026-07-20"
+    assert waived_result["waiver_set_digest"] != baseline_result["waiver_set_digest"]
+
+    fail_on_warn_out = tmp_path / "gate-config-fail-on-warn"
+    fail_on_warn = _invoke_mutate(
+        files.compiled_suite,
+        files.runset,
+        fail_on_warn_out,
+        extra_args=(
+            "--waiver",
+            str(waiver),
+            "--today",
+            "2026-07-20",
+            "--fail-on-warn",
+        ),
+    )
+    assert fail_on_warn.exit_code == 0, fail_on_warn.output
+    fail_on_warn_result = _read_object(fail_on_warn_out / MUTATION_RESULT_FILENAME)
+    assert fail_on_warn_result["state"] == "caught"
+    assert fail_on_warn_result["gate_profile_digest"] != waived_result["gate_profile_digest"]
 
 
 def test_controls_mutate_maps_both_invalid_states_to_exit_two(tmp_path: Path) -> None:
@@ -283,9 +359,7 @@ def test_controls_mutate_persists_structured_catalog_bootstrap_failure(
     assert result_payload["state"] == "execution_error"
     assert result_payload["diagnostic_code"] == "catalog_integrity_error"
     assert result_payload["evaluator_implementation_digest"] == "0" * 64
-    assert validate_artifact(result_path, "assurance-mutation-result") == (
-        "pydantic+jsonschema"
-    )
+    assert validate_artifact(result_path, "assurance-mutation-result") == ("pydantic+jsonschema")
     assert validate_artifact(descriptor_path, "assurance-evidence-descriptor") == (
         "pydantic+jsonschema"
     )
@@ -462,6 +536,90 @@ def test_controls_mutate_rejects_symlink_alias_without_touching_source(
     assert not (out / MUTATION_RESULT_FILENAME).exists()
 
 
+def test_controls_mutate_rejects_input_at_output_lock_path_without_touching_it(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "lock-alias-output"
+    out.mkdir()
+    aliased_runset = out / MUTATION_OUTPUT_LOCK_FILENAME
+    source_bytes = files.runset.read_bytes()
+    aliased_runset.write_bytes(source_bytes)
+
+    result = _invoke_mutate(files.compiled_suite, aliased_runset, out)
+
+    assert result.exit_code == 2, result.output
+    assert "aliases a fixed mutation output path" in result.output
+    assert aliased_runset.read_bytes() == source_bytes
+    assert not (out / MUTATION_RESULT_FILENAME).exists()
+
+
+def test_controls_mutate_rejects_linked_output_directory(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    real_out = tmp_path / "real-output"
+    linked_out = tmp_path / "linked-output"
+    real_out.mkdir()
+    try:
+        linked_out.symlink_to(real_out, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks are unavailable: {exc}")
+
+    result = _invoke_mutate(files.compiled_suite, files.runset, linked_out)
+
+    assert result.exit_code == 4, result.output
+    assert "linked directory component" in result.output
+    assert not (real_out / MUTATION_RESULT_FILENAME).exists()
+    assert not (real_out / MUTATION_OUTPUT_LOCK_FILENAME).exists()
+
+
+def test_controls_mutate_rejects_lock_symlink_without_modifying_target(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "lock-symlink-output"
+    out.mkdir()
+    sentinel = tmp_path / "lock-symlink-sentinel"
+    sentinel_bytes = b"do-not-modify"
+    sentinel.write_bytes(sentinel_bytes)
+    lock_path = out / MUTATION_OUTPUT_LOCK_FILENAME
+    try:
+        lock_path.symlink_to(sentinel)
+    except OSError as exc:
+        pytest.skip(f"file symlinks are unavailable: {exc}")
+
+    result = _invoke_mutate(files.compiled_suite, files.runset, out)
+
+    assert result.exit_code == 4, result.output
+    assert "unsafe mutation output lock path" in result.output
+    assert sentinel.read_bytes() == sentinel_bytes
+    assert not (out / MUTATION_RESULT_FILENAME).exists()
+
+
+def test_controls_mutate_rejects_lock_hardlink_without_modifying_peer(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "lock-hardlink-output"
+    out.mkdir()
+    sentinel = tmp_path / "lock-hardlink-sentinel"
+    sentinel_bytes = b"do-not-modify"
+    sentinel.write_bytes(sentinel_bytes)
+    lock_path = out / MUTATION_OUTPUT_LOCK_FILENAME
+    try:
+        os.link(sentinel, lock_path)
+    except OSError as exc:
+        pytest.skip(f"hard links are unavailable: {exc}")
+
+    result = _invoke_mutate(files.compiled_suite, files.runset, out)
+
+    assert result.exit_code == 4, result.output
+    assert "unsafe mutation output lock path" in result.output
+    assert sentinel.read_bytes() == sentinel_bytes
+    assert not (out / MUTATION_RESULT_FILENAME).exists()
+
+
 def test_controls_mutate_replaces_unrelated_output_symlink_without_following_target(
     tmp_path: Path,
 ) -> None:
@@ -561,6 +719,79 @@ def test_staging_write_failure_preserves_prior_complete_generation(
     assert second.exit_code == 4, second.output
     assert _fixed_output_bytes(out) == prior_generation
     assert not tuple(out.glob(".agent-assure-mutation-txn-*"))
+
+
+def test_concurrent_writers_publish_only_complete_serialized_generations(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    source_payload = _read_object(files.runset)
+    executions = tuple(
+        execute_mutation(
+            suite,
+            source_payload,
+            operator_id=_OPERATOR,
+            seed=seed,
+            generated_at="2026-07-20T00:00:00Z",
+        )
+        for seed in (1, 2)
+    )
+    out = tmp_path / "concurrent-output"
+    state_lock = threading.Lock()
+    active_writers = 0
+    max_active_writers = 0
+    real_replace_generation = mutation_reporting._replace_output_generation
+
+    def observed_replace_generation(*args: object, **kwargs: object) -> None:
+        nonlocal active_writers, max_active_writers
+        with state_lock:
+            active_writers += 1
+            max_active_writers = max(max_active_writers, active_writers)
+        try:
+            time.sleep(0.05)
+            real_replace_generation(*args, **kwargs)  # type: ignore[arg-type]
+        finally:
+            with state_lock:
+                active_writers -= 1
+
+    monkeypatch.setattr(
+        mutation_reporting,
+        "_replace_output_generation",
+        observed_replace_generation,
+    )
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = tuple(
+            executor.submit(write_mutation_artifacts, execution, out) for execution in executions
+        )
+        for future in futures:
+            future.result()
+
+    assert max_active_writers == 1
+    with open_validated_mutation_artifact_generation(out) as paths:
+        result = _read_object(paths.result)
+        descriptor = _read_object(paths.evidence_descriptor)
+        dependencies = cast(list[dict[str, object]], descriptor["dependencies"])
+        assert any(
+            dependency["digest"] == result["result_digest"]
+            for dependency in dependencies
+        )
+
+
+def test_generation_manifest_fails_closed_on_partial_or_crash_torn_output(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "torn-output"
+    result = _invoke_mutate(files.compiled_suite, files.runset, out)
+    assert result.exit_code == 0, result.output
+    validate_mutation_artifact_generation(out)
+
+    (out / MUTATION_RESULT_FILENAME).write_bytes(b"{}")
+
+    with pytest.raises(ValueError, match="artifact digest does not match"):
+        validate_mutation_artifact_generation(out)
 
 
 def test_atomic_replace_failure_rolls_back_prior_complete_generation(
@@ -677,6 +908,7 @@ def _invoke_mutate(
     *,
     operator: str = _OPERATOR,
     seed: int = 17,
+    extra_args: tuple[str, ...] = (),
 ) -> Result:
     return _RUNNER.invoke(
         app,
@@ -691,6 +923,7 @@ def _invoke_mutate(
             operator,
             "--seed",
             str(seed),
+            *extra_args,
             "--out",
             str(out),
         ],
@@ -803,6 +1036,10 @@ def _bound_evaluator(
         evaluation_basis=EvidenceEvaluationBasis.deterministic,
         protocol_digest=None,
         population_id="deterministic-fixture-v1",
+        gate_profile_id="default",
+        gate_profile_digest="c" * 64,
+        waiver_set_digest="d" * 64,
+        evaluation_date="2026-07-20",
     )
 
 
@@ -818,6 +1055,7 @@ def _fixed_output_bytes(out: Path) -> dict[str, bytes]:
             MUTATION_RESULT_FILENAME,
             EVIDENCE_DESCRIPTOR_FILENAME,
             MUTATED_RUNSET_FILENAME,
+            MUTATION_GENERATION_MANIFEST_FILENAME,
         )
     }
 

@@ -26,7 +26,7 @@ The current implementation establishes the trust core:
 - evidence packets, environment/dependency-inventory capture, release manifests, and CI gates
   in `src/agent_assure/reporting/packet.py`,
   `src/agent_assure/reporting/environment.py`, and `src/agent_assure/ci.py`.
-- versioned assurance evidence descriptors, mutation-operator contracts,
+- development-RFC versioned assurance evidence descriptors, mutation-operator contracts,
   expected-detection contracts, and single-operator mutation results under the
   schema and control layers. These contracts reuse the canonical digest,
   bounded-input, evaluator, and privacy boundaries rather than introducing a

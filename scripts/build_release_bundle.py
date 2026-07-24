@@ -28,7 +28,10 @@ from agent_assure.reporting.packet import (  # noqa: E402
 )
 from agent_assure.reporting.sbom import build_sbom, write_sbom  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
-from agent_assure.schema.validation import load_json  # noqa: E402
+from agent_assure.schema.validation import (  # noqa: E402
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 from scripts.check_mutation_release_provenance import (  # noqa: E402
     registered_release_provenance_failures,
 )
@@ -213,7 +216,11 @@ def _write_release_sbom_and_manifest(
     manifest_path = reports / "release-artifact-manifest.json"
     packet_path = reports / "evidence-packet.json"
     packet_markdown_path = reports / "evidence-packet.md"
-    existing_manifest = ReleaseArtifactManifest.model_validate(load_json(manifest_path))
+    existing_manifest = project_validated_artifact_payload(
+        load_validated_artifact_payload(manifest_path, "release-artifact-manifest"),
+        ReleaseArtifactManifest,
+        kind="release-artifact-manifest",
+    )
     environment = existing_manifest.environment
     sbom_path = out / "sbom.cdx.json"
     write_sbom(

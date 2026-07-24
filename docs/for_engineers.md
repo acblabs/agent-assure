@@ -79,6 +79,10 @@ demos work from editable installs, wheels, and arbitrary current directories.
 
 ## Public vs experimental API
 
-The CLI and persisted JSON artifacts are the primary stable surface while the
-package is still alpha. Internal Python modules may change; use documented CLI
+The CLI, YAML authoring format, persisted versioned JSON artifacts, and
+`AgentRunRecord` producer contract are the Release Candidate (`v0.6.0`) primary
+surface. The package-level PyPI `Development Status :: 4 - Beta` classifier is
+the closest standardized classifier to an RC; framework adapters, live
+execution, streaming, and mutation contracts remain experimental or
+development RFCs. Internal Python modules may change; use documented CLI
 commands and schema exports for integration points.

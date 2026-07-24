@@ -80,9 +80,15 @@ def test_diff_render_cli_uses_packet_and_comparison_contract(tmp_path: Path) -> 
 
 def test_diff_render_cli_rejects_mismatched_artifact_bundle(tmp_path: Path) -> None:
     baseline, candidate, comparison, packet = _artifacts()
+    assert packet.comparison is not None
     stale_packet = packet.model_copy(
         update={
-            "evaluation": packet.evaluation.model_copy(update={"runset_id": "stale-candidate"})
+            "evaluation": packet.evaluation.model_copy(
+                update={"runset_id": "stale-candidate"}
+            ),
+            "comparison": packet.comparison.model_copy(
+                update={"candidate_runset_id": "stale-candidate"}
+            ),
         }
     )
     baseline_path = _write_json(tmp_path / "baseline.json", baseline)

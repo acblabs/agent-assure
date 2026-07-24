@@ -23,9 +23,10 @@ EVIDENCE_ID_PLACEHOLDER = "ev-control-efficacy-<result-digest-prefix-24-hex>"
 EVIDENCE_DIGEST_PLACEHOLDER = "<evidence-digest-64-lowercase-hex>"
 SOURCE_DIGEST_PLACEHOLDER = "<source-runset-digest-64-lowercase-hex>"
 SUITE_DIGEST_PLACEHOLDER = "<compiled-suite-digest-64-lowercase-hex>"
-EVALUATOR_IMPLEMENTATION_DIGEST_PLACEHOLDER = (
-    "<evaluator-implementation-digest-64-lowercase-hex>"
-)
+EVALUATOR_IMPLEMENTATION_DIGEST_PLACEHOLDER = "<evaluator-implementation-digest-64-lowercase-hex>"
+GATE_PROFILE_DIGEST_PLACEHOLDER = "<gate-profile-digest-64-lowercase-hex>"
+WAIVER_SET_DIGEST_PLACEHOLDER = "<waiver-set-digest-64-lowercase-hex>"
+EVALUATION_DATE_PLACEHOLDER = "<evaluation-date-yyyy-mm-dd>"
 GENERATED_AT_PLACEHOLDER = "<generated-at-rfc3339-timestamp>"
 RESULT_ID_PLACEHOLDER = "mutation-result-<result-digest-prefix-24-hex>"
 RESULT_DIGEST_PLACEHOLDER = "<mutation-result-digest-64-lowercase-hex>"
@@ -50,6 +51,10 @@ def test_caught_descriptor_example_tracks_the_producer_shape() -> None:
             evaluator_evaluation_basis=EvidenceEvaluationBasis.deterministic,
             evaluator_protocol_digest=None,
             evaluator_population_id="deterministic-fixture-v1",
+            gate_profile_id="default",
+            gate_profile_digest="e" * 64,
+            waiver_set_digest="f" * 64,
+            evaluation_date="2026-07-20",
             matched_finding_ids=("finding-material-claim-missing-evidence",),
             limitations=(
                 "Detection is scoped to this deterministic operator, subject, suite, "
@@ -67,18 +72,19 @@ def test_caught_descriptor_example_tracks_the_producer_shape() -> None:
     ).model_dump(mode="json")
     descriptor["evidence_id"] = EVIDENCE_ID_PLACEHOLDER
     descriptor["evidence_digest"] = EVIDENCE_DIGEST_PLACEHOLDER
-    cast(dict[str, object], descriptor["subject"])["digest"] = (
-        SOURCE_DIGEST_PLACEHOLDER
+    cast(dict[str, object], descriptor["subject"])["digest"] = SOURCE_DIGEST_PLACEHOLDER
+    cast(dict[str, object], descriptor["scope"])["suite_digest"] = SUITE_DIGEST_PLACEHOLDER
+    cast(dict[str, object], descriptor["scope"])["gate_profile_digest"] = (
+        GATE_PROFILE_DIGEST_PLACEHOLDER
     )
-    cast(dict[str, object], descriptor["scope"])["suite_digest"] = (
-        SUITE_DIGEST_PLACEHOLDER
+    cast(dict[str, object], descriptor["scope"])["waiver_set_digest"] = (
+        WAIVER_SET_DIGEST_PLACEHOLDER
     )
+    cast(dict[str, object], descriptor["scope"])["evaluation_date"] = EVALUATION_DATE_PLACEHOLDER
     cast(dict[str, object], descriptor["method"])["implementation_digest"] = (
         EVALUATOR_IMPLEMENTATION_DIGEST_PLACEHOLDER
     )
-    cast(dict[str, object], descriptor["validity"])["generated_at"] = (
-        GENERATED_AT_PLACEHOLDER
-    )
+    cast(dict[str, object], descriptor["validity"])["generated_at"] = GENERATED_AT_PLACEHOLDER
     dependency = cast(list[dict[str, object]], descriptor["dependencies"])[0]
     dependency["evidence_id"] = RESULT_ID_PLACEHOLDER
     dependency["digest"] = RESULT_DIGEST_PLACEHOLDER

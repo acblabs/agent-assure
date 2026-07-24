@@ -15,7 +15,6 @@ from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
-from agent_assure.io_limits import load_json_bounded
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
 from agent_assure.privacy.redaction import assert_stream_payload_safe_for_persistence
 from agent_assure.reporting.console import render_evaluation_console
@@ -35,6 +34,10 @@ from agent_assure.schema.common import GateState
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.stream import StreamProducerField, StreamRunRecord
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 from agent_assure.streaming.ingestion import ingest_jsonl_events
 from agent_assure.streaming.projection import stream_run_to_runset
 from agent_assure.streaming.telemetry import stream_run_to_span_plans
@@ -126,7 +129,11 @@ def evaluate(
 ) -> None:
     try:
         compiled = _load_suite(suite)
-        stream_run = StreamRunRecord.model_validate(load_json_bounded(stream_run_path))
+        stream_run = project_validated_artifact_payload(
+            load_validated_artifact_payload(stream_run_path, "stream-run"),
+            StreamRunRecord,
+            kind="stream-run",
+        )
         runset = stream_run_to_runset(stream_run, compiled, source_path=stream_run_path)
         source_root = source_project_root((suite, stream_run_path), default_root=Path.cwd())
         artifact_root = artifact_project_root(

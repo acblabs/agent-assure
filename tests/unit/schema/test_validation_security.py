@@ -1,12 +1,15 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import pytest
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from referencing.exceptions import Unresolvable
 
+from agent_assure.ci import load_gate_artifact
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.release_evidence import load_digest_replay
 from agent_assure.schema import validation
 
 
@@ -105,3 +108,100 @@ def test_explicit_empty_registry_does_not_retrieve_remote_ref() -> None:
 
     with pytest.raises(Unresolvable):
         validation._validate_json_schema(schema, {})
+
+
+def test_runtime_schema_validation_error_does_not_echo_instance_values(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    secret = "patient-secret-should-not-appear"
+    payload = {
+        "artifact_kind": "run-set",
+        "schema_version": "0.6.0",
+    }
+
+    def reject(_schema: dict[str, object], _payload: dict[str, object]) -> None:
+        raise JsonSchemaValidationError(f"{secret!r} is not permitted")
+
+    monkeypatch.setattr(validation, "_validate_json_schema", reject)
+    with pytest.raises(ValueError) as exc_info:
+        validation.validate_loaded_artifact_payload(payload, "run-set")
+
+    assert secret not in str(exc_info.value)
+    assert str(exc_info.value) == "run-set artifact failed JSON Schema validation"
+
+
+def test_runtime_model_validation_error_does_not_echo_instance_values() -> None:
+    secret = "patient-secret-duplicate-role"
+    payload = {
+        "artifact_kind": "release-digest-replay",
+        "schema_version": "0.6.0",
+        "artifacts": [
+            {
+                "artifact_kind": "release-replay-artifact",
+                "schema_version": "0.6.0",
+                "role": secret,
+                "path": "first.json",
+                "sha256": "0" * 64,
+            },
+            {
+                "artifact_kind": "release-replay-artifact",
+                "schema_version": "0.6.0",
+                "role": secret,
+                "path": "second.json",
+                "sha256": "1" * 64,
+            },
+        ],
+    }
+
+    with pytest.raises(ValueError) as exc_info:
+        validation.validate_loaded_artifact_payload(payload, "release-digest-replay")
+
+    assert secret not in str(exc_info.value)
+    assert str(exc_info.value) == "release-digest-replay artifact failed model validation"
+
+
+def test_frozen_projection_error_does_not_echo_instance_values(tmp_path: Path) -> None:
+    secret = "patient-secret-legacy-duplicate-role"
+    payload = {
+        "artifact_kind": "release-digest-replay",
+        "schema_version": "0.1.0",
+        "artifacts": [
+            {
+                "artifact_kind": "release-replay-artifact",
+                "schema_version": "0.1.0",
+                "role": secret,
+                "path": "first.json",
+                "sha256": "0" * 64,
+            },
+            {
+                "artifact_kind": "release-replay-artifact",
+                "schema_version": "0.1.0",
+                "role": secret,
+                "path": "second.json",
+                "sha256": "1" * 64,
+            },
+        ],
+    }
+    path = tmp_path / "legacy-replay.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError) as exc_info:
+        load_digest_replay(path)
+
+    assert secret not in str(exc_info.value)
+    assert str(exc_info.value) == "release-digest-replay artifact failed model validation"
+
+
+def test_ci_gate_unknown_artifact_kind_error_is_value_free(tmp_path: Path) -> None:
+    secret = "patient-secret-misplaced-as-kind"
+    path = tmp_path / "unknown-kind.json"
+    path.write_text(json.dumps({"artifact_kind": secret}), encoding="utf-8")
+
+    with pytest.raises(ValueError) as exc_info:
+        load_gate_artifact(path)
+
+    assert secret not in str(exc_info.value)
+    assert str(exc_info.value) == (
+        "CI gate expects artifact_kind evaluation-summary, comparison-summary, "
+        "or evidence-packet"
+    )

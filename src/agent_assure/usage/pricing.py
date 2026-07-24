@@ -3,9 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES, load_json_bounded
+from agent_assure.io_limits import MAX_CONFIG_TEXT_BYTES
 from agent_assure.schema.common import DigestHex
 from agent_assure.schema.usage import UsagePricingModel, UsagePricingSnapshot, UsageSegment
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 
 DECLARED_PRICING_LIMITATION = (
     "Cost is estimated from a declared pricing snapshot with a persisted content digest."
@@ -20,12 +24,17 @@ _KNOWN_GENERATED_PRICING_LIMITATIONS = frozenset(
 
 
 def load_pricing_snapshot(path: Path) -> UsagePricingSnapshot:
-    payload = load_json_bounded(
+    payload = load_validated_artifact_payload(
         path,
+        "usage-pricing-snapshot",
         max_bytes=MAX_CONFIG_TEXT_BYTES,
         label="pricing snapshot",
     )
-    return UsagePricingSnapshot.model_validate(payload)
+    return project_validated_artifact_payload(
+        payload,
+        UsagePricingSnapshot,
+        kind="usage-pricing-snapshot",
+    )
 
 
 def pricing_snapshot_digest(snapshot: UsagePricingSnapshot) -> DigestHex:

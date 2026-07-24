@@ -6,13 +6,27 @@ from pathlib import Path
 from agent_assure.artifact_io import write_text_atomic
 from agent_assure.authoring.yaml_nodes import load_yaml_nodes
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.io_limits import load_json_bounded
 from agent_assure.schema.suite import CompiledSuite
 
 
 def load_compiled_suite(path: Path, *, expected_digest: str | None = None) -> CompiledSuite:
-    payload = load_json_bounded(path)
-    compiled = CompiledSuite.model_validate(payload)
+    # Imported lazily because validation's schema registry imports the evaluator,
+    # which imports this module's digest helper.
+    from agent_assure.schema.validation import (
+        load_validated_artifact_payload,
+        project_validated_artifact_payload,
+    )
+
+    payload = load_validated_artifact_payload(
+        path,
+        "compiled-suite",
+        label="compiled suite JSON",
+    )
+    compiled = project_validated_artifact_payload(
+        payload,
+        CompiledSuite,
+        kind="compiled-suite",
+    )
     if expected_digest is not None:
         actual_digest = compiled_suite_digest(compiled)
         if actual_digest != expected_digest:

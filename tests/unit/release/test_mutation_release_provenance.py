@@ -438,15 +438,19 @@ def test_stable_introduction_is_newer_than_release_candidate() -> None:
 def test_git_creation_source_maps_package_and_schema_components_from_repo_root(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    requests: list[list[str]] = []
+    requests: list[tuple[Path, str, str]] = []
 
-    def fake_run(args: list[str], **_kwargs: object) -> subprocess.CompletedProcess[bytes]:
-        requests.append(args)
-        return subprocess.CompletedProcess(args, 0, stdout=b"component\n", stderr=b"")
+    def fake_git_file_bytes(
+        project_root: Path,
+        revision: str,
+        repository_path: str,
+    ) -> bytes:
+        requests.append((project_root, revision, repository_path))
+        return b"component\n"
 
     monkeypatch.setattr(
-        "scripts.check_mutation_release_provenance.subprocess.run",
-        fake_run,
+        "scripts.check_mutation_release_provenance.git_file_bytes",
+        fake_git_file_bytes,
     )
 
     assert _git_creation_source(_INTRODUCTION_COMMIT, "agent_assure/mutation/catalog.py")
@@ -455,8 +459,8 @@ def test_git_creation_source_maps_package_and_schema_components_from_repo_root(
         "schemas/v0.6.0/run-set.schema.json",
     )
     assert requests == [
-        ["git", "show", f"{'a' * 40}:src/agent_assure/mutation/catalog.py"],
-        ["git", "show", f"{'a' * 40}:schemas/v0.6.0/run-set.schema.json"],
+        (_REPOSITORY_ROOT, "a" * 40, "src/agent_assure/mutation/catalog.py"),
+        (_REPOSITORY_ROOT, "a" * 40, "schemas/v0.6.0/run-set.schema.json"),
     ]
 
 

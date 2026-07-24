@@ -63,6 +63,11 @@ def build_live_drift_report(
         raise ValueError("drift monitoring requires at least one live evaluation report")
     plan = protocol.drift_monitoring_plan or _default_monitoring_plan()
     protocol_digest = sha256_hexdigest(protocol)
+    for report in reports:
+        if report.suite_digest != protocol.suite_digest:
+            raise ValueError("drift evaluation report suite_digest does not match protocol")
+        if report.configuration_digest is None:
+            raise ValueError("drift evaluation report is missing configuration_digest")
     windows = tuple(
         _window_summary(report, window_index=index, plan=plan)
         for index, report in enumerate(reports)
@@ -216,6 +221,7 @@ def _window_summary(
         runset_id=report.runset_id,
         suite_id=report.suite_id,
         suite_version=report.suite_version,
+        configuration_digest=report.configuration_digest,
         protocol_id=report.protocol_id,
         protocol_digest=report.protocol_digest,
         baseline_mode=report.baseline_mode,
@@ -395,6 +401,9 @@ def _comparability(
     analysis_method_matches = (
         analysis_method_matches and windows[0].analysis_method == protocol.analysis_method
     )
+    configuration_digest_matches = (
+        len({window.configuration_digest for window in windows}) == 1
+    )
     protocol_digest_matches = all(
         window.protocol_digest == protocol_digest for window in windows
     )
@@ -409,6 +418,7 @@ def _comparability(
             suite_matches,
             baseline_mode_matches,
             analysis_method_matches,
+            configuration_digest_matches,
             tool_schema_digest_matches,
             policy_bundle_digest_matches,
         )
@@ -421,6 +431,8 @@ def _comparability(
         failures.append("baseline mode differs across monitoring windows")
     if not analysis_method_matches:
         failures.append("analysis method differs across monitoring windows")
+    if not configuration_digest_matches:
+        failures.append("execution configuration differs across monitoring windows")
     if not tool_schema_digest_matches:
         failures.append("tool-schema digest differs across monitoring windows")
     if not policy_bundle_digest_matches:
@@ -463,6 +475,7 @@ def _comparability(
         suite_matches=suite_matches,
         baseline_mode_matches=baseline_mode_matches,
         analysis_method_matches=analysis_method_matches,
+        configuration_digest_matches=configuration_digest_matches,
         protocol_digest_matches=protocol_digest_matches,
         material_fields_match=material_fields_match,
         tool_schema_digest_matches=tool_schema_digest_matches,

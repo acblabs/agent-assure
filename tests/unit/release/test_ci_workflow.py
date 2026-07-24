@@ -266,3 +266,46 @@ def test_composite_action_uploads_minimal_reports_by_default() -> None:
     assert "baseline.runset.json" not in minimal
     assert "path: ${{ inputs.out-dir }}" not in minimal
     assert "retention-days: ${{ inputs.retention-days }}" in minimal
+
+
+def test_composite_action_refuses_root_and_linked_output_directories() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+
+    assert 'if [ "${canonical_out_dir}" = "/" ]; then' in action
+    assert 'if [ -L "${AGENT_ASSURE_ACTION_OUT_DIR}/reports" ]; then' in action
+    assert "agent-assure refuses linked output directories" in action
+
+
+def test_composite_action_full_upload_is_an_explicit_artifact_whitelist() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    full = action.split(
+        "    - name: Upload full assurance artifacts\n",
+        maxsplit=1,
+    )[1]
+
+    assert "path: ${{ inputs.out-dir }}" not in full
+    assert "${{ inputs.out-dir }}/suite.compiled.json" in full
+    assert "${{ inputs.out-dir }}/candidate.runset.json" in full
+    assert "${{ inputs.out-dir }}/reports/evaluation-report.json" in full
+
+
+def test_composite_action_clears_owned_outputs_before_any_producer_runs() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+
+    prepare_index = action.index("    - name: Prepare output directory\n")
+    compile_index = action.index("    - name: Compile suite\n")
+    prepare = action[prepare_index:compile_index]
+
+    assert prepare_index < compile_index
+    assert "baseline.runset.json" in prepare
+    assert "comparison-summary.json" in prepare
+    assert "ci-diagnostics.json" in prepare
+    assert "refuses linked output directories" in prepare
+    assert 'realpath -m -- "${source_input}"' in prepare
+    assert "input aliases an owned output path" in prepare

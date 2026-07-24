@@ -1429,7 +1429,16 @@ def test_live_prompt_digest_uses_exact_prompt_not_redacted_projection(tmp_path: 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
     assert runset.runs[0].provenance.prompt_digest == sha256_hexdigest({"prompt": prompt_text})
+    assert (
+        runset.runs[0].provenance.configuration_digest
+        == runset.fixture_manifest_digest
+    )
     assert "123-45-6789" not in json.dumps(runset.model_dump(mode="json"))
+
+    prompt.write_text("different exact prompt", encoding="utf-8")
+    changed = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert changed.fixture_manifest_digest != runset.fixture_manifest_digest
 
 
 def test_static_jsonl_path_cannot_escape_config_dir(tmp_path: Path) -> None:

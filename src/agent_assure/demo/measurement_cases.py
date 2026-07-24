@@ -17,6 +17,10 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 
 MEASUREMENT_CASES_NOTICE = (
     "This is a process-assurance fixture suite, not a benchmark against other tools."
@@ -541,19 +545,35 @@ def _assert_success_summary(summary: dict[str, object], *, root: Path) -> None:
 
 
 def _load_runset(path: Path) -> RunSet:
-    return RunSet.model_validate_json(path.read_text(encoding="utf-8"))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "run-set"),
+        RunSet,
+        kind="run-set",
+    )
 
 
 def _load_evaluation_summary(path: Path) -> EvaluationSummary:
-    return EvaluationSummary.model_validate_json(path.read_text(encoding="utf-8"))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evaluation-summary"),
+        EvaluationSummary,
+        kind="evaluation-summary",
+    )
 
 
 def _load_comparison_summary(path: Path) -> ComparisonSummary:
-    return ComparisonSummary.model_validate_json(path.read_text(encoding="utf-8"))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "comparison-summary"),
+        ComparisonSummary,
+        kind="comparison-summary",
+    )
 
 
 def _load_packet(path: Path) -> EvidencePacket:
-    return EvidencePacket.model_validate_json(path.read_text(encoding="utf-8"))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evidence-packet"),
+        EvidencePacket,
+        kind="evidence-packet",
+    )
 
 
 def _visible_output(run: AgentRunRecord) -> tuple[str, str]:

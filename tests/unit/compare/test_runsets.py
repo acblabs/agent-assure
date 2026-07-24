@@ -7,16 +7,23 @@ import pytest
 from jsonschema import Draft202012Validator
 
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.ci import gate_comparison_summary
 from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
 from agent_assure.compare.provenance_diff import PROVENANCE_FIELDS
 from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import evaluate_runset
+from agent_assure.policies.base import GateProfile
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.base import SCHEMA_VERSION
-from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
+from agent_assure.schema.common import (
+    ComparisonClassification,
+    GateState,
+    ReasonCode,
+    Severity,
+)
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import EvidenceItem, RunSet
+from agent_assure.schema.run import EvidenceItem, PolicyResult, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -41,6 +48,63 @@ def test_compare_classifies_new_candidate_failure() -> None:
     assert any(
         change.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
         for change in report.control_changes
+    )
+
+
+def test_compare_diffs_nonblocking_fail_state_findings() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    first = baseline.runs[0]
+    candidate_run = first.model_copy(
+        update={
+            "policy_results": (
+                *first.policy_results,
+                PolicyResult(
+                    artifact_kind="policy-result",
+                    policy_id="nonblocking-regression",
+                    state=GateState.fail,
+                    reason_codes=(ReasonCode.POLICY_FAILED,),
+                    severity=Severity.warning,
+                    message="nonblocking under this profile",
+                ),
+            )
+        }
+    )
+    candidate = baseline.model_copy(
+        update={
+            "runset_id": f"{baseline.runset_id}-nonblocking-failure",
+            "runs": (candidate_run, *baseline.runs[1:]),
+        }
+    )
+    profile = GateProfile(
+        profile_id="blockers-only",
+        fail_severities=(Severity.blocker,),
+        fail_reason_codes=(),
+    )
+
+    report = compare_runsets(
+        compiled,
+        baseline,
+        candidate,
+        gate_profile=profile,
+    )
+
+    assert report.candidate_vs_expectations.state is GateState.warn
+    assert (
+        report.comparison_summary.classification
+        is ComparisonClassification.new_failure
+    )
+    assert any(
+        change.control_id == "policy_result:nonblocking-regression"
+        for change in report.control_changes
+    )
+    assert gate_comparison_summary(report.comparison_summary).exit_code == 0
+    assert (
+        gate_comparison_summary(
+            report.comparison_summary,
+            fail_on_warn=True,
+        ).exit_code
+        == 1
     )
 
 

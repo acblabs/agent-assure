@@ -1,15 +1,32 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass, replace
 from datetime import date
-from uuid import uuid5
 
 from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import GateState, ReasonCode, Severity, coerce_enum, coerce_tuple
+
+
+def control_finding_id(
+    case_id: str,
+    control_id: str,
+    reason_code: ReasonCode,
+    target: str,
+) -> str:
+    stable_key = json.dumps(
+        [case_id, control_id, reason_code.value, target],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    ).encode("utf-8")
+    digest = hashlib.sha256(
+        b"agent-assure/control-finding/v2\x00" + stable_key
+    ).hexdigest()
+    return f"finding-{digest}"
 
 
 @dataclass(frozen=True)
@@ -30,10 +47,12 @@ class ControlResult:
 
     @property
     def finding_id(self) -> str:
-        stable_key = (
-            f"{self.case_id}:{self.control_id}:{self.reason_code.value}:{self.target}"
+        return control_finding_id(
+            self.case_id,
+            self.control_id,
+            self.reason_code,
+            self.target,
         )
-        return f"finding-{uuid5(AGENT_ASSURE_NAMESPACE, stable_key)}"
 
 
 class GateProfile(StrictModel):

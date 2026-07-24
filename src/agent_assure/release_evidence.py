@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -7,13 +8,23 @@ from typing import Literal
 
 from agent_assure.artifact_io import file_sha256, git_output, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    loads_json_bounded,
+    read_bytes_bounded,
+)
 from agent_assure.reporting.environment import release_artifact
 from agent_assure.schema.release import (
     ReleaseDigestReplay,
     ReleaseReplayArtifact,
     ReplayDigestMode,
 )
-from agent_assure.schema.validation import load_json
+from agent_assure.schema.validation import (
+    load_json,
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
+)
 
 CORE_RELEASE_ROLES = (
     "compiled-suite",
@@ -33,6 +44,20 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
     "evidence-packet": "replay-stable-json-sha256",
     "fixture-manifest": "raw-sha256",
     "release-artifact-manifest": "replay-stable-json-sha256",
+}
+_STABLE_JSON_ROLE_ARTIFACT_KINDS = {
+    "comparison-report": "comparison-report",
+    "comparison-summary": "comparison-summary",
+    "evaluation-report": "evaluation-report",
+    "evaluation-summary": "evaluation-summary",
+    "evidence-packet": "evidence-packet",
+    "release-artifact-manifest": "release-artifact-manifest",
+}
+_RAW_JSON_ROLE_ARTIFACT_KINDS = {
+    "baseline-runset": "run-set",
+    "candidate-runset": "run-set",
+    "compiled-suite": "compiled-suite",
+    "fixture-manifest": "fixture-manifest",
 }
 NON_REPLAYED_ROLE_DIGEST_MODES: dict[str, Literal["not-replayed"]] = {
     "dependency-inventory": "not-replayed",
@@ -90,7 +115,31 @@ def write_digest_replay(replay: ReleaseDigestReplay, path: Path) -> None:
 
 
 def load_digest_replay(path: Path) -> ReleaseDigestReplay:
-    return ReleaseDigestReplay.model_validate(load_json(path))
+    payload = load_validated_artifact_payload(path, "release-digest-replay")
+    return project_validated_artifact_payload(
+        _runtime_replay_projection(payload),
+        ReleaseDigestReplay,
+        kind="release-digest-replay",
+    )
+
+
+def _runtime_replay_projection(payload: dict[str, object]) -> dict[str, object]:
+    """Project the shape-identical v0.1 replay contract into the typed v0.2 model."""
+    if payload.get("schema_version") != "0.1.0":
+        return payload
+    projected = dict(payload)
+    projected["schema_version"] = "0.2.0"
+    artifacts = projected.get("artifacts")
+    if isinstance(artifacts, list):
+        projected["artifacts"] = [
+            (
+                {**artifact, "schema_version": "0.2.0"}
+                if isinstance(artifact, dict)
+                else artifact
+            )
+            for artifact in artifacts
+        ]
+    return projected
 
 
 def verify_digest_replay(
@@ -113,7 +162,7 @@ def verify_digest_replay(
             require_current_commit=require_current_commit,
         )
     )
-    findings.extend(_artifact_identity_findings(replay.artifacts))
+    findings.extend(_artifact_identity_findings(replay.artifacts, artifact_root=root))
     artifacts_by_role = _artifacts_by_role(replay.artifacts)
     for role in required_roles:
         if role not in artifacts_by_role:
@@ -211,18 +260,19 @@ def verify_digest_replay(
 
 
 def _replay_artifact(role: str, path: Path, project_root: Path) -> ReleaseReplayArtifact:
-    raw_artifact = release_artifact(role, path, project_root=project_root)
     digest_mode = digest_mode_for_role(role)
+    replay_digest = _digest_for_artifact(
+        role=role,
+        path=path,
+        project_root=project_root,
+        digest_mode=digest_mode,
+    )
+    raw_artifact = release_artifact(role, path, project_root=project_root)
     return ReleaseReplayArtifact(
         artifact_kind="release-replay-artifact",
         role=raw_artifact.role,
         path=raw_artifact.path,
-        sha256=_digest_for_artifact(
-            role=role,
-            path=path,
-            project_root=project_root,
-            digest_mode=digest_mode,
-        ),
+        sha256=replay_digest,
         digest_mode=digest_mode,
     )
 
@@ -238,23 +288,29 @@ def _artifacts_by_role(
 
 def _require_unique_replay_inputs(artifacts: tuple[tuple[str, Path], ...]) -> None:
     seen_roles: set[str] = set()
-    seen_paths: set[Path] = set()
+    seen_paths: list[tuple[Path, Path]] = []
     for role, path in artifacts:
         resolved = path.resolve()
         if role in seen_roles:
             raise ValueError(f"duplicate release replay role: {role}")
-        if resolved in seen_paths:
+        if any(
+            resolved == prior_resolved or _same_file(path, prior_path)
+            for prior_path, prior_resolved in seen_paths
+        ):
             raise ValueError(f"duplicate release replay path: {path}")
         seen_roles.add(role)
-        seen_paths.add(resolved)
+        seen_paths.append((path, resolved))
 
 
 def _artifact_identity_findings(
     artifacts: tuple[ReleaseReplayArtifact, ...],
+    *,
+    artifact_root: Path,
 ) -> tuple[DigestReplayFinding, ...]:
     findings: list[DigestReplayFinding] = []
     seen_roles: set[str] = set()
     seen_paths: set[str] = set()
+    seen_resolved_paths: list[tuple[str, Path]] = []
     for artifact in artifacts:
         if artifact.role in seen_roles:
             findings.append(
@@ -276,9 +332,46 @@ def _artifact_identity_findings(
                     message=f"duplicate release replay path: {artifact.path}",
                 )
             )
+        else:
+            try:
+                resolved_path = _resolve_replay_path(artifact_root, artifact.path)
+            except ValueError:
+                resolved_path = None
+            if resolved_path is not None:
+                aliased_path = next(
+                    (
+                        prior_path
+                        for prior_path, prior_resolved in seen_resolved_paths
+                        if resolved_path == prior_resolved
+                        or _same_file(resolved_path, prior_resolved)
+                    ),
+                    None,
+                )
+                if aliased_path is not None:
+                    findings.append(
+                        DigestReplayFinding(
+                            role=artifact.role,
+                            path=artifact.path,
+                            expected="unique",
+                            actual=aliased_path,
+                            message=(
+                                "duplicate release replay path alias: "
+                                f"{artifact.path} aliases {aliased_path}"
+                            ),
+                        )
+                    )
+                else:
+                    seen_resolved_paths.append((artifact.path, resolved_path))
         seen_roles.add(artifact.role)
         seen_paths.add(artifact.path)
     return tuple(findings)
+
+
+def _same_file(left: Path, right: Path) -> bool:
+    try:
+        return left.samefile(right)
+    except OSError:
+        return False
 
 
 def _commit_findings(
@@ -407,14 +500,39 @@ def _digest_for_artifact(
     digest_mode: ReplayDigestMode,
 ) -> str:
     if digest_mode == "raw-sha256":
-        return file_sha256(path)
+        return _validated_raw_json_digest(role, path)
     if digest_mode == "replay-stable-json-sha256":
         return sha256_hexdigest(_stable_json_projection(role, path, project_root))
     raise ValueError(f"unsupported release replay digest mode: {digest_mode}")
 
 
+def _validated_raw_json_digest(role: str, path: Path) -> str:
+    try:
+        artifact_kind = _RAW_JSON_ROLE_ARTIFACT_KINDS[role]
+    except KeyError as exc:
+        raise ValueError(f"role has no raw JSON artifact contract: {role}") from exc
+    raw = read_bytes_bounded(
+        path,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=f"{artifact_kind} artifact JSON",
+    )
+    payload = loads_json_bounded(
+        raw.decode("utf-8"),
+        label=f"{artifact_kind} artifact JSON",
+    )
+    if not isinstance(payload, dict):
+        raise ValueError(f"{artifact_kind} artifact JSON root must be an object")
+    validate_loaded_artifact_payload(payload, artifact_kind)
+    return hashlib.sha256(raw).hexdigest()
+
+
 def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[str, object]:
     payload = load_json(path)
+    try:
+        artifact_kind = _STABLE_JSON_ROLE_ARTIFACT_KINDS[role]
+    except KeyError as exc:
+        raise ValueError(f"role has no stable JSON artifact contract: {role}") from exc
+    validate_loaded_artifact_payload(payload, artifact_kind)
     if role == "evidence-packet":
         return _stable_packet_projection(payload)
     if role == "release-artifact-manifest":
@@ -463,16 +581,21 @@ def _stable_manifest_projection(
     artifacts = payload.get("artifacts")
     if not isinstance(artifacts, list):
         raise ValueError("release artifact manifest artifacts must be a list")
-    _require_unique_manifest_artifacts(artifacts)
+    _require_unique_manifest_artifacts(artifacts, project_root=project_root)
     projected["artifacts"] = [
         _stable_manifest_artifact_projection(artifact, project_root) for artifact in artifacts
     ]
     return projected
 
 
-def _require_unique_manifest_artifacts(artifacts: list[object]) -> None:
+def _require_unique_manifest_artifacts(
+    artifacts: list[object],
+    *,
+    project_root: Path,
+) -> None:
     seen_roles: set[str] = set()
     seen_paths: set[str] = set()
+    seen_resolved_paths: list[tuple[str, Path]] = []
     for artifact in artifacts:
         if not isinstance(artifact, dict):
             raise ValueError("release artifact manifest entry must be an object")
@@ -484,8 +607,22 @@ def _require_unique_manifest_artifacts(artifacts: list[object]) -> None:
             raise ValueError(f"duplicate release artifact manifest role: {role}")
         if path in seen_paths:
             raise ValueError(f"duplicate release artifact manifest path: {path}")
+        resolved_path = _resolve_replay_path(project_root, path)
+        aliased_path = next(
+            (
+                prior_path
+                for prior_path, prior_resolved in seen_resolved_paths
+                if resolved_path == prior_resolved or _same_file(resolved_path, prior_resolved)
+            ),
+            None,
+        )
+        if aliased_path is not None:
+            raise ValueError(
+                f"duplicate release artifact manifest path alias: {path} aliases {aliased_path}"
+            )
         seen_roles.add(role)
         seen_paths.add(path)
+        seen_resolved_paths.append((path, resolved_path))
 
 
 def _stable_manifest_artifact_projection(
@@ -503,23 +640,34 @@ def _stable_manifest_artifact_projection(
         )
     projection: dict[str, object] = {"role": role, "path": path}
     resolved_path = _resolve_replay_path(project_root, path)
-    actual_raw_digest = file_sha256(resolved_path)
+    digest_mode = manifest_digest_mode_for_role(role)
+    actual_digest = None
+    if digest_mode == "raw-sha256":
+        actual_digest = _digest_for_artifact(
+            role=role,
+            path=resolved_path,
+            project_root=project_root,
+            digest_mode=digest_mode,
+        )
+        actual_raw_digest = actual_digest
+    else:
+        actual_raw_digest = file_sha256(resolved_path)
     if recorded_sha256 != actual_raw_digest:
         raise ValueError(
             "release artifact manifest recorded digest mismatch: "
             f"{path} declares {recorded_sha256}, actual raw-sha256 {actual_raw_digest}"
         )
-    digest_mode = manifest_digest_mode_for_role(role)
     projection["digest_mode"] = digest_mode
     if digest_mode == "not-replayed":
         projection["sha256"] = recorded_sha256
         return projection
-    actual_digest = _digest_for_artifact(
-        role=role,
-        path=resolved_path,
-        project_root=project_root,
-        digest_mode=digest_mode,
-    )
+    if actual_digest is None:
+        actual_digest = _digest_for_artifact(
+            role=role,
+            path=resolved_path,
+            project_root=project_root,
+            digest_mode=digest_mode,
+        )
     projection["sha256"] = actual_digest
     return projection
 

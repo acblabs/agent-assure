@@ -5,8 +5,9 @@ import sys
 from collections import Counter
 from collections.abc import Callable, Mapping
 from copy import deepcopy
-from dataclasses import dataclass
-from functools import lru_cache
+from dataclasses import dataclass, replace
+from datetime import date
+from functools import lru_cache, partial
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as distribution_version
 
@@ -14,6 +15,8 @@ from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
 from agent_assure import __version__
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.canonical.jcs import canonical_bytes
+from agent_assure.canonical.normalize import digest_projection
 from agent_assure.evaluation.evaluator import (
     EvaluationReport,
     RunSetCompatibilityError,
@@ -34,6 +37,7 @@ from agent_assure.mutation.paths import (
     paths_are_permitted,
 )
 from agent_assure.mutation.selection import select_target
+from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
 from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
 from agent_assure.privacy.safe_errors import safe_error
@@ -81,6 +85,8 @@ _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _UNKNOWN_DIGEST = "0" * 64
 _EVALUATOR_MANIFEST_CONTRACT = "AssuranceMutationEvaluatorManifest/v1"
 _EVALUATOR_RUNTIME_DISTRIBUTIONS = ("jsonschema", "pydantic", "PyYAML", "rfc8785")
+_GATE_PROFILE_CONTRACT = "AssuranceMutationGateProfile/v1"
+_WAIVER_SET_CONTRACT = "AssuranceMutationWaiverSet/v1"
 
 
 @dataclass(frozen=True)
@@ -94,6 +100,10 @@ class MutationEvaluatorBinding:
     evaluation_basis: EvidenceEvaluationBasis
     protocol_digest: str | None
     population_id: str
+    gate_profile_id: str
+    gate_profile_digest: str
+    waiver_set_digest: str
+    evaluation_date: str
 
     def __post_init__(self) -> None:
         if not callable(self.evaluator):
@@ -125,6 +135,18 @@ class MutationEvaluatorBinding:
             raise ValueError("stochastic and human-reviewed evaluators require a protocol digest")
         if _MACHINE_ID.fullmatch(self.population_id) is None:
             raise ValueError("mutation evaluator population_id must be a machine identifier")
+        if _MACHINE_ID.fullmatch(self.gate_profile_id) is None:
+            raise ValueError("mutation evaluator gate_profile_id must be a machine identifier")
+        for label, digest in (
+            ("gate_profile_digest", self.gate_profile_digest),
+            ("waiver_set_digest", self.waiver_set_digest),
+        ):
+            if _DIGEST.fullmatch(digest) is None or digest == _UNKNOWN_DIGEST:
+                raise ValueError(f"mutation evaluator {label} must be non-zero SHA-256")
+        try:
+            date.fromisoformat(self.evaluation_date)
+        except ValueError as exc:
+            raise ValueError("mutation evaluator evaluation_date must use YYYY-MM-DD") from exc
 
 
 @dataclass(frozen=True)
@@ -157,6 +179,12 @@ def _built_in_evaluator_binding() -> MutationEvaluatorBinding:
             evaluation_basis=EvidenceEvaluationBasis.deterministic,
             protocol_digest=None,
             population_id="deterministic-fixture-v1",
+            gate_profile_id=DEFAULT_GATE_PROFILE.profile_id,
+            gate_profile_digest=mutation_gate_profile_digest(DEFAULT_GATE_PROFILE),
+            waiver_set_digest=mutation_waiver_set_digest(()),
+            # Execution always replaces this template value with its explicit
+            # evaluation date before invoking the evaluator.
+            evaluation_date="1970-01-01",
         )
     except CatalogIntegrityError:
         raise
@@ -164,6 +192,54 @@ def _built_in_evaluator_binding() -> MutationEvaluatorBinding:
         raise CatalogIntegrityError(
             "the built-in evaluator identity could not be constructed"
         ) from exc
+
+
+def mutation_gate_profile_digest(gate_profile: GateProfile) -> str:
+    """Return the canonical identity of the complete active gate profile."""
+    projection = gate_profile.model_dump(mode="json")
+    projection["fail_severities"] = sorted(set(projection["fail_severities"]))
+    projection["fail_reason_codes"] = sorted(set(projection["fail_reason_codes"]))
+    return sha256_hexdigest(
+        {
+            "contract_id": _GATE_PROFILE_CONTRACT,
+            "gate_profile": projection,
+        }
+    )
+
+
+def mutation_waiver_set_digest(waivers: tuple[Waiver, ...]) -> str:
+    """Return the order-independent canonical identity of the explicit waiver set."""
+    serialized = [waiver.model_dump(mode="json") for waiver in waivers]
+    serialized.sort(key=lambda item: canonical_bytes(digest_projection(item)))
+    return sha256_hexdigest(
+        {
+            "contract_id": _WAIVER_SET_CONTRACT,
+            "waivers": serialized,
+        }
+    )
+
+
+def _configured_built_in_evaluator_binding(
+    *,
+    gate_profile: GateProfile,
+    waivers: tuple[Waiver, ...],
+    evaluation_date: date,
+) -> MutationEvaluatorBinding:
+    template = _built_in_evaluator_binding()
+    evaluator = partial(
+        evaluate_runset,
+        gate_profile=gate_profile,
+        waivers=waivers,
+        today=evaluation_date,
+    )
+    return replace(
+        template,
+        evaluator=evaluator,
+        gate_profile_id=gate_profile.profile_id,
+        gate_profile_digest=mutation_gate_profile_digest(gate_profile),
+        waiver_set_digest=mutation_waiver_set_digest(waivers),
+        evaluation_date=evaluation_date.isoformat(),
+    )
 
 
 def _evaluator_runtime_manifest() -> dict[str, object]:
@@ -189,6 +265,9 @@ def execute_mutation(
     seed: int,
     generated_at: str,
     evaluator_binding: MutationEvaluatorBinding | None = None,
+    gate_profile: GateProfile = DEFAULT_GATE_PROFILE,
+    waivers: tuple[Waiver, ...] = (),
+    evaluation_date: date | None = None,
 ) -> MutationExecution:
     """Apply and assess exactly one registered deterministic operator."""
     if seed < 0 or seed > RFC8785_SAFE_INTEGER_MAX:
@@ -197,12 +276,30 @@ def execute_mutation(
     source_snapshot = deepcopy(raw_source)
     source_digest: str | None = None
     try:
-        built_in_binding = _built_in_evaluator_binding()
+        resolved_evaluation_date = evaluation_date or date.fromisoformat(generated_at[:10])
+    except ValueError as exc:
+        raise ValueError("generated_at must begin with a valid YYYY-MM-DD date") from exc
+    try:
+        built_in_binding = _configured_built_in_evaluator_binding(
+            gate_profile=gate_profile,
+            waivers=waivers,
+            evaluation_date=resolved_evaluation_date,
+        )
         if evaluator_binding is not None and (
             evaluator_binding.method_id == built_in_binding.method_id
             or evaluator_binding.implementation_digest == built_in_binding.implementation_digest
         ):
-            raise ValueError("custom evaluator binding cannot reuse built-in evaluator identity")
+            result = _failure_result(
+                state=MutationResultState.execution_error,
+                operator=None,
+                requested_operator_id=operator_id,
+                source_digest=None,
+                seed=seed,
+                evaluator_binding=built_in_binding,
+                diagnostic_code="evaluator_identity_conflict",
+                limitations=("A custom evaluator cannot reuse the built-in evaluator identity.",),
+            )
+            return _execution_without_mutation(suite, result, generated_at=generated_at)
     except CatalogIntegrityError:
         result = _failure_result(
             state=MutationResultState.execution_error,
@@ -211,6 +308,12 @@ def execute_mutation(
             source_digest=source_digest,
             seed=seed,
             evaluator_binding=None,
+            gate_configuration=(
+                gate_profile.profile_id,
+                mutation_gate_profile_digest(gate_profile),
+                mutation_waiver_set_digest(waivers),
+                resolved_evaluation_date.isoformat(),
+            ),
             diagnostic_code="catalog_integrity_error",
             limitations=(
                 "The built-in evaluator could not establish its packaged implementation identity.",
@@ -218,6 +321,18 @@ def execute_mutation(
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
     binding = evaluator_binding or built_in_binding
+    if binding.evaluation_basis is EvidenceEvaluationBasis.llm_advisory:
+        result = _failure_result(
+            state=MutationResultState.execution_error,
+            operator=None,
+            requested_operator_id=operator_id,
+            source_digest=None,
+            seed=seed,
+            evaluator_binding=binding,
+            diagnostic_code="llm_advisory_not_supported",
+            limitations=(ReasonCode.LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED.value,),
+        )
+        return _execution_without_mutation(suite, result, generated_at=generated_at)
     evaluator = binding.evaluator
     try:
         operator = resolve_operator(operator_id)
@@ -328,6 +443,7 @@ def execute_mutation(
             evaluator(suite, subject),
             suite=suite,
             runset=subject,
+            gate_profile_id=binding.gate_profile_id,
         )
     except RunSetCompatibilityError as exc:
         result = _failure_result(
@@ -396,7 +512,7 @@ def execute_mutation(
     try:
         target = select_target(
             targets,
-            source_digest=source_digest or sha256_hexdigest(raw_source),
+            source_digest=source_digest,
             operator_id=operator.descriptor.operator_id,
             operator_version=operator.descriptor.operator_version,
             seed=seed,
@@ -554,6 +670,7 @@ def execute_mutation(
             evaluator(suite, candidate),
             suite=suite,
             runset=candidate,
+            gate_profile_id=binding.gate_profile_id,
         )
     except RunSetCompatibilityError:
         result = _failure_result(
@@ -632,6 +749,10 @@ def execute_mutation(
             evaluator_evaluation_basis=binding.evaluation_basis,
             evaluator_protocol_digest=binding.protocol_digest,
             evaluator_population_id=binding.population_id,
+            gate_profile_id=binding.gate_profile_id,
+            gate_profile_digest=binding.gate_profile_digest,
+            waiver_set_digest=binding.waiver_set_digest,
+            evaluation_date=binding.evaluation_date,
             seed=seed,
             changed_paths=changed_paths,
             observed_findings=_project_findings(assessment.observed_findings),
@@ -754,6 +875,7 @@ def _failure_result(
     source_digest: str | None,
     seed: int,
     evaluator_binding: MutationEvaluatorBinding | None,
+    gate_configuration: tuple[str, str, str, str] | None = None,
     diagnostic_code: str,
     limitations: tuple[str, ...],
     diagnostic_exception_class: str | None = None,
@@ -789,6 +911,10 @@ def _failure_result(
     evaluator_evaluation_basis: EvidenceEvaluationBasis
     evaluator_protocol_digest: str | None
     evaluator_population_id: str
+    gate_profile_id: str
+    gate_profile_digest: str
+    waiver_set_digest: str
+    evaluation_date: str
     if evaluator_binding is None:
         if not (
             state is MutationResultState.execution_error
@@ -803,6 +929,16 @@ def _failure_result(
         evaluator_evaluation_basis = EvidenceEvaluationBasis.deterministic
         evaluator_protocol_digest = None
         evaluator_population_id = "deterministic-fixture-v1"
+        if gate_configuration is None:
+            raise ValueError(
+                "catalog bootstrap failures require explicit gate configuration identity"
+            )
+        (
+            gate_profile_id,
+            gate_profile_digest,
+            waiver_set_digest,
+            evaluation_date,
+        ) = gate_configuration
     else:
         evaluator_method_id = evaluator_binding.method_id
         evaluator_implementation_digest = evaluator_binding.implementation_digest
@@ -810,6 +946,10 @@ def _failure_result(
         evaluator_evaluation_basis = evaluator_binding.evaluation_basis
         evaluator_protocol_digest = evaluator_binding.protocol_digest
         evaluator_population_id = evaluator_binding.population_id
+        gate_profile_id = evaluator_binding.gate_profile_id
+        gate_profile_digest = evaluator_binding.gate_profile_digest
+        waiver_set_digest = evaluator_binding.waiver_set_digest
+        evaluation_date = evaluator_binding.evaluation_date
     return AssuranceMutationResult.build(
         source_digest=source_digest,
         mutated_digest=None,
@@ -824,6 +964,10 @@ def _failure_result(
         evaluator_evaluation_basis=evaluator_evaluation_basis,
         evaluator_protocol_digest=evaluator_protocol_digest,
         evaluator_population_id=evaluator_population_id,
+        gate_profile_id=gate_profile_id,
+        gate_profile_digest=gate_profile_digest,
+        waiver_set_digest=waiver_set_digest,
+        evaluation_date=evaluation_date,
         seed=seed,
         changed_paths=(),
         observed_findings=observed_findings,
@@ -876,6 +1020,7 @@ def _validate_evaluator_report_binding(
     *,
     suite: CompiledSuite,
     runset: RunSet,
+    gate_profile_id: str,
 ) -> EvaluationReport:
     if not isinstance(report, EvaluationReport):
         raise TypeError("mutation evaluator must return an EvaluationReport")
@@ -890,6 +1035,8 @@ def _validate_evaluator_report_binding(
         raise ValueError("mutation evaluator report is bound to different RunSet content")
     if report.suite_id != suite.suite_id or report.suite_version != suite.suite_version:
         raise ValueError("mutation evaluator report is bound to a different compiled suite")
+    if report.gate_profile != gate_profile_id:
+        raise ValueError("mutation evaluator report is bound to a different gate profile")
     return report
 
 
@@ -945,6 +1092,10 @@ def build_evidence_descriptor(
             suite_digest=suite_digest,
             protocol_digest=result.evaluator_protocol_digest,
             population_id=result.evaluator_population_id,
+            gate_profile_id=result.gate_profile_id,
+            gate_profile_digest=result.gate_profile_digest,
+            waiver_set_digest=result.waiver_set_digest,
+            evaluation_date=result.evaluation_date,
         ),
         method=EvidenceMethod(
             method_id=result.evaluator_method_id,
@@ -977,13 +1128,16 @@ def build_evidence_descriptor(
             invalidated_by=(
                 "canonicalization_component_digest_change",
                 "evaluator_or_gate_component_digest_change",
+                "evaluation_date_change",
                 "expected_detection_contract_digest_change",
+                "gate_profile_digest_change",
                 "mutation_dispatch_component_digest_change",
                 "mutation_schema_or_validation_component_digest_change",
                 "operator_implementation_manifest_digest_change",
                 "privacy_component_digest_change",
                 "suite_digest_change",
                 "target_control_component_digest_change",
+                "waiver_set_digest_change",
             ),
         ),
         dependencies=(

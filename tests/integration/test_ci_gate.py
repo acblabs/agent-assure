@@ -9,6 +9,7 @@ from typer.testing import CliRunner
 
 from agent_assure.artifact_io import file_sha256
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.ci import run_ci
 from agent_assure.cli.main import app
 from agent_assure.fixtures.loader import write_compiled_suite
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
@@ -23,6 +24,17 @@ BASELINE = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
 EVIDENCE_CANDIDATE = Path(
     "examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml"
 )
+
+
+def test_ci_refuses_a_filesystem_root_output_directory() -> None:
+    filesystem_root = Path(Path.cwd().anchor)
+
+    with pytest.raises(ValueError, match="filesystem root"):
+        run_ci(
+            Path("candidate.runset.json"),
+            suite_path=Path("suite.compiled.json"),
+            out_dir=filesystem_root,
+        )
 
 
 def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
@@ -127,6 +139,138 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     )
     assert inventory["artifact_kind"] == "dependency-inventory"
     assert inventory["format"] == "agent-assure-dependency-inventory-v0.1"
+
+
+def test_ci_command_removes_outputs_that_are_stale_for_the_next_run(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "reused-ci-report"
+
+    failing = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--baseline",
+            str(baseline_path),
+            "--out-dir",
+            str(out_dir),
+            "--report-mode",
+            "full",
+        ],
+    )
+    assert failing.exit_code == 1, failing.output
+    assert (out_dir / "comparison-report.json").exists()
+    assert (out_dir / "ci-diagnostics.json").exists()
+
+    passing = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(baseline_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+            "--report-mode",
+            "full",
+        ],
+    )
+
+    assert passing.exit_code == 0, passing.output
+    for stale_name in (
+        "comparison-report.json",
+        "comparison-summary.json",
+        "comparison-report.md",
+        "ci-diagnostics.json",
+    ):
+        assert not (out_dir / stale_name).exists()
+
+
+def test_ci_command_refuses_a_linked_output_directory_without_deleting_stale_files(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    real_out = tmp_path / "real-output"
+    linked_out = tmp_path / "linked-output"
+    real_out.mkdir()
+    stale_diagnostics = real_out / "ci-diagnostics.json"
+    stale_diagnostics.write_text("keep\n", encoding="utf-8")
+    try:
+        linked_out.symlink_to(real_out, target_is_directory=True)
+    except OSError as exc:
+        pytest.skip(f"directory symlinks unavailable: {exc}")
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(baseline_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(linked_out),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert stale_diagnostics.read_text(encoding="utf-8") == "keep\n"
+
+
+def test_ci_command_refuses_an_input_at_an_owned_output_path(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "aliased-ci-report"
+    out_dir.mkdir()
+    aliased_candidate = out_dir / "evaluation-report.json"
+    aliased_candidate.write_bytes(baseline_path.read_bytes())
+    original_digest = file_sha256(aliased_candidate)
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(aliased_candidate),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert file_sha256(aliased_candidate) == original_digest
+
+
+def test_ci_command_refuses_a_waiver_at_an_owned_output_path(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "aliased-ci-waiver"
+    out_dir.mkdir()
+    aliased_waiver = out_dir / "ci-diagnostics.json"
+    aliased_waiver.write_text("[]\n", encoding="utf-8")
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(baseline_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+            "--waiver",
+            str(aliased_waiver),
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert aliased_waiver.read_text(encoding="utf-8") == "[]\n"
 
 
 @pytest.mark.parametrize(

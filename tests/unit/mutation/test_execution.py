@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from collections.abc import Callable, Iterator, Mapping
 from copy import deepcopy
+from datetime import date
 from typing import cast
 
 import pytest
@@ -24,11 +25,14 @@ from agent_assure.mutation.execution import (
     MutationEvaluatorBinding,
     MutationExecution,
     execute_mutation,
+    mutation_gate_profile_digest,
+    mutation_waiver_set_digest,
 )
 from agent_assure.mutation.operators import MutationTarget, PayloadChange
+from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
-from agent_assure.schema.common import MAX_LABEL_CHARS, GateState, ReasonCode
+from agent_assure.schema.common import MAX_LABEL_CHARS, GateState, ReasonCode, Severity
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.mutation import (
@@ -305,6 +309,146 @@ def test_deliberately_weakened_normative_control_produces_survived(
     assert execution.evidence_descriptor.scope.population_id == (
         execution.result.evaluator_population_id
     )
+    assert execution.result.gate_profile_id == "default"
+    assert execution.result.gate_profile_digest == mutation_gate_profile_digest(
+        DEFAULT_GATE_PROFILE
+    )
+    assert execution.result.waiver_set_digest == mutation_waiver_set_digest(())
+    assert execution.result.evaluation_date == "2026-07-20"
+    assert execution.evidence_descriptor.scope.gate_profile_digest == (
+        execution.result.gate_profile_digest
+    )
+    assert execution.evidence_descriptor.scope.waiver_set_digest == (
+        execution.result.waiver_set_digest
+    )
+    assert execution.evidence_descriptor.scope.evaluation_date == "2026-07-20"
+
+
+def test_configured_gate_and_waiver_set_control_mutation_detection() -> None:
+    suite, source_payload = _fixture()
+    first = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+        evaluation_date=date(2026, 7, 20),
+    )
+    assert first.result.state is MutationResultState.caught
+    assert first.result.mutated_digest is not None
+    matched_id = first.result.matched_finding_ids[0]
+    waiver = Waiver(
+        waiver_id="waiver-mutation-target",
+        owner="test-owner",
+        rationale="exercise the configured release gate",
+        reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+        finding_id=matched_id,
+        artifact_digest=first.result.mutated_digest,
+        expires_on=date(2026, 8, 1),
+        reviewer="test-reviewer",
+    )
+    unrelated_waiver = Waiver(
+        waiver_id="waiver-unrelated-target",
+        owner="test-owner",
+        rationale="prove waiver-set identity is order independent",
+        reason_code=ReasonCode.FORBIDDEN_TOOL,
+        finding_id="finding-unrelated",
+        artifact_digest="f" * 64,
+        expires_on=date(2026, 8, 1),
+        reviewer="test-reviewer",
+    )
+    assert mutation_waiver_set_digest((waiver, unrelated_waiver)) == (
+        mutation_waiver_set_digest((unrelated_waiver, waiver))
+    )
+
+    waived = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+        waivers=(waiver,),
+        evaluation_date=date(2026, 7, 20),
+    )
+
+    assert waived.result.state is MutationResultState.survived
+    assert waived.result.matched_finding_ids == ()
+    assert waived.result.waiver_set_digest == mutation_waiver_set_digest((waiver,))
+    assert waived.result.waiver_set_digest != first.result.waiver_set_digest
+    assert any(finding.state is GateState.warn for finding in waived.result.observed_findings)
+    assert "waiver_set_digest_change" in waived.evidence_descriptor.validity.invalidated_by
+
+    strict_profile = GateProfile(
+        profile_id="strict-not-evaluated",
+        fail_on_not_evaluated=True,
+    )
+    configured = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+        gate_profile=strict_profile,
+        evaluation_date=date(2026, 7, 21),
+    )
+    assert configured.result.gate_profile_id == strict_profile.profile_id
+    assert configured.result.gate_profile_digest == mutation_gate_profile_digest(strict_profile)
+    assert configured.result.evaluation_date == "2026-07-21"
+
+
+def test_mutation_gate_profile_digest_normalizes_membership_filters() -> None:
+    first = GateProfile(
+        profile_id="equivalent-profile",
+        fail_severities=(Severity.error, Severity.blocker, Severity.error),
+        fail_reason_codes=(ReasonCode.FORBIDDEN_TOOL, ReasonCode.POLICY_FAILED),
+    )
+    reordered = GateProfile(
+        profile_id="equivalent-profile",
+        fail_severities=(Severity.blocker, Severity.error),
+        fail_reason_codes=(ReasonCode.POLICY_FAILED, ReasonCode.FORBIDDEN_TOOL),
+    )
+
+    assert mutation_gate_profile_digest(first) == mutation_gate_profile_digest(reordered)
+
+
+def test_llm_advisory_binding_fails_closed_before_evaluation() -> None:
+    suite, source_payload = _fixture()
+    calls = 0
+
+    def evaluator(_suite: CompiledSuite, _runset: RunSet) -> EvaluationReport:
+        nonlocal calls
+        calls += 1
+        raise AssertionError("advisory evaluator must not run")
+
+    binding = MutationEvaluatorBinding(
+        evaluator=evaluator,
+        method_id="assurance-mutation/test-llm-advisory/v1",
+        implementation_version="1.0.0",
+        implementation_digest="e" * 64,
+        evaluation_basis=EvidenceEvaluationBasis.llm_advisory,
+        protocol_digest=None,
+        population_id="deterministic-fixture-v1",
+        gate_profile_id="default",
+        gate_profile_digest=mutation_gate_profile_digest(DEFAULT_GATE_PROFILE),
+        waiver_set_digest=mutation_waiver_set_digest(()),
+        evaluation_date="2026-07-20",
+    )
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+        evaluator_binding=binding,
+    )
+
+    assert calls == 0
+    assert execution.result.state is MutationResultState.execution_error
+    assert execution.result.diagnostic_code == "llm_advisory_not_supported"
+    assert ReasonCode.LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED.value in execution.result.limitations
+    assert execution.evidence_descriptor.result.verdict_bearing is False
+    assert execution.mutated_payload is None
 
 
 def test_custom_evaluator_requires_explicit_non_builtin_identity() -> None:
@@ -331,6 +475,10 @@ def test_custom_evaluator_requires_explicit_non_builtin_identity() -> None:
         evaluation_basis=EvidenceEvaluationBasis.deterministic,
         protocol_digest=None,
         population_id="deterministic-fixture-v1",
+        gate_profile_id="default",
+        gate_profile_digest="c" * 64,
+        waiver_set_digest="d" * 64,
+        evaluation_date="2026-07-20",
     )
     spoofed_digest = MutationEvaluatorBinding(
         evaluator=evaluator,
@@ -340,16 +488,22 @@ def test_custom_evaluator_requires_explicit_non_builtin_identity() -> None:
         evaluation_basis=EvidenceEvaluationBasis.deterministic,
         protocol_digest=None,
         population_id="deterministic-fixture-v1",
+        gate_profile_id="default",
+        gate_profile_digest="c" * 64,
+        waiver_set_digest="d" * 64,
+        evaluation_date="2026-07-20",
     )
 
     for binding in (spoofed_method, spoofed_digest):
-        with pytest.raises(ValueError, match="cannot reuse built-in evaluator identity"):
-            execute_mutation(
-                suite,
-                source_payload,
-                evaluator_binding=binding,
-                **common,
-            )
+        execution = execute_mutation(
+            suite,
+            source_payload,
+            evaluator_binding=binding,
+            **common,
+        )
+        assert execution.result.state is MutationResultState.execution_error
+        assert execution.result.diagnostic_code == "evaluator_identity_conflict"
+        assert execution.mutated_payload is None
 
 
 def test_built_in_evaluator_identity_binds_runtime_dependency_versions(
@@ -418,6 +572,10 @@ def test_custom_evaluator_basis_and_scope_are_preserved_in_evidence() -> None:
         evaluation_basis=EvidenceEvaluationBasis.stochastic,
         protocol_digest=protocol_digest,
         population_id="held-out-population-v1",
+        gate_profile_id="default",
+        gate_profile_digest="c" * 64,
+        waiver_set_digest="d" * 64,
+        evaluation_date="2026-07-20",
     )
 
     execution = execute_mutation(
@@ -458,6 +616,10 @@ def test_human_reviewed_evaluator_is_nonverdict_without_typed_review_evidence() 
         evaluation_basis=EvidenceEvaluationBasis.human_reviewed,
         protocol_digest="f" * 64,
         population_id="reviewed-fixture-population-v1",
+        gate_profile_id="default",
+        gate_profile_digest="c" * 64,
+        waiver_set_digest="d" * 64,
+        evaluation_date="2026-07-20",
     )
 
     execution = execute_mutation(
@@ -488,6 +650,10 @@ def test_stochastic_evaluator_requires_protocol_identity() -> None:
             evaluation_basis=EvidenceEvaluationBasis.stochastic,
             protocol_digest=None,
             population_id="held-out-population-v1",
+            gate_profile_id="default",
+            gate_profile_digest="c" * 64,
+            waiver_set_digest="d" * 64,
+            evaluation_date="2026-07-20",
         )
 
 
@@ -1524,6 +1690,10 @@ def _bound_evaluator(
         evaluation_basis=EvidenceEvaluationBasis.deterministic,
         protocol_digest=None,
         population_id="deterministic-fixture-v1",
+        gate_profile_id="default",
+        gate_profile_digest=mutation_gate_profile_digest(DEFAULT_GATE_PROFILE),
+        waiver_set_digest=mutation_waiver_set_digest(()),
+        evaluation_date="2026-07-20",
     )
 
 

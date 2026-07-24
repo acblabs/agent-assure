@@ -119,6 +119,12 @@ release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
 `schemas/v0.5.0/`, while active development and release-candidate checks target
 `schemas/v0.6.0/`.
 
+Persisted inputs are checked against their frozen schema before typed runtime
+projection. The v0.1 `release-digest-replay` contract is shape-identical to
+v0.2; after frozen v0.1 validation, the loader projects only its root and child
+schema labels to v0.2 so the current typed verifier can consume it. The source
+file and its referenced digest material are not rewritten.
+
 The golden check follows the same split: unversioned flagship compiled-suite
 and fixture-manifest goldens track the active v0.6.0 producer, while explicitly
 named `*.v0.5.0.*.json` goldens are byte-pinned and replayed through the frozen

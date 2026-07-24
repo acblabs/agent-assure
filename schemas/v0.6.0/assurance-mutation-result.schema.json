@@ -691,6 +691,30 @@
           }
         }
       }
+    },
+    {
+      "if": {
+        "properties": {
+          "evaluator_evaluation_basis": {
+            "const": "llm_advisory"
+          }
+        },
+        "required": [
+          "evaluator_evaluation_basis"
+        ]
+      },
+      "then": {
+        "properties": {
+          "state": {
+            "enum": [
+              "inapplicable",
+              "invalid_operator",
+              "invalid_subject",
+              "execution_error"
+            ]
+          }
+        }
+      }
     }
   ],
   "dependentRequired": {
@@ -761,6 +785,11 @@
       "default": null,
       "title": "Diagnostic Exception Class"
     },
+    "evaluation_date": {
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+      "title": "Evaluation Date",
+      "type": "string"
+    },
     "evaluator_evaluation_basis": {
       "$ref": "#/$defs/EvidenceEvaluationBasis"
     },
@@ -818,6 +847,18 @@
       ],
       "default": null,
       "title": "Expected Finding Target Digest"
+    },
+    "gate_profile_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Gate Profile Digest",
+      "type": "string"
+    },
+    "gate_profile_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Gate Profile Id",
+      "type": "string"
     },
     "implementation_digest": {
       "pattern": "^[a-f0-9]{64}$",
@@ -947,6 +988,11 @@
     },
     "state": {
       "$ref": "#/$defs/MutationResultState"
+    },
+    "waiver_set_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Waiver Set Digest",
+      "type": "string"
     }
   },
   "required": [
@@ -961,6 +1007,10 @@
     "evaluator_implementation_version",
     "evaluator_evaluation_basis",
     "evaluator_population_id",
+    "gate_profile_id",
+    "gate_profile_digest",
+    "waiver_set_digest",
+    "evaluation_date",
     "seed",
     "changed_paths",
     "observed_findings",

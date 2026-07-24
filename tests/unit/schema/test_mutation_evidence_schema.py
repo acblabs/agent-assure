@@ -193,6 +193,10 @@ def _mutation_result(**overrides: object) -> AssuranceMutationResult:
         "evaluator_evaluation_basis": EvidenceEvaluationBasis.deterministic,
         "evaluator_protocol_digest": None,
         "evaluator_population_id": "deterministic-fixture-v1",
+        "gate_profile_id": "default",
+        "gate_profile_digest": _DIGEST_A,
+        "waiver_set_digest": _DIGEST_B,
+        "evaluation_date": "2026-07-20",
         "seed": 7,
         "changed_paths": ("/runs/0/claim_evidence_links",),
         "observed_findings": (_observed_finding(),),
@@ -216,6 +220,10 @@ def _evidence_descriptor_values() -> dict[str, object]:
             suite_digest=_DIGEST_B,
             protocol_digest=None,
             population_id="deterministic-fixture-v1",
+            gate_profile_id="default",
+            gate_profile_digest=_DIGEST_A,
+            waiver_set_digest=_DIGEST_B,
+            evaluation_date="2026-07-20",
         ),
         "method": EvidenceMethod(
             method_id=ASSURANCE_MUTATION_METHOD_ID,
@@ -410,6 +418,31 @@ def test_llm_advisory_evidence_is_permanently_non_verdict_bearing() -> None:
         _evidence_descriptor(method=method)
 
 
+def test_llm_advisory_mutation_result_cannot_claim_caught_or_survived() -> None:
+    for state in (MutationResultState.caught, MutationResultState.survived):
+        overrides: dict[str, object] = {
+            "state": state,
+            "evaluator_evaluation_basis": EvidenceEvaluationBasis.llm_advisory,
+        }
+        if state is MutationResultState.survived:
+            overrides["matched_finding_ids"] = ()
+        with pytest.raises(
+            ValidationError,
+            match=ReasonCode.LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED.value,
+        ):
+            _mutation_result(**overrides)
+
+        payload = _mutation_result().model_dump(mode="json")
+        payload["state"] = state.value
+        payload["evaluator_evaluation_basis"] = "llm_advisory"
+        if state is MutationResultState.survived:
+            payload["matched_finding_ids"] = []
+        with pytest.raises(JsonSchemaValidationError):
+            Draft202012Validator(
+                AssuranceMutationResult.model_json_schema(mode="validation")
+            ).validate(payload)
+
+
 @pytest.mark.parametrize(
     ("basis", "check_id"),
     (
@@ -449,6 +482,10 @@ def test_nondeterministic_evidence_remains_nonverdict_without_typed_sufficiency(
             suite_digest=_DIGEST_B,
             protocol_digest=_DIGEST_A,
             population_id="review-population-v1",
+            gate_profile_id="default",
+            gate_profile_digest=_DIGEST_A,
+            waiver_set_digest=_DIGEST_B,
+            evaluation_date="2026-07-20",
         ),
         result=EvidenceResult(
             state=EvidenceState.prerequisites_unmet,
@@ -471,6 +508,10 @@ def test_nondeterministic_evidence_remains_nonverdict_without_typed_sufficiency(
                 suite_digest=_DIGEST_B,
                 protocol_digest=_DIGEST_A,
                 population_id="review-population-v1",
+                gate_profile_id="default",
+                gate_profile_digest=_DIGEST_A,
+                waiver_set_digest=_DIGEST_B,
+                evaluation_date="2026-07-20",
             ),
             result=EvidenceResult(
                 state=EvidenceState.supported,
@@ -506,6 +547,10 @@ def test_nondeterministic_evidence_remains_nonverdict_without_typed_sufficiency(
                 suite_digest=_DIGEST_B,
                 protocol_digest=_DIGEST_A,
                 population_id="review-population-v1",
+                gate_profile_id="default",
+                gate_profile_digest=_DIGEST_A,
+                waiver_set_digest=_DIGEST_B,
+                evaluation_date="2026-07-20",
             ),
             result=EvidenceResult(
                 state=EvidenceState.prerequisites_unmet,

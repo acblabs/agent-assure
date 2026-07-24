@@ -6,14 +6,13 @@ from dataclasses import dataclass
 from importlib import resources
 from pathlib import Path
 from typing import Any, Self
-from uuid import uuid5
 
 import yaml
 from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
+from agent_assure.policies.base import control_finding_id
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import GateState, coerce_enum, coerce_tuple
 from agent_assure.schema.controls import (
@@ -679,7 +678,9 @@ def _finding_ref(finding: Finding) -> ControlEvidenceRef:
 
 
 def _finding_id(finding: Finding) -> str:
-    stable_key = (
-        f"{finding.case_id}:{finding.control_id}:{finding.reason_code.value}:{finding.target}"
+    return control_finding_id(
+        finding.case_id,
+        finding.control_id,
+        finding.reason_code,
+        finding.target,
     )
-    return f"finding-{uuid5(AGENT_ASSURE_NAMESPACE, stable_key)}"

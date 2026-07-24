@@ -59,3 +59,32 @@ def test_nonblocking_failures_roll_up_to_warn() -> None:
 
     assert profile.is_blocking(result) is False
     assert rollup_state((result,), profile) is GateState.warn
+
+
+def test_finding_identity_is_unambiguous_when_components_contain_delimiters() -> None:
+    common = {
+        "state": GateState.fail,
+        "reason_code": ReasonCode.POLICY_FAILED,
+        "severity": Severity.error,
+        "message": "example failure",
+        "target": "target",
+    }
+    first = ControlResult(
+        control_id="control",
+        case_id="case:segment",
+        **common,
+    )
+    second = ControlResult(
+        control_id="segment:control",
+        case_id="case",
+        **common,
+    )
+    repeated = ControlResult(
+        control_id="control",
+        case_id="case:segment",
+        **common,
+    )
+
+    assert first.finding_id != second.finding_id
+    assert first.finding_id == repeated.finding_id
+    assert len(first.finding_id) == len("finding-") + 64

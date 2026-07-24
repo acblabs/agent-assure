@@ -2,6 +2,29 @@
   "$defs": {
     "DriftComparabilityResult": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.0"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "configuration_digest_matches": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "configuration_digest_matches"
+            ]
+          }
+        }
+      ],
       "properties": {
         "analysis_method": {
           "anyOf": [
@@ -45,6 +68,18 @@
           "minimum": 0,
           "title": "Compared Windows",
           "type": "integer"
+        },
+        "configuration_digest_matches": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Configuration Digest Matches"
         },
         "failures": {
           "default": [],
@@ -661,6 +696,29 @@
     },
     "DriftWindowSummary": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.0"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "configuration_digest": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "configuration_digest"
+            ]
+          }
+        }
+      ],
       "properties": {
         "analysis_method": {
           "minLength": 1,
@@ -688,6 +746,19 @@
           ],
           "default": null,
           "title": "Baseline Mode"
+        },
+        "configuration_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Configuration Digest"
         },
         "excluded_observations": {
           "minimum": 0,

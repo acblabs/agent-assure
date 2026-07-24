@@ -75,9 +75,10 @@ Each root carries `contract_version: 1.0.0`. Contract version identifies the
 method semantics, while persisted schema version identifies JSON shape. The
 result binds source and transformed digests, operator identity and
 implementation digest, evaluator method ID/version/implementation digest,
-seed, exact changed paths, expected-detection contract digest, selected
-finding-target digest, observed findings with target digests, provenance,
-independence class, semantic state, and limitations. Evaluator implementation
+gate-profile ID and canonical digest, order-independent waiver-set digest,
+evaluation date, seed, exact changed paths, expected-detection contract digest,
+selected finding-target digest, observed findings with target digests,
+provenance, independence class, semantic state, and limitations. Evaluator implementation
 identity is non-zero except that the all-zero unavailable sentinel is permitted
 only for `execution_error` with `catalog_integrity_error`, before evaluator
 identity can be established. A matched
@@ -85,6 +86,9 @@ finding must carry the selected target digest. Permitted operator paths expose
 single-segment wildcard-template syntax in JSON Schema, while result paths are
 exact JSON Pointers. See `docs/evidence_carrying_releases.md` for field
 semantics.
+
+An `llm_advisory` mutation evaluator cannot produce `caught` or `survived`;
+execution returns typed, non-verdict evidence before invoking that evaluator.
 
 Known-operator provenance carries two canonically ordered component sets. The
 complete current `implementation_components` manifest derives the current
@@ -167,7 +171,8 @@ Live-specific root artifacts:
   confidence interval center metadata, estimated-cost source metadata,
   per-observation tool-schema and policy-bundle provenance digests, completion
   status, stop reasons, budget-exhaustion status, provider/model group
-  summaries, latency distributions, estimated-cost distributions, optional
+  summaries, suite and execution-configuration digests, a top-level exploratory
+  flag, latency distributions, estimated-cost distributions, optional
   statistical-invariant results, and interpretation limitations. Statistical
   invariant results can include rare-event Poisson upper bounds and observed
   cluster-correlation summaries with bootstrap uncertainty; zero observed
@@ -185,7 +190,8 @@ Live-specific root artifacts:
   adjusted p-value, exact or Monte Carlo resampling count, and exchangeability
   assumption. Monte Carlo seeds are deterministic integers derived from
   protocol-bound seed material; the report cannot prove exchangeability beyond
-  the declared assumption and structural pairing checks.
+  the declared assumption and structural pairing checks. Paired sign-flip
+  randomization requires a zero non-inferiority margin.
   For Bonferroni outputs, consumers must treat `adjusted_alpha` and
   `adjusted_p_value` as alternative correction encodings: compare a raw
   p-value to `adjusted_alpha`, or compare `adjusted_p_value` to the protocol

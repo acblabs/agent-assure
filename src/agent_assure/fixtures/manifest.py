@@ -9,10 +9,13 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.resolver import FixtureResolver
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
-    load_json_bounded,
     read_bytes_bounded,
 )
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest, FixtureManifestEntry
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 
 REQUIRED_FIXTURE_SUBDIRS = ("requests", "model_outputs", "tool_outputs")
 
@@ -34,8 +37,16 @@ def build_fixture_manifest(compiled: CompiledSuite, suite_root: Path) -> Fixture
 
 
 def load_fixture_manifest(path: Path) -> FixtureManifest:
-    payload = load_json_bounded(path)
-    return FixtureManifest.model_validate(payload)
+    payload = load_validated_artifact_payload(
+        path,
+        "fixture-manifest",
+        label="fixture manifest JSON",
+    )
+    return project_validated_artifact_payload(
+        payload,
+        FixtureManifest,
+        kind="fixture-manifest",
+    )
 
 
 def write_fixture_manifest(manifest: FixtureManifest, path: Path) -> None:

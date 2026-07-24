@@ -477,6 +477,41 @@
     },
     "LiveObservationResult": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.0"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "prompt_digest": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "randomization_block_id": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "schedule_index": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "prompt_digest",
+              "randomization_block_id",
+              "schedule_index"
+            ]
+          }
+        }
+      ],
       "properties": {
         "adapter_id": {
           "anyOf": [
@@ -587,6 +622,19 @@
           "title": "Policy Bundle Digest",
           "type": "string"
         },
+        "prompt_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Prompt Digest"
+        },
         "provider": {
           "anyOf": [
             {
@@ -634,6 +682,19 @@
           ],
           "default": null,
           "title": "Provider Sdk"
+        },
+        "randomization_block_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Randomization Block Id"
         },
         "rate_limit_events": {
           "anyOf": [
@@ -690,6 +751,19 @@
           "minLength": 1,
           "title": "Run Id",
           "type": "string"
+        },
+        "schedule_index": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Schedule Index"
         },
         "schema_version": {
           "default": "0.6.0",
@@ -1220,6 +1294,35 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.0/live-evaluation-report.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.0"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "configuration_digest": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "suite_digest": {
+            "not": {
+              "type": "null"
+            }
+          }
+        },
+        "required": [
+          "configuration_digest",
+          "suite_digest"
+        ]
+      }
+    }
+  ],
   "properties": {
     "analysis_method": {
       "default": "cluster_t_interval",
@@ -1278,6 +1381,24 @@
       "title": "Confidence Level",
       "type": "string"
     },
+    "configuration_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Configuration Digest"
+    },
+    "exploratory": {
+      "default": true,
+      "title": "Exploratory",
+      "type": "boolean"
+    },
     "groups": {
       "items": {
         "$ref": "#/$defs/LiveGroupSummary"
@@ -1289,7 +1410,8 @@
       "default": [
         "live evaluation is time-bound to the declared provider, model, adapter, configuration, and execution window",
         "aggregate rates do not certify safety, compliance, clinical validity, or provider superiority in general",
-        "design-effect and effective-n fields are planning and sensitivity metadata; cluster intervals use the declared empirical cluster-rate method"
+        "design-effect and effective-n fields are planning and sensitivity metadata; cluster intervals use the declared empirical cluster-rate method",
+        "the current protocol schema does not carry an execution-configuration digest; configuration_digest records the executed configuration and exact prompt manifest but cannot prove that configuration was frozen in the protocol before execution"
       ],
       "items": {
         "type": "string"
@@ -1406,6 +1528,19 @@
       },
       "title": "Stop Reasons",
       "type": "array"
+    },
+    "suite_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Suite Digest"
     },
     "suite_id": {
       "minLength": 1,

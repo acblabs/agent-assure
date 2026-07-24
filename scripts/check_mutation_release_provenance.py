@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import re
-import subprocess
 import sys
 from collections.abc import Callable, Iterable, Sequence
 from pathlib import Path
@@ -12,7 +11,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
-from agent_assure.artifact_io import git_output  # noqa: E402
+from agent_assure.artifact_io import git_file_bytes, git_output  # noqa: E402
 from agent_assure.mutation.catalog import (  # noqa: E402
     CatalogIntegrityError,
     implementation_component_sha256,
@@ -292,13 +291,7 @@ def _git_creation_source(commit: str, relative_path: str) -> bytes:
         repository_path = relative_path
     else:
         raise ValueError(f"unsupported provenance component path: {relative_path!r}")
-    result = subprocess.run(
-        ["git", "show", f"{revision}:{repository_path}"],
-        cwd=ROOT,
-        check=True,
-        capture_output=True,
-    )
-    return result.stdout
+    return git_file_bytes(ROOT, revision, repository_path)
 
 
 def _git_is_ancestor(ancestor: str, descendant: str) -> bool:

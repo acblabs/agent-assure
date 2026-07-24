@@ -9,7 +9,6 @@ from rich.console import Console
 
 from agent_assure.evaluation.evaluator import load_runset
 from agent_assure.fixtures.loader import compiled_suite_digest, load_compiled_suite
-from agent_assure.io_limits import load_json_bounded
 from agent_assure.live.adapters import TrustedLiveExecution, adapter_ids
 from agent_assure.live.comparison import compare_live_reports, load_live_evaluation_report
 from agent_assure.live.config import load_live_run_config
@@ -32,6 +31,10 @@ from agent_assure.runner.fixture_runner import write_runset
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 
 app = typer.Typer(help="Live provider execution and stochastic reports.")
 console = Console()
@@ -376,8 +379,16 @@ def compare(
 
 
 def _load_protocol(path: Path) -> LiveProtocolRecord:
-    payload = load_json_bounded(path)
-    return LiveProtocolRecord.model_validate(payload)
+    payload = load_validated_artifact_payload(
+        path,
+        "live-protocol-record",
+        label="live protocol JSON",
+    )
+    return project_validated_artifact_payload(
+        payload,
+        LiveProtocolRecord,
+        kind="live-protocol-record",
+    )
 
 
 def _validate_protocol(

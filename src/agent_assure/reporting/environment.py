@@ -226,7 +226,13 @@ def _package_name(dist: metadata.Distribution) -> str:
 
 
 def _git_dirty(project_root: Path) -> bool | None:
-    output = git_output(project_root, "status", "--porcelain", allow_empty=True)
+    output = git_output(
+        project_root,
+        "status",
+        "--porcelain=v1",
+        "--untracked-files=all",
+        allow_empty=True,
+    )
     if output is None:
         return None
     return bool(output)

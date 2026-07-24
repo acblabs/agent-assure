@@ -191,6 +191,23 @@
     "EvidenceScope": {
       "additionalProperties": false,
       "properties": {
+        "evaluation_date": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "title": "Evaluation Date",
+          "type": "string"
+        },
+        "gate_profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Gate Profile Digest",
+          "type": "string"
+        },
+        "gate_profile_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Gate Profile Id",
+          "type": "string"
+        },
         "population_id": {
           "maxLength": 512,
           "minLength": 1,
@@ -215,11 +232,20 @@
           "pattern": "^[a-f0-9]{64}$",
           "title": "Suite Digest",
           "type": "string"
+        },
+        "waiver_set_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Waiver Set Digest",
+          "type": "string"
         }
       },
       "required": [
         "suite_digest",
-        "population_id"
+        "population_id",
+        "gate_profile_id",
+        "gate_profile_digest",
+        "waiver_set_digest",
+        "evaluation_date"
       ],
       "title": "EvidenceScope",
       "type": "object"
@@ -627,6 +653,36 @@
             "required": [
               "protocol_digest"
             ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "evaluation_basis": {
+                "const": "llm_advisory"
+              }
+            },
+            "required": [
+              "evaluation_basis"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
           }
         }
       }

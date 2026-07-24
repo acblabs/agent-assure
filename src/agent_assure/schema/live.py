@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
@@ -19,6 +19,54 @@ from agent_assure.schema.evaluation import Finding
 
 DecimalString = str
 SignedDecimalString = str
+# The current protocol records statistical and safety constraints but does not
+# yet bind the complete arm configuration and prompt manifest before execution.
+LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION = False
+
+
+def _require_non_null_schema_fields(
+    schema: dict[str, Any],
+    fields: tuple[str, ...],
+) -> None:
+    current_contract = {
+        "if": {
+            "properties": {
+                "schema_version": {"const": "0.6.0"},
+            }
+        },
+        "then": {
+            "properties": {
+                field_name: {"not": {"type": "null"}}
+                for field_name in fields
+            },
+            "required": list(fields),
+        },
+    }
+    existing = schema.setdefault("allOf", [])
+    if isinstance(existing, list):
+        existing.append(current_contract)
+
+
+def _live_observation_schema_extra(schema: dict[str, Any]) -> None:
+    _require_non_null_schema_fields(
+        schema,
+        ("prompt_digest", "randomization_block_id", "schedule_index"),
+    )
+
+
+def _live_evaluation_schema_extra(schema: dict[str, Any]) -> None:
+    _require_non_null_schema_fields(
+        schema,
+        ("configuration_digest", "suite_digest"),
+    )
+
+
+def _drift_window_schema_extra(schema: dict[str, Any]) -> None:
+    _require_non_null_schema_fields(schema, ("configuration_digest",))
+
+
+def _drift_comparability_schema_extra(schema: dict[str, Any]) -> None:
+    _require_non_null_schema_fields(schema, ("configuration_digest_matches",))
 
 AnalysisMethod = Literal[
     "paired_cluster_t_interval",
@@ -679,6 +727,12 @@ class LiveProtocolRecord(PersistedArtifact):
                 )
             if self.advanced_analysis_plan is None:
                 raise ValueError("paired permutation methods require advanced_analysis_plan")
+            if _decimal(self.non_inferiority_margin) != Decimal("0"):
+                raise ValueError(
+                    "paired permutation methods support only a zero "
+                    "non_inferiority_margin; sign-flip randomization is not calibrated "
+                    "for a shifted non-inferiority null"
+                )
         if self.advanced_analysis_plan is not None:
             self._validate_advanced_analysis_plan()
         return self
@@ -757,11 +811,16 @@ class LiveDistribution(PersistedArtifact):
 
 
 class LiveObservationResult(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_live_observation_schema_extra)
+
     artifact_kind: Literal["live-observation-result"] = "live-observation-result"
     observation_id: str = Field(min_length=1)
     run_id: str = Field(min_length=1)
     case_id: str = Field(min_length=1)
     repetition_index: int = Field(ge=0)
+    schedule_index: int | None = Field(default=None, ge=0)
+    randomization_block_id: str | None = Field(default=None, min_length=1)
+    prompt_digest: DigestHex | None = None
     provider: str | None = None
     model: str | None = None
     resolved_model: str | None = None
@@ -802,6 +861,18 @@ class LiveObservationResult(PersistedArtifact):
     def _coerce_findings(cls, value: object) -> object:
         return coerce_tuple(value)
 
+    @model_validator(mode="after")
+    def _require_current_pairing_identity(self) -> LiveObservationResult:
+        if self.schema_version == "0.6.0" and (
+            self.schedule_index is None
+            or self.randomization_block_id is None
+            or self.prompt_digest is None
+        ):
+            raise ValueError(
+                "v0.6 live observations require prompt, schedule, and randomization identity"
+            )
+        return self
+
 
 class LiveGroupSummary(PersistedArtifact):
     artifact_kind: Literal["live-group-summary"] = "live-group-summary"
@@ -830,14 +901,19 @@ class LiveGroupSummary(PersistedArtifact):
 
 
 class LiveEvaluationReport(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_live_evaluation_schema_extra)
+
     artifact_kind: Literal["live-evaluation-report"] = "live-evaluation-report"
     runset_id: str = Field(min_length=1)
     suite_id: str = Field(min_length=1)
     suite_version: str = Field(min_length=1)
+    suite_digest: DigestHex | None = None
+    configuration_digest: DigestHex | None = None
     protocol_id: str | None = None
     protocol_digest: DigestHex | None = None
     baseline_mode: Literal["concurrent_paired", "fixed_reference"] | None = None
     analysis_method: str = Field(default="cluster_t_interval", min_length=1)
+    exploratory: bool = True
     cluster_by: Literal["case_id", "source_group_id"] = "case_id"
     planned_repetitions: int | None = Field(default=None, ge=1)
     planned_observations: int | None = Field(default=None, ge=1)
@@ -858,6 +934,9 @@ class LiveEvaluationReport(PersistedArtifact):
         "superiority in general",
         "design-effect and effective-n fields are planning and sensitivity metadata; "
         "cluster intervals use the declared empirical cluster-rate method",
+        "the current protocol schema does not carry an execution-configuration digest; "
+        "configuration_digest records the executed configuration and exact prompt manifest "
+        "but cannot prove that configuration was frozen in the protocol before execution",
     )
 
     @field_validator(
@@ -876,6 +955,42 @@ class LiveEvaluationReport(PersistedArtifact):
     @classmethod
     def _coerce_state(cls, value: object) -> GateState:
         return coerce_enum(GateState, value)
+
+    @model_validator(mode="after")
+    def _require_current_execution_binding(self) -> LiveEvaluationReport:
+        if self.schema_version == "0.6.0" and (
+            self.suite_digest is None or self.configuration_digest is None
+        ):
+            raise ValueError(
+                "v0.6 live evaluation reports require suite and configuration digests"
+            )
+        return self
+
+    @model_validator(mode="after")
+    def _require_unique_observation_identity(self) -> LiveEvaluationReport:
+        observation_ids: set[str] = set()
+        run_ids: set[str] = set()
+        schedule_identities: set[tuple[str, int, int | None, str | None, str | None]] = set()
+        for observation in self.observations:
+            if observation.observation_id in observation_ids:
+                raise ValueError("live evaluation report contains duplicate observation_id")
+            observation_ids.add(observation.observation_id)
+            if observation.run_id in run_ids:
+                raise ValueError("live evaluation report contains duplicate run_id")
+            run_ids.add(observation.run_id)
+            schedule_identity = (
+                observation.case_id,
+                observation.repetition_index,
+                observation.schedule_index,
+                observation.randomization_block_id,
+                observation.prompt_digest,
+            )
+            if schedule_identity in schedule_identities:
+                raise ValueError(
+                    "live evaluation report contains duplicate prompt and schedule identity"
+                )
+            schedule_identities.add(schedule_identity)
+        return self
 
 
 class LiveComparisonReport(PersistedArtifact):
@@ -958,12 +1073,15 @@ class DriftWindowMetric(PersistedArtifact):
 
 
 class DriftWindowSummary(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_drift_window_schema_extra)
+
     artifact_kind: Literal["drift-window-summary"] = "drift-window-summary"
     window_id: str = Field(min_length=1)
     window_index: int = Field(ge=0)
     runset_id: str = Field(min_length=1)
     suite_id: str = Field(min_length=1)
     suite_version: str = Field(min_length=1)
+    configuration_digest: DigestHex | None = None
     protocol_id: str | None = None
     protocol_digest: DigestHex | None = None
     baseline_mode: Literal["concurrent_paired", "fixed_reference"] | None = None
@@ -990,14 +1108,23 @@ class DriftWindowSummary(PersistedArtifact):
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
 
+    @model_validator(mode="after")
+    def _require_current_configuration_digest(self) -> DriftWindowSummary:
+        if self.schema_version == "0.6.0" and self.configuration_digest is None:
+            raise ValueError("v0.6 drift windows require configuration_digest")
+        return self
+
 
 class DriftComparabilityResult(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_drift_comparability_schema_extra)
+
     artifact_kind: Literal["drift-comparability-result"] = "drift-comparability-result"
     status: DriftComparabilityStatus
     compared_windows: int = Field(ge=0)
     suite_matches: bool
     baseline_mode_matches: bool
     analysis_method_matches: bool
+    configuration_digest_matches: bool | None = None
     protocol_digest_matches: bool
     material_fields_match: bool
     tool_schema_digest_matches: bool
@@ -1014,6 +1141,16 @@ class DriftComparabilityResult(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _require_current_configuration_comparability(
+        self,
+    ) -> DriftComparabilityResult:
+        if self.schema_version == "0.6.0" and self.configuration_digest_matches is None:
+            raise ValueError(
+                "v0.6 drift comparability requires configuration_digest_matches"
+            )
+        return self
 
 
 class DriftStateEstimate(PersistedArtifact):

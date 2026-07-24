@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
-from agent_assure.artifact_io import write_text_atomic
+from agent_assure.artifact_io import file_sha256, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.privacy.redaction import redact_packet_payload
 from agent_assure.reporting.markdown_safety import (
@@ -18,7 +17,10 @@ from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
 from agent_assure.schema.release import ReleaseArtifactManifest
 from agent_assure.schema.usage import UsageSummary
-from agent_assure.schema.validation import load_json
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 from agent_assure.usage.aggregation import format_usage_delta
 
 DEFAULT_PACKET_LIMITATIONS = (
@@ -42,11 +44,19 @@ DEFAULT_INTERPRETATION = (
 
 
 def load_evaluation_summary(path: Path) -> EvaluationSummary:
-    return EvaluationSummary.model_validate(load_json(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evaluation-summary"),
+        EvaluationSummary,
+        kind="evaluation-summary",
+    )
 
 
 def load_comparison_summary(path: Path) -> ComparisonSummary:
-    return ComparisonSummary.model_validate(load_json(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "comparison-summary"),
+        ComparisonSummary,
+        kind="comparison-summary",
+    )
 
 
 def build_evidence_packet(
@@ -88,7 +98,7 @@ def packet_artifact_digest(
     return PacketArtifactDigest(
         artifact_kind="packet-artifact-digest",
         role=role,
-        sha256=_file_sha256(path),
+        sha256=file_sha256(path),
     )
 
 
@@ -103,7 +113,11 @@ def write_evidence_packet(packet: EvidencePacket, path: Path) -> None:
 
 
 def load_evidence_packet(path: Path) -> EvidencePacket:
-    return EvidencePacket.model_validate(load_json(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evidence-packet"),
+        EvidencePacket,
+        kind="evidence-packet",
+    )
 
 
 def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
@@ -200,10 +214,6 @@ def _summary_for_packet_id(
     summary: EvaluationSummary | ComparisonSummary,
 ) -> dict[str, object]:
     return summary.model_dump(mode="json", exclude={"environment"})
-
-
-def _file_sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def _packet_usage_lines(packet: EvidencePacket) -> list[str]:

@@ -6,12 +6,15 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
-from agent_assure.io_limits import load_json_bounded
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, write_evidence_diff_html
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import RunSet
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 
 app = typer.Typer(help="Static evidence-diff rendering.")
 console = Console()
@@ -123,19 +126,35 @@ def _required_path(path: Path | None, option_name: str) -> Path:
 
 
 def _load_runset(path: Path) -> RunSet:
-    return RunSet.model_validate(load_json_bounded(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "run-set"),
+        RunSet,
+        kind="run-set",
+    )
 
 
 def _load_evaluation_summary(path: Path) -> EvaluationSummary:
-    return EvaluationSummary.model_validate(load_json_bounded(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evaluation-summary"),
+        EvaluationSummary,
+        kind="evaluation-summary",
+    )
 
 
 def _load_comparison_summary(path: Path) -> ComparisonSummary:
-    return ComparisonSummary.model_validate(load_json_bounded(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "comparison-summary"),
+        ComparisonSummary,
+        kind="comparison-summary",
+    )
 
 
 def _load_packet(path: Path) -> EvidencePacket:
-    return EvidencePacket.model_validate(load_json_bounded(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evidence-packet"),
+        EvidencePacket,
+        kind="evidence-packet",
+    )
 
 
 def _artifact_paths(

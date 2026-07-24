@@ -2,7 +2,7 @@
 
 ## Differentiators
 
-- Evidence-carrying release contracts: versioned evidence descriptors,
+- Development-RFC evidence-carrying release contracts: versioned evidence descriptors,
   deterministic mutation operators, normative expected-detection contracts,
   provenance, independence classes, and replayable single-operator results.
 - Local-first assurance: commands run from a `pip` install and write review
@@ -35,7 +35,7 @@
 
 ## Implemented
 
-- Agent Release Assurance Compiler positioning with four strict
+- Development-RFC Agent Release Assurance Compiler mutation surface with four strict
   evidence-carrying `/v1` contract roots and a closed built-in registry for
   `drop-material-evidence-link`, `bypass-required-human-review`, and
   `inject-forbidden-tool`.

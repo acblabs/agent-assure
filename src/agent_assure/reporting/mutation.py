@@ -4,25 +4,41 @@ import hashlib
 import os
 import stat
 import tempfile
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
+from typing import BinaryIO, cast
 
+from agent_assure.artifact_io import (
+    ensure_unlinked_directory,
+    file_sha256,
+)
 from agent_assure.canonical.jcs import canonical_bytes
 from agent_assure.canonical.normalize import digest_projection
+from agent_assure.io_limits import load_json_bounded
 from agent_assure.mutation.execution import MutationExecution, build_evidence_descriptor
 from agent_assure.schema.validation import validate_artifact_payload
 
 MUTATION_RESULT_FILENAME = "assurance-mutation-result.json"
 EVIDENCE_DESCRIPTOR_FILENAME = "assurance-evidence-descriptor.json"
 MUTATED_RUNSET_FILENAME = "mutated-runset.json"
+MUTATION_GENERATION_MANIFEST_FILENAME = "mutation-generation-manifest.json"
+MUTATION_OUTPUT_LOCK_FILENAME = ".agent-assure-mutation.lock"
 
 _FIXED_OUTPUT_FILENAMES = (
     MUTATION_RESULT_FILENAME,
     EVIDENCE_DESCRIPTOR_FILENAME,
     MUTATED_RUNSET_FILENAME,
+    MUTATION_GENERATION_MANIFEST_FILENAME,
 )
 _TRANSACTION_PREFIX = ".agent-assure-mutation-txn-"
+_GENERATION_MANIFEST_CONTRACT = "AssuranceMutationArtifactGeneration/v1"
+_WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+_PROTECTED_OUTPUT_FILENAMES = (
+    *_FIXED_OUTPUT_FILENAMES,
+    MUTATION_OUTPUT_LOCK_FILENAME,
+)
 
 
 @dataclass(frozen=True)
@@ -30,6 +46,7 @@ class MutationArtifactPaths:
     result: Path
     evidence_descriptor: Path
     mutated_runset: Path | None
+    generation_manifest: Path
 
 
 def ensure_inputs_do_not_alias_mutation_output(
@@ -37,9 +54,10 @@ def ensure_inputs_do_not_alias_mutation_output(
     out_dir: Path,
 ) -> None:
     """Reject any input alias to a fixed output through paths or file identity."""
+    _ensure_mutation_output_directory_safe(out_dir)
     for source_input in source_inputs:
         source_identity = _resolved_path_identity(source_input, strict=True)
-        for filename in _FIXED_OUTPUT_FILENAMES:
+        for filename in _PROTECTED_OUTPUT_FILENAMES:
             destination = out_dir / filename
             destination_identity = _resolved_path_identity(destination, strict=False)
             if source_identity == destination_identity or _same_file(source_input, destination):
@@ -53,6 +71,7 @@ def write_mutation_artifacts(
     source_inputs: Iterable[Path] = (),
 ) -> MutationArtifactPaths:
     """Persist one complete canonical generation with rollback on commit failure."""
+    _ensure_mutation_output_directory_safe(out_dir)
     _validate_execution_coherence(execution)
     result_payload = execution.result.model_dump(mode="json")
     descriptor_payload = execution.evidence_descriptor.model_dump(mode="json")
@@ -75,25 +94,121 @@ def write_mutation_artifacts(
     elif execution.result.mutated_digest is not None:
         raise ValueError("mutation result references a transformed subject that is unavailable")
 
-    generation = {
+    artifact_generation = {
         MUTATION_RESULT_FILENAME: _canonical_json_bytes(result_payload),
         EVIDENCE_DESCRIPTOR_FILENAME: _canonical_json_bytes(descriptor_payload),
         MUTATED_RUNSET_FILENAME: mutated_bytes,
     }
+    generation = {
+        **artifact_generation,
+        MUTATION_GENERATION_MANIFEST_FILENAME: _generation_manifest_bytes(artifact_generation),
+    }
     guarded_inputs = tuple(source_inputs)
     if guarded_inputs:
         ensure_inputs_do_not_alias_mutation_output(guarded_inputs, out_dir)
-    out_dir.mkdir(parents=True, exist_ok=True)
+    ensure_unlinked_directory(out_dir)
     if guarded_inputs:
         # Recheck after directory creation; the transaction repeats this after
         # staging and immediately before it moves any destination entry.
         ensure_inputs_do_not_alias_mutation_output(guarded_inputs, out_dir)
-    _replace_output_generation(out_dir, generation, source_inputs=guarded_inputs)
+    ensure_unlinked_directory(out_dir)
+    with _mutation_output_lock(out_dir):
+        ensure_unlinked_directory(out_dir)
+        if guarded_inputs:
+            ensure_inputs_do_not_alias_mutation_output(guarded_inputs, out_dir)
+        _replace_output_generation(out_dir, generation, source_inputs=guarded_inputs)
+        _validate_mutation_artifact_generation_unlocked(out_dir)
 
     return MutationArtifactPaths(
         result=out_dir / MUTATION_RESULT_FILENAME,
         evidence_descriptor=out_dir / EVIDENCE_DESCRIPTOR_FILENAME,
         mutated_runset=(out_dir / MUTATED_RUNSET_FILENAME if mutated_bytes is not None else None),
+        generation_manifest=out_dir / MUTATION_GENERATION_MANIFEST_FILENAME,
+    )
+
+
+def validate_mutation_artifact_generation(out_dir: Path) -> MutationArtifactPaths:
+    """Validate one point-in-time generation and return its fixed paths."""
+    with open_validated_mutation_artifact_generation(out_dir) as paths:
+        return paths
+
+
+@contextmanager
+def open_validated_mutation_artifact_generation(
+    out_dir: Path,
+) -> Iterator[MutationArtifactPaths]:
+    """Hold the writer lock while a caller validates and consumes one generation."""
+    _ensure_mutation_output_directory_safe(out_dir)
+    ensure_unlinked_directory(out_dir)
+    with _mutation_output_lock(out_dir):
+        yield _validate_mutation_artifact_generation_unlocked(out_dir)
+
+
+def _validate_mutation_artifact_generation_unlocked(
+    out_dir: Path,
+) -> MutationArtifactPaths:
+    """Validate fixed members while the caller holds the generation lock."""
+    manifest_path = out_dir / MUTATION_GENERATION_MANIFEST_FILENAME
+    raw_manifest = load_json_bounded(
+        manifest_path,
+        label="mutation artifact generation manifest",
+    )
+    if not isinstance(raw_manifest, dict):
+        raise ValueError("mutation artifact generation manifest must be an object")
+    manifest = cast(dict[str, object], raw_manifest)
+    if manifest.get("contract_id") != _GENERATION_MANIFEST_CONTRACT:
+        raise ValueError("mutation artifact generation manifest contract is unsupported")
+    raw_artifacts = manifest.get("artifacts")
+    if not isinstance(raw_artifacts, list):
+        raise ValueError("mutation artifact generation manifest has no artifact list")
+    expected_filenames = (
+        MUTATION_RESULT_FILENAME,
+        EVIDENCE_DESCRIPTOR_FILENAME,
+        MUTATED_RUNSET_FILENAME,
+    )
+    if len(raw_artifacts) != len(expected_filenames):
+        raise ValueError("mutation artifact generation manifest is incomplete")
+    projection = {
+        "contract_id": _GENERATION_MANIFEST_CONTRACT,
+        "artifacts": raw_artifacts,
+    }
+    if (
+        manifest.get("generation_digest")
+        != hashlib.sha256(_canonical_json_bytes(projection)).hexdigest()
+    ):
+        raise ValueError("mutation artifact generation manifest digest does not match")
+
+    mutated_runset_present = False
+    for filename, raw_entry in zip(expected_filenames, raw_artifacts, strict=True):
+        if not isinstance(raw_entry, dict):
+            raise ValueError("mutation artifact generation manifest entry must be an object")
+        entry = cast(dict[str, object], raw_entry)
+        if entry.get("filename") != filename:
+            raise ValueError("mutation artifact generation manifest order is invalid")
+        present = entry.get("present")
+        digest = entry.get("sha256")
+        if not isinstance(present, bool):
+            raise ValueError("mutation artifact generation presence must be boolean")
+        path = out_dir / filename
+        if present:
+            if not isinstance(digest, str) or len(digest) != 64:
+                raise ValueError("mutation artifact generation digest is malformed")
+            try:
+                actual_digest = file_sha256(path)
+            except FileNotFoundError as exc:
+                raise ValueError(f"committed mutation artifact is missing: {filename}") from exc
+            if actual_digest != digest:
+                raise ValueError(f"committed mutation artifact digest does not match: {filename}")
+        elif digest is not None or _entry_exists(path):
+            raise ValueError(f"mutation artifact generation absence does not match: {filename}")
+        if filename == MUTATED_RUNSET_FILENAME:
+            mutated_runset_present = present
+
+    return MutationArtifactPaths(
+        result=out_dir / MUTATION_RESULT_FILENAME,
+        evidence_descriptor=out_dir / EVIDENCE_DESCRIPTOR_FILENAME,
+        mutated_runset=(out_dir / MUTATED_RUNSET_FILENAME if mutated_runset_present else None),
+        generation_manifest=manifest_path,
     )
 
 
@@ -172,8 +287,25 @@ def _replace_output_generation(
                 _replace_entry(destination, backup_path)
 
             commit_started = True
-            for filename, stage_path in staged.items():
+            commit_order = (
+                *(
+                    item
+                    for item in staged.items()
+                    if item[0] != MUTATION_GENERATION_MANIFEST_FILENAME
+                ),
+                *(
+                    item
+                    for item in staged.items()
+                    if item[0] == MUTATION_GENERATION_MANIFEST_FILENAME
+                ),
+            )
+            for filename, stage_path in commit_order:
+                if filename == MUTATION_GENERATION_MANIFEST_FILENAME:
+                    # The manifest is the single commit marker. Make directory
+                    # updates for every member durable before publishing it.
+                    _fsync_directory(out_dir)
                 _replace_entry(stage_path, out_dir / filename)
+            _fsync_directory(out_dir)
             # A missing mutated payload deliberately leaves its fixed output
             # absent; any prior copy is now held in the backup set and removed
             # only after the generation committed successfully.
@@ -229,6 +361,117 @@ def _write_staged_file(path: Path, content: bytes) -> None:
         os.fsync(handle.fileno())
 
 
+def _generation_manifest_bytes(generation: dict[str, bytes | None]) -> bytes:
+    artifacts = [
+        {
+            "filename": filename,
+            "present": content is not None,
+            "sha256": hashlib.sha256(content).hexdigest() if content is not None else None,
+        }
+        for filename, content in generation.items()
+    ]
+    projection = {
+        "contract_id": _GENERATION_MANIFEST_CONTRACT,
+        "artifacts": artifacts,
+    }
+    return _canonical_json_bytes(
+        {
+            **projection,
+            "generation_digest": hashlib.sha256(_canonical_json_bytes(projection)).hexdigest(),
+        }
+    )
+
+
+@contextmanager
+def _mutation_output_lock(out_dir: Path) -> Iterator[None]:
+    lock_path = out_dir / MUTATION_OUTPUT_LOCK_FILENAME
+    descriptor = _open_safe_lock_file(lock_path)
+    with os.fdopen(descriptor, "r+b") as handle:
+        _lock_file(handle)
+        try:
+            _assert_open_lock_identity(handle, lock_path)
+            yield
+        finally:
+            _unlock_file(handle)
+
+
+def _open_safe_lock_file(path: Path) -> int:
+    flags = os.O_RDWR | os.O_CREAT
+    flags |= getattr(os, "O_BINARY", 0)
+    flags |= getattr(os, "O_NOFOLLOW", 0)
+    descriptor = os.open(path, flags, 0o600)
+    try:
+        _assert_open_lock_identity_descriptor(descriptor, path)
+    except BaseException:
+        os.close(descriptor)
+        raise
+    return descriptor
+
+
+def _assert_open_lock_identity(handle: BinaryIO, path: Path) -> None:
+    _assert_open_lock_identity_descriptor(handle.fileno(), path)
+
+
+def _assert_open_lock_identity_descriptor(descriptor: int, path: Path) -> None:
+    opened = os.fstat(descriptor)
+    try:
+        current = os.lstat(path)
+    except FileNotFoundError as exc:
+        raise OSError("mutation output lock path changed while opening") from exc
+    attributes = getattr(current, "st_file_attributes", 0)
+    if (
+        stat.S_ISDIR(current.st_mode)
+        or stat.S_ISLNK(current.st_mode)
+        or attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
+        or current.st_nlink != 1
+        or opened.st_nlink != 1
+        or (opened.st_dev, opened.st_ino) != (current.st_dev, current.st_ino)
+    ):
+        raise OSError("refusing unsafe mutation output lock path")
+
+
+def _lock_file(handle: BinaryIO) -> None:
+    handle.seek(0)
+    if os.name == "nt":
+        import msvcrt
+
+        if os.fstat(handle.fileno()).st_size == 0:
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_LOCK, 1)
+        return
+    import fcntl
+
+    flock = cast(Callable[[int, int], None], vars(fcntl)["flock"])
+    lock_ex = cast(int, vars(fcntl)["LOCK_EX"])
+    flock(handle.fileno(), lock_ex)
+
+
+def _unlock_file(handle: BinaryIO) -> None:
+    handle.seek(0)
+    if os.name == "nt":
+        import msvcrt
+
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+        return
+    import fcntl
+
+    flock = cast(Callable[[int, int], None], vars(fcntl)["flock"])
+    lock_un = cast(int, vars(fcntl)["LOCK_UN"])
+    flock(handle.fileno(), lock_un)
+
+
+def _fsync_directory(path: Path) -> None:
+    if os.name == "nt":
+        return
+    descriptor = os.open(path, os.O_RDONLY)
+    try:
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
 def _replace_entry(source: Path, destination: Path) -> None:
     # os.replace renames the directory entry itself. Unlike opening a fixed
     # output path, it does not stream bytes through an existing symlink target.
@@ -257,6 +500,15 @@ def _same_file(left: Path, right: Path) -> bool:
         return os.path.samefile(left, right)
     except (OSError, ValueError):
         return False
+
+
+def _ensure_mutation_output_directory_safe(out_dir: Path) -> None:
+    try:
+        resolved = out_dir.resolve(strict=False)
+    except RuntimeError as exc:
+        raise ValueError("mutation output directory cannot be safely resolved") from exc
+    if resolved == Path(resolved.anchor):
+        raise ValueError("mutation output directory must not be a filesystem root")
 
 
 def _resolved_path_identity(path: Path, *, strict: bool) -> str:

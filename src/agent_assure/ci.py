@@ -1,12 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 from typing import Literal
 
-from agent_assure.artifact_io import write_text_atomic
+from agent_assure.artifact_io import (
+    ensure_unlinked_directory,
+    unlink_file_if_exists,
+    write_text_atomic,
+)
 from agent_assure.compare.runsets import ComparisonReport, InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
@@ -36,10 +41,28 @@ from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
-from agent_assure.schema.validation import load_json
+from agent_assure.schema.validation import (
+    load_json,
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
+)
 
 GateArtifact = EvaluationSummary | ComparisonSummary | EvidencePacket
 ReportMode = Literal["full", "fail-fast"]
+_CI_OUTPUT_FILENAMES = (
+    "evaluation-report.json",
+    "evaluation-summary.json",
+    "evaluation-report.md",
+    "comparison-report.json",
+    "comparison-summary.json",
+    "comparison-report.md",
+    "evidence-packet.json",
+    "evidence-packet.md",
+    "release-artifact-manifest.json",
+    "dependency-inventory.json",
+    "ci-diagnostics.json",
+)
 
 
 @dataclass(frozen=True)
@@ -74,14 +97,29 @@ def load_gate_artifact(path: Path) -> GateArtifact:
     payload = load_json(path)
     artifact_kind = payload.get("artifact_kind")
     if artifact_kind == "evaluation-summary":
-        return EvaluationSummary.model_validate(payload)
+        validate_loaded_artifact_payload(payload, artifact_kind)
+        return project_validated_artifact_payload(
+            payload,
+            EvaluationSummary,
+            kind=artifact_kind,
+        )
     if artifact_kind == "comparison-summary":
-        return ComparisonSummary.model_validate(payload)
+        validate_loaded_artifact_payload(payload, artifact_kind)
+        return project_validated_artifact_payload(
+            payload,
+            ComparisonSummary,
+            kind=artifact_kind,
+        )
     if artifact_kind == "evidence-packet":
-        return EvidencePacket.model_validate(payload)
+        validate_loaded_artifact_payload(payload, artifact_kind)
+        return project_validated_artifact_payload(
+            payload,
+            EvidencePacket,
+            kind=artifact_kind,
+        )
     raise ValueError(
         "CI gate expects artifact_kind evaluation-summary, comparison-summary, "
-        f"or evidence-packet; got {artifact_kind!r}"
+        "or evidence-packet"
     )
 
 
@@ -156,7 +194,7 @@ def gate_comparison_summary(
     if summary.classification in {
         ComparisonClassification.new_failure,
         ComparisonClassification.persistent_failure,
-    }:
+    } and summary.candidate_state is not GateState.warn:
         return GateDecision(
             exit_code=1,
             message=(
@@ -225,7 +263,22 @@ def run_ci(
     waivers: tuple[Waiver, ...] = (),
     today: date | None = None,
     project_root: Path | None = None,
+    source_input_paths: tuple[Path, ...] = (),
 ) -> CiRunResult:
+    _ensure_ci_output_directory_safe(out_dir)
+    input_paths = tuple(
+        path
+        for path in (
+            suite_path,
+            candidate_runset_path,
+            baseline_runset_path,
+            *source_input_paths,
+        )
+        if path is not None
+    )
+    _ensure_ci_inputs_do_not_alias_outputs(input_paths, out_dir)
+    ensure_unlinked_directory(out_dir)
+    _remove_previous_ci_outputs(out_dir)
     source_root = (
         project_root.resolve()
         if project_root is not None
@@ -255,7 +308,6 @@ def run_ci(
         ),
         default_root=source_root,
     )
-    out_dir.mkdir(parents=True, exist_ok=True)
     environment = environment_with_dependency_inventory(
         source_root,
         out_dir,
@@ -339,6 +391,50 @@ def run_ci(
     )
 
 
+def _remove_previous_ci_outputs(out_dir: Path) -> None:
+    for filename in _CI_OUTPUT_FILENAMES:
+        unlink_file_if_exists(out_dir / filename)
+
+
+def _ensure_ci_output_directory_safe(out_dir: Path) -> None:
+    try:
+        resolved = out_dir.resolve(strict=False)
+    except RuntimeError as exc:
+        raise ValueError("CI output directory cannot be safely resolved") from exc
+    if resolved == Path(resolved.anchor):
+        raise ValueError("CI output directory must not be a filesystem root")
+
+
+def _ensure_ci_inputs_do_not_alias_outputs(
+    input_paths: tuple[Path, ...],
+    out_dir: Path,
+) -> None:
+    for input_path in input_paths:
+        input_identity = _resolved_path_identity(input_path, strict=True)
+        for filename in _CI_OUTPUT_FILENAMES:
+            output_path = out_dir / filename
+            if (
+                input_identity == _resolved_path_identity(output_path, strict=False)
+                or _same_file(input_path, output_path)
+            ):
+                raise ValueError("CI input aliases an owned output path")
+
+
+def _same_file(left: Path, right: Path) -> bool:
+    try:
+        return os.path.samefile(left, right)
+    except (OSError, ValueError):
+        return False
+
+
+def _resolved_path_identity(path: Path, *, strict: bool) -> str:
+    try:
+        resolved = path.resolve(strict=strict)
+    except RuntimeError as exc:
+        raise ValueError("CI artifact path cannot be safely resolved") from exc
+    return os.path.normcase(os.path.abspath(resolved))
+
+
 def write_diagnostics(
     decision: GateDecision,
     path: Path,
@@ -370,7 +466,11 @@ def _decision_for_state(
 
 
 def _load_runset(path: Path) -> RunSet:
-    return RunSet.model_validate(load_json(path))
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "run-set", label="RunSet JSON"),
+        RunSet,
+        kind="run-set",
+    )
 
 
 def _compare_for_ci(

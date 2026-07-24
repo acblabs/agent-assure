@@ -129,6 +129,91 @@ def test_runset_is_first_class_schema() -> None:
     assert runset.artifact_kind == "run-set"
 
 
+@pytest.mark.parametrize("value", (1 << 53, -(1 << 53)))
+def test_persisted_artifacts_reject_integers_outside_rfc8785_domain(value: int) -> None:
+    with pytest.raises(ValidationError, match="RFC 8785 safe integer domain"):
+        _record(latency_ms=value)
+
+
+def test_persisted_artifacts_accept_rfc8785_integer_boundaries() -> None:
+    assert _record(latency_ms=(1 << 53) - 1).latency_ms == (1 << 53) - 1
+
+
+def test_run_record_rejects_inconsistent_zero_token_components() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="total_tokens must equal prompt_tokens \\+ completion_tokens",
+    ):
+        _record(prompt_tokens=0, completion_tokens=0, total_tokens=7)
+
+
+def test_run_record_accepts_partial_token_components_bounded_by_total() -> None:
+    record = _record(prompt_tokens=3, completion_tokens=None, total_tokens=7)
+
+    assert record.prompt_tokens == 3
+    assert record.completion_tokens is None
+    assert record.total_tokens == 7
+
+
+def test_run_record_rejects_partial_token_components_above_total() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="observed token components cannot exceed total_tokens",
+    ):
+        _record(prompt_tokens=8, completion_tokens=None, total_tokens=7)
+
+
+def test_fixture_runset_rejects_live_run_records() -> None:
+    live_record = _record(
+        execution_mode="live",
+        observation_id="obs-001",
+        repetition_index=0,
+        schedule_index=0,
+        cluster_id="case-001",
+        adapter_id="static-jsonl",
+        cost_budget_committed_usd="0.000000",
+        generated_token_budget_committed=0,
+        total_token_budget_committed=0,
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="fixture run sets may contain only fixture run records",
+    ):
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="runset-mixed",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            suite_id="suite-001",
+            suite_version="0.1.0",
+            suite_digest="0" * 64,
+            fixture_manifest_digest="1" * 64,
+            runs=(live_record,),
+        )
+
+
+def test_live_runset_rejects_fixture_run_records() -> None:
+    with pytest.raises(
+        ValidationError,
+        match="live run sets may contain only live run records",
+    ):
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="runset-mixed",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            suite_id="suite-001",
+            suite_version="0.1.0",
+            suite_digest="0" * 64,
+            fixture_manifest_digest="1" * 64,
+            execution_mode="live",
+            protocol_id="protocol-001",
+            protocol_digest="2" * 64,
+            runs=(_record(),),
+        )
+
+
 @pytest.mark.parametrize("identity_field", ("artifact_kind", "schema_version"))
 def test_raw_runset_requires_explicit_persisted_identity(identity_field: str) -> None:
     payload = RunSet(

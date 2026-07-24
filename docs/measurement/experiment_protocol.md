@@ -82,6 +82,23 @@ repetition_index)` set within each cluster must match across baseline and
 candidate reports. This does not prove exchangeability. Exchangeability remains
 a reviewed design assumption that must be declared before execution.
 
+Live evaluation also verifies the strongest identities carried by the current
+artifacts: the protocol and RunSet suite digests must match the compiled suite;
+every run configuration digest must match its RunSet configuration identity;
+prompt digests and source groups must be stable within a case; cluster IDs must
+be derived from the declared `cluster_by` field; and the observations must form
+the complete case/repetition schedule. Provider, requested and resolved model,
+provider API version, SDK, region, adapter, and pipeline identity must also be
+homogeneous within an evaluated arm; a mid-run provider-version change is a
+different arm, not another observation from the same population. The current
+protocol schema does not carry a separate execution-configuration digest, so
+protocol-to-configuration binding remains a documented limitation. RunSet and report configuration
+digests bind the executed arm and exact prompt-content manifest after execution.
+Because the protocol does not yet carry a case-to-source-group mapping,
+`source_group_id` analyses are forced to exploratory interpretation. They
+cannot produce a confirmatory endpoint or comparison pass until that mapping is
+protocol-bound.
+
 ## Hypotheses
 
 Each live run must declare one primary hypothesis family before execution.
@@ -154,8 +171,8 @@ Each advanced endpoint must be interpreted under its declared prerequisites:
 | --- | --- | --- |
 | `poisson_upper_bound` | event count, exposure count, exposure unit, and predeclared event family | allowed for one-sided rare-event upper bounds when exposure is nonzero and endpoint prerequisites are met |
 | `hierarchical_binomial_summary` | binary endpoint values, cluster IDs, observation counts, and planned intraclass correlation | descriptive for observed cluster correlation unless observed-ICC confirmatory use is predeclared by large-cluster threshold or external review |
-| `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed when exact enumeration is feasible under the implementation cap and the endpoint threshold is met |
-| `paired_cluster_permutation_monte_carlo` | the exact-test requirements plus a deterministic integer seed derived from the protocol digest | allowed when the protocol predeclares Monte Carlo randomization and the endpoint threshold is met |
+| `paired_cluster_permutation_exact` | concurrent paired baseline/candidate design, zero non-inferiority margin, identical included cluster sets, identical included case/repetition sets within each cluster, and baseline/candidate relabeling exchangeability | allowed for the zero-margin candidate-improvement null when exact enumeration is feasible under the implementation cap and the endpoint threshold is met |
+| `paired_cluster_permutation_monte_carlo` | the exact-test requirements plus a deterministic integer seed derived from the protocol digest | allowed for the zero-margin candidate-improvement null when the protocol predeclares Monte Carlo randomization and the endpoint threshold is met |
 
 Confirmatory interpretation is limited to endpoints whose prerequisite status is
 `met`. Sparse, unbalanced, missing, or low-cluster endpoints are labeled
@@ -361,8 +378,9 @@ drive the empirical cluster-rate interval.
 
 If all paired cluster differences are identical, the empirical difference
 interval can collapse to zero width. Reports label that case as a degenerate
-descriptive interval rather than applying a Wilson-style correction, which is
-not defined for paired differences on `[-1, 1]`.
+descriptive interval and do not permit it to produce a confirmatory interval
+pass. A Wilson-style correction is not applied because it is not defined for
+paired differences on `[-1, 1]`.
 
 If all per-arm cluster rates are identical, the reported per-arm boundary
 interval uses a conservative degenerate-boundary heuristic to avoid presenting a
@@ -379,6 +397,11 @@ Exact paired permutation enumerates sign assignments and is capped by the
 implementation before evaluation. Protocols that need larger paired designs
 should predeclare the Monte Carlo randomization method rather than relying on an
 exact test that is invalid above the cap.
+
+Sign-flip randomization is accepted only when the non-inferiority margin is
+zero. Adding a nonzero margin to each paired difference does not preserve the
+baseline/candidate relabeling symmetry and is therefore rejected rather than
+reported as calibrated non-inferiority inference.
 
 For rare critical events, including sensitive-content leaks or forbidden
 tool/provider use, an observed count of zero must be reported with an upper
@@ -401,6 +424,13 @@ decisions with the declared family-wise method. The current implementation
 supports single-step Bonferroni for confirmatory endpoint families; step-down
 Holm and fixed-sequence gatekeeping are not currently implemented.
 Exploratory comparisons must remain labeled exploratory.
+
+The current protocol schema does not pre-bind the complete baseline and
+candidate arm configurations or the exact prompt manifest. Execution reports
+record those identities, and paired comparison rejects prompt or schedule
+mismatches, but this post-execution binding is not preregistration. Live
+evaluation and comparison artifacts therefore remain explicitly exploratory
+until a future protocol version binds both arm configurations before execution.
 
 ## Interim Looks and Stopping Rules
 

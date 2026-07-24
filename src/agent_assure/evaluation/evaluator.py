@@ -12,7 +12,6 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
 from agent_assure.evaluation.invariants import evaluate_runset_controls
 from agent_assure.fixtures.loader import compiled_suite_digest
-from agent_assure.io_limits import load_json_bounded
 from agent_assure.policies.base import (
     DEFAULT_GATE_PROFILE,
     ControlResult,
@@ -152,8 +151,15 @@ class EvaluationReport(PersistedArtifact):
 
 
 def load_runset(path: Path) -> RunSet:
-    payload = load_json_bounded(path)
-    return RunSet.model_validate(payload)
+    # Imported lazily because schema export registration imports EvaluationReport
+    # from this module while validation itself is initializing.
+    from agent_assure.schema.validation import (
+        load_validated_artifact_payload,
+        project_validated_artifact_payload,
+    )
+
+    payload = load_validated_artifact_payload(path, "run-set", label="RunSet JSON")
+    return project_validated_artifact_payload(payload, RunSet, kind="run-set")
 
 
 def runset_digest(runset: RunSet) -> str:

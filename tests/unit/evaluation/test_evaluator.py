@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import date, timedelta
 from pathlib import Path
 
@@ -7,7 +8,12 @@ import pytest
 from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
-from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset, runset_digest
+from agent_assure.evaluation.evaluator import (
+    EvaluationReport,
+    evaluate_runset,
+    load_runset,
+    runset_digest,
+)
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
 from agent_assure.policies.evidence import evaluate_material_claim_evidence
@@ -60,6 +66,31 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     payload.pop("runset_digest")
     with pytest.raises(ValidationError, match="requires runset_digest"):
         EvaluationReport.model_validate(payload)
+
+
+def test_load_runset_requires_explicit_current_wire_identity(tmp_path: Path) -> None:
+    _, runset = _runset(BASELINE)
+    payload = runset.model_dump(mode="json")
+    payload.pop("artifact_kind")
+    path = tmp_path / "missing-identity.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="explicit identity fields before parsing"):
+        load_runset(path)
+
+
+def test_load_runset_enforces_frozen_legacy_shape(tmp_path: Path) -> None:
+    _, runset = _runset(BASELINE)
+    payload = _legacy_schema_version(runset.model_dump(mode="json"), "0.5.0")
+    assert isinstance(payload, dict)
+    first = payload["runs"][0]
+    assert isinstance(first, dict)
+    first["cost_budget_committed_usd"] = "0.000000"
+    path = tmp_path / "invalid-legacy-shape.json"
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        load_runset(path)
 
 
 def test_evidence_candidate_fails_material_claim_invariant() -> None:
@@ -280,6 +311,37 @@ def test_fixture_policy_result_failure_is_verdict_bearing() -> None:
     )
     assert finding.reason_code is ReasonCode.POLICY_FAILED
     assert finding.state is GateState.fail
+
+
+def test_fixture_policy_result_warning_is_reported() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    warned_run = first_run.model_copy(
+        update={
+            "policy_results": (
+                *first_run.policy_results,
+                PolicyResult(
+                    artifact_kind="policy-result",
+                    policy_id="fixture.declared_warning",
+                    state=GateState.warn,
+                    reason_codes=(ReasonCode.POLICY_FAILED,),
+                    severity=Severity.warning,
+                    message="fixture-declared policy warning",
+                ),
+            )
+        }
+    )
+    mutated = runset.model_copy(update={"runs": (warned_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.warn
+    finding = next(
+        finding
+        for finding in report.warning_controls
+        if finding.control_id == "policy_result:fixture.declared_warning"
+    )
+    assert finding.state is GateState.warn
 
 
 def test_required_policy_id_must_be_observed() -> None:
@@ -807,3 +869,18 @@ def _runset(variant: Path) -> tuple[CompiledSuite, RunSet]:
 
 def _reason_codes(summary: EvaluationSummary) -> set[ReasonCode]:
     return {finding.reason_code for finding in summary.findings}
+
+
+def _legacy_schema_version(value: object, schema_version: str) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): (
+                schema_version
+                if key == "schema_version"
+                else _legacy_schema_version(nested, schema_version)
+            )
+            for key, nested in value.items()
+        }
+    if isinstance(value, list):
+        return [_legacy_schema_version(item, schema_version) for item in value]
+    return value

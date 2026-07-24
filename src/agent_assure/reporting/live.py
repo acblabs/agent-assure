@@ -83,6 +83,10 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         f"- Run set: {markdown_code_span(report.runset_id)}",
         f"- Suite: {markdown_code_span(report.suite_id)} "
         f"version {markdown_code_span(report.suite_version)}",
+        f"- Suite digest: {markdown_code_span(report.suite_digest or 'not_recorded')}",
+        "- Configuration digest: "
+        f"{markdown_code_span(report.configuration_digest or 'not_recorded')}",
+        f"- Exploratory: {markdown_code_span(str(report.exploratory).lower())}",
         f"- Completion status: {markdown_code_span(report.completion_status)}",
         f"- Stop reasons: {markdown_code_span(', '.join(report.stop_reasons) or 'none')}",
         f"- Observations: `{report.overall.observations}`",

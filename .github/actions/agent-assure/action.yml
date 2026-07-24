@@ -38,6 +38,77 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Prepare output directory
+      shell: bash
+      env:
+        AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
+        AGENT_ASSURE_ACTION_CANDIDATE_VARIANT: ${{ inputs.candidate-variant }}
+        AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
+        AGENT_ASSURE_ACTION_SUITE: ${{ inputs.suite }}
+      run: |
+        set -euo pipefail
+        if [ -z "${AGENT_ASSURE_ACTION_OUT_DIR}" ]; then
+          echo "agent-assure refuses an empty or root output directory" >&2
+          exit 2
+        fi
+        canonical_out_dir="$(realpath -m -- "${AGENT_ASSURE_ACTION_OUT_DIR}")"
+        if [ "${canonical_out_dir}" = "/" ]; then
+          echo "agent-assure refuses an empty or root output directory" >&2
+          exit 2
+        fi
+        path_to_check="${AGENT_ASSURE_ACTION_OUT_DIR}"
+        while [ -n "${path_to_check}" ] &&
+          [ "${path_to_check}" != "." ] &&
+          [ "${path_to_check}" != "/" ]; do
+          if [ -L "${path_to_check}" ]; then
+            echo "agent-assure refuses linked output directories" >&2
+            exit 2
+          fi
+          parent="$(dirname -- "${path_to_check}")"
+          if [ "${parent}" = "${path_to_check}" ]; then
+            break
+          fi
+          path_to_check="${parent}"
+        done
+        owned_outputs=(
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/fixtures.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/baseline.runset.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/candidate.runset.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evaluation-report.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evaluation-summary.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evaluation-report.md"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/comparison-report.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/comparison-summary.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/comparison-report.md"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.md"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/release-artifact-manifest.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/dependency-inventory.json"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/ci-diagnostics.json"
+        )
+        for source_input in \
+          "${AGENT_ASSURE_ACTION_SUITE}" \
+          "${AGENT_ASSURE_ACTION_CANDIDATE_VARIANT}" \
+          "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}"; do
+          if [ -z "${source_input}" ]; then
+            continue
+          fi
+          for output_path in "${owned_outputs[@]}"; do
+            if [ "$(realpath -m -- "${source_input}")" = \
+              "$(realpath -m -- "${output_path}")" ] ||
+              { [ -e "${output_path}" ] && [ "${source_input}" -ef "${output_path}" ]; }; then
+              echo "agent-assure input aliases an owned output path" >&2
+              exit 2
+            fi
+          done
+        done
+        if [ -L "${AGENT_ASSURE_ACTION_OUT_DIR}/reports" ]; then
+          echo "agent-assure refuses linked output directories" >&2
+          exit 2
+        fi
+        mkdir -p "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"
+        rm -f -- "${owned_outputs[@]}"
     - name: Compile suite
       shell: bash
       env:
@@ -115,6 +186,21 @@ runs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: ${{ inputs.upload-name }}
-        path: ${{ inputs.out-dir }}
+        path: |
+          ${{ inputs.out-dir }}/suite.compiled.json
+          ${{ inputs.out-dir }}/fixtures.json
+          ${{ inputs.out-dir }}/baseline.runset.json
+          ${{ inputs.out-dir }}/candidate.runset.json
+          ${{ inputs.out-dir }}/reports/evaluation-report.json
+          ${{ inputs.out-dir }}/reports/evaluation-summary.json
+          ${{ inputs.out-dir }}/reports/evaluation-report.md
+          ${{ inputs.out-dir }}/reports/comparison-report.json
+          ${{ inputs.out-dir }}/reports/comparison-summary.json
+          ${{ inputs.out-dir }}/reports/comparison-report.md
+          ${{ inputs.out-dir }}/reports/evidence-packet.json
+          ${{ inputs.out-dir }}/reports/evidence-packet.md
+          ${{ inputs.out-dir }}/reports/release-artifact-manifest.json
+          ${{ inputs.out-dir }}/reports/dependency-inventory.json
+          ${{ inputs.out-dir }}/reports/ci-diagnostics.json
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}

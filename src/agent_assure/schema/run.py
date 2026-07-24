@@ -294,6 +294,15 @@ class AgentRunRecord(PersistedArtifact):
             self.usage_summary,
             owner="run record",
         )
+        if self.total_tokens is not None:
+            component_total = (self.prompt_tokens or 0) + (self.completion_tokens or 0)
+            both_components_observed = (
+                self.prompt_tokens is not None and self.completion_tokens is not None
+            )
+            if both_components_observed and component_total != self.total_tokens:
+                raise ValueError("total_tokens must equal prompt_tokens + completion_tokens")
+            if not both_components_observed and component_total > self.total_tokens:
+                raise ValueError("observed token components cannot exceed total_tokens")
         if self.execution_mode is ExecutionMode.fixture:
             return self
         missing = [
@@ -345,10 +354,6 @@ class AgentRunRecord(PersistedArtifact):
             )
         if self.observation_status == "excluded" and not self.exclusion_reason:
             raise ValueError("excluded live run records require exclusion_reason")
-        if self.total_tokens is not None:
-            component_total = (self.prompt_tokens or 0) + (self.completion_tokens or 0)
-            if component_total and component_total != self.total_tokens:
-                raise ValueError("total_tokens must equal prompt_tokens + completion_tokens")
         return self
 
 
@@ -424,6 +429,14 @@ class RunSet(PersistedArtifact):
             self.usage_summary,
             owner="run set",
         )
+        mismatched_modes = tuple(
+            run.run_id for run in self.runs if run.execution_mode is not self.execution_mode
+        )
+        if mismatched_modes:
+            raise ValueError(
+                f"{self.execution_mode.value} run sets may contain only "
+                f"{self.execution_mode.value} run records"
+            )
         if self.execution_mode is not ExecutionMode.live:
             return self
         missing = [
@@ -435,7 +448,4 @@ class RunSet(PersistedArtifact):
             raise ValueError("live run sets require: " + ", ".join(missing))
         if self.completion_status == "incomplete" and not self.stop_reasons:
             raise ValueError("incomplete live run sets require stop_reasons")
-        for run in self.runs:
-            if run.execution_mode is not ExecutionMode.live:
-                raise ValueError("live run sets may contain only live run records")
         return self

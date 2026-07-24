@@ -183,6 +183,15 @@ def _verify_binding(
         raise ValueError("trajectory report requires the RunSet used by the evaluation report")
     if runset.suite_id != report.suite_id or runset.suite_version != report.suite_version:
         raise ValueError("trajectory RunSet and live evaluation report reference different suites")
+    if (
+        runset.suite_digest != protocol.suite_digest
+        or report.suite_digest != protocol.suite_digest
+    ):
+        raise ValueError("trajectory suite_digest binding does not match protocol")
+    if report.configuration_digest != runset.fixture_manifest_digest:
+        raise ValueError(
+            "trajectory evaluation report configuration_digest does not match RunSet"
+        )
     if runset.protocol_id != protocol.protocol_id or runset.protocol_digest != protocol_digest:
         raise ValueError("trajectory RunSet protocol binding does not match protocol")
     if report.protocol_id != protocol.protocol_id or report.protocol_digest != protocol_digest:

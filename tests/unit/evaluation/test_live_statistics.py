@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 from pathlib import Path
+from typing import Literal
 
 import pytest
 
@@ -10,6 +11,7 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.live.advanced import _permutation_p_value, _poisson_upper_count_bound
 from agent_assure.live.comparison import (
+    _comparison_exploratory,
     _comparison_limitations,
     _comparison_state,
     compare_live_reports,
@@ -29,6 +31,7 @@ from agent_assure.schema.common import (
     decimal_string as schema_decimal_string,
 )
 from agent_assure.schema.live import (
+    LiveEvaluationReport,
     LiveProtocolRecord,
     LiveTrajectoryReport,
     OperationalEventType,
@@ -37,6 +40,7 @@ from agent_assure.schema.privacy import PrivacyProfileDigest, PrivacyProfileId
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord
 from agent_assure.schema.run import RunSet as RunSetModel
+from agent_assure.schema.suite import CompiledSuite
 
 
 class RunSet(RunSetModel):
@@ -65,7 +69,7 @@ def test_live_statistics_aggregate_repeated_observations() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -78,6 +82,9 @@ def test_live_statistics_aggregate_repeated_observations() -> None:
     report = evaluate_live_runset(compiled, runset, protocol=protocol)
 
     assert report.state is GateState.fail
+    assert report.suite_digest == compiled_suite_digest(compiled)
+    assert report.configuration_digest == "4" * 64
+    assert report.exploratory is True
     assert report.overall.observations == 2
     assert report.overall.cluster_count == 1
     assert report.overall.expectation_pass_rate.effective_n == "1.666667"
@@ -111,7 +118,7 @@ def test_live_statistics_enforces_required_policy_ids() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -143,7 +150,7 @@ def test_live_required_policy_failure_is_not_double_counted_as_policy_result() -
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -173,7 +180,7 @@ def test_live_required_policy_failure_is_not_double_counted_as_policy_result() -
     assert "policy_result:provider-selection" not in control_ids
 
 
-def test_live_statistics_overall_summary_omits_heterogeneous_provider_identity() -> None:
+def test_live_statistics_rejects_heterogeneous_execution_arm_identity() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
     protocol_digest = sha256_hexdigest(protocol)
@@ -183,6 +190,10 @@ def test_live_statistics_overall_summary_omits_heterogeneous_provider_identity()
             "model": "other-model",
             "adapter_id": "other-adapter",
             "pipeline_id": "candidate-b",
+            "provenance": _record(
+                repetition_index=1,
+                linked=True,
+            ).provenance.model_copy(update={"model_identifier": "other-model"}),
         }
     )
     runset = RunSet(
@@ -191,7 +202,7 @@ def test_live_statistics_overall_summary_omits_heterogeneous_provider_identity()
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -201,16 +212,32 @@ def test_live_statistics_overall_summary_omits_heterogeneous_provider_identity()
         ),
     )
 
-    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+    with pytest.raises(ValueError, match="one homogeneous execution arm"):
+        evaluate_live_runset(compiled, runset, protocol=protocol)
 
-    assert report.overall.provider is None
-    assert report.overall.model is None
-    assert report.overall.adapter_id is None
-    assert report.overall.pipeline_id == "overall"
-    assert {group.provider for group in report.groups} == {
-        "static-provider",
-        "other-provider",
-    }
+
+def test_live_statistics_rejects_provider_version_changes_within_an_arm() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
+    first = _record(repetition_index=0, linked=True)
+    second = _record(repetition_index=1, linked=True).model_copy(
+        update={"resolved_model": "static-model-2026-07-01"}
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-heterogeneous-provider-version",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="4" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+        runs=(first, second),
+    )
+
+    with pytest.raises(ValueError, match="one homogeneous execution arm"):
+        evaluate_live_runset(compiled, runset, protocol=protocol)
 
 
 def test_live_statistics_rejects_duplicate_case_repetition_observations() -> None:
@@ -230,7 +257,7 @@ def test_live_statistics_rejects_duplicate_case_repetition_observations() -> Non
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -242,6 +269,212 @@ def test_live_statistics_rejects_duplicate_case_repetition_observations() -> Non
 
     with pytest.raises(ValueError, match="duplicate case/repetition observation"):
         evaluate_live_runset(compiled, runset, protocol=protocol)
+
+
+@pytest.mark.parametrize(
+    ("schedule_indexes", "message"),
+    (
+        ((0, 0), "duplicate schedule_index"),
+        ((0, 2), "complete planned schedule"),
+    ),
+)
+def test_live_statistics_requires_a_unique_complete_schedule_index(
+    schedule_indexes: tuple[int, int],
+    message: str,
+) -> None:
+    compiled = _compiled_with_cases(compile_suite(SUITE), 2)
+    protocol = _protocol(compiled, observations=2, clusters=2, repetitions=1)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-schedule-index",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="4" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+        runs=tuple(
+            _record(
+                repetition_index=0,
+                linked=True,
+                case_id=f"case-{index:03d}",
+                schedule_index=schedule_indexes[index],
+            )
+            for index in range(2)
+        ),
+    )
+
+    with pytest.raises(ValueError, match=message):
+        evaluate_live_runset(compiled, runset, protocol=protocol)
+
+
+def test_live_evaluation_report_rejects_duplicate_pairing_identity() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    report = evaluate_live_runset(
+        compiled,
+        RunSet(
+            artifact_kind="run-set",
+            runset_id="runset-live-report-identity",
+            suite_id=compiled.suite_id,
+            suite_version=compiled.suite_version,
+            suite_digest=compiled_suite_digest(compiled),
+            fixture_manifest_digest="4" * 64,
+            execution_mode=ExecutionMode.live,
+            protocol_id=protocol.protocol_id,
+            protocol_digest=sha256_hexdigest(protocol),
+            runs=(_record(repetition_index=0, linked=True),),
+        ),
+        protocol=protocol,
+    )
+    payload = report.model_dump(mode="json")
+    duplicate = dict(payload["observations"][0])
+    duplicate["observation_id"] = "obs-live-duplicate"
+    duplicate["run_id"] = "run-live-duplicate"
+    payload["observations"].append(duplicate)
+
+    with pytest.raises(ValueError, match="duplicate prompt and schedule identity"):
+        LiveEvaluationReport.model_validate(payload)
+
+
+def test_live_binding_rejects_mismatched_suite_and_configuration_digests() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
+    record = _record(repetition_index=0, linked=True)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-binding",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="4" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+        runs=(record,),
+    )
+
+    with pytest.raises(ValueError, match="RunSet suite_digest"):
+        evaluate_live_runset(
+            compiled,
+            runset.model_copy(update={"suite_digest": "f" * 64}),
+            protocol=protocol,
+        )
+
+    mismatched_provenance = record.provenance.model_copy(
+        update={"configuration_digest": "f" * 64}
+    )
+    with pytest.raises(ValueError, match="configuration_digest"):
+        evaluate_live_runset(
+            compiled,
+            runset.model_copy(
+                update={
+                    "runs": (
+                        record.model_copy(update={"provenance": mismatched_provenance}),
+                    )
+                }
+            ),
+            protocol=protocol,
+        )
+
+    mismatched_model = record.provenance.model_copy(
+        update={"model_identifier": "other-model"}
+    )
+    with pytest.raises(ValueError, match="model_identifier"):
+        evaluate_live_runset(
+            compiled,
+            runset.model_copy(
+                update={
+                    "runs": (
+                        record.model_copy(update={"provenance": mismatched_model}),
+                    )
+                }
+            ),
+            protocol=protocol,
+        )
+
+
+def test_live_binding_rejects_unstable_prompt_and_caller_supplied_cluster_ids() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
+    first = _record(repetition_index=0, linked=True)
+    second = _record(repetition_index=1, linked=True)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-prompt-binding",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="4" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+        runs=(first, second),
+    )
+    changed_prompt = second.provenance.model_copy(update={"prompt_digest": "f" * 64})
+
+    with pytest.raises(ValueError, match="prompt_digest must be stable"):
+        evaluate_live_runset(
+            compiled,
+            runset.model_copy(
+                update={
+                    "runs": (
+                        first,
+                        second.model_copy(update={"provenance": changed_prompt}),
+                    )
+                }
+            ),
+            protocol=protocol,
+        )
+
+    with pytest.raises(ValueError, match="does not match protocol.cluster_by"):
+        evaluate_live_runset(
+            compiled,
+            runset.model_copy(
+                update={
+                    "runs": (
+                        first.model_copy(update={"cluster_id": "invented-cluster"}),
+                        second,
+                    )
+                }
+            ),
+            protocol=protocol,
+        )
+
+
+def test_source_group_clustering_is_forced_exploratory_without_protocol_mapping() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        cluster_by="source_group_id",
+    )
+    record = _record(
+        repetition_index=0,
+        linked=True,
+        cluster_id="source-a",
+        source_group_id="source-a",
+    )
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-source-group",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="4" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+        runs=(record,),
+    )
+
+    report = evaluate_live_runset(compiled, runset, protocol=protocol)
+
+    assert report.exploratory is True
+    assert _comparison_exploratory(protocol, 30) is True
 
 
 def test_live_rate_reports_largest_cluster_sensitivity() -> None:
@@ -327,12 +560,12 @@ def test_bootstrap_rate_method_is_used_for_bootstrap_protocols() -> None:
 
 
 def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> None:
-    compiled = compile_suite(SUITE)
+    compiled = _compiled_with_cases(compile_suite(SUITE), 3)
     protocol = _protocol(
         compiled,
         observations=6,
         clusters=3,
-        repetitions=6,
+        repetitions=2,
         advanced_analysis_plan=_advanced_plan(
             primary_minimum_clusters=3,
             rare_reason_codes=[ReasonCode.RAW_SENSITIVE_CONTENT.value],
@@ -345,17 +578,42 @@ def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> N
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
         runs=(
-            _record(repetition_index=0, linked=True, cluster_id="cluster-a"),
-            _record(repetition_index=1, linked=False, cluster_id="cluster-a"),
-            _record(repetition_index=2, linked=True, cluster_id="cluster-b"),
-            _record(repetition_index=3, linked=True, cluster_id="cluster-b"),
-            _record(repetition_index=4, linked=False, cluster_id="cluster-c"),
-            _record(repetition_index=5, linked=False, cluster_id="cluster-c"),
+            _record(repetition_index=0, linked=True, case_id="case-000"),
+            _record(
+                repetition_index=1,
+                linked=False,
+                case_id="case-000",
+                schedule_index=1,
+            ),
+            _record(
+                repetition_index=0,
+                linked=True,
+                case_id="case-001",
+                schedule_index=2,
+            ),
+            _record(
+                repetition_index=1,
+                linked=True,
+                case_id="case-001",
+                schedule_index=3,
+            ),
+            _record(
+                repetition_index=0,
+                linked=False,
+                case_id="case-002",
+                schedule_index=4,
+            ),
+            _record(
+                repetition_index=1,
+                linked=False,
+                case_id="case-002",
+                schedule_index=5,
+            ),
         ),
     )
 
@@ -403,6 +661,29 @@ def test_exact_permutation_null_behavior_is_not_anti_conservative() -> None:
     assert exhaustive is True
     assert resamples == 16
     assert p_value == Decimal("0.6875")
+
+
+def test_paired_permutation_rejects_nonzero_non_inferiority_margin() -> None:
+    with pytest.raises(ValueError, match="zero non-inferiority margin"):
+        _permutation_p_value(
+            (Decimal("0.1"), Decimal("-0.1")),
+            margin=Decimal("0.05"),
+            method="paired_cluster_permutation_exact",
+            seed="unused-for-exact-test",
+        )
+
+    compiled = compile_suite(SUITE)
+    payload = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        advanced_analysis_plan=_advanced_plan(primary_minimum_clusters=1),
+    ).model_dump(mode="json")
+    payload["analysis_method"] = "paired_cluster_permutation_exact"
+
+    with pytest.raises(ValueError, match="zero non_inferiority_margin"):
+        LiveProtocolRecord.model_validate(payload)
 
 
 def test_stable_seed_int_is_sha256_derived() -> None:
@@ -502,7 +783,7 @@ def test_rare_event_poisson_bound_uses_protocol_confidence_not_familywise_alpha(
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -555,6 +836,48 @@ def test_zero_width_difference_interval_is_labeled_as_degenerate() -> None:
     assert any("collapsed to zero width" in limitation for limitation in limitations)
 
 
+def test_zero_width_difference_interval_cannot_produce_confirmatory_pass() -> None:
+    compiled = _compiled_with_cases(compile_suite(SUITE), 30)
+    protocol = _protocol(compiled, observations=30, clusters=30, repetitions=1)
+    protocol_digest = sha256_hexdigest(protocol)
+
+    def report(runset_id: str, *, linked: bool) -> LiveEvaluationReport:
+        return evaluate_live_runset(
+            compiled,
+            RunSet(
+                artifact_kind="run-set",
+                runset_id=runset_id,
+                suite_id=compiled.suite_id,
+                suite_version=compiled.suite_version,
+                suite_digest=compiled_suite_digest(compiled),
+                fixture_manifest_digest="4" * 64,
+                execution_mode=ExecutionMode.live,
+                protocol_id=protocol.protocol_id,
+                protocol_digest=protocol_digest,
+                runs=tuple(
+                    _record(
+                        repetition_index=0,
+                        linked=linked,
+                        case_id=f"case-{index:03d}",
+                        schedule_index=index,
+                    )
+                    for index in range(30)
+                ),
+            ),
+            protocol=protocol,
+        )
+
+    comparison = compare_live_reports(
+        report("baseline-degenerate", linked=False),
+        report("candidate-degenerate", linked=True),
+        protocol=protocol,
+    )
+
+    assert comparison.difference_ci_lower == comparison.difference_ci_upper
+    assert comparison.exploratory is True
+    assert comparison.state is GateState.not_evaluated
+
+
 def test_live_statistics_accounts_for_declared_exclusions() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(
@@ -572,7 +895,7 @@ def test_live_statistics_accounts_for_declared_exclusions() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -611,7 +934,7 @@ def test_live_statistics_marks_budget_stop_as_incomplete() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -653,7 +976,7 @@ def test_live_comparison_marks_incomplete_reports_not_evaluated() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -672,7 +995,7 @@ def test_live_comparison_marks_incomplete_reports_not_evaluated() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -708,7 +1031,7 @@ def test_live_statistics_marks_post_response_budget_stop_as_incomplete() -> None
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -739,7 +1062,7 @@ def test_live_statistics_preserves_included_failures_after_budget_stop() -> None
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -776,7 +1099,7 @@ def test_live_statistics_rejects_cumulative_total_token_budget_violation() -> No
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -825,7 +1148,7 @@ def test_live_comparison_reports_pass_rate_difference() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -844,7 +1167,7 @@ def test_live_comparison_reports_pass_rate_difference() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -890,7 +1213,7 @@ def test_live_comparison_reports_unclamped_latency_and_cost_differences() -> Non
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -913,7 +1236,7 @@ def test_live_comparison_reports_unclamped_latency_and_cost_differences() -> Non
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -953,7 +1276,7 @@ def test_live_comparison_honors_paired_bootstrap_protocol_method() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -972,7 +1295,7 @@ def test_live_comparison_honors_paired_bootstrap_protocol_method() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -992,14 +1315,15 @@ def test_live_comparison_honors_paired_bootstrap_protocol_method() -> None:
 
 
 def test_live_comparison_reports_exact_paired_randomization_test() -> None:
-    compiled = compile_suite(SUITE)
+    compiled = _compiled_with_cases(compile_suite(SUITE), 5)
     protocol = _protocol(
         compiled,
         observations=5,
         clusters=5,
-        repetitions=5,
+        repetitions=1,
         analysis_method="paired_cluster_permutation_exact",
         advanced_analysis_plan=_advanced_plan(primary_minimum_clusters=5),
+        non_inferiority_margin="0.000000",
     )
     protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
@@ -1010,12 +1334,17 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=tuple(
-                _record(repetition_index=index, linked=False, cluster_id=f"cluster-{index}")
+                _record(
+                    repetition_index=0,
+                    linked=False,
+                    case_id=f"case-{index:03d}",
+                    schedule_index=index,
+                )
                 for index in range(5)
             ),
         ),
@@ -1029,12 +1358,17 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=tuple(
-                _record(repetition_index=index, linked=True, cluster_id=f"cluster-{index}")
+                _record(
+                    repetition_index=0,
+                    linked=True,
+                    case_id=f"case-{index:03d}",
+                    schedule_index=index,
+                )
                 for index in range(5)
             ),
         ),
@@ -1043,8 +1377,8 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
 
     comparison = compare_live_reports(baseline, candidate, protocol=protocol)
 
-    assert comparison.state is GateState.pass_
-    assert comparison.exploratory is False
+    assert comparison.state is GateState.not_evaluated
+    assert comparison.exploratory is True
     assert comparison.pass_rate_difference == "1.000000"
     assert len(comparison.randomization_tests) == 1
     test = comparison.randomization_tests[0]
@@ -1064,6 +1398,7 @@ def test_paired_randomization_rejects_non_pass_rate_primary_endpoint() -> None:
         repetitions=5,
     ).model_dump(mode="json")
     payload["analysis_method"] = "paired_cluster_permutation_exact"
+    payload["non_inferiority_margin"] = "0.000000"
     payload["primary_endpoint"] = "reason_code_rate"
     payload["advanced_analysis_plan"] = {
         "artifact_kind": "advanced-analysis-plan",
@@ -1094,12 +1429,12 @@ def test_paired_randomization_rejects_non_pass_rate_primary_endpoint() -> None:
 
 
 def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> None:
-    compiled = compile_suite(SUITE)
+    compiled = _compiled_with_cases(compile_suite(SUITE), 5)
     protocol = _protocol(
         compiled,
         observations=5,
         clusters=5,
-        repetitions=5,
+        repetitions=1,
         analysis_method="paired_cluster_permutation_exact",
         advanced_analysis_plan=_advanced_plan(
             multiplicity_method="bonferroni",
@@ -1107,6 +1442,7 @@ def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> 
             primary_minimum_clusters=5,
             secondary_interpretation="confirmatory",
         ),
+        non_inferiority_margin="0.000000",
     )
     protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
@@ -1117,12 +1453,17 @@ def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> 
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=tuple(
-                _record(repetition_index=index, linked=False, cluster_id=f"cluster-{index}")
+                _record(
+                    repetition_index=0,
+                    linked=False,
+                    case_id=f"case-{index:03d}",
+                    schedule_index=index,
+                )
                 for index in range(5)
             ),
         ),
@@ -1136,12 +1477,17 @@ def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> 
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=tuple(
-                _record(repetition_index=index, linked=True, cluster_id=f"cluster-{index}")
+                _record(
+                    repetition_index=0,
+                    linked=True,
+                    case_id=f"case-{index:03d}",
+                    schedule_index=index,
+                )
                 for index in range(5)
             ),
         ),
@@ -1163,18 +1509,20 @@ def test_bonferroni_randomization_uses_adjusted_p_against_familywise_alpha() -> 
     assert test.adjusted_p_value == "0.062500"
     assert Decimal(test.adjusted_p_value) > Decimal(primary.adjusted_alpha)
     assert Decimal(test.adjusted_p_value) <= Decimal(plan.familywise_alpha)
-    assert comparison.state is GateState.pass_
+    assert comparison.state is GateState.not_evaluated
+    assert comparison.exploratory is True
 
 
 def test_exact_paired_randomization_fails_closed_above_enumeration_limit() -> None:
-    compiled = compile_suite(SUITE)
+    compiled = _compiled_with_cases(compile_suite(SUITE), 21)
     protocol = _protocol(
         compiled,
         observations=21,
         clusters=21,
-        repetitions=21,
+        repetitions=1,
         analysis_method="paired_cluster_permutation_exact",
         advanced_analysis_plan=_advanced_plan(primary_minimum_clusters=21),
+        non_inferiority_margin="0.000000",
     )
     protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
@@ -1185,12 +1533,17 @@ def test_exact_paired_randomization_fails_closed_above_enumeration_limit() -> No
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=tuple(
-                _record(repetition_index=index, linked=False, cluster_id=f"cluster-{index}")
+                _record(
+                    repetition_index=0,
+                    linked=False,
+                    case_id=f"case-{index:03d}",
+                    schedule_index=index,
+                )
                 for index in range(21)
             ),
         ),
@@ -1204,12 +1557,17 @@ def test_exact_paired_randomization_fails_closed_above_enumeration_limit() -> No
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=tuple(
-                _record(repetition_index=index, linked=True, cluster_id=f"cluster-{index}")
+                _record(
+                    repetition_index=0,
+                    linked=True,
+                    case_id=f"case-{index:03d}",
+                    schedule_index=index,
+                )
                 for index in range(21)
             ),
         ),
@@ -1236,13 +1594,13 @@ def test_live_comparison_rejects_mismatched_paired_case_repetition_sets() -> Non
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=(
-                _record(repetition_index=0, linked=True, cluster_id="shared"),
-                _record(repetition_index=1, linked=True, cluster_id="shared"),
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=True),
             ),
         ),
         protocol=protocol,
@@ -1255,19 +1613,27 @@ def test_live_comparison_rejects_mismatched_paired_case_repetition_sets() -> Non
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=(
-                _record(repetition_index=0, linked=True, cluster_id="shared"),
-                _record(repetition_index=2, linked=True, cluster_id="shared"),
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=True),
             ),
         ),
         protocol=protocol,
     )
+    candidate = candidate.model_copy(
+        update={
+            "observations": (
+                candidate.observations[0],
+                candidate.observations[1].model_copy(update={"repetition_index": 2}),
+            )
+        }
+    )
 
-    with pytest.raises(ValueError, match="identical included case/repetition sets"):
+    with pytest.raises(ValueError, match="identical included prompt, schedule"):
         compare_live_reports(baseline, candidate, protocol=protocol)
 
 
@@ -1291,7 +1657,7 @@ def test_live_comparison_uses_fixed_reference_protocol_mode() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -1310,7 +1676,7 @@ def test_live_comparison_uses_fixed_reference_protocol_mode() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
@@ -1332,7 +1698,7 @@ def test_live_comparison_uses_fixed_reference_protocol_mode() -> None:
 
 def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
     compiled = compile_suite(SUITE)
-    protocol = _protocol(compiled, observations=2, clusters=2, repetitions=2)
+    protocol = _protocol(compiled, observations=2, clusters=1, repetitions=2)
     protocol_digest = sha256_hexdigest(protocol)
     baseline = evaluate_live_runset(
         compiled,
@@ -1342,13 +1708,13 @@ def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=(
-                _record(repetition_index=0, linked=True, cluster_id="shared"),
-                _record(repetition_index=1, linked=True, cluster_id="baseline-only"),
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=True),
             ),
         ),
         protocol=protocol,
@@ -1361,19 +1727,29 @@ def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=protocol_digest,
             runs=(
-                _record(repetition_index=0, linked=True, cluster_id="shared"),
-                _record(repetition_index=1, linked=True, cluster_id="candidate-only"),
+                _record(repetition_index=0, linked=True),
+                _record(repetition_index=1, linked=True),
             ),
         ),
         protocol=protocol,
     )
+    candidate = candidate.model_copy(
+        update={
+            "observations": (
+                candidate.observations[0],
+                candidate.observations[1].model_copy(
+                    update={"cluster_id": "candidate-only"}
+                ),
+            )
+        }
+    )
 
-    with pytest.raises(ValueError, match="identical included case/repetition sets"):
+    with pytest.raises(ValueError, match="identical included prompt, schedule"):
         compare_live_reports(baseline, candidate, protocol=protocol)
 
 
@@ -1404,7 +1780,7 @@ def test_live_drift_monitor_reports_ordered_review_signal() -> None:
                 suite_id=compiled.suite_id,
                 suite_version=compiled.suite_version,
                 suite_digest=compiled_suite_digest(compiled),
-                fixture_manifest_digest=f"{index + 1}" * 64,
+                fixture_manifest_digest="4" * 64,
                 execution_mode=ExecutionMode.live,
                 protocol_id=protocol.protocol_id,
                 protocol_digest=protocol_digest,
@@ -1462,7 +1838,7 @@ def test_live_drift_comparability_is_invalid_for_changed_analysis_digest() -> No
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="1" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=protocol.protocol_id,
             protocol_digest=first_digest,
@@ -1481,7 +1857,7 @@ def test_live_drift_comparability_is_invalid_for_changed_analysis_digest() -> No
             suite_id=compiled.suite_id,
             suite_version=compiled.suite_version,
             suite_digest=compiled_suite_digest(compiled),
-            fixture_manifest_digest="2" * 64,
+            fixture_manifest_digest="4" * 64,
             execution_mode=ExecutionMode.live,
             protocol_id=changed_protocol.protocol_id,
             protocol_digest=changed_digest,
@@ -1504,12 +1880,12 @@ def test_live_drift_comparability_is_invalid_for_changed_analysis_digest() -> No
 
 
 def test_live_drift_marks_dependence_signal_separately_from_stationarity() -> None:
-    compiled = compile_suite(SUITE)
+    compiled = _compiled_with_cases(compile_suite(SUITE), 50)
     protocol = _protocol(
         compiled,
         observations=50,
         clusters=50,
-        repetitions=50,
+        repetitions=1,
         drift_monitoring_plan=_drift_plan(
             minimum_windows=8,
             minimum_dependence_windows=8,
@@ -1527,15 +1903,16 @@ def test_live_drift_marks_dependence_signal_separately_from_stationarity() -> No
                 suite_id=compiled.suite_id,
                 suite_version=compiled.suite_version,
                 suite_digest=compiled_suite_digest(compiled),
-                fixture_manifest_digest=f"{index + 1}" * 64,
+                fixture_manifest_digest="4" * 64,
                 execution_mode=ExecutionMode.live,
                 protocol_id=protocol.protocol_id,
                 protocol_digest=protocol_digest,
                 runs=tuple(
                     _record(
-                        repetition_index=repetition,
+                        repetition_index=0,
+                        case_id=f"case-{repetition:03d}",
+                        schedule_index=repetition,
                         linked=repetition < success_count,
-                        cluster_id=f"cluster-{repetition:03d}",
                         started_at_utc=f"2026-06-{20 + index:02d}T00:00:00Z",
                         completed_at_utc=f"2026-06-{20 + index:02d}T00:00:01Z",
                     )
@@ -1579,7 +1956,7 @@ def test_live_drift_suppresses_low_window_dependence_and_state_estimates() -> No
                 suite_id=compiled.suite_id,
                 suite_version=compiled.suite_version,
                 suite_digest=compiled_suite_digest(compiled),
-                fixture_manifest_digest=f"{index + 1}" * 64,
+                fixture_manifest_digest="4" * 64,
                 execution_mode=ExecutionMode.live,
                 protocol_id=protocol.protocol_id,
                 protocol_digest=protocol_digest,
@@ -1624,7 +2001,7 @@ def test_live_drift_rejects_nonmonotonic_timestamp_ordering() -> None:
                 suite_id=compiled.suite_id,
                 suite_version=compiled.suite_version,
                 suite_digest=compiled_suite_digest(compiled),
-                fixture_manifest_digest=f"{index + 1}" * 64,
+                fixture_manifest_digest="4" * 64,
                 execution_mode=ExecutionMode.live,
                 protocol_id=protocol.protocol_id,
                 protocol_digest=protocol_digest,
@@ -1682,7 +2059,7 @@ def test_live_drift_reports_multiple_timestamp_ordering_failures() -> None:
                 suite_id=compiled.suite_id,
                 suite_version=compiled.suite_version,
                 suite_digest=compiled_suite_digest(compiled),
-                fixture_manifest_digest=f"{index + 1}" * 64,
+                fixture_manifest_digest="4" * 64,
                 execution_mode=ExecutionMode.live,
                 protocol_id=protocol.protocol_id,
                 protocol_digest=protocol_digest,
@@ -1736,7 +2113,7 @@ def test_live_trajectory_reports_transition_paths_and_invariants() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -1792,7 +2169,7 @@ def test_live_trajectory_flags_history_dependent_governance_failures() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -1812,9 +2189,9 @@ def test_live_trajectory_flags_history_dependent_governance_failures() -> None:
     review = _trajectory_invariant(report, "required-review-for-approval")
     evidence = _trajectory_invariant(report, "claim-evidence-before-approval")
     assert review.state is GateState.fail
-    assert review.affected_observation_ids == ("obs-live-0",)
+    assert review.affected_observation_ids == ("obs-live-exp-001-0",)
     assert evidence.state is GateState.fail
-    assert evidence.affected_observation_ids == ("obs-live-0",)
+    assert evidence.affected_observation_ids == ("obs-live-exp-001-0",)
     assert report.state is GateState.not_evaluated
     assert any(
         check.check_id == "claim-evidence-history" and check.affected_observations == 1
@@ -1843,7 +2220,7 @@ def test_live_trajectory_event_process_detects_retry_burst() -> None:
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -1888,7 +2265,7 @@ def test_live_trajectory_event_process_marks_missing_timestamps_exploratory() ->
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -1929,7 +2306,7 @@ def test_live_trajectory_counted_retry_events_do_not_invent_timestamps() -> None
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
         suite_digest=compiled_suite_digest(compiled),
-        fixture_manifest_digest="1" * 64,
+        fixture_manifest_digest="4" * 64,
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
@@ -1980,6 +2357,10 @@ def test_live_protocol_rejects_unsupported_confidence_level() -> None:
 def test_non_inferiority_boundary_is_exact() -> None:
     assert (
         _comparison_state(Decimal("-0.050000"), Decimal("0.050000"), 30, False)
+        is GateState.fail
+    )
+    assert (
+        _comparison_state(Decimal("-0.049999"), Decimal("0.050000"), 30, False)
         is GateState.pass_
     )
     assert (
@@ -1992,13 +2373,16 @@ def _record(
     *,
     repetition_index: int,
     linked: bool,
+    case_id: str = "exp-001",
+    schedule_index: int | None = None,
     latency_ms: int = 100,
     cost: str = "0.000000",
     cost_budget_committed: str | None = None,
     generated_token_budget_committed: int | None = None,
     total_token_budget_committed: int | None = None,
     exclusion_reason: str | None = None,
-    cluster_id: str = "exp-001",
+    cluster_id: str | None = None,
+    source_group_id: str | None = None,
     started_at_utc: str | None = None,
     completed_at_utc: str | None = None,
     attempt_count: int = 1,
@@ -2023,8 +2407,8 @@ def _record(
     return AgentRunRecord.model_validate(
         {
             "artifact_kind": "agent-run-record",
-            "run_id": f"run-live-{repetition_index}",
-            "case_id": "exp-001",
+            "run_id": f"run-live-{case_id}-{repetition_index}",
+            "case_id": case_id,
             "execution_mode": "live",
             "pipeline_id": "candidate",
             "recommendation": "approve",
@@ -2032,11 +2416,12 @@ def _record(
             "input_summary": "expense request",
             "output_summary": "receipt-backed approval",
             "observation_status": "excluded" if exclusion_reason else "included",
-            "observation_id": f"obs-live-{repetition_index}",
+            "observation_id": f"obs-live-{case_id}-{repetition_index}",
             "repetition_index": repetition_index,
-            "schedule_index": repetition_index,
+            "schedule_index": repetition_index if schedule_index is None else schedule_index,
             "randomization_block_id": f"repetition:{repetition_index}",
-            "cluster_id": cluster_id,
+            "cluster_id": cluster_id or case_id,
+            "source_group_id": source_group_id,
             "adapter_id": "static-jsonl",
             "provider": "static-provider",
             "model": "static-model",
@@ -2119,6 +2504,40 @@ def _record(
     )
 
 
+def _compiled_with_cases(compiled: CompiledSuite, count: int) -> CompiledSuite:
+    case_template = compiled.cases[0]
+    expectation_template = compiled.resolved_expectations[0]
+    cases: list[dict[str, object]] = []
+    expectations: list[dict[str, object]] = []
+    for index in range(count):
+        case_id = f"case-{index:03d}"
+        expectation_id = f"expectation-{index:03d}"
+        cases.append(
+            case_template.model_copy(
+                update={
+                    "case_id": case_id,
+                    "expectation_id": expectation_id,
+                    "fixture_id": case_id,
+                }
+            ).model_dump(mode="json")
+        )
+        expectations.append(
+            expectation_template.model_copy(
+                update={
+                    "case_id": case_id,
+                    "expectation_id": expectation_id,
+                }
+            ).model_dump(mode="json")
+        )
+    return CompiledSuite.model_validate(
+        {
+            **compiled.model_dump(mode="json"),
+            "cases": cases,
+            "resolved_expectations": expectations,
+        }
+    )
+
+
 def _protocol(
     compiled,
     *,
@@ -2144,6 +2563,7 @@ def _protocol(
     drift_monitoring_plan: dict[str, object] | None = None,
     trajectory_analysis_plan: dict[str, object] | None = None,
     non_inferiority_margin: str = "0.050000",
+    cluster_by: Literal["case_id", "source_group_id"] = "case_id",
 ) -> LiveProtocolRecord:  # type: ignore[no-untyped-def]
     planned_observations_per_cluster = Decimal(observations) / Decimal(clusters)
     rho = Decimal("0.200000")
@@ -2166,7 +2586,7 @@ def _protocol(
         fixed_reference_pass_rate=fixed_reference_pass_rate,
         confidence_level="0.950000",
         non_inferiority_margin=non_inferiority_margin,
-        cluster_by="case_id",
+        cluster_by=cluster_by,
         planned_observations=observations,
         planned_clusters=clusters,
         planned_observations_per_cluster=_decimal_string(planned_observations_per_cluster),

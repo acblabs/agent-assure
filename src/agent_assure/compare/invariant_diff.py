@@ -76,8 +76,8 @@ def diff_control_findings(
     baseline: EvaluationReport,
     candidate: EvaluationReport,
 ) -> tuple[ControlChange, ...]:
-    baseline_findings = {_finding_key(finding): finding for finding in baseline.failed_controls}
-    candidate_findings = {_finding_key(finding): finding for finding in candidate.failed_controls}
+    baseline_findings = _fail_state_findings(baseline)
+    candidate_findings = _fail_state_findings(candidate)
     changes: list[ControlChange] = []
     for key in sorted(set(candidate_findings) - set(baseline_findings)):
         finding = candidate_findings[key]
@@ -88,7 +88,7 @@ def diff_control_findings(
                 baseline_state=None,
                 candidate_state=finding.state,
                 message=(
-                    "candidate introduced blocking finding "
+                    "candidate introduced fail-state finding "
                     f"{finding.reason_code.value}"
                 ),
             )
@@ -117,12 +117,20 @@ def diff_control_findings(
                 baseline_state=baseline_finding.state,
                 candidate_state=candidate_finding.state,
                 message=(
-                    "candidate retains blocking finding "
+                    "candidate retains fail-state finding "
                     f"{candidate_finding.reason_code.value}"
                 ),
             )
         )
     return tuple(changes)
+
+
+def _fail_state_findings(report: EvaluationReport) -> dict[tuple[str, str, str, str, str], Finding]:
+    return {
+        _finding_key(finding): finding
+        for finding in (*report.failed_controls, *report.warning_controls)
+        if finding.state is GateState.fail
+    }
 
 
 def diff_behavior(baseline: RunSet, candidate: RunSet) -> tuple[BehaviorChange, ...]:

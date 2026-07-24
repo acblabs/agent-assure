@@ -11,7 +11,6 @@ _ALLOWED_GIT_COMMANDS = frozenset(
     {
         ("rev-parse", "HEAD"),
         ("rev-parse", "--show-toplevel"),
-        ("status", "--porcelain"),
         ("status", "--porcelain=v1", "--untracked-files=all"),
     }
 )
@@ -35,6 +34,7 @@ _UNTRUSTED_GIT_ENVIRONMENT = frozenset(
     }
 )
 _FULL_GIT_COMMIT = re.compile(r"^[a-f0-9]{40}$")
+_GIT_REPOSITORY_PATH = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._/-]*$")
 _IS_WINDOWS = os.name == "nt"
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 
@@ -51,13 +51,7 @@ def write_bytes_atomic(path: Path, payload: bytes) -> Path:
     """Atomically replace a file without following a destination link or hard link."""
     if not isinstance(payload, bytes):
         raise TypeError("atomic file payload must be bytes")
-    # Check the existing prefix before mkdir so a linked ancestor cannot cause
-    # creation of a previously absent child directory outside the intended tree.
-    _assert_no_linked_directory_components(path.parent)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    # Re-check the complete path after creation to catch linked components that
-    # appeared between validation and mkdir.
-    _assert_no_linked_directory_components(path.parent)
+    ensure_unlinked_directory(path.parent)
     parent = path.parent.resolve(strict=True)
     destination = parent / path.name
     if destination.exists() and destination.is_dir():
@@ -84,6 +78,30 @@ def write_text_atomic(path: Path, text: str) -> Path:
     if not isinstance(text, str):
         raise TypeError("atomic text payload must be a string")
     return write_bytes_atomic(path, text.encode("utf-8"))
+
+
+def unlink_file_if_exists(path: Path) -> None:
+    """Remove one file without following a linked parent directory."""
+    _assert_no_linked_directory_components(path.parent)
+    parent = path.parent.resolve(strict=True)
+    destination = parent / path.name
+    if destination.exists() and destination.is_dir() and not destination.is_symlink():
+        raise IsADirectoryError(destination)
+    destination.unlink(missing_ok=True)
+
+
+def ensure_unlinked_directory(directory: Path) -> Path:
+    """Create a directory only when its existing path components are not links."""
+    # Check the existing prefix before mkdir so a linked ancestor cannot cause
+    # creation of a previously absent child directory outside the intended tree.
+    _assert_no_linked_directory_components(directory.parent)
+    directory.mkdir(parents=True, exist_ok=True)
+    # Re-check the complete path after creation to catch linked components that
+    # appeared between validation and mkdir.
+    _assert_no_linked_directory_components(directory)
+    if not directory.is_dir():
+        raise NotADirectoryError(directory)
+    return directory
 
 
 def _assert_no_linked_directory_components(directory: Path) -> None:
@@ -131,6 +149,8 @@ def git_output(
                 "core.fsmonitor=false",
                 "-c",
                 f"core.hooksPath={os.devnull}",
+                "-c",
+                f"safe.directory={project_root.resolve()}",
                 *args,
             ],
             cwd=project_root,
@@ -146,6 +166,47 @@ def git_output(
         return None
     output = result.stdout.strip()
     return output if output or allow_empty else None
+
+
+def git_file_bytes(project_root: Path, revision: str, repository_path: str) -> bytes:
+    """Read one immutable Git blob with repository hooks and unsafe env disabled."""
+    if _FULL_GIT_COMMIT.fullmatch(revision) is None:
+        raise ValueError(f"invalid immutable Git revision: {revision!r}")
+    path_parts = repository_path.split("/")
+    if (
+        _GIT_REPOSITORY_PATH.fullmatch(repository_path) is None
+        or "\\" in repository_path
+        or any(part in {"", ".", ".."} for part in path_parts)
+    ):
+        raise ValueError(f"unsafe Git repository path: {repository_path!r}")
+    git_executable = _resolve_git_executable()
+    if git_executable is None:
+        raise FileNotFoundError("git executable is unavailable")
+    try:
+        result = subprocess.run(
+            [
+                git_executable,
+                "--no-optional-locks",
+                "-c",
+                "core.fsmonitor=false",
+                "-c",
+                f"core.hooksPath={os.devnull}",
+                "-c",
+                f"safe.directory={project_root.resolve()}",
+                "show",
+                f"{revision}:{repository_path}",
+            ],
+            cwd=project_root,
+            env=_git_environment(),
+            check=False,
+            capture_output=True,
+            timeout=5,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        raise OSError("Git blob could not be read") from exc
+    if result.returncode != 0:
+        raise OSError("Git blob could not be read")
+    return result.stdout
 
 
 def _is_allowed_ancestry_query(args: tuple[str, ...]) -> bool:
@@ -168,6 +229,7 @@ def _git_environment() -> dict[str, str]:
         {
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_NO_LAZY_FETCH": "1",
             "GIT_NO_REPLACE_OBJECTS": "1",
             "GIT_TERMINAL_PROMPT": "0",
         }

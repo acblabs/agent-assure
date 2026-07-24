@@ -76,6 +76,7 @@ def ci(
             }
         )
     )
+    waiver_paths = tuple(waiver or ())
     try:
         result = run_ci(
             candidate_runset,
@@ -84,10 +85,11 @@ def ci(
             out_dir=out_dir,
             report_mode=report_mode,
             gate_profile=gate_profile,
-            waivers=load_waivers(tuple(waiver or ())),
+            waivers=load_waivers(waiver_paths),
             today=parse_cli_date(today),
+            source_input_paths=waiver_paths,
         )
-    except ValueError as exc:
+    except (OSError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
     if result.decision.exit_code:
         typer.echo(json.dumps(result.decision.model_dump(), sort_keys=True))

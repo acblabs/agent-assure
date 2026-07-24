@@ -288,6 +288,9 @@ The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 Framework adapters, streaming, and live execution remain experimental.
 The RC label applies only to the primary surface; development-RFC contracts
 remain explicitly non-stable.
+The package-level PyPI `Development Status :: 4 - Beta` classifier is the
+closest standardized classifier to an RC and does not widen that supported
+surface.
 
 | If you have… | Start with… | Maturity |
 | --- | --- | --- |

@@ -141,6 +141,22 @@ def paired_randomization_prerequisites(
     plan = protocol.advanced_analysis_plan
     if plan is None:
         return "invalid", ("protocol did not declare an advanced analysis plan",)
+    if Decimal(protocol.non_inferiority_margin) != Decimal("0"):
+        return (
+            "invalid",
+            (
+                "paired sign-flip randomization is not calibrated for a nonzero "
+                "non-inferiority margin",
+            ),
+        )
+    if protocol.cluster_by == "source_group_id":
+        return (
+            "exploratory",
+            (
+                "source_group_id membership is not bound in the current protocol schema, "
+                "so paired randomization is not eligible for confirmatory interpretation",
+            ),
+        )
     endpoint = next(endpoint for endpoint in plan.endpoints if endpoint.role == "primary")
     limitations: list[str] = []
     if endpoint.exchangeability_assumption != "baseline_candidate_relabeling":
@@ -187,6 +203,11 @@ def _evaluate_endpoint(
         cluster_count=cluster_count,
         event_count=numerator,
     )
+    if (
+        protocol.cluster_by == "source_group_id"
+        and prerequisite_status == "met"
+    ):
+        prerequisite_status = "exploratory"
     adjusted_alpha = _endpoint_alpha(
         endpoint,
         plan=plan,
@@ -200,6 +221,11 @@ def _evaluate_endpoint(
             cluster_count=cluster_count,
         )
     )
+    if protocol.cluster_by == "source_group_id":
+        limitations.append(
+            "source_group_id membership is not bound in the current protocol schema, "
+            "so this endpoint is not eligible for confirmatory interpretation"
+        )
     rare_event_bound = None
     if endpoint.analysis_method == "poisson_upper_bound":
         rare_event_bound = _rare_event_bound(
@@ -526,20 +552,24 @@ def _permutation_p_value(
     method: str,
     seed: str,
 ) -> tuple[Decimal, int, bool]:
-    shifted = tuple(difference + margin for difference in differences)
-    observed = mean_decimal(shifted)
-    if not shifted:
+    if margin != Decimal("0"):
+        raise ValueError(
+            "paired sign-flip randomization supports only a zero "
+            "non-inferiority margin"
+        )
+    observed = mean_decimal(differences)
+    if not differences:
         return Decimal("1"), 0, False
     if method == "paired_cluster_permutation_exact":
-        if len(shifted) > _MAX_EXACT_PERMUTATION_CLUSTERS:
+        if len(differences) > _MAX_EXACT_PERMUTATION_CLUSTERS:
             return Decimal("1"), 0, False
         count = 0
-        total = 1 << len(shifted)
+        total = 1 << len(differences)
         for mask in range(total):
             statistic = sum(
                 value if mask & (1 << index) else -value
-                for index, value in enumerate(shifted)
-            ) / Decimal(len(shifted))
+                for index, value in enumerate(differences)
+            ) / Decimal(len(differences))
             if statistic >= observed:
                 count += 1
         return Decimal(count) / Decimal(total), total, True
@@ -549,8 +579,8 @@ def _permutation_p_value(
     for _ in range(_MONTE_CARLO_RESAMPLES):
         statistic = sum(
             value if rng.randrange(2) else -value
-            for value in shifted
-        ) / Decimal(len(shifted))
+            for value in differences
+        ) / Decimal(len(differences))
         if statistic >= observed:
             count += 1
     return Decimal(count) / Decimal(total), total, False

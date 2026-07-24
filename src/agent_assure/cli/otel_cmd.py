@@ -17,6 +17,11 @@ from agent_assure.io_limits import (
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.telemetry import MAX_OTEL_SPANS_PER_EXPORT, SpanPlan
+from agent_assure.schema.validation import (
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
+)
 from agent_assure.telemetry.otel_mapping import run_record_to_span_plan
 from agent_assure.telemetry.otel_sdk import (
     MAX_OTEL_HEADER_VALUE_CHARS,
@@ -42,12 +47,15 @@ def preview(
     ] = None,
 ) -> None:
     try:
-        record = AgentRunRecord.model_validate(
-            load_json_bounded(
+        record = project_validated_artifact_payload(
+            load_validated_artifact_payload(
                 path,
+                "agent-run-record",
                 max_bytes=MAX_ARTIFACT_JSON_BYTES,
                 label="OTel preview input",
-            )
+            ),
+            AgentRunRecord,
+            kind="agent-run-record",
         )
         span_plan = run_record_to_span_plan(record)
     except (TypeError, ValueError) as exc:
@@ -141,18 +149,26 @@ def _span_plans_from_path(path: Path) -> tuple[SpanPlan, ...]:
         raise ValueError("OTel export input must be a JSON object")
     artifact_kind = payload.get("artifact_kind")
     if artifact_kind == "agent-run-record":
+        validate_loaded_artifact_payload(payload, "agent-run-record")
         assert_runset_payload_safe_for_persistence(payload)
-        return (run_record_to_span_plan(AgentRunRecord.model_validate(payload)),)
+        record = project_validated_artifact_payload(
+            payload,
+            AgentRunRecord,
+            kind="agent-run-record",
+        )
+        return (run_record_to_span_plan(record),)
     if artifact_kind == "run-set":
+        validate_loaded_artifact_payload(payload, "run-set")
         assert_runset_payload_safe_for_persistence(payload)
-        runset = RunSet.model_validate(payload)
+        runset = project_validated_artifact_payload(payload, RunSet, kind="run-set")
         if len(runset.runs) > MAX_OTEL_SPANS_PER_EXPORT:
             raise ValueError(
                 f"RunSet exceeds OpenTelemetry span limit of {MAX_OTEL_SPANS_PER_EXPORT}"
             )
         return tuple(run_record_to_span_plan(record) for record in runset.runs)
     if artifact_kind == "span-plan":
-        plan = SpanPlan.model_validate(payload)
+        validate_loaded_artifact_payload(payload, "span-plan")
+        plan = project_validated_artifact_payload(payload, SpanPlan, kind="span-plan")
         assert_span_plan_safe_for_export(plan)
         return (plan,)
     raise ValueError(

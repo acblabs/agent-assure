@@ -117,6 +117,14 @@ def run_live_suite(
             f"planned live observations ({planned_observations}) exceed max_requests "
             f"({config.max_requests})"
         )
+    prompts = {
+        prompt_case.case_id: _read_prompt(config_dir, prompt_case.prompt_path)
+        for prompt_case in config.cases
+    }
+    prompt_digests = {
+        case_id: sha256_hexdigest({"prompt": prompt})
+        for case_id, prompt in prompts.items()
+    }
     schedule = _schedule(config)
     request_budget = _LiveRequestBudget(config.max_requests)
     rate_limit_budget = _LiveRateLimitBudget(config.max_rate_limit_events)
@@ -125,7 +133,7 @@ def run_live_suite(
         base_dir=config_dir,
         trust=trust,
     )
-    configuration_digest = _configuration_digest(compiled, config)
+    configuration_digest = _configuration_digest(compiled, config, prompt_digests)
     protocol_digest = sha256_hexdigest(protocol)
     committed_cost = Decimal("0")
     committed_total_tokens = 0
@@ -143,6 +151,8 @@ def run_live_suite(
     runs: list[AgentRunRecord] = []
     emergency_records: list[EmergencyProcessRecord] = []
     for schedule_index, prompt_case, repetition_index in schedule:
+        prompt = prompts[prompt_case.case_id]
+        prompt_digest = prompt_digests[prompt_case.case_id]
         run_id = _run_id(
             compiled.suite_id,
             config.variant_id,
@@ -181,6 +191,7 @@ def run_live_suite(
                         if accounting_unavailable
                         else "terminal_policy_stop"
                     ),
+                    prompt_digest=prompt_digest,
                     trace_context=trace_context,
                     reason_code=ReasonCode.POLICY_FAILED,
                 )
@@ -200,6 +211,7 @@ def run_live_suite(
                     "configured max_requests attempt budget was exhausted",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="budget_exhausted",
+                    prompt_digest=prompt_digest,
                     trace_context=trace_context,
                     reason_code=ReasonCode.POLICY_FAILED,
                 )
@@ -219,6 +231,7 @@ def run_live_suite(
                     "configured live cost budget would be exceeded before this observation",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="budget_exhausted",
+                    prompt_digest=prompt_digest,
                     trace_context=trace_context,
                 )
             )
@@ -240,6 +253,7 @@ def run_live_suite(
                     "configured live token budget was exhausted before this observation",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="token_budget_exhausted",
+                    prompt_digest=prompt_digest,
                     trace_context=trace_context,
                 )
             )
@@ -263,12 +277,11 @@ def run_live_suite(
                     "configured generated-token budget would be exceeded before this observation",
                     cluster_by=protocol.cluster_by,
                     exclusion_reason="generated_token_budget_exhausted",
+                    prompt_digest=prompt_digest,
                     trace_context=trace_context,
                 )
             )
             continue
-        prompt = _read_prompt(config_dir, prompt_case.prompt_path)
-        prompt_digest = sha256_hexdigest({"prompt": prompt})
         request = LiveProviderRequest(
             run_id=run_id,
             observation_id=observation_id,
@@ -1093,11 +1106,16 @@ def _provenance(
     )
 
 
-def _configuration_digest(compiled: CompiledSuite, config: LiveRunConfig) -> str:
+def _configuration_digest(
+    compiled: CompiledSuite,
+    config: LiveRunConfig,
+    prompt_digests: dict[str, str],
+) -> str:
     return sha256_hexdigest(
         {
             "suite_digest": sha256_hexdigest(compiled.model_dump(mode="json")),
             "live_run_config": config.model_dump(mode="json"),
+            "prompt_digests": prompt_digests,
         }
     )
 

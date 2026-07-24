@@ -4,6 +4,49 @@
 
 ## 0.6.0 - 2026-07-23
 
+- Routed persisted runtime and CLI inputs through explicit wire-identity and
+  frozen-schema validation before current-model projection, and rejected
+  RFC 8785-unsafe integers before accepted artifacts reach canonical hashing.
+  Current-model projection failures now use value-free diagnostics, including
+  legacy artifacts accepted through frozen schemas.
+- Made finding IDs unambiguous when identity components contain delimiters.
+  Existing exact-finding waivers must be regenerated because their
+  `finding_id` values intentionally change under the versioned identity
+  projection.
+- Rejected RunSets whose child records use a different execution mode and
+  rejected inconsistent zero-valued prompt/completion token totals.
+- Bound mutation results and evidence descriptors to the complete gate-profile
+  digest, order-independent waiver-set digest, and evaluation date; exposed the
+  matching waiver and gate flags on `controls mutate`, and labeled built-in
+  results as `first_party_postcontrol`.
+- Rejected verdict-bearing `llm_advisory` mutation outcomes before evaluator
+  execution and normalized custom evaluator-identity conflicts into typed
+  mutation result states.
+- Serialized mutation writers and added an atomically published generation
+  manifest so interrupted or mixed fixed-file generations fail closed; added
+  fixed-output alias, linked-directory, and filesystem-root guards.
+- Bound live evaluations to exact suite, protocol, configuration, prompt, arm,
+  case-schedule, provider-version, and derived-cluster identities; rejected
+  duplicate report observations, and prevented unbound source-group designs or
+  protocol-unbound execution configurations and degenerate intervals from
+  producing confirmatory passes.
+- Rejected nonzero-margin paired sign-flip tests and required strict
+  non-inferiority at the declared margin boundary; bound cross-window drift
+  comparability to the executed configuration digest.
+- Preserved policy warnings that originate in fixtures and diffed all fail-state
+  findings independently of whether the active gate profile blocks or warns.
+- Removed stale CI-owned outputs before each run, streamed packet and
+  generation-member hashing, restricted action uploads to generated artifacts,
+  rejected input/output aliases and unsafe output roots, and hardened immutable
+  historical Git reads against hooks, replacement objects, configuration, and
+  partial-clone lazy fetch.
+- Validated release-replay roles against their declared artifact contracts and
+  rejected lexical, resolved-path, symlink, and hard-link aliases in replay and
+  manifest inputs.
+- Clarified the v0.6.0 Release Candidate maturity, development-RFC mutation
+  status, evidence limitations, and claim traceability across product and
+  engineering documentation.
+
 - Added strict evidence descriptor, deterministic mutation operator,
   expected-detection, and mutation-result contracts with canonical
   self-digests, provenance, independence classes, and privacy-minimized

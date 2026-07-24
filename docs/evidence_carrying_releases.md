@@ -52,6 +52,10 @@ scope:
   suite_digest: "<compiled-suite-digest-64-lowercase-hex>"
   protocol_digest: null
   population_id: deterministic-fixture-v1
+  gate_profile_id: default
+  gate_profile_digest: "<gate-profile-digest-64-lowercase-hex>"
+  waiver_set_digest: "<waiver-set-digest-64-lowercase-hex>"
+  evaluation_date: "<evaluation-date-yyyy-mm-dd>"
 
 method:
   method_id: assurance-mutation/core/v1
@@ -98,13 +102,16 @@ validity:
   invalidated_by:
     - canonicalization_component_digest_change
     - evaluator_or_gate_component_digest_change
+    - evaluation_date_change
     - expected_detection_contract_digest_change
+    - gate_profile_digest_change
     - mutation_dispatch_component_digest_change
     - mutation_schema_or_validation_component_digest_change
     - operator_implementation_manifest_digest_change
     - privacy_component_digest_change
     - suite_digest_change
     - target_control_component_digest_change
+    - waiver_set_digest_change
 
 dependencies:
   - evidence_id: "mutation-result-<result-digest-prefix-24-hex>"
@@ -115,9 +122,11 @@ producer:
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 
-The population profile is identified by `deterministic-fixture-v1`. The source
-RunSet's privacy-profile identity and digest remain bound through the canonical
-subject digest rather than being duplicated in this descriptor.
+The population profile is identified by `deterministic-fixture-v1`. The scope
+also binds the complete canonical gate-profile digest, the order-independent
+waiver-set digest (including an explicit empty set), and the waiver evaluation
+date. The source RunSet's privacy-profile identity and digest remain bound
+through the canonical subject digest rather than being duplicated here.
 
 Its canonical digest uses the repository's RFC 8785 JSON path and excludes
 `evidence_digest` from its own digest projection. Missing prerequisites are
@@ -330,14 +339,18 @@ agent-assure controls mutate \
   --runset runs/baseline.json \
   --operator drop-material-evidence-link \
   --seed 0 \
+  --today 2026-07-20 \
   --out reports/mutation
 ```
 
 The command writes the transformed subject when one is produced and a
 machine-readable mutation result. It accepts either authored suite YAML or a
 compiled-suite JSON artifact. The output files are
-`assurance-mutation-result.json`, `assurance-evidence-descriptor.json`, and,
-for `caught` or `survived`, `mutated-runset.json`. Its documented RFC exit map is:
+`assurance-mutation-result.json`, `assurance-evidence-descriptor.json`,
+`mutation-generation-manifest.json`, and, for `caught` or `survived`,
+`mutated-runset.json`. `--waiver`, `--fail-on-warn`,
+`--fail-on-not-evaluated`, and `--today` use the same gate configuration
+semantics as deterministic evaluation. Its documented RFC exit map is:
 
 | Exit | Meaning |
 | ---: | --- |
@@ -350,11 +363,14 @@ for `caught` or `survived`, `mutated-runset.json`. Its documented RFC exit map i
 The result artifact preserves the more specific invalid state even though both
 invalid states share exit `2`.
 
-Output is committed as one staged generation. Reusing an output directory
-removes a stale transformed RunSet when the new state has no transformation,
-and a failed replacement rolls back the prior fixed-file generation. The
-command rejects lexical, resolved, symlink, junction, or hardlink aliasing
-between either input—the suite or source RunSet—and any fixed output path.
+Output is committed as one staged generation under a per-directory writer
+lock. The generation manifest is atomically published last as the commit
+marker; readers reject missing or digest-incoherent generations. Reusing an
+output directory removes a stale transformed RunSet when the new state has no
+transformation, and a failed replacement rolls back the prior fixed-file
+generation. The command rejects lexical, resolved, symlink, junction, or
+hardlink aliasing between the suite, source RunSet, or waiver inputs and any
+fixed output path.
 
 ## Provenance and Independence
 

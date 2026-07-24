@@ -119,8 +119,6 @@ def _evaluate_persisted_policy_results(
             continue
         if _is_fixture_remediation_signal(run, policy_result):
             continue
-        if run.execution_mode is not ExecutionMode.live and policy_result.state is GateState.warn:
-            continue
         results.append(
             ControlResult(
                 control_id=f"policy_result:{policy_result.policy_id}",
@@ -212,7 +210,13 @@ def _is_fixture_remediation_signal(
 ) -> bool:
     return (
         run.execution_mode is not ExecutionMode.live
-        and ReasonCode.FORBIDDEN_PROVIDER in policy_result.reason_codes
+        and bool(
+            {
+                ReasonCode.FORBIDDEN_PROVIDER,
+                ReasonCode.PROMPT_INJECTION_BOUNDARY,
+            }
+            & set(policy_result.reason_codes)
+        )
     )
 
 
