@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import os
 import stat
@@ -399,7 +400,12 @@ def _open_safe_lock_file(path: Path) -> int:
     flags = os.O_RDWR | os.O_CREAT
     flags |= getattr(os, "O_BINARY", 0)
     flags |= getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags, 0o600)
+    try:
+        descriptor = os.open(path, flags, 0o600)
+    except OSError as exc:
+        if exc.errno == errno.ELOOP:
+            raise OSError("refusing unsafe mutation output lock path") from exc
+        raise
     try:
         _assert_open_lock_identity_descriptor(descriptor, path)
     except BaseException:
@@ -435,13 +441,14 @@ def _lock_file(handle: BinaryIO) -> None:
     if os.name == "nt":
         import msvcrt
 
-        if os.fstat(handle.fileno()).st_size == 0:
-            handle.write(b"\0")
-            handle.flush()
-        handle.seek(0)
         locking = cast(Callable[[int, int, int], None], vars(msvcrt)["locking"])
         lock_ex = cast(int, vars(msvcrt)["LK_LOCK"])
         locking(handle.fileno(), lock_ex, 1)
+        if os.fstat(handle.fileno()).st_size == 0:
+            handle.seek(0)
+            handle.write(b"\0")
+            handle.flush()
+        handle.seek(0)
         return
     import fcntl
 

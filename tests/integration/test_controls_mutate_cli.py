@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import errno
 import hashlib
 import json
 import os
@@ -595,6 +596,19 @@ def test_controls_mutate_rejects_lock_symlink_without_modifying_target(
     assert "unsafe mutation output lock path" in result.output
     assert sentinel.read_bytes() == sentinel_bytes
     assert not (out / MUTATION_RESULT_FILENAME).exists()
+
+
+def test_safe_lock_open_normalizes_nofollow_symlink_rejection(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def reject_symlink(_path: Path, _flags: int, _mode: int) -> int:
+        raise OSError(errno.ELOOP, "Too many levels of symbolic links")
+
+    monkeypatch.setattr(mutation_reporting.os, "open", reject_symlink)
+
+    with pytest.raises(OSError, match="refusing unsafe mutation output lock path"):
+        mutation_reporting._open_safe_lock_file(tmp_path / MUTATION_OUTPUT_LOCK_FILENAME)
 
 
 def test_controls_mutate_rejects_lock_hardlink_without_modifying_peer(
