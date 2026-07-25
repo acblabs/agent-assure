@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -8,6 +9,8 @@ import pytest
 from agent_assure.authoring.yaml_nodes import MAX_YAML_DEPTH
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.io_limits import MAX_JSON_DEPTH
+from agent_assure.policies.base import Waiver, apply_waivers
+from agent_assure.schema.evaluation import MAX_WAIVER_DISPOSITIONS
 
 
 def _waiver_payload() -> dict[str, str]:
@@ -82,3 +85,15 @@ def test_load_waivers_normalizes_unsupported_yaml_tag_error(tmp_path: Path) -> N
 
     with pytest.raises(ValueError, match="waiver YAML is invalid YAML"):
         load_waivers((path,))
+
+
+def test_waiver_application_rejects_more_dispositions_than_the_report_bound() -> None:
+    waiver = Waiver.model_validate(_waiver_payload())
+
+    with pytest.raises(ValueError, match="waiver count exceeds disposition limit"):
+        apply_waivers(
+            (),
+            waivers=(waiver,) * (MAX_WAIVER_DISPOSITIONS + 1),
+            artifact_digest="a" * 64,
+            today=date(2026, 7, 3),
+        )

@@ -33,6 +33,13 @@
 - Rejected nonzero-margin paired sign-flip tests and required strict
   non-inferiority at the declared margin boundary; bound cross-window drift
   comparability to the executed configuration digest.
+- Made exact equality at a zero non-inferiority margin inconclusive instead of
+  a blocking regression, applied endpoint-adjusted Bonferroni alpha to
+  confirmatory Poisson bounds, and persisted each bound's effective confidence
+  level.
+- Added fail-closed consistency checks for observation-derived live report
+  summaries and privacy-minimized matched, unmatched, and expired waiver
+  dispositions without changing waiver gate semantics.
 - Preserved policy warnings that originate in fixtures and diffed all fail-state
   findings independently of whether the active gate profile blocks or warns.
 - Removed stale CI-owned outputs before each run, streamed packet and
@@ -40,6 +47,10 @@
   rejected input/output aliases and unsafe output roots, and hardened immutable
   historical Git reads against hooks, replacement objects, configuration, and
   partial-clone lazy fetch.
+- Restricted Windows provenance reads to `git.exe`, enabled complete lockfile
+  auditing on direct `main` updates, corrected repository CODEOWNERS, and
+  narrowed release reproducibility language to same-toolchain fresh-job byte
+  matching.
 - Validated release-replay roles against their declared artifact contracts and
   rejected lexical, resolved-path, symlink, and hard-link aliases in replay and
   manifest inputs.

@@ -17,9 +17,13 @@ from agent_assure.evaluation.evaluator import (
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
 from agent_assure.policies.evidence import evaluate_material_claim_evidence
+from agent_assure.reporting.markdown import render_evaluation_markdown
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
-from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.evaluation import (
+    EvaluationSummary,
+    WaiverDispositionStatus,
+)
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.run import (
     AgentRunRecord,
@@ -45,6 +49,7 @@ def test_baseline_evaluation_passes_with_not_evaluated_capabilities_separate() -
 
     assert report.candidate_vs_expectations.state is GateState.pass_
     assert report.candidate_vs_expectations.findings == ()
+    assert report.waiver_dispositions == ()
     assert report.metrics.failed_cases == 0
     assert report.metrics.evaluated_cases == report.metrics.total_cases
     assert report.metrics.global_blocking_findings == 0
@@ -66,6 +71,21 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     payload.pop("runset_digest")
     with pytest.raises(ValidationError, match="requires runset_digest"):
         EvaluationReport.model_validate(payload)
+    report_schema = EvaluationReport.model_json_schema(mode="validation")
+    current_schema_condition = next(
+        condition
+        for condition in report_schema["allOf"]
+        if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("const")
+        == "0.6.0"
+    )
+    assert set(current_schema_condition["then"]["required"]) == {
+        "runset_digest",
+        "waiver_dispositions",
+    }
+    assert (
+        report_schema["properties"]["waiver_dispositions"]["maxItems"]
+        == 4096
+    )
 
 
 def test_load_runset_requires_explicit_current_wire_identity(tmp_path: Path) -> None:
@@ -533,13 +553,13 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
     today = date(2026, 7, 3)
     waiver = Waiver(
         waiver_id="waiver-active",
-        owner="quality",
-        rationale="temporary fixture review",
+        owner="private-owner-waiver-active-729",
+        rationale="private-rationale-waiver-active-729",
         reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
         finding_id=finding.finding_id,
         artifact_digest=runset_digest(runset),
         expires_on=today + timedelta(days=1),
-        reviewer="assurance",
+        reviewer="private-reviewer-waiver-active-729",
     )
 
     report = evaluate_runset(compiled, runset, waivers=(waiver,), today=today)
@@ -547,6 +567,93 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
     assert report.candidate_vs_expectations.state is GateState.warn
     assert report.metrics.blocking_findings == 0
     assert report.candidate_vs_expectations.findings[0].state is GateState.warn
+    assert len(report.waiver_dispositions) == 1
+    disposition = report.waiver_dispositions[0]
+    assert disposition.waiver_id == waiver.waiver_id
+    assert disposition.status is WaiverDispositionStatus.matched
+    assert disposition.finding_id == finding.finding_id
+    assert disposition.reason_code is waiver.reason_code
+    assert disposition.expires_on == waiver.expires_on
+    assert set(disposition.model_dump()) == {
+        "waiver_id",
+        "status",
+        "reason_code",
+        "finding_id",
+        "expires_on",
+    }
+    rendered = render_evaluation_markdown(report)
+    assert waiver.owner not in rendered
+    assert waiver.reviewer not in rendered
+    assert waiver.rationale not in rendered
+
+
+def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    initial_report = evaluate_runset(compiled, runset)
+    finding = initial_report.candidate_vs_expectations.findings[0]
+    today = date(2026, 7, 3)
+    waivers = (
+        Waiver(
+            waiver_id="waiver-reason",
+            owner="sensitive-reason-owner",
+            rationale="sensitive-reason-rationale",
+            reason_code=ReasonCode.POLICY_FAILED,
+            finding_id=finding.finding_id,
+            artifact_digest=runset_digest(runset),
+            expires_on=today + timedelta(days=1),
+            reviewer="sensitive-reason-reviewer",
+        ),
+        Waiver(
+            waiver_id="waiver-finding",
+            owner="sensitive-finding-owner",
+            rationale="sensitive-finding-rationale",
+            reason_code=finding.reason_code,
+            finding_id="finding-not-emitted",
+            artifact_digest=runset_digest(runset),
+            expires_on=today + timedelta(days=1),
+            reviewer="sensitive-finding-reviewer",
+        ),
+        Waiver(
+            waiver_id="waiver-artifact",
+            owner="sensitive-artifact-owner",
+            rationale="sensitive-artifact-rationale",
+            reason_code=finding.reason_code,
+            finding_id=finding.finding_id,
+            artifact_digest="f" * 64,
+            expires_on=today - timedelta(days=1),
+            reviewer="sensitive-artifact-reviewer",
+        ),
+    )
+
+    report = evaluate_runset(compiled, runset, waivers=waivers, today=today)
+    reordered_report = evaluate_runset(
+        compiled,
+        runset,
+        waivers=tuple(reversed(waivers)),
+        today=today,
+    )
+
+    assert report.candidate_vs_expectations == initial_report.candidate_vs_expectations
+    assert report.metrics == initial_report.metrics
+    assert report.failed_controls == initial_report.failed_controls
+    assert report.warning_controls == initial_report.warning_controls
+    assert report.waiver_dispositions == reordered_report.waiver_dispositions
+    assert {
+        disposition.waiver_id: disposition.status
+        for disposition in report.waiver_dispositions
+    } == {
+        "waiver-artifact": WaiverDispositionStatus.unmatched_artifact,
+        "waiver-finding": WaiverDispositionStatus.unmatched_finding,
+        "waiver-reason": WaiverDispositionStatus.unmatched_reason,
+    }
+    payload = report.model_dump(mode="json")["waiver_dispositions"]
+    assert isinstance(payload, list)
+    assert len(payload) == len(waivers)
+    assert all(
+        set(disposition)
+        == {"waiver_id", "status", "reason_code", "finding_id", "expires_on"}
+        for disposition in payload
+    )
 
 
 def test_expired_waiver_fails_closed() -> None:
@@ -569,6 +676,8 @@ def test_expired_waiver_fails_closed() -> None:
     assert _reason_codes(report.candidate_vs_expectations) == {ReasonCode.POLICY_FAILED}
     assert report.metrics.failed_cases == 0
     assert report.metrics.global_blocking_findings == 1
+    assert len(report.waiver_dispositions) == 1
+    assert report.waiver_dispositions[0].status is WaiverDispositionStatus.expired
 
 
 def test_fail_on_not_evaluated_marks_capabilities_blocking() -> None:

@@ -14,6 +14,8 @@ def render_evaluation_console(report: EvaluationReport, console: Console | None 
     console.print(_candidate_table(report))
     if summary.state is not GateState.pass_:
         console.print(_findings_table(report))
+    if report.waiver_dispositions:
+        console.print(_waiver_table(report))
     console.print(_capability_table(report))
 
 
@@ -62,6 +64,24 @@ def _capability_table(report: EvaluationReport) -> Table:
     table.add_column("Reason")
     for capability in report.not_evaluated_capabilities:
         table.add_row(capability.capability_id, capability.state.value, capability.reason)
+    return table
+
+
+def _waiver_table(report: EvaluationReport) -> Table:
+    table = Table(title="Waiver Dispositions")
+    table.add_column("Waiver")
+    table.add_column("Status")
+    table.add_column("Finding")
+    table.add_column("Reason")
+    table.add_column("Expires")
+    for disposition in report.waiver_dispositions:
+        table.add_row(
+            disposition.waiver_id,
+            disposition.status.value,
+            disposition.finding_id,
+            disposition.reason_code.value,
+            disposition.expires_on.isoformat(),
+        )
     return table
 
 

@@ -74,11 +74,11 @@ those contract tests into a successful skip.
 Dependabot checks both Python and GitHub Actions dependencies weekly. The
 `security` workflow runs SHA-pinned CodeQL analysis on pushes, pull requests,
 and a weekly schedule; reviews dependency changes on pull requests; and audits
-all four hash-locked Python dependency sets on a weekly schedule. Each lockfile
-is passed to a separate pinned audit-action invocation using only supported
-action inputs. Dependency auditing disables dependency resolution for each
-lock; the pinned action may still create an isolated audit environment while
-processing it.
+all four hash-locked Python dependency sets on direct updates to `main`, manual
+dispatches, and a weekly schedule. Each lockfile is passed to a separate pinned
+audit-action invocation using only supported action inputs. Dependency auditing
+disables dependency resolution for each lock; the pinned action may still
+create an isolated audit environment while processing it.
 
 These controls report published advisories; they do not prove that dependencies
 are vulnerability-free. A lock update remains subject to normal tests,

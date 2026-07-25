@@ -41,7 +41,7 @@
   `inject-forbidden-tool`.
 - Single-operator `controls mutate` execution with source immutability,
   before/after validation, exact changed paths, normative detector matching,
-  privacy-minimized expected/observed target bindings, deterministic result
+  privacy-minimized expected/observed target bindings, canonical result
   digests, and distinct caught, survived, invalid, inapplicable, and
   execution-error exits.
 - Offline package and CLI skeleton.
@@ -65,7 +65,7 @@
   runtime success, structured output fields, evidence coverage, explicit
   claim-evidence links, configured tool allowlists, provider review boundaries,
   human review routing, redaction checks, prompt-boundary cases, gate profiles, and
-  per-finding time-bounded waivers.
+  per-finding time-bounded waivers with explicit privacy-minimized dispositions.
 - JSON, Markdown, and Rich console evaluation reports that lead with candidate
   vs expectations and keep unsupported capabilities marked `not_evaluated`.
 - RunSet comparison reports with fixture-equivalence checks, candidate-first

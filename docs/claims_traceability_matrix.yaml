@@ -132,13 +132,13 @@ claims:
       docs: [docs/evidence_carrying_releases.md, docs/cli_contract.md]
     limitations: An independence label is a scope declaration, not proof that organizational, implementation, or evaluator independence was achieved.
   - id: signed-release-evidence
-    claim: Release evidence, its human-readable packet, manifest, replay, release notes, SBOM, wheel, and source distribution can be signed keylessly in a tag-only minimal GitHub Actions OIDC job only after every downloaded signing input is byte-matched to an independent rebuild and promoted under a new artifact ID, then verified without OIDC before publication from verifier-promoted artifacts.
+    claim: Release evidence, its human-readable packet, manifest, replay, release notes, SBOM, wheel, and source distribution can be signed keylessly in a tag-only minimal GitHub Actions OIDC job only after every downloaded signing input is byte-matched to a same-toolchain fresh-job rebuild and promoted under a new artifact ID, then verified without OIDC before publication from verifier-promoted artifacts.
     evidence:
       code: [.github/workflows/release.yml, .github/workflows/evidence.yml, scripts/build_release_bundle.py, scripts/reproduce_release.py, src/agent_assure/reporting/sbom.py]
       tests: [tests/unit/release/test_release_evidence.py, tests/unit/release/test_sbom.py]
       commands: [cosign sign-blob, cosign verify-blob, agent-assure release replay]
       docs: [docs/release_evidence.md, README.md]
-    limitations: Signatures verify exact bytes and workflow identity only; replay cross-checks manifest-listed SBOM and distribution hashes when those files are available, but the SBOM is not a vulnerability assessment or supply-chain attestation.
+    limitations: The fresh-job byte match uses the same implementation and toolchain, not an independently implemented or diverse-toolchain build. Signatures verify exact bytes and workflow identity only; replay cross-checks manifest-listed SBOM and distribution hashes when those files are available, but the SBOM is not a vulnerability assessment or supply-chain attestation.
   - id: flagship-showcase-demo
     claim: The documented flagship showcase reproduces a passing baseline and an evidence-normalization candidate that keeps the visible answer stable while failing a material evidence-link invariant.
     evidence:
@@ -179,7 +179,7 @@ claims:
       docs: [docs/cli_contract.md, docs/live_mode_roadmap.md, docs/schema_reference.md, docs/live_calibration.md]
     limitations: Live analyses are time-bound to declared provider/model/configuration windows and approved data boundaries. The OpenAI-compatible adapter requires explicit network opt-in, HTTPS, an API key environment variable, and endpoint-host allowlisting. Live reports are not general model-quality, safety, compliance, clinical-validation, or provider-superiority claims.
   - id: live-advanced-statistics
-    claim: Optional advanced live endpoint plans bind confirmatory or exploratory statistical endpoints to the frozen protocol digest, report rare-event Poisson upper bounds at the protocol confidence level, observed cluster-correlation summaries with uncertainty, Bonferroni multiplicity controls for confirmatory endpoint families, deterministic integer-seeded resampling, and paired exact or Monte Carlo randomization tests only when structural pairing checks and declared design prerequisites are met.
+    claim: Optional advanced live endpoint plans bind confirmatory or exploratory statistical endpoints to the frozen protocol digest, report rare-event Poisson upper bounds at the effective persisted confidence level, apply Bonferroni-adjusted alpha to confirmatory Poisson bounds, report observed cluster-correlation summaries with uncertainty, use deterministic integer-seeded resampling, and run paired exact or Monte Carlo randomization tests only when structural pairing checks and declared design prerequisites are met.
     evidence:
       schemas: [live-protocol-record, live-evaluation-report, live-comparison-report]
       code: [src/agent_assure/live/advanced.py, src/agent_assure/live/statistics.py, src/agent_assure/live/comparison.py, src/agent_assure/reporting/live.py]

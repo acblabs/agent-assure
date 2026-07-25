@@ -228,12 +228,19 @@ def _evaluate_endpoint(
         )
     rare_event_bound = None
     if endpoint.analysis_method == "poisson_upper_bound":
+        bonferroni_adjusted = (
+            endpoint.interpretation == "confirmatory"
+            and plan.multiplicity_method == "bonferroni"
+        )
+        confidence_alpha = _confidence_alpha(protocol.confidence_level)
+        if bonferroni_adjusted:
+            confidence_alpha = adjusted_alpha
         rare_event_bound = _rare_event_bound(
             endpoint,
             observed_events=numerator,
             exposure=denominator,
-            confidence_alpha=_confidence_alpha(protocol.confidence_level),
-            protocol=protocol,
+            confidence_alpha=confidence_alpha,
+            bonferroni_adjusted=bonferroni_adjusted,
         )
         limitations.extend(rare_event_bound.limitations)
     cluster_correlation = _cluster_correlation_summary(
@@ -383,8 +390,9 @@ def _rare_event_bound(
     observed_events: int,
     exposure: int,
     confidence_alpha: Decimal,
-    protocol: LiveProtocolRecord,
+    bonferroni_adjusted: bool,
 ) -> RareEventUpperBound:
+    confidence_level = Decimal("1") - confidence_alpha
     if exposure == 0:
         upper_count = Decimal("0")
         upper_rate = Decimal("0")
@@ -394,11 +402,15 @@ def _rare_event_bound(
             alpha=confidence_alpha,
         )
         upper_rate = upper_count / Decimal(exposure)
-    limitations = []
-    limitations.append(
-        "rare-event Poisson bound is a one-sided upper bound at the protocol "
-        "confidence level"
-    )
+    limitations = [
+        (
+            "rare-event Poisson bound is a one-sided upper bound at the endpoint-adjusted "
+            "confidence level after Bonferroni multiplicity control"
+            if bonferroni_adjusted
+            else "rare-event Poisson bound is a one-sided upper bound at the protocol "
+            "confidence level"
+        )
+    ]
     if observed_events == 0:
         limitations.append(
             "zero observed events produce an upper bound, not proof that the event is absent"
@@ -413,7 +425,7 @@ def _rare_event_bound(
         event_rate=rate_string(observed_events, exposure),
         upper_count_bound=decimal_string(upper_count),
         upper_rate_bound=decimal_string(upper_rate),
-        confidence_level=protocol.confidence_level,
+        confidence_level=decimal_string(confidence_level),
         interval_sidedness="one_sided_upper",
         analysis_method="poisson_upper_bound",
         zero_events=observed_events == 0,

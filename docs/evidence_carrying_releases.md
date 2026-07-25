@@ -160,10 +160,19 @@ Each operator candidate in this development RFC declares:
 - one expected-detection contract and its digest.
 
 The engine validates the source, works from an immutable copy, checks that no
-undeclared path changed, and validates the transformed object. For one bound
-operator and evaluator implementation, the same source digest, operator
-version, and integer seed produce identical transformed bytes and the same
-result digest.
+undeclared path changed, and validates the transformed object. The same source
+digest, complete operator identity, and integer seed produce identical
+transformed bytes. `result_digest` self-hashes every serialized result field
+except `result_digest` itself, so it is identical only when the complete result
+projection is unchanged. That projection includes the source and transformed
+digests; operator, implementation, expected-detection, and provenance
+identities; evaluator method, version, implementation, evaluation basis,
+protocol, and population identities; gate-profile and waiver-set identities;
+the evaluation date and seed; and the resulting changed paths, findings,
+matches, state, diagnostics, and limitations.
+CLI replay that requires an identical result digest must therefore pass the
+same `--today` value. If `--today` is omitted, the command uses the current date,
+which is intentionally part of the result digest.
 
 Changed paths use schema-owned JSON Pointer identities. Reports contain paths,
 digests, reason codes, and bounded summaries rather than copied field content.

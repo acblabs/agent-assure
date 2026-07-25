@@ -706,6 +706,55 @@
       ],
       "title": "UsageSummary",
       "type": "object"
+    },
+    "WaiverDisposition": {
+      "additionalProperties": false,
+      "description": "Privacy-minimized audit projection for one supplied waiver.",
+      "properties": {
+        "expires_on": {
+          "format": "date",
+          "title": "Expires On",
+          "type": "string"
+        },
+        "finding_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "status": {
+          "$ref": "#/$defs/WaiverDispositionStatus"
+        },
+        "waiver_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Waiver Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "waiver_id",
+        "status",
+        "reason_code",
+        "finding_id",
+        "expires_on"
+      ],
+      "title": "WaiverDisposition",
+      "type": "object"
+    },
+    "WaiverDispositionStatus": {
+      "enum": [
+        "matched",
+        "unmatched_artifact",
+        "unmatched_finding",
+        "unmatched_reason",
+        "expired"
+      ],
+      "title": "WaiverDispositionStatus",
+      "type": "string"
     }
   },
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.0/evaluation-report.schema.json",
@@ -766,7 +815,8 @@
           }
         },
         "required": [
-          "runset_digest"
+          "runset_digest",
+          "waiver_dispositions"
         ]
       }
     }
@@ -872,6 +922,15 @@
         }
       ],
       "default": null
+    },
+    "waiver_dispositions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/WaiverDisposition"
+      },
+      "maxItems": 4096,
+      "title": "Waiver Dispositions",
+      "type": "array"
     },
     "warning_controls": {
       "default": [],

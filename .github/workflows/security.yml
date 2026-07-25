@@ -29,7 +29,12 @@ jobs:
           fail-on-severity: moderate
 
   dependency-audit:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    # Dependency review covers pull-request deltas, while direct main updates
+    # still need a complete audit of every release lockfile before a tag is cut.
+    if: >-
+      github.event_name == 'push' ||
+      github.event_name == 'schedule' ||
+      github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     permissions:
       contents: read

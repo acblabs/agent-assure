@@ -253,6 +253,8 @@ class AdvancedAnalysisPlan(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_plan(self) -> AdvancedAnalysisPlan:
+        if not Decimal("0") < Decimal(self.familywise_alpha) < Decimal("1"):
+            raise ValueError("familywise_alpha must be greater than zero and less than one")
         endpoint_ids = [endpoint.endpoint_id for endpoint in self.endpoints]
         if len(endpoint_ids) != len(set(endpoint_ids)):
             raise ValueError("advanced analysis endpoint_id values must be unique")
@@ -283,6 +285,16 @@ class AdvancedAnalysisPlan(PersistedArtifact):
         if len(confirmatory) > 1 and self.multiplicity_method != "bonferroni":
             raise ValueError(
                 "multiple confirmatory endpoints require bonferroni multiplicity_method"
+            )
+        if (
+            self.multiplicity_method == "bonferroni"
+            and decimal_string(
+                Decimal(self.familywise_alpha) / Decimal(len(confirmatory))
+            )
+            == "0.000000"
+        ):
+            raise ValueError(
+                "Bonferroni-adjusted alpha is below the persisted six-decimal precision"
             )
         if any(endpoint.hierarchy_rank is not None for endpoint in confirmatory):
             raise ValueError(
@@ -483,7 +495,10 @@ class RareEventUpperBound(PersistedArtifact):
     event_rate: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
     upper_count_bound: DecimalString = Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
     upper_rate_bound: DecimalString = Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$")
-    confidence_level: Literal["0.950000"] = "0.950000"
+    confidence_level: DecimalString = Field(
+        default="0.950000",
+        pattern=r"^0\.[0-9]{6}$",
+    )
     interval_sidedness: Literal["one_sided_upper"] = "one_sided_upper"
     analysis_method: Literal["poisson_upper_bound"] = "poisson_upper_bound"
     zero_events: bool = False
@@ -900,6 +915,105 @@ class LiveGroupSummary(PersistedArtifact):
         return coerce_tuple(value)
 
 
+def _live_observation_group_id(observation: LiveObservationResult) -> str:
+    return "|".join(
+        (
+            f"provider={observation.provider or 'unknown'}",
+            f"model={observation.model or 'unknown'}",
+            f"adapter={observation.adapter_id or 'unknown'}",
+            f"pipeline={observation.pipeline_id or 'unknown'}",
+        )
+    )
+
+
+def _require_live_rate_identity(
+    rate: LiveRate,
+    *,
+    label: str,
+    numerator: int,
+    denominator: int,
+    owner: str,
+) -> None:
+    if rate.label != label:
+        raise ValueError(f"{owner} rate label must be {label!r}")
+    if rate.numerator != numerator:
+        raise ValueError(f"{owner} {label} rate numerator does not match observations")
+    if rate.denominator != denominator:
+        raise ValueError(f"{owner} {label} rate denominator does not match observations")
+    expected_rate = (
+        decimal_string(Decimal(numerator) / Decimal(denominator))
+        if denominator
+        else decimal_string(Decimal("0"))
+    )
+    if rate.rate != expected_rate:
+        raise ValueError(f"{owner} {label} rate does not match numerator and denominator")
+
+
+def _require_live_group_summary_identity(
+    summary: LiveGroupSummary,
+    observations: tuple[LiveObservationResult, ...],
+    *,
+    owner: str,
+) -> None:
+    included = tuple(
+        observation
+        for observation in observations
+        if observation.observation_status == "included"
+    )
+    excluded_count = len(observations) - len(included)
+    if summary.observations != len(observations):
+        raise ValueError(f"{owner} observations count does not match observations")
+    if summary.included_observations != len(included):
+        raise ValueError(f"{owner} included_observations count does not match observations")
+    if summary.excluded_observations != excluded_count:
+        raise ValueError(f"{owner} excluded_observations count does not match observations")
+
+    _require_live_rate_identity(
+        summary.exclusion_rate,
+        label="exclusion",
+        numerator=excluded_count,
+        denominator=len(observations),
+        owner=owner,
+    )
+    _require_live_rate_identity(
+        summary.expectation_pass_rate,
+        label="expectation_pass",
+        numerator=sum(1 for observation in included if observation.state is GateState.pass_),
+        denominator=len(included),
+        owner=owner,
+    )
+
+    reason_counts = {
+        reason_code: sum(
+            1 for observation in included if reason_code in observation.reason_codes
+        )
+        for reason_code in {
+            reason_code
+            for observation in included
+            for reason_code in observation.reason_codes
+        }
+    }
+    reason_rates_by_label: dict[str, LiveRate] = {}
+    for rate in summary.reason_code_rates:
+        if rate.label in reason_rates_by_label:
+            raise ValueError(f"{owner} contains duplicate reason-code rate labels")
+        reason_rates_by_label[rate.label] = rate
+    expected_labels = {
+        f"reason_code:{reason_code.value}" for reason_code in reason_counts
+    }
+    if set(reason_rates_by_label) != expected_labels:
+        raise ValueError(f"{owner} reason-code rates do not match observations")
+    for reason_code, numerator in reason_counts.items():
+        label = f"reason_code:{reason_code.value}"
+        _require_live_rate_identity(
+            reason_rates_by_label[label],
+            label=label,
+            numerator=numerator,
+            denominator=len(included),
+            owner=owner,
+        )
+
+
 class LiveEvaluationReport(PersistedArtifact):
     model_config = ConfigDict(json_schema_extra=_live_evaluation_schema_extra)
 
@@ -990,6 +1104,39 @@ class LiveEvaluationReport(PersistedArtifact):
                     "live evaluation report contains duplicate prompt and schedule identity"
                 )
             schedule_identities.add(schedule_identity)
+        return self
+
+    @model_validator(mode="after")
+    def _require_derivable_summary_consistency(self) -> LiveEvaluationReport:
+        if self.schema_version != "0.6.0":
+            return self
+        if self.overall.group_id != "overall":
+            raise ValueError("live evaluation overall summary must use group_id 'overall'")
+        _require_live_group_summary_identity(
+            self.overall,
+            self.observations,
+            owner="live evaluation overall summary",
+        )
+
+        observations_by_group: dict[str, list[LiveObservationResult]] = {}
+        for observation in self.observations:
+            group_id = _live_observation_group_id(observation)
+            observations_by_group.setdefault(group_id, []).append(observation)
+        groups_by_id: dict[str, LiveGroupSummary] = {}
+        for group in self.groups:
+            if group.group_id in groups_by_id:
+                raise ValueError("live evaluation report contains duplicate group_id")
+            groups_by_id[group.group_id] = group
+        if set(groups_by_id) != set(observations_by_group):
+            raise ValueError(
+                "live evaluation report group summaries do not match observation groups"
+            )
+        for group_id, group_observations in observations_by_group.items():
+            _require_live_group_summary_identity(
+                groups_by_id[group_id],
+                tuple(group_observations),
+                owner=f"live evaluation group {group_id!r}",
+            )
         return self
 
 

@@ -501,8 +501,10 @@ def _comparison_state(
 ) -> GateState:
     if compared_clusters == 0:
         return GateState.not_evaluated
-    if lower <= -margin:
+    if _non_inferiority_boundary_breached(lower, margin):
         return GateState.fail
+    if margin == Decimal("0") and lower == Decimal("0"):
+        return GateState.not_evaluated
     if exploratory:
         return GateState.not_evaluated
     return GateState.pass_
@@ -519,8 +521,10 @@ def _randomization_comparison_state(
     p_value = getattr(randomization_test, "adjusted_p_value", None)
     prerequisite_status = getattr(randomization_test, "prerequisite_status", None)
     interpretation = getattr(randomization_test, "interpretation", None)
-    if difference <= -margin:
+    if _non_inferiority_boundary_breached(difference, margin):
         return GateState.fail
+    if margin == Decimal("0") and difference == Decimal("0"):
+        return GateState.not_evaluated
     if prerequisite_status != "met" or interpretation == "exploratory" or p_value is None:
         return GateState.not_evaluated
     plan = protocol.advanced_analysis_plan
@@ -585,10 +589,33 @@ def _comparison_limitations(
             "interval collapsed to zero width and is not eligible for confirmatory "
             "interpretation"
         )
-    if compared_clusters > 0 and lower <= -Decimal(protocol.non_inferiority_margin):
+    margin = Decimal(protocol.non_inferiority_margin)
+    boundary_value = (
+        difference
+        if protocol.analysis_method
+        in {
+            "paired_cluster_permutation_exact",
+            "paired_cluster_permutation_monte_carlo",
+        }
+        else lower
+    )
+    if compared_clusters > 0 and _non_inferiority_boundary_breached(
+        boundary_value,
+        margin,
+    ):
         limitations.append(
-            "the gate fails closed because the lower interval bound reaches or crosses the "
-            "non-inferiority margin; this does not prove candidate inferiority"
+            "the gate fails closed because the comparison crossed the non-inferiority "
+            "boundary; this does not prove candidate inferiority or establish a "
+            "statistically confirmatory regression"
+        )
+    elif (
+        compared_clusters > 0
+        and margin == Decimal("0")
+        and boundary_value == Decimal("0")
+    ):
+        limitations.append(
+            "the comparison reached the zero-margin equality boundary and is inconclusive; "
+            "it is not evaluated and does not prove candidate regression"
         )
     if exploratory:
         if protocol.cluster_by == "source_group_id":
@@ -606,3 +633,8 @@ def _comparison_limitations(
                 "for confirmatory interpretation"
             )
     return tuple(limitations)
+
+
+def _non_inferiority_boundary_breached(value: Decimal, margin: Decimal) -> bool:
+    boundary = -margin
+    return value < boundary or (margin != Decimal("0") and value == boundary)

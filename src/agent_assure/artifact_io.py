@@ -240,7 +240,11 @@ def _git_environment() -> dict[str, str]:
 def _resolve_git_executable() -> str | None:
     executable_names: tuple[str, ...] = ("git",)
     if os.name == "nt":
-        executable_names = ("git.exe", "git.cmd", "git.bat", "git")
+        # Batch shims are interpreted by cmd.exe even when subprocess is invoked
+        # without shell=True. Provenance reads include an absolute repository path
+        # in Git's safe.directory argument, so accept only the native executable on
+        # Windows and avoid command-shell metacharacter interpretation entirely.
+        executable_names = ("git.exe",)
     for raw_directory in os.environ.get("PATH", "").split(os.pathsep):
         directory_text = raw_directory.strip().strip('"')
         if not directory_text:

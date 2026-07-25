@@ -987,8 +987,8 @@
           "type": "string"
         },
         "confidence_level": {
-          "const": "0.950000",
           "default": "0.950000",
+          "pattern": "^0\\.[0-9]{6}$",
           "title": "Confidence Level",
           "type": "string"
         },

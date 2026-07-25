@@ -9,7 +9,19 @@ from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import StrictModel
-from agent_assure.schema.common import GateState, ReasonCode, Severity, coerce_enum, coerce_tuple
+from agent_assure.schema.common import (
+    MAX_LABEL_CHARS,
+    GateState,
+    ReasonCode,
+    Severity,
+    coerce_enum,
+    coerce_tuple,
+)
+from agent_assure.schema.evaluation import (
+    MAX_WAIVER_DISPOSITIONS,
+    WaiverDisposition,
+    WaiverDispositionStatus,
+)
 
 
 def control_finding_id(
@@ -103,11 +115,11 @@ class GateProfile(StrictModel):
 
 
 class Waiver(StrictModel):
-    waiver_id: str = Field(min_length=1)
+    waiver_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
     owner: str = Field(min_length=1)
     rationale: str = Field(min_length=1)
     reason_code: ReasonCode
-    finding_id: str = Field(min_length=1)
+    finding_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
     artifact_digest: str = Field(pattern=r"^[a-f0-9]{64}$")
     expires_on: date
     reviewer: str = Field(min_length=1)
@@ -141,6 +153,12 @@ class Waiver(StrictModel):
 DEFAULT_GATE_PROFILE = GateProfile()
 
 
+@dataclass(frozen=True)
+class WaiverApplication:
+    results: tuple[ControlResult, ...]
+    dispositions: tuple[WaiverDisposition, ...]
+
+
 def apply_waivers(
     results: tuple[ControlResult, ...],
     *,
@@ -148,6 +166,25 @@ def apply_waivers(
     artifact_digest: str,
     today: date,
 ) -> tuple[ControlResult, ...]:
+    return apply_waivers_with_dispositions(
+        results,
+        waivers=waivers,
+        artifact_digest=artifact_digest,
+        today=today,
+    ).results
+
+
+def apply_waivers_with_dispositions(
+    results: tuple[ControlResult, ...],
+    *,
+    waivers: tuple[Waiver, ...],
+    artifact_digest: str,
+    today: date,
+) -> WaiverApplication:
+    if len(waivers) > MAX_WAIVER_DISPOSITIONS:
+        raise ValueError(
+            f"waiver count exceeds disposition limit {MAX_WAIVER_DISPOSITIONS}"
+        )
     adjusted: list[ControlResult] = []
     adjusted.extend(
         ControlResult(
@@ -189,7 +226,65 @@ def apply_waivers(
                 ),
             )
         )
-    return tuple(adjusted)
+    dispositions = tuple(
+        sorted(
+            (
+                _waiver_disposition(
+                    waiver,
+                    results=results,
+                    artifact_digest=artifact_digest,
+                    today=today,
+                )
+                for waiver in waivers
+            ),
+            key=_waiver_disposition_sort_key,
+        )
+    )
+    return WaiverApplication(results=tuple(adjusted), dispositions=dispositions)
+
+
+def _waiver_disposition(
+    waiver: Waiver,
+    *,
+    results: tuple[ControlResult, ...],
+    artifact_digest: str,
+    today: date,
+) -> WaiverDisposition:
+    if waiver.artifact_digest != artifact_digest:
+        status = WaiverDispositionStatus.unmatched_artifact
+    elif waiver.is_expired(today):
+        status = WaiverDispositionStatus.expired
+    else:
+        finding_matches = tuple(
+            result for result in results if result.finding_id == waiver.finding_id
+        )
+        if not finding_matches:
+            status = WaiverDispositionStatus.unmatched_finding
+        elif not any(
+            result.reason_code is waiver.reason_code for result in finding_matches
+        ):
+            status = WaiverDispositionStatus.unmatched_reason
+        else:
+            status = WaiverDispositionStatus.matched
+    return WaiverDisposition(
+        waiver_id=waiver.waiver_id,
+        status=status,
+        reason_code=waiver.reason_code,
+        finding_id=waiver.finding_id,
+        expires_on=waiver.expires_on,
+    )
+
+
+def _waiver_disposition_sort_key(
+    disposition: WaiverDisposition,
+) -> tuple[str, str, str, str, str]:
+    return (
+        disposition.waiver_id,
+        disposition.finding_id,
+        disposition.reason_code.value,
+        disposition.expires_on.isoformat(),
+        disposition.status.value,
+    )
 
 
 def rollup_state(results: tuple[ControlResult, ...], profile: GateProfile) -> GateState:

@@ -138,6 +138,30 @@ def test_git_file_bytes_uses_hardened_noninteractive_git(
     assert git_environment["GIT_NO_LAZY_FETCH"] == "1"
 
 
+def test_windows_git_resolution_rejects_batch_shims(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    (tmp_path / "git.cmd").write_text("@echo off\r\n", encoding="utf-8")
+    (tmp_path / "git.bat").write_text("@echo off\r\n", encoding="utf-8")
+    monkeypatch.setattr(artifact_io.os, "name", "nt")
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert artifact_io._resolve_git_executable() is None
+
+
+def test_windows_git_resolution_accepts_native_executable(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    git_executable = tmp_path / "git.exe"
+    git_executable.write_bytes(b"native executable placeholder")
+    monkeypatch.setattr(artifact_io.os, "name", "nt")
+    monkeypatch.setenv("PATH", str(tmp_path))
+
+    assert artifact_io._resolve_git_executable() == str(git_executable)
+
+
 def test_sanitized_git_environment_disables_lazy_fetch(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

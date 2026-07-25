@@ -183,6 +183,11 @@ Multiple confirmatory endpoints require a family-wise method such as
 Bonferroni. A protocol that expands endpoints
 without a declared multiplicity method can still report those endpoints as
 exploratory diagnostics, but it must not treat them as confirmatory evidence.
+For a confirmatory Poisson endpoint in a Bonferroni family, the one-sided upper
+bound uses that endpoint's adjusted alpha. The bound persists the corresponding
+effective confidence level, `1 - adjusted_alpha`, rather than repeating the
+unadjusted protocol confidence level. A plan is rejected when its adjusted
+alpha would round to zero at the persisted six-decimal precision.
 
 Reason-code families are predeclared endpoint inputs. Reports may still display
 observed reason-code rates for review, but confirmatory reason-code-family
@@ -402,6 +407,10 @@ Sign-flip randomization is accepted only when the non-inferiority margin is
 zero. Adding a nonzero margin to each paired difference does not preserve the
 baseline/candidate relabeling symmetry and is therefore rejected rather than
 reported as calibrated non-inferiority inference.
+At the supported zero margin, an observed difference of exactly zero is an
+inconclusive equality boundary and is reported as `not_evaluated`, not as a
+regression. An observed negative difference still fails the operational gate
+closed, but that fail-closed state is not confirmatory proof of regression.
 
 For rare critical events, including sensitive-content leaks or forbidden
 tool/provider use, an observed count of zero must be reported with an upper

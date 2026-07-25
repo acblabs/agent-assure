@@ -116,7 +116,7 @@ jobs:
           retention-days: 14
 
   reproduce:
-    name: Independently reproduce and promote signing inputs
+    name: Fresh-job rebuild and promote byte-matched signing inputs
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -170,7 +170,7 @@ jobs:
           .tmp/release
           --verified-out .tmp/verified-release
           ${{ startsWith(github.ref, 'refs/tags/v') && '--require-release-notes' || '' }}
-      - name: Replay independently rebuilt digests
+      - name: Replay digests from fresh-job rebuild
         run: >
           agent-assure release replay .tmp/release/release-digest-replay.json
           --artifact-root .
@@ -183,7 +183,7 @@ jobs:
           set -euo pipefail
           dirty="$(git -c core.fsmonitor=false status --porcelain=v1 --untracked-files=all)"
           test -z "${dirty}"
-      - name: Upload only verified independently rebuilt signing inputs
+      - name: Upload only verified inputs from fresh-job rebuild
         id: upload-verified
         # actions/upload-artifact@v4
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

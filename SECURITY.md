@@ -4,8 +4,9 @@ Please report suspected vulnerabilities through GitHub Private Vulnerability
 Reporting at
 <https://github.com/acblabs/agent-assure/security/advisories/new>. Do not open a
 public issue for an unremediated vulnerability. If that private form is
-unavailable, contact the maintainers listed in `.github/CODEOWNERS` without
-including exploit details in a public channel.
+unavailable, contact the repository owner listed in `.github/CODEOWNERS`
+through an established private channel. If no private channel is available,
+request one without including exploit details in a public channel.
 
 Maintainers should acknowledge a private report within three business days,
 provide an initial severity and remediation assessment within seven business

@@ -1580,7 +1580,7 @@ def test_invalid_finding_projection_returns_privacy_safe_execution_error() -> No
     }
 
 
-def test_same_source_operator_and_seed_produce_identical_bytes_and_result_digest() -> None:
+def test_same_complete_mutation_inputs_produce_identical_bytes_and_result_digest() -> None:
     suite, source_payload = _fixture(second_applicable_run=True)
 
     first = execute_mutation(
@@ -1605,6 +1605,33 @@ def test_same_source_operator_and_seed_produce_identical_bytes_and_result_digest
     assert canonical_bytes(first.mutated_payload) == canonical_bytes(second.mutated_payload)
     assert first.result.result_digest == second.result.result_digest
     assert first.evidence_descriptor.evidence_digest == second.evidence_descriptor.evidence_digest
+
+
+def test_evaluation_date_changes_result_digest_but_not_mutated_bytes() -> None:
+    suite, source_payload = _fixture(second_applicable_run=True)
+
+    first = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=7331,
+        generated_at=_GENERATED_AT,
+        evaluation_date=date(2026, 7, 20),
+    )
+    second = execute_mutation(
+        suite,
+        deepcopy(source_payload),
+        operator_id="drop-material-evidence-link",
+        seed=7331,
+        generated_at=_GENERATED_AT,
+        evaluation_date=date(2026, 7, 21),
+    )
+
+    assert first.mutated_payload is not None
+    assert second.mutated_payload is not None
+    assert canonical_bytes(first.mutated_payload) == canonical_bytes(second.mutated_payload)
+    assert first.result.mutated_digest == second.result.mutated_digest
+    assert first.result.result_digest != second.result.result_digest
 
 
 @settings(max_examples=32, deadline=None)

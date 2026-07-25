@@ -11,9 +11,12 @@ snapshots. Usage roots retain their established compatibility rules for older
 usage schema labels.
 
 At schema version `0.6.0`, `evaluation-report` requires `runset_digest`, the
-canonical digest of the exact RunSet content evaluated. Mutation execution
-checks this binding for both source and candidate reports so equal `runset_id`
-labels cannot make stale report content admissible.
+canonical digest of the exact RunSet content evaluated, and an explicit
+`waiver_dispositions` array. The latter records one privacy-minimized matched,
+unmatched, or expired disposition per supplied waiver without changing the gate
+rollup. Mutation execution checks the RunSet binding for both source and
+candidate reports so equal `runset_id` labels cannot make stale report content
+admissible.
 
 Every v0.6 live `agent-run-record` also requires
 `cost_budget_committed_usd`, `generated_token_budget_committed`, and
@@ -177,6 +180,9 @@ Live-specific root artifacts:
   invariant results can include rare-event Poisson upper bounds and observed
   cluster-correlation summaries with bootstrap uncertainty; zero observed
   critical events are represented as bounded evidence, not absence proofs.
+  A rare-event bound's `confidence_level` is the effective level used to
+  calculate that bound. For a confirmatory endpoint under Bonferroni control,
+  it equals `1 - adjusted_alpha`.
   Degenerate per-arm cluster intervals are labeled as boundary heuristics rather
   than ordinary cluster t intervals.
 - `live-comparison-report` records a baseline-to-candidate live report
@@ -191,7 +197,10 @@ Live-specific root artifacts:
   assumption. Monte Carlo seeds are deterministic integers derived from
   protocol-bound seed material; the report cannot prove exchangeability beyond
   the declared assumption and structural pairing checks. Paired sign-flip
-  randomization requires a zero non-inferiority margin.
+  randomization requires a zero non-inferiority margin. Equality at that zero
+  margin is inconclusive and produces `not_evaluated`; a negative observed
+  difference remains a fail-closed boundary breach but is not proof of
+  regression.
   For Bonferroni outputs, consumers must treat `adjusted_alpha` and
   `adjusted_p_value` as alternative correction encodings: compare a raw
   p-value to `adjusted_alpha`, or compare `adjusted_p_value` to the protocol

@@ -17,7 +17,7 @@ from agent_assure.policies.base import (
     ControlResult,
     GateProfile,
     Waiver,
-    apply_waivers,
+    apply_waivers_with_dispositions,
     rollup_state,
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
@@ -32,7 +32,12 @@ from agent_assure.schema.common import (
     coerce_tuple,
 )
 from agent_assure.schema.environment import EnvironmentInfo
-from agent_assure.schema.evaluation import EvaluationSummary, Finding
+from agent_assure.schema.evaluation import (
+    MAX_WAIVER_DISPOSITIONS,
+    EvaluationSummary,
+    Finding,
+    WaiverDisposition,
+)
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.usage import (
@@ -56,7 +61,7 @@ _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
             "properties": {"schema_version": {"const": "0.6.0"}},
         },
         "then": {
-            "required": ["runset_digest"],
+            "required": ["runset_digest", "waiver_dispositions"],
             "properties": {"runset_digest": {"type": "string"}},
         },
     }
@@ -120,6 +125,10 @@ class EvaluationReport(PersistedArtifact):
     usage_summary: UsageSummary | None = Field(default=None, exclude_if=lambda value: value is None)
     failed_controls: tuple[Finding, ...] = ()
     warning_controls: tuple[Finding, ...] = ()
+    waiver_dispositions: tuple[WaiverDisposition, ...] = Field(
+        default=(),
+        max_length=MAX_WAIVER_DISPOSITIONS,
+    )
     not_evaluated_capabilities: tuple[CapabilityReport, ...] = ()
     limitations: tuple[str, ...] = (
         "offline fixture evaluation does not certify safety, compliance, clinical validity, "
@@ -129,6 +138,7 @@ class EvaluationReport(PersistedArtifact):
     @field_validator(
         "failed_controls",
         "warning_controls",
+        "waiver_dispositions",
         "not_evaluated_capabilities",
         "limitations",
         mode="before",
@@ -183,12 +193,13 @@ def evaluate_runset(
         allowed_tools=suite.defaults.allowed_tools,
         required_policy_ids=suite.defaults.required_policy_ids,
     )
-    adjusted_results = apply_waivers(
+    waiver_application = apply_waivers_with_dispositions(
         raw_results,
         waivers=waivers,
         artifact_digest=artifact_digest,
         today=today or date.today(),
     )
+    adjusted_results = waiver_application.results
     capabilities = _capabilities(
         DEFAULT_NOT_EVALUATED_CAPABILITIES,
         suite_has_tool_policy=_suite_has_tool_policy(suite),
@@ -230,6 +241,7 @@ def evaluate_runset(
         usage_summary=usage_summary,
         failed_controls=failed_controls,
         warning_controls=warning_controls,
+        waiver_dispositions=waiver_application.dispositions,
         not_evaluated_capabilities=capabilities,
     )
 

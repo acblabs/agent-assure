@@ -41,11 +41,12 @@ After the target tag exists, reproduce from a clean checkout of the tagged
 commit and the downloaded release bundle:
 
 ```bash
-TAG=v0.3.1
+TAG=v0.6.0
+RELEASE="${TAG#v}"
 git checkout "${TAG}"
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
-python scripts/build_release_bundle.py --expected-release 0.6.0 --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref "refs/tags/${TAG}"
+python scripts/build_release_bundle.py --expected-release "${RELEASE}" --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref "refs/tags/${TAG}"
 agent-assure release replay path/to/downloaded/release-digest-replay.json --artifact-root . --expect-ref "refs/tags/${TAG}" --require-current-commit
 ```
 
@@ -75,7 +76,7 @@ the broader release-manifest replay check runs.
 
 Release bundle scripts pin waiver-sensitive CI evaluation to `2026-07-03` and
 default subprocesses to `SOURCE_DATE_EPOCH=1783036800` unless the environment
-already sets a value. Keep those values fixed for v0.3.1 replays; update them
+already sets a value. Keep those values fixed for v0.6.0 replays; update them
 deliberately only when cutting a new release line.
 
 Replay artifact paths must be relative to `--artifact-root` and cannot include
@@ -106,12 +107,14 @@ downloaded signing input by its actual SHA-256 bytes does a minimal GitHub
 Actions OIDC job sign the reviewed blob set. The comparison covers packet JSON,
 packet Markdown, manifest, replay, SBOM, wheel, source distribution, and release
 notes when present; it never treats manifest-declared hashes as proof of the
-downloaded bytes. The reproduction job stages only independently rebuilt,
-byte-matched files under a new artifact ID. The signer downloads only that ID
-and has no checkout, Python setup, dependency installation, package import, or
-package execution. It is tag-only and protected by the `signing` environment. A
-separate job without OIDC verifies the exact workflow identity and promotes the
-verified signed bundle. Signed blobs include:
+downloaded bytes. The reproduction job stages under a new artifact ID only
+files rebuilt in that fresh job and byte-matched to the downloaded inputs. This
+establishes same-toolchain fresh-job reproducibility, not reproduction by an
+independent implementation or diverse toolchain. The signer downloads only
+that ID and has no checkout, Python setup, dependency installation, package
+import, or package execution. It is tag-only and protected by the `signing`
+environment. A separate job without OIDC verifies the exact workflow identity
+and promotes the verified signed bundle. Signed blobs include:
 
 Both signing workflows require a `v*` tag. The evidence workflow also checks
 that the tag resolves to the workflow commit, matches the package version, and
@@ -123,8 +126,8 @@ cosign sign-blob --yes --bundle evidence-packet.md.bundle evidence-packet.md
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
 cosign sign-blob --yes --bundle sbom.cdx.json.bundle sbom.cdx.json
-cosign sign-blob --yes --bundle agent_assure-0.3.1-py3-none-any.whl.bundle agent_assure-0.3.1-py3-none-any.whl
-cosign sign-blob --yes --bundle agent_assure-0.3.1.tar.gz.bundle agent_assure-0.3.1.tar.gz
+cosign sign-blob --yes --bundle agent_assure-0.6.0-py3-none-any.whl.bundle agent_assure-0.6.0-py3-none-any.whl
+cosign sign-blob --yes --bundle agent_assure-0.6.0.tar.gz.bundle agent_assure-0.6.0.tar.gz
 ```
 
 The tag release workflow also signs its reviewed `release-notes.md`. The
@@ -142,7 +145,7 @@ that produced the signed release bundle:
 
 ```bash
 REPO=acblabs/agent-assure
-TAG=v0.3.1
+TAG=v0.6.0
 SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
 IDENTITY="https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}"

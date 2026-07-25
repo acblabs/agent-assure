@@ -54,6 +54,14 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
     lines.extend(
         [
             "",
+            "## Waiver Dispositions",
+            "",
+        ]
+    )
+    lines.extend(_waiver_disposition_lines(report))
+    lines.extend(
+        [
+            "",
             "## Not-Evaluated Capabilities",
             "",
         ]
@@ -257,6 +265,21 @@ def _finding_lines(findings: tuple[Finding, ...]) -> list[str]:
             f"{markdown_code_span(finding.state.value)}: {markdown_text(finding.message)}"
         )
         for finding in findings
+    ]
+
+
+def _waiver_disposition_lines(report: EvaluationReport) -> list[str]:
+    if not report.waiver_dispositions:
+        return ["No waivers were supplied."]
+    return [
+        (
+            f"- {markdown_code_span(disposition.waiver_id)} "
+            f"{markdown_code_span(disposition.status.value)}; "
+            f"finding {markdown_code_span(disposition.finding_id)}; "
+            f"reason {markdown_code_span(disposition.reason_code.value)}; "
+            f"expires {markdown_code_span(disposition.expires_on.isoformat())}"
+        )
+        for disposition in report.waiver_dispositions
     ]
 
 

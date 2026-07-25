@@ -77,7 +77,7 @@ jobs:
           retention-days: 14
 
   reproduce:
-    name: Independently reproduce candidate
+    name: Fresh-job rebuild candidate
     needs: build
     runs-on: ubuntu-latest
     permissions:
@@ -101,7 +101,7 @@ jobs:
           path: .tmp/published-dist
       - name: Validate downloaded candidate set
         run: python scripts/check_wheel_contents.py --dist .tmp/published-dist
-      - name: Rebuild and check independently
+      - name: Rebuild candidate in a fresh job
         env:
           EXPECTED_VERSION: ${{ inputs['expected-version'] }}
         shell: bash

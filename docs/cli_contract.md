@@ -76,6 +76,12 @@ Waivers bind to a run-set digest, reason code, and exact `finding_id`; expired
 waivers fail closed. An expired waiver whose artifact digest still matches is a
 global blocker even when its former finding is no longer emitted; remove or
 renew that waiver explicitly so stale governance exceptions cannot linger.
+Evaluation reports record exactly one privacy-minimized disposition for every
+supplied waiver: `matched`, `unmatched_artifact`, `unmatched_finding`,
+`unmatched_reason`, or `expired`. Dispositions include the waiver ID, finding
+ID, reason code, and expiry date, but omit owner, reviewer, and rationale.
+Unmatched dispositions are audit metadata only and do not alter gate findings,
+metrics, or rollup state.
 
 `compare` writes `comparison-report.json`, `comparison-summary.json`,
 `comparison-report.md`, `dependency-inventory.json`, and
@@ -125,9 +131,16 @@ codes, bounded finding summaries, operator and evaluator provenance,
 independence class, and limitations; they do not copy raw prompt, completion,
 message, or tool payload content. The result and descriptor bind the canonical
 gate-profile digest, the order-independent waiver-set digest (including an
-explicit empty set), and the evaluation date. The same source digest, operator
-version, bound evaluator and gate configuration, evaluation date, and seed
-produce identical transformed bytes and result digest.
+explicit empty set), and the evaluation date. The same source digest, complete
+operator identity, and seed produce identical transformed bytes. The result
+digest is identical only when every serialized result field other than the
+self-digest is also unchanged, including the operator and expected-detection
+identities, evaluator and protocol/population identities, gate profile, waiver
+set, evaluation date, and resulting findings, state, diagnostics, and
+limitations.
+Callers that require an identical result digest must pass the same `--today`
+value. When it is omitted, the command uses the current date, which is
+intentionally part of the result digest.
 
 The artifact files are staged and replaced as one rollback-capable generation.
 Writers are serialized per output directory, and the generation manifest is
@@ -242,9 +255,11 @@ flags, suite and execution-configuration digests, provider/model group
 summaries, latency distributions, estimated-cost distributions,
 observation-level findings, optional protocol-declared statistical-invariant
 results, and limitations. Statistical-invariant results can include rare-event
-one-sided Poisson upper bounds at the protocol confidence level and observed
-cluster-correlation summaries with uncertainty; zero observed critical events
-are reported as bounded evidence, not proof of absence. Degenerate per-arm
+one-sided Poisson upper bounds at their persisted effective confidence level and
+observed cluster-correlation summaries with uncertainty. Confirmatory
+Bonferroni Poisson endpoints use the endpoint-adjusted alpha for that bound;
+zero observed critical events are reported as bounded evidence, not proof of
+absence. Degenerate per-arm
 cluster intervals are labeled as a
 boundary heuristic rather than an ordinary t interval. It exits `1` when any included
 observation has a blocking
@@ -269,11 +284,11 @@ prerequisites are not met cannot produce a confirmatory pass. When all paired
 cluster differences are identical, the limitations section labels the
 zero-width empirical interval as degenerate and the comparison cannot produce a
 confirmatory interval pass. Paired sign-flip randomization is limited to a zero
-non-inferiority margin. A non-inferiority gate failure
-means the interval did not rule out a drop larger than the margin; it is a
-fail-closed gate result, not proof of candidate inferiority. The comparison is
-time-bound to the reports being compared and is not a general provider-quality
-claim.
+non-inferiority margin. Exact equality at that zero margin is inconclusive and
+returns `not_evaluated`, not `fail`. An actual non-inferiority boundary breach
+remains a fail-closed gate result, not proof of candidate inferiority or a
+statistically confirmatory regression. The comparison is time-bound to the
+reports being compared and is not a general provider-quality claim.
 
 `live drift` consumes ordered `live-evaluation-report` JSON artifacts and a
 `live-protocol-record`, then writes `live-drift-report.json` and

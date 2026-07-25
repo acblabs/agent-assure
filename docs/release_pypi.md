@@ -11,10 +11,13 @@ digests, SBOM, GitHub release assets, and final PyPI package files. An
 unprivileged job builds and tests the bundle. A second fresh job rebuilds it,
 hashes the actual bytes of every future signing input from both copies, and
 fails on any mismatch without trusting manifest-declared hashes. It then
-promotes only the independently rebuilt, byte-matched signing allowlist under a
-new artifact ID. A minimal OIDC job downloads only that promoted artifact and
-signs the fixed file set; it cannot access the original build artifact through
-its job dependencies and does not check out or execute package code. A separate
+promotes under a new artifact ID only the signing allowlist rebuilt in that
+fresh job and byte-matched to the downloaded inputs. This is a same-toolchain
+fresh-job reproducibility check, not reproduction by an independent
+implementation or diverse toolchain. A minimal OIDC job downloads only that
+promoted artifact and signs the fixed file set; it cannot access the original
+build artifact through its job dependencies and does not check out or execute
+package code. A separate
 non-OIDC job verifies every signature and promotes the signed bundle and an
 exact wheel-plus-sdist artifact. The PyPI job has only two steps: download that
 exact verified distribution artifact ID and invoke Trusted Publishing. It does
@@ -22,7 +25,7 @@ not check out, rebuild, import, or smoke-test package code.
 
 The workflows have distinct roles:
 
-- `.github/workflows/release.yml` separates unprivileged build, independent
+- `.github/workflows/release.yml` separates unprivileged build, fresh-job
   reproduction, minimal OIDC signing, non-OIDC verification/staging, GitHub
   release creation, and PyPI publication. GitHub releases are created once;
   existing releases and assets are never replaced by the workflow.
@@ -278,12 +281,12 @@ if `v0.6.0` does not match `project.version = "0.6.0"` and
 match the mapped release schema version `0.6.0`, or if `schemas/v0.6.0` is
 missing. The tag must resolve to `GITHUB_SHA`, be an ancestor of the default
 branch, have matching release notes, and start and finish generation with a
-clean source tree. A fresh job independently rebuilds the complete signing
-allowlist, compares the actual bytes of the downloaded packet JSON, packet
-Markdown, manifest, replay, release notes, SBOM, wheel, and source distribution
-against that rebuild, and replays the independently rebuilt digests. It stages
-only byte-matched files from the independent build under a new artifact ID.
-Manifest claims alone cannot satisfy this gate.
+clean source tree. A fresh job rebuilds the complete signing allowlist, compares
+the actual bytes of the downloaded packet JSON, packet Markdown, manifest,
+replay, release notes, SBOM, wheel, and source distribution against that
+rebuild, and replays the digests from the fresh-job rebuild. It stages only
+byte-matched files from that rebuild under a new artifact ID. Manifest claims
+alone cannot satisfy this gate.
 
 After keyless signing, a non-OIDC verification job checks the exact workflow
 identity, rejects modified-blob verification, validates the signed distribution

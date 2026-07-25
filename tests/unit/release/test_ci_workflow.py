@@ -236,6 +236,7 @@ def test_security_monitoring_is_repository_declared_and_sha_pinned() -> None:
     audit = workflow.split("  dependency-audit:\n", maxsplit=1)[1].split(
         "  codeql:\n", maxsplit=1
     )[0]
+    assert "github.event_name == 'push'" in audit
     for lockfile in (
         "requirements.lock",
         "requirements-langgraph.lock",
