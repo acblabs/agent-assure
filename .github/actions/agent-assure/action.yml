@@ -39,6 +39,7 @@ runs:
   using: composite
   steps:
     - name: Prepare output directory
+      id: prepare
       shell: bash
       env:
         AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
@@ -47,6 +48,12 @@ runs:
         AGENT_ASSURE_ACTION_SUITE: ${{ inputs.suite }}
       run: |
         set -euo pipefail
+        case "${AGENT_ASSURE_ACTION_OUT_DIR}" in
+          *$'\r'*|*$'\n'*)
+            echo "agent-assure refuses output directories containing CR or LF" >&2
+            exit 2
+            ;;
+        esac
         if [ -z "${AGENT_ASSURE_ACTION_OUT_DIR}" ]; then
           echo "agent-assure refuses an empty or root output directory" >&2
           exit 2
@@ -109,6 +116,7 @@ runs:
         fi
         mkdir -p "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"
         rm -f -- "${owned_outputs[@]}"
+        printf 'out_dir=%s\n' "${AGENT_ASSURE_ACTION_OUT_DIR}" >> "${GITHUB_OUTPUT}"
     - name: Compile suite
       shell: bash
       env:
@@ -163,44 +171,46 @@ runs:
         "${args[@]}"
     - name: Upload minimal reports
       if: >-
-        always() && inputs.upload-reports == 'true' &&
+        always() && steps.prepare.outcome == 'success' &&
+        inputs.upload-reports == 'true' &&
         inputs.upload-full-artifacts != 'true'
       # actions/upload-artifact@v4
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: ${{ inputs.upload-name }}
         path: |
-          ${{ inputs.out-dir }}/reports/evidence-packet.json
-          ${{ inputs.out-dir }}/reports/evidence-packet.md
-          ${{ inputs.out-dir }}/reports/release-artifact-manifest.json
-          ${{ inputs.out-dir }}/reports/evaluation-summary.json
-          ${{ inputs.out-dir }}/reports/comparison-summary.json
-          ${{ inputs.out-dir }}/reports/ci-diagnostics.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.md
+          ${{ steps.prepare.outputs.out_dir }}/reports/release-artifact-manifest.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evaluation-summary.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/comparison-summary.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/ci-diagnostics.json
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}
     - name: Upload full assurance artifacts
       if: >-
-        always() && inputs.upload-reports == 'true' &&
+        always() && steps.prepare.outcome == 'success' &&
+        inputs.upload-reports == 'true' &&
         inputs.upload-full-artifacts == 'true'
       # actions/upload-artifact@v4
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
       with:
         name: ${{ inputs.upload-name }}
         path: |
-          ${{ inputs.out-dir }}/suite.compiled.json
-          ${{ inputs.out-dir }}/fixtures.json
-          ${{ inputs.out-dir }}/baseline.runset.json
-          ${{ inputs.out-dir }}/candidate.runset.json
-          ${{ inputs.out-dir }}/reports/evaluation-report.json
-          ${{ inputs.out-dir }}/reports/evaluation-summary.json
-          ${{ inputs.out-dir }}/reports/evaluation-report.md
-          ${{ inputs.out-dir }}/reports/comparison-report.json
-          ${{ inputs.out-dir }}/reports/comparison-summary.json
-          ${{ inputs.out-dir }}/reports/comparison-report.md
-          ${{ inputs.out-dir }}/reports/evidence-packet.json
-          ${{ inputs.out-dir }}/reports/evidence-packet.md
-          ${{ inputs.out-dir }}/reports/release-artifact-manifest.json
-          ${{ inputs.out-dir }}/reports/dependency-inventory.json
-          ${{ inputs.out-dir }}/reports/ci-diagnostics.json
+          ${{ steps.prepare.outputs.out_dir }}/suite.compiled.json
+          ${{ steps.prepare.outputs.out_dir }}/fixtures.json
+          ${{ steps.prepare.outputs.out_dir }}/baseline.runset.json
+          ${{ steps.prepare.outputs.out_dir }}/candidate.runset.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evaluation-report.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evaluation-summary.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evaluation-report.md
+          ${{ steps.prepare.outputs.out_dir }}/reports/comparison-report.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/comparison-summary.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/comparison-report.md
+          ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.md
+          ${{ steps.prepare.outputs.out_dir }}/reports/release-artifact-manifest.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/dependency-inventory.json
+          ${{ steps.prepare.outputs.out_dir }}/reports/ci-diagnostics.json
         if-no-files-found: warn
         retention-days: ${{ inputs.retention-days }}

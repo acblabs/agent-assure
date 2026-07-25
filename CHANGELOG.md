@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-## 0.6.0 - 2026-07-23
+## 0.6.0 - 2026-07-25
 
 - Routed persisted runtime and CLI inputs through explicit wire-identity and
   frozen-schema validation before current-model projection, and rejected

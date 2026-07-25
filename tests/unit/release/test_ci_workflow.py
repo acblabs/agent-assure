@@ -281,6 +281,27 @@ def test_composite_action_refuses_root_and_linked_output_directories() -> None:
     assert "agent-assure refuses linked output directories" in action
 
 
+def test_composite_action_rejects_multiline_output_before_always_uploads() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    prepare_index = action.index("    - name: Prepare output directory\n")
+    compile_index = action.index("    - name: Compile suite\n")
+    upload_index = action.index("    - name: Upload minimal reports\n")
+    prepare = action[prepare_index:compile_index]
+    uploads = action[upload_index:]
+
+    assert "      id: prepare\n" in prepare
+    assert "*$'\\r'*|*$'\\n'*)" in prepare
+    assert "agent-assure refuses output directories containing CR or LF" in prepare
+    assert "printf 'out_dir=%s\\n'" in prepare
+    assert prepare_index < upload_index
+    assert uploads.count("steps.prepare.outcome == 'success'") == 2
+    assert "${{ inputs.out-dir }}/" not in uploads
+    assert "${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.json" in uploads
+    assert "${{ steps.prepare.outputs.out_dir }}/suite.compiled.json" in uploads
+
+
 def test_composite_action_full_upload_is_an_explicit_artifact_whitelist() -> None:
     action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
         encoding="utf-8"
@@ -291,9 +312,9 @@ def test_composite_action_full_upload_is_an_explicit_artifact_whitelist() -> Non
     )[1]
 
     assert "path: ${{ inputs.out-dir }}" not in full
-    assert "${{ inputs.out-dir }}/suite.compiled.json" in full
-    assert "${{ inputs.out-dir }}/candidate.runset.json" in full
-    assert "${{ inputs.out-dir }}/reports/evaluation-report.json" in full
+    assert "${{ steps.prepare.outputs.out_dir }}/suite.compiled.json" in full
+    assert "${{ steps.prepare.outputs.out_dir }}/candidate.runset.json" in full
+    assert "${{ steps.prepare.outputs.out_dir }}/reports/evaluation-report.json" in full
 
 
 def test_composite_action_clears_owned_outputs_before_any_producer_runs() -> None:

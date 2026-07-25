@@ -364,6 +364,89 @@ def test_fixture_policy_result_warning_is_reported() -> None:
     assert finding.state is GateState.warn
 
 
+@pytest.mark.parametrize(
+    ("case_id", "policy_id", "reason_code", "suppressed_control_id"),
+    (
+        (
+            "forbidden-provider",
+            "provider-selection",
+            ReasonCode.FORBIDDEN_PROVIDER,
+            "required_policy:provider-selection",
+        ),
+        (
+            "prompt-injection-note",
+            "prompt-injection-boundary",
+            ReasonCode.PROMPT_INJECTION_BOUNDARY,
+            "policy_result:prompt-injection-boundary",
+        ),
+    ),
+)
+def test_fixture_policy_result_pure_remediation_signal_is_suppressed(
+    case_id: str,
+    policy_id: str,
+    reason_code: ReasonCode,
+    suppressed_control_id: str,
+) -> None:
+    compiled, runset = _runset(BASELINE)
+    remediated_run = next(run for run in runset.runs if run.case_id == case_id)
+    remediation_result = next(
+        result for result in remediated_run.policy_results if result.policy_id == policy_id
+    )
+
+    report = evaluate_runset(compiled, runset)
+
+    assert remediation_result.reason_codes == (reason_code,)
+    assert not any(
+        finding.case_id == remediated_run.case_id
+        and finding.control_id == suppressed_control_id
+        for finding in (
+            *report.candidate_vs_expectations.findings,
+            *report.warning_controls,
+        )
+    )
+
+
+@pytest.mark.parametrize(
+    ("policy_id", "expected_control_id"),
+    (
+        ("fixture.mixed_policy", "policy_result:fixture.mixed_policy"),
+        ("provider-selection", "required_policy:provider-selection"),
+    ),
+)
+def test_fixture_policy_result_mixed_remediation_and_independent_failure_is_reported(
+    policy_id: str,
+    expected_control_id: str,
+) -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    mixed_result = PolicyResult(
+        artifact_kind="policy-result",
+        policy_id=policy_id,
+        state=GateState.fail,
+        reason_codes=(
+            ReasonCode.FORBIDDEN_PROVIDER,
+            ReasonCode.POLICY_FAILED,
+        ),
+        severity=Severity.error,
+        message="fixture result carries remediation and independent failure signals",
+    )
+    bad_run = first_run.model_copy(
+        update={"policy_results": (*first_run.policy_results, mixed_result)}
+    )
+    mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
+
+    report = evaluate_runset(compiled, mutated)
+
+    finding = next(
+        finding
+        for finding in report.candidate_vs_expectations.findings
+        if finding.control_id == expected_control_id
+    )
+    assert finding.case_id == first_run.case_id
+    assert finding.state is GateState.fail
+    assert report.candidate_vs_expectations.state is GateState.fail
+
+
 def test_required_policy_id_must_be_observed() -> None:
     compiled, runset = _runset(BASELINE)
     mutated = runset.model_copy(

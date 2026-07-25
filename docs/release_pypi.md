@@ -314,7 +314,7 @@ CI, WSL, or Git Bash:
 python -m venv /tmp/agent-assure-pypi
 source /tmp/agent-assure-pypi/bin/activate
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.5.0
+python -m pip install agent-assure==0.6.0
 agent-assure --version
 agent-assure demo flagship --out /tmp/agent-assure-pypi-flagship --clean
 deactivate
@@ -329,7 +329,7 @@ $FlagshipOut = Join-Path $env:TEMP "agent-assure-pypi-flagship"
 python -m venv $InstallTemp
 & (Join-Path $InstallTemp "Scripts\Activate.ps1")
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.5.0
+python -m pip install agent-assure==0.6.0
 agent-assure --version
 agent-assure demo flagship --out $FlagshipOut --clean
 deactivate

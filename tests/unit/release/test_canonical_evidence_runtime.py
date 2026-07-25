@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -27,3 +28,12 @@ def test_dependency_locking_names_the_canonical_evidence_runtime() -> None:
     assert f"Python {CANONICAL_EVIDENCE_PYTHON}" in normalized_locking
     assert "canonical producer for release and evidence workflows" in normalized_locking
     assert f"Python {CANONICAL_EVIDENCE_PYTHON} canonical" in normalized_runbook
+
+
+def test_final_pypi_smoke_checks_install_current_project_version() -> None:
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    version = project["project"]["version"]
+    runbook = (ROOT / "docs/release_pypi.md").read_text(encoding="utf-8")
+    final_release = runbook.split("## Final PyPI Release", maxsplit=1)[1]
+
+    assert final_release.count(f"python -m pip install agent-assure=={version}") == 2

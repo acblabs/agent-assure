@@ -17,6 +17,13 @@ from agent_assure.policies.base import ControlResult
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
 from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
 
+_FIXTURE_REMEDIATION_REASON_CODES = frozenset(
+    {
+        ReasonCode.FORBIDDEN_PROVIDER,
+        ReasonCode.PROMPT_INJECTION_BOUNDARY,
+    }
+)
+
 
 def evaluate_runset_controls(
     resolver: ExpectationResolver,
@@ -208,15 +215,11 @@ def _is_fixture_remediation_signal(
     run: AgentRunRecord,
     policy_result: PolicyResult,
 ) -> bool:
+    reason_codes = frozenset(policy_result.reason_codes)
     return (
         run.execution_mode is not ExecutionMode.live
-        and bool(
-            {
-                ReasonCode.FORBIDDEN_PROVIDER,
-                ReasonCode.PROMPT_INJECTION_BOUNDARY,
-            }
-            & set(policy_result.reason_codes)
-        )
+        and bool(reason_codes)
+        and reason_codes <= _FIXTURE_REMEDIATION_REASON_CODES
     )
 
 
