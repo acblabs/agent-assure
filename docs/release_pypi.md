@@ -305,6 +305,22 @@ distribution artifact. The GitHub release job intentionally refuses to replace
 an existing release or asset. Do not push a replacement tag or create a fresh
 build for the same version.
 
+If a publisher cannot be rerun because the immutable tagged workflow itself
+contains a publisher-only defect, use only the exact, repository-declared
+recovery operation for that failed run. The v0.6.0 recovery is fixed to the
+original run, attempt, commit, artifact IDs, artifact digests, tag, workflow
+identity, and a separately protected recovery ref. Its unprivileged verifier
+rechecks GitHub metadata, keyless signatures, exact bytes, and unpublished
+state, then promotes new content-addressed artifacts for the minimal
+GitHub-release and PyPI jobs. GitHub denies `GITHUB_TOKEN` release creation in
+some cases when the tagged commit's workflow differs from the default branch.
+For this exception, the release owner downloads the verifier-promoted artifact
+and creates the exact draft with a workflow-authorized credential. The
+read-only GitHub-release job then requires the owner identity, exact notes,
+exact 16-asset name set, and a byte-for-byte download match before PyPI can
+proceed. Never move or recreate `v0.6.0`, broaden the recovery inputs, or
+rebuild its distributions.
+
 After the workflow publishes to PyPI, validate the final package from a clean
 environment.
 

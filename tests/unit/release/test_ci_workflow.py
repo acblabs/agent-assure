@@ -110,7 +110,7 @@ def test_every_checkout_disables_persisted_credentials() -> None:
 
 def test_artifact_id_downloads_merge_into_the_exact_requested_path() -> None:
     expected_downloads = {
-        "release.yml": 5,
+        "release.yml": 9,
         "publish-testpypi.yml": 2,
         "evidence.yml": 3,
     }
@@ -148,7 +148,9 @@ def test_release_privileges_are_split_from_build_and_verification() -> None:
     sign = workflow.split("  sign:\n", maxsplit=1)[1].split(
         "  verify-signatures:\n", maxsplit=1
     )[0]
-    pypi = workflow.split("  pypi-publish:\n", maxsplit=1)[1]
+    pypi = workflow.split("  pypi-publish:\n", maxsplit=1)[1].split(
+        "  recover-verify:\n", maxsplit=1
+    )[0]
 
     assert "id-token: write" not in build
     assert "contents: write" not in build
@@ -161,6 +163,175 @@ def test_release_privileges_are_split_from_build_and_verification() -> None:
     assert "setup-python" not in pypi
     assert "run:" not in pypi
     assert "artifact-ids:" in pypi
+
+
+def test_checkout_free_github_release_commands_name_the_repository() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+    publish = workflow.split("  github-release:\n", maxsplit=1)[1].split(
+        "  pypi-publish:\n", maxsplit=1
+    )[0]
+
+    assert "actions/checkout" not in publish
+    assert publish.count('--repo "${GITHUB_REPOSITORY}"') == 1
+    assert (
+        "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" in publish
+    )
+    assert 'release_status="$(awk' in publish
+    assert "404)" in publish
+    assert "unable to prove release absence" in publish
+    assert publish.index(
+        "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}"
+    ) < publish.index(
+        'gh release create "${GITHUB_REF_NAME}" "${assets[@]}"'
+    )
+
+
+def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+    recover_verify = workflow.split("  recover-verify:\n", maxsplit=1)[1].split(
+        "  recover-github-release:\n", maxsplit=1
+    )[0]
+    recover_release = workflow.split(
+        "  recover-github-release:\n", maxsplit=1
+    )[1].split("  recover-pypi-publish:\n", maxsplit=1)[0]
+    recover_pypi = workflow.split("  recover-pypi-publish:\n", maxsplit=1)[1]
+
+    assert "recover-v0.6.0" in workflow
+    assert (
+        "if: github.event_name != 'workflow_dispatch' "
+        "|| inputs.operation == 'standard'"
+    ) in workflow
+    assert (
+        "if: github.event_name == 'workflow_dispatch' "
+        "&& inputs.operation == 'recover-v0.6.0'"
+    ) in recover_verify
+    assert "RECOVERY_REF: refs/tags/release-recovery/v0.6.0-30170334180" in (
+        recover_verify
+    )
+    assert 'test "${GITHUB_REF}" = "${RECOVERY_REF}"' in recover_verify
+    assert 'ORIGINAL_RUN_ID: "30170334180"' in recover_verify
+    assert 'ORIGINAL_RUN_ATTEMPT: "1"' in recover_verify
+    assert 'ORIGINAL_REPOSITORY_ID: "1280896570"' in recover_verify
+    assert 'ORIGINAL_FAILED_JOB_ID: "89710679068"' in recover_verify
+    assert "ORIGINAL_TAG: v0.6.0" in recover_verify
+    assert (
+        "ORIGINAL_SHA: 2c83bafc0e53f25ee27f72179797331d0d7fc5d4"
+        in recover_verify
+    )
+    assert 'ORIGINAL_BUNDLE_ARTIFACT_ID: "8622776891"' in recover_verify
+    assert (
+        "ORIGINAL_BUNDLE_ARTIFACT_DIGEST: "
+        "sha256:5ab78c65c45fb56b938f3ab7ba0a2bc82eb987fe2a9f1923ec055666fb1a2598"
+        in recover_verify
+    )
+    assert 'ORIGINAL_BUNDLE_ARTIFACT_SIZE: "1735888"' in recover_verify
+    assert 'ORIGINAL_DISTRIBUTIONS_ARTIFACT_ID: "8622776782"' in recover_verify
+    assert (
+        "ORIGINAL_DISTRIBUTIONS_ARTIFACT_DIGEST: "
+        "sha256:9a4b0d78e851a8e2414b5d4a05058e4c259e7ad8a9a7ec02870eb3604e2f27e0"
+        in recover_verify
+    )
+    assert 'ORIGINAL_DISTRIBUTIONS_ARTIFACT_SIZE: "1665310"' in recover_verify
+    assert "actions: read" in recover_verify
+    assert "contents: read" in recover_verify
+    assert "id-token: write" not in recover_verify
+    assert "contents: write" not in recover_verify
+    assert "actions/runs/${ORIGINAL_RUN_ID}" in recover_verify
+    assert (
+        "actions/runs/${ORIGINAL_RUN_ID}/attempts/"
+        "${ORIGINAL_RUN_ATTEMPT}/jobs?per_page=100"
+        in recover_verify
+    )
+    assert "actions/jobs/${ORIGINAL_FAILED_JOB_ID}" in recover_verify
+    assert "actions/artifacts/${ORIGINAL_BUNDLE_ARTIFACT_ID}" in recover_verify
+    assert (
+        "actions/artifacts/${ORIGINAL_DISTRIBUTIONS_ARTIFACT_ID}"
+        in recover_verify
+    )
+    assert recover_verify.count("github-token: ${{ github.token }}") == 2
+    assert recover_verify.count("repository: acblabs/agent-assure") == 2
+    assert recover_verify.count("run-id: 30170334180") == 2
+    assert "python scripts/build_release_bundle.py" not in recover_verify
+    assert "python -m build" not in recover_verify
+    assert 'name: "Create immutable GitHub release"' in recover_verify
+    assert (
+        'name: "Create release once without replacing assets"' in recover_verify
+    )
+    assert "conclusion: \"failure\"" in recover_verify
+    assert "--ref refs/tags/v0.6.0" in recover_verify
+    assert "--event-name push" in recover_verify
+    assert "test \"${#release_assets[@]}\" -eq 16" in recover_verify
+    assert "actual-release-files.txt" in recover_verify
+    assert "non-regular-release-entries.txt" in recover_verify
+    assert "test ! -s" in recover_verify
+    assert "diff \\" in recover_verify
+    assert "< <(" not in recover_verify
+
+    assert "needs: recover-verify" in recover_release
+    assert "needs.recover-verify.result == 'success'" in recover_release
+    assert "github.event_name == 'workflow_dispatch'" in recover_release
+    assert (
+        "github.ref == "
+        "'refs/tags/release-recovery/v0.6.0-30170334180'"
+        in recover_release
+    )
+    assert "environment:\n      name: github-release" in recover_release
+    assert "contents: read" in recover_release
+    assert "contents: write" not in recover_release
+    assert "id-token: write" not in recover_release
+    assert "actions/checkout" not in recover_release
+    assert "setup-python" not in recover_release
+    assert "pip install" not in recover_release
+    assert (
+        "artifact-ids: "
+        "${{ needs.recover-verify.outputs.verified_bundle_artifact_id }}"
+        in recover_release
+    )
+    assert "gh release create" not in recover_release
+    assert "gh release upload" not in recover_release
+    assert "--method PATCH" not in recover_release
+    assert "repos/${GITHUB_REPOSITORY}/releases/tags/${ORIGINAL_TAG}" in (
+        recover_release
+    )
+    assert ".draft == false" in recover_release
+    assert '.author.login == "acblabs"' in recover_release
+    assert ".author.id == 104098411" in recover_release
+    assert 'type == "array"' in recover_release
+    assert "and length == 16" in recover_release
+    assert '.uploader.login == "acblabs"' in recover_release
+    assert ".uploader.id == 104098411" in recover_release
+    assert "Accept: application/octet-stream" in recover_release
+    assert 'cmp "${local_path}" "${remote_dir}/${asset_name}"' in recover_release
+    assert recover_release.count(
+        "https://pypi.org/pypi/agent-assure/${ORIGINAL_TAG#v}/json"
+    ) == 2
+    assert "actual-release-files.txt" in recover_release
+    assert "non-regular-release-entries.txt" in recover_release
+    assert "< <(" not in recover_release
+
+    assert "needs: [recover-verify, recover-github-release]" in recover_pypi
+    assert "needs.recover-verify.result == 'success'" in recover_pypi
+    assert "needs.recover-github-release.result == 'success'" in recover_pypi
+    assert "github.event_name == 'workflow_dispatch'" in recover_pypi
+    assert (
+        "github.ref == "
+        "'refs/tags/release-recovery/v0.6.0-30170334180'"
+        in recover_pypi
+    )
+    assert "environment:\n      name: pypi" in recover_pypi
+    assert "id-token: write" in recover_pypi
+    assert "actions/checkout" not in recover_pypi
+    assert "setup-python" not in recover_pypi
+    assert "run:" not in recover_pypi
+    assert (
+        "artifact-ids: "
+        "${{ needs.recover-verify.outputs.distributions_artifact_id }}"
+        in recover_pypi
+    )
 
 
 def test_release_requires_reproduction_before_signing_and_publication() -> None:

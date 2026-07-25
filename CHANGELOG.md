@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Added an exact, fail-closed recovery and read-only publication-validation
+  path for verifier-promoted release artifacts, and made checkout-free GitHub
+  release commands name the repository explicitly.
+
 ## 0.6.0 - 2026-07-25
 
 - Routed persisted runtime and CLI inputs through explicit wire-identity and

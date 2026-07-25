@@ -2,6 +2,15 @@ name: release
 
 on:
   workflow_dispatch:
+    inputs:
+      operation:
+        description: "Run the standard dry run or the exact allowlisted v0.6.0 recovery."
+        required: true
+        default: standard
+        type: choice
+        options:
+          - standard
+          - recover-v0.6.0
   push:
     tags:
       - "v*"
@@ -23,6 +32,7 @@ env:
 jobs:
   build:
     name: Build and test without publishing credentials
+    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'standard'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -340,11 +350,37 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          if gh release view "${GITHUB_REF_NAME}" >/dev/null 2>&1; then
-            echo "release already exists; refusing to replace immutable assets"
-            exit 1
-          fi
-          mapfile -t assets < <(find .tmp/release/dist -maxdepth 1 -type f | sort)
+          release_response="$(mktemp)"
+          release_error="$(mktemp)"
+          set +e
+          gh api --include \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/releases/tags/${GITHUB_REF_NAME}" \
+            >"${release_response}" 2>"${release_error}"
+          release_exit="$?"
+          set -e
+          release_status="$(awk 'NR == 1 {print $2}' "${release_response}")"
+          rm -f "${release_response}" "${release_error}"
+          case "${release_status}" in
+            404)
+              test "${release_exit}" -ne 0
+              ;;
+            200)
+              echo "release already exists; refusing to replace immutable assets"
+              exit 1
+              ;;
+            *)
+              echo \
+                "unable to prove release absence (HTTP ${release_status:-none})" \
+                >&2
+              exit 1
+              ;;
+          esac
+          find .tmp/release/dist -maxdepth 1 -type f -print \
+            | LC_ALL=C sort > .tmp/release-dist-assets.txt
+          mapfile -t assets < .tmp/release-dist-assets.txt
+          test "${#assets[@]}" -eq 4
           assets+=(
             .tmp/release/reports/evidence-packet.json
             .tmp/release/reports/evidence-packet.json.bundle
@@ -359,12 +395,17 @@ jobs:
             .tmp/release/sbom.cdx.json
             .tmp/release/sbom.cdx.json.bundle
           )
-          read -r tag_type tag_sha < <(
-            gh api \
-              -H "Accept: application/vnd.github+json" \
-              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" \
-              --jq '.object | [.type, .sha] | @tsv'
-          )
+          test "${#assets[@]}" -eq 16
+          for asset in "${assets[@]}"; do
+            test -f "${asset}"
+            test ! -L "${asset}"
+          done
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${GITHUB_REF_NAME}" \
+            --jq '.object | [.type, .sha] | @tsv' \
+            > .tmp/release-tag.tsv
+          read -r tag_type tag_sha < .tmp/release-tag.tsv
           for _ in 1 2 3 4 5; do
             [[ "${tag_sha}" =~ ^[0-9a-f]{40}$ ]]
             if [ "${tag_type}" = "commit" ]; then
@@ -374,18 +415,19 @@ jobs:
               echo "release tag resolves to unsupported object type: ${tag_type}"
               exit 1
             fi
-            read -r tag_type tag_sha < <(
-              gh api \
-                -H "Accept: application/vnd.github+json" \
-                "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}" \
-                --jq '.object | [.type, .sha] | @tsv'
-            )
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              "repos/${GITHUB_REPOSITORY}/git/tags/${tag_sha}" \
+              --jq '.object | [.type, .sha] | @tsv' \
+              > .tmp/release-tag.tsv
+            read -r tag_type tag_sha < .tmp/release-tag.tsv
           done
           if [ "${tag_type}" != "commit" ] || [ "${tag_sha}" != "${EXPECTED_RELEASE_SHA}" ]; then
             echo "release tag no longer resolves to the signed workflow commit"
             exit 1
           fi
           gh release create "${GITHUB_REF_NAME}" "${assets[@]}" \
+            --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --title "agent-assure ${GITHUB_REF_NAME}" \
             --notes-file .tmp/release/release-notes.md
@@ -405,6 +447,647 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           artifact-ids: ${{ needs.verify-signatures.outputs.distributions_artifact_id }}
+          merge-multiple: true
+          path: dist
+      # pypa/gh-action-pypi-publish@v1.14.0
+      - uses: pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b
+        with:
+          packages-dir: dist
+
+  recover-verify:
+    name: Revalidate exact v0.6.0 recovery inputs
+    if: github.event_name == 'workflow_dispatch' && inputs.operation == 'recover-v0.6.0'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    outputs:
+      verified_bundle_artifact_id: ${{ steps.upload-bundle.outputs.artifact-id }}
+      verified_bundle_artifact_digest: ${{ steps.upload-bundle.outputs.artifact-digest }}
+      distributions_artifact_id: ${{ steps.upload-distributions.outputs.artifact-id }}
+      distributions_artifact_digest: ${{ steps.upload-distributions.outputs.artifact-digest }}
+    env:
+      RECOVERY_REF: refs/tags/release-recovery/v0.6.0-30170334180
+      ORIGINAL_RUN_ID: "30170334180"
+      ORIGINAL_RUN_ATTEMPT: "1"
+      ORIGINAL_REPOSITORY_ID: "1280896570"
+      ORIGINAL_FAILED_JOB_ID: "89710679068"
+      ORIGINAL_TAG: v0.6.0
+      ORIGINAL_SHA: 2c83bafc0e53f25ee27f72179797331d0d7fc5d4
+      ORIGINAL_BUNDLE_ARTIFACT_ID: "8622776891"
+      ORIGINAL_BUNDLE_ARTIFACT_NAME: verified-signed-release-30170334180-1
+      ORIGINAL_BUNDLE_ARTIFACT_DIGEST: sha256:5ab78c65c45fb56b938f3ab7ba0a2bc82eb987fe2a9f1923ec055666fb1a2598
+      ORIGINAL_BUNDLE_ARTIFACT_SIZE: "1735888"
+      ORIGINAL_DISTRIBUTIONS_ARTIFACT_ID: "8622776782"
+      ORIGINAL_DISTRIBUTIONS_ARTIFACT_NAME: verified-python-distributions-30170334180-1
+      ORIGINAL_DISTRIBUTIONS_ARTIFACT_DIGEST: sha256:9a4b0d78e851a8e2414b5d4a05058e4c259e7ad8a9a7ec02870eb3604e2f27e0
+      ORIGINAL_DISTRIBUTIONS_ARTIFACT_SIZE: "1665310"
+    steps:
+      - name: Validate exact failed run, artifacts, tag, and unpublished state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = "acblabs/agent-assure"
+          test "${GITHUB_REF}" = "${RECOVERY_REF}"
+          [[ "${ORIGINAL_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_REPOSITORY_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_FAILED_JOB_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${ORIGINAL_BUNDLE_ARTIFACT_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_BUNDLE_ARTIFACT_SIZE}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_SIZE}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${ORIGINAL_BUNDLE_ARTIFACT_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          [[ "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_DIGEST}" =~ ^sha256:[0-9a-f]{64}$ ]]
+
+          mkdir -p .tmp/recovery-context
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN_ID}" \
+            > .tmp/recovery-context/run.json
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/runs/${ORIGINAL_RUN_ID}/attempts/${ORIGINAL_RUN_ATTEMPT}/jobs?per_page=100" \
+            > .tmp/recovery-context/jobs.json
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/jobs/${ORIGINAL_FAILED_JOB_ID}" \
+            > .tmp/recovery-context/failed-job.json
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ORIGINAL_BUNDLE_ARTIFACT_ID}" \
+            > .tmp/recovery-context/bundle-artifact.json
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/artifacts/${ORIGINAL_DISTRIBUTIONS_ARTIFACT_ID}" \
+            > .tmp/recovery-context/distributions-artifact.json
+
+          jq -e \
+            --arg repository "${GITHUB_REPOSITORY}" \
+            --arg tag "${ORIGINAL_TAG}" \
+            --arg sha "${ORIGINAL_SHA}" \
+            --argjson run_id "${ORIGINAL_RUN_ID}" \
+            --argjson attempt "${ORIGINAL_RUN_ATTEMPT}" \
+            --argjson repository_id "${ORIGINAL_REPOSITORY_ID}" \
+            '
+              .id == $run_id
+              and .path == ".github/workflows/release.yml"
+              and .event == "push"
+              and .status == "completed"
+              and .conclusion == "failure"
+              and .head_branch == $tag
+              and .head_sha == $sha
+              and .run_attempt == $attempt
+              and .repository.full_name == $repository
+              and .repository.id == $repository_id
+              and .head_repository.full_name == $repository
+              and .head_repository.id == $repository_id
+            ' .tmp/recovery-context/run.json
+
+          jq -e \
+            --argjson attempt "${ORIGINAL_RUN_ATTEMPT}" \
+            '
+              .total_count == 6
+              and (
+                [.jobs[] | {name, status, conclusion, run_attempt}] | sort_by(.name)
+              ) == (
+                [
+                  {
+                    name: "Build and test without publishing credentials",
+                    status: "completed",
+                    conclusion: "success",
+                    run_attempt: $attempt
+                  },
+                  {
+                    name: "Create immutable GitHub release",
+                    status: "completed",
+                    conclusion: "failure",
+                    run_attempt: $attempt
+                  },
+                  {
+                    name: "Fresh-job rebuild and promote byte-matched signing inputs",
+                    status: "completed",
+                    conclusion: "success",
+                    run_attempt: $attempt
+                  },
+                  {
+                    name: "Publish verified distributions to PyPI",
+                    status: "completed",
+                    conclusion: "skipped",
+                    run_attempt: $attempt
+                  },
+                  {
+                    name: "Sign fixed release artifacts only",
+                    status: "completed",
+                    conclusion: "success",
+                    run_attempt: $attempt
+                  },
+                  {
+                    name: "Verify signatures without OIDC",
+                    status: "completed",
+                    conclusion: "success",
+                    run_attempt: $attempt
+                  }
+                ] | sort_by(.name)
+              )
+            ' .tmp/recovery-context/jobs.json
+
+          jq -e \
+            --arg sha "${ORIGINAL_SHA}" \
+            --argjson attempt "${ORIGINAL_RUN_ATTEMPT}" \
+            --argjson job_id "${ORIGINAL_FAILED_JOB_ID}" \
+            --argjson run_id "${ORIGINAL_RUN_ID}" \
+            '
+              .id == $job_id
+              and .run_id == $run_id
+              and .run_attempt == $attempt
+              and .head_sha == $sha
+              and .head_branch == "v0.6.0"
+              and .workflow_name == "release"
+              and .name == "Create immutable GitHub release"
+              and .status == "completed"
+              and .conclusion == "failure"
+              and (
+                [.steps[] | {number, name, status, conclusion}]
+              ) == [
+                {
+                  number: 1,
+                  name: "Set up job",
+                  status: "completed",
+                  conclusion: "success"
+                },
+                {
+                  number: 2,
+                  name: "Run actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093",
+                  status: "completed",
+                  conclusion: "success"
+                },
+                {
+                  number: 3,
+                  name: "Create release once without replacing assets",
+                  status: "completed",
+                  conclusion: "failure"
+                },
+                {
+                  number: 4,
+                  name: "Complete job",
+                  status: "completed",
+                  conclusion: "success"
+                }
+              ]
+            ' .tmp/recovery-context/failed-job.json
+
+          jq -e \
+            --arg name "${ORIGINAL_BUNDLE_ARTIFACT_NAME}" \
+            --arg digest "${ORIGINAL_BUNDLE_ARTIFACT_DIGEST}" \
+            --arg sha "${ORIGINAL_SHA}" \
+            --argjson artifact_id "${ORIGINAL_BUNDLE_ARTIFACT_ID}" \
+            --argjson artifact_size "${ORIGINAL_BUNDLE_ARTIFACT_SIZE}" \
+            --argjson run_id "${ORIGINAL_RUN_ID}" \
+            --argjson repository_id "${ORIGINAL_REPOSITORY_ID}" \
+            '
+              .id == $artifact_id
+              and .name == $name
+              and .digest == $digest
+              and .expired == false
+              and .size_in_bytes == $artifact_size
+              and .workflow_run.id == $run_id
+              and .workflow_run.repository_id == $repository_id
+              and .workflow_run.head_repository_id == $repository_id
+              and .workflow_run.head_branch == "v0.6.0"
+              and .workflow_run.head_sha == $sha
+            ' .tmp/recovery-context/bundle-artifact.json
+
+          jq -e \
+            --arg name "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_NAME}" \
+            --arg digest "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_DIGEST}" \
+            --arg sha "${ORIGINAL_SHA}" \
+            --argjson artifact_id "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_ID}" \
+            --argjson artifact_size "${ORIGINAL_DISTRIBUTIONS_ARTIFACT_SIZE}" \
+            --argjson run_id "${ORIGINAL_RUN_ID}" \
+            --argjson repository_id "${ORIGINAL_REPOSITORY_ID}" \
+            '
+              .id == $artifact_id
+              and .name == $name
+              and .digest == $digest
+              and .expired == false
+              and .size_in_bytes == $artifact_size
+              and .workflow_run.id == $run_id
+              and .workflow_run.repository_id == $repository_id
+              and .workflow_run.head_repository_id == $repository_id
+              and .workflow_run.head_branch == "v0.6.0"
+              and .workflow_run.head_sha == $sha
+            ' .tmp/recovery-context/distributions-artifact.json
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${ORIGINAL_TAG}" \
+            --jq '.object | [.type, .sha] | @tsv' \
+            > .tmp/recovery-context/original-tag.tsv
+          read -r tag_type tag_sha < .tmp/recovery-context/original-tag.tsv
+          test "${tag_type}" = "commit"
+          test "${tag_sha}" = "${ORIGINAL_SHA}"
+          release_response="$(mktemp)"
+          release_error="$(mktemp)"
+          set +e
+          gh api --include \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/releases/tags/${ORIGINAL_TAG}" \
+            >"${release_response}" 2>"${release_error}"
+          release_exit="$?"
+          set -e
+          release_status="$(awk 'NR == 1 {print $2}' "${release_response}")"
+          rm -f "${release_response}" "${release_error}"
+          case "${release_status}" in
+            404)
+              test "${release_exit}" -ne 0
+              ;;
+            200)
+              test "${release_exit}" -eq 0
+              ;;
+            *)
+              echo \
+                "unable to prove release absence (HTTP ${release_status:-none})" \
+                >&2
+              exit 1
+              ;;
+          esac
+          pypi_status="$(
+            curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "https://pypi.org/pypi/agent-assure/${ORIGINAL_TAG#v}/json"
+          )"
+          test "${pypi_status}" = "404"
+
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          ref: 2c83bafc0e53f25ee27f72179797331d0d7fc5d4
+          fetch-depth: 0
+          persist-credentials: false
+      # actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      # actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: 8622776891
+          github-token: ${{ github.token }}
+          repository: acblabs/agent-assure
+          run-id: 30170334180
+          merge-multiple: true
+          path: .tmp/release
+      # actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: 8622776782
+          github-token: ${{ github.token }}
+          repository: acblabs/agent-assure
+          run-id: 30170334180
+          merge-multiple: true
+          path: .tmp/source-dist
+      - name: Install cosign
+        # sigstore/cosign-installer@v4.0.0
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      - name: Reverify original signed bytes and stage exact distributions
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${ORIGINAL_SHA}"
+          python scripts/check_version_matches_tag.py "${ORIGINAL_TAG}"
+          python scripts/check_wheel_contents.py \
+            --dist .tmp/release/dist \
+            --allow-signature-bundles
+          python scripts/check_wheel_contents.py --dist .tmp/source-dist
+          mkdir -p .tmp/recovery-verification
+          find .tmp/release .tmp/source-dist -type l -print \
+            > .tmp/recovery-verification/links.txt
+          test ! -s .tmp/recovery-verification/links.txt
+          (
+            cd .tmp/release/dist
+            sha256sum -- *.whl *.tar.gz | LC_ALL=C sort \
+              > "${GITHUB_WORKSPACE}/.tmp/recovery-verification/signed-dist.sha256"
+          )
+          (
+            cd .tmp/source-dist
+            sha256sum -- *.whl *.tar.gz | LC_ALL=C sort \
+              > "${GITHUB_WORKSPACE}/.tmp/recovery-verification/source-dist.sha256"
+          )
+          diff \
+            .tmp/recovery-verification/signed-dist.sha256 \
+            .tmp/recovery-verification/source-dist.sha256
+          python scripts/cosign_release_artifacts.py verify \
+            --release-dir .tmp/release \
+            --workflow-name release \
+            --workflow-path .github/workflows/release.yml \
+            --repository acblabs/agent-assure \
+            --ref refs/tags/v0.6.0 \
+            --sha 2c83bafc0e53f25ee27f72179797331d0d7fc5d4 \
+            --event-name push
+          python scripts/cosign_release_artifacts.py verify-modified-fails \
+            --release-dir .tmp/release \
+            --workflow-name release \
+            --workflow-path .github/workflows/release.yml \
+            --repository acblabs/agent-assure \
+            --ref refs/tags/v0.6.0 \
+            --sha 2c83bafc0e53f25ee27f72179797331d0d7fc5d4 \
+            --event-name push
+
+          find .tmp/release/dist -maxdepth 1 -type f \
+            \( -name '*.whl' -o -name '*.tar.gz' -o -name '*.bundle' \) \
+            -print | LC_ALL=C sort \
+            > .tmp/recovery-verification/dist-assets.txt
+          mapfile -t dist_assets < .tmp/recovery-verification/dist-assets.txt
+          test "${#dist_assets[@]}" -eq 4
+          release_assets=(
+            "${dist_assets[@]}"
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/evidence-packet.json.bundle
+            .tmp/release/reports/evidence-packet.md
+            .tmp/release/reports/evidence-packet.md.bundle
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/reports/release-artifact-manifest.json.bundle
+            .tmp/release/release-digest-replay.json
+            .tmp/release/release-digest-replay.json.bundle
+            .tmp/release/release-notes.md
+            .tmp/release/release-notes.md.bundle
+            .tmp/release/sbom.cdx.json
+            .tmp/release/sbom.cdx.json.bundle
+          )
+          test "${#release_assets[@]}" -eq 16
+          for asset in "${release_assets[@]}"; do
+            test -f "${asset}"
+            test ! -L "${asset}"
+          done
+          printf '%s\n' "${release_assets[@]#.tmp/release/}" \
+            | LC_ALL=C sort \
+            > .tmp/recovery-verification/expected-release-files.txt
+          (
+            cd .tmp/release
+            find . -type f -printf '%P\n' | LC_ALL=C sort \
+              > "${GITHUB_WORKSPACE}/.tmp/recovery-verification/actual-release-files.txt"
+          )
+          mapfile -t actual_release_files \
+            < .tmp/recovery-verification/actual-release-files.txt
+          test "${#actual_release_files[@]}" -eq 16
+          diff \
+            .tmp/recovery-verification/expected-release-files.txt \
+            .tmp/recovery-verification/actual-release-files.txt
+          find .tmp/release -mindepth 1 ! -type f ! -type d -print \
+            > .tmp/recovery-verification/non-regular-release-entries.txt
+          test ! -s \
+            .tmp/recovery-verification/non-regular-release-entries.txt
+
+          mkdir -p .tmp/publish
+          cp .tmp/source-dist/*.whl .tmp/source-dist/*.tar.gz .tmp/publish/
+          python scripts/check_wheel_contents.py --dist .tmp/publish
+      - name: Promote reverified signed bundle
+        id: upload-bundle
+        # actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovery-verified-signed-release-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/release
+          if-no-files-found: error
+          retention-days: 30
+      - name: Promote reverified Python distributions
+        id: upload-distributions
+        # actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: recovery-verified-python-distributions-${{ github.run_id }}-${{ github.run_attempt }}
+          path: .tmp/publish
+          if-no-files-found: error
+          retention-days: 14
+
+  recover-github-release:
+    name: Validate owner-published GitHub release against reverified bytes
+    needs: recover-verify
+    if: >-
+      needs.recover-verify.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'recover-v0.6.0' &&
+      github.ref == 'refs/tags/release-recovery/v0.6.0-30170334180'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-release
+    permissions:
+      contents: read
+    steps:
+      # actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.recover-verify.outputs.verified_bundle_artifact_id }}
+          merge-multiple: true
+          path: .tmp/release
+      - name: Validate exact v0.6.0 release notes and every remote asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ORIGINAL_TAG: v0.6.0
+          ORIGINAL_SHA: 2c83bafc0e53f25ee27f72179797331d0d7fc5d4
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "${GITHUB_REPOSITORY}" = "acblabs/agent-assure"
+          test "${GITHUB_REF}" = "refs/tags/release-recovery/v0.6.0-30170334180"
+          state_dir="${GITHUB_WORKSPACE}/.tmp/recovery-release-state"
+          remote_dir="${state_dir}/remote-assets"
+          mkdir -p "${state_dir}" "${remote_dir}"
+
+          find .tmp/release/dist -maxdepth 1 -type f \
+            \( -name '*.whl' -o -name '*.tar.gz' -o -name '*.bundle' \) \
+            -print | LC_ALL=C sort > "${state_dir}/dist-assets.txt"
+          mapfile -t dist_assets < "${state_dir}/dist-assets.txt"
+          test "${#dist_assets[@]}" -eq 4
+          assets=(
+            "${dist_assets[@]}"
+            .tmp/release/reports/evidence-packet.json
+            .tmp/release/reports/evidence-packet.json.bundle
+            .tmp/release/reports/evidence-packet.md
+            .tmp/release/reports/evidence-packet.md.bundle
+            .tmp/release/reports/release-artifact-manifest.json
+            .tmp/release/reports/release-artifact-manifest.json.bundle
+            .tmp/release/release-digest-replay.json
+            .tmp/release/release-digest-replay.json.bundle
+            .tmp/release/release-notes.md
+            .tmp/release/release-notes.md.bundle
+            .tmp/release/sbom.cdx.json
+            .tmp/release/sbom.cdx.json.bundle
+          )
+          test "${#assets[@]}" -eq 16
+          for asset in "${assets[@]}"; do
+            test -f "${asset}"
+            test ! -L "${asset}"
+          done
+          printf '%s\n' "${assets[@]#.tmp/release/}" \
+            | LC_ALL=C sort > "${state_dir}/expected-release-files.txt"
+          (
+            cd .tmp/release
+            find . -type f -printf '%P\n' | LC_ALL=C sort \
+              > "${state_dir}/actual-release-files.txt"
+          )
+          mapfile -t actual_release_files \
+            < "${state_dir}/actual-release-files.txt"
+          test "${#actual_release_files[@]}" -eq 16
+          diff \
+            "${state_dir}/expected-release-files.txt" \
+            "${state_dir}/actual-release-files.txt"
+          find .tmp/release -mindepth 1 ! -type f ! -type d -print \
+            > "${state_dir}/non-regular-release-entries.txt"
+          test ! -s "${state_dir}/non-regular-release-entries.txt"
+
+          printf '%s\n' "${assets[@]##*/}" \
+            | LC_ALL=C sort > "${state_dir}/expected-asset-names.txt"
+          LC_ALL=C sort -u \
+            "${state_dir}/expected-asset-names.txt" \
+            > "${state_dir}/unique-expected-asset-names.txt"
+          diff \
+            "${state_dir}/expected-asset-names.txt" \
+            "${state_dir}/unique-expected-asset-names.txt"
+          mapfile -t expected_asset_names \
+            < "${state_dir}/expected-asset-names.txt"
+          test "${#expected_asset_names[@]}" -eq 16
+
+          declare -A asset_paths=()
+          for asset in "${assets[@]}"; do
+            asset_paths["${asset##*/}"]="${asset}"
+          done
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${ORIGINAL_TAG}" \
+            --jq '.object | [.type, .sha] | @tsv' \
+            > "${state_dir}/original-tag.tsv"
+          read -r tag_type tag_sha < "${state_dir}/original-tag.tsv"
+          test "${tag_type}" = "commit"
+          test "${tag_sha}" = "${ORIGINAL_SHA}"
+
+          pypi_status="$(
+            curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "https://pypi.org/pypi/agent-assure/${ORIGINAL_TAG#v}/json"
+          )"
+          test "${pypi_status}" = "404"
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/releases/tags/${ORIGINAL_TAG}" \
+            > "${state_dir}/release.json"
+          jq -e \
+            --arg tag "${ORIGINAL_TAG}" \
+            --arg title "agent-assure ${ORIGINAL_TAG}" \
+            '
+              (.id | type == "number")
+              and .tag_name == $tag
+              and .name == $title
+              and .draft == false
+              and .prerelease == false
+              and .author.login == "acblabs"
+              and .author.id == 104098411
+            ' "${state_dir}/release.json"
+          jq -rj '.body // ""' "${state_dir}/release.json" \
+            > "${state_dir}/remote-release-notes.md"
+          cmp \
+            .tmp/release/release-notes.md \
+            "${state_dir}/remote-release-notes.md"
+          release_id="$(
+            jq -er '.id | select(type == "number")' "${state_dir}/release.json"
+          )"
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/releases/${release_id}/assets?per_page=100" \
+            > "${state_dir}/assets.json"
+          jq -e \
+            '
+              type == "array"
+              and length == 16
+              and all(
+                .[];
+                (.id | type == "number")
+                and (.name | test("^[A-Za-z0-9][A-Za-z0-9._-]*$"))
+                and .state == "uploaded"
+                and .uploader.login == "acblabs"
+                and .uploader.id == 104098411
+              )
+            ' "${state_dir}/assets.json"
+          jq -r '.[].name' "${state_dir}/assets.json" \
+            | LC_ALL=C sort > "${state_dir}/actual-asset-names.txt"
+          LC_ALL=C sort -u \
+            "${state_dir}/actual-asset-names.txt" \
+            > "${state_dir}/unique-actual-asset-names.txt"
+          diff \
+            "${state_dir}/actual-asset-names.txt" \
+            "${state_dir}/unique-actual-asset-names.txt"
+          diff \
+            "${state_dir}/expected-asset-names.txt" \
+            "${state_dir}/actual-asset-names.txt"
+
+          jq -r '.[] | [.id, .name] | @tsv' "${state_dir}/assets.json" \
+            > "${state_dir}/assets.tsv"
+          while IFS=$'\t' read -r asset_id asset_name; do
+            [[ "${asset_id}" =~ ^[1-9][0-9]*$ ]]
+            local_path="${asset_paths[$asset_name]-}"
+            test -n "${local_path}"
+            gh api \
+              -H "Accept: application/octet-stream" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/releases/assets/${asset_id}" \
+              > "${remote_dir}/${asset_name}"
+            cmp "${local_path}" "${remote_dir}/${asset_name}"
+          done < "${state_dir}/assets.tsv"
+
+          gh api \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${ORIGINAL_TAG}" \
+            --jq '.object | [.type, .sha] | @tsv' \
+            > "${state_dir}/final-original-tag.tsv"
+          read -r final_tag_type final_tag_sha \
+            < "${state_dir}/final-original-tag.tsv"
+          test "${final_tag_type}" = "commit"
+          test "${final_tag_sha}" = "${ORIGINAL_SHA}"
+          final_pypi_status="$(
+            curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+              "https://pypi.org/pypi/agent-assure/${ORIGINAL_TAG#v}/json"
+          )"
+          test "${final_pypi_status}" = "404"
+
+  recover-pypi-publish:
+    name: Recover PyPI publication from reverified distributions
+    needs: [recover-verify, recover-github-release]
+    if: >-
+      needs.recover-verify.result == 'success' &&
+      needs.recover-github-release.result == 'success' &&
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'recover-v0.6.0' &&
+      github.ref == 'refs/tags/release-recovery/v0.6.0-30170334180'
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/agent-assure
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      # actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.recover-verify.outputs.distributions_artifact_id }}
           merge-multiple: true
           path: dist
       # pypa/gh-action-pypi-publish@v1.14.0
