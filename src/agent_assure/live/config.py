@@ -118,6 +118,22 @@ class LiveAdapterConfig(StrictModel):
         return tuple(normalized)
 
     @model_validator(mode="after")
+    def _validate_adapter_capabilities(self) -> Self:
+        if self.adapter_id != "static-jsonl":
+            return self
+        unsupported: list[str] = []
+        if self.allow_network:
+            unsupported.append("allow_network")
+        if self.script_env_allowlist:
+            unsupported.append("script_env_allowlist")
+        if unsupported:
+            raise ValueError(
+                "static-jsonl adapter does not support capability fields: "
+                + ", ".join(unsupported)
+            )
+        return self
+
+    @model_validator(mode="after")
     def _validate_pricing_rates(self) -> Self:
         rates = (
             self.cost_per_1k_prompt_tokens_usd,

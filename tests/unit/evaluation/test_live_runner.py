@@ -29,6 +29,7 @@ from agent_assure.live.adapters import (
     _open_no_redirects,
     _openai_response,
     _read_provider_response,
+    build_adapter,
 )
 from agent_assure.live.config import (
     MAX_LIVE_REQUESTS,
@@ -503,6 +504,81 @@ def test_live_runner_requires_explicit_external_script_trust(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="allow_external_script"):
         run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+
+def test_static_jsonl_without_capabilities_requires_no_trust() -> None:
+    assert _trusted_live_config_reasons(_config(tokens_per_minute=20, max_output_tokens=7)) == ()
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value"),
+    (
+        ("allow_network", True),
+        ("script_env_allowlist", ("OPENAI_API_KEY",)),
+    ),
+)
+def test_static_jsonl_rejects_unsupported_capability_fields(
+    field_name: str,
+    field_value: object,
+) -> None:
+    with pytest.raises(ValueError, match=rf"static-jsonl.*{field_name}"):
+        LiveAdapterConfig.model_validate(
+            {
+                "adapter_id": "static-jsonl",
+                "provider": "static-provider",
+                "model": "static-model",
+                "response_jsonl_path": "responses.jsonl",
+                field_name: field_value,
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    ("field_name", "field_value", "required_trust"),
+    (
+        ("allow_network", True, "allow_network"),
+        ("script_env_allowlist", ("OPENAI_API_KEY",), "allow_script_env"),
+    ),
+)
+def test_build_adapter_applies_trust_gate_to_static_jsonl(
+    tmp_path: Path,
+    field_name: str,
+    field_value: object,
+    required_trust: str,
+) -> None:
+    config = LiveAdapterConfig(
+        adapter_id="static-jsonl",
+        provider="static-provider",
+        model="static-model",
+        response_jsonl_path="missing.jsonl",
+    ).model_copy(update={field_name: field_value})
+
+    with pytest.raises(ValueError, match=required_trust):
+        build_adapter(config, base_dir=tmp_path)
+
+
+def test_live_runner_rejects_copied_static_network_capability_even_when_trusted(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    protocol = LiveProtocolRecord.model_validate(_protocol_payload(compiled))
+    config = _static_config(
+        tmp_path / "prompt.txt",
+        tmp_path / "responses.jsonl",
+        protocol,
+        sha256_hexdigest(protocol),
+    )
+    copied_adapter = config.adapter.model_copy(update={"allow_network": True})
+    bypassed = config.model_copy(update={"adapter": copied_adapter})
+
+    with pytest.raises(ValueError, match=r"static-jsonl.*allow_network"):
+        run_live_suite(
+            compiled,
+            bypassed,
+            protocol=protocol,
+            config_dir=tmp_path,
+            trust=TrustedLiveExecution(allow_network=True),
+        )
 
 
 def test_live_run_config_yaml_rejects_aliases_before_validation(tmp_path: Path) -> None:

@@ -394,6 +394,13 @@ def build_adapter(
     base_dir: Path,
     trust: TrustedLiveExecution | None = None,
 ) -> LiveProviderAdapter:
+    known_ids = adapter_ids()
+    if config.adapter_id not in known_ids:
+        known = ", ".join(known_ids)
+        raise KeyError(f"unknown live adapter {config.adapter_id!r}; expected one of: {known}")
+    # This is the common trust boundary for every registered adapter. The live
+    # constructors repeat the check to protect callers that instantiate them directly.
+    require_live_adapter_trust(config, trust)
     if config.adapter_id == StaticJsonlAdapter.adapter_id:
         return StaticJsonlAdapter(config, base_dir=base_dir)
     if config.adapter_id == OpenAIChatCompletionsAdapter.adapter_id:
@@ -404,8 +411,7 @@ def build_adapter(
         )
     if config.adapter_id == ExternalScriptAdapter.adapter_id:
         return ExternalScriptAdapter(config, base_dir=base_dir, trust=trust)
-    known = ", ".join(adapter_ids())
-    raise KeyError(f"unknown live adapter {config.adapter_id!r}; expected one of: {known}")
+    raise AssertionError("live adapter registry and builder are inconsistent")
 
 
 def adapter_ids() -> tuple[str, ...]:
