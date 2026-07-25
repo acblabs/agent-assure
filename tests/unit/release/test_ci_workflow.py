@@ -3,6 +3,8 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -104,6 +106,35 @@ def test_every_checkout_disables_persisted_credentials() -> None:
         assert workflow.count("persist-credentials: false") == workflow.count(
             "uses: actions/checkout@"
         ), path.name
+
+
+def test_artifact_id_downloads_merge_into_the_exact_requested_path() -> None:
+    expected_downloads = {
+        "release.yml": 5,
+        "publish-testpypi.yml": 2,
+        "evidence.yml": 3,
+    }
+
+    for workflow_name, expected_count in expected_downloads.items():
+        workflow = yaml.safe_load(
+            (ROOT / ".github" / "workflows" / workflow_name).read_text(
+                encoding="utf-8"
+            )
+        )
+        downloads = [
+            step
+            for job in workflow["jobs"].values()
+            for step in job.get("steps", ())
+            if isinstance(step, dict)
+            and str(step.get("uses", "")).startswith("actions/download-artifact@")
+            and "artifact-ids" in step.get("with", {})
+        ]
+
+        assert len(downloads) == expected_count, workflow_name
+        assert all(step["with"].get("path") for step in downloads), workflow_name
+        assert all(
+            step["with"].get("merge-multiple") is True for step in downloads
+        ), workflow_name
 
 
 def test_release_privileges_are_split_from_build_and_verification() -> None:

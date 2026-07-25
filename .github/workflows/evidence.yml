@@ -127,6 +127,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           artifact-ids: ${{ needs.build.outputs.bundle_artifact_id }}
+          merge-multiple: true
           path: .tmp/published
       - name: Rebuild evidence from the same commit
         run: >
@@ -182,6 +183,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           artifact-ids: ${{ needs.reproduce.outputs.verified_bundle_artifact_id }}
+          merge-multiple: true
           path: .tmp/release
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
@@ -236,6 +238,7 @@ jobs:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           artifact-ids: ${{ needs.sign.outputs.signed_bundle_artifact_id }}
+          merge-multiple: true
           path: .tmp/release
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
