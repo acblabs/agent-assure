@@ -239,7 +239,7 @@ def _git_environment() -> dict[str, str]:
 
 def _resolve_git_executable() -> str | None:
     executable_names: tuple[str, ...] = ("git",)
-    if os.name == "nt":
+    if _IS_WINDOWS:
         # Batch shims are interpreted by cmd.exe even when subprocess is invoked
         # without shell=True. Provenance reads include an absolute repository path
         # in Git's safe.directory argument, so accept only the native executable on
