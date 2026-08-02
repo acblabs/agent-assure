@@ -98,6 +98,7 @@ def evaluate_case(
     results.extend(output_schema.evaluate_structured_output(run))
     results.extend(evidence.evaluate_required_evidence(run, expectation))
     results.extend(evidence.evaluate_material_claim_evidence(run, expectation))
+    results.extend(evidence.evaluate_evidence_provenance_identity(run))
     results.extend(
         tools.evaluate_tool_allowlist(
             run,
@@ -226,18 +227,17 @@ def _is_fixture_remediation_signal(
 def _runset_status_results(runset: RunSet) -> tuple[ControlResult, ...]:
     if runset.completion_status == "complete":
         return ()
-    stop_reasons = ", ".join(runset.stop_reasons) or "unknown"
     return (
         ControlResult(
             control_id="runset_completion_required",
             case_id="*",
             state=GateState.fail,
-            reason_code=ReasonCode.RUNTIME_FAILED,
+            reason_code=ReasonCode.RUNSET_INCOMPLETE,
             severity=Severity.blocker,
             target="completion_status",
             message=(
                 "ordinary evaluation requires a complete run set; "
-                f"stop reasons: {stop_reasons}"
+                f"declared stop reason count: {len(runset.stop_reasons)}"
             ),
         ),
     )

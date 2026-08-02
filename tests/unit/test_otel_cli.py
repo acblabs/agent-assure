@@ -48,7 +48,7 @@ def test_otel_export_rejects_sensitive_external_run_record(tmp_path: Path) -> No
         json.dumps(
             {
                 "artifact_kind": "agent-run-record",
-                "schema_version": "0.6.0",
+                "schema_version": "0.6.1",
                 "run_id": "jane@example.com",
                 "case_id": "case-001",
                 "pipeline_id": "pipeline",
@@ -71,12 +71,12 @@ def test_otel_export_rejects_sensitive_precomputed_span_plan(tmp_path: Path) -> 
         json.dumps(
             {
                 "artifact_kind": "span-plan",
-                "schema_version": "0.6.0",
+                "schema_version": "0.6.1",
                 "span_name": "agent_assure.run",
                 "attributes": [
                     {
                         "artifact_kind": "span-attribute",
-                        "schema_version": "0.6.0",
+                        "schema_version": "0.6.1",
                         "key": "agent_assure.run_id",
                         "value": "jane@example.com",
                     }
@@ -100,12 +100,12 @@ def test_otel_export_command_rejects_sensitive_attribute_label_value_pair(
         json.dumps(
             {
                 "artifact_kind": "span-plan",
-                "schema_version": "0.6.0",
+                "schema_version": "0.6.1",
                 "span_name": "agent_assure.run",
                 "attributes": [
                     {
                         "artifact_kind": "span-attribute",
-                        "schema_version": "0.6.0",
+                        "schema_version": "0.6.1",
                         "key": "patient.ssn",
                         "value": 123456789,
                     }

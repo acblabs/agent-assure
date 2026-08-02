@@ -9,6 +9,7 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_SCHEMA_VERSION,
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
     STRICT_RFC3339_TIMESTAMP_PATTERN,
@@ -19,6 +20,8 @@ from agent_assure.schema.common import (
     Severity,
     coerce_enum,
     coerce_tuple,
+    current_machine_identifier_json_schema_extra,
+    validate_machine_identifier,
 )
 from agent_assure.schema.privacy import (
     PrivacyProfileDigest,
@@ -46,15 +49,13 @@ _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
 )
-_RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
-    *_RUN_RECORD_USAGE_FIELD_PATHS
-)
+_RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
             "required": ["schema_version", "execution_mode"],
             "properties": {
-                "schema_version": {"const": "0.6.0"},
+                "schema_version": {"const": "0.6.1"},
                 "execution_mode": {"const": "live"},
             },
         },
@@ -72,15 +73,53 @@ _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
+_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1"})
 _RUN_SET_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
     ("runs", "*", "usage_ledger"),
     ("runs", "*", "usage_summary"),
 )
+_EVIDENCE_GRAPH_MEMBER_FIELDS = (
+    "evidence_refs",
+    "evidence_items",
+    "claims",
+    "claim_evidence_links",
+)
+_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version"],
+            "properties": {
+                "schema_version": {"const": MACHINE_IDENTIFIER_SCHEMA_VERSION},
+            },
+        },
+        "then": {
+            "properties": {
+                field_name: {
+                    "items": {
+                        "properties": {
+                            "schema_version": {
+                                "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                            }
+                        }
+                    }
+                }
+                for field_name in _EVIDENCE_GRAPH_MEMBER_FIELDS
+            }
+        },
+    }
+)
 
 
 class EvidenceRef(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=current_machine_identifier_json_schema_extra(
+            scalar_fields=("ref_id", "source_id"),
+            sequence_fields=("claim_ids",),
+        )
+    )
+
     artifact_kind: Literal["evidence-ref"] = "evidence-ref"
     ref_id: str
     source_id: str
@@ -91,23 +130,76 @@ class EvidenceRef(PersistedArtifact):
     def _coerce_claim_ids(cls, value: object) -> object:
         return coerce_tuple(value)
 
+    @model_validator(mode="after")
+    def _validate_current_identifiers(self) -> EvidenceRef:
+        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            validate_machine_identifier(self.ref_id, field_name="ref_id")
+            validate_machine_identifier(self.source_id, field_name="source_id")
+            for index, claim_id in enumerate(self.claim_ids):
+                validate_machine_identifier(
+                    claim_id,
+                    field_name=f"claim_ids[{index}]",
+                )
+        return self
+
 
 class EvidenceItem(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=current_machine_identifier_json_schema_extra(
+            scalar_fields=("ref_id", "source_id"),
+        )
+    )
+
     artifact_kind: Literal["evidence-item"] = "evidence-item"
     ref_id: str
     source_id: str
     content_digest: DigestHex
 
+    @model_validator(mode="after")
+    def _validate_current_identifiers(self) -> EvidenceItem:
+        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            validate_machine_identifier(self.ref_id, field_name="ref_id")
+            validate_machine_identifier(self.source_id, field_name="source_id")
+        return self
+
 
 class ClaimRecord(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=current_machine_identifier_json_schema_extra(
+            scalar_fields=("claim_id",),
+        )
+    )
+
     artifact_kind: Literal["claim-record"] = "claim-record"
     claim_id: str
 
+    @model_validator(mode="after")
+    def _validate_current_identifier(self) -> ClaimRecord:
+        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            validate_machine_identifier(self.claim_id, field_name="claim_id")
+        return self
+
 
 class ClaimEvidenceLink(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=current_machine_identifier_json_schema_extra(
+            scalar_fields=("claim_id", "evidence_ref_id"),
+        )
+    )
+
     artifact_kind: Literal["claim-evidence-link"] = "claim-evidence-link"
     claim_id: str
     evidence_ref_id: str
+
+    @model_validator(mode="after")
+    def _validate_current_identifiers(self) -> ClaimEvidenceLink:
+        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            validate_machine_identifier(self.claim_id, field_name="claim_id")
+            validate_machine_identifier(
+                self.evidence_ref_id,
+                field_name="evidence_ref_id",
+            )
+        return self
 
 
 class PolicyResult(PersistedArtifact):
@@ -138,9 +230,7 @@ class PolicyResult(PersistedArtifact):
 
 
 class AgentRunRecord(PersistedArtifact):
-    model_config = ConfigDict(
-        json_schema_extra=_RUN_RECORD_JSON_SCHEMA_EXTRA
-    )
+    model_config = ConfigDict(json_schema_extra=_RUN_RECORD_JSON_SCHEMA_EXTRA)
 
     artifact_kind: Literal["agent-run-record"] = "agent-run-record"
     run_id: str = Field(min_length=1)
@@ -190,12 +280,15 @@ class AgentRunRecord(PersistedArtifact):
         default=None,
         pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
     )
-    estimated_cost_source: Literal[
-        "adapter_reported",
-        "local_estimate",
-        "not_reported",
-        "provider_reported",
-    ] | None = None
+    estimated_cost_source: (
+        Literal[
+            "adapter_reported",
+            "local_estimate",
+            "not_reported",
+            "provider_reported",
+        ]
+        | None
+    ) = None
     cost_budget_committed_usd: str | None = Field(
         default=None,
         pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$",
@@ -282,6 +375,23 @@ class AgentRunRecord(PersistedArtifact):
         return value
 
     @model_validator(mode="after")
+    def _validate_evidence_graph_member_versions(self) -> AgentRunRecord:
+        if self.schema_version != MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            return self
+        mismatches = [
+            f"{field_name}[{index}]"
+            for field_name in _EVIDENCE_GRAPH_MEMBER_FIELDS
+            for index, member in enumerate(getattr(self, field_name))
+            if member.schema_version != self.schema_version
+        ]
+        if mismatches:
+            raise ValueError(
+                "current run records require current-version evidence graph members: "
+                + ", ".join(mismatches)
+            )
+        return self
+
+    @model_validator(mode="after")
     def _validate_live_metadata(self) -> AgentRunRecord:
         validate_usage_field_paths_schema_version(
             self.schema_version,
@@ -316,11 +426,20 @@ class AgentRunRecord(PersistedArtifact):
             )
             if getattr(self, field_name) is None
         ]
-        if self.schema_version == "0.6.0" and self.cost_budget_committed_usd is None:
+        if (
+            self.schema_version in _BUDGET_COMMITMENT_SCHEMA_VERSIONS
+            and self.cost_budget_committed_usd is None
+        ):
             missing.append("cost_budget_committed_usd")
-        if self.schema_version == "0.6.0" and self.generated_token_budget_committed is None:
+        if (
+            self.schema_version in _BUDGET_COMMITMENT_SCHEMA_VERSIONS
+            and self.generated_token_budget_committed is None
+        ):
             missing.append("generated_token_budget_committed")
-        if self.schema_version == "0.6.0" and self.total_token_budget_committed is None:
+        if (
+            self.schema_version in _BUDGET_COMMITMENT_SCHEMA_VERSIONS
+            and self.total_token_budget_committed is None
+        ):
             missing.append("total_token_budget_committed")
         if missing:
             raise ValueError("live run records require: " + ", ".join(missing))
@@ -335,9 +454,7 @@ class AgentRunRecord(PersistedArtifact):
             and self.generated_token_budget_committed is not None
             and self.generated_token_budget_committed < self.completion_tokens
         ):
-            raise ValueError(
-                "generated-token budget commitment cannot be below completion_tokens"
-            )
+            raise ValueError("generated-token budget commitment cannot be below completion_tokens")
         if (
             self.total_tokens is not None
             and self.total_token_budget_committed is not None

@@ -5,6 +5,8 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `EXPECTED_OUTCOME_MISMATCH`: observed recommendation or outcome did not match the case expectation.
 - `FORBIDDEN_OUTCOME`: observed outcome is explicitly forbidden for the case.
 - `MATERIAL_CLAIM_MISSING_EVIDENCE`: a fixture-declared material claim has no structured evidence link.
+- `EVIDENCE_PROVENANCE_MISMATCH`: an evidence reference and its paired
+  content-addressed evidence item disagree about source identity.
 - `REQUIRED_SOURCE_MISSING`: an expected evidence reference is absent.
 - `POLICY_FAILED`: a gate, policy, or waiver control failed outside a case-specific invariant.
 - `REQUIRED_HUMAN_REVIEW_ABSENT`: the result did not route to human review, or did not record performed review, when the expectation required it.
@@ -21,6 +23,8 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
 - `RAW_SENSITIVE_CONTENT`: persisted summaries contain sensitive-looking content.
 - `PROMPT_INJECTION_BOUNDARY`: a runtime prompt-boundary signal was emitted or captured.
 - `RUNTIME_FAILED`: execution produced a runtime error record.
+- `RUNSET_INCOMPLETE`: evaluation received a RunSet whose declared execution did
+  not complete.
 - `VALID_RECORD_MISSING`: a suite case is missing a valid run record or has duplicate records.
 - `FIXTURE_EQUIVALENCE_FAILED`: compared runs do not share equivalent fixture material.
 - `NON_NFC_STRING`: canonicalization rejected a non-NFC string.

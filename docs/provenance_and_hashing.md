@@ -31,8 +31,11 @@ Current digest behavior:
 The current schema keeps fixture-mode provenance narrow while allowing live
 records to carry optional operational metadata such as timestamps, token counts,
 latency, and estimated cost as schema-normalized strings and integers. RunSet
-digests are exact artifact digests over persisted fields, not a separate
-observed-value-free provenance projection. Release replay is the place where
+digests are SHA-256 over RFC 8785 canonical bytes of the version-aware
+schema-validated, current `RunSet` model JSON projection. The projection
+retains the accepted `schema_version` and materializes schema-permitted omitted
+defaults, so it is neither raw source bytes nor a separate observed-value-free
+provenance projection. Release replay is the place where
 environment-bearing review artifacts use explicit stable projections.
 Privacy profile digests participate in ordinary artifact digests because the
 profile ID and digest are persisted fields. On a bound RunSet, they identify

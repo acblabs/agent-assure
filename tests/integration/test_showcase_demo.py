@@ -6,6 +6,7 @@ from pathlib import Path
 from typer.testing import CliRunner
 
 from agent_assure.cli.main import app
+from agent_assure.policies.evidence import claim_finding_target
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.run import AgentRunRecord, RunSet
 
@@ -119,13 +120,13 @@ def test_flagship_showcase_sequence_matches_public_demo(tmp_path: Path) -> None:
     assert isinstance(finding, dict)
     assert finding["case_id"] == EDGE_CASE_ID
     assert finding["control_id"] == "material_claims_have_evidence"
-    assert finding["target"] == "claim:claim-duration"
+    assert finding["target"] == claim_finding_target("claim-duration")
     assert finding["reason_code"] == ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value
     assert finding["state"] == GateState.fail.value
     assert (
         finding["message"]
-        == "fixture-declared material claim 'claim-duration' has no content-addressed "
-        "evidence item link"
+        == "fixture-declared material claim has no paired reference and "
+        "content-addressed evidence item link"
     )
     assert comparison_summary["classification"] == ComparisonClassification.new_failure.value
     assert comparison_summary["fixture_equivalence_state"] == GateState.pass_.value

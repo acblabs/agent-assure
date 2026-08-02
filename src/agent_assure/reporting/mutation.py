@@ -13,12 +13,19 @@ from typing import BinaryIO, cast
 
 from agent_assure.artifact_io import (
     ensure_unlinked_directory,
-    file_sha256,
 )
 from agent_assure.canonical.jcs import canonical_bytes
 from agent_assure.canonical.normalize import digest_projection
-from agent_assure.io_limits import load_json_bounded
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    MAX_CONFIG_TEXT_BYTES,
+    load_json_bytes_bounded,
+    read_file_bounded,
+)
 from agent_assure.mutation.execution import MutationExecution, build_evidence_descriptor
+from agent_assure.reporting.mutation_namespace import (
+    assert_generation_namespace_exclusive,
+)
 from agent_assure.schema.validation import validate_artifact_payload
 
 MUTATION_RESULT_FILENAME = "assurance-mutation-result.json"
@@ -36,6 +43,9 @@ _FIXED_OUTPUT_FILENAMES = (
 _TRANSACTION_PREFIX = ".agent-assure-mutation-txn-"
 _GENERATION_MANIFEST_CONTRACT = "AssuranceMutationArtifactGeneration/v1"
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
+_MAX_GENERATION_MANIFEST_BYTES = MAX_CONFIG_TEXT_BYTES
+_MAX_MUTATED_RUNSET_BYTES = (2 * MAX_ARTIFACT_JSON_BYTES) + MAX_CONFIG_TEXT_BYTES
+_MAX_SINGLE_GENERATION_BYTES = 64 * 1024 * 1024
 _PROTECTED_OUTPUT_FILENAMES = (
     *_FIXED_OUTPUT_FILENAMES,
     MUTATION_OUTPUT_LOCK_FILENAME,
@@ -115,6 +125,7 @@ def write_mutation_artifacts(
     ensure_unlinked_directory(out_dir)
     with _mutation_output_lock(out_dir):
         ensure_unlinked_directory(out_dir)
+        assert_generation_namespace_exclusive(out_dir, namespace="single")
         if guarded_inputs:
             ensure_inputs_do_not_alias_mutation_output(guarded_inputs, out_dir)
         _replace_output_generation(out_dir, generation, source_inputs=guarded_inputs)
@@ -142,6 +153,7 @@ def open_validated_mutation_artifact_generation(
     _ensure_mutation_output_directory_safe(out_dir)
     ensure_unlinked_directory(out_dir)
     with _mutation_output_lock(out_dir):
+        assert_generation_namespace_exclusive(out_dir, namespace="single")
         yield _validate_mutation_artifact_generation_unlocked(out_dir)
 
 
@@ -150,8 +162,15 @@ def _validate_mutation_artifact_generation_unlocked(
 ) -> MutationArtifactPaths:
     """Validate fixed members while the caller holds the generation lock."""
     manifest_path = out_dir / MUTATION_GENERATION_MANIFEST_FILENAME
-    raw_manifest = load_json_bounded(
+    manifest_contents = read_file_bounded(
         manifest_path,
+        max_bytes=_MAX_GENERATION_MANIFEST_BYTES,
+        label="mutation artifact generation manifest",
+    )
+    generation_bytes = len(manifest_contents.data)
+    raw_manifest = load_json_bytes_bounded(
+        manifest_contents.data,
+        max_bytes=_MAX_GENERATION_MANIFEST_BYTES,
         label="mutation artifact generation manifest",
     )
     if not isinstance(raw_manifest, dict):
@@ -195,10 +214,23 @@ def _validate_mutation_artifact_generation_unlocked(
             if not isinstance(digest, str) or len(digest) != 64:
                 raise ValueError("mutation artifact generation digest is malformed")
             try:
-                actual_digest = file_sha256(path)
+                contents = read_file_bounded(
+                    path,
+                    max_bytes=(
+                        _MAX_MUTATED_RUNSET_BYTES
+                        if filename == MUTATED_RUNSET_FILENAME
+                        else MAX_ARTIFACT_JSON_BYTES
+                    ),
+                    label=f"committed mutation artifact {filename}",
+                )
             except FileNotFoundError as exc:
                 raise ValueError(f"committed mutation artifact is missing: {filename}") from exc
-            if actual_digest != digest:
+            generation_bytes += len(contents.data)
+            if generation_bytes > _MAX_SINGLE_GENERATION_BYTES:
+                raise ValueError(
+                    "mutation artifact generation exceeds maximum aggregate size"
+                )
+            if contents.sha256 != digest:
                 raise ValueError(f"committed mutation artifact digest does not match: {filename}")
         elif digest is not None or _entry_exists(path):
             raise ValueError(f"mutation artifact generation absence does not match: {filename}")

@@ -17,3 +17,19 @@ def test_markdown_code_span_escapes_backticks_and_html() -> None:
     rendered = markdown_code_span("`breakout` <script>")
 
     assert rendered == "`'breakout' &lt;script&gt;`"
+
+
+def test_markdown_rendering_preserves_ordinary_escaping() -> None:
+    assert markdown_text("ordinary *safe* text") == "ordinary \\*safe\\* text"
+
+
+def test_markdown_rendering_removes_controls_and_reredacts() -> None:
+    rendered = markdown_text(
+        "[safe]\x1b[31m\x9b2J\u202e contact second@example\x00.com"
+    )
+
+    assert rendered.startswith("\\[safe\\]\\[31m2J contact ")
+    assert "\x1b" not in rendered
+    assert "\x9b" not in rendered
+    assert "\u202e" not in rendered
+    assert "second@example.com" not in rendered

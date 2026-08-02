@@ -12,6 +12,7 @@ from agent_assure.demo.common import (
     run_cli_command,
     write_json,
 )
+from agent_assure.policies.evidence import claim_finding_target
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -294,11 +295,14 @@ def _build_summary(
             if finding.state is GateState.fail
         }
     )
-    missing_links = sorted(
-        _claim_id_from_target(finding.target)
-        for finding in candidate_summary.findings
-        if finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
-        and finding.target.startswith("claim:")
+    missing_links = (
+        [MISSING_CLAIM_ID]
+        if any(
+            finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
+            and finding.target == claim_finding_target(MISSING_CLAIM_ID)
+            for finding in candidate_summary.findings
+        )
+        else []
     )
     expected_regression_caught = _expected_regression_caught(
         baseline_summary=baseline_summary,
@@ -458,10 +462,6 @@ def _run_by_case(runset: RunSet, case_id: str) -> AgentRunRecord:
 
 def _visible_output(run: AgentRunRecord) -> tuple[str, str]:
     return run.recommendation, run.outcome
-
-
-def _claim_id_from_target(target: str) -> str:
-    return target.removeprefix("claim:")
 
 
 def _command_exit(results: tuple[ExpectedCommandResult, ...], name: str) -> int | None:

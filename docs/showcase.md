@@ -39,9 +39,9 @@ The evidence-normalization candidate is a fail with one blocking finding:
 state: fail
 case_id: shared-source-multi-claim
 control_id: material_claims_have_evidence
-target: claim:claim-duration
+target: claim_digest:c99b03a463802b1cc26362f0cf1e7e9c47d99cee31fba34dc39ade5179b6a63d
 reason_code: MATERIAL_CLAIM_MISSING_EVIDENCE
-message: fixture-declared material claim 'claim-duration' has no evidence link
+message: fixture-declared material claim has no paired reference and content-addressed evidence item link
 ```
 
 The baseline-to-candidate comparison classifies the change as a new failure

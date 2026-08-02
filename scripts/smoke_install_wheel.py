@@ -80,6 +80,14 @@ def main(argv: list[str] | None = None) -> int:
                 [
                     str(python),
                     "-c",
+                    _installed_wheel_campaign_assertion(),
+                ],
+                cwd=temp_dir,
+            )
+            run(
+                [
+                    str(python),
+                    "-c",
                     _demo_network_guard_assertion(),
                 ],
                 cwd=temp_dir,
@@ -222,7 +230,12 @@ def _direct_wheel_zip_import_assertion(wheel: Path) -> str:
         "from agent_assure.cli.main import app; "
         "assert app is not None; "
         "from agent_assure.mutation.catalog import registered_operators; "
-        "assert len(registered_operators()) == 3"
+        "from agent_assure.mutation.campaign import build_core_catalog; "
+        "operators = registered_operators(); "
+        "assert len(operators) == 7; "
+        "catalog = build_core_catalog(operators); "
+        "assert catalog.catalog_id == 'core/v1'; "
+        "assert len(catalog.operators) == 7"
     )
 
 
@@ -258,6 +271,155 @@ def _packaged_schema_resource_assertion() -> str:
         "raise SystemExit('missing packaged schema resources: ' + ', '.join(missing) "
         "if missing else 0)"
     )
+
+
+def _installed_wheel_campaign_assertion() -> str:
+    """Return an offline core-catalog campaign exercised only from installed code."""
+    return """
+from copy import deepcopy
+import socket
+import sys
+
+_connect_probe = socket.socket()
+_connect_ex_probe = socket.socket()
+_blocked_network_events = []
+
+def reject_network_helper(*_args, **_kwargs):
+    _blocked_network_events.append("socket-helper")
+    raise AssertionError("mutation campaign attempted network access")
+
+def reject_socket_audit_event(event, _args):
+    if event.startswith("socket."):
+        _blocked_network_events.append(event)
+        raise AssertionError("mutation campaign attempted network access")
+
+socket.create_connection = reject_network_helper
+socket.getaddrinfo = reject_network_helper
+sys.addaudithook(reject_socket_audit_event)
+
+for probe, operation in (
+    (_connect_probe, "connect"),
+    (_connect_ex_probe, "connect_ex"),
+):
+    try:
+        getattr(probe, operation)(("127.0.0.1", 9))
+    except AssertionError:
+        pass
+    else:
+        raise AssertionError(f"raw socket {operation} bypassed the network guard")
+    finally:
+        probe.close()
+
+assert len(_blocked_network_events) == 2
+_guard_probe_event_count = len(_blocked_network_events)
+
+from agent_assure.fixtures.loader import compiled_suite_digest
+from agent_assure.mutation.campaign import execute_mutation_campaign
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.schema.expectation import Expectation
+from agent_assure.schema.provenance import Provenance
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    ClaimEvidenceLink,
+    EvidenceItem,
+    EvidenceRef,
+    RunSet,
+)
+from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
+
+suite = CompiledSuite(
+    suite_id="installed-wheel-campaign",
+    suite_version="1.0.0",
+    cases=(
+        SuiteCase(
+            case_id="case-a",
+            title="Installed wheel campaign",
+            expectation_id="expectation-a",
+        ),
+    ),
+    resolved_expectations=(
+        Expectation(
+            expectation_id="expectation-a",
+            case_id="case-a",
+            material_claim_ids=("claim-a",),
+            forbidden_tools=("blocked-tool",),
+            required_human_review=True,
+        ),
+    ),
+    defaults=SuiteDefaults(
+        runner_id="installed.wheel",
+        allowed_tools=("safe-tool",),
+    ),
+    source_digest="a" * 64,
+)
+fixture_digest = "b" * 64
+runset = RunSet(
+    runset_id="installed-wheel-campaign-runset",
+    privacy_profile_id=PRIVACY_PROFILE_ID,
+    privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+    suite_id=suite.suite_id,
+    suite_version=suite.suite_version,
+    suite_digest=compiled_suite_digest(suite),
+    fixture_manifest_digest=fixture_digest,
+    runs=(
+        AgentRunRecord(
+            run_id="run-a",
+            case_id="case-a",
+            pipeline_id="installed.wheel",
+            recommendation="approve",
+            outcome="approved",
+            input_summary="synthetic fixture input",
+            output_summary="synthetic fixture output",
+            tools=("safe-tool",),
+            evidence_refs=(
+                EvidenceRef(
+                    ref_id="evidence-a",
+                    source_id="source-a",
+                    claim_ids=("claim-a",),
+                ),
+            ),
+            evidence_items=(
+                EvidenceItem(
+                    ref_id="evidence-a",
+                    source_id="source-a",
+                    content_digest="c" * 64,
+                ),
+            ),
+            claim_evidence_links=(
+                ClaimEvidenceLink(
+                    claim_id="claim-a",
+                    evidence_ref_id="evidence-a",
+                ),
+            ),
+            human_review_required=True,
+            human_review_performed=True,
+            provenance=Provenance(fixture_manifest_digest=fixture_digest),
+        ),
+    ),
+)
+source = runset.model_dump(mode="json")
+source_snapshot = deepcopy(source)
+kwargs = {
+    "seed": 17,
+    "generated_at": "2026-07-29T00:00:00Z",
+}
+first = execute_mutation_campaign(suite, source, **kwargs)
+second = execute_mutation_campaign(suite, source, **kwargs)
+
+assert source == source_snapshot
+assert first.catalog.catalog_id == "core/v1"
+assert len(first.catalog.operators) == 7
+canonical_order = tuple(item.descriptor.operator_id for item in first.catalog.operators)
+assert canonical_order == tuple(sorted(canonical_order))
+assert first.campaign.canonical_operator_order == canonical_order
+assert first.campaign.selected_operator_order == canonical_order
+assert first.campaign.executed_operator_order == canonical_order
+assert first.campaign.pending_operator_order == ()
+assert len(first.campaign.operator_results) == 7
+assert all(item.result.state.value == "caught" for item in first.campaign.operator_results)
+assert first.campaign.campaign_digest == second.campaign.campaign_digest
+assert len(_blocked_network_events) == _guard_probe_event_count
+"""
 
 
 def _demo_network_guard_assertion() -> str:

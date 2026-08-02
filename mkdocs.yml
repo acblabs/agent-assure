@@ -10,6 +10,7 @@ nav:
   - For engineers: for_engineers.md
   - What this measures: what_this_measures.md
   - Evidence-carrying releases: evidence_carrying_releases.md
+  - Core mutation catalog: mutation_catalog.md
   - Architecture: architecture.md
   - CLI contract: cli_contract.md
   - Schema reference: schema_reference.md
@@ -30,6 +31,8 @@ nav:
   - LangGraph integration: integrations/langgraph.md
   - Google ADK integration: integrations/google_adk.md
   - PyPI release: release_pypi.md
+  - Release notes:
+      - v0.6.1: release_notes/v0.6.1.md
   - API surface: api_surface.md
   - Limitations: limitations.md
   - Architecture decisions:

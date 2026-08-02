@@ -12,6 +12,7 @@ from agent_assure.demo.common import (
     run_cli_command,
     write_json,
 )
+from agent_assure.policies.evidence import claim_finding_target
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
@@ -464,7 +465,7 @@ def _expected_regressions_caught(
             cases_by_id,
             "same-output-missing-evidence",
             ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
-            target="claim:claim-policy-support",
+            target=claim_finding_target("claim-policy-support"),
         )
         and _case_visible_output(cases_by_id, "same-output-human-review-bypassed")
         == "preserved"

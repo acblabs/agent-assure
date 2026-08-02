@@ -10,6 +10,7 @@ from datetime import date
 from functools import lru_cache, partial
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as distribution_version
+from typing import cast
 
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 
@@ -31,17 +32,23 @@ from agent_assure.mutation.catalog import (
     resolve_operator,
 )
 from agent_assure.mutation.detection import assess_expected_detection
+from agent_assure.mutation.operators import SYNTHETIC_SENSITIVE_SUMMARY, MutationTarget
 from agent_assure.mutation.paths import (
     apply_payload_changes,
     parse_json_pointer,
     paths_are_permitted,
+    structural_changed_paths,
 )
 from agent_assure.mutation.selection import select_target
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
 from agent_assure.privacy.detectors import contains_sensitive_value
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
 from agent_assure.privacy.safe_errors import safe_error
-from agent_assure.schema.common import ExecutionMode, ReasonCode
+from agent_assure.schema.common import (
+    PACKAGE_RELEASE_VERSION_PATTERN,
+    ExecutionMode,
+    ReasonCode,
+)
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.mutation import (
     ASSURANCE_MUTATION_METHOD_ID,
@@ -64,6 +71,7 @@ from agent_assure.schema.mutation import (
     EvidenceSubject,
     EvidenceValidity,
     IndependenceClass,
+    MutationPrivacyClassification,
     MutationResultState,
     ObservedFinding,
     OperatorAuthorship,
@@ -80,7 +88,7 @@ from agent_assure.schema.validation import validate_artifact_payload
 
 MutationEvaluator = Callable[[CompiledSuite, RunSet], EvaluationReport]
 _MACHINE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$")
-_SEMVER = re.compile(r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$")
+_PACKAGE_RELEASE_VERSION = re.compile(PACKAGE_RELEASE_VERSION_PATTERN)
 _DIGEST = re.compile(r"^[0-9a-f]{64}$")
 _UNKNOWN_DIGEST = "0" * 64
 _EVALUATOR_MANIFEST_CONTRACT = "AssuranceMutationEvaluatorManifest/v1"
@@ -110,8 +118,10 @@ class MutationEvaluatorBinding:
             raise TypeError("mutation evaluator must be callable")
         if _MACHINE_ID.fullmatch(self.method_id) is None:
             raise ValueError("mutation evaluator method_id must be a machine identifier")
-        if _SEMVER.fullmatch(self.implementation_version) is None:
-            raise ValueError("mutation evaluator implementation_version must be semver")
+        if _PACKAGE_RELEASE_VERSION.fullmatch(self.implementation_version) is None:
+            raise ValueError(
+                "mutation evaluator implementation_version must be X.Y.Z or X.Y.ZrcN"
+            )
         if (
             _DIGEST.fullmatch(self.implementation_digest) is None
             or self.implementation_digest == _UNKNOWN_DIGEST
@@ -147,6 +157,33 @@ class MutationEvaluatorBinding:
             date.fromisoformat(self.evaluation_date)
         except ValueError as exc:
             raise ValueError("mutation evaluator evaluation_date must use YYYY-MM-DD") from exc
+
+
+class MutationSubjectValidationError(ValueError):
+    """A RunSet payload could not establish the evaluator's canonical projection."""
+
+
+def validated_runset_projection(
+    payload: Mapping[str, object],
+) -> tuple[RunSet, dict[str, object]]:
+    """Validate a RunSet and return the exact projection hashed by evaluators.
+
+    JSON Schema permits omission of some defaulted fields. Evaluators hash the
+    validated model projection, so mutation selection, persistence, and result
+    identity must use that same representation rather than the pre-projection
+    input dictionary.
+    """
+    source = dict(payload)
+    try:
+        validate_artifact_payload(source, "run-set")
+        subject = RunSet.model_validate(source)
+        projected = cast(dict[str, object], subject.model_dump(mode="json"))
+        validate_artifact_payload(projected, "run-set")
+    except (JsonSchemaValidationError, RecursionError, TypeError, ValueError) as exc:
+        raise MutationSubjectValidationError(
+            "RunSet payload failed canonical validation and projection"
+        ) from exc
+    return subject, projected
 
 
 @dataclass(frozen=True)
@@ -272,8 +309,7 @@ def execute_mutation(
     """Apply and assess exactly one registered deterministic operator."""
     if seed < 0 or seed > RFC8785_SAFE_INTEGER_MAX:
         raise ValueError(f"mutation seed must be between 0 and {RFC8785_SAFE_INTEGER_MAX}")
-    raw_source = deepcopy(dict(source_payload))
-    source_snapshot = deepcopy(raw_source)
+    input_source = deepcopy(dict(source_payload))
     source_digest: str | None = None
     try:
         resolved_evaluation_date = evaluation_date or date.fromisoformat(generated_at[:10])
@@ -364,9 +400,8 @@ def execute_mutation(
         return _execution_without_mutation(suite, result, generated_at=generated_at)
 
     try:
-        validate_artifact_payload(raw_source, "run-set")
-        subject = RunSet.model_validate(raw_source)
-    except (JsonSchemaValidationError, TypeError, ValueError):
+        subject, canonical_source = validated_runset_projection(input_source)
+    except MutationSubjectValidationError:
         result = _failure_result(
             state=MutationResultState.invalid_subject,
             operator=operator,
@@ -380,7 +415,8 @@ def execute_mutation(
         return _execution_without_mutation(suite, result, generated_at=generated_at)
 
     try:
-        assert_runset_payload_safe_for_persistence(raw_source)
+        assert_runset_payload_safe_for_persistence(input_source)
+        assert_runset_payload_safe_for_persistence(canonical_source)
     except ValueError:
         result = _failure_result(
             state=MutationResultState.invalid_subject,
@@ -394,7 +430,7 @@ def execute_mutation(
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
 
-    source_digest = _safe_digest(raw_source)
+    source_digest = _safe_digest(canonical_source)
     if source_digest is None:
         result = _failure_result(
             state=MutationResultState.invalid_subject,
@@ -477,7 +513,8 @@ def execute_mutation(
         return _execution_without_mutation(suite, result, generated_at=generated_at)
 
     try:
-        targets = operator.resolve_targets(suite, subject, raw_source)
+        source_snapshot = deepcopy(canonical_source)
+        targets = operator.resolve_targets(suite, subject, canonical_source)
     except Exception as exc:
         exception_class, debug_reference = _safe_internal_diagnostic(
             "operator_applicability_error",
@@ -496,7 +533,7 @@ def execute_mutation(
             limitations=("Operator applicability ended with a bounded internal error.",),
         )
         return _execution_without_mutation(suite, result, generated_at=generated_at)
-    if raw_source != source_snapshot:
+    if canonical_source != source_snapshot:
         result = _failure_result(
             state=MutationResultState.invalid_operator,
             operator=operator,
@@ -549,9 +586,36 @@ def execute_mutation(
         return _execution_without_mutation(suite, result, generated_at=generated_at)
 
     try:
-        changed_paths = tuple(sorted(change.path for change in target.changes))
+        target = target.materialized(canonical_source)
+    except Exception:
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_application_error",
+            limitation="The selected operator target could not be materialized.",
+        )
+    if canonical_source != source_snapshot:
+        result = _failure_result(
+            state=MutationResultState.invalid_operator,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            diagnostic_code="operator_mutated_source",
+            limitations=("The operator changed its immutable source working copy.",),
+        )
+        return _execution_without_mutation(suite, result, generated_at=generated_at)
+
+    try:
+        declared_paths = tuple(sorted(change.path for change in target.changes))
         permitted_paths = paths_are_permitted(
-            changed_paths,
+            declared_paths,
             operator.descriptor.permitted_changed_paths,
         )
     except (TypeError, ValueError):
@@ -578,6 +642,91 @@ def execute_mutation(
             diagnostic_code="operator_output_path_undeclared",
             limitation="The operator proposed a changed path outside its declaration.",
         )
+    try:
+        candidate_payload = apply_payload_changes(canonical_source, target.changes)
+    except (TypeError, ValueError):
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_application_error",
+            limitation="The operator changes could not be applied to the validated source.",
+        )
+    try:
+        candidate, projected_candidate = validated_runset_projection(candidate_payload)
+    except MutationSubjectValidationError:
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_schema_invalid",
+            limitation="The operator output failed bounded RunSet schema validation.",
+        )
+    if projected_candidate != candidate_payload:
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_not_canonical",
+            limitation=(
+                "The operator output did not preserve the canonical RunSet projection."
+            ),
+        )
+    candidate_payload = projected_candidate
+    try:
+        changed_paths = structural_changed_paths(canonical_source, candidate_payload)
+        actual_paths_permitted = paths_are_permitted(
+            changed_paths,
+            operator.descriptor.permitted_changed_paths,
+        )
+    except (TypeError, ValueError):
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_path_invalid",
+            limitation="The operator produced an invalid changed path.",
+        )
+    if not actual_paths_permitted:
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_path_undeclared",
+            limitation="The operator changed a path outside its declaration.",
+        )
+    if not changed_paths:
+        return _invalid_operator_output_execution(
+            suite,
+            operator=operator,
+            requested_operator_id=operator_id,
+            source_digest=source_digest,
+            seed=seed,
+            evaluator_binding=binding,
+            generated_at=generated_at,
+            diagnostic_code="operator_output_noop",
+            limitation="The operator did not change the canonical subject.",
+        )
     target_evaluable = _target_observation_is_evaluable(subject, changed_paths)
     if target_evaluable is False:
         return _invalid_operator_output_execution(
@@ -595,48 +744,25 @@ def execute_mutation(
             ),
         )
     try:
-        candidate_payload = apply_payload_changes(raw_source, target.changes)
-    except (TypeError, ValueError):
-        return _invalid_operator_output_execution(
-            suite,
-            operator=operator,
-            requested_operator_id=operator_id,
-            source_digest=source_digest,
-            seed=seed,
-            evaluator_binding=binding,
-            generated_at=generated_at,
-            diagnostic_code="operator_output_application_error",
-            limitation="The operator changes could not be applied to the validated source.",
-        )
-    try:
-        validate_artifact_payload(candidate_payload, "run-set")
-        candidate = RunSet.model_validate(candidate_payload)
-    except (JsonSchemaValidationError, TypeError, ValueError):
-        return _invalid_operator_output_execution(
-            suite,
-            operator=operator,
-            requested_operator_id=operator_id,
-            source_digest=source_digest,
-            seed=seed,
-            evaluator_binding=binding,
-            generated_at=generated_at,
-            diagnostic_code="operator_output_schema_invalid",
-            limitation="The operator output failed bounded RunSet schema validation.",
-        )
-    try:
         assert_runset_payload_safe_for_persistence(candidate_payload)
     except ValueError:
-        return _invalid_operator_output_execution(
-            suite,
-            operator=operator,
-            requested_operator_id=operator_id,
-            source_digest=source_digest,
-            seed=seed,
-            evaluator_binding=binding,
-            generated_at=generated_at,
-            diagnostic_code="operator_output_privacy_violation",
-            limitation="The operator output failed the bound privacy-detector profile.",
-        )
+        if not _is_exact_synthetic_privacy_challenge(
+            operator,
+            target,
+            changed_paths,
+            candidate_payload,
+        ):
+            return _invalid_operator_output_execution(
+                suite,
+                operator=operator,
+                requested_operator_id=operator_id,
+                source_digest=source_digest,
+                seed=seed,
+                evaluator_binding=binding,
+                generated_at=generated_at,
+                diagnostic_code="operator_output_privacy_violation",
+                limitation="The operator output failed the bound privacy-detector profile.",
+            )
     try:
         mutated_digest = sha256_hexdigest(candidate_payload)
     except (TypeError, ValueError):
@@ -865,6 +991,80 @@ def _target_observation_is_evaluable(
     run = subject.runs[run_index]
     case_counts = Counter(item.case_id for item in subject.runs)
     return run.observation_status == "included" and case_counts[run.case_id] == 1
+
+
+def _is_exact_synthetic_privacy_challenge(
+    operator: RegisteredOperator,
+    target: MutationTarget,
+    changed_paths: tuple[str, ...],
+    candidate_payload: Mapping[str, object],
+) -> bool:
+    """Permit only the catalog's fixed, clearly synthetic redaction sentinel.
+
+    Source validation remains fail-closed. This exception is evaluated only
+    after the candidate privacy scan reports the deliberately injected marker,
+    and it binds the exact operator identity, contract, path, and value.
+    """
+    descriptor = operator.descriptor
+    if (
+        descriptor.operator_id != "inject-synthetic-sensitive-summary"
+        or descriptor.privacy_classification
+        is not MutationPrivacyClassification.synthetic_fixture_sensitive_marker
+        or target.expected_finding_target != "output_summary"
+        or len(target.changes) != 1
+        or target.changes[0].value != SYNTHETIC_SENSITIVE_SUMMARY
+        or changed_paths != (target.changes[0].path,)
+        or not contains_sensitive_value(SYNTHETIC_SENSITIVE_SUMMARY)
+    ):
+        return False
+    contract = descriptor.expected_detection_contract
+    required = contract.required_findings.any_of
+    if (
+        contract.target_control_ids != ("redaction_required",)
+        or len(required) != 1
+        or required[0].control_id != "redaction_required"
+        or required[0].reason_code is not ReasonCode.RAW_SENSITIVE_CONTENT
+        or required[0].target is not None
+    ):
+        return False
+    parts = parse_json_pointer(target.changes[0].path)
+    if (
+        len(parts) != 3
+        or parts[0] != "runs"
+        or not parts[1].isdigit()
+        or (len(parts[1]) > 1 and parts[1].startswith("0"))
+        or parts[2] != "output_summary"
+    ):
+        return False
+    runs = candidate_payload.get("runs")
+    if not isinstance(runs, list):
+        return False
+    run_index = int(parts[1])
+    if run_index >= len(runs):
+        return False
+    run_payload = runs[run_index]
+    if not isinstance(run_payload, Mapping):
+        return False
+    output_summary = run_payload.get("output_summary")
+    if (
+        not isinstance(output_summary, str)
+        or output_summary != SYNTHETIC_SENSITIVE_SUMMARY
+    ):
+        return False
+
+    privacy_probe = deepcopy(dict(candidate_payload))
+    probe_runs = privacy_probe.get("runs")
+    if not isinstance(probe_runs, list) or run_index >= len(probe_runs):
+        return False
+    probe_run = probe_runs[run_index]
+    if not isinstance(probe_run, dict):
+        return False
+    probe_run["output_summary"] = ""
+    try:
+        assert_runset_payload_safe_for_persistence(privacy_probe)
+    except ValueError:
+        return False
+    return True
 
 
 def _failure_result(

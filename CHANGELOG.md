@@ -2,9 +2,68 @@
 
 ## Unreleased
 
+## 0.6.1 - 2026-08-02
+
 - Added an exact, fail-closed recovery and read-only publication-validation
   path for verifier-promoted release artifacts, and made checkout-free GitHub
   release commands name the repository explicitly.
+- Restricted the production release tag path to stable `vX.Y.Z` versions so
+  TestPyPI release candidates cannot be accidentally routed to production.
+- Expanded the closed development-RFC `core/v1` catalog from three to seven
+  stable deterministic operators, adding evidence source-identity skew,
+  synthetic sensitive-summary injection, exact duplicate observation replay,
+  and synthetic incomplete budget-stop challenges.
+- Added normative detector support for evidence provenance identity, valid
+  record structure, and RunSet completion, with exact target control/reason
+  code mappings and explicit runtime-failure prohibited substitutes. Paired
+  evidence reference/item source identity is an always-on deterministic
+  RunSet invariant, not a mutation-campaign-only check.
+- Added self-digested `AssuranceMutationCatalog/v1` and
+  `AssuranceMutationCampaign/v1` artifacts with canonical operator ordering,
+  catalog identity, selected/executed/pending order, applicability, expected
+  and observed findings, prohibited-substitute IDs, completion state, and
+  limitations.
+- Added `controls mutate --catalog core/v1` with repeatable operator,
+  invariant-family, and threat-source filters, stable seed replay, full-report
+  and fail-fast modes, and deterministic worst-state exit precedence.
+- Required every campaign operator to execute independently against the same
+  immutable source; v1 forbids mutation chaining and composition.
+- Added rollback-capable campaign generations with fixed catalog, campaign, and
+  generation-manifest outputs plus canonical per-operator result, descriptor,
+  and optional transformed-RunSet files.
+- Bound catalog identity to operator versions, implementations, normative
+  detector contracts, provenance, independence, invariant families,
+  threat-source references, ordering semantics, and limitations.
+- Added an exact, contract-bound exception for the catalog's fixed synthetic
+  privacy challenge while retaining fail-closed source and ordinary candidate
+  privacy validation.
+- Advanced current package and persisted schema metadata to v0.6.1 while
+  preserving the frozen v0.6.0 snapshot and its v0.6 relational validation
+  semantics.
+- Pinned every published v0.6.1 wire schema to its emitted version, including
+  nested mutation contracts, and restored self-digest and relational checks
+  after frozen v0.6.0 shape validation.
+- Made evidence provenance fail closed for blank identifiers, orphaned
+  reference/item records, and inconsistent source identities; provenance,
+  required-evidence, and material-claim findings now use separate
+  privacy-minimized domain-separated targets and generic messages.
+- Extended the v0.6.1 machine-identifier grammar to expectation and evidence
+  graph claim/link fields, and rejected current run or compiled-suite
+  containers carrying legacy evidence graph or expectation members.
+- Routed first-party console, Markdown, and evidence-diff HTML rendering through
+  one redacting control/bidi-safe display boundary.
+- Bounded mutation-generation reads and aggregate validation work to stable
+  regular-file descriptor snapshots, rejected mixed single/campaign output
+  namespaces, cleaned Windows case-variant campaign artifacts, and deferred
+  duplicate-replay payload copying until after deterministic target selection.
+- Required release provenance checks to verify that each target control is
+  declared by an exact literal in its mapped source at the claimed first-seen
+  commit, failing closed for unavailable or unparseable historical content.
+- Published the exact catalog mapping, deterministic reproduction inputs,
+  bounded interpretation, and a reviewed source/fixture contribution path that
+  does not load executable plugins. This release does not claim a safety score,
+  mutation kill rate, statistical confidence interval, universal coverage,
+  stamped release provenance, or external validation.
 
 ## 0.6.0 - 2026-07-25
 

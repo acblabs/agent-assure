@@ -1,12 +1,12 @@
 # Schema Evolution
 
-Current released schema snapshot: `schemas/v0.5.0/`. It is immutable because
-the matching `v0.5.0` tag exists.
+Current released schema snapshot: `schemas/v0.6.1/`. It is immutable because
+the matching `v0.6.1` tag exists.
 
-Current released persisted artifact `schema_version`: `0.5.0`. The active
-development models and evidence-carrying roots emit `0.6.0`.
+Current released persisted artifact `schema_version`: `0.6.1`. The active
+development models and evidence-carrying roots also emit `0.6.1`.
 
-The active release candidate is exported to its versioned `schemas/vX.Y.Z/`
+An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
 not the candidate source of truth. A matching release tag freezes the versioned
 directory, as `schemas/v0.3.1/` was frozen for the v0.3.1 schema release.
@@ -20,8 +20,8 @@ Use these directories as the release lifecycle:
 - `schemas/v0.4.3/` contains the release schema snapshot for v0.4.3
   and the package-only v0.4.4 release.
 - `schemas/v0.5.0/` contains the released v0.5.0 snapshot and is immutable.
-- `schemas/v0.6.0/` contains the active v0.6.0 release candidate. It remains
-  mutable until a matching release tag freezes it.
+- `schemas/v0.6.0/` contains the released v0.6.0 snapshot and is immutable.
+- `schemas/v0.6.1/` contains the released v0.6.1 snapshot and is immutable.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
 Before a matching release tag exists, an active versioned directory is a
@@ -35,7 +35,7 @@ snapshot stabilized, as its immutable baseline.
 Automation has complementary checks:
 
 - frozen schema parity exports the active schema surface to
-  `schemas/v0.6.0/` and fails if those committed files drift;
+  `schemas/v0.6.1/` and fails if those committed files drift;
 - tagged-schema immutability compares every released snapshot with its local
   full-history Git tag baseline; its dedicated CI job requires release tags
   rather than silently skipping when history is unavailable;
@@ -113,11 +113,11 @@ while the persisted artifact schema namespace remains `0.2.0`.
 
 ## Replay Support Window
 
-For the current package line, the CLI keeps replay and validation support for the
-release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`, and
-`schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`, and
-`schemas/v0.5.0/`, while active development and release-candidate checks target
-`schemas/v0.6.0/`.
+For the current package line, the CLI keeps replay and validation support for
+the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
+`schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
+`schemas/v0.5.0/`, `schemas/v0.6.0/`, and `schemas/v0.6.1/`. Current-release
+checks target `schemas/v0.6.1/`.
 
 Persisted inputs are checked against their frozen schema before typed runtime
 projection. The v0.1 `release-digest-replay` contract is shape-identical to
@@ -125,8 +125,15 @@ v0.2; after frozen v0.1 validation, the loader projects only its root and child
 schema labels to v0.2 so the current typed verifier can consume it. The source
 file and its referenced digest material are not rewritten.
 
+The four evidence-carrying roots introduced in v0.6.0 additionally receive
+their compatible self-digest and relational model checks after the immutable
+v0.6.0 schema admits their historical shape. Current exported schemas remain
+version-exact at every nested persisted-model boundary; frozen-schema replay is
+a separate read path and does not make historical labels valid current wire
+output.
+
 The golden check follows the same split: unversioned flagship compiled-suite
-and fixture-manifest goldens track the active v0.6.0 producer, while explicitly
+and fixture-manifest goldens track the active v0.6.1 producer, while explicitly
 named `*.v0.5.0.*.json` goldens are byte-pinned and replayed through the frozen
 v0.5.0 JSON Schemas. `--update-golden` never rewrites those legacy fixtures.
 
@@ -153,29 +160,38 @@ Any new persisted artifact root must include:
 ## Evidence-Carrying Release Contracts
 
 The evidence descriptor, mutation operator, expected-detection contract, and
-mutation result are persisted roots in the v0.6.0 schema surface. They use
-`schema_version: 0.6.0` while separately carrying their stable `/v1` contract
-ID and `contract_version: 1.0.0`. This separation allows a future additive JSON
-shape change to follow the ordinary schema lifecycle without implying that the
-method semantics changed, and allows a behavioral contract revision to be
-identified without relabeling historical JSON.
+mutation result were introduced as persisted roots in the v0.6.0 schema
+surface. Current producers emit their additive v0.6.1 representation while
+retaining frozen v0.6.0 validation and replay. The mutation catalog and
+campaign are new persisted roots in v0.6.1. All six separately carry a stable
+`/v1` contract ID and `contract_version: 1.0.0`. This separation allows a
+future additive JSON shape change to follow the ordinary schema lifecycle
+without implying that the method semantics changed, and allows a behavioral
+contract revision to be identified without relabeling historical JSON.
 
-Every raw persisted v0.6.0 artifact must explicitly carry `artifact_kind` and
-`schema_version`; model defaults are construction conveniences, not permission
-to omit wire discriminators. Evidence descriptors, mutation operators,
-expected-detection contracts, and mutation results additionally require
-`schema_name`, `contract_id`, and `contract_version` in raw payloads.
+Every raw persisted v0.6.0 or v0.6.1 artifact must explicitly carry
+`artifact_kind` and `schema_version`; model defaults are construction
+conveniences, not permission to omit wire discriminators. Evidence descriptors,
+mutation operators, expected-detection contracts, mutation results, catalogs,
+and campaigns additionally require `schema_name`, `contract_id`, and
+`contract_version` in raw payloads.
 
 Each root has one explicit self-digest field: `evidence_digest`,
-`operator_digest`, `contract_digest`, or `result_digest`. The corresponding
-digest projection excludes only that field and uses the repository RFC 8785
-canonicalization path. Historical schema snapshots and replay artifacts are
-not rewritten when these roots are added.
+`operator_digest`, `contract_digest`, `result_digest`, `catalog_digest`, or
+`campaign_digest`. The corresponding digest projection excludes only that
+field and uses the repository RFC 8785 canonicalization path. Historical
+schema snapshots and replay artifacts are not rewritten when these roots are
+added.
 
 Mutation results may reference accepted historical RunSet inputs, but the
 result itself uses the current schema. The canonical source digest binds the
-exact source bytes, including their `schema_version`, so replay does not imply
-that a legacy artifact was produced under current semantics.
+version-aware schema-validated, current `RunSet` model JSON projection. That
+projection retains the accepted `schema_version` and materializes
+schema-permitted omitted defaults before RFC 8785/SHA-256 hashing; it does not
+hash raw source bytes or imply that a legacy artifact was produced under
+current semantics. Campaigns, mutation results, evidence subjects, and
+evaluator reports reuse that projection rather than defining parallel RunSet
+identities.
 
 ## AgentRunRecord Producer Contract
 

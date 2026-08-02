@@ -6,7 +6,6 @@ from html import escape
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from agent_assure.artifact_io import write_text_atomic
-from agent_assure.privacy.redaction import redact_text
 from agent_assure.reporting.evidence_diff_style import evidence_diff_css as _css
 from agent_assure.reporting.evidence_diff_view import (
     MissingEvidenceLinkDiff,
@@ -18,6 +17,7 @@ from agent_assure.reporting.evidence_diff_view import (
     _visible_output_state,
     build_evidence_diff_presentation,
 )
+from agent_assure.reporting.text_safety import sanitize_display_text
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
@@ -1763,7 +1763,7 @@ def _path_name(value: str) -> str:
 
 
 def _h(value: object) -> str:
-    redacted = redact_text(str(value))
-    without_external_urls = _EXTERNAL_URL_PATTERN.sub("[URL]", redacted)
+    safe_display = sanitize_display_text(value)
+    without_external_urls = _EXTERNAL_URL_PATTERN.sub("[URL]", safe_display)
     polished_display = without_external_urls.replace("->", "→")
     return escape(polished_display, quote=True)

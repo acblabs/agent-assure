@@ -13,6 +13,7 @@ Current commands:
 - `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
 - `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
+- `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure live adapters`
@@ -142,6 +143,63 @@ Callers that require an identical result digest must pass the same `--today`
 value. When it is omitted, the command uses the current date, which is
 intentionally part of the result digest.
 
+With `--catalog core/v1`, `controls mutate` runs a deterministic campaign.
+`--operator`, `--invariant-family`, and `--threat-id` are repeatable filters;
+when multiple filter categories are supplied, an operator must satisfy every
+category. Unknown or duplicate filters and filters that select no operator are
+invalid input. Selection and execution always follow the catalog's canonical
+lexicographic operator order, independent of CLI flag order.
+
+Campaign execution completes three ordered source-preflight stages before
+computing `source_digest`, constructing the catalog, or executing an operator:
+
+1. the private copy must contain only strict JSON runtime values, or the command
+   reports `mutation campaign source cannot establish a canonical JSON identity`;
+2. that copy must pass version-aware RunSet validation and current-model
+   projection, or it reports
+   `mutation campaign source failed RunSet validation and projection`; and
+3. both the copied input and validated projection must pass the bound
+   privacy-detector profile, or it reports
+   `mutation campaign source failed the bound privacy-detector profile`.
+
+Each is a campaign-level invalid-input rejection: the CLI prefixes the fixed,
+non-sensitive message with `invalid mutation input:`, exits `2`, and writes no
+catalog, campaign, or per-operator artifact. No source digest is fabricated.
+Without `--catalog`, schema or source-privacy failure remains the ordinary
+single-operator `invalid_subject` result and its bounded result artifacts.
+
+`--full-report` is the default and executes every selected operator against the
+same immutable source. `--fail-fast` is mutually exclusive with it and stops
+after the first `survived`, `invalid_operator`, `invalid_subject`, or
+`execution_error`; caught and inapplicable entries do not stop execution.
+Neither mode chains mutations. Full-report execution isolates an operator
+failure and continues with the next selected operator.
+
+Campaign output uses the fixed global filenames
+`assurance-mutation-catalog.json`, `assurance-mutation-campaign.json`, and
+`mutation-campaign-generation-manifest.json`. Per-operator files use the
+canonical executed index:
+`operator-NNN-mutation-result.json`,
+`operator-NNN-evidence-descriptor.json`, and, when a transformed subject
+exists, `operator-NNN-mutated-runset.json`. The campaign records selected,
+executed, and pending order, per-operator applicability, expected and observed
+detector evidence, prohibited substitutes, semantic states, bounded
+diagnostics, provenance, independence, and limitations.
+
+After a campaign generation is published, CLI output lists every executed
+operator in canonical order with its semantic state and applicability. It also
+prints complete state and applicability counts, including zero-count states,
+followed by an exact-fixture scope boundary: caught entries support only their
+declared transformations and expected-detector contracts, inapplicable entries
+were not exercised, and the campaign is not a safety score, mutation kill rate,
+or broader robustness result.
+
+The campaign and catalog are self-digested RFC 8785 JSON artifacts. Exact
+campaign replay requires the same source and suite content, catalog digest and
+selected order, package/operator/evaluator identities, mode, seed, gate
+profile, waiver set, and evaluation date. Byte-identical evidence descriptors
+also require the same generation timestamp.
+
 The artifact files are staged and replaced as one rollback-capable generation.
 Writers are serialized per output directory, and the generation manifest is
 published last as the atomic commit marker after the member files are durable.
@@ -154,6 +212,14 @@ generation without a transformed subject removes an older fixed-name
 `mutated-runset.json`. Suite, RunSet, and waiver input aliases with any fixed
 output, through resolved paths, symlinks, junctions, or hardlinks, are rejected
 before persistence.
+
+Campaign files use the same staged, rollback-capable publication model under
+the campaign generation manifest. The manifest is published last and binds
+every present global and per-operator member by role, operator identity where
+applicable, and file digest. Reusing the directory removes stale protected
+campaign members that are absent from the replacement generation. Campaign
+inputs may not alias any protected campaign output through lexical, resolved,
+symlink, junction, or hard-link identity.
 
 `ci` evaluates a candidate RunSet, optionally compares it with a baseline, writes
 reports, builds a packet, writes a dependency inventory and release manifest,
@@ -443,6 +509,19 @@ distinguish the mutation result from input and execution failures:
 
 The result artifact preserves `invalid_operator` or `invalid_subject` even
 though both states share exit `2`.
+
+Catalog campaigns use deterministic failure precedence plus an
+all-inapplicable sentinel:
+
+- `4`: at least one executed operator has `execution_error`;
+- `2`: otherwise, at least one executed operator is `invalid_operator` or
+  `invalid_subject`;
+- `1`: otherwise, at least one executed operator `survived`;
+- `3`: every executed operator is `inapplicable`;
+- `0`: otherwise, including caught results and mixed caught/inapplicable
+  results.
+
+Campaign exits do not compute an aggregate safety score or mutation kill rate.
 
 `invalid_subject` diagnostics distinguish bounded schema validation, privacy
 violations, runtime privacy-profile incompatibility, suite binding, and fixture

@@ -10,6 +10,10 @@ from agent_assure.artifact_io import write_text_atomic
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.base import SCHEMA_VERSION
+from agent_assure.schema.campaign import (
+    AssuranceMutationCampaign,
+    AssuranceMutationCatalog,
+)
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.controls import ControlCoverageReport
 from agent_assure.schema.environment import EnvironmentInfo
@@ -53,6 +57,8 @@ CONTRACT_IDENTITY_FIELDS = ("schema_name", "contract_id", "contract_version")
 CONTRACT_ARTIFACT_KINDS = frozenset(
     {
         "assurance-evidence-descriptor",
+        "assurance-mutation-campaign",
+        "assurance-mutation-catalog",
         "assurance-mutation-operator",
         "assurance-mutation-result",
         "expected-detection-contract",
@@ -62,6 +68,8 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
 SCHEMA_MODELS: dict[str, SchemaModel] = {
     "agent-run-record": AgentRunRecord,
     "assurance-evidence-descriptor": AssuranceEvidenceDescriptor,
+    "assurance-mutation-campaign": AssuranceMutationCampaign,
+    "assurance-mutation-catalog": AssuranceMutationCatalog,
     "assurance-mutation-operator": AssuranceMutationOperator,
     "assurance-mutation-result": AssuranceMutationResult,
     "compiled-suite": CompiledSuite,
@@ -130,11 +138,39 @@ def require_persisted_identity_in_schema(
     schema["required"] = required
 
 
+def writer_json_schema(model: SchemaModel) -> dict[str, object]:
+    """Return the current writer schema without narrowing compatibility models."""
+    schema = model.model_json_schema(mode="validation")
+    _pin_persisted_schema_versions_to_defaults(schema)
+    return schema
+
+
+def _pin_persisted_schema_versions_to_defaults(schema: dict[str, object]) -> None:
+    """Recursively pin persisted-model fields to the version each model emits."""
+    pending: list[object] = [schema]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            properties = value.get("properties")
+            if isinstance(properties, dict):
+                declaration = properties.get("schema_version")
+                if isinstance(declaration, dict):
+                    default_version = declaration.get("default")
+                    if isinstance(default_version, str):
+                        declaration.pop("anyOf", None)
+                        declaration.pop("enum", None)
+                        declaration.pop("oneOf", None)
+                        declaration["const"] = default_version
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+
+
 def export_json_schemas(out_dir: Path) -> list[Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
     for kind, model in sorted(SCHEMA_MODELS.items()):
-        schema = model.model_json_schema(mode="validation")
+        schema = writer_json_schema(model)
         require_persisted_identity_in_schema(schema, kind)
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
         schema["$id"] = (

@@ -16,6 +16,20 @@ BUILT_IN_POLICY_IDS: tuple[str, ...] = (
     "prompt_injection_control_boundary",
 )
 
+# Detector contracts may also target evaluator-owned structural invariants that
+# are not persisted policy results. Keep the policy vocabulary narrow while
+# exposing the complete, canonical control vocabulary to mutation contracts.
+BUILT_IN_CONTROL_IDS: tuple[str, ...] = tuple(
+    sorted(
+        (
+            *BUILT_IN_POLICY_IDS,
+            "evidence_provenance_identity",
+            "runset_completion_required",
+            "valid_record_required",
+        )
+    )
+)
+
 
 @dataclass(frozen=True)
 class CapabilityStatus:

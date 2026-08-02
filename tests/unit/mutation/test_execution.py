@@ -12,7 +12,7 @@ from hypothesis import strategies as st
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.canonical.jcs import canonical_bytes
-from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
+from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset, runset_digest
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.mutation import catalog as mutation_catalog
 from agent_assure.mutation import execution as mutation_execution
@@ -28,7 +28,13 @@ from agent_assure.mutation.execution import (
     mutation_gate_profile_digest,
     mutation_waiver_set_digest,
 )
-from agent_assure.mutation.operators import MutationTarget, PayloadChange
+from agent_assure.mutation.operators import (
+    SYNTHETIC_BUDGET_STOP_REASON,
+    SYNTHETIC_SENSITIVE_SUMMARY,
+    MutationTarget,
+    PayloadChange,
+)
+from agent_assure.mutation.paths import apply_payload_changes, structural_changed_paths
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
@@ -53,6 +59,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
     EvidenceItem,
+    EvidenceRef,
     RunSet,
 )
 from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
@@ -100,6 +107,30 @@ _OPERATOR_CASES = (
         (("/runs/0/tools",),),
         "tool_allowlist",
         ReasonCode.FORBIDDEN_TOOL,
+    ),
+    (
+        "inject-synthetic-sensitive-summary",
+        (("/runs/0/output_summary",),),
+        "redaction_required",
+        ReasonCode.RAW_SENSITIVE_CONTENT,
+    ),
+    (
+        "mark-incomplete-budget-stop",
+        (("/completion_status", "/stop_reasons"),),
+        "runset_completion_required",
+        ReasonCode.RUNSET_INCOMPLETE,
+    ),
+    (
+        "replay-duplicate-case-observation",
+        (("/runs",),),
+        "valid_record_required",
+        ReasonCode.VALID_RECORD_MISSING,
+    ),
+    (
+        "skew-evidence-source-identity",
+        (("/runs/0/evidence_refs/0/source_id",),),
+        "evidence_provenance_identity",
+        ReasonCode.EVIDENCE_PROVENANCE_MISMATCH,
     ),
 )
 
@@ -154,6 +185,111 @@ def test_registered_operator_is_caught_only_by_its_normative_detector(
     result_payload = execution.result.model_dump(mode="json")
     assert "diagnostic_exception_class" not in result_payload
     assert "local_debug_reference" not in result_payload
+
+
+def test_budget_stop_result_omits_declared_replacement_that_is_already_equal() -> None:
+    suite, source_payload = _fixture()
+    source_payload["stop_reasons"] = [SYNTHETIC_BUDGET_STOP_REASON]
+    source_before = deepcopy(source_payload)
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="mark-incomplete-budget-stop",
+        seed=17,
+        generated_at=_GENERATED_AT,
+    )
+
+    assert execution.result.state is MutationResultState.caught
+    assert execution.result.changed_paths == ("/completion_status",)
+    assert execution.mutated_payload is not None
+    assert execution.mutated_payload["completion_status"] == "incomplete"
+    assert execution.mutated_payload["stop_reasons"] == [
+        SYNTHETIC_BUDGET_STOP_REASON
+    ]
+    assert structural_changed_paths(source_payload, execution.mutated_payload) == (
+        "/completion_status",
+    )
+    assert source_payload == source_before
+
+
+def test_budget_stop_permits_same_length_stop_reason_replacement() -> None:
+    suite, source_payload = _fixture()
+    source_payload["stop_reasons"] = ["operator-recorded-stop"]
+    source_before = deepcopy(source_payload)
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="mark-incomplete-budget-stop",
+        seed=17,
+        generated_at=_GENERATED_AT,
+    )
+
+    assert execution.result.state is MutationResultState.caught
+    assert execution.result.diagnostic_code is None
+    assert execution.result.changed_paths == (
+        "/completion_status",
+        "/stop_reasons/0",
+    )
+    assert execution.mutated_payload is not None
+    assert execution.mutated_payload["stop_reasons"] == [
+        SYNTHETIC_BUDGET_STOP_REASON
+    ]
+    assert source_payload == source_before
+
+
+def test_structural_changed_paths_is_type_sensitive_collapsed_and_escaped() -> None:
+    source = {
+        "a/b~c": "before",
+        "items": [1],
+        "shape": {"stable": 1},
+        "typed": 1,
+    }
+    candidate = {
+        "a/b~c": "after",
+        "items": [1, 2],
+        "shape": {"added": 2, "stable": 1},
+        "typed": True,
+    }
+
+    assert structural_changed_paths(source, candidate) == (
+        "/a~1b~0c",
+        "/items",
+        "/shape",
+        "/typed",
+    )
+    assert structural_changed_paths({"stable": 1}, {"added": 2, "stable": 1}) == (
+        "",
+    )
+    assert structural_changed_paths([1], [1, 2]) == ("",)
+    assert structural_changed_paths(["before"], ["after"]) == ("/0",)
+
+
+def test_default_omitting_subject_uses_one_digest_projection_end_to_end() -> None:
+    suite, source_payload = _fixture()
+    source_payload.pop("execution_mode")
+    source_payload.pop("completion_status")
+    source_payload.pop("stop_reasons")
+    source_before = deepcopy(source_payload)
+    projected_source = RunSet.model_validate(source_payload)
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id="drop-material-evidence-link",
+        seed=17,
+        generated_at=_GENERATED_AT,
+        evaluation_date=date(2026, 7, 20),
+    )
+
+    assert execution.result.state is MutationResultState.caught
+    assert execution.result.source_digest == runset_digest(projected_source)
+    assert execution.mutated_payload is not None
+    projected_mutation = RunSet.model_validate(execution.mutated_payload)
+    assert execution.result.mutated_digest == runset_digest(projected_mutation)
+    assert execution.mutated_payload == projected_mutation.model_dump(mode="json")
+    assert source_payload == source_before
 
 
 @pytest.mark.parametrize(
@@ -534,6 +670,7 @@ def test_built_in_evaluator_identity_binds_runtime_dependency_versions(
     (
         "agent_assure/schema/__init__.py",
         "schemas/v0.5.0/run-set.schema.json",
+        "schemas/v0.6.0/run-set.schema.json",
     ),
 )
 def test_built_in_evaluator_identity_binds_executed_code_and_schema_bytes(
@@ -1376,11 +1513,102 @@ def test_sensitive_candidate_field_is_rejected_as_invalid_operator(
 
 
 @pytest.mark.parametrize(
+    ("expected_target", "value"),
+    (
+        ("output_summary", "Bearer abcdefghijklmnopqrstuvwxyz123456"),
+        ("not-output-summary", SYNTHETIC_SENSITIVE_SUMMARY),
+    ),
+)
+def test_synthetic_privacy_exception_requires_exact_target_and_value(
+    monkeypatch: pytest.MonkeyPatch,
+    expected_target: str,
+    value: str,
+) -> None:
+    suite, source_payload = _fixture()
+    registered = resolve_operator("inject-synthetic-sensitive-summary")
+    assert registered is not None
+
+    def near_miss_resolver(
+        _suite: CompiledSuite,
+        _subject: RunSet,
+        _payload: Mapping[str, object],
+    ) -> tuple[MutationTarget, ...]:
+        return (
+            MutationTarget(
+                identity="near-miss-sensitive-summary",
+                expected_finding_target=expected_target,
+                changes=(
+                    PayloadChange(
+                        path="/runs/0/output_summary",
+                        value=value,
+                    ),
+                ),
+            ),
+        )
+
+    near_miss = RegisteredOperator(
+        descriptor=registered.descriptor,
+        resolve_targets=near_miss_resolver,
+        limitations=registered.limitations,
+        invariant_family=registered.invariant_family,
+        threat_source_references=registered.threat_source_references,
+        stable=registered.stable,
+    )
+    monkeypatch.setattr(
+        mutation_execution,
+        "resolve_operator",
+        lambda _operator_id: near_miss,
+    )
+
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id=registered.descriptor.operator_id,
+        seed=17,
+        generated_at=_GENERATED_AT,
+    )
+
+    assert execution.result.state is MutationResultState.invalid_operator
+    assert execution.result.diagnostic_code == "operator_output_privacy_violation"
+    assert execution.result.mutated_digest is None
+    assert execution.mutated_payload is None
+
+
+def test_synthetic_privacy_exception_rescans_every_other_candidate_path() -> None:
+    suite, source_payload = _fixture()
+    subject = RunSet.model_validate(source_payload)
+    registered = resolve_operator("inject-synthetic-sensitive-summary")
+    assert registered is not None
+    targets = registered.resolve_targets(suite, subject, source_payload)
+    assert targets
+    target = targets[0]
+    candidate_payload = apply_payload_changes(source_payload, target.changes)
+    changed_paths = (target.changes[0].path,)
+
+    assert mutation_execution._is_exact_synthetic_privacy_challenge(
+        registered,
+        target,
+        changed_paths,
+        candidate_payload,
+    )
+
+    candidate_payload["runset_id"] = "operator-private-detail@example.com"
+    assert not mutation_execution._is_exact_synthetic_privacy_challenge(
+        registered,
+        target,
+        changed_paths,
+        candidate_payload,
+    )
+
+
+@pytest.mark.parametrize(
     ("failure_kind", "expected_code"),
     (
         ("invalid-path", "operator_output_path_invalid"),
         ("undeclared-path", "operator_output_path_undeclared"),
+        ("structural-undeclared", "operator_output_path_undeclared"),
         ("application", "operator_output_application_error"),
+        ("materialization", "operator_output_application_error"),
         ("schema", "operator_output_schema_invalid"),
         ("noncanonical", "operator_output_not_canonical"),
         ("noop", "operator_output_noop"),
@@ -1392,7 +1620,12 @@ def test_invalid_operator_output_diagnostics_preserve_failure_stage(
     expected_code: str,
 ) -> None:
     suite, source_payload = _fixture()
-    registered = resolve_operator("drop-material-evidence-link")
+    operator_id = (
+        "inject-synthetic-sensitive-summary"
+        if failure_kind == "noncanonical"
+        else "drop-material-evidence-link"
+    )
+    registered = resolve_operator(operator_id)
     assert registered is not None
     runs = cast(list[dict[str, object]], source_payload["runs"])
     current_links = deepcopy(runs[0]["claim_evidence_links"])
@@ -1400,19 +1633,26 @@ def test_invalid_operator_output_diagnostics_preserve_failure_stage(
         change = PayloadChange(path="not-a-json-pointer", value=[])
     elif failure_kind == "undeclared-path":
         change = PayloadChange(path="/runs/0/input_summary", value="changed")
+    elif failure_kind == "structural-undeclared":
+        links = cast(list[dict[str, object]], current_links)
+        links[0]["claim_id"] = "different-claim"
+        change = PayloadChange(path="/runs/0/claim_evidence_links", value=links)
     elif failure_kind == "application":
         change = PayloadChange(path="/runs/99/claim_evidence_links", value=[])
     elif failure_kind == "schema":
         change = PayloadChange(path="/runs/0/claim_evidence_links", value="not-an-array")
     elif failure_kind == "noncanonical":
-        links = cast(list[dict[str, object]], current_links)
-        links[0]["claim_id"] = "Cafe\u0301"
-        change = PayloadChange(path="/runs/0/claim_evidence_links", value=links)
+        change = PayloadChange(path="/runs/0/output_summary", value="Cafe\u0301")
     else:
         change = PayloadChange(
             path="/runs/0/claim_evidence_links",
             value=current_links,
         )
+
+    def fail_materialization(
+        _payload: Mapping[str, object],
+    ) -> tuple[PayloadChange, ...]:
+        raise RuntimeError("deferred materializer failure")
 
     def invalid_resolver(
         _suite: CompiledSuite,
@@ -1420,10 +1660,19 @@ def test_invalid_operator_output_diagnostics_preserve_failure_stage(
         _payload: Mapping[str, object],
     ) -> tuple[MutationTarget, ...]:
         return (
-            MutationTarget(
-                identity=f"invalid-output-{failure_kind}",
-                expected_finding_target="claim:claim-case-a",
-                changes=(change,),
+                MutationTarget(
+                    identity=f"invalid-output-{failure_kind}",
+                    expected_finding_target=(
+                        "output_summary"
+                        if failure_kind == "noncanonical"
+                        else "claim:claim-case-a"
+                    ),
+                changes=(() if failure_kind == "materialization" else (change,)),
+                materialize_changes=(
+                    fail_materialization
+                    if failure_kind == "materialization"
+                    else None
+                ),
             ),
         )
 
@@ -1441,7 +1690,7 @@ def test_invalid_operator_output_diagnostics_preserve_failure_stage(
     execution = execute_mutation(
         suite,
         source_payload,
-        operator_id="drop-material-evidence-link",
+        operator_id=operator_id,
         seed=17,
         generated_at=_GENERATED_AT,
     )
@@ -1836,6 +2085,13 @@ def _run(
         "input_summary": "synthetic input",
         "output_summary": "synthetic output",
         "tools": ("safe-tool",),
+        "evidence_refs": (
+            EvidenceRef(
+                ref_id=evidence_ref,
+                source_id=f"source-{case_id}",
+                claim_ids=(claim_id,),
+            ),
+        ),
         "evidence_items": (
             EvidenceItem(
                 ref_id=evidence_ref,

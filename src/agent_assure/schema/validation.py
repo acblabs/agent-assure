@@ -22,11 +22,20 @@ FROZEN_SCHEMA_VERSIONS = frozenset(
         "0.3.1",
         "0.4.3",
         "0.5.0",
+        "0.6.0",
     }
 )
 _DRAFT_2020_12_URI = "https://json-schema.org/draft/2020-12/schema"
 _NO_REMOTE_SCHEMA_REGISTRY: Registry[Any] = Registry()
 ArtifactModelT = TypeVar("ArtifactModelT", bound=BaseModel)
+_V060_SEMANTIC_ARTIFACT_KINDS = frozenset(
+    {
+        "assurance-evidence-descriptor",
+        "assurance-mutation-operator",
+        "assurance-mutation-result",
+        "expected-detection-contract",
+    }
+)
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -81,6 +90,7 @@ def validate_artifact_payload(payload: dict[str, Any], kind: str) -> str:
     from agent_assure.schema.export import (
         model_for_kind,
         require_persisted_identity_in_schema,
+        writer_json_schema,
     )
 
     # Resolve the requested kind before any artifact-controlled value is used
@@ -89,9 +99,10 @@ def validate_artifact_payload(payload: dict[str, Any], kind: str) -> str:
     validate_rfc8785_safe_integers(payload, owner=f"{kind} artifact")
     legacy_result = _validate_legacy_frozen_schema(payload, kind)
     if legacy_result is not None:
+        _validate_legacy_semantics(payload, model, kind=kind)
         return legacy_result
     _require_raw_persisted_identity(payload, kind)
-    schema = model.model_json_schema(mode="validation")
+    schema = writer_json_schema(model)
     require_persisted_identity_in_schema(schema, kind)
     schema["$schema"] = _DRAFT_2020_12_URI
     _validate_json_schema(schema, payload)
@@ -100,6 +111,29 @@ def validate_artifact_payload(payload: dict[str, Any], kind: str) -> str:
     if artifact_kind != kind:
         raise ValueError(f"artifact_kind {artifact_kind!r} does not match requested kind {kind!r}")
     return "pydantic+jsonschema"
+
+
+def _validate_legacy_semantics(
+    payload: dict[str, Any],
+    model: type[ArtifactModelT],
+    *,
+    kind: str,
+) -> None:
+    """Apply compatible v0.6 semantic checks after immutable shape validation.
+
+    The four evidence-carrying roots introduced in v0.6.0 are shape-compatible
+    with their current projection for values admitted by the frozen schema.
+    Projecting only after frozen validation retains the historical vocabulary
+    while restoring self-digest and relational checks that JSON Schema cannot
+    express. Older artifact families retain their established loader-specific
+    compatibility projections.
+    """
+    if payload.get("schema_version") != "0.6.0" or kind not in _V060_SEMANTIC_ARTIFACT_KINDS:
+        return
+    parsed = project_validated_artifact_payload(payload, model, kind=kind)
+    artifact_kind = getattr(parsed, "artifact_kind", None)
+    if artifact_kind != kind:
+        raise ValueError(f"artifact_kind {artifact_kind!r} does not match requested kind {kind!r}")
 
 
 def _require_raw_persisted_identity(payload: dict[str, Any], kind: str) -> None:

@@ -1,13 +1,47 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
-from agent_assure.schema.common import DigestHex, ExecutionMode, coerce_enum, coerce_tuple
+from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    DigestHex,
+    ExecutionMode,
+    coerce_enum,
+    coerce_tuple,
+)
 from agent_assure.schema.expectation import Expectation
+
+_COMPILED_SUITE_JSON_SCHEMA_EXTRA: dict[str, Any] = {
+    "allOf": [
+        {
+            "if": {
+                "required": ["schema_version"],
+                "properties": {
+                    "schema_version": {
+                        "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                    }
+                },
+            },
+            "then": {
+                "properties": {
+                    "resolved_expectations": {
+                        "items": {
+                            "properties": {
+                                "schema_version": {
+                                    "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+        }
+    ]
+}
 
 
 class SuiteDefaults(PersistedArtifact):
@@ -44,6 +78,8 @@ class SuiteCase(PersistedArtifact):
 
 
 class CompiledSuite(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_COMPILED_SUITE_JSON_SCHEMA_EXTRA)
+
     artifact_kind: Literal["compiled-suite"] = "compiled-suite"
     suite_id: str = Field(min_length=1)
     suite_version: str = Field(min_length=1)
@@ -56,6 +92,22 @@ class CompiledSuite(PersistedArtifact):
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_expectation_versions(self) -> CompiledSuite:
+        if self.schema_version != MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            return self
+        mismatches = [
+            f"resolved_expectations[{index}]"
+            for index, expectation in enumerate(self.resolved_expectations)
+            if expectation.schema_version != self.schema_version
+        ]
+        if mismatches:
+            raise ValueError(
+                "current compiled suites require current-version expectations: "
+                + ", ".join(mismatches)
+            )
+        return self
 
     @model_validator(mode="after")
     def _expectation_links_are_explicit(self) -> CompiledSuite:

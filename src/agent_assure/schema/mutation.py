@@ -12,8 +12,10 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import FrozenStrictModel, PersistedArtifact, SchemaVersion
 from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_PATTERN,
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
+    PACKAGE_RELEASE_VERSION_PATTERN,
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     GateState,
@@ -51,7 +53,6 @@ FINDING_TARGET_DIGEST_CONTRACT: Literal["AssuranceMutationFindingTarget/v1"] = (
     "AssuranceMutationFindingTarget/v1"
 )
 _SEMVER_PATTERN = r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
-_MACHINE_ID_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
 _ISO_DATE_PATTERN = r"^[0-9]{4}-[0-9]{2}-[0-9]{2}$"
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
 _SELF_DIGESTED_IDENTITY_FIELDS = (
@@ -77,7 +78,11 @@ BoundedSummary = Annotated[
 ]
 MachineIdentifier = Annotated[
     str,
-    Field(min_length=1, max_length=MAX_LABEL_CHARS, pattern=_MACHINE_ID_PATTERN),
+    Field(
+        min_length=1,
+        max_length=MAX_LABEL_CHARS,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
+    ),
 ]
 ExactJsonPointer = Annotated[
     str,
@@ -252,7 +257,7 @@ def _non_deterministic_evidence_json_schema_rules() -> tuple[dict[str, Any], ...
 
 def _expected_detection_contract_json_schema_extra(schema: dict[str, Any]) -> None:
     _require_contract_identity_json_schema(schema)
-    known_controls = list(_built_in_policy_ids())
+    known_controls = list(_built_in_control_ids())
     schema["$comment"] = (
         "JSON Schema enforces the finite control vocabulary and target-ID uniqueness. "
         "Canonical target-ID ordering, required-selector membership in target_control_ids, "
@@ -593,6 +598,7 @@ class AuthorshipRelationship(StrEnum):
 class MutationPrivacyClassification(StrEnum):
     schema_metadata_only = "schema_metadata_only"
     synthetic_fixture_metadata = "synthetic_fixture_metadata"
+    synthetic_fixture_sensitive_marker = "synthetic_fixture_sensitive_marker"
 
 
 class EvidenceSubject(FrozenStrictModel):
@@ -606,7 +612,7 @@ class EvidenceScope(FrozenStrictModel):
     population_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     gate_profile_id: MachineIdentifier
     gate_profile_digest: DigestHex
@@ -626,7 +632,7 @@ class EvidenceScope(FrozenStrictModel):
 class EvidenceMethod(FrozenStrictModel):
     method_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
     implementation_digest: DigestHex
-    implementation_version: str = Field(pattern=_SEMVER_PATTERN)
+    implementation_version: str = Field(pattern=PACKAGE_RELEASE_VERSION_PATTERN)
     evaluation_basis: EvidenceEvaluationBasis
 
     @field_validator("evaluation_basis", mode="before")
@@ -678,7 +684,7 @@ class PrerequisiteCheck(FrozenStrictModel):
     check_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     state: PrerequisiteState
     reason_codes: tuple[ReasonCode, ...] = ()
@@ -755,14 +761,14 @@ class EvidenceDependency(FrozenStrictModel):
     evidence_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     digest: DigestHex
 
 
 class EvidenceProducer(FrozenStrictModel):
     name: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
-    version: str = Field(pattern=_SEMVER_PATTERN)
+    version: str = Field(pattern=PACKAGE_RELEASE_VERSION_PATTERN)
 
 
 class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
@@ -771,7 +777,7 @@ class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_evidence_descriptor_json_schema_extra)
 
     artifact_kind: Literal["assurance-evidence-descriptor"] = "assurance-evidence-descriptor"
-    schema_version: Literal["0.6.0"] = "0.6.0"
+    schema_version: Literal["0.6.0", "0.6.1"] = "0.6.1"
     schema_name: Literal["assurance-evidence-descriptor"] = "assurance-evidence-descriptor"
     contract_id: Literal["AssuranceEvidenceDescriptor/v1"] = "AssuranceEvidenceDescriptor/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -779,12 +785,12 @@ class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
     evidence_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     evidence_kind: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     subject: EvidenceSubject
     scope: EvidenceScope
@@ -902,7 +908,7 @@ class ExpectedDetectionContract(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_expected_detection_contract_json_schema_extra)
 
     artifact_kind: Literal["expected-detection-contract"] = "expected-detection-contract"
-    schema_version: Literal["0.6.0"] = "0.6.0"
+    schema_version: Literal["0.6.0", "0.6.1"] = "0.6.1"
     schema_name: Literal["expected-detection-contract"] = "expected-detection-contract"
     contract_id: Literal["ExpectedDetectionContract/v1"] = "ExpectedDetectionContract/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -910,7 +916,7 @@ class ExpectedDetectionContract(SelfDigestedArtifact):
     operator_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     target_control_ids: tuple[str, ...] = Field(min_length=1)
     required_findings: RequiredFindingAlternatives
@@ -932,7 +938,7 @@ class ExpectedDetectionContract(SelfDigestedArtifact):
     def _validate_detector_identities(self) -> ExpectedDetectionContract:
         if self.target_control_ids != tuple(sorted(set(self.target_control_ids))):
             raise ValueError("target_control_ids must be unique and canonically sorted")
-        known_controls = set(_built_in_policy_ids())
+        known_controls = set(_built_in_control_ids())
         unknown = sorted(set(self.target_control_ids) - known_controls)
         all_selectors = (*self.required_findings.any_of, *self.prohibited_substitutes)
         unknown.extend(sorted({selector.control_id for selector in all_selectors} - known_controls))
@@ -955,7 +961,7 @@ class OperatorPrecondition(FrozenStrictModel):
     precondition_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     summary: str = Field(min_length=1, max_length=MAX_SUMMARY_CHARS)
 
@@ -977,7 +983,7 @@ class OperatorOrigin(FrozenStrictModel):
 
 class TargetControlProvenance(FrozenStrictModel):
     control_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
-    first_seen_commit: str = Field(pattern=r"^git:[a-f0-9]{40}$")
+    first_seen_commit: str = Field(pattern=r"^git:(?:[a-f0-9]{40}|uncommitted)$")
     digest_at_operator_creation: DigestHex
 
 
@@ -1017,7 +1023,7 @@ class OperatorProvenance(FrozenStrictModel):
     operator_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     operator_version: str = Field(pattern=_SEMVER_PATTERN)
     implementation_digest: DigestHex
@@ -1027,7 +1033,10 @@ class OperatorProvenance(FrozenStrictModel):
         default=None,
         pattern=r"^git:(?:[a-f0-9]{40}|uncommitted)$",
     )
-    introduced_in_release: str | None = Field(default=None, pattern=_SEMVER_PATTERN)
+    introduced_in_release: str | None = Field(
+        default=None,
+        pattern=PACKAGE_RELEASE_VERSION_PATTERN,
+    )
     origin: OperatorOrigin
     target_controls: tuple[TargetControlProvenance, ...]
     authorship: OperatorAuthorship
@@ -1104,7 +1113,7 @@ class AssuranceMutationOperator(SelfDigestedArtifact):
     _digest_field = "operator_digest"
 
     artifact_kind: Literal["assurance-mutation-operator"] = "assurance-mutation-operator"
-    schema_version: Literal["0.6.0"] = "0.6.0"
+    schema_version: Literal["0.6.0", "0.6.1"] = "0.6.1"
     schema_name: Literal["assurance-mutation-operator"] = "assurance-mutation-operator"
     contract_id: Literal["AssuranceMutationOperator/v1"] = "AssuranceMutationOperator/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -1112,7 +1121,7 @@ class AssuranceMutationOperator(SelfDigestedArtifact):
     operator_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     operator_version: str = Field(pattern=_SEMVER_PATTERN)
     input_artifact_kind: Literal["run-set"] = "run-set"
@@ -1147,6 +1156,8 @@ class AssuranceMutationOperator(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_operator_contract(self) -> AssuranceMutationOperator:
+        if self.expected_detection_contract.schema_version != self.schema_version:
+            raise ValueError("operator and expected-detection contract schema versions must match")
         if self.compatible_schema_versions != tuple(sorted(set(self.compatible_schema_versions))):
             raise ValueError("compatible schema versions must be unique and sorted")
         if self.permitted_changed_paths != tuple(sorted(set(self.permitted_changed_paths))):
@@ -1196,7 +1207,7 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_mutation_result_json_schema_extra)
 
     artifact_kind: Literal["assurance-mutation-result"] = "assurance-mutation-result"
-    schema_version: Literal["0.6.0"] = "0.6.0"
+    schema_version: Literal["0.6.0", "0.6.1"] = "0.6.1"
     schema_name: Literal["assurance-mutation-result"] = "assurance-mutation-result"
     contract_id: Literal["AssuranceMutationResult/v1"] = "AssuranceMutationResult/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -1207,7 +1218,7 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     operator_id: str = Field(
         min_length=1,
         max_length=MAX_LABEL_CHARS,
-        pattern=_MACHINE_ID_PATTERN,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
     )
     operator_version: str = Field(pattern=_SEMVER_PATTERN)
     operator_digest: DigestHex
@@ -1216,7 +1227,7 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     expected_finding_target_digest: DigestHex | None = None
     evaluator_method_id: MachineIdentifier
     evaluator_implementation_digest: DigestHex
-    evaluator_implementation_version: str = Field(pattern=_SEMVER_PATTERN)
+    evaluator_implementation_version: str = Field(pattern=PACKAGE_RELEASE_VERSION_PATTERN)
     evaluator_evaluation_basis: EvidenceEvaluationBasis
     evaluator_protocol_digest: DigestHex | None = None
     evaluator_population_id: MachineIdentifier
@@ -1376,12 +1387,12 @@ def _selector_key(selector: FindingSelector) -> tuple[str, ReasonCode, str | Non
 
 
 @cache
-def _built_in_policy_ids() -> tuple[str, ...]:
+def _built_in_control_ids() -> tuple[str, ...]:
     # Import lazily: importing policies.catalog first initializes schema.common,
     # whose package initializer exports these mutation models.
-    from agent_assure.policies.catalog import BUILT_IN_POLICY_IDS
+    from agent_assure.policies.catalog import BUILT_IN_CONTROL_IDS
 
-    return tuple(BUILT_IN_POLICY_IDS)
+    return tuple(BUILT_IN_CONTROL_IDS)
 
 
 def _json_pointer_is_valid(pointer: str, *, allow_wildcard: bool = False) -> bool:

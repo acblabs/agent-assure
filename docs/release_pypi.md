@@ -1,6 +1,6 @@
 # PyPI Release Runbook
 
-This runbook covers the Python package upload path for `agent-assure` v0.6.0.
+This runbook covers the Python package upload path for `agent-assure` v0.6.1.
 The default path is GitHub Trusted Publishing with OIDC. Local `twine upload`
 is a fallback only when Trusted Publishing is unavailable.
 
@@ -28,7 +28,9 @@ The workflows have distinct roles:
 - `.github/workflows/release.yml` separates unprivileged build, fresh-job
   reproduction, minimal OIDC signing, non-OIDC verification/staging, GitHub
   release creation, and PyPI publication. GitHub releases are created once;
-  existing releases and assets are never replaced by the workflow.
+  existing releases and assets are never replaced by the workflow. Its tagged
+  production path accepts only stable `vX.Y.Z` versions and rejects release
+  candidate tags.
 - `.github/workflows/publish-testpypi.yml` manually publishes a separately
   built TestPyPI candidate from the selected ref. Use a unique package version
   for each TestPyPI candidate. The workflow validates the requested version
@@ -38,8 +40,8 @@ Release, evidence, and TestPyPI workflows use the exact Python 3.14.6 canonical
 producer, matching the checked-in `requirements.lock` generator version. The
 compatibility CI matrix remains minor-version based. The tag validator checks the
 package version, exported schema version constants, and matching frozen schema
-directory before package upload. For the v0.6.0 package release, the active
-schema is `0.6.0` and the candidate schema directory is `schemas/v0.6.0` until
+directory before package upload. For the v0.6.1 package release, the active
+schema is `0.6.1` and the candidate schema directory is `schemas/v0.6.1` until
 the matching tag freezes it.
 
 ## Owner Setup
@@ -104,11 +106,11 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 schema_review_dir="$(mktemp -d)"
-agent-assure schema export --out "${schema_review_dir}/v0.6.0"
-git diff --no-index -- schemas/v0.6.0 "${schema_review_dir}/v0.6.0"
+agent-assure schema export --out "${schema_review_dir}/v0.6.1"
+git diff --no-index -- schemas/v0.6.1 "${schema_review_dir}/v0.6.1"
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.0
+python scripts/check_version_matches_tag.py v0.6.1
 rm -rf "${schema_review_dir}"
 ```
 
@@ -122,17 +124,17 @@ python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 $SchemaReviewRoot = Join-Path $env:TEMP "agent-assure-schema-review"
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force -ErrorAction SilentlyContinue
-$SchemaReview = Join-Path $SchemaReviewRoot "v0.6.0"
+$SchemaReview = Join-Path $SchemaReviewRoot "v0.6.1"
 agent-assure schema export --out $SchemaReview
-git diff --no-index -- schemas/v0.6.0 $SchemaReview
+git diff --no-index -- schemas/v0.6.1 $SchemaReview
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.0
+python scripts/check_version_matches_tag.py v0.6.1
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
 
 If the schema review diff is intentional, run `make schemas`, review
-`git diff -- schemas/v0.6.0`, run `make schema-force-includes`, then rerun
+`git diff -- schemas/v0.6.1`, run `make schema-force-includes`, then rerun
 `make schema-check` before continuing.
 
 ## Temporary Virtual Environments
@@ -168,12 +170,27 @@ in the operator's authored `introduction_components` snapshot and the canonical
 `agent_assure/mutation/introduction_snapshots.json` document. `make
 release-check` reads that document from the claimed commit, requires the carried
 snapshot to match it, and then replays its component digests and the
-target-control creation snapshot. Local and CI release validation therefore
-require full Git history. The complete current `implementation_components`
-manifest still determines the implementation identity being released, but its
-bytes are not compared with a historical commit; later maintenance is therefore
-allowed to change current identity without rewriting introduction history. The
-guard additionally requires
+target-control creation snapshot. The catalog method-component hash normalizes
+the administrative introduction stamps and the pending
+`evidence_provenance_identity` first-seen value so a follow-up provenance-only
+stamp does not change normalized method identity. That normalization is not
+provenance verification. The release guard uses the unnormalized declarations,
+loads each mapped control source at its declared `first_seen_commit`, parses it
+as Python, locates the control's explicitly mapped top-level implementation
+function, and requires an exact
+`ControlResult(control_id="<declared ID>", ...)` keyword literal outside a
+statically false conditional branch and before an unconditional terminal
+statement in its sequential block. Unavailable or unparseable source, a missing
+or ambiguous mapped function, or a function without that exact literal fails
+closed. This proves only that the literal occurs in the mapped function under
+the bounded static filter; it does not prove that the function is invoked or
+that the call is executable for a particular runtime input. Local and CI release
+validation therefore require full Git history. The complete current
+`implementation_components` manifest still
+determines the implementation identity being released, but its bytes are not
+compared with a historical commit; later maintenance is therefore allowed to
+change current identity without rewriting introduction history. The guard
+additionally requires
 `introduced_in_release` not to be newer than the expected package/tag version,
 using release-candidate-aware SemVer precedence; historical operators therefore
 remain valid in later releases while future-dated declarations fail. It also
@@ -181,24 +198,25 @@ requires the introduction commit to be in the release commit's ancestry and
 each target control's `first_seen_commit` to precede the operator introduction.
 A remaining `git:uncommitted` value is an intentional hard release blocker. An
 operator intended for an RC must truthfully name that RC or an earlier version;
-a stable `0.6.0` introduction is correctly considered newer than `0.6.0rc2`.
+a stable `0.6.1` introduction is correctly considered newer than `0.6.1rc2`.
 
 TestPyPI package versions are immutable. A second upload of the same version
 will fail, so each release candidate needs a unique version such as
-`0.6.0rc1`, then `0.6.0rc2` if another candidate is needed.
+`0.6.1rc1`, then `0.6.1rc2` if another candidate is needed.
 
 1. Create a candidate ref whose package metadata already contains the unique
-   candidate version, for example `project.version = "0.6.0rc1"` and
-   `agent_assure.__version__ = "0.6.0rc1"`.
+   candidate version, for example `project.version = "0.6.1rc1"` and
+   `agent_assure.__version__ = "0.6.1rc1"`.
 2. Build and verify locally with `make release-check`.
 3. Run the `Publish to TestPyPI` workflow manually from that ref and set
-   `expected-version` explicitly to the same value, for example `0.6.0rc1`.
+   `expected-version` explicitly to the same value, for example `0.6.1rc1`.
    The workflow intentionally has no default version because the selected ref
-   must already contain matching package metadata.
+   must already contain matching package metadata. Dispatch it from the
+   candidate branch or commit; do not create or push a `v0.6.1rcN` tag.
 4. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package
-version to `0.6.0` before creating the final `v0.6.0` tag.
+version to `0.6.1` before creating the final `v0.6.1` tag.
 
 CI, WSL, or Git Bash:
 
@@ -209,7 +227,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps \
   --index-url https://test.pypi.org/simple/ \
-  agent-assure==0.6.0rc1
+  agent-assure==0.6.1rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out /tmp/agent-assure-testpypi-schemas
@@ -233,7 +251,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps `
   --index-url https://test.pypi.org/simple/ `
-  agent-assure==0.6.0rc1
+  agent-assure==0.6.1rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out $SchemaTemp
@@ -270,15 +288,15 @@ git checkout main
 git pull
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.0
-git tag v0.6.0
-git push origin v0.6.0
+python scripts/check_version_matches_tag.py v0.6.1
+git tag v0.6.1
+git push origin v0.6.1
 ```
 
 The release workflow runs only its privileged jobs on matching tags. It blocks
-if `v0.6.0` does not match `project.version = "0.6.0"` and
-`agent_assure.__version__ = "0.6.0"`, if the active schema constants do not
-match the mapped release schema version `0.6.0`, or if `schemas/v0.6.0` is
+if `v0.6.1` does not match `project.version = "0.6.1"` and
+`agent_assure.__version__ = "0.6.1"`, if the active schema constants do not
+match the mapped release schema version `0.6.1`, or if `schemas/v0.6.1` is
 missing. The tag must resolve to `GITHUB_SHA`, be an ancestor of the default
 branch, have matching release notes, and start and finish generation with a
 clean source tree. A fresh job rebuilds the complete signing allowlist, compares
@@ -330,7 +348,7 @@ CI, WSL, or Git Bash:
 python -m venv /tmp/agent-assure-pypi
 source /tmp/agent-assure-pypi/bin/activate
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.6.0
+python -m pip install agent-assure==0.6.1
 agent-assure --version
 agent-assure demo flagship --out /tmp/agent-assure-pypi-flagship --clean
 deactivate
@@ -345,7 +363,7 @@ $FlagshipOut = Join-Path $env:TEMP "agent-assure-pypi-flagship"
 python -m venv $InstallTemp
 & (Join-Path $InstallTemp "Scripts\Activate.ps1")
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.6.0
+python -m pip install agent-assure==0.6.1
 agent-assure --version
 agent-assure demo flagship --out $FlagshipOut --clean
 deactivate

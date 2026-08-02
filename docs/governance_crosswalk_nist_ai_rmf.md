@@ -14,9 +14,12 @@ review evidence may help a team prepare its own AI RMF material.
 | Control | Status | NIST AI RMF Functions | Project Threats |
 | --- | --- | --- | --- |
 | `runtime_success_required` | `evaluated` | Measure; Manage | `fixture-runtime-failure` |
+| `runset_completion_required` | `evaluated` | Measure | `fixture-runtime-failure` |
 | `structured_output_required` | `evaluated` | Measure | `invalid-structured-record` |
+| `valid_record_required` | `evaluated` | Measure | `invalid-structured-record` |
 | `evidence_required` | `evaluated` | Measure; Govern | `missing-required-evidence` |
 | `material_claims_have_evidence` | `evaluated` | Measure; Govern | `material-claim-link-regression` |
+| `evidence_provenance_identity` | `evaluated` | Measure; Govern | `evidence-provenance-mismatch` |
 | `tool_allowlist` | `evaluated_when_configured` | Measure; Manage | `unexpected-tool-use` |
 | `provider_review_boundary` | `evaluated` | Measure; Manage | `forbidden-provider-review-boundary` |
 | `human_review_required` | `evaluated` | Measure; Manage | `missing-review-route` |

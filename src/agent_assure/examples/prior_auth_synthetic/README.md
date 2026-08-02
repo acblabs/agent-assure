@@ -22,7 +22,9 @@ agent-assure compare .tmp/prior-auth.baseline.json .tmp/prior-auth.evidence-cand
 
 The candidate evaluation and comparison are expected to exit `1`. The candidate
 report contains `MATERIAL_CLAIM_MISSING_EVIDENCE` for
-`shared-source-multi-claim` and `claim:claim-duration`; the comparison report
+`shared-source-multi-claim` and
+`claim_digest:c99b03a463802b1cc26362f0cf1e7e9c47d99cee31fba34dc39ade5179b6a63d`;
+the comparison report
 classifies the change as `new_failure` while fixture equivalence remains `pass`.
 
 The variants share the same request, model-output, and tool-output fixtures. The

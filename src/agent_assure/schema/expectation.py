@@ -2,14 +2,26 @@ from __future__ import annotations
 
 from typing import Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
-from agent_assure.schema.common import DigestHex, coerce_tuple
+from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    DigestHex,
+    coerce_tuple,
+    current_machine_identifier_json_schema_extra,
+    validate_machine_identifier,
+)
 
 
 class Expectation(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=current_machine_identifier_json_schema_extra(
+            sequence_fields=("required_evidence_refs", "material_claim_ids"),
+        )
+    )
+
     artifact_kind: Literal["expectation"] = "expectation"
     expectation_id: str = Field(min_length=1)
     case_id: str = Field(min_length=1)
@@ -45,6 +57,13 @@ class Expectation(PersistedArtifact):
     def _exclusive_outcome_shortcuts(self) -> Expectation:
         if self.expected_recommendation is not None and self.allowed_outcomes:
             raise ValueError("expected_recommendation conflicts with allowed_outcomes")
+        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+            for field_name in ("required_evidence_refs", "material_claim_ids"):
+                for index, value in enumerate(getattr(self, field_name)):
+                    validate_machine_identifier(
+                        value,
+                        field_name=f"{field_name}[{index}]",
+                    )
         return self
 
 

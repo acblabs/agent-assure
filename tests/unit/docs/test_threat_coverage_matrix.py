@@ -1,15 +1,19 @@
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 import yaml
+
+from agent_assure.policies.catalog import BUILT_IN_CONTROL_IDS
 
 ROOT = Path(__file__).resolve().parents[3]
 MATRIX = ROOT / "docs" / "threat_coverage_matrix.yaml"
 MITRE_ATLAS_IDS = ROOT / "tests" / "vectors" / "mitre_atlas" / "atlas_2026_06_ids.yaml"
 MITRE_ATLAS_DOC = ROOT / "docs" / "governance_crosswalk_mitre_atlas.md"
 ISO_IEC_42001_DOC = ROOT / "docs" / "governance_crosswalk_iso42001.md"
+NIST_AI_RMF_DOC = ROOT / "docs" / "governance_crosswalk_nist_ai_rmf.md"
+OWASP_LLM_DOC = ROOT / "docs" / "governance_crosswalk_owasp_llm.md"
 DOCS_INDEX = ROOT / "docs" / "index.md"
 MKDOCS_CONFIG = ROOT / "mkdocs.yml"
 VALID_MAPPING_STRENGTHS = {"direct", "partial", "adjacent", "gap", "not_applicable"}
@@ -24,11 +28,17 @@ PUBLIC_GAP_LABELS = {
 
 
 def _load_matrix() -> dict[str, Any]:
-    return yaml.safe_load(MATRIX.read_text(encoding="utf-8"))
+    return cast(
+        dict[str, Any],
+        yaml.safe_load(MATRIX.read_text(encoding="utf-8")),
+    )
 
 
 def _load_atlas_ids() -> dict[str, Any]:
-    return yaml.safe_load(MITRE_ATLAS_IDS.read_text(encoding="utf-8"))
+    return cast(
+        dict[str, Any],
+        yaml.safe_load(MITRE_ATLAS_IDS.read_text(encoding="utf-8")),
+    )
 
 
 def test_threat_coverage_matrix_pins_mitre_atlas_snapshot() -> None:
@@ -80,6 +90,15 @@ def test_evaluated_controls_have_mitre_atlas_crosswalks() -> None:
             atlas_ids,
             owner=control["id"],
         )
+
+
+def test_documented_controls_cover_built_in_control_vocabulary() -> None:
+    matrix = _load_matrix()
+    documented_control_ids = {
+        cast(dict[str, Any], control)["id"] for control in matrix["controls"]
+    }
+
+    assert set(BUILT_IN_CONTROL_IDS) <= documented_control_ids
 
 
 def test_other_taxonomy_tags_use_expected_shapes() -> None:
@@ -191,6 +210,24 @@ def test_iso42001_crosswalk_doc_matches_yaml_source_of_truth() -> None:
     assert _table_rows_after_heading(doc, "## Current Control Mapping") == control_rows
 
 
+def test_nist_ai_rmf_crosswalk_doc_matches_yaml_source_of_truth() -> None:
+    matrix = _load_matrix()
+    doc = NIST_AI_RMF_DOC.read_text(encoding="utf-8")
+
+    control_rows = [_format_nist_control_row(control) for control in matrix["controls"]]
+
+    assert _table_rows_after_heading(doc, "## Current Control Mapping") == control_rows
+
+
+def test_owasp_llm_crosswalk_doc_matches_yaml_source_of_truth() -> None:
+    matrix = _load_matrix()
+    doc = OWASP_LLM_DOC.read_text(encoding="utf-8")
+
+    control_rows = [_format_owasp_control_row(control) for control in matrix["controls"]]
+
+    assert _table_rows_after_heading(doc, "## Current Control Mapping") == control_rows
+
+
 def _assert_valid_atlas_references(
     atlas: dict[str, Any],
     atlas_ids: dict[str, Any],
@@ -237,6 +274,18 @@ def _format_iso_control_row(control: dict[str, Any]) -> str:
     areas = "; ".join(control["iso_iec_42001_areas"])
     threats = _format_ids(control["project_threats"])
     return f"| `{control['id']}` | `{control['status']}` | {areas} | {threats} |"
+
+
+def _format_nist_control_row(control: dict[str, Any]) -> str:
+    functions = "; ".join(control["nist_ai_rmf"])
+    threats = _format_ids(control["project_threats"])
+    return f"| `{control['id']}` | `{control['status']}` | {functions} | {threats} |"
+
+
+def _format_owasp_control_row(control: dict[str, Any]) -> str:
+    risks = _format_ids(control["owasp_risks"])
+    threats = _format_ids(control["project_threats"])
+    return f"| `{control['id']}` | `{control['status']}` | {risks} | {threats} |"
 
 
 def _format_names(ids: list[str], names: dict[str, str]) -> str:

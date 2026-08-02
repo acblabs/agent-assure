@@ -38,6 +38,10 @@ def main(argv: list[str] | None = None) -> int:
     expected_schema_version = release_schema_version(pyproject_version)
     expected_schema_dir = args.schema_root / f"v{expected_schema_version}"
     failures: list[str] = []
+    if args.require_stable and "rc" in pyproject_version:
+        failures.append(
+            f"production release requires a stable X.Y.Z version, got {pyproject_version!r}"
+        )
     if tag != expected_tag:
         failures.append(f"tag {tag!r} does not match pyproject version {pyproject_version!r}")
     if package_version != pyproject_version:
@@ -101,6 +105,11 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
         type=Path,
         default=SCHEMA_ROOT,
         help="Directory containing frozen schema version snapshots.",
+    )
+    parser.add_argument(
+        "--require-stable",
+        action="store_true",
+        help="Reject release-candidate versions on production publication paths.",
     )
     return parser.parse_args(argv)
 

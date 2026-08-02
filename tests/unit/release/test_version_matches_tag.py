@@ -88,6 +88,36 @@ def test_version_tag_check_allows_release_candidate_with_base_schema(
     assert result == 0
 
 
+def test_version_tag_check_rejects_release_candidate_when_stable_is_required(
+    tmp_path: Path,
+) -> None:
+    pyproject, package_init, schema_base, schema_root = _write_version_files(
+        tmp_path,
+        project_version="1.2.3rc1",
+        package_version="1.2.3rc1",
+        package_schema_version="1.2.3",
+        base_schema_version="1.2.3",
+        schema_dir_version="1.2.3",
+    )
+
+    result = version_tag.main(
+        [
+            "v1.2.3rc1",
+            "--require-stable",
+            "--pyproject",
+            str(pyproject),
+            "--package-init",
+            str(package_init),
+            "--schema-base",
+            str(schema_base),
+            "--schema-root",
+            str(schema_root),
+        ]
+    )
+
+    assert result == 1
+
+
 def test_version_tag_check_allows_package_release_with_unchanged_schema(
     tmp_path: Path,
 ) -> None:

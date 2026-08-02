@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from agent_assure.mutation import catalog
+from agent_assure.mutation.campaign import build_core_catalog
 from agent_assure.mutation.catalog import (
     CatalogIntegrityError,
     built_in_evaluator_implementation_components,
@@ -16,25 +17,63 @@ from agent_assure.mutation.catalog import (
     registered_operators,
 )
 from agent_assure.schema.mutation import mutation_implementation_digest
+from agent_assure.schema.validation import FROZEN_SCHEMA_VERSIONS
 
 _ROOT = Path(__file__).resolve().parents[3]
 _SOURCE_ROOT = _ROOT / "src"
+_EXPECTED_FROZEN_RUNSET_SCHEMA_PATHS = tuple(
+    f"schemas/v{version}/run-set.schema.json"
+    for version in sorted(FROZEN_SCHEMA_VERSIONS)
+)
+_EXPECTED_FROZEN_SCHEMA_DIR_NAMES = frozenset(
+    f"v{version}" for version in FROZEN_SCHEMA_VERSIONS
+)
 _CONTROL_FIRST_SEEN_COMMIT = "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1"
+_RUNSET_COMPLETION_FIRST_SEEN_COMMIT = (
+    "git:cdb7d2e0647bfbd86c558bbc5e6b74c15722185e"
+)
 _TARGETS = {
     "bypass-required-human-review": (
         "human_review_required",
         "agent_assure/policies/human_review.py",
         "5bf534408536881aacc96be591ae67ca22121a2de3626a632c899b32e2e15d9e",
+        _CONTROL_FIRST_SEEN_COMMIT,
     ),
     "drop-material-evidence-link": (
         "material_claims_have_evidence",
         "agent_assure/policies/evidence.py",
         "ab793747a5f3744c42c95cb43f12d67880988e2696cbc57f12d4f703311d7e99",
+        _CONTROL_FIRST_SEEN_COMMIT,
     ),
     "inject-forbidden-tool": (
         "tool_allowlist",
         "agent_assure/policies/tools.py",
         "36a3f9b02bf2262d2847e69ebe8e5c518a6c315359dd13c9382afcc9c4004e5e",
+        _CONTROL_FIRST_SEEN_COMMIT,
+    ),
+    "inject-synthetic-sensitive-summary": (
+        "redaction_required",
+        "agent_assure/policies/privacy.py",
+        "8a522291e65a5c96aad8ea4a1d4dadf6e1779a9c9140f824493a5449ea407a1f",
+        _CONTROL_FIRST_SEEN_COMMIT,
+    ),
+    "mark-incomplete-budget-stop": (
+        "runset_completion_required",
+        "agent_assure/evaluation/invariants.py",
+        "9fe68e183e5d23885086f6c5fb8962f1d3b4d19a051d727b78e13d81f11ee42c",
+        _RUNSET_COMPLETION_FIRST_SEEN_COMMIT,
+    ),
+    "replay-duplicate-case-observation": (
+        "valid_record_required",
+        "agent_assure/evaluation/invariants.py",
+        "9fe68e183e5d23885086f6c5fb8962f1d3b4d19a051d727b78e13d81f11ee42c",
+        _CONTROL_FIRST_SEEN_COMMIT,
+    ),
+    "skew-evidence-source-identity": (
+        "evidence_provenance_identity",
+        "agent_assure/policies/evidence.py",
+        "95ee56977546a4755d1d17e566f090c4e8ba88990f6002661d82e5b540b8f29e",
+        "git:uncommitted",
     ),
 }
 _IDENTITY_CRITICAL_PATHS = (
@@ -75,6 +114,7 @@ _IDENTITY_CRITICAL_PATHS = (
     "agent_assure/usage/aggregation.py",
     "agent_assure/usage/__init__.py",
     "schemas/v0.5.0/run-set.schema.json",
+    "schemas/v0.6.0/run-set.schema.json",
 )
 
 
@@ -116,12 +156,13 @@ def test_evaluator_manifest_is_shared_and_covers_every_evaluator_policy() -> Non
     frozen_runset_schemas = {
         path.relative_to(_ROOT).as_posix()
         for path in (_ROOT / "schemas").glob("v*/run-set.schema.json")
-        if path.parent.name in {"v0.1.0", "v0.2.0", "v0.3.1", "v0.4.3", "v0.5.0"}
+        if path.parent.name in _EXPECTED_FROZEN_SCHEMA_DIR_NAMES
     }
 
     assert evaluator_paths <= operator_paths
     assert packaged_python_paths <= evaluator_paths
-    assert frozen_runset_schemas == frozen_runset_schemas & evaluator_paths
+    assert frozen_runset_schemas == set(_EXPECTED_FROZEN_RUNSET_SCHEMA_PATHS)
+    assert frozen_runset_schemas <= evaluator_paths
     assert policy_paths <= evaluator_paths
     assert {
         "agent_assure/evaluation/expectations.py",
@@ -130,6 +171,11 @@ def test_evaluator_manifest_is_shared_and_covers_every_evaluator_policy() -> Non
         "agent_assure/usage/aggregation.py",
         "agent_assure/mutation/introduction_snapshots.json",
     } <= evaluator_paths
+
+
+def test_catalog_frozen_runset_schema_paths_match_validator_versions() -> None:
+    assert catalog._FROZEN_RUNSET_SCHEMA_PATHS == _EXPECTED_FROZEN_RUNSET_SCHEMA_PATHS
+    assert "schemas/v0.6.1/run-set.schema.json" not in catalog._FROZEN_RUNSET_SCHEMA_PATHS
 
 
 def test_component_digests_are_lf_normalized_current_source_digests() -> None:
@@ -149,26 +195,27 @@ def test_component_digests_are_lf_normalized_current_source_digests() -> None:
 def test_target_control_provenance_uses_authored_creation_snapshot() -> None:
     for registered in registered_operators():
         descriptor = registered.descriptor
-        control_id, _, creation_digest = _TARGETS[descriptor.operator_id]
+        control_id, _, creation_digest, first_seen_commit = _TARGETS[
+            descriptor.operator_id
+        ]
 
         assert len(descriptor.provenance.target_controls) == 1
         target = descriptor.provenance.target_controls[0]
         assert target.control_id == control_id
-        assert target.first_seen_commit == _CONTROL_FIRST_SEEN_COMMIT
+        assert target.first_seen_commit == first_seen_commit
         assert target.digest_at_operator_creation == creation_digest
 
 
 def test_introduction_snapshot_is_authored_and_stable() -> None:
     snapshots = {
-        tuple(
+        item.descriptor.operator_id: tuple(
             (component.component_id, component.relative_path, component.sha256)
             for component in item.descriptor.provenance.introduction_components
         )
         for item in registered_operators()
     }
 
-    assert len(snapshots) == 1
-    assert next(iter(snapshots)) == (
+    historical_snapshot = (
         (
             "mutation.catalog",
             "agent_assure/mutation/catalog.py",
@@ -180,6 +227,82 @@ def test_introduction_snapshot_is_authored_and_stable() -> None:
             "7e5d514056ec31ff4614dd8324fe6152ccc288ec664339a83c6f3f35397ac4b7",
         ),
     )
+    current_snapshot = (
+        (
+            "mutation.catalog",
+            "agent_assure/mutation/catalog.py",
+            "5c738052914b77caf32978830692008cccda014c5db5ab4d92ee24805611a050",
+        ),
+        (
+            "mutation.operators",
+            "agent_assure/mutation/operators.py",
+            "510c51beb9ca455eb7e61338755c4c641c6560ba88b6c5a5fe48db6f1447a2e3",
+        ),
+    )
+
+    assert set(snapshots) == set(_TARGETS)
+    assert {
+        snapshots[operator_id]
+        for operator_id in (
+            "bypass-required-human-review",
+            "drop-material-evidence-link",
+            "inject-forbidden-tool",
+        )
+    } == {historical_snapshot}
+    assert {
+        snapshots[operator_id]
+        for operator_id in (
+            "inject-synthetic-sensitive-summary",
+            "mark-incomplete-budget-stop",
+            "replay-duplicate-case-observation",
+            "skew-evidence-source-identity",
+        )
+    } == {current_snapshot}
+
+
+def test_core_catalog_metadata_is_stable_canonical_and_cross_domain() -> None:
+    operators = registered_operators()
+
+    assert len(operators) == 7
+    assert all(item.stable for item in operators)
+    assert {
+        item.descriptor.operator_id: item.invariant_family for item in operators
+    } == {
+        "bypass-required-human-review": "human-review-routing",
+        "drop-material-evidence-link": "material-evidence-linkage",
+        "inject-forbidden-tool": "tool-boundary",
+        "inject-synthetic-sensitive-summary": "privacy-redaction",
+        "mark-incomplete-budget-stop": "runset-completion-integrity",
+        "replay-duplicate-case-observation": "stream-replay-integrity",
+        "skew-evidence-source-identity": "provenance-corpus-identity",
+    }
+    assert all(item.invariant_family != "unclassified" for item in operators)
+    assert all(item.threat_source_references for item in operators)
+    assert all(
+        item.threat_source_references
+        == tuple(sorted(set(item.threat_source_references)))
+        for item in operators
+    )
+    assert next(
+        item
+        for item in operators
+        if item.descriptor.operator_id == "inject-synthetic-sensitive-summary"
+    ).descriptor.privacy_classification.value == "synthetic_fixture_sensitive_marker"
+
+
+def test_sprint_two_operator_introduction_provenance_remains_uncommitted() -> None:
+    sprint_two_ids = {
+        "inject-synthetic-sensitive-summary",
+        "mark-incomplete-budget-stop",
+        "replay-duplicate-case-observation",
+        "skew-evidence-source-identity",
+    }
+
+    for item in registered_operators():
+        if item.descriptor.operator_id not in sprint_two_ids:
+            continue
+        assert item.descriptor.provenance.introduced_at_commit == "git:uncommitted"
+        assert item.descriptor.provenance.introduced_in_release == "0.6.1rc1"
 
 
 def test_introduction_snapshot_rejects_duplicate_json_keys() -> None:
@@ -257,6 +380,65 @@ def test_catalog_component_identity_normalizes_only_introduction_stamp() -> None
     )
 
 
+def test_catalog_component_identity_normalizes_only_first_seen_mapping_values() -> None:
+    path = "agent_assure/mutation/catalog.py"
+    unstamped_block = (
+        b"_CONTROL_FIRST_SEEN_COMMITS = {\n"
+        b'    "evidence_provenance_identity": "git:uncommitted",\n'
+        b'    "historical-control": "git:' + b"d" * 40 + b'",\n'
+        b"}\n"
+    )
+    stamped_block = unstamped_block.replace(
+        b"git:uncommitted",
+        b"git:" + b"a" * 40,
+    )
+    outside_block = (
+        b"_OTHER_COMMITS = {\n"
+        b'    "control-a": "git:' + b"b" * 40 + b'",\n'
+        b"}\n"
+    )
+    method = b'operator_version = "1.0.0"\n'
+    unstamped = unstamped_block + outside_block + method
+    stamped = stamped_block + outside_block + method
+
+    assert implementation_component_sha256(path, unstamped) == (
+        implementation_component_sha256(path, stamped)
+    )
+
+    changed_control_id = stamped.replace(
+        b'"evidence_provenance_identity":',
+        b'"different-control":',
+        1,
+    )
+    assert implementation_component_sha256(path, changed_control_id) != (
+        implementation_component_sha256(path, stamped)
+    )
+
+    changed_historical_revision = stamped.replace(
+        b"git:" + b"d" * 40,
+        b"git:" + b"e" * 40,
+    )
+    assert implementation_component_sha256(path, changed_historical_revision) != (
+        implementation_component_sha256(path, stamped)
+    )
+
+    changed_outside_revision = stamped.replace(
+        b"git:" + b"b" * 40,
+        b"git:" + b"c" * 40,
+    )
+    assert implementation_component_sha256(path, changed_outside_revision) != (
+        implementation_component_sha256(path, stamped)
+    )
+
+    changed_method = stamped.replace(
+        b'operator_version = "1.0.0"',
+        b'operator_version = "1.0.1"',
+    )
+    assert implementation_component_sha256(path, changed_method) != (
+        implementation_component_sha256(path, stamped)
+    )
+
+
 def test_catalog_integrity_failure_is_typed_and_lazy(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -301,6 +483,7 @@ assert app is not None
 
 
 def test_catalog_constructs_from_direct_zip_import(tmp_path: Path) -> None:
+    expected_catalog_digest = build_core_catalog().catalog_digest
     archive = tmp_path / "agent_assure_direct_import.whl"
     package_root = _SOURCE_ROOT / "agent_assure"
     with zipfile.ZipFile(archive, "w") as wheel:
@@ -312,11 +495,10 @@ def test_catalog_constructs_from_direct_zip_import(tmp_path: Path) -> None:
             introduction_snapshot.relative_to(_SOURCE_ROOT).as_posix(),
         )
         for schema_path in sorted(
-            path
-            for path in (_ROOT / "schemas").glob("v*/run-set.schema.json")
-            if path.parent.name
-            in {"v0.1.0", "v0.2.0", "v0.3.1", "v0.4.3", "v0.5.0"}
-        ):
+                path
+                for path in (_ROOT / "schemas").glob("v*/run-set.schema.json")
+                if path.parent.name in _EXPECTED_FROZEN_SCHEMA_DIR_NAMES
+            ):
             wheel.write(
                 schema_path,
                 (
@@ -329,8 +511,24 @@ import sys
 sys.path.insert(0, {str(archive)!r})
 import agent_assure
 from agent_assure.mutation.catalog import registered_operators
+from agent_assure.mutation.campaign import build_core_catalog
+from agent_assure.schema.campaign import (
+    AssuranceMutationCampaign,
+    AssuranceMutationCatalog,
+)
 assert '.whl' in agent_assure.__file__
-assert len(registered_operators()) == 3
+operators = registered_operators()
+assert len(operators) == 7
+catalog = build_core_catalog(operators)
+assert catalog.catalog_id == 'core/v1'
+assert len(catalog.operators) == 7
+assert catalog.catalog_digest == {expected_catalog_digest!r}
+assert AssuranceMutationCatalog.model_fields['artifact_kind'].default == (
+    'assurance-mutation-catalog'
+)
+assert AssuranceMutationCampaign.model_fields['artifact_kind'].default == (
+    'assurance-mutation-campaign'
+)
 """
     completed = subprocess.run(
         [sys.executable, "-c", code],

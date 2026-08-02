@@ -220,6 +220,34 @@ Architecture choices and evidence boundaries are documented in
 [architectural decision records (ADRs)](docs/adr/), including deterministic
 fixture versus stochastic live semantics.
 
+## Challenge the assurance controls
+
+The development-RFC `core/v1` mutation catalog runs seven deterministic
+challenges across evidence linkage, human-review routing, tool boundaries,
+provenance identity, privacy redaction, duplicate replay, and budget-stop
+integrity:
+
+```bash
+agent-assure controls mutate \
+  --suite assurance/suite.yaml \
+  --runset runs/baseline.json \
+  --catalog core/v1 \
+  --seed 0 \
+  --today 2026-08-02 \
+  --full-report \
+  --out reports/control-challenge
+```
+
+Every selected operator runs independently against the same immutable source.
+The output binds the canonical catalog digest, normative expected detector,
+observed and prohibited substitute findings, exact changed paths, provenance,
+independence class, seed, and limitations. It is a finite challenge report,
+not a safety score, mutation kill rate, statistical confidence interval, or
+universal-coverage claim.
+
+[Inspect the exact seven-operator catalog](docs/mutation_catalog.md) ·
+[Review the evidence contracts](docs/evidence_carrying_releases.md)
+
 ## Integrate your agent
 
 `agent-assure` integrates through declared YAML expectations, versioned run
@@ -279,8 +307,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.6.0
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.0
+      - run: python -m pip install agent-assure==0.6.1
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.1
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -300,7 +328,7 @@ default retention period is 14 days.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.0`).**
+**Current maturity: Release Candidate (RC, `v0.6.1`).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.
@@ -313,7 +341,7 @@ standardized classifier to an RC and does not widen that surface.
 | --- | --- | --- |
 | YAML suites or versioned JSON artifacts | [CLI contract](docs/cli_contract.md) | Primary supported surface |
 | A GitHub release workflow | [Composite action](.github/actions/agent-assure/action.yml) | Packaged and documented |
-| Deterministic mutation operators (single-control mutations) | [Evidence-carrying releases](docs/evidence_carrying_releases.md) | Development RFC |
+| Deterministic mutation operators and closed catalog campaigns | [Core mutation catalog](docs/mutation_catalog.md) · [Evidence-carrying releases](docs/evidence_carrying_releases.md) | Development RFC |
 | RAG retrieval evidence | [RAG provenance demo](docs/demo_rag.md) | Reference implementation |
 | JSONL or multi-agent events | [Streaming example](examples/streaming_process_regression/README.md) | Experimental |
 | LangGraph or Google ADK events | [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) | Experimental |
@@ -378,7 +406,7 @@ and [security guidance](SECURITY.md).
 - **Demos:** [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)
 - **Integrations:** [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) · [Adapter contract](docs/adapters/adapter_contract.md)
 - **Assurance:** [What this measures](docs/what_this_measures.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
-- **Evidence-carrying releases:** [Contracts and single-operator guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
+- **Evidence-carrying releases:** [Core mutation catalog](docs/mutation_catalog.md) · [Contracts and campaign guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
 - **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
 - **Project:** [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [License](LICENSE)
 

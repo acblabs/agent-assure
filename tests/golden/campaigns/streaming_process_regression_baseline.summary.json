@@ -1,0 +1,610 @@
+{
+  "campaign_identity": {
+    "artifact_kind": "assurance-mutation-campaign",
+    "campaign_seed": 20260720,
+    "completion": "complete",
+    "contract_id": "AssuranceMutationCampaign/v1",
+    "contract_version": "1.0.0",
+    "excluded_runtime_bound_fields": [
+      "campaign_digest",
+      "operator_results[].result.result_digest",
+      "operator_results[].result.evaluator_implementation_digest"
+    ],
+    "executed_operator_order": [
+      "bypass-required-human-review",
+      "drop-material-evidence-link",
+      "inject-forbidden-tool",
+      "inject-synthetic-sensitive-summary",
+      "mark-incomplete-budget-stop",
+      "replay-duplicate-case-observation",
+      "skew-evidence-source-identity"
+    ],
+    "limitations": [
+      "Each operator ran independently against the same immutable source; mutations were not chained.",
+      "A caught result supports only the operator's normative expected-detector contract.",
+      "The finite campaign is not a safety score or a claim of universal control coverage.",
+      "No statistical confidence interval applies to this finite deterministic catalog."
+    ],
+    "mode": "full_report",
+    "pending_operator_order": [],
+    "producer_version": "0.6.1",
+    "schema_version": "0.6.1",
+    "selected_operator_order": [
+      "bypass-required-human-review",
+      "drop-material-evidence-link",
+      "inject-forbidden-tool",
+      "inject-synthetic-sensitive-summary",
+      "mark-incomplete-budget-stop",
+      "replay-duplicate-case-observation",
+      "skew-evidence-source-identity"
+    ],
+    "semantic_projection_contract": "assurance-mutation-campaign/runtime-neutral/v1",
+    "semantic_projection_digest": "1013710323bfb32a4a71dd9d4666a67b2d69d750f51d760b08b7762135f058ee",
+    "source_artifact_kind": "run-set"
+  },
+  "catalog_identity": {
+    "catalog_digest": "493b46dac57559aec5fab989d4e7ed4b50bbb1793150844a27f1dd2acb6d0ad7",
+    "catalog_id": "core/v1",
+    "operator_order": [
+      "bypass-required-human-review",
+      "drop-material-evidence-link",
+      "inject-forbidden-tool",
+      "inject-synthetic-sensitive-summary",
+      "mark-incomplete-budget-stop",
+      "replay-duplicate-case-observation",
+      "skew-evidence-source-identity"
+    ],
+    "ordering_semantics": "operator-id-lexicographic/v1"
+  },
+  "fixture": "streaming_process_regression_baseline",
+  "operator_results": [
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/runs/2/human_review_required"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "It does not assess the substantive quality of human review.",
+          "The operator challenges one deterministically selected review route."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "88faa4aaa3ff92573d5bde527f958323d2403fe4f2223f77662132d77fef1ba1",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "human_review_required",
+            "reason_code": "REQUIRED_HUMAN_REVIEW_ABSENT",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "human_review_required"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "human-review-routing",
+      "matched_finding_ids": [
+        "finding-10dd55c40f147da7feff6f49ac730c3324023e035aec8ba69b5d206d5f923d9a"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "88faa4aaa3ff92573d5bde527f958323d2403fe4f2223f77662132d77fef1ba1",
+        "expected_finding_target_digest": "43914f1e4ef2e024830fc548c46e96e03078ac06830e1b1cd436931660b5871f",
+        "implementation_digest": "4b61fb3c784c529ab9fa9b2c64d9fc5c618e04a633d3a718699bb3a58613513b",
+        "mutated_digest": "7bdec640a2c6d71fa520eb0a05b8378da78bb615c5e52684c7aefcbf42e8a3d1",
+        "operator_digest": "b5a31b3f3842afbbe8ba8d3a6ab949e6bd9e9cc7fa6bad864fe5b3bb92722203",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "human_review_required",
+          "finding_id": "finding-10dd55c40f147da7feff6f49ac730c3324023e035aec8ba69b5d206d5f923d9a",
+          "reason_code": "REQUIRED_HUMAN_REVIEW_ABSENT",
+          "state": "fail",
+          "target_digest": "43914f1e4ef2e024830fc548c46e96e03078ac06830e1b1cd436931660b5871f"
+        }
+      ],
+      "operator_id": "bypass-required-human-review",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    },
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/runs/2/claim_evidence_links"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "The finite operator does not represent every evidence-link failure.",
+          "The operator challenges one deterministically selected material claim."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "9b36165188721164f6ae5ecf93c8e1932ee8be672d6a9804d7bdadf162a94480",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "material_claims_have_evidence",
+            "reason_code": "MATERIAL_CLAIM_MISSING_EVIDENCE",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "material_claims_have_evidence"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "material-evidence-linkage",
+      "matched_finding_ids": [
+        "finding-e09602e04c800db478afb3ea0d78d865f4b4232b9cf210382babed8d9bd019f8"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "9b36165188721164f6ae5ecf93c8e1932ee8be672d6a9804d7bdadf162a94480",
+        "expected_finding_target_digest": "f05ac5512ab61393aa29ab796a27f451a7c00839a1013f7aa59d7f1db4666272",
+        "implementation_digest": "ad05c7f70841e82decd6938fd84997c1d988cdb76f5e4f5573b62f6621c43588",
+        "mutated_digest": "cdb75843a47bbe8bc51269b7a94558182b18b8899698619d14f799446a4cf972",
+        "operator_digest": "8ecf19708eab5e0c272b62c813dbb991a07157b1c1cb51d174b4af6431bd56cc",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "material_claims_have_evidence",
+          "finding_id": "finding-e09602e04c800db478afb3ea0d78d865f4b4232b9cf210382babed8d9bd019f8",
+          "reason_code": "MATERIAL_CLAIM_MISSING_EVIDENCE",
+          "state": "fail",
+          "target_digest": "f05ac5512ab61393aa29ab796a27f451a7c00839a1013f7aa59d7f1db4666272"
+        }
+      ],
+      "operator_id": "drop-material-evidence-link",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    },
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/runs/1/tools"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "The injected tool identifier is synthetic metadata; no tool is executed.",
+          "The operator challenges one deterministically selected tool boundary."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "260381e7ccb1b3d7c1ccb21ae90846b6007ff3d55a0fbdcf1f5fb378a6e990df",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "tool_allowlist",
+            "reason_code": "FORBIDDEN_TOOL",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "tool_allowlist"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "tool-boundary",
+      "matched_finding_ids": [
+        "finding-9d8dcde54da01298a5fe52baf757249c844169db53cec8c4bdc9e99299643259"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "260381e7ccb1b3d7c1ccb21ae90846b6007ff3d55a0fbdcf1f5fb378a6e990df",
+        "expected_finding_target_digest": "44b5b89a9d885e531c72dc2382b6e51bfea61742d1d4774b1a687ff24c222f81",
+        "implementation_digest": "bb0248b7cd018c0b7d27856a180bf036914f0c21f1f34afdd9bf1cafd69b5a83",
+        "mutated_digest": "e2e2f7589b2eca0b08de464d9c3294efadac199191c3ff93be88359ad18b6ce1",
+        "operator_digest": "7358599c4d6804086428c148ac12e3e9914d6e6889c6e191fd29148c6dfc60a2",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "tool_allowlist",
+          "finding_id": "finding-9d8dcde54da01298a5fe52baf757249c844169db53cec8c4bdc9e99299643259",
+          "reason_code": "FORBIDDEN_TOOL",
+          "state": "fail",
+          "target_digest": "44b5b89a9d885e531c72dc2382b6e51bfea61742d1d4774b1a687ff24c222f81"
+        }
+      ],
+      "operator_id": "inject-forbidden-tool",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    },
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/runs/0/output_summary"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "No real personal, clinical, credential, or payment data is used.",
+          "The fixed marker is synthetic and represents one known privacy-detector class."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "67e3802695fd47a2cd6246f83b32040a36f857aa52fdaacd08e1e660c7f3737b",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "redaction_required",
+            "reason_code": "RAW_SENSITIVE_CONTENT",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "redaction_required"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "privacy-redaction",
+      "matched_finding_ids": [
+        "finding-9d3afdc272143eea5b86c42014c0d5514a013aeec3a749d7b67dfb5e44cae3f6"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "67e3802695fd47a2cd6246f83b32040a36f857aa52fdaacd08e1e660c7f3737b",
+        "expected_finding_target_digest": "48cacc6f6b7741481a91217d91aaf59046956556c65b2c3625c62b903bc8281c",
+        "implementation_digest": "d0d6cd762402204dabf83cdeae86d551185f98b389bd41d0e4c56abd21d054cd",
+        "mutated_digest": "f0e9c79e6504d3013fc7dd8e747061d9ac85dd10c408e4addad9ecd69f85d887",
+        "operator_digest": "925a12499179ef6f288780fc51740992d4ba7ccd31233871fed699efa89142ca",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "redaction_required",
+          "finding_id": "finding-9d3afdc272143eea5b86c42014c0d5514a013aeec3a749d7b67dfb5e44cae3f6",
+          "reason_code": "RAW_SENSITIVE_CONTENT",
+          "state": "fail",
+          "target_digest": "48cacc6f6b7741481a91217d91aaf59046956556c65b2c3625c62b903bc8281c"
+        }
+      ],
+      "operator_id": "inject-synthetic-sensitive-summary",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    },
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/completion_status",
+        "/stop_reasons"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "The fixed stop reason is clearly synthetic.",
+          "The operator changes run-set completion metadata only; it does not simulate token, retry, or cost accounting."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "1118afd61ef5b5e91cbf2d5ece67a9cc0806352a8830a63de8b26ea83a70c663",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "runset_completion_required",
+            "reason_code": "RUNSET_INCOMPLETE",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "runset_completion_required"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "runset-completion-integrity",
+      "matched_finding_ids": [
+        "finding-ef60f518d230949f40bd248517d66f8a7930cf9cd05a69085a6f65fd221d0fc2"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "1118afd61ef5b5e91cbf2d5ece67a9cc0806352a8830a63de8b26ea83a70c663",
+        "expected_finding_target_digest": "e5ac33cac09f143293ec62290c6e238c971c98e811c0d3dd86bd3468da6e69a9",
+        "implementation_digest": "15915d67994574c09024b305b3591b50001fc2e5ad7b50cc0ab48601f7fe19e4",
+        "mutated_digest": "354f5faedd52215749e4feeec2fb208f3b9d54a63e0a79ca59df32a0e31e0585",
+        "operator_digest": "c48f7ae57cbcb27af98d261208cc7fde0f26687b633c975693de53500e74f7a2",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "runset_completion_required",
+          "finding_id": "finding-ef60f518d230949f40bd248517d66f8a7930cf9cd05a69085a6f65fd221d0fc2",
+          "reason_code": "RUNSET_INCOMPLETE",
+          "state": "fail",
+          "target_digest": "e5ac33cac09f143293ec62290c6e238c971c98e811c0d3dd86bd3468da6e69a9"
+        }
+      ],
+      "operator_id": "mark-incomplete-budget-stop",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    },
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/runs"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "It appends one copied observation without changing the source.",
+          "The operator models an exact replay, not a conflicting duplicate with divergent content."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "794f18d69cb83988795daec0ec8e4ab85b71784b0fc8dec0dfa51193a01bc872",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "valid_record_required",
+            "reason_code": "VALID_RECORD_MISSING",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "valid_record_required"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "stream-replay-integrity",
+      "matched_finding_ids": [
+        "finding-c75fbe3eb60e48c573a225e297e3c740827d0c98611639e03f4af5263cbeded8"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "794f18d69cb83988795daec0ec8e4ab85b71784b0fc8dec0dfa51193a01bc872",
+        "expected_finding_target_digest": "2c2c80ed9a18a04b59e8bae28e287d776d27cc6361f45e1eb6572775f8929a24",
+        "implementation_digest": "0b5c5a0c9ed3d5fc117fa7594eb46b988be44fb533d562b6e550077097333e7d",
+        "mutated_digest": "4c9eecd332fa35fba942a8421d6f6e68897d60f9f49d2c4d119d2c424ffcc329",
+        "operator_digest": "2ff8a143aaa9d7d4037f3a7b51dcd7634a51e375beda48e1649f017f015cc1e5",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "valid_record_required",
+          "finding_id": "finding-c75fbe3eb60e48c573a225e297e3c740827d0c98611639e03f4af5263cbeded8",
+          "reason_code": "VALID_RECORD_MISSING",
+          "state": "fail",
+          "target_digest": "2c2c80ed9a18a04b59e8bae28e287d776d27cc6361f45e1eb6572775f8929a24"
+        }
+      ],
+      "operator_id": "replay-duplicate-case-observation",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    },
+    {
+      "applicability": "applicable",
+      "changed_paths": [
+        "/runs/2/evidence_refs/0/source_id"
+      ],
+      "diagnostic": {
+        "code": null,
+        "exception_class": null,
+        "limitations": [
+          "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+          "It challenges paired reference/item identity, not external source authenticity.",
+          "The operator changes only the reference-side source ID; evidence content and digests remain unchanged."
+        ],
+        "local_debug_reference": null
+      },
+      "evaluator_semantics": {
+        "evaluation_basis": "deterministic",
+        "evaluation_date": "2026-07-20",
+        "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
+        "gate_profile_id": "default",
+        "implementation_version": "0.6.1",
+        "method_id": "assurance-mutation/core/v1",
+        "population_id": "deterministic-fixture-v1",
+        "protocol_digest": null,
+        "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
+      },
+      "expected_contract": {
+        "contract_digest": "60ccdeb0768206afa752b0b6f559ca877b3a0cd9b57faa67f1f055d7756e44d2",
+        "expected_gate_effect": "block",
+        "prohibited_substitutes": [
+          {
+            "control_id": "runtime_success_required",
+            "reason_code": "RUNTIME_FAILED",
+            "target": null
+          }
+        ],
+        "required_any_of": [
+          {
+            "control_id": "evidence_provenance_identity",
+            "reason_code": "EVIDENCE_PROVENANCE_MISMATCH",
+            "target": null
+          }
+        ],
+        "secondary_findings_allowed": true,
+        "target_control_ids": [
+          "evidence_provenance_identity"
+        ]
+      },
+      "independence_class": "first_party_postcontrol",
+      "invariant_family": "provenance-corpus-identity",
+      "matched_finding_ids": [
+        "finding-09b63bceed32b7e6a51e06857d9f885fefde9aa41a254c125581169be6d45b99"
+      ],
+      "mutation_identity": {
+        "expected_detection_contract_digest": "60ccdeb0768206afa752b0b6f559ca877b3a0cd9b57faa67f1f055d7756e44d2",
+        "expected_finding_target_digest": "92d6286d5599bf37dd1cef2a88c1492f8ddfa3cb387ed5fe56ec374ebdb5994c",
+        "implementation_digest": "c43a3f812888c3e445a8e87d0bca2f17a3dcc901eb0196bd719d74fb6ed4f0ae",
+        "mutated_digest": "4298d67164e3c2eb461581cf0941d984336e8d7566e65494b5be3be2013abd49",
+        "operator_digest": "937d8aaadcee721872fa135f55d4d6c2846a31effd34ea8f0859b4ce4b1d6611",
+        "operator_version": "1.0.0",
+        "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939"
+      },
+      "observed_findings": [
+        {
+          "control_id": "evidence_provenance_identity",
+          "finding_id": "finding-09b63bceed32b7e6a51e06857d9f885fefde9aa41a254c125581169be6d45b99",
+          "reason_code": "EVIDENCE_PROVENANCE_MISMATCH",
+          "state": "fail",
+          "target_digest": "92d6286d5599bf37dd1cef2a88c1492f8ddfa3cb387ed5fe56ec374ebdb5994c"
+        }
+      ],
+      "operator_id": "skew-evidence-source-identity",
+      "prohibited_substitute_finding_ids": [],
+      "seed": 20260720,
+      "state": "caught"
+    }
+  ],
+  "replay_parameters": {
+    "campaign_seed": 20260720,
+    "evaluation_date": "2026-07-20",
+    "generated_at": "2026-07-20T00:00:00Z",
+    "mode": "full_report"
+  },
+  "source_identity": {
+    "artifact_kind": "run-set",
+    "run_count": 3,
+    "runset_id": "stream-runset-3baacc11e8735ac8",
+    "source_digest": "3e23b3a96cbf36fcc8a9313b9b37737dd778c6ea76b11b3a50bb412667afa939",
+    "suite_digest": "b03d2e7d318e41bfbc69b89248afbde6f66a01838f0deb60d86ee9dc94716860",
+    "suite_id": "streaming-process-regression"
+  },
+  "summary_contract": "mutation-campaign-golden-summary/v2"
+}

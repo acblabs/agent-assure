@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
 from agent_assure.authoring.compiler import compile_suite  # noqa: E402
 from agent_assure.compare.runsets import compare_runsets  # noqa: E402
 from agent_assure.evaluation.evaluator import evaluate_runset  # noqa: E402
+from agent_assure.policies.evidence import claim_finding_target  # noqa: E402
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite  # noqa: E402
 from agent_assure.schema.common import (  # noqa: E402
     ComparisonClassification,
@@ -581,7 +582,7 @@ def _derive_flagship_showcase_facts() -> FlagshipShowcaseFacts:
             f"found {len(candidate_findings)}"
         )
     finding = candidate_findings[0]
-    if finding.target != f"claim:{missing_claim_id}":
+    if finding.target != claim_finding_target(missing_claim_id):
         raise ValueError(
             "flagship candidate finding target does not match the missing claim: "
             f"{finding.target}"

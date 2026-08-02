@@ -49,11 +49,25 @@ protocol-bound live artifacts; they do not persist raw prompts, raw outputs,
 tool arguments, sensitive identifiers, or unredacted summaries, and they are
 not independent provenance roots or release-verdict shortcuts.
 
-The canonical RunSet digest is used for waiver scoping and local
-reproducibility; v0.6 evaluation reports persist it as `runset_digest` to bind
-the report to exact subject content. Release replay uses role-specific stable projections for
-environment-bearing reports, packets, and manifests, and excludes only the
-defined environment fields for each role.
+The canonical RunSet digest is SHA-256 over RFC 8785 canonical bytes of the
+version-aware schema-validated, current `RunSet` model JSON projection. The
+projection retains the accepted `schema_version` and materializes
+schema-permitted omitted defaults. Mutation campaigns, nested results,
+evidence subjects, and evaluator reports use this same identity for source
+content, while transformed-result and candidate-report digests share the
+corresponding candidate projection. The digest is used for waiver scoping and
+local reproducibility; v0.6 evaluation reports persist it as `runset_digest`.
+Release replay uses role-specific stable projections for environment-bearing
+reports, packets, and manifests, and excludes only the defined environment
+fields for each role.
+
+A campaign creates this source identity only after three ordered preflight
+checks: strict JSON values, successful RunSet validation/model projection, and
+bound-profile privacy scans of both the copied input and projection. Failure at
+any stage is a campaign-level rejection before hashing or artifact creation;
+the canonical-JSON, projection, and privacy classes have separate fixed
+messages. Single-operator schema and source-privacy failures remain
+`invalid_subject` results rather than campaign artifacts.
 
 For the v0.2 release surface, digest-bearing additions are covered through the
 `live-protocol-record` digest, live RunSet protocol bindings, JSON Schema

@@ -19,6 +19,7 @@ from agent_assure.schema.mutation import (
     ExpectedDetectionContract,
     FindingSelector,
     IndependenceClass,
+    MutationPrivacyClassification,
     OperatorAuthorship,
     OperatorImplementationComponent,
     OperatorOrigin,
@@ -42,11 +43,19 @@ _CONTROL_FIRST_SEEN_COMMITS = {
     "material_claims_have_evidence": "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1",
     "human_review_required": "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1",
     "tool_allowlist": "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1",
+    "evidence_provenance_identity": "git:uncommitted",
+    "redaction_required": "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1",
+    "valid_record_required": "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1",
+    "runset_completion_required": "git:cdb7d2e0647bfbd86c558bbc5e6b74c15722185e",
 }
 _TARGET_CONTROL_COMPONENT_PATHS = {
     "material_claims_have_evidence": "agent_assure/policies/evidence.py",
     "human_review_required": "agent_assure/policies/human_review.py",
     "tool_allowlist": "agent_assure/policies/tools.py",
+    "evidence_provenance_identity": "agent_assure/policies/evidence.py",
+    "redaction_required": "agent_assure/policies/privacy.py",
+    "valid_record_required": "agent_assure/evaluation/invariants.py",
+    "runset_completion_required": "agent_assure/evaluation/invariants.py",
 }
 # Authored snapshots of the target controls when each operator was created. These
 # values are deliberately not derived from the live implementation manifest. Once
@@ -65,6 +74,22 @@ _TARGET_CONTROL_CREATION_DIGESTS = {
         "inject-forbidden-tool",
         "tool_allowlist",
     ): "36a3f9b02bf2262d2847e69ebe8e5c518a6c315359dd13c9382afcc9c4004e5e",
+    (
+        "skew-evidence-source-identity",
+        "evidence_provenance_identity",
+    ): "95ee56977546a4755d1d17e566f090c4e8ba88990f6002661d82e5b540b8f29e",
+    (
+        "inject-synthetic-sensitive-summary",
+        "redaction_required",
+    ): "8a522291e65a5c96aad8ea4a1d4dadf6e1779a9c9140f824493a5449ea407a1f",
+    (
+        "replay-duplicate-case-observation",
+        "valid_record_required",
+    ): "9fe68e183e5d23885086f6c5fb8962f1d3b4d19a051d727b78e13d81f11ee42c",
+    (
+        "mark-incomplete-budget-stop",
+        "runset_completion_required",
+    ): "9fe68e183e5d23885086f6c5fb8962f1d3b4d19a051d727b78e13d81f11ee42c",
 }
 _IMPLEMENTATION_COMPONENT_PATHS = (
     ("agent_assure.version", "agent_assure/__init__.py"),
@@ -120,7 +145,14 @@ _IMPLEMENTATION_COMPONENT_PATHS = (
 
 _FROZEN_RUNSET_SCHEMA_PATHS = tuple(
     f"schemas/v{version}/run-set.schema.json"
-    for version in ("0.1.0", "0.2.0", "0.3.1", "0.4.3", "0.5.0")
+    for version in (
+        "0.1.0",
+        "0.2.0",
+        "0.3.1",
+        "0.4.3",
+        "0.5.0",
+        "0.6.0",
+    )
 )
 
 _CATALOG_COMPONENT_PATH = "agent_assure/mutation/catalog.py"
@@ -129,6 +161,18 @@ _INTRODUCTION_STAMP_PATTERN = re.compile(
     rb'introduced_at_commit="git:(?:uncommitted|[a-f0-9]{40})"'
 )
 _NORMALIZED_INTRODUCTION_STAMP = b'introduced_at_commit="git:uncommitted"'
+_CONTROL_FIRST_SEEN_BLOCK_PATTERN = re.compile(
+    rb"(?ms)(?P<prefix>_CONTROL_FIRST_SEEN_COMMITS = \{\n)"
+    rb"(?P<body>.*?)"
+    rb"(?P<suffix>\n\})"
+)
+_EVIDENCE_PROVENANCE_FIRST_SEEN_VALUE_PATTERN = re.compile(
+    rb'(?m)(?P<entry_prefix>^[ \t]+"evidence_provenance_identity":[ \t]*)'
+    rb'"git:(?:uncommitted|[a-f0-9]{40})"'
+)
+_NORMALIZED_EVIDENCE_PROVENANCE_FIRST_SEEN_ENTRY = (
+    rb'\g<entry_prefix>"git:uncommitted"'
+)
 
 
 @dataclass(frozen=True)
@@ -136,6 +180,9 @@ class RegisteredOperator:
     descriptor: AssuranceMutationOperator
     resolve_targets: TargetResolver
     limitations: tuple[str, ...]
+    invariant_family: str = "unclassified"
+    threat_source_references: tuple[str, ...] = ()
+    stable: bool = False
 
 
 class CatalogIntegrityError(RuntimeError):
@@ -186,7 +233,15 @@ def _registered_operator(
     preconditions: tuple[OperatorPrecondition, ...],
     resolver: TargetResolver,
     limitations: tuple[str, ...],
+    invariant_family: str,
+    threat_source_references: tuple[str, ...],
+    stable: bool,
     implementation_components: tuple[OperatorImplementationComponent, ...],
+    introduced_at_commit: str = "git:208f304574fc7bb3b7ed7b821c745b951f2783c8",
+    introduced_in_release: str = "0.6.0",
+    privacy_classification: MutationPrivacyClassification = (
+        MutationPrivacyClassification.synthetic_fixture_metadata
+    ),
 ) -> RegisteredOperator:
     operator_version = "1.0.0"
     implementation_digest = mutation_implementation_digest(
@@ -220,8 +275,8 @@ def _registered_operator(
         implementation_digest=implementation_digest,
         implementation_components=implementation_components,
         introduction_components=_introduction_components(operator_id),
-        introduced_at_commit="git:208f304574fc7bb3b7ed7b821c745b951f2783c8",
-        introduced_in_release="0.6.0",
+        introduced_at_commit=introduced_at_commit,
+        introduced_in_release=introduced_in_release,
         origin=OperatorOrigin(
             kind=OperatorOriginKind.first_party,
             references=("docs/evidence_carrying_releases.md",),
@@ -243,10 +298,10 @@ def _registered_operator(
     descriptor = AssuranceMutationOperator.build(
         operator_id=operator_id,
         operator_version=operator_version,
-        compatible_schema_versions=("0.5.0", "0.6.0"),
+        compatible_schema_versions=("0.5.0", "0.6.0", "0.6.1"),
         preconditions=preconditions,
         permitted_changed_paths=tuple(sorted(permitted_changed_paths)),
-        privacy_classification="synthetic_fixture_metadata",
+        privacy_classification=privacy_classification,
         provenance=provenance,
         independence_class=IndependenceClass.first_party_postcontrol,
         implementation_digest=implementation_digest,
@@ -256,6 +311,9 @@ def _registered_operator(
         descriptor=descriptor,
         resolve_targets=resolver,
         limitations=limitations,
+        invariant_family=invariant_family,
+        threat_source_references=threat_source_references,
+        stable=stable,
     )
 
 
@@ -466,11 +524,16 @@ def lf_normalized_sha256(source: bytes) -> str:
 def implementation_component_sha256(relative_path: str, source: bytes) -> str:
     """Hash one implementation component with release-stamp normalization.
 
-    The introduction commit is necessarily filled in after the implementation
-    first has an immutable commit. That administrative stamp is normalized only
-    for the catalog component so the follow-up provenance-only commit does not
-    change the method identity it is authenticating. Every other catalog byte
-    and every byte of every other component remains identity-bearing.
+    Introduction commits and the Sprint 2 evidence-provenance control's
+    first-seen commit are necessarily filled in only after their implementations
+    have immutable commits. Those administrative values are normalized only
+    inside their reviewed catalog locations so follow-up provenance-only commits
+    do not change the method identity they authenticate. Earlier controls remain
+    identity-bearing here because their frozen introduction snapshots predate
+    first-seen normalization. The serialized operator and catalog descriptors
+    still carry the real provenance values in their own self-digests. Every
+    other catalog byte and every byte of every other component remains
+    identity-bearing.
     """
     normalized_source = source.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
     if relative_path == _CATALOG_COMPONENT_PATH:
@@ -478,6 +541,19 @@ def implementation_component_sha256(relative_path: str, source: bytes) -> str:
             _NORMALIZED_INTRODUCTION_STAMP,
             normalized_source,
         )
+        first_seen_block = _CONTROL_FIRST_SEEN_BLOCK_PATTERN.search(normalized_source)
+        if first_seen_block is not None:
+            normalized_body = _EVIDENCE_PROVENANCE_FIRST_SEEN_VALUE_PATTERN.sub(
+                _NORMALIZED_EVIDENCE_PROVENANCE_FIRST_SEEN_ENTRY,
+                first_seen_block.group("body"),
+            )
+            normalized_source = (
+                normalized_source[: first_seen_block.start()]
+                + first_seen_block.group("prefix")
+                + normalized_body
+                + first_seen_block.group("suffix")
+                + normalized_source[first_seen_block.end() :]
+            )
     return hashlib.sha256(normalized_source).hexdigest()
 
 
@@ -512,6 +588,12 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
                             "material claim.",
                             "The finite operator does not represent every evidence-link failure.",
                         ),
+                        invariant_family="material-evidence-linkage",
+                        threat_source_references=(
+                            "AML.T0067.000",
+                            "material-claim-link-regression",
+                        ),
+                        stable=True,
                         implementation_components=implementation_components,
                     ),
                     _registered_operator(
@@ -540,6 +622,14 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
                             "The operator challenges one deterministically selected review route.",
                             "It does not assess the substantive quality of human review.",
                         ),
+                        invariant_family="human-review-routing",
+                        threat_source_references=(
+                            "AML.T0051",
+                            "AML.T0053",
+                            "AML.T0054",
+                            "missing-review-route",
+                        ),
+                        stable=True,
                         implementation_components=implementation_components,
                     ),
                     _registered_operator(
@@ -566,6 +656,155 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
                             "no tool is executed.",
                             "The operator challenges one deterministically selected tool boundary.",
                         ),
+                        invariant_family="tool-boundary",
+                        threat_source_references=(
+                            "AML.T0053",
+                            "AML.T0085.001",
+                            "AML.T0086",
+                            "unexpected-tool-use",
+                        ),
+                        stable=True,
+                        implementation_components=implementation_components,
+                    ),
+                    _registered_operator(
+                        operator_id="skew-evidence-source-identity",
+                        target_control_id="evidence_provenance_identity",
+                        reason_code=ReasonCode.EVIDENCE_PROVENANCE_MISMATCH,
+                        permitted_changed_paths=(
+                            "/runs/*/evidence_refs/*/source_id",
+                        ),
+                        preconditions=(
+                            OperatorPrecondition(
+                                precondition_id="fixture-mode",
+                                summary="The source is a validated deterministic fixture RunSet.",
+                            ),
+                            OperatorPrecondition(
+                                precondition_id="paired-evidence-source-identity",
+                                summary=(
+                                    "An included singleton observation has an evidence "
+                                    "reference and item with the same ref and source IDs."
+                                ),
+                            ),
+                        ),
+                        resolver=operators.skew_evidence_source_identity_targets,
+                        limitations=(
+                            "The operator changes only the reference-side source ID; "
+                            "evidence content and digests remain unchanged.",
+                            "It challenges paired reference/item identity, not external "
+                            "source authenticity.",
+                        ),
+                        invariant_family="provenance-corpus-identity",
+                        threat_source_references=(
+                            "evidence-provenance-mismatch",
+                        ),
+                        stable=True,
+                        introduced_at_commit="git:uncommitted",
+                        introduced_in_release="0.6.1rc1",
+                        implementation_components=implementation_components,
+                    ),
+                    _registered_operator(
+                        operator_id="inject-synthetic-sensitive-summary",
+                        target_control_id="redaction_required",
+                        reason_code=ReasonCode.RAW_SENSITIVE_CONTENT,
+                        permitted_changed_paths=("/runs/*/output_summary",),
+                        preconditions=(
+                            OperatorPrecondition(
+                                precondition_id="fixture-mode",
+                                summary="The source is a validated deterministic fixture RunSet.",
+                            ),
+                            OperatorPrecondition(
+                                precondition_id="included-summary",
+                                summary=(
+                                    "An included singleton observation has an output "
+                                    "summary eligible for a fixed synthetic challenge."
+                                ),
+                            ),
+                        ),
+                        resolver=operators.inject_synthetic_sensitive_summary_targets,
+                        limitations=(
+                            "The fixed marker is synthetic and represents one known "
+                            "privacy-detector class.",
+                            "No real personal, clinical, credential, or payment data is used.",
+                        ),
+                        invariant_family="privacy-redaction",
+                        threat_source_references=(
+                            "AML.T0024",
+                            "AML.T0057",
+                            "AML.T0086",
+                            "persisted-sensitive-content",
+                        ),
+                        stable=True,
+                        introduced_at_commit="git:uncommitted",
+                        introduced_in_release="0.6.1rc1",
+                        privacy_classification=(
+                            MutationPrivacyClassification.synthetic_fixture_sensitive_marker
+                        ),
+                        implementation_components=implementation_components,
+                    ),
+                    _registered_operator(
+                        operator_id="replay-duplicate-case-observation",
+                        target_control_id="valid_record_required",
+                        reason_code=ReasonCode.VALID_RECORD_MISSING,
+                        permitted_changed_paths=("/runs",),
+                        preconditions=(
+                            OperatorPrecondition(
+                                precondition_id="fixture-mode",
+                                summary="The source is a validated deterministic fixture RunSet.",
+                            ),
+                            OperatorPrecondition(
+                                precondition_id="unique-included-observation",
+                                summary=(
+                                    "A suite case has exactly one included observation "
+                                    "that can be replayed as an exact duplicate."
+                                ),
+                            ),
+                        ),
+                        resolver=operators.replay_duplicate_case_observation_targets,
+                        limitations=(
+                            "The operator models an exact replay, not a conflicting "
+                            "duplicate with divergent content.",
+                            "It appends one copied observation without changing the source.",
+                        ),
+                        invariant_family="stream-replay-integrity",
+                        threat_source_references=("invalid-structured-record",),
+                        stable=True,
+                        introduced_at_commit="git:uncommitted",
+                        introduced_in_release="0.6.1rc1",
+                        implementation_components=implementation_components,
+                    ),
+                    _registered_operator(
+                        operator_id="mark-incomplete-budget-stop",
+                        target_control_id="runset_completion_required",
+                        reason_code=ReasonCode.RUNSET_INCOMPLETE,
+                        permitted_changed_paths=(
+                            "/completion_status",
+                            "/stop_reasons",
+                            "/stop_reasons/*",
+                        ),
+                        preconditions=(
+                            OperatorPrecondition(
+                                precondition_id="fixture-mode",
+                                summary="The source is a validated deterministic fixture RunSet.",
+                            ),
+                            OperatorPrecondition(
+                                precondition_id="complete-runset",
+                                summary=(
+                                    "The source run set is complete and can be replaced "
+                                    "with a fixed synthetic budget-stop status."
+                                ),
+                            ),
+                        ),
+                        resolver=operators.mark_incomplete_budget_stop_targets,
+                        limitations=(
+                            "The operator changes run-set completion metadata only; it "
+                            "does not simulate token, retry, or cost accounting.",
+                            "The fixed stop reason is clearly synthetic.",
+                        ),
+                        invariant_family="runset-completion-integrity",
+                        threat_source_references=("fixture-runtime-failure",),
+                        stable=True,
+                        introduced_at_commit="git:uncommitted",
+                        introduced_in_release="0.6.1rc1",
                         implementation_components=implementation_components,
                     ),
                 ),
@@ -575,6 +814,28 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
         operator_ids = tuple(item.descriptor.operator_id for item in catalog)
         if len(set(operator_ids)) != len(operator_ids):
             raise CatalogIntegrityError("built-in mutation operator IDs are not unique")
+        if len(catalog) != 7:
+            raise CatalogIntegrityError("core/v1 must contain exactly seven operators")
+        if any(not item.stable for item in catalog):
+            raise CatalogIntegrityError("core/v1 contains a non-stable operator")
+        invariant_families = tuple(item.invariant_family for item in catalog)
+        if len(set(invariant_families)) < 6:
+            raise CatalogIntegrityError(
+                "core/v1 does not span six distinct invariant families"
+            )
+        for item in catalog:
+            if not item.invariant_family:
+                raise CatalogIntegrityError("operator invariant family is empty")
+            if not item.threat_source_references:
+                raise CatalogIntegrityError(
+                    "operator threat/source references are empty"
+                )
+            if item.threat_source_references != tuple(
+                sorted(set(item.threat_source_references))
+            ):
+                raise CatalogIntegrityError(
+                    "operator threat-source references are not canonical"
+                )
         return catalog
     except CatalogIntegrityError:
         raise

@@ -408,6 +408,14 @@ def test_github_release_rechecks_remote_tag_against_signed_commit() -> None:
 
 
 def test_oidc_signing_is_tag_only_and_environment_protected() -> None:
+    release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(
+        encoding="utf-8"
+    )
+    assert (
+        'check_version_matches_tag.py "${GITHUB_REF_NAME}" --require-stable'
+        in release_workflow
+    )
+
     for workflow_name, verify_header in (
         ("release.yml", "  verify-signatures:\n"),
         ("evidence.yml", "  verify:\n"),

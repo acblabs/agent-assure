@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, render_evidence_diff_html
+from agent_assure.reporting.evidence_diff_html import (
+    THESIS_TITLE,
+    _h,
+    render_evidence_diff_html,
+)
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
@@ -155,6 +159,18 @@ def test_evidence_diff_html_escapes_dynamic_content_and_stays_static() -> None:
     assert "raw_prompt" not in html
     assert "tool_args" not in html
     assert "input_summary" not in html
+
+
+def test_evidence_diff_html_removes_controls_and_reredacts_split_secrets() -> None:
+    rendered = _h(
+        "prefix\x1b[31m\x9b2J\u202espoof contact second@example\x00.com <tag>"
+    )
+
+    assert "\x1b" not in rendered
+    assert "\x9b" not in rendered
+    assert "\u202e" not in rendered
+    assert "second@example.com" not in rendered
+    assert "&lt;tag&gt;" in rendered
 
 
 def test_evidence_diff_html_rendered_output_passes_claim_boundary_linter() -> None:

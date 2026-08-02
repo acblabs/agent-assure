@@ -47,9 +47,12 @@ coverage.
 | Control | Strength | ATLAS Tactics | ATLAS Techniques |
 | --- | --- | --- | --- |
 | `runtime_success_required` | `adjacent` | Impact | `AML.T0029` Denial of AI Service |
+| `runset_completion_required` | `not_applicable` | None | None |
 | `structured_output_required` | `not_applicable` | None | None |
+| `valid_record_required` | `not_applicable` | None | None |
 | `evidence_required` | `partial` | Resource Development; Defense Evasion | `AML.T0066` Retrieval Content Crafting; `AML.T0067.000` Citations |
 | `material_claims_have_evidence` | `partial` | Defense Evasion | `AML.T0067.000` Citations |
+| `evidence_provenance_identity` | `not_applicable` | None | None |
 | `tool_allowlist` | `direct` | Execution; Collection; Exfiltration; Privilege Escalation | `AML.T0053` AI Agent Tool Invocation; `AML.T0085.001` AI Agent Tools; `AML.T0086` Exfiltration via AI Agent Tool Invocation |
 | `provider_review_boundary` | `partial` | AI Model Access; Command and Control | `AML.T0040` AI Model Inference API Access; `AML.T0096` AI Service API |
 | `human_review_required` | `adjacent` | Execution; Defense Evasion; Privilege Escalation | `AML.T0051` LLM Prompt Injection; `AML.T0053` AI Agent Tool Invocation; `AML.T0054` LLM Jailbreak |

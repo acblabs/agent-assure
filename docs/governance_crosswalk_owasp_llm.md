@@ -28,9 +28,12 @@ Only the risk IDs referenced by at least one control are listed above.
 | Control | Status | OWASP LLM Risks | Project Threats |
 | --- | --- | --- | --- |
 | `runtime_success_required` | `evaluated` | `LLM08` | `fixture-runtime-failure` |
+| `runset_completion_required` | `evaluated` | `LLM08` | `fixture-runtime-failure` |
 | `structured_output_required` | `evaluated` | `LLM02` | `invalid-structured-record` |
+| `valid_record_required` | `evaluated` | `LLM05` | `invalid-structured-record` |
 | `evidence_required` | `evaluated` | `LLM09` | `missing-required-evidence` |
 | `material_claims_have_evidence` | `evaluated` | `LLM09` | `material-claim-link-regression` |
+| `evidence_provenance_identity` | `evaluated` | `LLM09` | `evidence-provenance-mismatch` |
 | `tool_allowlist` | `evaluated_when_configured` | `LLM06` | `unexpected-tool-use` |
 | `provider_review_boundary` | `evaluated` | `LLM05` | `forbidden-provider-review-boundary` |
 | `human_review_required` | `evaluated` | `LLM05` | `missing-review-route` |

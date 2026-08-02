@@ -1,22 +1,56 @@
 # Schema Reference
 
-Current schema version: `0.6.0`.
+Current schema version: `0.6.1`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
-models emit `schema_version: 0.6.0` and continue to accept legacy
-`schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`, and
-`schema_version: 0.5.0` artifacts where their compatibility contracts permit
-those labels. Historical artifacts validate against their frozen schema
-snapshots. Usage roots retain their established compatibility rules for older
-usage schema labels.
+models emit `schema_version: 0.6.1` and continue to accept legacy
+`schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`,
+`schema_version: 0.5.0`, and `schema_version: 0.6.0` artifacts where their
+compatibility contracts permit those labels. Historical artifacts validate
+against their frozen schema snapshots. The v0.6.0 snapshot remains immutable;
+current v0.6 relational checks continue to apply after validated v0.6.0
+projection, including each evidence-carrying root's self-digest. Published
+v0.6.1 schemas are writer contracts: every root and nested persisted model pins
+`schema_version` to that model's emitted default. Thus nested current mutation
+operators, expected-detection contracts, and results use `0.6.1`, while the
+independently versioned usage models continue to emit `0.4.3`. Compatibility
+projection of a frozen artifact does not widen the current wire schema.
+Importable models and their direct `model_json_schema()` output retain declared
+legacy read compatibility; checked-in schemas and current artifact validation
+use the separately pinned writer-schema projection.
 
-At schema version `0.6.0`, `evaluation-report` requires `runset_digest`, the
-canonical digest of the exact RunSet content evaluated, and an explicit
-`waiver_dispositions` array. The latter records one privacy-minimized matched,
-unmatched, or expired disposition per supplied waiver without changing the gate
-rollup. Mutation execution checks the RunSet binding for both source and
-candidate reports so equal `runset_id` labels cannot make stale report content
-admissible.
+In v0.6.1 the evidence graph uses the same exact ASCII machine-identifier
+grammar in runtime and JSON Schema. This covers `EvidenceRef.ref_id`,
+`EvidenceRef.source_id`, `EvidenceRef.claim_ids`, `EvidenceItem.ref_id`,
+`EvidenceItem.source_id`, `ClaimRecord.claim_id`,
+`ClaimEvidenceLink.claim_id`, `ClaimEvidenceLink.evidence_ref_id`,
+`Expectation.required_evidence_refs`, and `Expectation.material_claim_ids`:
+`[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}`. They are therefore nonempty, limited to
+256 characters, and cannot carry whitespace, controls, format characters,
+private-use characters, unassigned code points, or other Unicode text. These
+producer constraints do not retroactively invalidate identifier strings
+admitted by the immutable v0.6.0 schema.
+
+A current `AgentRunRecord` also requires its evidence references, evidence
+items, claims, and claim-evidence links to carry the current schema version. A
+current `CompiledSuite` likewise requires current resolved expectations. These
+targeted coherence checks match the v0.6.1 writer schemas without applying
+parent-version equality to independently versioned components such as usage
+records. Matching legacy parent/member projections remain supported through
+their frozen schemas.
+
+At schema versions `0.6.0` and `0.6.1`, `evaluation-report` requires
+`runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
+schema-validated, current `RunSet` model JSON projection. The projection
+retains the accepted `schema_version` and materializes schema-permitted omitted
+defaults before hashing; it is not a digest of raw input bytes. The report also
+requires an explicit `waiver_dispositions` array. The latter records one
+privacy-minimized matched, unmatched, or expired disposition per supplied
+waiver without changing the gate rollup. Mutation execution checks the RunSet
+binding for both source and candidate reports so equal `runset_id` labels
+cannot make stale report content admissible. Campaign source, nested mutation
+result, evidence subject, and source evaluator digests use this same
+projection; transformed-result and candidate evaluator digests do likewise.
 
 Every v0.6 live `agent-run-record` also requires
 `cost_budget_committed_usd`, `generated_token_budget_committed`, and
@@ -28,6 +62,8 @@ distinct from provider-reported usage and estimated invoice cost.
 Exported roots:
 
 - `assurance-evidence-descriptor`
+- `assurance-mutation-campaign`
+- `assurance-mutation-catalog`
 - `assurance-mutation-operator`
 - `assurance-mutation-result`
 - `agent-run-record`
@@ -62,11 +98,16 @@ Exported roots:
 - `usage-summary`
 - `usage-summary-delta`
 
-Evidence-carrying release roots use persisted `schema_version: 0.6.0` and a
-separate semantic contract identity:
+Current evidence-carrying release roots use persisted
+`schema_version: 0.6.1` and a separate semantic contract identity. The four
+roots introduced in v0.6.0 also accept their frozen v0.6.0 shape:
 
 - `assurance-evidence-descriptor` is `AssuranceEvidenceDescriptor/v1` and has
   an `evidence_digest` computed without its own digest field;
+- `assurance-mutation-catalog` is `AssuranceMutationCatalog/v1` and has a
+  `catalog_digest` computed without its own digest field;
+- `assurance-mutation-campaign` is `AssuranceMutationCampaign/v1` and has a
+  `campaign_digest` computed without its own digest field;
 - `assurance-mutation-operator` is `AssuranceMutationOperator/v1` and has an
   `operator_digest` computed without its own digest field;
 - `expected-detection-contract` is `ExpectedDetectionContract/v1` and has a
@@ -75,20 +116,42 @@ separate semantic contract identity:
   `result_digest` computed without its own digest field.
 
 Each root carries `contract_version: 1.0.0`. Contract version identifies the
-method semantics, while persisted schema version identifies JSON shape. The
-result binds source and transformed digests, operator identity and
-implementation digest, evaluator method ID/version/implementation digest,
+method semantics, while persisted schema version identifies JSON shape.
+
+The catalog uses `core/v1` identity and
+`operator-id-lexicographic/v1` ordering. Its digest covers the full canonical
+projection except the digest itself, including operator and detector
+identities, implementation components, provenance, independence, invariant
+families, threat-source references, stable markers, ordering semantics, and
+limitations. The campaign binds the source and suite digests, catalog ID and
+digest, producer version, mode, seed, canonical/selected/executed/pending
+operator order, embedded per-operator expected contracts and results,
+applicability, prohibited-substitute finding IDs, completion, and limitations.
+Every operator runs against the same immutable source; v1 does not compose or
+chain mutations.
+
+No campaign root exists until the source passes three ordered preflight
+classes: strict canonical-JSON runtime values, version-aware RunSet validation
+and current-model projection, then bound-profile privacy scans of both the
+copied input and projected model. Canonical-identity, projection, and privacy
+failures use separate fixed campaign-level messages and occur before source
+hashing or artifact creation. Without a catalog, schema and source-privacy
+failures remain per-operator `invalid_subject` results.
+
+The individual result binds source and transformed digests, operator identity
+and implementation digest, evaluator method ID/version/implementation digest,
 gate-profile ID and canonical digest, order-independent waiver-set digest,
 evaluation date, seed, exact changed paths, expected-detection contract digest,
 selected finding-target digest, observed findings with target digests,
-provenance, independence class, semantic state, and limitations. Evaluator implementation
-identity is non-zero except that the all-zero unavailable sentinel is permitted
-only for `execution_error` with `catalog_integrity_error`, before evaluator
-identity can be established. A matched
-finding must carry the selected target digest. Permitted operator paths expose
-single-segment wildcard-template syntax in JSON Schema, while result paths are
-exact JSON Pointers. See `docs/evidence_carrying_releases.md` for field
-semantics.
+provenance, independence class, semantic state, and limitations. Evaluator
+implementation identity is non-zero except that the all-zero unavailable
+sentinel is permitted only for `execution_error` with
+`catalog_integrity_error`, before evaluator identity can be established. A
+matched finding must carry the selected target digest. Permitted operator paths
+expose single-segment wildcard-template syntax in JSON Schema, while result
+paths are exact JSON Pointers. See `docs/evidence_carrying_releases.md` for
+field semantics and `docs/mutation_catalog.md` for the exact seven-operator
+catalog.
 
 An `llm_advisory` mutation evaluator cannot produce `caught` or `survived`;
 execution returns typed, non-verdict evidence before invoking that evaluator.

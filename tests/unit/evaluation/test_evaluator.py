@@ -16,7 +16,10 @@ from agent_assure.evaluation.evaluator import (
 )
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
-from agent_assure.policies.evidence import evaluate_material_claim_evidence
+from agent_assure.policies.evidence import (
+    claim_finding_target,
+    evaluate_material_claim_evidence,
+)
 from agent_assure.reporting.markdown import render_evaluation_markdown
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
@@ -66,9 +69,13 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     compiled, runset = _runset(BASELINE)
     report = evaluate_runset(compiled, runset)
 
+    assert report.schema_version == "0.6.1"
     assert report.runset_digest == runset_digest(runset)
     payload = report.model_dump(mode="json")
     payload.pop("runset_digest")
+    with pytest.raises(ValidationError, match="requires runset_digest"):
+        EvaluationReport.model_validate(payload)
+    payload["schema_version"] = "0.6.0"
     with pytest.raises(ValidationError, match="requires runset_digest"):
         EvaluationReport.model_validate(payload)
     report_schema = EvaluationReport.model_json_schema(mode="validation")
@@ -76,7 +83,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
         condition
         for condition in report_schema["allOf"]
         if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("const")
-        == "0.6.0"
+        == "0.6.1"
     )
     assert set(current_schema_condition["then"]["required"]) == {
         "runset_digest",
@@ -584,10 +591,11 @@ def test_duplicate_case_is_not_evaluated_and_is_permutation_invariant() -> None:
 
 def test_incomplete_runset_fails_ordinary_evaluation() -> None:
     compiled, runset = _runset(BASELINE)
+    sensitive_stop_reason = "operator-private-detail@example.com"
     mutated = runset.model_copy(
         update={
             "completion_status": "incomplete",
-            "stop_reasons": ("budget_exhausted",),
+            "stop_reasons": (sensitive_stop_reason,),
         }
     )
 
@@ -599,7 +607,9 @@ def test_incomplete_runset_fails_ordinary_evaluation() -> None:
         for finding in report.candidate_vs_expectations.findings
         if finding.control_id == "runset_completion_required"
     )
-    assert finding.reason_code is ReasonCode.RUNTIME_FAILED
+    assert finding.reason_code is ReasonCode.RUNSET_INCOMPLETE
+    assert finding.message.endswith("declared stop reason count: 1")
+    assert sensitive_stop_reason not in finding.message
     assert report.metrics.global_blocking_findings == 1
 
 
@@ -965,8 +975,8 @@ def test_material_claims_require_explicit_claim_evidence_links() -> None:
     findings = evaluate_material_claim_evidence(run, expectation)
 
     assert {finding.target for finding in findings} == {
-        "claim:claim-present",
-        "claim:claim-missing",
+        claim_finding_target("claim-present"),
+        claim_finding_target("claim-missing"),
     }
     assert all(finding.control_id == "material_claims_have_evidence" for finding in findings)
     assert all(
@@ -1009,10 +1019,12 @@ def test_claim_evidence_links_must_target_evidence_items_not_hollow_refs() -> No
 
     findings = evaluate_material_claim_evidence(run, expectation)
 
-    assert {finding.target for finding in findings} == {"claim:claim-present"}
+    assert {finding.target for finding in findings} == {
+        claim_finding_target("claim-present")
+    }
 
 
-def test_claim_evidence_links_accept_content_addressed_evidence_items() -> None:
+def test_claim_evidence_links_accept_complete_content_addressed_evidence_pair() -> None:
     run = AgentRunRecord(
         artifact_kind="agent-run-record",
         run_id="run-item-link",
@@ -1022,6 +1034,13 @@ def test_claim_evidence_links_accept_content_addressed_evidence_items() -> None:
         outcome="approve",
         input_summary="redacted input",
         output_summary="redacted output",
+        evidence_refs=(
+            EvidenceRef(
+                artifact_kind="evidence-ref",
+                ref_id="item-ref",
+                source_id="source-1",
+            ),
+        ),
         evidence_items=(
             EvidenceItem(
                 artifact_kind="evidence-item",

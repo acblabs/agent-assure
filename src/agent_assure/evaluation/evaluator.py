@@ -58,7 +58,7 @@ _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
             "required": ["schema_version"],
-            "properties": {"schema_version": {"const": "0.6.0"}},
+            "properties": {"schema_version": {"const": "0.6.1"}},
         },
         "then": {
             "required": ["runset_digest", "waiver_dispositions"],
@@ -66,6 +66,7 @@ _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
+_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1"})
 
 RunSetCompatibilityCode = Literal[
     "privacy_profile_incompatible",
@@ -149,8 +150,11 @@ class EvaluationReport(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> EvaluationReport:
-        if self.schema_version == "0.6.0" and self.runset_digest is None:
-            raise ValueError("evaluation report requires runset_digest at schema_version 0.6.0")
+        if (
+            self.schema_version in _RUNSET_DIGEST_SCHEMA_VERSIONS
+            and self.runset_digest is None
+        ):
+            raise ValueError("v0.6 evaluation report requires runset_digest")
         validate_usage_field_paths_schema_version(
             self.schema_version,
             owner="evaluation report",

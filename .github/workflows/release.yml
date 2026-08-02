@@ -64,7 +64,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/check_version_matches_tag.py "${GITHUB_REF_NAME}"
+          python scripts/check_version_matches_tag.py "${GITHUB_REF_NAME}" --require-stable
           version="${GITHUB_REF_NAME#v}"
           grep -Fq "## ${version} -" CHANGELOG.md
           test -f "docs/release_notes/${GITHUB_REF_NAME}.md"

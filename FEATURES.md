@@ -4,7 +4,8 @@
 
 - Development-RFC evidence-carrying release contracts: versioned evidence descriptors,
   deterministic mutation operators, normative expected-detection contracts,
-  provenance, independence classes, and replayable single-operator results.
+  a self-digested closed catalog, isolated deterministic campaigns, provenance,
+  independence classes, and replayable per-operator results.
 - Local-first assurance: commands run from a `pip` install and write review
   artifacts in the caller's workspace without a hosted governance platform.
 - Offline fixture assurance: included fixture demos and CI gates run without a
@@ -35,15 +36,23 @@
 
 ## Implemented
 
-- Development-RFC Agent Release Assurance Compiler mutation surface with four strict
-  evidence-carrying `/v1` contract roots and a closed built-in registry for
-  `drop-material-evidence-link`, `bypass-required-human-review`, and
-  `inject-forbidden-tool`.
+- Development-RFC Agent Release Assurance Compiler mutation surface with six strict
+  evidence-carrying `/v1` contract roots and a closed `core/v1` catalog of
+  exactly seven stable operators spanning material-evidence linkage,
+  human-review routing, tool boundaries, provenance identity, privacy
+  redaction, stream replay, and budget-stop integrity.
 - Single-operator `controls mutate` execution with source immutability,
   before/after validation, exact changed paths, normative detector matching,
   privacy-minimized expected/observed target bindings, canonical result
   digests, and distinct caught, survived, invalid, inapplicable, and
   execution-error exits.
+- Deterministic catalog campaigns with lexicographic ordering, canonical
+  catalog and campaign digests, repeatable operator/family/threat filters,
+  same-source operator isolation, forbidden mutation chaining, full-report and
+  fail-fast modes, explicit pending order, prohibited-substitute evidence, and
+  worst-state exit precedence.
+- Reviewed source-and-synthetic-fixture contribution path for third-party
+  mutation cases without executable plugin discovery or loading.
 - Offline package and CLI skeleton.
 - Strict immutable persisted schemas for suites, expectations, run records,
   evaluation summaries, comparisons, packets, and span plans.

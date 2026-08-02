@@ -12,6 +12,7 @@ from agent_assure.demo.measurement_cases import (
     MEASUREMENT_CASES_NOTICE,
     render_measurement_cases_text,
 )
+from agent_assure.policies.evidence import claim_finding_target
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 
 RUNNER = CliRunner()
@@ -62,7 +63,7 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
         cases,
         "same-output-missing-evidence",
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
-        target="claim:claim-policy-support",
+        target=claim_finding_target("claim-policy-support"),
     )
     assert "provider/model" in cases["same-output-provider-boundary"][
         "changed_process_fields"

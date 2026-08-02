@@ -13,9 +13,12 @@ where deterministic evidence may help a team prepare review material.
 | Control | Status | ISO/IEC 42001 Concept Areas | Project Threats |
 | --- | --- | --- | --- |
 | `runtime_success_required` | `evaluated` | monitoring; accountability | `fixture-runtime-failure` |
+| `runset_completion_required` | `evaluated` | monitoring; accountability | `fixture-runtime-failure` |
 | `structured_output_required` | `evaluated` | documentation; monitoring | `invalid-structured-record` |
+| `valid_record_required` | `evaluated` | documentation; monitoring | `invalid-structured-record` |
 | `evidence_required` | `evaluated` | transparency; documentation | `missing-required-evidence` |
 | `material_claims_have_evidence` | `evaluated` | transparency; accountability | `material-claim-link-regression` |
+| `evidence_provenance_identity` | `evaluated` | transparency; documentation; accountability | `evidence-provenance-mismatch` |
 | `tool_allowlist` | `evaluated_when_configured` | AI system lifecycle governance; monitoring | `unexpected-tool-use` |
 | `provider_review_boundary` | `evaluated` | AI system lifecycle governance; accountability | `forbidden-provider-review-boundary` |
 | `human_review_required` | `evaluated` | human oversight; accountability | `missing-review-route` |

@@ -29,13 +29,23 @@ from agent_assure.fixtures.loader import (
 )
 from agent_assure.mutation import catalog as mutation_catalog
 from agent_assure.mutation import execution as mutation_execution
+from agent_assure.mutation.campaign import execute_mutation_campaign
 from agent_assure.mutation.execution import (
     MutationEvaluatorBinding,
     MutationExecution,
     execute_mutation,
 )
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.reporting import campaign as campaign_reporting
 from agent_assure.reporting import mutation as mutation_reporting
+from agent_assure.reporting.campaign import (
+    MUTATION_CAMPAIGN_FILENAME,
+    MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME,
+    MUTATION_CATALOG_FILENAME,
+    ensure_inputs_do_not_alias_mutation_campaign_output,
+    validate_mutation_campaign_artifact_generation,
+    write_mutation_campaign_artifacts,
+)
 from agent_assure.reporting.mutation import (
     EVIDENCE_DESCRIPTOR_FILENAME,
     MUTATED_RUNSET_FILENAME,
@@ -48,6 +58,7 @@ from agent_assure.reporting.mutation import (
     write_mutation_artifacts,
 )
 from agent_assure.runner.fixture_runner import write_runset
+from agent_assure.schema.campaign import CORE_MUTATION_CATALOG_ID
 from agent_assure.schema.common import ReasonCode
 from agent_assure.schema.mutation import (
     RFC8785_SAFE_INTEGER_MAX,
@@ -59,6 +70,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
     EvidenceItem,
+    EvidenceRef,
     RunSet,
 )
 from agent_assure.schema.suite import CompiledSuite
@@ -80,6 +92,577 @@ def test_controls_mutate_refuses_a_filesystem_root_output_directory() -> None:
 
     with pytest.raises(ValueError, match="filesystem root"):
         ensure_inputs_do_not_alias_mutation_output((), filesystem_root)
+    with pytest.raises(ValueError, match="filesystem root"):
+        ensure_inputs_do_not_alias_mutation_campaign_output((), filesystem_root)
+
+
+def test_controls_mutate_help_states_exact_fail_fast_boundary() -> None:
+    result = _RUNNER.invoke(app, ["controls", "mutate", "--help"])
+    normalized = " ".join(
+        result.output.replace("│", " ").replace("|", " ").split()
+    )
+
+    assert result.exit_code == 0, result.output
+    assert "survived, invalid_operator, invalid_subject" in normalized
+    assert "execution_error" in normalized
+    assert "caught and inapplicable continue" in normalized
+
+
+def test_controls_mutate_campaign_persists_a_valid_digest_bound_generation(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    source_bytes = files.runset.read_bytes()
+    out = tmp_path / "campaign"
+
+    result = _invoke_campaign(files.compiled_suite, files.runset, out)
+
+    assert result.exit_code == 0, result.output
+    assert "mutation campaign completion: complete" in result.output
+    assert files.runset.read_bytes() == source_bytes
+    paths = validate_mutation_campaign_artifact_generation(out)
+    assert paths.catalog == out / MUTATION_CATALOG_FILENAME
+    assert paths.campaign == out / MUTATION_CAMPAIGN_FILENAME
+    assert paths.generation_manifest == (
+        out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
+    )
+    assert len(paths.operator_artifacts) == 1
+    assert paths.operator_artifacts[0].operator_id == _OPERATOR
+    assert validate_artifact(paths.catalog, "assurance-mutation-catalog") == (
+        "pydantic+jsonschema"
+    )
+    assert validate_artifact(paths.campaign, "assurance-mutation-campaign") == (
+        "pydantic+jsonschema"
+    )
+    _assert_canonical_json(paths.catalog)
+    _assert_canonical_json(paths.campaign)
+    _assert_canonical_json(paths.generation_manifest)
+
+    campaign = _read_object(paths.campaign)
+    assert campaign["catalog_id"] == CORE_MUTATION_CATALOG_ID
+    assert campaign["selected_operator_order"] == [_OPERATOR]
+    assert campaign["executed_operator_order"] == [_OPERATOR]
+    assert campaign["pending_operator_order"] == []
+
+
+def test_controls_mutate_campaign_reports_mixed_states_and_exact_scope(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "campaign-mixed-states"
+
+    result = _invoke_campaign(
+        files.compiled_suite,
+        files.runset,
+        out,
+        operators=(
+            _OPERATOR,
+            "bypass-required-human-review",
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    normalized = " ".join(result.output.split())
+    inapplicable_line = (
+        "mutation operator result: "
+        "operator_id=bypass-required-human-review "
+        "state=inapplicable applicability=inapplicable"
+    )
+    caught_line = (
+        "mutation operator result: "
+        f"operator_id={_OPERATOR} state=caught applicability=applicable"
+    )
+    assert inapplicable_line in normalized
+    assert caught_line in normalized
+    assert normalized.index(inapplicable_line) < normalized.index(caught_line)
+    assert (
+        "mutation campaign state counts: caught=1, survived=0, inapplicable=1, "
+        "invalid_operator=0, invalid_subject=0, execution_error=0"
+    ) in normalized
+    assert (
+        "mutation campaign applicability counts: applicable=1, inapplicable=1, "
+        "not_evaluated=0"
+    ) in normalized
+    assert (
+        "caught entries support only their exact fixture transformations "
+        "and expected-detector contracts"
+    ) in normalized
+    assert "caught does not assert exclusive detector isolation" in normalized
+    assert "non-prohibited secondary findings remain visible" in normalized
+    assert "inapplicable entries were not exercised" in normalized
+    assert "independence_classes=first_party_postcontrol" in normalized
+    assert "this campaign is not a safety score or mutation kill rate" in normalized
+    assert "not a broader model, planner, or red-team robustness result" in normalized
+
+
+def test_controls_mutate_campaign_accepts_repeatable_operator_filters(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "campaign-filtered"
+
+    result = _invoke_campaign(
+        files.compiled_suite,
+        files.runset,
+        out,
+        operators=(
+            "inject-forbidden-tool",
+            _OPERATOR,
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    campaign = _read_object(out / MUTATION_CAMPAIGN_FILENAME)
+    assert campaign["selected_operator_order"] == [
+        _OPERATOR,
+        "inject-forbidden-tool",
+    ]
+    assert campaign["executed_operator_order"] == [
+        _OPERATOR,
+        "inject-forbidden-tool",
+    ]
+
+
+def test_controls_mutate_campaign_routes_family_threat_and_fail_fast_filters(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "campaign-family-threat"
+
+    result = _invoke_campaign(
+        files.compiled_suite,
+        files.runset,
+        out,
+        operators=(),
+        extra_args=(
+            "--invariant-family",
+            "material-evidence-linkage",
+            "--threat-id",
+            "AML.T0067.000",
+            "--fail-fast",
+        ),
+    )
+
+    assert result.exit_code == 0, result.output
+    campaign = _read_object(out / MUTATION_CAMPAIGN_FILENAME)
+    assert campaign["mode"] == "fail_fast"
+    assert campaign["selected_operator_order"] == [_OPERATOR]
+    assert campaign["executed_operator_order"] == [_OPERATOR]
+
+
+def test_controls_mutate_campaign_rejects_conflicting_modes(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    out = tmp_path / "campaign-conflicting-mode"
+
+    result = _invoke_campaign(
+        files.compiled_suite,
+        files.runset,
+        out,
+        extra_args=("--full-report", "--fail-fast"),
+    )
+
+    assert result.exit_code == 2
+    assert "mutually exclusive" in result.output
+    assert not out.exists()
+
+
+def test_controls_mutate_campaign_rejects_noncanonical_source_without_artifacts(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    sensitive_value = "Bearer campaign-cli-secret-123456789"
+    payload = _read_object(files.runset)
+    payload["unexpected_float"] = 1.25
+    payload["unexpected_context"] = sensitive_value
+    files.runset.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    out = tmp_path / "campaign-noncanonical-source"
+
+    result = _invoke_campaign(files.compiled_suite, files.runset, out)
+
+    assert result.exit_code == 2
+    normalized_output = " ".join(result.output.split())
+    assert (
+        "invalid mutation input: mutation campaign source cannot establish "
+        "a canonical JSON identity"
+    ) in normalized_output
+    assert sensitive_value not in result.output
+    assert not out.exists()
+
+
+def test_controls_mutate_campaign_rejects_schema_invalid_source_without_artifacts(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    sensitive_value = "Bearer campaign-schema-secret-123456789"
+    payload = _read_object(files.runset)
+    payload.pop("suite_id")
+    runs = cast(list[dict[str, object]], payload["runs"])
+    runs[0]["input_summary"] = sensitive_value
+    files.runset.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    source_bytes = files.runset.read_bytes()
+    out = tmp_path / "campaign-schema-invalid-source"
+
+    result = _invoke_campaign(files.compiled_suite, files.runset, out)
+
+    assert result.exit_code == 2
+    normalized_output = " ".join(result.output.split())
+    assert (
+        "invalid mutation input: mutation campaign source failed RunSet "
+        "validation and projection"
+    ) in normalized_output
+    assert sensitive_value not in result.output
+    assert files.runset.read_bytes() == source_bytes
+    assert not out.exists()
+
+
+def test_controls_mutate_campaign_rejects_sensitive_source_without_artifacts(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    sensitive_value = "Bearer campaign-privacy-secret-123456789"
+    payload = _read_object(files.runset)
+    runs = cast(list[dict[str, object]], payload["runs"])
+    runs[0]["input_summary"] = sensitive_value
+    files.runset.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    source_bytes = files.runset.read_bytes()
+    out = tmp_path / "campaign-sensitive-source"
+
+    result = _invoke_campaign(files.compiled_suite, files.runset, out)
+
+    assert result.exit_code == 2
+    normalized_output = " ".join(result.output.split())
+    assert (
+        "invalid mutation input: mutation campaign source failed the bound "
+        "privacy-detector profile"
+    ) in normalized_output
+    assert sensitive_value not in result.output
+    assert files.runset.read_bytes() == source_bytes
+    assert not out.exists()
+
+
+def test_controls_mutate_without_catalog_requires_exactly_one_operator(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    base_args = [
+        "controls",
+        "mutate",
+        "--suite",
+        str(files.compiled_suite),
+        "--runset",
+        str(files.runset),
+        "--out",
+        str(tmp_path / "legacy-cardinality"),
+    ]
+
+    missing = _RUNNER.invoke(app, base_args)
+    repeated = _RUNNER.invoke(
+        app,
+        [
+            *base_args,
+            "--operator",
+            _OPERATOR,
+            "--operator",
+            "inject-forbidden-tool",
+        ],
+    )
+
+    assert missing.exit_code == 2
+    assert repeated.exit_code == 2
+    assert "exactly one --operator" in missing.output
+    assert "exactly one --operator" in repeated.output
+    assert not (tmp_path / "legacy-cardinality").exists()
+
+
+def test_campaign_writer_rejects_guarded_out_of_range_operator_lookalike(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    execution = execute_mutation_campaign(
+        suite,
+        _read_object(files.runset),
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+    out = tmp_path / "campaign-out-of-range-name"
+    out.mkdir()
+    external_input = out / "operator-999-mutation-result.json"
+    external_input.write_bytes(b"not a campaign artifact")
+
+    with pytest.raises(ValueError, match="aliases a protected campaign output"):
+        ensure_inputs_do_not_alias_mutation_campaign_output((external_input,), out)
+    with pytest.raises(ValueError, match="aliases a protected campaign output"):
+        write_mutation_campaign_artifacts(
+            execution,
+            out,
+            source_inputs=(
+                files.compiled_suite,
+                files.runset,
+                external_input,
+            ),
+        )
+
+    assert external_input.read_bytes() == b"not a campaign artifact"
+    assert not (out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME).exists()
+
+    write_mutation_campaign_artifacts(
+        execution,
+        out,
+        source_inputs=(files.compiled_suite, files.runset),
+    )
+
+    assert not external_input.exists()
+    validate_mutation_campaign_artifact_generation(out)
+
+
+def test_campaign_validator_rejects_out_of_range_operator_lookalike(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    execution = execute_mutation_campaign(
+        suite,
+        _read_object(files.runset),
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+    out = tmp_path / "campaign-lookalike-validation"
+    write_mutation_campaign_artifacts(execution, out)
+    lookalike = out / "operator-256-evidence-descriptor.json"
+    lookalike.write_bytes(b"reserved campaign lookalike")
+
+    with pytest.raises(ValueError, match="unexpected mutation campaign artifact"):
+        validate_mutation_campaign_artifact_generation(out)
+
+
+def test_single_and_campaign_writers_reject_mixed_namespaces_without_changes(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    source_payload = _read_object(files.runset)
+    single_execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id=_OPERATOR,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+    )
+    campaign_execution = execute_mutation_campaign(
+        suite,
+        source_payload,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+
+    single_out = tmp_path / "single-namespace"
+    write_mutation_artifacts(single_execution, single_out)
+    single_before = _fixed_output_bytes(single_out)
+
+    with pytest.raises(ValueError, match="mixes single and campaign"):
+        write_mutation_campaign_artifacts(campaign_execution, single_out)
+
+    assert _fixed_output_bytes(single_out) == single_before
+    assert not (single_out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME).exists()
+    assert not tuple(single_out.glob(".agent-assure-mutation-campaign-txn-*"))
+
+    campaign_out = tmp_path / "campaign-namespace"
+    write_mutation_campaign_artifacts(campaign_execution, campaign_out)
+    campaign_before = {
+        child.name: child.read_bytes()
+        for child in campaign_out.iterdir()
+        if child.is_file() and child.name != MUTATION_OUTPUT_LOCK_FILENAME
+    }
+
+    with pytest.raises(ValueError, match="mixes single and campaign"):
+        write_mutation_artifacts(single_execution, campaign_out)
+
+    assert {
+        child.name: child.read_bytes()
+        for child in campaign_out.iterdir()
+        if child.is_file() and child.name != MUTATION_OUTPUT_LOCK_FILENAME
+    } == campaign_before
+    assert not (campaign_out / MUTATION_GENERATION_MANIFEST_FILENAME).exists()
+    assert not tuple(campaign_out.glob(".agent-assure-mutation-txn-*"))
+
+
+def test_single_and_campaign_validators_reject_mixed_namespaces(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    source_payload = _read_object(files.runset)
+    single_execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id=_OPERATOR,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+    )
+    campaign_execution = execute_mutation_campaign(
+        suite,
+        source_payload,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+
+    single_out = tmp_path / "mixed-single-validator"
+    write_mutation_artifacts(single_execution, single_out)
+    (single_out / "operator-999-mutated-runset.json").write_bytes(
+        b"foreign campaign lookalike"
+    )
+    with pytest.raises(ValueError, match="mixes single and campaign"):
+        validate_mutation_artifact_generation(single_out)
+
+    campaign_out = tmp_path / "mixed-campaign-validator"
+    write_mutation_campaign_artifacts(campaign_execution, campaign_out)
+    (campaign_out / MUTATION_RESULT_FILENAME).write_bytes(b"foreign single")
+    with pytest.raises(ValueError, match="mixes single and campaign"):
+        validate_mutation_campaign_artifact_generation(campaign_out)
+
+
+def test_generation_validators_reject_symlinked_members(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    source_payload = _read_object(files.runset)
+    single_execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id=_OPERATOR,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+    )
+    campaign_execution = execute_mutation_campaign(
+        suite,
+        source_payload,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+
+    single_out = tmp_path / "single-symlink-member"
+    write_mutation_artifacts(single_execution, single_out)
+    single_member = single_out / MUTATION_RESULT_FILENAME
+    single_target = tmp_path / "single-result-target.json"
+    os.replace(single_member, single_target)
+    try:
+        single_member.symlink_to(single_target)
+    except OSError as exc:
+        pytest.skip(f"file symlinks are unavailable: {exc}")
+
+    with pytest.raises(ValueError, match="must be a regular file"):
+        validate_mutation_artifact_generation(single_out)
+    single_target_bytes = single_target.read_bytes()
+
+    campaign_out = tmp_path / "campaign-symlink-member"
+    write_mutation_campaign_artifacts(campaign_execution, campaign_out)
+    campaign_member = campaign_out / "operator-000-mutation-result.json"
+    campaign_target = tmp_path / "campaign-result-target.json"
+    os.replace(campaign_member, campaign_target)
+    campaign_member.symlink_to(campaign_target)
+
+    with pytest.raises(ValueError, match="must be a regular file"):
+        validate_mutation_campaign_artifact_generation(campaign_out)
+    assert single_target.read_bytes() == single_target_bytes
+
+
+def test_generation_validators_enforce_per_file_and_aggregate_bounds(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    source_payload = _read_object(files.runset)
+    execution = execute_mutation(
+        suite,
+        source_payload,
+        operator_id=_OPERATOR,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+    )
+    out = tmp_path / "bounded-single-generation"
+    write_mutation_artifacts(execution, out)
+
+    with monkeypatch.context() as bounded_file:
+        bounded_file.setattr(mutation_reporting, "MAX_ARTIFACT_JSON_BYTES", 1)
+        with pytest.raises(ValueError, match="exceeds maximum supported size"):
+            validate_mutation_artifact_generation(out)
+
+    manifest_size = (out / MUTATION_GENERATION_MANIFEST_FILENAME).stat().st_size
+    with monkeypatch.context() as bounded_generation:
+        bounded_generation.setattr(
+            mutation_reporting,
+            "_MAX_SINGLE_GENERATION_BYTES",
+            manifest_size,
+        )
+        with pytest.raises(ValueError, match="maximum aggregate size"):
+            validate_mutation_artifact_generation(out)
+
+    campaign_execution = execute_mutation_campaign(
+        suite,
+        source_payload,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+    campaign_out = tmp_path / "bounded-campaign-generation"
+    write_mutation_campaign_artifacts(campaign_execution, campaign_out)
+    campaign_manifest_size = (
+        campaign_out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
+    ).stat().st_size
+    with monkeypatch.context() as bounded_campaign:
+        bounded_campaign.setattr(
+            campaign_reporting,
+            "_MAX_CAMPAIGN_GENERATION_BYTES",
+            campaign_manifest_size,
+        )
+        with pytest.raises(ValueError, match="maximum aggregate size"):
+            validate_mutation_campaign_artifact_generation(campaign_out)
+
+
+@pytest.mark.skipif(
+    os.path.normcase("Artifact.JSON") != os.path.normcase("artifact.json"),
+    reason="requires a case-insensitive filesystem",
+)
+def test_campaign_writer_cleans_stale_case_variant_artifact(
+    tmp_path: Path,
+) -> None:
+    files = _write_fixture_files(tmp_path)
+    suite = load_compiled_suite(files.compiled_suite)
+    source_payload = _read_object(files.runset)
+    first = execute_mutation_campaign(
+        suite,
+        source_payload,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR, "bypass-required-human-review"),
+    )
+    second = execute_mutation_campaign(
+        suite,
+        source_payload,
+        seed=17,
+        generated_at="2026-07-20T00:00:00Z",
+        operator_ids=(_OPERATOR,),
+    )
+    out = tmp_path / "campaign-case-cleanup"
+    write_mutation_campaign_artifacts(first, out)
+    stale = out / "operator-001-mutation-result.json"
+    case_variant = out / "OPERATOR-001-MUTATION-RESULT.JSON"
+    os.replace(stale, case_variant)
+
+    write_mutation_campaign_artifacts(second, out)
+
+    assert not case_variant.exists()
+    validate_mutation_campaign_artifact_generation(out)
 
 
 def test_controls_mutate_accepts_yaml_and_persists_canonical_reproducible_artifacts(
@@ -605,7 +1188,7 @@ def test_safe_lock_open_normalizes_nofollow_symlink_rejection(
     def reject_symlink(_path: Path, _flags: int, _mode: int) -> int:
         raise OSError(errno.ELOOP, "Too many levels of symbolic links")
 
-    monkeypatch.setattr(mutation_reporting.os, "open", reject_symlink)
+    monkeypatch.setattr(os, "open", reject_symlink)
 
     with pytest.raises(OSError, match="refusing unsafe mutation output lock path"):
         mutation_reporting._open_safe_lock_file(tmp_path / MUTATION_OUTPUT_LOCK_FILENAME)
@@ -944,6 +1527,41 @@ def _invoke_mutate(
     )
 
 
+def _invoke_campaign(
+    suite: Path,
+    runset: Path,
+    out: Path,
+    *,
+    operators: tuple[str, ...] = (_OPERATOR,),
+    seed: int = 17,
+    extra_args: tuple[str, ...] = (),
+) -> Result:
+    operator_args = [
+        argument
+        for operator in operators
+        for argument in ("--operator", operator)
+    ]
+    return _RUNNER.invoke(
+        app,
+        [
+            "controls",
+            "mutate",
+            "--suite",
+            str(suite),
+            "--runset",
+            str(runset),
+            "--catalog",
+            CORE_MUTATION_CATALOG_ID,
+            *operator_args,
+            "--seed",
+            str(seed),
+            *extra_args,
+            "--out",
+            str(out),
+        ],
+    )
+
+
 def _write_fixture_files(tmp_path: Path) -> _FixtureFiles:
     suite_yaml = tmp_path / "suite.yaml"
     suite_yaml.write_text(
@@ -983,6 +1601,12 @@ cases:
                 outcome="approved",
                 input_summary="synthetic input",
                 output_summary="synthetic output",
+                evidence_refs=(
+                    EvidenceRef(
+                        ref_id="evidence-a",
+                        source_id="source-a",
+                    ),
+                ),
                 evidence_items=(
                     EvidenceItem(
                         ref_id="evidence-a",

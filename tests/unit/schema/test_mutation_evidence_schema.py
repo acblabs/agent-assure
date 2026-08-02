@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import subprocess
 import sys
 from collections.abc import Callable
@@ -10,9 +11,10 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
+from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import GateState, ReasonCode
-from agent_assure.schema.export import SCHEMA_MODELS
+from agent_assure.schema.export import SCHEMA_MODELS, writer_json_schema
 from agent_assure.schema.mutation import (
     ASSURANCE_MUTATION_METHOD_ID,
     ASSURANCE_MUTATION_PREREQUISITE_CHECK_IDS,
@@ -271,6 +273,25 @@ def _evidence_descriptor(**overrides: object) -> AssuranceEvidenceDescriptor:
     return AssuranceEvidenceDescriptor.build(**values)
 
 
+def _legacy_mutation_operator() -> AssuranceMutationOperator:
+    return _mutation_operator(
+        schema_version="0.6.0",
+        expected_detection_contract=_detector_contract(schema_version="0.6.0"),
+    )
+
+
+def _legacy_mutation_result() -> AssuranceMutationResult:
+    return _mutation_result(schema_version="0.6.0")
+
+
+def _legacy_evidence_descriptor() -> AssuranceEvidenceDescriptor:
+    return _evidence_descriptor(schema_version="0.6.0")
+
+
+def _legacy_detector_contract() -> ExpectedDetectionContract:
+    return _detector_contract(schema_version="0.6.0")
+
+
 @pytest.mark.parametrize(
     ("artifact_kind", "factory"),
     (
@@ -291,6 +312,121 @@ def test_new_artifacts_have_model_jsonschema_and_validation_parity(
     assert model.model_validate(payload).model_dump(mode="json") == payload
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
     assert validate_artifact_payload(payload, artifact_kind) == "pydantic+jsonschema"
+
+
+@pytest.mark.parametrize(
+    ("artifact_kind", "factory", "digest_field"),
+    (
+        (
+            "assurance-evidence-descriptor",
+            _legacy_evidence_descriptor,
+            "evidence_digest",
+        ),
+        ("assurance-mutation-operator", _legacy_mutation_operator, "operator_digest"),
+        ("assurance-mutation-result", _legacy_mutation_result, "result_digest"),
+        ("expected-detection-contract", _legacy_detector_contract, "contract_digest"),
+    ),
+)
+def test_frozen_v060_contracts_apply_self_digest_validation_after_shape(
+    artifact_kind: str,
+    factory: Callable[[], StrictModel],
+    digest_field: str,
+) -> None:
+    payload = factory().model_dump(mode="json")
+
+    assert validate_artifact_payload(payload, artifact_kind) == "frozen-jsonschema"
+
+    payload[digest_field] = "0" * 64
+    frozen_schema = json.loads(
+        (ROOT / "schemas" / "v0.6.0" / f"{artifact_kind}.schema.json").read_text(encoding="utf-8")
+    )
+    Draft202012Validator(frozen_schema).validate(payload)
+    with pytest.raises(ValueError, match="failed model validation"):
+        validate_artifact_payload(payload, artifact_kind)
+
+
+def test_frozen_v060_contract_applies_relational_validation_after_shape() -> None:
+    contract = _detector_contract(
+        schema_version="0.6.0",
+        target_control_ids=(
+            "material_claims_have_evidence",
+            "runtime_success_required",
+        ),
+    )
+    payload = contract.model_dump(mode="json")
+    payload["target_control_ids"] = list(reversed(payload["target_control_ids"]))
+    payload["contract_digest"] = sha256_hexdigest(
+        {key: value for key, value in payload.items() if key != "contract_digest"}
+    )
+    frozen_schema = json.loads(
+        (ROOT / "schemas" / "v0.6.0" / "expected-detection-contract.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+
+    # Canonical ordering is a runtime relation, not a frozen shape rule.
+    Draft202012Validator(frozen_schema).validate(payload)
+    with pytest.raises(ValueError, match="failed model validation"):
+        validate_artifact_payload(payload, "expected-detection-contract")
+
+
+def test_current_wire_schemas_pin_each_persisted_model_to_its_own_default() -> None:
+    for artifact_kind, model in SCHEMA_MODELS.items():
+        schema = writer_json_schema(model)
+        pending: list[object] = [schema]
+        declarations: list[dict[str, object]] = []
+        while pending:
+            value = pending.pop()
+            if isinstance(value, dict):
+                properties = value.get("properties")
+                if isinstance(properties, dict):
+                    declaration = properties.get("schema_version")
+                    if (
+                        isinstance(declaration, dict)
+                        and declaration.get("title") == "Schema Version"
+                    ):
+                        declarations.append(declaration)
+                pending.extend(value.values())
+            elif isinstance(value, list):
+                pending.extend(value)
+
+        assert declarations, artifact_kind
+        for declaration in declarations:
+            assert declaration.get("const") == declaration.get("default"), artifact_kind
+            assert not {"anyOf", "enum", "oneOf"} & declaration.keys(), artifact_kind
+
+    run_schema = writer_json_schema(SCHEMA_MODELS["agent-run-record"])
+    definitions = run_schema["$defs"]
+    assert definitions["EvidenceRef"]["properties"]["schema_version"]["const"] == ("0.6.1")
+    assert definitions["UsageSummary"]["properties"]["schema_version"]["const"] == ("0.4.3")
+
+
+@pytest.mark.parametrize(
+    "reason_code",
+    (
+        ReasonCode.EVIDENCE_PROVENANCE_MISMATCH,
+        ReasonCode.RUNSET_INCOMPLETE,
+    ),
+)
+def test_frozen_v060_writer_validation_rejects_post_v060_reason_codes(
+    reason_code: ReasonCode,
+) -> None:
+    contract = _detector_contract(
+        schema_version="0.6.0",
+        required_findings=RequiredFindingAlternatives(
+            any_of=(
+                FindingSelector(
+                    control_id="material_claims_have_evidence",
+                    reason_code=reason_code,
+                ),
+            ),
+        ),
+    )
+    payload = contract.model_dump(mode="json")
+
+    assert ExpectedDetectionContract.model_validate(payload) == contract
+    with pytest.raises(JsonSchemaValidationError):
+        validate_artifact_payload(payload, "expected-detection-contract")
 
 
 @pytest.mark.parametrize(
@@ -882,6 +1018,15 @@ def test_operator_provenance_rejects_manifest_tampering_and_duplicate_ids() -> N
     )
     with pytest.raises(ValidationError, match="component IDs must be unique"):
         OperatorProvenance.model_validate(payload)
+
+
+def test_operator_provenance_accepts_release_candidate_introduction() -> None:
+    payload = _provenance().model_dump(mode="json")
+    payload["introduced_in_release"] = "0.6.1rc1"
+
+    provenance = OperatorProvenance.model_validate(payload)
+
+    assert provenance.introduced_in_release == "0.6.1rc1"
 
 
 def test_unknown_operator_provenance_cannot_invent_release_or_control_facts() -> None:

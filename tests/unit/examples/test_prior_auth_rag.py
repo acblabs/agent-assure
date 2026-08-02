@@ -27,6 +27,7 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     retrieval_output_payload,
     retrieve_for_variant,
 )
+from agent_assure.policies.evidence import claim_finding_target
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 
@@ -404,7 +405,9 @@ def test_rag_hero_candidate_preserves_decision_and_fails_material_claim_link() -
     assert candidate_report.candidate_vs_expectations.findings[0].reason_code is (
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
     )
-    assert candidate_report.candidate_vs_expectations.findings[0].target == "claim:claim-duration"
+    assert candidate_report.candidate_vs_expectations.findings[0].target == (
+        claim_finding_target("claim-duration")
+    )
     assert comparison.comparison_summary.classification is ComparisonClassification.new_failure
     assert comparison.comparison_summary.fixture_equivalence_state is GateState.pass_
 

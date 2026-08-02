@@ -37,6 +37,9 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
     assert "agent_assure/schema_resources/v0.3.0/agent-run-record.schema.json" in required
     assert "agent_assure/schema_resources/v0.3.0/evidence-packet.schema.json" in required
     assert "agent_assure/mutation/introduction_snapshots.json" in required
+    assert "agent_assure/mutation/campaign.py" in required
+    assert "agent_assure/reporting/campaign.py" in required
+    assert "agent_assure/schema/campaign.py" in required
     assert (
         "agent_assure/examples/prior_auth_synthetic/fixtures/rag/"
         "counterfactual_query_families.json"
@@ -58,6 +61,35 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
         "agent_assure/examples/streaming_process_regression/events/"
         "candidate_review_bypassed.jsonl"
     ) in required
+
+
+def test_required_archive_paths_include_v061_campaign_contracts(
+    tmp_path: Path,
+) -> None:
+    schema_root = tmp_path / "schemas"
+    version_root = schema_root / "v0.6.1"
+    version_root.mkdir(parents=True)
+    for name in (
+        "assurance-mutation-campaign.schema.json",
+        "assurance-mutation-catalog.schema.json",
+        "run-set.schema.json",
+    ):
+        (version_root / name).write_text("{}\n", encoding="utf-8")
+
+    required = required_archive_paths(
+        schema_root=schema_root,
+        schema_versions=("v0.6.1",),
+    )
+
+    assert (
+        "agent_assure/schema_resources/v0.6.1/"
+        "assurance-mutation-campaign.schema.json"
+    ) in required
+    assert (
+        "agent_assure/schema_resources/v0.6.1/"
+        "assurance-mutation-catalog.schema.json"
+    ) in required
+    assert "agent_assure/schema_resources/v0.6.1/run-set.schema.json" in required
 
 
 def test_frozen_schema_versions_are_discovered_from_schema_root(tmp_path: Path) -> None:

@@ -27,11 +27,31 @@ controls:
       tactics: [AML.TA0011]
       techniques: [AML.T0029]
     project_threats: [fixture-runtime-failure]
+  - id: runset_completion_required
+    status: evaluated
+    nist_ai_rmf: [Measure]
+    iso_iec_42001_areas: [monitoring, accountability]
+    owasp_risks: [LLM08]
+    mitre_atlas:
+      mapping_strength: not_applicable
+      tactics: []
+      techniques: []
+    project_threats: [fixture-runtime-failure]
   - id: structured_output_required
     status: evaluated
     nist_ai_rmf: [Measure]
     iso_iec_42001_areas: [documentation, monitoring]
     owasp_risks: [LLM02]
+    mitre_atlas:
+      mapping_strength: not_applicable
+      tactics: []
+      techniques: []
+    project_threats: [invalid-structured-record]
+  - id: valid_record_required
+    status: evaluated
+    nist_ai_rmf: [Measure]
+    iso_iec_42001_areas: [documentation, monitoring]
+    owasp_risks: [LLM05]
     mitre_atlas:
       mapping_strength: not_applicable
       tactics: []
@@ -57,6 +77,16 @@ controls:
       tactics: [AML.TA0007]
       techniques: [AML.T0067.000]
     project_threats: [material-claim-link-regression]
+  - id: evidence_provenance_identity
+    status: evaluated
+    nist_ai_rmf: [Measure, Govern]
+    iso_iec_42001_areas: [transparency, documentation, accountability]
+    owasp_risks: [LLM09]
+    mitre_atlas:
+      mapping_strength: not_applicable
+      tactics: []
+      techniques: []
+    project_threats: [evidence-provenance-mismatch]
   - id: tool_allowlist
     status: evaluated_when_configured
     nist_ai_rmf: [Measure, Manage]

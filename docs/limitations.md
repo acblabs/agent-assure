@@ -25,22 +25,45 @@ PHI de-identification.
 ## Assurance Mutation Boundary
 
 A single-operator result covers one exact source digest, operator version,
-implementation digest, seed, expected-detection contract, and configured
-control set. `caught` means the required target-control finding and gate effect
-were observed. `survived` means an applicable, valid transformation did not
-satisfy that detector contract. `inapplicable`, invalid, and execution-error
-states remain separate.
+implementation digest, seed, expected-detection contract, gate profile, waiver
+set, evaluation date, and configured control set. `caught` means the required
+target-control finding, privacy-minimized target binding, and gate effect were
+observed. `survived` means an applicable, valid transformation did not satisfy
+that detector contract. `inapplicable`, invalid, and execution-error states
+remain separate.
 
-The three built-in operators are authored after the controls they challenge,
-so their independence class is `first_party_postcontrol`. They are useful
+The `core/v1` campaign binds that same boundary to one exact suite and source,
+the canonical catalog digest, a selected operator subsequence, mode, and
+campaign seed. All selected operators run independently against the same
+immutable source. Transformations are not chained or composed. Full-report
+mode isolates an operator failure and continues; fail-fast mode records the
+unexecuted canonical suffix when it stops.
+
+All seven built-in operators are authored after the controls they challenge, so
+their independence class is `first_party_postcontrol`. They are useful
 deterministic checks, but they can share assumptions with the target controls
 and are weaker independence evidence than an external pre-existing or
 third-party-contributed challenge.
 
 These authored transformations are not a random sample of production failures.
 Their results do not estimate failure prevalence or the probability that a
-release is safe. The initial command applies one operator at a time; it does
-not compose transformations, discover new ones, or claim catalog completeness.
+release is safe. The catalog is finite: campaign output is not a safety score,
+mutation kill rate, statistical confidence interval, or universal-coverage
+claim. It does not discover new operators, generate attacks, or establish
+catalog completeness.
+
+The privacy-redaction operator is a narrow exception to ordinary fail-closed
+candidate privacy validation. It permits only the catalog's fixed, clearly
+synthetic marker under the exact operator identity, changed path, privacy
+classification, and expected-detector contract. It does not permit arbitrary
+sensitive content and uses no real personal, clinical, credential, or payment
+data.
+
+Third-party cases enter through reviewed source and synthetic-fixture pull
+requests, not executable plugin loading. Until truthful immutable introduction
+provenance is available, an operator remains development-only. See the
+[core mutation catalog](mutation_catalog.md) for the complete mapping,
+reproducibility boundary, and contribution requirements.
 
 Live stochastic work requires an explicit run configuration and a matching
 machine-readable protocol record. Reports support declared pass-rate,

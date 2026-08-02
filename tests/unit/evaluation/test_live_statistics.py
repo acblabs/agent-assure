@@ -399,6 +399,21 @@ def test_live_evaluation_report_rejects_tampered_group_membership() -> None:
         LiveEvaluationReport.model_validate(payload)
 
 
+def test_v060_live_evaluation_retains_execution_and_summary_invariants() -> None:
+    report = _aggregate_validation_report()
+    payload = report.model_dump(mode="json")
+    payload["schema_version"] = "0.6.0"
+    payload["configuration_digest"] = None
+
+    with pytest.raises(ValueError, match="suite and configuration digests"):
+        LiveEvaluationReport.model_validate(payload)
+
+    payload["configuration_digest"] = report.configuration_digest
+    payload["overall"]["observations"] += 1
+    with pytest.raises(ValueError, match="overall summary observations count"):
+        LiveEvaluationReport.model_validate(payload)
+
+
 def test_live_binding_rejects_mismatched_suite_and_configuration_digests() -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)

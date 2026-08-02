@@ -43,6 +43,24 @@ def test_frozen_runset_preserves_optional_artifact_kind_contract() -> None:
         validation.validate_artifact_payload(payload, "run-set")
 
 
+def test_v060_runset_routes_through_immutable_frozen_schema() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "schema_version": "0.6.0",
+        "runset_id": "runset-v060",
+        "suite_id": "suite-v060",
+        "suite_version": "0.6.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "runs": [],
+    }
+
+    assert "0.6.0" in validation.FROZEN_SCHEMA_VERSIONS
+    assert validation.validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
+
+
 def test_frozen_schema_requires_expected_self_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         validation,
@@ -116,7 +134,7 @@ def test_runtime_schema_validation_error_does_not_echo_instance_values(
     secret = "patient-secret-should-not-appear"
     payload = {
         "artifact_kind": "run-set",
-        "schema_version": "0.6.0",
+        "schema_version": "0.6.1",
     }
 
     def reject(_schema: dict[str, object], _payload: dict[str, object]) -> None:
@@ -134,18 +152,18 @@ def test_runtime_model_validation_error_does_not_echo_instance_values() -> None:
     secret = "patient-secret-duplicate-role"
     payload = {
         "artifact_kind": "release-digest-replay",
-        "schema_version": "0.6.0",
+        "schema_version": "0.6.1",
         "artifacts": [
             {
                 "artifact_kind": "release-replay-artifact",
-                "schema_version": "0.6.0",
+                "schema_version": "0.6.1",
                 "role": secret,
                 "path": "first.json",
                 "sha256": "0" * 64,
             },
             {
                 "artifact_kind": "release-replay-artifact",
-                "schema_version": "0.6.0",
+                "schema_version": "0.6.1",
                 "role": secret,
                 "path": "second.json",
                 "sha256": "1" * 64,

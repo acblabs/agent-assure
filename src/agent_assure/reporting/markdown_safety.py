@@ -1,19 +1,19 @@
 from __future__ import annotations
 
-from agent_assure.privacy.redaction import redact_text
+from agent_assure.reporting.text_safety import sanitize_display_text
 
 _MARKDOWN_SPECIAL_CHARS = frozenset("\\`*_{}[]!|<>")
 
 
 def markdown_text(value: object) -> str:
     """Redact and escape text before placing it in Markdown prose."""
-    text = " ".join(redact_text(str(value)).split())
+    text = sanitize_display_text(value)
     return "".join(_escape_markdown_char(char) for char in text)
 
 
 def markdown_code(value: object) -> str:
     """Redact text for inline code spans without allowing span breakout."""
-    text = " ".join(redact_text(str(value)).split())
+    text = sanitize_display_text(value)
     return (
         text.replace("`", "'")
         .replace("<", "&lt;")

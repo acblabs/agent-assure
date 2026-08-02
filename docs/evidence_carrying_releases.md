@@ -4,13 +4,15 @@ Contract status: development RFC for the `v1` evidence and mutation contracts.
 
 `agent-assure` is an Agent Release Assurance Compiler. It applies individually
 selected, versioned challenges to privacy-filtered agent-process artifacts and
-records whether the declared control emitted its expected finding. The result
-is scoped evidence about one subject, operator, and control contract. It is not
-a general safety or compliance conclusion.
+records whether the declared control emitted its expected finding. A campaign
+can run a canonical catalog selection, but every operator still executes
+independently against the same immutable source. The result is scoped evidence
+about one subject, operator, and control contract. It is not a general safety
+or compliance conclusion.
 
 ## Contract Set
 
-The initial contract set has four durable JSON objects:
+The contract set has six durable JSON objects:
 
 - `AssuranceEvidenceDescriptor/v1` carries method identity, scope,
   prerequisites, assumptions, limitations, dependencies, and validity.
@@ -21,11 +23,22 @@ The initial contract set has four durable JSON objects:
 - `AssuranceMutationResult/v1` binds the source, transformed subject, operator,
   observed findings, and semantic state. The evidence descriptor depends on
   the result digest so the two-artifact relationship is explicit and acyclic.
+- `AssuranceMutationCatalog/v1` publishes the canonically ordered closed
+  catalog, full operator descriptors, invariant families, threat-source
+  references, limitations, and a catalog self-digest.
+- `AssuranceMutationCampaign/v1` binds one source and suite to the catalog
+  digest, selection and execution order, seed, mode, per-operator results,
+  pending operators, completion state, and limitations.
 
-Each root uses persisted `schema_version: 0.6.0`, a `contract_id` ending in
-`/v1`, and `contract_version: 1.0.0`. The contract version identifies method
-semantics; the schema version identifies the persisted JSON shape. A contract
-version must not be used to relabel an artifact from another schema release.
+Current roots use persisted `schema_version: 0.6.1`, a `contract_id` ending in
+`/v1`, and `contract_version: 1.0.0`. The four contracts introduced in v0.6.0
+also accept their frozen v0.6.0 representation through version-aware reads;
+catalog and campaign roots begin at v0.6.1. Current builders emit v0.6.1 by
+default, and official writers validate the selected version before persistence.
+Fields and reason codes introduced after v0.6.0 therefore cannot be written
+under a v0.6.0 label. The contract version identifies method semantics; the schema
+version identifies the persisted JSON shape. A contract version must not be
+used to relabel an artifact from another schema release.
 
 ## Evidence Descriptor
 
@@ -37,7 +50,7 @@ each execution; all other values are producer-owned contract values.
 ```yaml
 artifact_kind: assurance-evidence-descriptor
 schema_name: assurance-evidence-descriptor
-schema_version: 0.6.0
+schema_version: 0.6.1
 contract_id: AssuranceEvidenceDescriptor/v1
 contract_version: 1.0.0
 evidence_id: "ev-control-efficacy-<result-digest-prefix-24-hex>"
@@ -60,7 +73,7 @@ scope:
 method:
   method_id: assurance-mutation/core/v1
   implementation_digest: "<evaluator-implementation-digest-64-lowercase-hex>"
-  implementation_version: 0.6.0
+  implementation_version: 0.6.1
   evaluation_basis: deterministic
 
 result:
@@ -118,7 +131,7 @@ dependencies:
     digest: "<mutation-result-digest-64-lowercase-hex>"
 producer:
   name: agent-assure
-  version: 0.6.0
+  version: 0.6.1
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 
@@ -135,8 +148,8 @@ verdict-bearing, and only such non-verdict evidence may omit the subject digest.
 `generated_at` remains inside the descriptor projection, so `evidence_digest`
 identifies one emission and may differ when the same deterministic mutation is
 described again. Replay must anchor on the mutation `result_digest` and, when a
-mutation was produced, the canonical mutated RunSet bytes—not on
-`evidence_digest`.
+mutation was produced, `mutated_digest` over the validated candidate model
+projection, not on `evidence_digest`.
 The `assurance-mutation/core/v1` method requires exactly the four canonical
 checks shown above, in this order: `subject-valid`, `operator-valid`,
 `operator-applicable`, and `mutation-execution-completed`. Limitations remain
@@ -159,9 +172,13 @@ Each operator candidate in this development RFC declares:
 - independence class; and
 - one expected-detection contract and its digest.
 
-The engine validates the source, works from an immutable copy, checks that no
-undeclared path changed, and validates the transformed object. The same source
-digest, complete operator identity, and integer seed produce identical
+The engine establishes `source_digest` as SHA-256 over the RFC 8785 canonical
+bytes of the version-aware schema-validated, current `RunSet` model JSON
+projection. That projection retains the accepted `schema_version` and
+materializes schema-permitted omitted defaults; it is not the raw accepted
+mapping or source file bytes. The engine works from an immutable copy, checks
+that no undeclared path changed, and validates the transformed object. The same
+source digest, complete operator identity, and integer seed produce identical
 transformed bytes. `result_digest` self-hashes every serialized result field
 except `result_digest` itself, so it is identical only when the complete result
 projection is unchanged. That projection includes the source and transformed
@@ -173,6 +190,15 @@ matches, state, diagnostics, and limitations.
 CLI replay that requires an identical result digest must therefore pass the
 same `--today` value. If `--today` is omitted, the command uses the current date,
 which is intentionally part of the result digest.
+
+Catalog campaigns create no source digest until an ordered source preflight
+succeeds: strict JSON values, version-aware RunSet validation/current-model
+projection, then bound-profile privacy scans of both the copied input and
+projection. The canonical-identity, projection, and privacy rejection classes
+use separate fixed non-sensitive messages and stop before catalog construction,
+operator execution, or artifact publication. The CLI treats each as campaign-
+level invalid input with exit `2`. A single-operator invocation instead carries
+schema and source-privacy failures as bounded `invalid_subject` evidence.
 
 Changed paths use schema-owned JSON Pointer identities. Reports contain paths,
 digests, reason codes, and bounded summaries rather than copied field content.
@@ -192,21 +218,38 @@ that document from the immutable introduction commit and requires it to match
 the carried `introduction_components`, so a later release cannot silently
 rewrite the claimed historical binding.
 
-Source line endings are normalized to LF before hashing. The catalog component
-additionally normalizes only the administrative `introduced_at_commit` literal,
-so the required follow-up stamping commit does not circularly change the method
-identity it authenticates. All other source bytes remain identity-bearing.
+Source line endings are normalized to LF before hashing. For the catalog's
+method-component identity only, administrative `introduced_at_commit` literals
+and the pending `evidence_provenance_identity` value in
+`_CONTROL_FIRST_SEEN_COMMITS` are normalized to `git:uncommitted`. This keeps
+the required follow-up provenance-only stamp from changing the normalized
+method identity. It does not authenticate the declarations or prove that a
+named control existed; the serialized provenance retains the unnormalized
+values. All other source bytes remain identity-bearing.
+
 Once `introduced_at_commit` identifies an immutable Git commit, release
-preparation replays the frozen introduction-component digests and verifies the
-authored target-control snapshot against the corresponding blobs in that
-commit. It does not compare current component bytes with historical bytes. It
-also requires `introduced_in_release` to be no newer than the concrete expected
+preparation verifies provenance separately from method-identity normalization.
+It replays the frozen introduction-component digests and verifies the authored
+target-control snapshot against the corresponding blob at the operator
+introduction commit. It also reads the mapped control source at each declared
+`first_seen_commit`, parses it as Python, locates the control's explicitly
+mapped top-level implementation function, and requires an exact
+`ControlResult(control_id="<declared ID>", ...)` keyword literal outside a
+statically false conditional branch and before an unconditional terminal
+statement in its sequential block. Unavailable or unparseable first-seen source,
+a missing or ambiguous mapped function, and a function without that exact
+literal fail closed. This source check proves only that the literal occurs in
+the mapped implementation function under that bounded static filter; it does
+not prove that the function is invoked or that the call is executable for a
+particular runtime input. The guard does not compare current component bytes
+with historical bytes. It
+requires `introduced_in_release` to be no newer than the concrete expected
 package/tag version under release-candidate-aware SemVer precedence, proves that
 the introduction commit is an ancestor of the release commit, and proves each
 target control's `first_seen_commit` is an ancestor of the operator introduction.
-This establishes that the operator bindings and target existed in the claimed
-history while allowing their current implementation identity to evolve in later
-releases. An unstamped
+Together, the source-content and ancestry checks establish that the operator
+bindings and named target existed in the claimed history while allowing their
+current implementation identity to evolve in later releases. An unstamped
 `git:uncommitted` operator remains usable for local development but fails
 release provenance validation; ancestry cannot be asserted until the
 implementation has been committed and the follow-up provenance stamp exists.
@@ -228,7 +271,7 @@ An expected-detection contract is explicit:
 ```yaml
 artifact_kind: expected-detection-contract
 schema_name: expected-detection-contract
-schema_version: 0.6.0
+schema_version: 0.6.1
 contract_id: ExpectedDetectionContract/v1
 contract_version: 1.0.0
 contract_digest: <64 lowercase hexadecimal characters>
@@ -250,7 +293,11 @@ secondary_findings_allowed: true
 gate effect. An unrelated parser, schema, runtime, or policy failure does not
 count. If the transformation accidentally creates an invalid subject, the
 result is `invalid_operator`, not `caught`. Every referenced control and reason
-code must exist in the running implementation.
+code must exist in the running implementation. Every current built-in contract
+permits newly observed findings other than its normative match and explicit
+prohibited substitutes. Those secondary findings remain visible in the result,
+but they do not prevent `caught`; `caught` therefore does not assert exclusive
+or clean detector isolation.
 
 Gate effects are evaluated against the report's authoritative projections:
 `block` requires failed-control membership, `review` requires warning-only
@@ -260,18 +307,64 @@ with the same non-gating projection in this contract version.
 
 ## Built-In Operators
 
-The initial built-ins target three existing deterministic control families:
+The closed `core/v1` catalog contains seven stable operators:
 
 | Operator | Permitted change | Expected control | Expected reason code |
 | --- | --- | --- | --- |
 | `drop-material-evidence-link` | Remove all evidence links for one applicable material claim | `material_claims_have_evidence` | `MATERIAL_CLAIM_MISSING_EVIDENCE` |
 | `bypass-required-human-review` | Remove the applicable required/performed review state | `human_review_required` | `REQUIRED_HUMAN_REVIEW_ABSENT` |
 | `inject-forbidden-tool` | Add one tool outside the applicable allowlist or in the forbidden set | `tool_allowlist` | `FORBIDDEN_TOOL` |
+| `skew-evidence-source-identity` | Change one reference-side source ID without changing evidence bytes or digests | `evidence_provenance_identity` | `EVIDENCE_PROVENANCE_MISMATCH` |
+| `inject-synthetic-sensitive-summary` | Replace one eligible summary with the catalog's fixed synthetic privacy marker | `redaction_required` | `RAW_SENSITIVE_CONTENT` |
+| `replay-duplicate-case-observation` | Append one exact replay of a unique included observation | `valid_record_required` | `VALID_RECORD_MISSING` |
+| `mark-incomplete-budget-stop` | Mark a complete RunSet incomplete with the fixed synthetic budget-stop reason | `runset_completion_required` | `RUNSET_INCOMPLETE` |
+
+`evidence_provenance_identity` is always evaluated for the union of `ref_id`
+values in `evidence_refs` and `evidence_items`; it is not enabled only for a
+mutation campaign. Missing reference or item records and conflicting or
+multiple source identities fail closed. Findings carry a domain-separated
+digest target rather than copying caller-controlled reference or source IDs.
+Required-evidence findings use that same reference-ID target projection.
+Material-claim findings use a separate domain-separated claim-ID target; both
+controls use generic messages rather than copying suite-authored identifiers.
+The material-claim linkage control separately requires a linked ID to have both
+a reference and a content-addressed item.
 
 Applicability describes whether the source has a valid mutation target. It is
 separate from whether the configured control detects the change. A deliberately
 weakened control can therefore yield `survived` for an otherwise applicable
 operator.
+
+The exact invariant-family, threat-source, provenance, independence,
+transformation, and contribution contracts are published in the
+[core mutation catalog](mutation_catalog.md).
+
+## Catalog and Campaign Contracts
+
+`AssuranceMutationCatalog/v1` uses catalog ID `core/v1` and
+`operator-id-lexicographic/v1` ordering. Its RFC 8785/SHA-256
+`catalog_digest` excludes only itself. It covers every other serialized field,
+including the ordering semantics, full operator and expected-detector
+identities, implementation manifests, provenance, independence classes,
+invariant families, threat-source references, stable markers, and limitations.
+It identifies content; it does not authenticate the producer, establish
+release provenance, or constitute external validation.
+
+`AssuranceMutationCampaign/v1` records the source and suite digests, catalog ID
+and digest, producer version, mode, campaign seed, canonical catalog order,
+selected order, executed order, pending order, per-operator applicability and
+results, completion state, and limitations. Each entry embeds its complete
+expected-detection contract and records observed prohibited-substitute finding
+IDs separately. Full-report mode executes every selected operator. Fail-fast
+mode stops only after `survived`, `invalid_operator`, `invalid_subject`, or
+`execution_error`; caught and inapplicable results do not stop it.
+
+Every entry uses the same seed and immutable source. Mutations are not chained
+or composed. Exact replay requires the same source and suite, catalog and
+selected order, package/operator/evaluator identities, gate profile, waiver
+set, evaluation date, mode, and seed. See the
+[core mutation catalog](mutation_catalog.md#exact-reproducibility-inputs) for
+the complete input boundary and interpretation limits.
 
 ## Result Contract
 
@@ -306,9 +399,13 @@ every frozen legacy RunSet schema loaded during validation, in addition to the
 runtime dependency versions. This deliberately over-binds the implementation
 rather than allowing an unreviewed transitive import to affect findings under
 an unchanged evaluator identity. Evaluation reports also carry the canonical
-digest of the RunSet content they evaluated; mutation execution rejects a
-source or candidate report whose ID or content digest does not match. A
-programmatic custom or deliberately weakened evaluator is accepted only through
+digest of the validated `RunSet` model projection they evaluated. Campaign
+`source_digest`, nested mutation result `source_digest`, evidence-descriptor
+subject digest, and the source report `runset_digest` therefore share one
+identity; `mutated_digest` similarly matches the candidate report. Mutation
+execution rejects a source or candidate report whose ID or content digest does
+not match. A programmatic custom or deliberately weakened evaluator is accepted
+only through
 an explicit `MutationEvaluatorBinding` carrying its callable, method ID,
 semantic implementation version, and non-zero implementation digest. A bare
 callable has no admissible evaluator provenance.
@@ -372,6 +469,36 @@ semantics as deterministic evaluation. Its documented RFC exit map is:
 The result artifact preserves the more specific invalid state even though both
 invalid states share exit `2`.
 
+Canonical campaign execution uses:
+
+```bash
+agent-assure controls mutate \
+  --suite assurance/suite.yaml \
+  --runset runs/baseline.json \
+  --catalog core/v1 \
+  --seed 0 \
+  --today 2026-07-20 \
+  --full-report \
+  --out reports/control-challenge
+```
+
+`--full-report` is the default and is mutually exclusive with `--fail-fast`.
+`--operator`, `--invariant-family`, and `--threat-id` are repeatable filters.
+Operator selection and execution remain in canonical catalog order regardless
+of CLI flag order. Campaign output uses deterministic failure precedence with
+an all-inapplicable sentinel:
+`execution_error` (`4`), invalid (`2`), `survived` (`1`), all-inapplicable
+(`3`), then caught or mixed caught/inapplicable (`0`).
+
+The fixed global outputs are `assurance-mutation-catalog.json`,
+`assurance-mutation-campaign.json`, and
+`mutation-campaign-generation-manifest.json`. Executed entries use
+`operator-NNN-mutation-result.json`,
+`operator-NNN-evidence-descriptor.json`, and, when transformed bytes exist,
+`operator-NNN-mutated-runset.json`, where `NNN` is the zero-based canonical
+executed index. The generation manifest is published last and binds every
+present member.
+
 Output is committed as one staged generation under a per-directory writer
 lock. The generation manifest is atomically published last as the commit
 marker; readers reject missing or digest-incoherent generations. Reusing an
@@ -421,9 +548,17 @@ incompatible inputs. Operator execution does not deserialize executable
 objects, invoke caller-supplied shell text, load executable plugins, or require
 network access.
 
-Source RunSets must already satisfy the bound privacy-detector profile. A
-detector match in any persisted string makes the source `invalid_subject`;
-operator output that introduces one is `invalid_operator`. The engine does not
+Source RunSets must already satisfy the bound privacy-detector profile. For a
+single-operator invocation, a detector match in any persisted source string
+makes the result `invalid_subject`; a campaign rejects that source during its
+pre-digest privacy preflight and emits no campaign artifacts. Ordinary operator
+output that introduces a match is `invalid_operator`. The sole
+exception is the exact fixed value, operator identity, privacy classification,
+path, target, and detector contract of
+`inject-synthetic-sensitive-summary`; this permits the synthetic redaction
+challenge only after replacing that exact marker in a private probe and
+rescanning the remainder of the candidate. It does not permit arbitrary
+sensitive content. The engine does not
 silently rewrite either artifact because doing so would invalidate the recorded
 source digest or declared changed paths. Sensitive-looking unknown operator
 identifiers are replaced with the fixed `unknown-operator` identity in output.
@@ -438,5 +573,10 @@ identifiers are replaced with the fixed `unknown-operator` identity in output.
   estimate the probability of a production failure.
 - Operator implementation and expected-detection contract changes invalidate
   earlier identity unless compatibility is explicitly established.
+- The finite catalog and deterministic campaign are not a safety score,
+  mutation kill rate, statistical confidence interval, or universal-coverage
+  claim.
+- All seven built-ins are first-party post-control challenges, not independent
+  red-team or third-party validation.
 - LLM-derived judgments are advisory and cannot satisfy expected detection or
   determine a gate.

@@ -21,7 +21,10 @@ DIST = ROOT / "dist"
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/cli/main.py",
+    "agent_assure/mutation/campaign.py",
     "agent_assure/mutation/introduction_snapshots.json",
+    "agent_assure/reporting/campaign.py",
+    "agent_assure/schema/campaign.py",
     "agent_assure/examples/",
     "agent_assure/examples/prior_auth_synthetic/",
     "agent_assure/examples/prior_auth_synthetic/suite.yaml",

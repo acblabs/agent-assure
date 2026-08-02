@@ -57,7 +57,7 @@ Expected key fields:
 ```text
 case_id: shared-source-multi-claim
 control_id: material_claims_have_evidence
-target: claim:claim-duration
+target: claim_digest:c99b03a463802b1cc26362f0cf1e7e9c47d99cee31fba34dc39ade5179b6a63d
 reason_code: MATERIAL_CLAIM_MISSING_EVIDENCE
 classification: new_failure
 fixture_equivalence_state: pass
@@ -104,7 +104,7 @@ raw payloads and does not emit `gen_ai.response.tokens` or generic
 ## Release Replay
 
 ```bash
-python scripts/build_release_bundle.py --expected-release 0.6.0 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/build_release_bundle.py --expected-release 0.6.1 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 

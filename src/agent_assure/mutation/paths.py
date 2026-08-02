@@ -6,6 +6,19 @@ from copy import deepcopy
 from agent_assure.mutation.operators import PayloadChange
 
 
+def structural_changed_paths(source: object, candidate: object) -> tuple[str, ...]:
+    """Return deterministic RFC 6901 pointers for exact JSON structural changes.
+
+    Container shape changes collapse to their parent pointer. Otherwise the
+    comparison recurses through mappings and equal-length lists. Scalar equality
+    is type-sensitive so JSON booleans and integers cannot compare equal by
+    Python coercion.
+    """
+    changed: list[str] = []
+    _collect_structural_changed_paths(source, candidate, pointer="", changed=changed)
+    return tuple(sorted(changed))
+
+
 def apply_payload_changes(
     source: Mapping[str, object],
     changes: tuple[PayloadChange, ...],
@@ -102,3 +115,48 @@ def _decode_pointer_part(part: str) -> str:
         decoded.append("~" if part[index + 1] == "0" else "/")
         index += 2
     return "".join(decoded)
+
+
+def _collect_structural_changed_paths(
+    source: object,
+    candidate: object,
+    *,
+    pointer: str,
+    changed: list[str],
+) -> None:
+    if type(source) is not type(candidate):
+        changed.append(pointer)
+        return
+    if isinstance(source, dict) and isinstance(candidate, dict):
+        if set(source) != set(candidate):
+            changed.append(pointer)
+            return
+        for key in sorted(source):
+            child = f"{pointer}/{_encode_pointer_part(key)}"
+            _collect_structural_changed_paths(
+                source[key],
+                candidate[key],
+                pointer=child,
+                changed=changed,
+            )
+        return
+    if isinstance(source, list) and isinstance(candidate, list):
+        if len(source) != len(candidate):
+            changed.append(pointer)
+            return
+        for index, (source_item, candidate_item) in enumerate(
+            zip(source, candidate, strict=True)
+        ):
+            _collect_structural_changed_paths(
+                source_item,
+                candidate_item,
+                pointer=f"{pointer}/{index}",
+                changed=changed,
+            )
+        return
+    if source != candidate:
+        changed.append(pointer)
+
+
+def _encode_pointer_part(part: str) -> str:
+    return part.replace("~", "~0").replace("/", "~1")

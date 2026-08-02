@@ -1,13 +1,25 @@
 from __future__ import annotations
 
 from collections import Counter
-from collections.abc import Mapping
-from dataclasses import dataclass
+from collections.abc import Callable, Mapping
+from copy import deepcopy
+from dataclasses import dataclass, field
 from typing import cast
 
+from agent_assure.policies.evidence import (
+    claim_finding_target,
+    evidence_ref_finding_target,
+)
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.suite import CompiledSuite
+
+SYNTHETIC_SENSITIVE_SUMMARY = (
+    "agent-assure synthetic privacy challenge; "
+    "patient: SYNTHETIC-REDACTION-SENTINEL"
+)
+SYNTHETIC_BUDGET_STOP_REASON = "agent-assure.synthetic-budget-stop"
+_SYNTHETIC_EVIDENCE_SOURCE_ID = "agent-assure.synthetic-skewed-evidence-source"
 
 
 @dataclass(frozen=True)
@@ -18,6 +30,12 @@ class PayloadChange:
     value: object
 
 
+PayloadChangeMaterializer = Callable[
+    [Mapping[str, object]],
+    tuple[PayloadChange, ...],
+]
+
+
 @dataclass(frozen=True)
 class MutationTarget:
     """A deterministic, schema-owned mutation candidate."""
@@ -25,6 +43,31 @@ class MutationTarget:
     identity: str
     expected_finding_target: str
     changes: tuple[PayloadChange, ...]
+    materialize_changes: PayloadChangeMaterializer | None = field(
+        default=None,
+        compare=False,
+        repr=False,
+    )
+
+    def materialized(
+        self,
+        source_payload: Mapping[str, object],
+    ) -> MutationTarget:
+        """Materialize deferred payload copies for only the selected target."""
+        if self.materialize_changes is None:
+            return self
+        if self.changes:
+            raise ValueError("deferred mutation targets cannot declare eager changes")
+        changes = self.materialize_changes(source_payload)
+        if not isinstance(changes, tuple) or not all(
+            isinstance(change, PayloadChange) for change in changes
+        ):
+            raise TypeError("mutation target materializer must return payload changes")
+        return MutationTarget(
+            identity=self.identity,
+            expected_finding_target=self.expected_finding_target,
+            changes=changes,
+        )
 
 
 def drop_material_evidence_link_targets(
@@ -56,7 +99,7 @@ def drop_material_evidence_link_targets(
             targets.append(
                 MutationTarget(
                     identity=f"{run.case_id}\0{run.run_id}\0{claim_id}",
-                    expected_finding_target=f"claim:{claim_id}",
+                    expected_finding_target=claim_finding_target(claim_id),
                     changes=(
                         PayloadChange(
                             path=f"/runs/{run_index}/claim_evidence_links",
@@ -153,6 +196,146 @@ def inject_forbidden_tool_targets(
     return tuple(sorted(targets, key=lambda item: item.identity))
 
 
+def skew_evidence_source_identity_targets(
+    _suite: CompiledSuite,
+    subject: RunSet,
+    source_payload: Mapping[str, object],
+) -> tuple[MutationTarget, ...]:
+    """Plan one-sided source-identity changes for clean ref/item pairs."""
+    raw_runs = _raw_runs(source_payload)
+    disallowed_sources = {
+        source_id
+        for run in subject.runs
+        for source_id in (
+            *(ref.source_id for ref in run.evidence_refs),
+            *(item.source_id for item in run.evidence_items),
+        )
+    }
+    synthetic_source = _unique_synthetic_value(
+        _SYNTHETIC_EVIDENCE_SOURCE_ID,
+        disallowed_sources,
+    )
+    targets: list[MutationTarget] = []
+    for run_index, run in _evaluable_runs(subject):
+        sources_by_ref: dict[str, set[str]] = {}
+        for ref in run.evidence_refs:
+            sources_by_ref.setdefault(ref.ref_id, set()).add(ref.source_id)
+        for item in run.evidence_items:
+            sources_by_ref.setdefault(item.ref_id, set()).add(item.source_id)
+        raw_run = _raw_run(raw_runs, run_index)
+        raw_refs = _raw_sequence(raw_run, "evidence_refs")
+        if len(raw_refs) != len(run.evidence_refs):
+            raise ValueError("typed and raw evidence-ref ordering differ")
+        item_ref_ids = {item.ref_id for item in run.evidence_items}
+        for ref_index, ref in enumerate(run.evidence_refs):
+            if (
+                ref.ref_id not in item_ref_ids
+                or sources_by_ref.get(ref.ref_id) != {ref.source_id}
+            ):
+                continue
+            raw_ref = raw_refs[ref_index]
+            if not isinstance(raw_ref, Mapping):
+                raise ValueError("validated evidence refs must be objects")
+            targets.append(
+                MutationTarget(
+                    identity=(
+                        f"{run.case_id}\0{run.run_id}\0{ref.ref_id}\0"
+                        f"{ref_index:08d}"
+                    ),
+                    expected_finding_target=evidence_ref_finding_target(ref.ref_id),
+                    changes=(
+                        PayloadChange(
+                            path=f"/runs/{run_index}/evidence_refs/{ref_index}/source_id",
+                            value=synthetic_source,
+                        ),
+                    ),
+                )
+            )
+    return tuple(sorted(targets, key=lambda item: item.identity))
+
+
+def inject_synthetic_sensitive_summary_targets(
+    _suite: CompiledSuite,
+    subject: RunSet,
+    _source_payload: Mapping[str, object],
+) -> tuple[MutationTarget, ...]:
+    """Inject the one fixed, clearly synthetic privacy challenge marker."""
+    targets = (
+        MutationTarget(
+            identity=f"{run.case_id}\0{run.run_id}\0output-summary",
+            expected_finding_target="output_summary",
+            changes=(
+                PayloadChange(
+                    path=f"/runs/{run_index}/output_summary",
+                    value=SYNTHETIC_SENSITIVE_SUMMARY,
+                ),
+            ),
+        )
+        for run_index, run in _evaluable_runs(subject)
+        if run.output_summary != SYNTHETIC_SENSITIVE_SUMMARY
+    )
+    return tuple(sorted(targets, key=lambda item: item.identity))
+
+
+def replay_duplicate_case_observation_targets(
+    _suite: CompiledSuite,
+    subject: RunSet,
+    source_payload: Mapping[str, object],
+) -> tuple[MutationTarget, ...]:
+    """Append one exact replay of a currently unique included observation."""
+    targets = (
+        MutationTarget(
+            identity=f"{run.case_id}\0{run.run_id}\0replay",
+            expected_finding_target="duplicate-suite-case",
+            changes=(),
+            materialize_changes=_ReplayRunMaterializer(run_index),
+        )
+        for run_index, run in _evaluable_runs(subject)
+    )
+    return tuple(sorted(targets, key=lambda item: item.identity))
+
+
+@dataclass(frozen=True)
+class _ReplayRunMaterializer:
+    run_index: int
+
+    def __call__(
+        self,
+        source_payload: Mapping[str, object],
+    ) -> tuple[PayloadChange, ...]:
+        raw_runs = _raw_runs(source_payload)
+        return (
+            PayloadChange(
+                path="/runs",
+                value=deepcopy(raw_runs)
+                + [deepcopy(_raw_run(raw_runs, self.run_index))],
+            ),
+        )
+
+
+def mark_incomplete_budget_stop_targets(
+    _suite: CompiledSuite,
+    subject: RunSet,
+    _source_payload: Mapping[str, object],
+) -> tuple[MutationTarget, ...]:
+    """Replace complete status with a fixed synthetic budget-stop record."""
+    if subject.completion_status != "complete":
+        return ()
+    return (
+        MutationTarget(
+            identity=f"{subject.runset_id}\0budget-stop",
+            expected_finding_target="completion_status",
+            changes=(
+                PayloadChange(path="/completion_status", value="incomplete"),
+                PayloadChange(
+                    path="/stop_reasons",
+                    value=[SYNTHETIC_BUDGET_STOP_REASON],
+                ),
+            ),
+        ),
+    )
+
+
 def _effective_allowed_tools(
     suite: CompiledSuite,
     expectation: Expectation,
@@ -177,7 +360,13 @@ def _evaluable_runs(subject: RunSet) -> tuple[tuple[int, AgentRunRecord], ...]:
 
 
 def _synthetic_forbidden_tool(disallowed: set[str]) -> str:
-    base = "agent-assure.synthetic-forbidden-tool"
+    return _unique_synthetic_value(
+        "agent-assure.synthetic-forbidden-tool",
+        disallowed,
+    )
+
+
+def _unique_synthetic_value(base: str, disallowed: set[str]) -> str:
     if base not in disallowed:
         return base
     suffix = 1

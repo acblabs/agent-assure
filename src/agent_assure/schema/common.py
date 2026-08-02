@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from decimal import Decimal
 from enum import StrEnum
-from typing import Annotated, Literal, TypeVar
+from re import fullmatch
+from typing import Annotated, Any, Literal, TypeVar
 
 from pydantic import Field
 
@@ -46,6 +48,7 @@ class ReasonCode(StrEnum):
     EXPECTED_OUTCOME_MISMATCH = "EXPECTED_OUTCOME_MISMATCH"
     FORBIDDEN_OUTCOME = "FORBIDDEN_OUTCOME"
     MATERIAL_CLAIM_MISSING_EVIDENCE = "MATERIAL_CLAIM_MISSING_EVIDENCE"
+    EVIDENCE_PROVENANCE_MISMATCH = "EVIDENCE_PROVENANCE_MISMATCH"
     REQUIRED_SOURCE_MISSING = "REQUIRED_SOURCE_MISSING"
     POLICY_FAILED = "POLICY_FAILED"
     REQUIRED_HUMAN_REVIEW_ABSENT = "REQUIRED_HUMAN_REVIEW_ABSENT"
@@ -57,6 +60,7 @@ class ReasonCode(StrEnum):
     RAW_SENSITIVE_CONTENT = "RAW_SENSITIVE_CONTENT"
     PROMPT_INJECTION_BOUNDARY = "PROMPT_INJECTION_BOUNDARY"
     RUNTIME_FAILED = "RUNTIME_FAILED"
+    RUNSET_INCOMPLETE = "RUNSET_INCOMPLETE"
     VALID_RECORD_MISSING = "VALID_RECORD_MISSING"
     FIXTURE_EQUIVALENCE_FAILED = "FIXTURE_EQUIVALENCE_FAILED"
     NON_NFC_STRING = "NON_NFC_STRING"
@@ -70,12 +74,81 @@ class ReasonCode(StrEnum):
 DigestHex = Annotated[str, Field(pattern=r"^[a-f0-9]{64}$")]
 MAX_SUMMARY_CHARS = 8192
 MAX_LABEL_CHARS = 512
+MACHINE_IDENTIFIER_MAX_CHARS = 256
+MACHINE_IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
+MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.1"
+_MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN = (
+    MACHINE_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])"
+)
+_MACHINE_IDENTIFIER_JSON_SCHEMA: dict[str, object] = {
+    "minLength": 1,
+    "maxLength": MACHINE_IDENTIFIER_MAX_CHARS,
+    "pattern": _MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN,
+}
+PACKAGE_RELEASE_VERSION_PATTERN = (
+    r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
+    r"(?:rc[1-9][0-9]*)?$"
+)
 STRICT_RFC3339_TIMESTAMP_PATTERN = (
     r"^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T"
     r"(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]+)?"
     r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
 )
 _SIX_DECIMAL_PLACES = Decimal("0.000001")
+
+
+def current_machine_identifier_json_schema_extra(
+    *,
+    scalar_fields: tuple[str, ...] = (),
+    sequence_fields: tuple[str, ...] = (),
+) -> Callable[[dict[str, Any]], None]:
+    """Constrain current-version machine IDs without narrowing legacy schemas."""
+    overlapping_fields = set(scalar_fields) & set(sequence_fields)
+    if overlapping_fields:
+        raise ValueError("machine identifier fields cannot be scalar and sequence fields")
+
+    def update_schema(schema: dict[str, Any]) -> None:
+        rules = schema.get("allOf")
+        if not isinstance(rules, list):
+            rules = []
+        constrained_properties: dict[str, object] = {
+            field_name: dict(_MACHINE_IDENTIFIER_JSON_SCHEMA)
+            for field_name in scalar_fields
+        }
+        constrained_properties.update(
+            {
+                field_name: {"items": dict(_MACHINE_IDENTIFIER_JSON_SCHEMA)}
+                for field_name in sequence_fields
+            }
+        )
+        rules.append(
+            {
+                "if": {
+                    "required": ["schema_version"],
+                    "properties": {
+                        "schema_version": {
+                            "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                        }
+                    },
+                },
+                "then": {"properties": constrained_properties},
+            }
+        )
+        schema["allOf"] = rules
+
+    return update_schema
+
+
+def validate_machine_identifier(value: str, *, field_name: str) -> str:
+    """Validate one identifier against the shared ASCII machine-ID grammar."""
+    if (
+        len(value) > MACHINE_IDENTIFIER_MAX_CHARS
+        or fullmatch(MACHINE_IDENTIFIER_PATTERN, value) is None
+    ):
+        raise ValueError(
+            f"{field_name} must use the ASCII machine-identifier grammar"
+        )
+    return value
 
 
 def decimal_string(value: Decimal | str | int) -> str:

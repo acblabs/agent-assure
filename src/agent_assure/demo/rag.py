@@ -25,6 +25,7 @@ from agent_assure.examples.prior_auth_synthetic.rag import (
     retrieval_output_payload,
     retrieve_for_variant,
 )
+from agent_assure.policies.evidence import claim_finding_target
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -459,11 +460,14 @@ def _build_summary(
             if finding.state is GateState.fail
         }
     )
-    missing_links = sorted(
-        _claim_id_from_target(finding.target)
-        for finding in candidate_summary.findings
-        if finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
-        and finding.target.startswith("claim:")
+    missing_links = (
+        [MISSING_CLAIM_ID]
+        if any(
+            finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
+            and finding.target == claim_finding_target(MISSING_CLAIM_ID)
+            for finding in candidate_summary.findings
+        )
+        else []
     )
     expected_regression_caught = _expected_regression_caught(
         baseline_summary=baseline_summary,
@@ -791,10 +795,6 @@ def _counterfactual_acceptance_met(
             for evaluation in candidate
         )
     )
-
-
-def _claim_id_from_target(target: str) -> str:
-    return target.removeprefix("claim:")
 
 
 def _command_exit(results: tuple[ExpectedCommandResult, ...], name: str) -> int | None:

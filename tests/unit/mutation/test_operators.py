@@ -6,18 +6,31 @@ from typing import cast
 
 import pytest
 
+import agent_assure.mutation.operators as mutation_operators
 from agent_assure.mutation.operators import (
+    SYNTHETIC_BUDGET_STOP_REASON,
+    SYNTHETIC_SENSITIVE_SUMMARY,
     MutationTarget,
     bypass_required_human_review_targets,
     drop_material_evidence_link_targets,
     inject_forbidden_tool_targets,
+    inject_synthetic_sensitive_summary_targets,
+    mark_incomplete_budget_stop_targets,
+    replay_duplicate_case_observation_targets,
+    skew_evidence_source_identity_targets,
+)
+from agent_assure.policies.evidence import (
+    claim_finding_target,
+    evidence_ref_finding_target,
 )
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.schema.base import SchemaVersion
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
     EvidenceItem,
+    EvidenceRef,
     RunSet,
 )
 from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
@@ -65,7 +78,7 @@ def test_drop_material_evidence_link_plans_exact_replacement_without_mutation() 
     assert len(targets) == 1
     target = targets[0]
     assert target.identity == "evidence-case\0run-evidence-case\0claim-selected"
-    assert target.expected_finding_target == "claim:claim-selected"
+    assert target.expected_finding_target == claim_finding_target("claim-selected")
     assert len(target.changes) == 1
     assert target.changes[0].path == "/runs/0/claim_evidence_links"
 
@@ -103,6 +116,41 @@ def test_drop_material_evidence_link_is_inapplicable_without_backed_link() -> No
         )
         == ()
     )
+
+
+def test_drop_material_evidence_link_privacy_minimizes_hostile_claim_target() -> None:
+    hostile_claim_id = "claim\x1b[2K\u202egnitrops"
+    expectation = _expectation(
+        "hostile-evidence-case",
+        schema_version="0.5.0",
+        material_claim_ids=(hostile_claim_id,),
+    )
+    suite = _suite((expectation,), schema_version="0.5.0")
+    subject = _runset(
+        (
+            _run(
+                "hostile-evidence-case",
+                schema_version="0.5.0",
+                evidence_items=(_evidence_item("ref-safe"),),
+                claim_evidence_links=(
+                    _link(hostile_claim_id, "ref-safe", schema_version="0.5.0"),
+                ),
+            ),
+        )
+    )
+
+    targets = drop_material_evidence_link_targets(
+        suite,
+        subject,
+        _source_payload(subject),
+    )
+
+    assert len(targets) == 1
+    assert targets[0].expected_finding_target == claim_finding_target(
+        hostile_claim_id
+    )
+    assert "\x1b" not in targets[0].expected_finding_target
+    assert "\u202e" not in targets[0].expected_finding_target
 
 
 def test_bypass_required_review_isolates_routing_and_completion_without_mutation() -> None:
@@ -252,6 +300,193 @@ def test_inject_forbidden_tool_is_inapplicable_without_tool_boundary() -> None:
     )
 
 
+def test_skew_evidence_source_identity_changes_only_reference_side() -> None:
+    expectation = _expectation("provenance-case")
+    suite = _suite((expectation,))
+    subject = _runset(
+        (
+            _run(
+                "provenance-case",
+                evidence_refs=(_evidence_ref("ref-a"),),
+                evidence_items=(_evidence_item("ref-a"),),
+            ),
+        )
+    )
+    source_payload = _source_payload(subject)
+
+    targets = _plan_without_mutation(
+        skew_evidence_source_identity_targets,
+        suite,
+        subject,
+        source_payload,
+    )
+
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.identity == (
+        "provenance-case\0run-provenance-case\0ref-a\0" "00000000"
+    )
+    assert target.expected_finding_target == evidence_ref_finding_target("ref-a")
+    assert tuple((change.path, change.value) for change in target.changes) == (
+        (
+            "/runs/0/evidence_refs/0/source_id",
+            "agent-assure.synthetic-skewed-evidence-source",
+        ),
+    )
+
+
+def test_skew_evidence_source_identity_requires_a_clean_paired_identity() -> None:
+    expectation = _expectation("conflicting-provenance-case")
+    suite = _suite((expectation,))
+    subject = _runset(
+        (
+            _run(
+                "conflicting-provenance-case",
+                evidence_refs=(_evidence_ref("ref-a", source_id="source-ref"),),
+                evidence_items=(_evidence_item("ref-a", source_id="source-item"),),
+            ),
+        )
+    )
+    source_payload = _source_payload(subject)
+
+    assert (
+        _plan_without_mutation(
+            skew_evidence_source_identity_targets,
+            suite,
+            subject,
+            source_payload,
+        )
+        == ()
+    )
+
+
+def test_inject_synthetic_sensitive_summary_is_one_fixed_replacement() -> None:
+    expectation = _expectation("privacy-case")
+    suite = _suite((expectation,))
+    subject = _runset((_run("privacy-case"),))
+    source_payload = _source_payload(subject)
+
+    targets = _plan_without_mutation(
+        inject_synthetic_sensitive_summary_targets,
+        suite,
+        subject,
+        source_payload,
+    )
+
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.identity == "privacy-case\0run-privacy-case\0output-summary"
+    assert target.expected_finding_target == "output_summary"
+    assert tuple((change.path, change.value) for change in target.changes) == (
+        ("/runs/0/output_summary", SYNTHETIC_SENSITIVE_SUMMARY),
+    )
+    assert "synthetic" in SYNTHETIC_SENSITIVE_SUMMARY.lower()
+
+
+def test_replay_duplicate_case_observation_appends_an_exact_copy() -> None:
+    expectation = _expectation("replay-case")
+    suite = _suite((expectation,))
+    subject = _runset((_run("replay-case"),))
+    source_payload = _source_payload(subject)
+
+    targets = _plan_without_mutation(
+        replay_duplicate_case_observation_targets,
+        suite,
+        subject,
+        source_payload,
+    )
+
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.identity == "replay-case\0run-replay-case\0replay"
+    assert target.expected_finding_target == "duplicate-suite-case"
+    assert target.changes == ()
+    target = target.materialized(source_payload)
+    assert target.changes[0].path == "/runs"
+    changed_runs = cast(list[object], target.changes[0].value)
+    source_runs = cast(list[object], source_payload["runs"])
+    assert changed_runs == [source_runs[0], source_runs[0]]
+    assert changed_runs[0] is not source_runs[0]
+    assert changed_runs[1] is not source_runs[0]
+
+
+def test_replay_target_planning_defers_all_runset_copies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    case_ids = tuple(f"replay-scale-{index:03d}" for index in range(128))
+    suite = _suite(tuple(_expectation(case_id) for case_id in case_ids))
+    subject = _runset(tuple(_run(case_id) for case_id in case_ids))
+    source_payload = _source_payload(subject)
+    real_deepcopy = deepcopy
+    copy_calls = 0
+
+    def counted_deepcopy(value: object) -> object:
+        nonlocal copy_calls
+        copy_calls += 1
+        return real_deepcopy(value)
+
+    monkeypatch.setattr(mutation_operators, "deepcopy", counted_deepcopy)
+
+    targets = replay_duplicate_case_observation_targets(
+        suite,
+        subject,
+        source_payload,
+    )
+
+    assert len(targets) == len(case_ids)
+    assert copy_calls == 0
+    assert all(target.changes == () for target in targets)
+
+    materialized = targets[-1].materialized(source_payload)
+    assert copy_calls == 2
+    assert materialized.changes[0].path == "/runs"
+
+
+def test_mark_incomplete_budget_stop_changes_only_runset_status() -> None:
+    expectation = _expectation("budget-case")
+    suite = _suite((expectation,))
+    subject = _runset((_run("budget-case"),))
+    source_payload = _source_payload(subject)
+
+    targets = _plan_without_mutation(
+        mark_incomplete_budget_stop_targets,
+        suite,
+        subject,
+        source_payload,
+    )
+
+    assert len(targets) == 1
+    target = targets[0]
+    assert target.identity == "mutation-operator-test-runset\0budget-stop"
+    assert target.expected_finding_target == "completion_status"
+    assert tuple((change.path, change.value) for change in target.changes) == (
+        ("/completion_status", "incomplete"),
+        ("/stop_reasons", [SYNTHETIC_BUDGET_STOP_REASON]),
+    )
+
+
+def test_mark_incomplete_budget_stop_is_inapplicable_after_a_stop() -> None:
+    expectation = _expectation("stopped-case")
+    suite = _suite((expectation,))
+    subject = _runset((_run("stopped-case"),)).model_copy(
+        update={
+            "completion_status": "incomplete",
+            "stop_reasons": (SYNTHETIC_BUDGET_STOP_REASON,),
+        }
+    )
+    source_payload = _source_payload(subject)
+
+    assert (
+        _plan_without_mutation(
+            mark_incomplete_budget_stop_targets,
+            suite,
+            subject,
+            source_payload,
+        )
+        == ()
+    )
+
+
 @pytest.mark.parametrize(
     ("builder", "expected_identities", "expected_paths"),
     (
@@ -292,6 +527,39 @@ def test_inject_forbidden_tool_is_inapplicable_without_tool_boundary() -> None:
                 "/runs/0/tools",
             ),
         ),
+        (
+            skew_evidence_source_identity_targets,
+            (
+                "a-case\0run-a-case\0ref-a\0" "00000000",
+                "z-case\0run-z-case\0ref-z\0" "00000000",
+            ),
+            (
+                "/runs/1/evidence_refs/0/source_id",
+                "/runs/0/evidence_refs/0/source_id",
+            ),
+        ),
+        (
+            inject_synthetic_sensitive_summary_targets,
+            (
+                "a-case\0run-a-case\0output-summary",
+                "z-case\0run-z-case\0output-summary",
+            ),
+            (
+                "/runs/1/output_summary",
+                "/runs/0/output_summary",
+            ),
+        ),
+        (
+            replay_duplicate_case_observation_targets,
+            (
+                "a-case\0run-a-case\0replay",
+                "z-case\0run-z-case\0replay",
+            ),
+            (
+                "/runs",
+                "/runs",
+            ),
+        ),
     ),
 )
 def test_operator_target_order_is_deterministic(
@@ -327,7 +595,8 @@ def test_operator_target_order_is_deterministic(
 
     assert first == second
     assert tuple(target.identity for target in first) == expected_identities
-    assert tuple(target.changes[0].path for target in first) == expected_paths
+    materialized = tuple(target.materialized(source_payload) for target in first)
+    assert tuple(target.changes[0].path for target in materialized) == expected_paths
 
 
 @pytest.mark.parametrize(
@@ -336,6 +605,9 @@ def test_operator_target_order_is_deterministic(
         drop_material_evidence_link_targets,
         bypass_required_human_review_targets,
         inject_forbidden_tool_targets,
+        skew_evidence_source_identity_targets,
+        inject_synthetic_sensitive_summary_targets,
+        replay_duplicate_case_observation_targets,
     ),
 )
 def test_operators_ignore_excluded_and_non_singleton_observations(
@@ -395,8 +667,10 @@ def _suite(
     expectations: tuple[Expectation, ...],
     *,
     allowed_tools: tuple[str, ...] = (),
+    schema_version: SchemaVersion = "0.6.1",
 ) -> CompiledSuite:
     return CompiledSuite(
+        schema_version=schema_version,
         suite_id="mutation-operator-test-suite",
         suite_version="1.0.0",
         defaults=SuiteDefaults(
@@ -432,20 +706,25 @@ def _runset(runs: tuple[AgentRunRecord, ...]) -> RunSet:
 def _run(
     case_id: str,
     *,
+    schema_version: SchemaVersion = "0.6.1",
+    evidence_refs: tuple[EvidenceRef, ...] = (),
     evidence_items: tuple[EvidenceItem, ...] = (),
     claim_evidence_links: tuple[ClaimEvidenceLink, ...] = (),
     tools: tuple[str, ...] = (),
     human_review_required: bool = False,
     human_review_performed: bool = False,
+    output_summary: str = "synthetic output",
 ) -> AgentRunRecord:
     return AgentRunRecord(
+        schema_version=schema_version,
         run_id=f"run-{case_id}",
         case_id=case_id,
         pipeline_id="mutation-operator-test-pipeline",
         recommendation="approve",
         outcome="approved",
         input_summary="synthetic input",
-        output_summary="synthetic output",
+        output_summary=output_summary,
+        evidence_refs=evidence_refs,
         evidence_items=evidence_items,
         claim_evidence_links=claim_evidence_links,
         tools=tools,
@@ -461,6 +740,7 @@ def _fully_applicable_run(
 ) -> AgentRunRecord:
     return _run(
         case_id,
+        evidence_refs=(_evidence_ref(ref_id),),
         evidence_items=(_evidence_item(ref_id),),
         claim_evidence_links=(_link(claim_id, ref_id),),
         human_review_required=True,
@@ -468,16 +748,40 @@ def _fully_applicable_run(
     )
 
 
-def _evidence_item(ref_id: str) -> EvidenceItem:
+def _evidence_ref(
+    ref_id: str,
+    *,
+    source_id: str | None = None,
+) -> EvidenceRef:
+    return EvidenceRef(
+        ref_id=ref_id,
+        source_id=source_id or f"source-{ref_id}",
+    )
+
+
+def _evidence_item(
+    ref_id: str,
+    *,
+    source_id: str | None = None,
+) -> EvidenceItem:
     return EvidenceItem(
         ref_id=ref_id,
-        source_id=f"source-{ref_id}",
+        source_id=source_id or f"source-{ref_id}",
         content_digest="d" * 64,
     )
 
 
-def _link(claim_id: str, ref_id: str) -> ClaimEvidenceLink:
-    return ClaimEvidenceLink(claim_id=claim_id, evidence_ref_id=ref_id)
+def _link(
+    claim_id: str,
+    ref_id: str,
+    *,
+    schema_version: SchemaVersion = "0.6.1",
+) -> ClaimEvidenceLink:
+    return ClaimEvidenceLink(
+        schema_version=schema_version,
+        claim_id=claim_id,
+        evidence_ref_id=ref_id,
+    )
 
 
 def _source_payload(subject: RunSet) -> dict[str, object]:

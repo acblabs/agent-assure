@@ -15,6 +15,7 @@ if str(SRC) not in sys.path:
 
 from agent_assure.authoring.compiler import compile_suite  # noqa: E402
 from agent_assure.fixtures.manifest import build_fixture_manifest  # noqa: E402
+from agent_assure.policies.evidence import claim_finding_target  # noqa: E402
 from agent_assure.privacy.detectors import (  # noqa: E402
     PRIVACY_PROFILE_DIGEST,
     PRIVACY_PROFILE_ID,
@@ -202,10 +203,13 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
         finding_id="finding-duration",
         case_id=case_id,
         control_id="material_claims_have_evidence",
-        target="claim:claim-duration",
+        target=claim_finding_target("claim-duration"),
         state=GateState.fail,
         reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
-        message="fixture-declared material claim has no evidence link",
+        message=(
+            "fixture-declared material claim has no paired reference and "
+            "content-addressed evidence item link"
+        ),
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",

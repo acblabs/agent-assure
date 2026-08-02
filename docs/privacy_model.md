@@ -8,6 +8,24 @@ patient/member fields, bearer/JWT/API-key-like tokens, selected cloud and
 source-control tokens, secret-looking key/value pairs, URL query secrets, and
 phone-number fields.
 
+Ordinary incomplete-RunSet findings report only the declared stop-reason count.
+They do not copy caller-supplied stop-reason text into finding messages, console
+output, or Markdown reports.
+
+First-party console, Markdown, and evidence-diff HTML report values are treated
+as untrusted display text. Values pass through the standard sensitive-pattern
+redactor, Unicode control and format characters are removed, whitespace is
+collapsed, and the result is redacted again in case control removal reassembled
+a secret. Rich receives literal text objects, while Markdown and HTML apply
+their format-specific escaping after this shared boundary. This prevents report
+fields from injecting terminal formatting, forging rows, applying bidi spoofing,
+or bypassing display redaction.
+
+JSON escaping protects artifact bytes at rest, but it is not display
+sanitization: parsers restore control and bidirectional-format code points in
+semantic strings. Downstream consumers must apply control- and bidi-safe display
+encoding before rendering parsed report fields in terminals, logs, or review UIs.
+
 The detector semantics have an explicit compatibility identity. Current
 `RunSet`, `EvaluationSummary`, and `ComparisonSummary` artifacts require
 `privacy_profile_id: agent-assure/privacy-detectors/v1` and a
@@ -123,11 +141,22 @@ with domain-separated digests rather than copying their target strings. It does
 not copy raw prompts, completions, messages, tool arguments, tool results, token
 chunks, credentials, or unredacted summaries into the result.
 
+A catalog campaign enforces that boundary before creating any campaign
+identity. It first rejects non-strict JSON, then rejects RunSets that cannot be
+validated and projected, then privacy-scans both the private input copy and its
+validated model projection. A privacy match raises the fixed campaign-level
+`mutation campaign source failed the bound privacy-detector profile` error
+before source hashing, catalog construction, operator execution, or artifact
+publication. Projection failure and noncanonical JSON use separate fixed
+messages with the same no-artifact behavior. The single-operator command keeps
+schema and source-privacy failures as bounded `invalid_subject` results.
+
 The transformed RunSet remains subject to the normal recursive redaction,
 privacy-profile binding, and fail-closed sensitive-field checks. Clearly
 labeled synthetic fixtures may carry synthetic content for reproducibility;
-that exception does not permit caller content to bypass ordinary persistence
-rules.
+the privacy-redaction exception replaces only its exact marker in a private
+probe and rescans every other candidate path. It does not permit caller content
+to bypass ordinary persistence rules.
 
 RunSet persistence and packet/report projection intentionally apply different
 policies to usage provenance IDs. RunSets preserve clean schema-owned usage IDs

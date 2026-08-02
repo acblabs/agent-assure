@@ -26,7 +26,7 @@ From a clean checkout:
 ```bash
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
-python scripts/build_release_bundle.py --expected-release 0.6.0 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/build_release_bundle.py --expected-release 0.6.1 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 
@@ -41,7 +41,7 @@ After the target tag exists, reproduce from a clean checkout of the tagged
 commit and the downloaded release bundle:
 
 ```bash
-TAG=v0.6.0
+TAG=v0.6.1
 RELEASE="${TAG#v}"
 git checkout "${TAG}"
 python -m pip install --require-hashes -r requirements.lock
@@ -76,8 +76,9 @@ the broader release-manifest replay check runs.
 
 Release bundle scripts pin waiver-sensitive CI evaluation to `2026-07-03` and
 default subprocesses to `SOURCE_DATE_EPOCH=1783036800` unless the environment
-already sets a value. Keep those values fixed for v0.6.0 replays; update them
-deliberately only when cutting a new release line.
+already sets a value. Those values were established for v0.6.0 replay and are
+deliberately retained for v0.6.1. Keep them fixed when replaying either release
+line.
 
 Replay artifact paths must be relative to `--artifact-root` and cannot include
 parent-directory segments. `--expect-commit` validates the replay file's
@@ -126,8 +127,8 @@ cosign sign-blob --yes --bundle evidence-packet.md.bundle evidence-packet.md
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
 cosign sign-blob --yes --bundle sbom.cdx.json.bundle sbom.cdx.json
-cosign sign-blob --yes --bundle agent_assure-0.6.0-py3-none-any.whl.bundle agent_assure-0.6.0-py3-none-any.whl
-cosign sign-blob --yes --bundle agent_assure-0.6.0.tar.gz.bundle agent_assure-0.6.0.tar.gz
+cosign sign-blob --yes --bundle agent_assure-0.6.1-py3-none-any.whl.bundle agent_assure-0.6.1-py3-none-any.whl
+cosign sign-blob --yes --bundle agent_assure-0.6.1.tar.gz.bundle agent_assure-0.6.1.tar.gz
 ```
 
 The tag release workflow also signs its reviewed `release-notes.md`. The
@@ -145,7 +146,7 @@ that produced the signed release bundle:
 
 ```bash
 REPO=acblabs/agent-assure
-TAG=v0.6.0
+TAG=v0.6.1
 SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
 IDENTITY="https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}"

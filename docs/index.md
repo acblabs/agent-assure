@@ -27,6 +27,7 @@ evidence link. The CI gate blocks that process regression as expected.
 - [For engineers](for_engineers.md)
 - [What this measures](what_this_measures.md)
 - [Evidence-carrying release contracts](evidence_carrying_releases.md)
+- [Core mutation catalog and deterministic campaigns](mutation_catalog.md)
 - [Flagship demo](demo_flagship.md)
 - [RAG provenance demo](demo_rag.md)
 - [Evidence diff](evidence_diff.md)

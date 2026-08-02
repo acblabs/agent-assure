@@ -1,4 +1,11 @@
 from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.schema.campaign import (
+    AssuranceMutationCampaign,
+    AssuranceMutationCatalog,
+    MutationApplicability,
+    MutationCampaignCompletion,
+    MutationCampaignMode,
+)
 from agent_assure.schema.common import (
     ComparisonClassification,
     DigestHex,
@@ -72,6 +79,8 @@ from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary, U
 __all__ = [
     "AgentRunRecord",
     "AssuranceEvidenceDescriptor",
+    "AssuranceMutationCampaign",
+    "AssuranceMutationCatalog",
     "AssuranceMutationOperator",
     "AssuranceMutationResult",
     "ClaimEvidenceLink",
@@ -113,6 +122,9 @@ __all__ = [
     "LiveRate",
     "LiveTrajectoryReport",
     "MutationResultState",
+    "MutationApplicability",
+    "MutationCampaignCompletion",
+    "MutationCampaignMode",
     "OperatorImplementationComponent",
     "PersistedArtifact",
     "PacketArtifactDigest",

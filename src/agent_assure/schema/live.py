@@ -22,6 +22,7 @@ SignedDecimalString = str
 # The current protocol records statistical and safety constraints but does not
 # yet bind the complete arm configuration and prompt manifest before execution.
 LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION = False
+_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1"})
 
 
 def _require_non_null_schema_fields(
@@ -31,7 +32,7 @@ def _require_non_null_schema_fields(
     current_contract = {
         "if": {
             "properties": {
-                "schema_version": {"const": "0.6.0"},
+                "schema_version": {"const": "0.6.1"},
             }
         },
         "then": {
@@ -878,7 +879,7 @@ class LiveObservationResult(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_current_pairing_identity(self) -> LiveObservationResult:
-        if self.schema_version == "0.6.0" and (
+        if self.schema_version in _V06_BINDING_SCHEMA_VERSIONS and (
             self.schedule_index is None
             or self.randomization_block_id is None
             or self.prompt_digest is None
@@ -1072,7 +1073,7 @@ class LiveEvaluationReport(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_current_execution_binding(self) -> LiveEvaluationReport:
-        if self.schema_version == "0.6.0" and (
+        if self.schema_version in _V06_BINDING_SCHEMA_VERSIONS and (
             self.suite_digest is None or self.configuration_digest is None
         ):
             raise ValueError(
@@ -1108,7 +1109,7 @@ class LiveEvaluationReport(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_derivable_summary_consistency(self) -> LiveEvaluationReport:
-        if self.schema_version != "0.6.0":
+        if self.schema_version not in _V06_BINDING_SCHEMA_VERSIONS:
             return self
         if self.overall.group_id != "overall":
             raise ValueError("live evaluation overall summary must use group_id 'overall'")
@@ -1257,7 +1258,10 @@ class DriftWindowSummary(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_current_configuration_digest(self) -> DriftWindowSummary:
-        if self.schema_version == "0.6.0" and self.configuration_digest is None:
+        if (
+            self.schema_version in _V06_BINDING_SCHEMA_VERSIONS
+            and self.configuration_digest is None
+        ):
             raise ValueError("v0.6 drift windows require configuration_digest")
         return self
 
@@ -1293,7 +1297,10 @@ class DriftComparabilityResult(PersistedArtifact):
     def _require_current_configuration_comparability(
         self,
     ) -> DriftComparabilityResult:
-        if self.schema_version == "0.6.0" and self.configuration_digest_matches is None:
+        if (
+            self.schema_version in _V06_BINDING_SCHEMA_VERSIONS
+            and self.configuration_digest_matches is None
+        ):
             raise ValueError(
                 "v0.6 drift comparability requires configuration_digest_matches"
             )

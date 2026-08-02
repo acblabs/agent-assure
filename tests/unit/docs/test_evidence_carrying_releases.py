@@ -47,7 +47,7 @@ def test_caught_descriptor_example_tracks_the_producer_shape() -> None:
             result_digest="b" * 64,
             evaluator_method_id="assurance-mutation/core/v1",
             evaluator_implementation_digest="c" * 64,
-            evaluator_implementation_version="0.6.0",
+            evaluator_implementation_version="0.6.1",
             evaluator_evaluation_basis=EvidenceEvaluationBasis.deterministic,
             evaluator_protocol_digest=None,
             evaluator_population_id="deterministic-fixture-v1",
