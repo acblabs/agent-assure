@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 import subprocess
-from functools import partial
 from pathlib import Path
 
 import pytest
@@ -30,6 +29,7 @@ _INTRODUCTION_COMMIT = "git:" + "a" * 40
 _RELEASE_COMMIT = "git:" + "b" * 40
 _AUTHORED_INTRODUCTION_COMMIT = "git:208f304574fc7bb3b7ed7b821c745b951f2783c8"
 _PRE_EVIDENCE_PROVENANCE_COMMIT = "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1"
+_SPRINT2_INTRODUCTION_COMMIT = "git:820621d1e42862cfa4356468b4de24d0138165c3"
 _REPOSITORY_ROOT = Path(__file__).resolve().parents[3]
 
 
@@ -131,15 +131,15 @@ def _release_ready_provenance(
     )
 
 
-def _immutable_registered_operators() -> tuple[RegisteredOperator, ...]:
+def _v060_registered_operators() -> tuple[RegisteredOperator, ...]:
     return tuple(
         item
         for item in registered_operators()
-        if item.descriptor.provenance.introduced_at_commit != "git:uncommitted"
+        if item.descriptor.provenance.introduced_in_release == "0.6.0"
     )
 
 
-def test_registered_operator_provenance_fails_closed_until_sprint2_is_stamped() -> None:
+def test_registered_operator_provenance_accepts_sprint2_stamp() -> None:
     failures = registered_release_provenance_failures(
         expected_release="0.6.1",
         release_commit="git:"
@@ -150,80 +150,34 @@ def test_registered_operator_provenance_fails_closed_until_sprint2_is_stamped() 
         ).strip(),
     )
 
-    assert failures == (
-        "operator 'inject-synthetic-sensitive-summary' has no immutable introduction commit",
-        "operator 'mark-incomplete-budget-stop' has no immutable introduction commit",
-        "operator 'replay-duplicate-case-observation' has no immutable introduction commit",
-        "operator 'skew-evidence-source-identity' has no immutable introduction commit",
-    )
+    assert failures == ()
 
 
-def test_each_sprint2_operator_prestamp_provenance_replays_current_sources() -> None:
-    unstamped = tuple(
+def test_each_sprint2_operator_carries_immutable_introduction_provenance() -> None:
+    sprint2_provenance = tuple(
         item.descriptor.provenance
         for item in registered_operators()
-        if item.descriptor.provenance.introduced_at_commit == "git:uncommitted"
+        if item.descriptor.provenance.introduced_at_commit
+        == _SPRINT2_INTRODUCTION_COMMIT
     )
-    assert tuple(provenance.operator_id for provenance in unstamped) == (
+    assert tuple(provenance.operator_id for provenance in sprint2_provenance) == (
         "inject-synthetic-sensitive-summary",
         "mark-incomplete-budget-stop",
         "replay-duplicate-case-observation",
         "skew-evidence-source-identity",
     )
 
-    for provenance in unstamped:
+    for provenance in sprint2_provenance:
+        assert provenance.introduced_at_commit == _SPRINT2_INTRODUCTION_COMMIT
         assert provenance.introduced_in_release == "0.6.1rc1"
         assert provenance.implementation_components
         assert provenance.introduction_components
         assert provenance.target_controls
-        assert release_provenance_failures(
-            (provenance,),
-            expected_release="0.6.1",
-            release_commit=_RELEASE_COMMIT,
-        ) == (f"operator {provenance.operator_id!r} has no immutable introduction commit",)
-
-        requested_sources: list[tuple[str, str]] = []
-
-        simulated_stamped, simulated_sources = _simulated_stamped_provenance(provenance)
-        assert (
-            release_provenance_failures(
-                (simulated_stamped,),
-                expected_release="0.6.1",
-                release_commit=_RELEASE_COMMIT,
-                creation_source_loader=partial(
-                    _frozen_source_loader,
-                    requested_sources,
-                    simulated_sources,
-                ),
-                ancestry_checker=lambda *_args: True,
-            )
-            == ()
-        )
-        expected_sources = {
-            (_INTRODUCTION_COMMIT, "agent_assure/mutation/introduction_snapshots.json"),
-            *(
-                (_INTRODUCTION_COMMIT, component.relative_path)
-                for component in provenance.introduction_components
-            ),
-            *(
-                (_INTRODUCTION_COMMIT, target_control_component_path(target.control_id))
-                for target in provenance.target_controls
-            ),
-            *(
-                (
-                    target.first_seen_commit,
-                    target_control_component_path(target.control_id),
-                )
-                for target in provenance.target_controls
-            ),
-        }
-        assert set(requested_sources) == expected_sources
-        assert len(requested_sources) == len(expected_sources)
 
 
 def test_release_validation_accepts_immutable_introduction_commits() -> None:
     provenances: list[OperatorProvenance] = []
-    for item in _immutable_registered_operators():
+    for item in _v060_registered_operators():
         provenance = item.descriptor.provenance
         target_controls = tuple(
             target.model_copy(
@@ -291,7 +245,7 @@ def test_release_validation_accepts_immutable_introduction_commits() -> None:
 def test_release_validation_requires_revision_source_verification() -> None:
     provenances = tuple(
         item.descriptor.provenance.model_copy(update={"introduced_at_commit": "git:" + "a" * 40})
-        for item in _immutable_registered_operators()
+        for item in _v060_registered_operators()
     )
 
     failures = release_provenance_failures(

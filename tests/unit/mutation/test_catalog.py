@@ -73,7 +73,7 @@ _TARGETS = {
         "evidence_provenance_identity",
         "agent_assure/policies/evidence.py",
         "95ee56977546a4755d1d17e566f090c4e8ba88990f6002661d82e5b540b8f29e",
-        "git:uncommitted",
+        "git:820621d1e42862cfa4356468b4de24d0138165c3",
     ),
 }
 _IDENTITY_CRITICAL_PATHS = (
@@ -290,7 +290,7 @@ def test_core_catalog_metadata_is_stable_canonical_and_cross_domain() -> None:
     ).descriptor.privacy_classification.value == "synthetic_fixture_sensitive_marker"
 
 
-def test_sprint_two_operator_introduction_provenance_remains_uncommitted() -> None:
+def test_sprint_two_operator_introduction_provenance_is_stamped() -> None:
     sprint_two_ids = {
         "inject-synthetic-sensitive-summary",
         "mark-incomplete-budget-stop",
@@ -301,7 +301,9 @@ def test_sprint_two_operator_introduction_provenance_remains_uncommitted() -> No
     for item in registered_operators():
         if item.descriptor.operator_id not in sprint_two_ids:
             continue
-        assert item.descriptor.provenance.introduced_at_commit == "git:uncommitted"
+        assert item.descriptor.provenance.introduced_at_commit == (
+            "git:820621d1e42862cfa4356468b4de24d0138165c3"
+        )
         assert item.descriptor.provenance.introduced_in_release == "0.6.1rc1"
 
 
