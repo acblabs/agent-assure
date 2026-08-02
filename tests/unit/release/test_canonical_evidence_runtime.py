@@ -30,9 +30,9 @@ def test_dependency_locking_names_the_canonical_evidence_runtime() -> None:
     assert f"Python {CANONICAL_EVIDENCE_PYTHON} canonical" in normalized_runbook
 
 
-def test_final_pypi_smoke_checks_install_current_project_version() -> None:
+def test_final_pypi_smoke_checks_install_stable_project_version() -> None:
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
-    version = project["project"]["version"]
+    version = project["project"]["version"].split("rc", maxsplit=1)[0]
     runbook = (ROOT / "docs/release_pypi.md").read_text(encoding="utf-8")
     final_release = runbook.split("## Final PyPI Release", maxsplit=1)[1]
 

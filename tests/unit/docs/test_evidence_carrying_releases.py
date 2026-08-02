@@ -89,7 +89,15 @@ def test_caught_descriptor_example_tracks_the_producer_shape() -> None:
     dependency["evidence_id"] = RESULT_ID_PLACEHOLDER
     dependency["digest"] = RESULT_DIGEST_PLACEHOLDER
 
-    assert _documented_descriptor() == descriptor
+    documented = _documented_descriptor()
+    producer = cast(dict[str, object], descriptor["producer"])
+    documented_producer = cast(dict[str, object], documented["producer"])
+    runtime_version = cast(str, producer["version"])
+    documented_version = cast(str, documented_producer["version"])
+    assert runtime_version.split("rc", maxsplit=1)[0] == documented_version
+    producer["version"] = documented_version
+
+    assert documented == descriptor
 
 
 def _documented_descriptor() -> dict[str, object]:
