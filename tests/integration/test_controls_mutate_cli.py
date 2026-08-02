@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner, Result
 
 from agent_assure.authoring.compiler import compile_suite
@@ -97,10 +98,16 @@ def test_controls_mutate_refuses_a_filesystem_root_output_directory() -> None:
 
 
 def test_controls_mutate_help_states_exact_fail_fast_boundary() -> None:
-    result = _RUNNER.invoke(app, ["controls", "mutate", "--help"])
+    result = _RUNNER.invoke(
+        app,
+        ["controls", "mutate", "--help"],
+        terminal_width=240,
+    )
     normalized = " ".join(
         result.output.replace("│", " ").replace("|", " ").split()
     )
+
+    normalized = " ".join(unstyle(normalized).split())
 
     assert result.exit_code == 0, result.output
     assert "survived, invalid_operator, invalid_subject" in normalized
