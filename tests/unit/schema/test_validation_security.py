@@ -11,6 +11,7 @@ from agent_assure.ci import load_gate_artifact
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.release_evidence import load_digest_replay
 from agent_assure.schema import validation
+from agent_assure.schema.base import SCHEMA_VERSION
 
 
 def test_legacy_schema_version_cannot_traverse_schema_root() -> None:
@@ -134,7 +135,7 @@ def test_runtime_schema_validation_error_does_not_echo_instance_values(
     secret = "patient-secret-should-not-appear"
     payload = {
         "artifact_kind": "run-set",
-        "schema_version": "0.6.1",
+        "schema_version": SCHEMA_VERSION,
     }
 
     def reject(_schema: dict[str, object], _payload: dict[str, object]) -> None:
@@ -152,18 +153,18 @@ def test_runtime_model_validation_error_does_not_echo_instance_values() -> None:
     secret = "patient-secret-duplicate-role"
     payload = {
         "artifact_kind": "release-digest-replay",
-        "schema_version": "0.6.1",
+        "schema_version": SCHEMA_VERSION,
         "artifacts": [
             {
                 "artifact_kind": "release-replay-artifact",
-                "schema_version": "0.6.1",
+                "schema_version": SCHEMA_VERSION,
                 "role": secret,
                 "path": "first.json",
                 "sha256": "0" * 64,
             },
             {
                 "artifact_kind": "release-replay-artifact",
-                "schema_version": "0.6.1",
+                "schema_version": SCHEMA_VERSION,
                 "role": secret,
                 "path": "second.json",
                 "sha256": "1" * 64,
@@ -221,5 +222,5 @@ def test_ci_gate_unknown_artifact_kind_error_is_value_free(tmp_path: Path) -> No
     assert secret not in str(exc_info.value)
     assert str(exc_info.value) == (
         "CI gate expects artifact_kind evaluation-summary, comparison-summary, "
-        "or evidence-packet"
+        "control-efficacy-report, or evidence-packet"
     )

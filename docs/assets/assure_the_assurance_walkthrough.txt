@@ -1,0 +1,95 @@
+AGENT ASSURE: ASSURE-THE-ASSURANCE WALKTHROUGH
+
+STATUS
+Prepared terminal walkthrough script. This file is not captured terminal
+output, an external reproduction record, or a recording. Lines prefixed with
+"EXPECTED" describe assertions made by the packaged demo. Run the commands in
+a fresh environment to obtain environment-specific paths and artifact hashes.
+
+PREREQUISITE
+Python 3.11 or newer with the current agent-assure package installed.
+
+1. SHOW THE INSTALLED VERSION
+
+$ agent-assure --version
+
+EXPECTED: the command identifies the installed package version.
+
+2. RUN THE OFFLINE DETECTOR-OF-DETECTORS DEMO
+
+$ agent-assure demo assure-the-assurance --out .tmp/demo/assure-the-assurance --clean
+
+EXPECTED CONSOLE FACTS:
+
+agent-assure: who assures the assurance?
+
+  ordinary baseline: pass
+  strong control mutation: caught
+  weakened control mutation: survived
+  efficacy gate: fail
+  required / critical survivors: 1 / 1
+  unrelated failure counted as detection: False
+
+Artifacts:
+  mutation-results
+  control-efficacy-report.json
+  control-efficacy-config.json
+  evidence-packet.json
+  reviewer-facing-report.md
+  demo-summary.json
+
+Demo result: success; the weakened required control is blocked.
+
+The wrapper returns zero only after checking every fact above and validating
+the expected nonzero packet gate internally. No provider key, network call, or
+token spend is required.
+
+3. INSPECT THE MACHINE SUMMARY
+
+$ python -m json.tool .tmp/demo/assure-the-assurance/demo-summary.json
+
+EXPECTED FIELDS INCLUDE:
+
+  "ordinary_baseline_state": "pass"
+  "strong_mutation_state": "caught"
+  "weakened_mutation_state": "survived"
+  "control_efficacy_gate_state": "fail"
+  "required_survivor_count": 1
+  "critical_survivor_count": 1
+  "unrelated_failure_counted_as_detection": false
+
+The summary also contains relative artifact paths, SHA-256 file hashes, and the
+internal command results checked by the demo. Compare values from the generated
+file; this prepared script does not supply or claim pre-recorded hashes.
+
+4. REVIEW THE HUMAN-READABLE REPORT
+
+$ python -c "from pathlib import Path; print(Path('.tmp/demo/assure-the-assurance/reviewer-facing-report.md').read_text(encoding='utf-8'))"
+
+Alternatively, use a local text editor or pager to open:
+
+  .tmp/demo/assure-the-assurance/reviewer-facing-report.md
+
+Review the exact catalog ratio, all independence strata, required and critical
+survivor IDs, threat applicability, semantic states, gate mapping, and the
+unrelated-failure rejection. The report's ratio is bounded to its exact
+catalog, campaign, source, evaluator, and manifest.
+
+5. EXPOSE THE UNDERLYING BLOCKING EXIT
+
+$ agent-assure demo assure-the-assurance --out .tmp/demo/assure-the-assurance --clean --strict
+
+EXPECTED: the same evidence is regenerated and the process exits 1 because the
+required, critical mutation survivor maps to a blocking efficacy decision.
+
+6. OPTIONAL STATIC ONBOARDING PATH
+
+$ agent-assure init controls-mutation --out-dir assurance-controls
+$ agent-assure doctor controls-mutate --config assurance-controls/controls-mutation.yaml
+
+EXPECTED: init creates or confirms four deterministic managed assets. Doctor
+prints ordered PASS, FAIL, or SKIP diagnostics and returns zero only when the
+offline workflow is ready. Doctor performs static, read-only checks; it does
+not execute a mutation or evaluator.
+
+END OF PREPARED WALKTHROUGH

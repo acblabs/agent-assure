@@ -158,6 +158,26 @@ the privacy-redaction exception replaces only its exact marker in a private
 probe and rescans every other candidate path. It does not permit caller content
 to bypass ordinary persistence rules.
 
+Controls-mutation configuration and threat-applicability YAML are trusted
+authoring inputs, not observation payloads, and are not a secret store or PHI
+de-identification boundary. Authors must not put prompts, completions, tool
+payloads, credentials, personal data, or other sensitive free text into those
+files. Manifest owners are constrained machine identifiers; rationales are
+bounded but may still disclose authored text if the manifest itself is shared.
+
+The derived control-efficacy report does not copy manifest owners or
+rationales. It binds the manifest by digest and persists only threat IDs,
+applicability, critical flags, operator IDs, invariant families, independence
+classes, control IDs, exact counts/ratios, semantic states, and limitations.
+The nested packet gate adds stable reason codes, effects, and affected operator
+or threat IDs. These identifiers remain review-visible and should use
+non-sensitive governance labels.
+
+`doctor controls-mutate` is read-only and emits bounded, redacted diagnostic
+messages. The packaged assure-the-assurance demonstration uses only bundled
+synthetic fixture content and writes paths relative to its output root in the
+machine summary.
+
 RunSet persistence and packet/report projection intentionally apply different
 policies to usage provenance IDs. RunSets preserve clean schema-owned usage IDs
 and fail closed if those preserved values look sensitive, because runsets are

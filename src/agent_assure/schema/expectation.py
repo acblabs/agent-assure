@@ -7,7 +7,7 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
-    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     DigestHex,
     coerce_tuple,
     current_machine_identifier_json_schema_extra,
@@ -57,7 +57,7 @@ class Expectation(PersistedArtifact):
     def _exclusive_outcome_shortcuts(self) -> Expectation:
         if self.expected_recommendation is not None and self.allowed_outcomes:
             raise ValueError("expected_recommendation conflicts with allowed_outcomes")
-        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             for field_name in ("required_evidence_refs", "material_claim_ids"):
                 for index, value in enumerate(getattr(self, field_name)):
                     validate_machine_identifier(

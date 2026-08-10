@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import stat
 import subprocess
 import sys
 from dataclasses import dataclass
@@ -11,13 +12,14 @@ from importlib.resources.abc import Traversable
 from pathlib import Path
 
 from agent_assure.artifact_io import write_bytes_atomic, write_text_atomic
-from agent_assure.io_limits import loads_json_bounded, read_text_bounded
+from agent_assure.io_limits import loads_json_bounded, read_file_bounded
 
 DEMO_MARKER_FILENAME = ".agent-assure-demo-owned.json"
 MAX_DEMO_MARKER_BYTES = 1024
 DEMO_COMMAND_TIMEOUT_SECONDS = 30
 PACKAGE_IMPORT_ROOT = Path(__file__).resolve().parents[2]
 _NETWORK_GUARD_DIRNAME = ".runtime"
+_WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 _DEMO_ENV_ALLOWLIST = frozenset(
     {
         "APPDATA",
@@ -57,7 +59,12 @@ def _blocked(*args: object, **kwargs: object) -> None:
 
 
 socket.create_connection = _blocked
+socket.create_server = _blocked
 socket.getaddrinfo = _blocked
+socket.gethostbyname = _blocked
+socket.gethostbyname_ex = _blocked
+socket.gethostbyaddr = _blocked
+socket.getnameinfo = _blocked
 _OriginalSocket = socket.socket
 
 
@@ -68,6 +75,32 @@ class _BlockedSocket(_OriginalSocket):
     def connect_ex(self, address: object) -> int:
         _blocked(address)
         return 1
+
+    def bind(self, address: object) -> None:
+        _blocked(address)
+
+    def listen(self, backlog: int = 0) -> None:
+        _blocked(backlog)
+
+    def accept(self):
+        _blocked()
+
+    def send(self, *args: object, **kwargs: object) -> int:
+        _blocked(*args, **kwargs)
+        return 0
+
+    def sendall(self, *args: object, **kwargs: object) -> None:
+        _blocked(*args, **kwargs)
+
+    def sendto(self, *args: object, **kwargs: object) -> int:
+        _blocked(*args, **kwargs)
+        return 0
+
+    if hasattr(_OriginalSocket, "sendmsg"):
+
+        def sendmsg(self, *args: object, **kwargs: object) -> int:
+            _blocked(*args, **kwargs)
+            return 0
 
 
 socket.socket = _BlockedSocket
@@ -252,17 +285,34 @@ def _clean_owned_output_dir(path: Path) -> None:
 def _has_ownership_marker(path: Path) -> bool:
     marker = path / DEMO_MARKER_FILENAME
     try:
-        if not marker.is_file():
+        if not _is_single_link_regular_file(marker):
             return False
-        text = read_text_bounded(
+        contents = read_file_bounded(
             marker,
             max_bytes=MAX_DEMO_MARKER_BYTES,
             label="demo ownership marker",
         )
+        if not _is_single_link_regular_file(marker):
+            return False
+        text = contents.data.decode("utf-8")
         payload = loads_json_bounded(text, label="demo ownership marker JSON")
     except (OSError, ValueError):
         return False
     return isinstance(payload, dict) and payload == {"owner": "agent-assure-demo"}
+
+
+def _is_single_link_regular_file(path: Path) -> bool:
+    try:
+        metadata = os.lstat(path)
+    except OSError:
+        return False
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    return (
+        stat.S_ISREG(metadata.st_mode)
+        and not stat.S_ISLNK(metadata.st_mode)
+        and not attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
+        and metadata.st_nlink == 1
+    )
 
 
 def _write_ownership_marker(path: Path) -> None:

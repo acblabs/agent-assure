@@ -3,14 +3,15 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.export import export_json_schemas
 from scripts.check_frozen_schemas import check_frozen_schema_dir, compare_schema_dirs
 
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_committed_v061_schema_snapshot_matches_exporter() -> None:
-    assert check_frozen_schema_dir(ROOT / "schemas" / "v0.6.1") == []
+def test_committed_current_schema_snapshot_matches_exporter() -> None:
+    assert check_frozen_schema_dir(ROOT / "schemas" / f"v{SCHEMA_VERSION}") == []
 
 
 def test_committed_v060_schema_snapshot_remains_byte_identical() -> None:

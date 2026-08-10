@@ -14,7 +14,7 @@ PrivacyProfileId: TypeAlias = Annotated[str, Field(min_length=1)] | SkipJsonSche
 PrivacyProfileDigest: TypeAlias = DigestHex | SkipJsonSchema[None]
 
 _PRIVACY_PROFILE_FIELDS = ("privacy_profile_id", "privacy_profile_digest")
-_PRIVACY_PROFILE_SCHEMA_VERSIONS = ("0.5.0", "0.6.0", "0.6.1")
+_PRIVACY_PROFILE_SCHEMA_VERSIONS = ("0.5.0", "0.6.0", "0.6.1", "0.6.2")
 
 
 def privacy_profile_json_schema_extra(
@@ -26,9 +26,7 @@ def privacy_profile_json_schema_extra(
         required = schema.get("required")
         if isinstance(required, list):
             schema["required"] = [
-                field_name
-                for field_name in required
-                if field_name not in _PRIVACY_PROFILE_FIELDS
+                field_name for field_name in required if field_name not in _PRIVACY_PROFILE_FIELDS
             ]
         if base_extra is not None:
             for key, value in base_extra.items():
@@ -44,9 +42,7 @@ def privacy_profile_json_schema_extra(
                         {
                             "required": ["schema_version"],
                             "properties": {
-                                "schema_version": {
-                                    "enum": list(_PRIVACY_PROFILE_SCHEMA_VERSIONS)
-                                }
+                                "schema_version": {"enum": list(_PRIVACY_PROFILE_SCHEMA_VERSIONS)}
                             },
                         },
                     ]
@@ -55,8 +51,7 @@ def privacy_profile_json_schema_extra(
                 "else": {
                     "not": {
                         "anyOf": [
-                            {"required": [field_name]}
-                            for field_name in _PRIVACY_PROFILE_FIELDS
+                            {"required": [field_name]} for field_name in _PRIVACY_PROFILE_FIELDS
                         ]
                     }
                 },
@@ -76,8 +71,7 @@ def prepare_privacy_profile_input(value: Any, *, owner: str) -> Any:
     supplied = [field_name for field_name in _PRIVACY_PROFILE_FIELDS if field_name in value]
     if supplied:
         raise ValueError(
-            f"{owner} schema version {schema_version!r} does not support: "
-            + ", ".join(supplied)
+            f"{owner} schema version {schema_version!r} does not support: " + ", ".join(supplied)
         )
     prepared = dict(value)
     prepared.update({field_name: None for field_name in _PRIVACY_PROFILE_FIELDS})
@@ -104,6 +98,4 @@ def validate_privacy_profile_binding(
             raise ValueError(f"{owner} requires: " + ", ".join(missing))
         return
     if privacy_profile_id is not None or privacy_profile_digest is not None:
-        raise ValueError(
-            f"{owner} schema version {schema_version!r} cannot bind a privacy profile"
-        )
+        raise ValueError(f"{owner} schema version {schema_version!r} cannot bind a privacy profile")

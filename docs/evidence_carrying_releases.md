@@ -30,11 +30,12 @@ The contract set has six durable JSON objects:
   digest, selection and execution order, seed, mode, per-operator results,
   pending operators, completion state, and limitations.
 
-Current roots use persisted `schema_version: 0.6.1`, a `contract_id` ending in
-`/v1`, and `contract_version: 1.0.0`. The four contracts introduced in v0.6.0
-also accept their frozen v0.6.0 representation through version-aware reads;
-catalog and campaign roots begin at v0.6.1. Current builders emit v0.6.1 by
-default, and official writers validate the selected version before persistence.
+Current roots use persisted `schema_version: 0.6.2`, a `contract_id` ending in
+`/v1`, and `contract_version: 1.0.0`. Contracts introduced in v0.6.0 also
+accept their frozen v0.6.0 representation through version-aware reads; catalog
+and campaign roots additionally accept their frozen v0.6.1 representation.
+Current builders emit v0.6.2 by default, and official writers validate the
+selected version before persistence.
 Fields and reason codes introduced after v0.6.0 therefore cannot be written
 under a v0.6.0 label. The contract version identifies method semantics; the schema
 version identifies the persisted JSON shape. A contract version must not be
@@ -50,7 +51,7 @@ each execution; all other values are producer-owned contract values.
 ```yaml
 artifact_kind: assurance-evidence-descriptor
 schema_name: assurance-evidence-descriptor
-schema_version: 0.6.1
+schema_version: 0.6.2
 contract_id: AssuranceEvidenceDescriptor/v1
 contract_version: 1.0.0
 evidence_id: "ev-control-efficacy-<result-digest-prefix-24-hex>"
@@ -131,7 +132,7 @@ dependencies:
     digest: "<mutation-result-digest-64-lowercase-hex>"
 producer:
   name: agent-assure
-  version: 0.6.1
+  version: 0.6.2
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 
@@ -271,7 +272,7 @@ An expected-detection contract is explicit:
 ```yaml
 artifact_kind: expected-detection-contract
 schema_name: expected-detection-contract
-schema_version: 0.6.1
+schema_version: 0.6.2
 contract_id: ExpectedDetectionContract/v1
 contract_version: 1.0.0
 contract_digest: <64 lowercase hexadecimal characters>

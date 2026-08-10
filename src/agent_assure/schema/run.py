@@ -9,7 +9,7 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
-    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
     STRICT_RFC3339_TIMESTAMP_PATTERN,
@@ -49,13 +49,16 @@ _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
 )
+_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2"})
 _RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
             "required": ["schema_version", "execution_mode"],
             "properties": {
-                "schema_version": {"const": "0.6.1"},
+                "schema_version": {
+                    "enum": sorted(_BUDGET_COMMITMENT_SCHEMA_VERSIONS),
+                },
                 "execution_mode": {"const": "live"},
             },
         },
@@ -73,7 +76,6 @@ _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
-_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1"})
 _RUN_SET_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
@@ -86,12 +88,12 @@ _EVIDENCE_GRAPH_MEMBER_FIELDS = (
     "claims",
     "claim_evidence_links",
 )
-_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
+_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].extend(
     {
         "if": {
             "required": ["schema_version"],
             "properties": {
-                "schema_version": {"const": MACHINE_IDENTIFIER_SCHEMA_VERSION},
+                "schema_version": {"const": schema_version},
             },
         },
         "then": {
@@ -100,7 +102,7 @@ _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
                     "items": {
                         "properties": {
                             "schema_version": {
-                                "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                                "const": schema_version,
                             }
                         }
                     }
@@ -109,6 +111,7 @@ _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
             }
         },
     }
+    for schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS
 )
 
 
@@ -132,7 +135,7 @@ class EvidenceRef(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_current_identifiers(self) -> EvidenceRef:
-        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             validate_machine_identifier(self.ref_id, field_name="ref_id")
             validate_machine_identifier(self.source_id, field_name="source_id")
             for index, claim_id in enumerate(self.claim_ids):
@@ -157,7 +160,7 @@ class EvidenceItem(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_current_identifiers(self) -> EvidenceItem:
-        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             validate_machine_identifier(self.ref_id, field_name="ref_id")
             validate_machine_identifier(self.source_id, field_name="source_id")
         return self
@@ -175,7 +178,7 @@ class ClaimRecord(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_current_identifier(self) -> ClaimRecord:
-        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             validate_machine_identifier(self.claim_id, field_name="claim_id")
         return self
 
@@ -193,7 +196,7 @@ class ClaimEvidenceLink(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_current_identifiers(self) -> ClaimEvidenceLink:
-        if self.schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             validate_machine_identifier(self.claim_id, field_name="claim_id")
             validate_machine_identifier(
                 self.evidence_ref_id,
@@ -376,7 +379,7 @@ class AgentRunRecord(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_evidence_graph_member_versions(self) -> AgentRunRecord:
-        if self.schema_version != MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version not in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             return self
         mismatches = [
             f"{field_name}[{index}]"

@@ -52,6 +52,19 @@ APPROVED_LIMITATION_SENTENCES = (
     ),
 )
 
+_SPELLED_PERCENT_NUMBER = (
+    r"(?:"
+    r"(?:twenty|thirty|forty|fifty|sixty|seventy|eighty|ninety)"
+    r"(?:[\s\-\u2010-\u2015]+(?:one|two|three|four|five|six|seven|eight|nine))?"
+    r"|zero|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|"
+    r"thirteen|fourteen|fifteen|sixteen|seventeen|eighteen|nineteen|"
+    r"one[\s\-\u2010-\u2015]+hundred"
+    r")"
+)
+_SAFETY_ADJECTIVES = r"(?:safe|secure|robust|reliable)"
+_SAFETY_PROPERTIES = r"(?:safety|security|robustness|reliability)"
+_CLAIM_SEPARATOR = r"[\s\-\u2010-\u2015]*"
+
 RESTRICTED_PATTERNS = (
     RestrictedPattern("compliant", re.compile(r"\bcompliant\b", re.IGNORECASE)),
     RestrictedPattern(
@@ -88,6 +101,44 @@ RESTRICTED_PATTERNS = (
         re.compile(r"\bOWASP\b[^\n.!?]{0,40}\bPASS(?:ED)?\b", re.IGNORECASE),
     ),
     RestrictedPattern("guaranteed", re.compile(r"\bguaranteed\b", re.IGNORECASE)),
+    RestrictedPattern(
+        "numeric safety percentage",
+        re.compile(
+            r"(?:"
+            r"\d{1,3}(?:\.\d+)?\s*(?:%|percent(?:age)?)"
+            r"[\s\-\u2010-\u2015]*"
+            r"(?:(?:is|was|are|were|rated|considered)\s+)?"
+            r"(?:safe|secure|robust|reliable|safety|security|robustness|reliability)\b"
+            r"|"
+            r"\b(?:safe|secure|robust|reliable)\b\s*"
+            r"(?:(?:at|to|is)\s*|[:=]\s*|[\-\u2010-\u2015]\s*)?"
+            r"\d{1,3}(?:\.\d+)?\s*(?:%|percent(?:age)?)"
+            r"|"
+            r"\b(?:safety|security|robustness|reliability)"
+            r"(?:\s+(?:score|level|rating))?\b\s*"
+            r"(?:(?:of|at|is)\s*|[:=]\s*|[\-\u2010-\u2015]\s*)?"
+            r"\d{1,3}(?:\.\d+)?\s*(?:%|percent(?:age)?)"
+            r")",
+            re.IGNORECASE,
+        ),
+    ),
+    RestrictedPattern(
+        "numeric safety percentage",
+        re.compile(
+            rf"(?:\b{_SPELLED_PERCENT_NUMBER}\s+percent(?:age)?"
+            rf"{_CLAIM_SEPARATOR}"
+            rf"(?:(?:is|was|are|were|rated|considered)\s+)?"
+            rf"(?:{_SAFETY_ADJECTIVES}|{_SAFETY_PROPERTIES})\b"
+            rf"|\b{_SAFETY_ADJECTIVES}\b\s*"
+            rf"(?:(?:at|to|is)\s*|[:=]\s*|[\-\u2010-\u2015]\s*)?"
+            rf"{_SPELLED_PERCENT_NUMBER}\s+percent(?:age)?\b"
+            rf"|\b{_SAFETY_PROPERTIES}"
+            rf"(?:\s+(?:score|level|rating))?\b\s*"
+            rf"(?:(?:of|at|is)\s*|[:=]\s*|[\-\u2010-\u2015]\s*)?"
+            rf"{_SPELLED_PERCENT_NUMBER}\s+percent(?:age)?\b)",
+            re.IGNORECASE,
+        ),
+    ),
     RestrictedPattern("proves safety", re.compile(r"\bproves\s+safety\b", re.IGNORECASE)),
     RestrictedPattern(
         "proves compliance",
@@ -166,8 +217,11 @@ DEFAULT_SCAN_FILES = (
     Path("docs/evidence_diff.md"),
     Path("docs/evidence_carrying_releases.md"),
     Path("docs/claim_boundary.md"),
+    Path("docs/control_efficacy.md"),
     Path("docs/posts/output_equivalence_is_not_process_equivalence.md"),
+    Path("docs/posts/who_assures_the_assurance.md"),
     Path("docs/assets/flagship_demo_transcript.txt"),
+    Path("docs/assets/assure_the_assurance_walkthrough.txt"),
     Path("docs/social/demo_video_script.md"),
 )
 
@@ -292,9 +346,8 @@ def _is_sentence_boundary(text: str, index: int) -> bool:
 
 
 def _is_blank_line_boundary(text: str, index: int) -> bool:
-    return (
-        (index > 0 and text[index - 1] == "\n")
-        or (index + 1 < len(text) and text[index + 1] == "\n")
+    return (index > 0 and text[index - 1] == "\n") or (
+        index + 1 < len(text) and text[index + 1] == "\n"
     )
 
 

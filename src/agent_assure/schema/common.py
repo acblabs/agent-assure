@@ -65,9 +65,7 @@ class ReasonCode(StrEnum):
     FIXTURE_EQUIVALENCE_FAILED = "FIXTURE_EQUIVALENCE_FAILED"
     NON_NFC_STRING = "NON_NFC_STRING"
     NON_FINITE_NUMBER = "NON_FINITE_NUMBER"
-    LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED = (
-        "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED"
-    )
+    LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED = "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED"
     NOT_EVALUATED = "NOT_EVALUATED"
 
 
@@ -76,7 +74,14 @@ MAX_SUMMARY_CHARS = 8192
 MAX_LABEL_CHARS = 512
 MACHINE_IDENTIFIER_MAX_CHARS = 256
 MACHINE_IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
-MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.1"
+MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.2"
+# v0.6.1 introduced the bounded ASCII machine-identifier contract. Keep the
+# version set explicit so compatibility projection cannot silently weaken that
+# released contract when the current writer version advances.
+MACHINE_IDENTIFIER_SCHEMA_VERSIONS = (
+    "0.6.1",
+    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+)
 _MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN = (
     MACHINE_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])"
 )
@@ -102,7 +107,7 @@ def current_machine_identifier_json_schema_extra(
     scalar_fields: tuple[str, ...] = (),
     sequence_fields: tuple[str, ...] = (),
 ) -> Callable[[dict[str, Any]], None]:
-    """Constrain current-version machine IDs without narrowing legacy schemas."""
+    """Constrain every schema version governed by the machine-ID contract."""
     overlapping_fields = set(scalar_fields) & set(sequence_fields)
     if overlapping_fields:
         raise ValueError("machine identifier fields cannot be scalar and sequence fields")
@@ -112,8 +117,7 @@ def current_machine_identifier_json_schema_extra(
         if not isinstance(rules, list):
             rules = []
         constrained_properties: dict[str, object] = {
-            field_name: dict(_MACHINE_IDENTIFIER_JSON_SCHEMA)
-            for field_name in scalar_fields
+            field_name: dict(_MACHINE_IDENTIFIER_JSON_SCHEMA) for field_name in scalar_fields
         }
         constrained_properties.update(
             {
@@ -127,7 +131,7 @@ def current_machine_identifier_json_schema_extra(
                     "required": ["schema_version"],
                     "properties": {
                         "schema_version": {
-                            "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                            "enum": list(MACHINE_IDENTIFIER_SCHEMA_VERSIONS),
                         }
                     },
                 },
@@ -145,9 +149,7 @@ def validate_machine_identifier(value: str, *, field_name: str) -> str:
         len(value) > MACHINE_IDENTIFIER_MAX_CHARS
         or fullmatch(MACHINE_IDENTIFIER_PATTERN, value) is None
     ):
-        raise ValueError(
-            f"{field_name} must use the ASCII machine-identifier grammar"
-        )
+        raise ValueError(f"{field_name} must use the ASCII machine-identifier grammar")
     return value
 
 

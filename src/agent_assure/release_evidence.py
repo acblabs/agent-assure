@@ -39,6 +39,9 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
     "compiled-suite": "raw-sha256",
     "comparison-report": "replay-stable-json-sha256",
     "comparison-summary": "replay-stable-json-sha256",
+    "control-efficacy-gate-profile": "raw-sha256",
+    "control-efficacy-onboarding-config": "raw-sha256",
+    "control-efficacy-report": "replay-stable-json-sha256",
     "evaluation-report": "replay-stable-json-sha256",
     "evaluation-summary": "replay-stable-json-sha256",
     "evidence-packet": "replay-stable-json-sha256",
@@ -48,11 +51,18 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
 _STABLE_JSON_ROLE_ARTIFACT_KINDS = {
     "comparison-report": "comparison-report",
     "comparison-summary": "comparison-summary",
+    "control-efficacy-report": "control-efficacy-report",
     "evaluation-report": "evaluation-report",
     "evaluation-summary": "evaluation-summary",
     "evidence-packet": "evidence-packet",
     "release-artifact-manifest": "release-artifact-manifest",
 }
+_RAW_FILE_ROLES = frozenset(
+    {
+        "control-efficacy-gate-profile",
+        "control-efficacy-onboarding-config",
+    }
+)
 _RAW_JSON_ROLE_ARTIFACT_KINDS = {
     "baseline-runset": "run-set",
     "candidate-runset": "run-set",
@@ -132,11 +142,7 @@ def _runtime_replay_projection(payload: dict[str, object]) -> dict[str, object]:
     artifacts = projected.get("artifacts")
     if isinstance(artifacts, list):
         projected["artifacts"] = [
-            (
-                {**artifact, "schema_version": "0.2.0"}
-                if isinstance(artifact, dict)
-                else artifact
-            )
+            ({**artifact, "schema_version": "0.2.0"} if isinstance(artifact, dict) else artifact)
             for artifact in artifacts
         ]
     return projected
@@ -477,9 +483,7 @@ def digest_mode_for_role(role: str) -> ReplayDigestMode:
         return ROLE_DIGEST_MODES[role]
     except KeyError as exc:
         if role in NON_REPLAYED_ROLE_DIGEST_MODES:
-            raise ValueError(
-                f"release artifact role is recorded but not replayed: {role}"
-            ) from exc
+            raise ValueError(f"release artifact role is recorded but not replayed: {role}") from exc
         known = ", ".join(sorted((*ROLE_DIGEST_MODES, *NON_REPLAYED_ROLE_DIGEST_MODES)))
         raise ValueError(
             f"unknown release artifact role: {role}; expected one of: {known}"
@@ -500,6 +504,8 @@ def _digest_for_artifact(
     digest_mode: ReplayDigestMode,
 ) -> str:
     if digest_mode == "raw-sha256":
+        if role in _RAW_FILE_ROLES:
+            return file_sha256(path)
         return _validated_raw_json_digest(role, path)
     if digest_mode == "replay-stable-json-sha256":
         return sha256_hexdigest(_stable_json_projection(role, path, project_root))
@@ -635,9 +641,7 @@ def _stable_manifest_artifact_projection(
     path = str(artifact.get("path", ""))
     recorded_sha256 = artifact.get("sha256")
     if not isinstance(recorded_sha256, str):
-        raise ValueError(
-            f"release artifact manifest entry for {role!r} must record sha256"
-        )
+        raise ValueError(f"release artifact manifest entry for {role!r} must record sha256")
     projection: dict[str, object] = {"role": role, "path": path}
     resolved_path = _resolve_replay_path(project_root, path)
     digest_mode = manifest_digest_mode_for_role(role)

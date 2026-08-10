@@ -54,11 +54,16 @@ _EVALUATION_REPORT_USAGE_FIELD_PATHS = (
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_EVALUATION_REPORT_USAGE_FIELD_PATHS
 )
+_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2"})
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
             "required": ["schema_version"],
-            "properties": {"schema_version": {"const": "0.6.1"}},
+            "properties": {
+                "schema_version": {
+                    "enum": sorted(_RUNSET_DIGEST_SCHEMA_VERSIONS),
+                }
+            },
         },
         "then": {
             "required": ["runset_digest", "waiver_dispositions"],
@@ -66,8 +71,6 @@ _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
-_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1"})
-
 RunSetCompatibilityCode = Literal[
     "privacy_profile_incompatible",
     "suite_binding_mismatch",
@@ -110,9 +113,7 @@ class CapabilityReport(StrictModel):
 
 
 class EvaluationReport(PersistedArtifact):
-    model_config = ConfigDict(
-        json_schema_extra=_EVALUATION_REPORT_JSON_SCHEMA_EXTRA
-    )
+    model_config = ConfigDict(json_schema_extra=_EVALUATION_REPORT_JSON_SCHEMA_EXTRA)
 
     artifact_kind: Literal["evaluation-report"] = "evaluation-report"
     candidate_vs_expectations: EvaluationSummary
@@ -150,10 +151,7 @@ class EvaluationReport(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> EvaluationReport:
-        if (
-            self.schema_version in _RUNSET_DIGEST_SCHEMA_VERSIONS
-            and self.runset_digest is None
-        ):
+        if self.schema_version in _RUNSET_DIGEST_SCHEMA_VERSIONS and self.runset_digest is None:
             raise ValueError("v0.6 evaluation report requires runset_digest")
         validate_usage_field_paths_schema_version(
             self.schema_version,
@@ -262,25 +260,28 @@ def validate_runset_compatibility(suite: CompiledSuite, runset: RunSet) -> None:
     ) != (PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST):
         raise RunSetCompatibilityError(
             "privacy_profile_incompatible",
-            "run set privacy detector profile is incompatible with the runtime profile"
+            "run set privacy detector profile is incompatible with the runtime profile",
         )
     if runset.suite_id != suite.suite_id:
         raise RunSetCompatibilityError(
             "suite_binding_mismatch",
-            f"run set suite_id {runset.suite_id!r} does not match compiled suite {suite.suite_id!r}"
+            (
+                f"run set suite_id {runset.suite_id!r} does not match "
+                f"compiled suite {suite.suite_id!r}"
+            ),
         )
     if runset.suite_version != suite.suite_version:
         raise RunSetCompatibilityError(
             "suite_binding_mismatch",
             f"run set suite_version {runset.suite_version!r} does not match compiled suite "
-            f"{suite.suite_version!r}"
+            f"{suite.suite_version!r}",
         )
     expected_suite_digest = compiled_suite_digest(suite)
     if runset.suite_digest != expected_suite_digest:
         raise RunSetCompatibilityError(
             "suite_binding_mismatch",
             f"run set suite_digest {runset.suite_digest!r} does not match compiled suite digest "
-            f"{expected_suite_digest!r}"
+            f"{expected_suite_digest!r}",
         )
     _verify_run_fixture_binding(runset)
 
@@ -305,7 +306,7 @@ def _verify_run_fixture_binding(runset: RunSet) -> None:
             raise RunSetCompatibilityError(
                 "fixture_binding_mismatch",
                 f"run {run.run_id!r} fixture_manifest_digest {run_digest!r} does not match "
-                f"run set fixture_manifest_digest {runset.fixture_manifest_digest!r}"
+                f"run set fixture_manifest_digest {runset.fixture_manifest_digest!r}",
             )
 
 
@@ -343,9 +344,7 @@ def _metrics(
         unevaluated_cases=len(case_ids - included_singleton_cases),
         passed_cases=len(included_singleton_cases - failed_evaluated_cases),
         failed_cases=len(failed_evaluated_cases),
-        warning_findings=sum(
-            1 for result in results if _is_warning_control(result, gate_profile)
-        ),
+        warning_findings=sum(1 for result in results if _is_warning_control(result, gate_profile)),
         blocking_findings=sum(1 for result in results if gate_profile.is_blocking(result)),
         global_blocking_findings=global_blocking_findings,
         findings_by_reason=dict(sorted(findings_by_reason.items())),

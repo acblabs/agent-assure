@@ -9,7 +9,11 @@ from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 
-from agent_assure.schema.common import MACHINE_IDENTIFIER_MAX_CHARS
+from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_MAX_CHARS,
+    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
+)
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.export import writer_json_schema
 from agent_assure.schema.run import (
@@ -142,20 +146,23 @@ IDENTIFIER_PAYLOAD_FACTORIES: tuple[
     IDENTIFIER_PAYLOAD_FACTORIES,
     ids=[case_name for case_name, _ in IDENTIFIER_PAYLOAD_FACTORIES],
 )
+@pytest.mark.parametrize("schema_version", MACHINE_IDENTIFIER_SCHEMA_VERSIONS)
 def test_current_evidence_graph_identifiers_have_model_and_schema_parity(
     case_name: str,
     payload_factory: IdentifierPayloadFactory,
     invalid_value: str,
+    schema_version: str,
 ) -> None:
     del case_name
-    model, payload = payload_factory(invalid_value, "0.6.1")
+    model, payload = payload_factory(invalid_value, schema_version)
 
     with pytest.raises(PydanticValidationError):
         model.model_validate(payload)
     with pytest.raises(JsonSchemaValidationError):
         Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
-    with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(writer_json_schema(model)).validate(payload)
+    if schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        with pytest.raises(JsonSchemaValidationError):
+            Draft202012Validator(writer_json_schema(model)).validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -163,16 +170,22 @@ def test_current_evidence_graph_identifiers_have_model_and_schema_parity(
     IDENTIFIER_PAYLOAD_FACTORIES,
     ids=[case_name for case_name, _ in IDENTIFIER_PAYLOAD_FACTORIES],
 )
+@pytest.mark.parametrize("schema_version", MACHINE_IDENTIFIER_SCHEMA_VERSIONS)
 def test_current_evidence_graph_identifier_boundary_is_accepted(
     case_name: str,
     payload_factory: IdentifierPayloadFactory,
+    schema_version: str,
 ) -> None:
     del case_name
-    model, payload = payload_factory("x" * MACHINE_IDENTIFIER_MAX_CHARS, "0.6.1")
+    model, payload = payload_factory(
+        "x" * MACHINE_IDENTIFIER_MAX_CHARS,
+        schema_version,
+    )
 
     model.model_validate(payload)
     Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
-    Draft202012Validator(writer_json_schema(model)).validate(payload)
+    if schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        Draft202012Validator(writer_json_schema(model)).validate(payload)
 
 
 @pytest.mark.parametrize(
@@ -192,6 +205,16 @@ def test_legacy_evidence_graph_identifier_projection_remains_compatible(
 
 
 def test_current_expectation_artifact_rejects_hostile_identifier() -> None:
+    _, payload = _expectation_required_payload(
+        "unsafe\x1b[2Kref\u202e",
+        MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    )
+
+    with pytest.raises(JsonSchemaValidationError):
+        validate_artifact_payload(payload, "expectation")
+
+
+def test_frozen_v061_expectation_retains_machine_identifier_defense() -> None:
     _, payload = _expectation_required_payload("unsafe\x1b[2Kref\u202e", "0.6.1")
 
     with pytest.raises(JsonSchemaValidationError):
@@ -270,12 +293,14 @@ def _run_record_payload(
     _member_payloads("0.6.0"),
     ids=[field_name for field_name, _ in _member_payloads("0.6.0")],
 )
+@pytest.mark.parametrize("schema_version", MACHINE_IDENTIFIER_SCHEMA_VERSIONS)
 def test_current_run_record_rejects_legacy_evidence_graph_members(
     member_field: str,
     member_payload: dict[str, Any],
+    schema_version: str,
 ) -> None:
     payload = _run_record_payload(
-        schema_version="0.6.1",
+        schema_version=schema_version,
         member_field=member_field,
         member_payload=member_payload,
     )
@@ -286,9 +311,7 @@ def test_current_run_record_rejects_legacy_evidence_graph_members(
     ):
         AgentRunRecord.model_validate(payload)
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            AgentRunRecord.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation")).validate(payload)
     with pytest.raises(JsonSchemaValidationError):
         validate_artifact_payload(payload, "agent-run-record")
 
@@ -309,13 +332,8 @@ def test_matching_legacy_run_record_evidence_graph_projection_remains_valid(
     )
 
     AgentRunRecord.model_validate(payload)
-    Draft202012Validator(
-        AgentRunRecord.model_json_schema(mode="validation")
-    ).validate(payload)
-    assert (
-        validate_artifact_payload(payload, "agent-run-record")
-        == "frozen-jsonschema"
-    )
+    Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation")).validate(payload)
+    assert validate_artifact_payload(payload, "agent-run-record") == "frozen-jsonschema"
 
 
 def _compiled_suite_payload(
@@ -351,22 +369,23 @@ def _compiled_suite_payload(
     }
 
 
-def test_current_compiled_suite_rejects_legacy_expectation_member() -> None:
+@pytest.mark.parametrize("schema_version", MACHINE_IDENTIFIER_SCHEMA_VERSIONS)
+def test_current_compiled_suite_rejects_legacy_expectation_member(
+    schema_version: str,
+) -> None:
     payload = _compiled_suite_payload(
-        suite_schema_version="0.6.1",
+        suite_schema_version=schema_version,
         expectation_schema_version="0.6.0",
         required_evidence_ref="legacy\x1b[2Kref\u202e",
     )
 
     with pytest.raises(
         PydanticValidationError,
-        match="current-version expectations",
+        match="machine-ID-era compiled suites",
     ):
         CompiledSuite.model_validate(payload)
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            CompiledSuite.model_json_schema(mode="validation")
-        ).validate(payload)
+        Draft202012Validator(CompiledSuite.model_json_schema(mode="validation")).validate(payload)
     with pytest.raises(JsonSchemaValidationError):
         validate_artifact_payload(payload, "compiled-suite")
 
@@ -379,7 +398,5 @@ def test_matching_legacy_compiled_suite_projection_remains_valid() -> None:
     )
 
     CompiledSuite.model_validate(payload)
-    Draft202012Validator(
-        CompiledSuite.model_json_schema(mode="validation")
-    ).validate(payload)
+    Draft202012Validator(CompiledSuite.model_json_schema(mode="validation")).validate(payload)
     assert validate_artifact_payload(payload, "compiled-suite") == "frozen-jsonschema"

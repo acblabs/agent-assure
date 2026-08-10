@@ -1,0 +1,813 @@
+{
+  "$defs": {
+    "ControlEfficacySemanticState": {
+      "enum": [
+        "survivor_observed",
+        "indeterminate",
+        "not_evaluated",
+        "all_evaluated_applicable_caught"
+      ],
+      "title": "ControlEfficacySemanticState",
+      "type": "string"
+    },
+    "EfficacyStratum": {
+      "additionalProperties": false,
+      "properties": {
+        "independent_challenge_eligible": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Independent Challenge Eligible"
+        },
+        "kill_rate": {
+          "$ref": "#/$defs/ExactRate"
+        },
+        "state_counts": {
+          "$ref": "#/$defs/MutationStateCounts"
+        },
+        "stratum": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Stratum",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stratum",
+        "state_counts",
+        "kill_rate"
+      ],
+      "title": "EfficacyStratum",
+      "type": "object"
+    },
+    "ExactRate": {
+      "$comment": "JSON Schema enforces the denominator/state relationship and the zero-denominator numerator. Runtime model validation additionally enforces numerator <= denominator for nonzero denominators.",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "state": {
+                "const": "defined"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "if": {
+            "properties": {
+              "denominator": {
+                "const": 0
+              }
+            },
+            "required": [
+              "denominator"
+            ]
+          },
+          "then": {
+            "properties": {
+              "numerator": {
+                "const": 0
+              },
+              "state": {
+                "const": "undefined_zero_denominator"
+              }
+            },
+            "required": [
+              "numerator",
+              "state"
+            ]
+          }
+        }
+      ],
+      "description": "An exact ratio which never substitutes a numeric value for 0/0.",
+      "properties": {
+        "denominator": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "numerator": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/ExactRateState"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator",
+        "state"
+      ],
+      "title": "ExactRate",
+      "type": "object"
+    },
+    "ExactRateState": {
+      "enum": [
+        "defined",
+        "undefined_zero_denominator"
+      ],
+      "title": "ExactRateState",
+      "type": "string"
+    },
+    "IndependenceClass": {
+      "enum": [
+        "external_preexisting",
+        "third_party_contributed",
+        "first_party_precontrol",
+        "first_party_postcontrol",
+        "unknown"
+      ],
+      "title": "IndependenceClass",
+      "type": "string"
+    },
+    "MutationApplicability": {
+      "enum": [
+        "applicable",
+        "inapplicable",
+        "not_evaluated"
+      ],
+      "title": "MutationApplicability",
+      "type": "string"
+    },
+    "MutationResultState": {
+      "enum": [
+        "caught",
+        "survived",
+        "inapplicable",
+        "invalid_operator",
+        "invalid_subject",
+        "execution_error"
+      ],
+      "title": "MutationResultState",
+      "type": "string"
+    },
+    "MutationStateCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "caught": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Caught",
+          "type": "integer"
+        },
+        "execution_error": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Execution Error",
+          "type": "integer"
+        },
+        "inapplicable": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Inapplicable",
+          "type": "integer"
+        },
+        "invalid_operator": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Invalid Operator",
+          "type": "integer"
+        },
+        "invalid_subject": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Invalid Subject",
+          "type": "integer"
+        },
+        "survived": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Survived",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "caught",
+        "survived",
+        "inapplicable",
+        "invalid_operator",
+        "invalid_subject",
+        "execution_error"
+      ],
+      "title": "MutationStateCounts",
+      "type": "object"
+    },
+    "OperatorEfficacyOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/MutationApplicability"
+        },
+        "catalog_threat_ids": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Catalog Threat Ids",
+          "type": "array"
+        },
+        "critical_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Critical Threat Ids",
+          "type": "array"
+        },
+        "independence_class": {
+          "$ref": "#/$defs/IndependenceClass"
+        },
+        "invariant_family": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Invariant Family",
+          "type": "string"
+        },
+        "operator_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Operator Id",
+          "type": "string"
+        },
+        "present_target_control_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Present Target Control Ids",
+          "type": "array"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/$defs/MutationResultState"
+        },
+        "target_control_ids": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Target Control Ids",
+          "type": "array"
+        },
+        "threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Threat Ids",
+          "type": "array"
+        },
+        "unscoped_catalog_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Unscoped Catalog Threat Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "operator_id",
+        "invariant_family",
+        "independence_class",
+        "applicability",
+        "state",
+        "required",
+        "catalog_threat_ids",
+        "target_control_ids"
+      ],
+      "title": "OperatorEfficacyOutcome",
+      "type": "object"
+    },
+    "ThreatApplicability": {
+      "enum": [
+        "applicable",
+        "not_applicable",
+        "unknown"
+      ],
+      "title": "ThreatApplicability",
+      "type": "string"
+    },
+    "ThreatCoverageItem": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/ThreatApplicability"
+        },
+        "challenging_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Challenging Operator Ids",
+          "type": "array"
+        },
+        "critical": {
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "independent_challenging_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Independent Challenging Operator Ids",
+          "type": "array"
+        },
+        "threat_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Threat Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threat_id",
+        "applicability",
+        "critical"
+      ],
+      "title": "ThreatCoverageItem",
+      "type": "object"
+    },
+    "ThreatScopeSemanticState": {
+      "enum": [
+        "critical_gap_observed",
+        "unknown_applicability",
+        "unscoped_catalog_references",
+        "not_evaluated",
+        "gap_observed",
+        "all_applicable_challenged"
+      ],
+      "title": "ThreatScopeSemanticState",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.2/control-efficacy-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Standalone deterministic projection of one mutation campaign.",
+  "properties": {
+    "applicable_operator_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Applicable Operator Count",
+      "type": "integer"
+    },
+    "applicable_threat_category_count": {
+      "maximum": 4096,
+      "minimum": 0,
+      "title": "Applicable Threat Category Count",
+      "type": "integer"
+    },
+    "artifact_kind": {
+      "const": "control-efficacy-report",
+      "default": "control-efficacy-report",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "campaign_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Campaign Digest",
+      "type": "string"
+    },
+    "canonical_invariant_families": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Canonical Invariant Families",
+      "type": "array"
+    },
+    "canonical_operator_ids": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Canonical Operator Ids",
+      "type": "array"
+    },
+    "catalog_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Catalog Digest",
+      "type": "string"
+    },
+    "catalog_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Catalog Id",
+      "type": "string"
+    },
+    "catalog_kill_rate": {
+      "$ref": "#/$defs/ExactRate"
+    },
+    "caught_operator_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Caught Operator Count",
+      "type": "integer"
+    },
+    "challenged_threat_category_count": {
+      "maximum": 4096,
+      "minimum": 0,
+      "title": "Challenged Threat Category Count",
+      "type": "integer"
+    },
+    "contract_id": {
+      "const": "ControlEfficacyReport/v1",
+      "default": "ControlEfficacyReport/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "critical_survivor_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Critical Survivor Count",
+      "type": "integer"
+    },
+    "critical_survivor_operator_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Critical Survivor Operator Ids",
+      "type": "array"
+    },
+    "critical_uncovered_threat_count": {
+      "maximum": 4096,
+      "minimum": 0,
+      "title": "Critical Uncovered Threat Count",
+      "type": "integer"
+    },
+    "critical_uncovered_threat_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 4096,
+      "title": "Critical Uncovered Threat Ids",
+      "type": "array"
+    },
+    "execution_error_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Execution Error Count",
+      "type": "integer"
+    },
+    "inapplicable_operator_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Inapplicable Operator Count",
+      "type": "integer"
+    },
+    "independent_threat_challenge_rate": {
+      "$ref": "#/$defs/ExactRate"
+    },
+    "independently_challenged_threat_category_count": {
+      "maximum": 4096,
+      "minimum": 0,
+      "title": "Independently Challenged Threat Category Count",
+      "type": "integer"
+    },
+    "invalid_operator_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Invalid Operator Count",
+      "type": "integer"
+    },
+    "invalid_or_error_operator_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Invalid Or Error Operator Ids",
+      "type": "array"
+    },
+    "invalid_subject_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Invalid Subject Count",
+      "type": "integer"
+    },
+    "kill_rate_by_independence_class": {
+      "items": {
+        "$ref": "#/$defs/EfficacyStratum"
+      },
+      "maxItems": 5,
+      "minItems": 5,
+      "title": "Kill Rate By Independence Class",
+      "type": "array"
+    },
+    "kill_rate_by_invariant_family": {
+      "items": {
+        "$ref": "#/$defs/EfficacyStratum"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Kill Rate By Invariant Family",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "operator_outcomes": {
+      "items": {
+        "$ref": "#/$defs/OperatorEfficacyOutcome"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Operator Outcomes",
+      "type": "array"
+    },
+    "pending_operator_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Pending Operator Ids",
+      "type": "array"
+    },
+    "report_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Report Digest",
+      "type": "string"
+    },
+    "required_not_evaluated_operator_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Required Not Evaluated Operator Ids",
+      "type": "array"
+    },
+    "required_operator_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Required Operator Ids",
+      "type": "array"
+    },
+    "required_survivor_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Required Survivor Count",
+      "type": "integer"
+    },
+    "required_survivor_operator_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Required Survivor Operator Ids",
+      "type": "array"
+    },
+    "schema_name": {
+      "const": "control-efficacy-report",
+      "default": "control-efficacy-report",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.2",
+      "default": "0.6.2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "selected_operator_ids": {
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Selected Operator Ids",
+      "type": "array"
+    },
+    "semantic_state": {
+      "$ref": "#/$defs/ControlEfficacySemanticState"
+    },
+    "source_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Source Digest",
+      "type": "string"
+    },
+    "state_counts": {
+      "$ref": "#/$defs/MutationStateCounts"
+    },
+    "suite_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Suite Digest",
+      "type": "string"
+    },
+    "survived_operator_count": {
+      "maximum": 256,
+      "minimum": 0,
+      "title": "Survived Operator Count",
+      "type": "integer"
+    },
+    "threat_challenge_rate": {
+      "$ref": "#/$defs/ExactRate"
+    },
+    "threat_coverage": {
+      "items": {
+        "$ref": "#/$defs/ThreatCoverageItem"
+      },
+      "maxItems": 4096,
+      "minItems": 1,
+      "title": "Threat Coverage",
+      "type": "array"
+    },
+    "threat_manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Threat Manifest Digest",
+      "type": "string"
+    },
+    "threat_scope_state": {
+      "$ref": "#/$defs/ThreatScopeSemanticState"
+    },
+    "unknown_applicability_count": {
+      "maximum": 4096,
+      "minimum": 0,
+      "title": "Unknown Applicability Count",
+      "type": "integer"
+    },
+    "unknown_applicability_threat_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 4096,
+      "title": "Unknown Applicability Threat Ids",
+      "type": "array"
+    },
+    "unscoped_catalog_threat_count": {
+      "maximum": 8192,
+      "minimum": 0,
+      "title": "Unscoped Catalog Threat Count",
+      "type": "integer"
+    },
+    "unscoped_catalog_threat_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 8192,
+      "title": "Unscoped Catalog Threat Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "report_digest",
+    "campaign_digest",
+    "source_digest",
+    "suite_digest",
+    "catalog_id",
+    "catalog_digest",
+    "threat_manifest_digest",
+    "semantic_state",
+    "threat_scope_state",
+    "canonical_operator_ids",
+    "canonical_invariant_families",
+    "selected_operator_ids",
+    "operator_outcomes",
+    "state_counts",
+    "applicable_operator_count",
+    "caught_operator_count",
+    "survived_operator_count",
+    "inapplicable_operator_count",
+    "invalid_operator_count",
+    "invalid_subject_count",
+    "execution_error_count",
+    "catalog_kill_rate",
+    "required_survivor_count",
+    "critical_survivor_count",
+    "kill_rate_by_invariant_family",
+    "kill_rate_by_independence_class",
+    "threat_coverage",
+    "applicable_threat_category_count",
+    "challenged_threat_category_count",
+    "independently_challenged_threat_category_count",
+    "critical_uncovered_threat_count",
+    "unknown_applicability_count",
+    "unscoped_catalog_threat_count",
+    "threat_challenge_rate",
+    "independent_threat_challenge_rate",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ControlEfficacyReport",
+  "type": "object"
+}

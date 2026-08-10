@@ -10,7 +10,11 @@ from pydantic import ValidationError
 
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_run_record_payload
-from agent_assure.schema.common import MACHINE_IDENTIFIER_MAX_CHARS, ExecutionMode
+from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_MAX_CHARS,
+    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    ExecutionMode,
+)
 from agent_assure.schema.export import writer_json_schema
 from agent_assure.schema.live import (
     DriftComparabilityResult,
@@ -117,7 +121,7 @@ def test_current_evidence_identifiers_are_bounded_nonblank_and_control_safe(
 ) -> None:
     payload: dict[str, object] = {
         "artifact_kind": model.model_fields["artifact_kind"].default,
-        "schema_version": "0.6.1",
+        "schema_version": MACHINE_IDENTIFIER_SCHEMA_VERSION,
         "ref_id": "ref-safe",
         "source_id": "source-safe",
     }
@@ -150,7 +154,7 @@ def test_current_evidence_identifier_grammar_has_model_and_schema_parity(
 ) -> None:
     payload: dict[str, object] = {
         "artifact_kind": model.model_fields["artifact_kind"].default,
-        "schema_version": "0.6.1",
+        "schema_version": MACHINE_IDENTIFIER_SCHEMA_VERSION,
         "ref_id": valid_value,
         "source_id": valid_value,
     }
@@ -220,13 +224,10 @@ def test_frozen_v060_runset_retains_legacy_unbounded_evidence_identifiers() -> N
         elif isinstance(value, list):
             pending.extend(value)
 
-    assert (
-        validate_artifact_payload(payload, "run-set")
-        == "frozen-jsonschema"
-    )
+    assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
 def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="cost_budget_committed_usd"):
         _record(
@@ -240,7 +241,7 @@ def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
 def test_v06_live_observations_require_pairing_identity(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="prompt, schedule, and randomization identity"):
         LiveObservationResult(
@@ -257,7 +258,7 @@ def test_v06_live_observations_require_pairing_identity(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
 def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="configuration_digest"):
         DriftWindowSummary(
@@ -274,7 +275,7 @@ def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
 def test_v06_drift_comparability_requires_configuration_match(
     schema_version: str,
 ) -> None:

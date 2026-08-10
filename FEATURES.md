@@ -36,7 +36,7 @@
 
 ## Implemented
 
-- Development-RFC Agent Release Assurance Compiler mutation surface with six strict
+- Development-RFC Agent Release Assurance Compiler mutation surface with eight strict
   evidence-carrying `/v1` contract roots and a closed `core/v1` catalog of
   exactly seven stable operators spanning material-evidence linkage,
   human-review routing, tool boundaries, provenance identity, privacy
@@ -51,6 +51,15 @@
   same-source operator isolation, forbidden mutation chaining, full-report and
   fail-fast modes, explicit pending order, prohibited-substitute evidence, and
   worst-state exit precedence.
+- Self-digested threat-applicability manifests and control-efficacy reports with
+  exact detector ratios, explicit undefined zero denominators, complete outcome
+  counts, per-family strata, all five independence strata, critical and
+  required survivor IDs, deterministic-only verdict outcomes, explicit
+  critical-uncovered findings, and separate semantic and gate-profile states.
+- Idempotent controls-mutation onboarding assets, static read-only readiness
+  diagnostics, and a one-command installed-package demo showing both a caught
+  challenge and a required survivor without accepting an unrelated failure as
+  substitute detection.
 - Reviewed source-and-synthetic-fixture contribution path for third-party
   mutation cases without executable plugin discovery or loading.
 - Offline package and CLI skeleton.
@@ -86,9 +95,14 @@
 - Deterministic process-measurement cases that show same-answer process changes
   across evidence links, provider metadata, human review, residual sensitive
   metadata, retries, measured usage, and a different-answer contextual case.
-- Evidence packets that bundle evaluation and comparison summaries with
+- Evidence packets that bundle evaluation, optional comparison, and optional
+  control-efficacy summaries with
   interpretation guidance, environment metadata, deterministic input artifact
-  digests, dependency-inventory digest, and release artifact manifest.
+  digests, dependency-inventory digest, release artifact manifest, and a
+  nested gate profile plus exactly re-derived efficacy decision kept separate
+  from candidate evidence closure. Nested persisted-artifact schema versions
+  must match the packet writer contract, and packet bytes are schema-validated
+  after redaction before persistence.
 - Framework evidence maps that turn packet-resident evidence into
   claim-boundary-limited control coverage reports for NIST AI RMF, OWASP LLM
   Top 10 2025, ISO/IEC 42001, and pinned MITRE ATLAS 2026.06 review concepts.
@@ -98,8 +112,9 @@
   workflow signing for exact packet, manifest, replay-file, SBOM, wheel, and
   source distribution verification by GitHub Actions workflow identity.
 - CI gates for candidate RunSets, optional baseline comparisons, evaluation
-  summaries, comparison summaries, and evidence packets with full/fail-fast
-  report modes and stable pass, fail, and invalid-comparison exit codes.
+  summaries, comparison summaries, control-efficacy reports, and evidence
+  packets with full/fail-fast report modes, strict warning and not-evaluated
+  enforcement, and stable pass, fail, and invalid-input exit codes.
 - Reproducible flagship showcase commands that demonstrate a stable visible
   answer with a failing material evidence-link invariant under equivalent
   fixtures.
@@ -161,7 +176,8 @@
 - OpenTelemetry-aligned span-plan preview from structured run records, plus
   optional OpenTelemetry SDK span emission and OTLP HTTP export when
   `agent-assure[otel]` is installed.
-- Documentation-alignment checks for conservative public claims.
+- Documentation-alignment and release-facing claim checks for conservative
+  public language, including rejection of numeric system-safety percentages.
 
 ## Planned
 

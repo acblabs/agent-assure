@@ -23,6 +23,7 @@ FROZEN_SCHEMA_VERSIONS = frozenset(
         "0.4.3",
         "0.5.0",
         "0.6.0",
+        "0.6.1",
     }
 )
 _DRAFT_2020_12_URI = "https://json-schema.org/draft/2020-12/schema"
@@ -36,6 +37,14 @@ _V060_SEMANTIC_ARTIFACT_KINDS = frozenset(
         "expected-detection-contract",
     }
 )
+_V061_SEMANTIC_ARTIFACT_KINDS = _V060_SEMANTIC_ARTIFACT_KINDS | {
+    "assurance-mutation-catalog",
+    "assurance-mutation-campaign",
+}
+_LEGACY_SEMANTIC_ARTIFACT_KINDS = {
+    "0.6.0": _V060_SEMANTIC_ARTIFACT_KINDS,
+    "0.6.1": _V061_SEMANTIC_ARTIFACT_KINDS,
+}
 
 
 def load_json(path: Path) -> dict[str, Any]:
@@ -121,14 +130,18 @@ def _validate_legacy_semantics(
 ) -> None:
     """Apply compatible v0.6 semantic checks after immutable shape validation.
 
-    The four evidence-carrying roots introduced in v0.6.0 are shape-compatible
-    with their current projection for values admitted by the frozen schema.
-    Projecting only after frozen validation retains the historical vocabulary
-    while restoring self-digest and relational checks that JSON Schema cannot
-    express. Older artifact families retain their established loader-specific
-    compatibility projections.
+    Evidence-carrying roots introduced in v0.6.0 and v0.6.1 are
+    shape-compatible with their current projection for values admitted by the
+    corresponding frozen schema. Projecting only after frozen validation
+    retains each historical vocabulary while restoring self-digest and
+    relational checks that JSON Schema cannot express. Older artifact families
+    retain their established loader-specific compatibility projections.
     """
-    if payload.get("schema_version") != "0.6.0" or kind not in _V060_SEMANTIC_ARTIFACT_KINDS:
+    schema_version = payload.get("schema_version")
+    if not isinstance(schema_version, str):
+        return
+    semantic_kinds = _LEGACY_SEMANTIC_ARTIFACT_KINDS.get(schema_version)
+    if semantic_kinds is None or kind not in semantic_kinds:
         return
     parsed = project_validated_artifact_payload(payload, model, kind=kind)
     artifact_kind = getattr(parsed, "artifact_kind", None)

@@ -60,6 +60,85 @@ def test_prepare_output_dir_cleans_owned_directory(tmp_path: Path) -> None:
     assert json.loads(marker.read_text(encoding="utf-8")) == {"owner": "agent-assure-demo"}
 
 
+def test_prepare_output_dir_refuses_hard_linked_ownership_marker(tmp_path: Path) -> None:
+    source = tmp_path / "source-marker.json"
+    source.write_text('{"owner":"agent-assure-demo"}\n', encoding="utf-8")
+    out_dir = tmp_path / "unrelated"
+    out_dir.mkdir()
+    keep = out_dir / "keep.txt"
+    keep.write_text("do not delete\n", encoding="utf-8")
+    try:
+        os.link(source, out_dir / DEMO_MARKER_FILENAME)
+    except OSError as exc:
+        pytest.skip(f"hard links unavailable: {exc}")
+
+    with pytest.raises(DemoError, match="without agent-assure demo ownership marker"):
+        prepare_output_dir(out_dir, clean=True)
+
+    assert keep.read_text(encoding="utf-8") == "do not delete\n"
+
+
+def test_prepare_output_dir_refuses_symlinked_ownership_marker(tmp_path: Path) -> None:
+    source = tmp_path / "source-marker.json"
+    source.write_text('{"owner":"agent-assure-demo"}\n', encoding="utf-8")
+    out_dir = tmp_path / "unrelated"
+    out_dir.mkdir()
+    keep = out_dir / "keep.txt"
+    keep.write_text("do not delete\n", encoding="utf-8")
+    try:
+        (out_dir / DEMO_MARKER_FILENAME).symlink_to(source)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+
+    with pytest.raises(DemoError, match="without agent-assure demo ownership marker"):
+        prepare_output_dir(out_dir, clean=True)
+
+    assert keep.read_text(encoding="utf-8") == "do not delete\n"
+
+
+def test_prepare_output_dir_refuses_junction_ownership_marker(tmp_path: Path) -> None:
+    source = tmp_path / "source-marker-directory"
+    source.mkdir()
+    (source / "marker.json").write_text(
+        '{"owner":"agent-assure-demo"}\n',
+        encoding="utf-8",
+    )
+    out_dir = tmp_path / "unrelated"
+    out_dir.mkdir()
+    keep = out_dir / "keep.txt"
+    keep.write_text("do not delete\n", encoding="utf-8")
+    marker = out_dir / DEMO_MARKER_FILENAME
+    try:
+        marker.symlink_to(source, target_is_directory=True)
+    except OSError as symlink_error:
+        if os.name != "nt":
+            pytest.skip(f"directory symlinks unavailable: {symlink_error}")
+        result = subprocess.run(
+            [
+                os.environ.get("COMSPEC", "cmd.exe"),
+                "/d",
+                "/c",
+                "mklink",
+                "/J",
+                str(marker),
+                str(source),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            pytest.skip(
+                "directory symlinks and junctions unavailable: "
+                + (result.stderr.strip() or result.stdout.strip())
+            )
+
+    with pytest.raises(DemoError, match="without agent-assure demo ownership marker"):
+        prepare_output_dir(out_dir, clean=True)
+
+    assert keep.read_text(encoding="utf-8") == "do not delete\n"
+
+
 @pytest.mark.parametrize(
     "marker_payload",
     (
@@ -123,13 +202,26 @@ def test_command_metadata_redacts_absolute_paths(tmp_path: Path) -> None:
     assert str(tmp_path) not in json.dumps(payload)
 
 
-def test_demo_subprocess_env_blocks_child_process_network(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    "probe",
+    (
+        "socket.create_connection(('127.0.0.1', 9))",
+        (
+            "socket.socket(socket.AF_INET, socket.SOCK_DGRAM)"
+            ".sendto(b'offline-probe', ('127.0.0.1', 9))"
+        ),
+    ),
+)
+def test_demo_subprocess_env_blocks_child_process_network(
+    tmp_path: Path,
+    probe: str,
+) -> None:
     env = demo_subprocess_env(tmp_path, env=os.environ.copy())
     result = subprocess.run(
         [
             sys.executable,
             "-c",
-            "import socket; socket.create_connection(('127.0.0.1', 9))",
+            f"import socket; {probe}",
         ],
         cwd=tmp_path,
         env=env,

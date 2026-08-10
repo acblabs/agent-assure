@@ -11,6 +11,8 @@ nav:
   - What this measures: what_this_measures.md
   - Evidence-carrying releases: evidence_carrying_releases.md
   - Core mutation catalog: mutation_catalog.md
+  - Control efficacy: control_efficacy.md
+  - Who assures the assurance?: posts/who_assures_the_assurance.md
   - Architecture: architecture.md
   - CLI contract: cli_contract.md
   - Schema reference: schema_reference.md

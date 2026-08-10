@@ -16,6 +16,10 @@ from agent_assure.schema.campaign import (
 )
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.controls import ControlCoverageReport
+from agent_assure.schema.efficacy import (
+    ControlEfficacyReport,
+    ThreatApplicabilityManifest,
+)
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
@@ -61,7 +65,9 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
         "assurance-mutation-catalog",
         "assurance-mutation-operator",
         "assurance-mutation-result",
+        "control-efficacy-report",
         "expected-detection-contract",
+        "threat-applicability-manifest",
     }
 )
 
@@ -76,6 +82,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "comparison-report": ComparisonReport,
     "comparison-summary": ComparisonSummary,
     "control-coverage-report": ControlCoverageReport,
+    "control-efficacy-report": ControlEfficacyReport,
     "evaluation-report": EvaluationReport,
     "evaluation-summary": EvaluationSummary,
     "emergency-process-record": EmergencyProcessRecord,
@@ -97,6 +104,7 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "stream-event-record": StreamEventRecord,
     "stream-ingestion-diagnostics": StreamIngestionDiagnostics,
     "stream-run": StreamRunRecord,
+    "threat-applicability-manifest": ThreatApplicabilityManifest,
     "usage-ledger": UsageLedger,
     "usage-pricing-snapshot": UsagePricingSnapshot,
     "usage-segment": UsageSegment,
@@ -174,8 +182,7 @@ def export_json_schemas(out_dir: Path) -> list[Path]:
         require_persisted_identity_in_schema(schema, kind)
         schema["$schema"] = "https://json-schema.org/draft/2020-12/schema"
         schema["$id"] = (
-            f"https://acblabs.github.io/agent-assure/schemas/v{SCHEMA_VERSION}/"
-            f"{kind}.schema.json"
+            f"https://acblabs.github.io/agent-assure/schemas/v{SCHEMA_VERSION}/{kind}.schema.json"
         )
         schema.setdefault("properties", {})
         path = out_dir / f"{kind}.schema.json"

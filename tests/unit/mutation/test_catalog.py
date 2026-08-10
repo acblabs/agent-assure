@@ -22,16 +22,11 @@ from agent_assure.schema.validation import FROZEN_SCHEMA_VERSIONS
 _ROOT = Path(__file__).resolve().parents[3]
 _SOURCE_ROOT = _ROOT / "src"
 _EXPECTED_FROZEN_RUNSET_SCHEMA_PATHS = tuple(
-    f"schemas/v{version}/run-set.schema.json"
-    for version in sorted(FROZEN_SCHEMA_VERSIONS)
+    f"schemas/v{version}/run-set.schema.json" for version in sorted(FROZEN_SCHEMA_VERSIONS)
 )
-_EXPECTED_FROZEN_SCHEMA_DIR_NAMES = frozenset(
-    f"v{version}" for version in FROZEN_SCHEMA_VERSIONS
-)
+_EXPECTED_FROZEN_SCHEMA_DIR_NAMES = frozenset(f"v{version}" for version in FROZEN_SCHEMA_VERSIONS)
 _CONTROL_FIRST_SEEN_COMMIT = "git:441fc73793fd9154a2830613dfe2a521ca3eeaa1"
-_RUNSET_COMPLETION_FIRST_SEEN_COMMIT = (
-    "git:cdb7d2e0647bfbd86c558bbc5e6b74c15722185e"
-)
+_RUNSET_COMPLETION_FIRST_SEEN_COMMIT = "git:cdb7d2e0647bfbd86c558bbc5e6b74c15722185e"
 _TARGETS = {
     "bypass-required-human-review": (
         "human_review_required",
@@ -115,6 +110,7 @@ _IDENTITY_CRITICAL_PATHS = (
     "agent_assure/usage/__init__.py",
     "schemas/v0.5.0/run-set.schema.json",
     "schemas/v0.6.0/run-set.schema.json",
+    "schemas/v0.6.1/run-set.schema.json",
 )
 
 
@@ -137,8 +133,7 @@ def test_component_manifest_binds_dispatch_schema_evaluation_and_controls() -> N
 
 def test_evaluator_manifest_is_shared_and_covers_every_evaluator_policy() -> None:
     evaluator_paths = {
-        component.relative_path
-        for component in built_in_evaluator_implementation_components()
+        component.relative_path for component in built_in_evaluator_implementation_components()
     }
     operator_paths = {
         component.relative_path
@@ -175,7 +170,14 @@ def test_evaluator_manifest_is_shared_and_covers_every_evaluator_policy() -> Non
 
 def test_catalog_frozen_runset_schema_paths_match_validator_versions() -> None:
     assert catalog._FROZEN_RUNSET_SCHEMA_PATHS == _EXPECTED_FROZEN_RUNSET_SCHEMA_PATHS
-    assert "schemas/v0.6.1/run-set.schema.json" not in catalog._FROZEN_RUNSET_SCHEMA_PATHS
+    assert "schemas/v0.6.1/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
+    assert "schemas/v0.6.2/run-set.schema.json" not in catalog._FROZEN_RUNSET_SCHEMA_PATHS
+
+
+def test_core_operators_declare_current_and_frozen_v06_compatibility() -> None:
+    assert {
+        operator.descriptor.compatible_schema_versions for operator in registered_operators()
+    } == {("0.5.0", "0.6.0", "0.6.1", "0.6.2")}
 
 
 def test_component_digests_are_lf_normalized_current_source_digests() -> None:
@@ -195,9 +197,7 @@ def test_component_digests_are_lf_normalized_current_source_digests() -> None:
 def test_target_control_provenance_uses_authored_creation_snapshot() -> None:
     for registered in registered_operators():
         descriptor = registered.descriptor
-        control_id, _, creation_digest, first_seen_commit = _TARGETS[
-            descriptor.operator_id
-        ]
+        control_id, _, creation_digest, first_seen_commit = _TARGETS[descriptor.operator_id]
 
         assert len(descriptor.provenance.target_controls) == 1
         target = descriptor.provenance.target_controls[0]
@@ -265,9 +265,7 @@ def test_core_catalog_metadata_is_stable_canonical_and_cross_domain() -> None:
 
     assert len(operators) == 7
     assert all(item.stable for item in operators)
-    assert {
-        item.descriptor.operator_id: item.invariant_family for item in operators
-    } == {
+    assert {item.descriptor.operator_id: item.invariant_family for item in operators} == {
         "bypass-required-human-review": "human-review-routing",
         "drop-material-evidence-link": "material-evidence-linkage",
         "inject-forbidden-tool": "tool-boundary",
@@ -279,15 +277,17 @@ def test_core_catalog_metadata_is_stable_canonical_and_cross_domain() -> None:
     assert all(item.invariant_family != "unclassified" for item in operators)
     assert all(item.threat_source_references for item in operators)
     assert all(
-        item.threat_source_references
-        == tuple(sorted(set(item.threat_source_references)))
+        item.threat_source_references == tuple(sorted(set(item.threat_source_references)))
         for item in operators
     )
-    assert next(
-        item
-        for item in operators
-        if item.descriptor.operator_id == "inject-synthetic-sensitive-summary"
-    ).descriptor.privacy_classification.value == "synthetic_fixture_sensitive_marker"
+    assert (
+        next(
+            item
+            for item in operators
+            if item.descriptor.operator_id == "inject-synthetic-sensitive-summary"
+        ).descriptor.privacy_classification.value
+        == "synthetic_fixture_sensitive_marker"
+    )
 
 
 def test_sprint_two_operator_introduction_provenance_is_stamped() -> None:
@@ -394,11 +394,7 @@ def test_catalog_component_identity_normalizes_only_first_seen_mapping_values() 
         b"git:uncommitted",
         b"git:" + b"a" * 40,
     )
-    outside_block = (
-        b"_OTHER_COMMITS = {\n"
-        b'    "control-a": "git:' + b"b" * 40 + b'",\n'
-        b"}\n"
-    )
+    outside_block = b'_OTHER_COMMITS = {\n    "control-a": "git:' + b"b" * 40 + b'",\n}\n'
     method = b'operator_version = "1.0.0"\n'
     unstamped = unstamped_block + outside_block + method
     stamped = stamped_block + outside_block + method
@@ -497,16 +493,13 @@ def test_catalog_constructs_from_direct_zip_import(tmp_path: Path) -> None:
             introduction_snapshot.relative_to(_SOURCE_ROOT).as_posix(),
         )
         for schema_path in sorted(
-                path
-                for path in (_ROOT / "schemas").glob("v*/run-set.schema.json")
-                if path.parent.name in _EXPECTED_FROZEN_SCHEMA_DIR_NAMES
-            ):
+            path
+            for path in (_ROOT / "schemas").glob("v*/run-set.schema.json")
+            if path.parent.name in _EXPECTED_FROZEN_SCHEMA_DIR_NAMES
+        ):
             wheel.write(
                 schema_path,
-                (
-                    "agent_assure/schema_resources/"
-                    f"{schema_path.parent.name}/{schema_path.name}"
-                ),
+                (f"agent_assure/schema_resources/{schema_path.parent.name}/{schema_path.name}"),
             )
     code = f"""
 import sys

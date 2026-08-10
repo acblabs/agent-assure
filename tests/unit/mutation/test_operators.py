@@ -24,7 +24,7 @@ from agent_assure.policies.evidence import (
     evidence_ref_finding_target,
 )
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.schema.base import SchemaVersion
+from agent_assure.schema.base import SCHEMA_VERSION, SchemaVersion
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.run import (
     AgentRunRecord,
@@ -39,6 +39,7 @@ TargetBuilder = Callable[
     [CompiledSuite, RunSet, Mapping[str, object]],
     tuple[MutationTarget, ...],
 ]
+_CURRENT_SCHEMA_VERSION = cast(SchemaVersion, SCHEMA_VERSION)
 
 
 def test_drop_material_evidence_link_plans_exact_replacement_without_mutation() -> None:
@@ -132,9 +133,7 @@ def test_drop_material_evidence_link_privacy_minimizes_hostile_claim_target() ->
                 "hostile-evidence-case",
                 schema_version="0.5.0",
                 evidence_items=(_evidence_item("ref-safe"),),
-                claim_evidence_links=(
-                    _link(hostile_claim_id, "ref-safe", schema_version="0.5.0"),
-                ),
+                claim_evidence_links=(_link(hostile_claim_id, "ref-safe", schema_version="0.5.0"),),
             ),
         )
     )
@@ -146,9 +145,7 @@ def test_drop_material_evidence_link_privacy_minimizes_hostile_claim_target() ->
     )
 
     assert len(targets) == 1
-    assert targets[0].expected_finding_target == claim_finding_target(
-        hostile_claim_id
-    )
+    assert targets[0].expected_finding_target == claim_finding_target(hostile_claim_id)
     assert "\x1b" not in targets[0].expected_finding_target
     assert "\u202e" not in targets[0].expected_finding_target
 
@@ -323,9 +320,7 @@ def test_skew_evidence_source_identity_changes_only_reference_side() -> None:
 
     assert len(targets) == 1
     target = targets[0]
-    assert target.identity == (
-        "provenance-case\0run-provenance-case\0ref-a\0" "00000000"
-    )
+    assert target.identity == ("provenance-case\0run-provenance-case\0ref-a\x00" + "00000000")
     assert target.expected_finding_target == evidence_ref_finding_target("ref-a")
     assert tuple((change.path, change.value) for change in target.changes) == (
         (
@@ -530,8 +525,8 @@ def test_mark_incomplete_budget_stop_is_inapplicable_after_a_stop() -> None:
         (
             skew_evidence_source_identity_targets,
             (
-                "a-case\0run-a-case\0ref-a\0" "00000000",
-                "z-case\0run-z-case\0ref-z\0" "00000000",
+                "a-case\0run-a-case\0ref-a\x00" + "00000000",
+                "z-case\0run-z-case\0ref-z\x00" + "00000000",
             ),
             (
                 "/runs/1/evidence_refs/0/source_id",
@@ -667,7 +662,7 @@ def _suite(
     expectations: tuple[Expectation, ...],
     *,
     allowed_tools: tuple[str, ...] = (),
-    schema_version: SchemaVersion = "0.6.1",
+    schema_version: SchemaVersion = _CURRENT_SCHEMA_VERSION,
 ) -> CompiledSuite:
     return CompiledSuite(
         schema_version=schema_version,
@@ -706,7 +701,7 @@ def _runset(runs: tuple[AgentRunRecord, ...]) -> RunSet:
 def _run(
     case_id: str,
     *,
-    schema_version: SchemaVersion = "0.6.1",
+    schema_version: SchemaVersion = _CURRENT_SCHEMA_VERSION,
     evidence_refs: tuple[EvidenceRef, ...] = (),
     evidence_items: tuple[EvidenceItem, ...] = (),
     claim_evidence_links: tuple[ClaimEvidenceLink, ...] = (),
@@ -775,7 +770,7 @@ def _link(
     claim_id: str,
     ref_id: str,
     *,
-    schema_version: SchemaVersion = "0.6.1",
+    schema_version: SchemaVersion = _CURRENT_SCHEMA_VERSION,
 ) -> ClaimEvidenceLink:
     return ClaimEvidenceLink(
         schema_version=schema_version,

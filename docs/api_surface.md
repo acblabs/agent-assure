@@ -1,14 +1,15 @@
 # API Surface
 
 The current public surface is intentionally narrow and status-qualified.
-The v0.6.1 release-candidate surface consists of:
+The v0.6.2 release-candidate surface consists of:
 
 - the `agent-assure` CLI;
-- package candidate v0.6.1, which uses the active v0.6.1 schema snapshot
-  under `schemas/v0.6.1`, with
+- package candidate v0.6.2, which uses the active v0.6.2 schema snapshot
+  under `schemas/v0.6.2`, with
   earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,
-  `schemas/v0.4.3`, `schemas/v0.5.0`, and `schemas/v0.6.0`;
+  `schemas/v0.4.3`, `schemas/v0.5.0`, `schemas/v0.6.0`, and
+  `schemas/v0.6.1`;
 - importable schema models under `agent_assure.schema`;
 - fixture-mode helpers used by the bundled examples; and
 - framework evidence mapping through `agent-assure controls map`.
@@ -48,6 +49,17 @@ External projects should treat persisted artifacts and CLI behavior as the
 primary integration points. Live adapter internals, external-script request
 JSON, framework-adapter internals, and telemetry exporter helpers are useful
 for development but are not yet a stable plugin API.
+
+The programmatic helpers in `agent_assure.ci` remain a development integration
+surface. `gate_artifact`, `gate_evidence_packet`, and
+`gate_control_efficacy_report` default `strict_efficacy` to `True`, matching the
+CLI when efficacy evidence is present. All three default `require_efficacy` to
+`False`; supplying a verifier efficacy policy implies required evidence.
+Callers that require an
+efficacy claim must either pass `require_efficacy=True` or supply that policy.
+Their `GateDecision` records `efficacy_evidence`, `efficacy_verification`, and
+`efficacy_required`, so optional absence is represented as `absent`,
+`not_requested`, and `false` rather than as a strict efficacy pass.
 
 The mutation surface is deliberately closed over the built-in operator
 registry. It is not a public executable-plugin API. Contract consumers should

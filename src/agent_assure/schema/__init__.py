@@ -24,6 +24,13 @@ from agent_assure.schema.controls import (
     ControlFramework,
     ControlMappingStrength,
 )
+from agent_assure.schema.efficacy import (
+    ControlEfficacyGateDecision,
+    ControlEfficacyGateProfile,
+    ControlEfficacyReport,
+    ExactRate,
+    ThreatApplicabilityManifest,
+)
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
@@ -93,6 +100,9 @@ __all__ = [
     "ControlCoverageReport",
     "ControlCoverageState",
     "ControlEvidenceRef",
+    "ControlEfficacyGateDecision",
+    "ControlEfficacyGateProfile",
+    "ControlEfficacyReport",
     "ControlFramework",
     "ControlMappingStrength",
     "DigestHex",
@@ -102,6 +112,7 @@ __all__ = [
     "EvidenceItem",
     "EvidencePacket",
     "EvidenceRef",
+    "ExactRate",
     "ExecutionMode",
     "Expectation",
     "ExpectationChangeRecord",
@@ -142,6 +153,7 @@ __all__ = [
     "StrictModel",
     "SuiteCase",
     "SuiteDefaults",
+    "ThreatApplicabilityManifest",
     "UsageLedger",
     "UsageSegment",
     "UsageSummary",

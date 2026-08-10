@@ -152,6 +152,7 @@ _FROZEN_RUNSET_SCHEMA_PATHS = tuple(
         "0.4.3",
         "0.5.0",
         "0.6.0",
+        "0.6.1",
     )
 )
 
@@ -170,9 +171,7 @@ _EVIDENCE_PROVENANCE_FIRST_SEEN_VALUE_PATTERN = re.compile(
     rb'(?m)(?P<entry_prefix>^[ \t]+"evidence_provenance_identity":[ \t]*)'
     rb'"git:(?:uncommitted|[a-f0-9]{40})"'
 )
-_NORMALIZED_EVIDENCE_PROVENANCE_FIRST_SEEN_ENTRY = (
-    rb'\g<entry_prefix>"git:uncommitted"'
-)
+_NORMALIZED_EVIDENCE_PROVENANCE_FIRST_SEEN_ENTRY = rb'\g<entry_prefix>"git:uncommitted"'
 
 
 @dataclass(frozen=True)
@@ -194,8 +193,7 @@ def registered_operators() -> tuple[RegisteredOperator, ...]:
     return _operator_catalog()
 
 
-def built_in_evaluator_implementation_components(
-) -> tuple[OperatorImplementationComponent, ...]:
+def built_in_evaluator_implementation_components() -> tuple[OperatorImplementationComponent, ...]:
     """Return the fail-closed first-party code/data closure for built-in evaluation.
 
     Python executes package initializers before imported submodules, and those
@@ -298,7 +296,7 @@ def _registered_operator(
     descriptor = AssuranceMutationOperator.build(
         operator_id=operator_id,
         operator_version=operator_version,
-        compatible_schema_versions=("0.5.0", "0.6.0", "0.6.1"),
+        compatible_schema_versions=("0.5.0", "0.6.0", "0.6.1", "0.6.2"),
         preconditions=preconditions,
         permitted_changed_paths=tuple(sorted(permitted_changed_paths)),
         privacy_classification=privacy_classification,
@@ -434,9 +432,7 @@ def introduction_components_from_source(
                 raise CatalogIntegrityError("introduction component is not an object")
             component = cast(dict[object, object], raw_component)
             if set(component) != required_keys:
-                raise CatalogIntegrityError(
-                    "introduction component has an invalid field set"
-                )
+                raise CatalogIntegrityError("introduction component has an invalid field set")
             component_id = component["component_id"]
             relative_path = component["relative_path"]
             sha256 = component["sha256"]
@@ -445,9 +441,7 @@ def introduction_components_from_source(
                 or not isinstance(relative_path, str)
                 or not isinstance(sha256, str)
             ):
-                raise CatalogIntegrityError(
-                    "introduction component fields must be strings"
-                )
+                raise CatalogIntegrityError("introduction component fields must be strings")
             components.append(
                 OperatorImplementationComponent(
                     component_id=component_id,
@@ -480,9 +474,7 @@ def _unique_json_object(pairs: list[tuple[str, object]]) -> dict[str, object]:
     result: dict[str, object] = {}
     for key, value in pairs:
         if key in result:
-            raise CatalogIntegrityError(
-                f"introduction snapshot has duplicate key: {key!r}"
-            )
+            raise CatalogIntegrityError(f"introduction snapshot has duplicate key: {key!r}")
         result[key] = value
     return result
 
@@ -499,8 +491,7 @@ def _read_packaged_component(relative_path: str) -> bytes:
                 return repository_component.read_bytes()
             except Exception as exc:
                 raise CatalogIntegrityError(
-                    "packaged mutation schema component is unreadable: "
-                    f"{relative_path}"
+                    f"packaged mutation schema component is unreadable: {relative_path}"
                 ) from exc
         component = resources.files("agent_assure.schema_resources")
         for part in relative_path.removeprefix("schemas/").split("/"):
@@ -524,8 +515,8 @@ def lf_normalized_sha256(source: bytes) -> str:
 def implementation_component_sha256(relative_path: str, source: bytes) -> str:
     """Hash one implementation component with release-stamp normalization.
 
-    Introduction commits and the Sprint 2 evidence-provenance control's
-    first-seen commit are necessarily filled in only after their implementations
+    Introduction commits and the evidence-provenance control's first-seen commit
+    are necessarily filled in only after their implementations
     have immutable commits. Those administrative values are normalized only
     inside their reviewed catalog locations so follow-up provenance-only commits
     do not change the method identity they authenticate. Earlier controls remain
@@ -670,9 +661,7 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
                         operator_id="skew-evidence-source-identity",
                         target_control_id="evidence_provenance_identity",
                         reason_code=ReasonCode.EVIDENCE_PROVENANCE_MISMATCH,
-                        permitted_changed_paths=(
-                            "/runs/*/evidence_refs/*/source_id",
-                        ),
+                        permitted_changed_paths=("/runs/*/evidence_refs/*/source_id",),
                         preconditions=(
                             OperatorPrecondition(
                                 precondition_id="fixture-mode",
@@ -694,9 +683,7 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
                             "source authenticity.",
                         ),
                         invariant_family="provenance-corpus-identity",
-                        threat_source_references=(
-                            "evidence-provenance-mismatch",
-                        ),
+                        threat_source_references=("evidence-provenance-mismatch",),
                         stable=True,
                         introduced_at_commit="git:820621d1e42862cfa4356468b4de24d0138165c3",
                         introduced_in_release="0.6.1rc1",
@@ -820,22 +807,14 @@ def _operator_catalog() -> tuple[RegisteredOperator, ...]:
             raise CatalogIntegrityError("core/v1 contains a non-stable operator")
         invariant_families = tuple(item.invariant_family for item in catalog)
         if len(set(invariant_families)) < 6:
-            raise CatalogIntegrityError(
-                "core/v1 does not span six distinct invariant families"
-            )
+            raise CatalogIntegrityError("core/v1 does not span six distinct invariant families")
         for item in catalog:
             if not item.invariant_family:
                 raise CatalogIntegrityError("operator invariant family is empty")
             if not item.threat_source_references:
-                raise CatalogIntegrityError(
-                    "operator threat/source references are empty"
-                )
-            if item.threat_source_references != tuple(
-                sorted(set(item.threat_source_references))
-            ):
-                raise CatalogIntegrityError(
-                    "operator threat-source references are not canonical"
-                )
+                raise CatalogIntegrityError("operator threat/source references are empty")
+            if item.threat_source_references != tuple(sorted(set(item.threat_source_references))):
+                raise CatalogIntegrityError("operator threat-source references are not canonical")
         return catalog
     except CatalogIntegrityError:
         raise

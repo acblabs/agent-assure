@@ -22,7 +22,7 @@ SignedDecimalString = str
 # The current protocol records statistical and safety constraints but does not
 # yet bind the complete arm configuration and prompt manifest before execution.
 LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION = False
-_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1"})
+_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2"})
 
 
 def _require_non_null_schema_fields(
@@ -32,14 +32,13 @@ def _require_non_null_schema_fields(
     current_contract = {
         "if": {
             "properties": {
-                "schema_version": {"const": "0.6.1"},
+                "schema_version": {
+                    "enum": sorted(_V06_BINDING_SCHEMA_VERSIONS),
+                },
             }
         },
         "then": {
-            "properties": {
-                field_name: {"not": {"type": "null"}}
-                for field_name in fields
-            },
+            "properties": {field_name: {"not": {"type": "null"}} for field_name in fields},
             "required": list(fields),
         },
     }
@@ -68,6 +67,7 @@ def _drift_window_schema_extra(schema: dict[str, Any]) -> None:
 
 def _drift_comparability_schema_extra(schema: dict[str, Any]) -> None:
     _require_non_null_schema_fields(schema, ("configuration_digest_matches",))
+
 
 AnalysisMethod = Literal[
     "paired_cluster_t_interval",
@@ -280,8 +280,7 @@ class AdvancedAnalysisPlan(PersistedArtifact):
             return self
         if len(confirmatory) == 1 and self.multiplicity_method == "none":
             raise ValueError(
-                "a confirmatory endpoint requires single_endpoint or bonferroni "
-                "multiplicity_method"
+                "a confirmatory endpoint requires single_endpoint or bonferroni multiplicity_method"
             )
         if len(confirmatory) > 1 and self.multiplicity_method != "bonferroni":
             raise ValueError(
@@ -289,18 +288,14 @@ class AdvancedAnalysisPlan(PersistedArtifact):
             )
         if (
             self.multiplicity_method == "bonferroni"
-            and decimal_string(
-                Decimal(self.familywise_alpha) / Decimal(len(confirmatory))
-            )
+            and decimal_string(Decimal(self.familywise_alpha) / Decimal(len(confirmatory)))
             == "0.000000"
         ):
             raise ValueError(
                 "Bonferroni-adjusted alpha is below the persisted six-decimal precision"
             )
         if any(endpoint.hierarchy_rank is not None for endpoint in confirmatory):
-            raise ValueError(
-                "hierarchy_rank is reserved for a future fixed-sequence method"
-            )
+            raise ValueError("hierarchy_rank is reserved for a future fixed-sequence method")
         return self
 
 
@@ -430,9 +425,7 @@ class TrajectoryInvariantPlan(PersistedArtifact):
             raise ValueError("forbidden_states are only valid for forbidden_state invariants")
         if self.invariant_type == "required_review_for_approval":
             if self.required_state is None:
-                raise ValueError(
-                    "required_review_for_approval invariants require required_state"
-                )
+                raise ValueError("required_review_for_approval invariants require required_state")
             if self.before_state is not None:
                 raise ValueError(
                     "required_review_for_approval does not support measured ordering; "
@@ -480,9 +473,7 @@ class TrajectoryAnalysisPlan(PersistedArtifact):
             self.interpretation == "confirmatory"
             and "sequence_invariant_check" not in self.analysis_methods
         ):
-            raise ValueError(
-                "confirmatory trajectory plans must include sequence_invariant_check"
-            )
+            raise ValueError("confirmatory trajectory plans must include sequence_invariant_check")
         return self
 
 
@@ -578,9 +569,7 @@ class StatisticalInvariantResult(PersistedArtifact):
 
 
 class PairedRandomizationTestResult(PersistedArtifact):
-    artifact_kind: Literal["paired-randomization-test-result"] = (
-        "paired-randomization-test-result"
-    )
+    artifact_kind: Literal["paired-randomization-test-result"] = "paired-randomization-test-result"
     endpoint_id: str = Field(min_length=1)
     label: str = Field(min_length=1)
     interpretation: EndpointInterpretation
@@ -621,9 +610,7 @@ class LiveProtocolRecord(PersistedArtifact):
         "provider_model_comparison",
         "regression_detection",
     ] = "governance_control_non_inferiority"
-    primary_endpoint: Literal["expectation_pass_rate", "reason_code_rate"] = (
-        "expectation_pass_rate"
-    )
+    primary_endpoint: Literal["expectation_pass_rate", "reason_code_rate"] = "expectation_pass_rate"
     analysis_method: AnalysisMethod = "paired_cluster_t_interval"
     baseline_group_id: str = "overall"
     candidate_group_id: str = "overall"
@@ -698,27 +685,21 @@ class LiveProtocolRecord(PersistedArtifact):
             raise ValueError(
                 "concurrent_paired baseline_mode must not set fixed_reference_pass_rate"
             )
-        if (
-            self.baseline_mode == "fixed_reference"
-            and self.analysis_method not in {"fixed_reference_cluster_t_interval", "exploratory"}
-        ):
+        if self.baseline_mode == "fixed_reference" and self.analysis_method not in {
+            "fixed_reference_cluster_t_interval",
+            "exploratory",
+        }:
             raise ValueError(
                 "fixed_reference baseline_mode requires fixed_reference_cluster_t_interval analysis"
             )
-        if (
-            self.baseline_mode == "concurrent_paired"
-            and self.analysis_method
-            not in {
-                "paired_cluster_t_interval",
-                "paired_cluster_bootstrap_percentile",
-                "paired_cluster_permutation_exact",
-                "paired_cluster_permutation_monte_carlo",
-                "exploratory",
-            }
-        ):
-            raise ValueError(
-                "concurrent_paired baseline_mode requires a paired cluster analysis"
-            )
+        if self.baseline_mode == "concurrent_paired" and self.analysis_method not in {
+            "paired_cluster_t_interval",
+            "paired_cluster_bootstrap_percentile",
+            "paired_cluster_permutation_exact",
+            "paired_cluster_permutation_monte_carlo",
+            "exploratory",
+        }:
+            raise ValueError("concurrent_paired baseline_mode requires a paired cluster analysis")
         planned_mean = _decimal(self.planned_observations) / _decimal(self.planned_clusters)
         if self.planned_observations_per_cluster != _decimal_string(planned_mean):
             raise ValueError(
@@ -957,9 +938,7 @@ def _require_live_group_summary_identity(
     owner: str,
 ) -> None:
     included = tuple(
-        observation
-        for observation in observations
-        if observation.observation_status == "included"
+        observation for observation in observations if observation.observation_status == "included"
     )
     excluded_count = len(observations) - len(included)
     if summary.observations != len(observations):
@@ -985,13 +964,9 @@ def _require_live_group_summary_identity(
     )
 
     reason_counts = {
-        reason_code: sum(
-            1 for observation in included if reason_code in observation.reason_codes
-        )
+        reason_code: sum(1 for observation in included if reason_code in observation.reason_codes)
         for reason_code in {
-            reason_code
-            for observation in included
-            for reason_code in observation.reason_codes
+            reason_code for observation in included for reason_code in observation.reason_codes
         }
     }
     reason_rates_by_label: dict[str, LiveRate] = {}
@@ -999,9 +974,7 @@ def _require_live_group_summary_identity(
         if rate.label in reason_rates_by_label:
             raise ValueError(f"{owner} contains duplicate reason-code rate labels")
         reason_rates_by_label[rate.label] = rate
-    expected_labels = {
-        f"reason_code:{reason_code.value}" for reason_code in reason_counts
-    }
+    expected_labels = {f"reason_code:{reason_code.value}" for reason_code in reason_counts}
     if set(reason_rates_by_label) != expected_labels:
         raise ValueError(f"{owner} reason-code rates do not match observations")
     for reason_code, numerator in reason_counts.items():
@@ -1076,9 +1049,7 @@ class LiveEvaluationReport(PersistedArtifact):
         if self.schema_version in _V06_BINDING_SCHEMA_VERSIONS and (
             self.suite_digest is None or self.configuration_digest is None
         ):
-            raise ValueError(
-                "v0.6 live evaluation reports require suite and configuration digests"
-            )
+            raise ValueError("v0.6 live evaluation reports require suite and configuration digests")
         return self
 
     @model_validator(mode="after")
@@ -1301,9 +1272,7 @@ class DriftComparabilityResult(PersistedArtifact):
             self.schema_version in _V06_BINDING_SCHEMA_VERSIONS
             and self.configuration_digest_matches is None
         ):
-            raise ValueError(
-                "v0.6 drift comparability requires configuration_digest_matches"
-            )
+            raise ValueError("v0.6 drift comparability requires configuration_digest_matches")
         return self
 
 
@@ -1468,9 +1437,7 @@ class TrajectoryPathSummary(PersistedArtifact):
 
 
 class TrajectoryTransitionSummary(PersistedArtifact):
-    artifact_kind: Literal["trajectory-transition-summary"] = (
-        "trajectory-transition-summary"
-    )
+    artifact_kind: Literal["trajectory-transition-summary"] = "trajectory-transition-summary"
     from_state: TrajectoryState
     to_state: TrajectoryState
     count: int = Field(ge=0)
@@ -1576,9 +1543,7 @@ class LiveTrajectoryReport(PersistedArtifact):
     interpretation: TrajectoryInterpretation = "exploratory"
     state: GateState = GateState.not_evaluated
     trajectory_status: Literal["valid", "exploratory", "invalid"]
-    transition_assumption: Literal["canonical_observable_order"] = (
-        "canonical_observable_order"
-    )
+    transition_assumption: Literal["canonical_observable_order"] = "canonical_observable_order"
     transition_assumption_status: TrajectoryPrerequisiteStatus
     observations: int = Field(ge=0)
     included_observations: int = Field(ge=0)
@@ -1590,8 +1555,7 @@ class LiveTrajectoryReport(PersistedArtifact):
     event_processes: tuple[OperationalEventProcessSummary, ...]
     limitations: tuple[str, ...] = (
         "trajectory analysis is derived from privacy-filtered structured artifacts",
-        "trajectory and event-process outputs are review signals and are not "
-        "release-verdict gates",
+        "trajectory and event-process outputs are review signals and are not release-verdict gates",
         "path coverage over observed records is not proof that unsafe paths are impossible",
     )
 

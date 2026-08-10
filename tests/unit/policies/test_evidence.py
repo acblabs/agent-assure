@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unicodedata
+from typing import cast
 
 from agent_assure.evaluation.expectations import CaseExpectation
 from agent_assure.evaluation.invariants import evaluate_case
@@ -11,7 +12,7 @@ from agent_assure.policies.evidence import (
     evaluate_required_evidence,
     evidence_ref_finding_target,
 )
-from agent_assure.schema.base import SchemaVersion
+from agent_assure.schema.base import SCHEMA_VERSION, SchemaVersion
 from agent_assure.schema.common import GateState, ReasonCode, Severity
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.run import (
@@ -21,6 +22,8 @@ from agent_assure.schema.run import (
     EvidenceRef,
 )
 from agent_assure.schema.suite import SuiteCase
+
+_CURRENT_SCHEMA_VERSION = cast(SchemaVersion, SCHEMA_VERSION)
 
 
 def test_evidence_provenance_identity_accepts_one_shared_source() -> None:
@@ -52,8 +55,7 @@ def test_evidence_provenance_identity_is_canonical_and_does_not_leak_sources() -
     )
     assert all(finding.control_id == "evidence_provenance_identity" for finding in findings)
     assert all(
-        finding.reason_code is ReasonCode.EVIDENCE_PROVENANCE_MISMATCH
-        for finding in findings
+        finding.reason_code is ReasonCode.EVIDENCE_PROVENANCE_MISMATCH for finding in findings
     )
     assert all(finding.state is GateState.fail for finding in findings)
     assert all(finding.severity is Severity.blocker for finding in findings)
@@ -80,9 +82,7 @@ def test_evidence_provenance_identity_rejects_every_missing_side() -> None:
 def test_evidence_provenance_identity_rejects_legacy_blank_identifiers() -> None:
     run = _run(
         schema_version="0.6.0",
-        evidence_refs=(
-            EvidenceRef(schema_version="0.6.0", ref_id="", source_id=" \t"),
-        ),
+        evidence_refs=(EvidenceRef(schema_version="0.6.0", ref_id="", source_id=" \t"),),
         evidence_items=(
             EvidenceItem(
                 schema_version="0.6.0",
@@ -188,7 +188,7 @@ def test_evaluate_case_invokes_evidence_provenance_identity_control() -> None:
 
 def _run(
     *,
-    schema_version: SchemaVersion = "0.6.1",
+    schema_version: SchemaVersion = _CURRENT_SCHEMA_VERSION,
     evidence_refs: tuple[EvidenceRef, ...],
     evidence_items: tuple[EvidenceItem, ...],
     claim_evidence_links: tuple[ClaimEvidenceLink, ...] = (),

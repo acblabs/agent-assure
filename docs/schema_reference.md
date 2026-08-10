@@ -1,18 +1,19 @@
 # Schema Reference
 
-Current schema version: `0.6.1`.
+Current schema version: `0.6.2`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
-models emit `schema_version: 0.6.1` and continue to accept legacy
+models emit `schema_version: 0.6.2` and continue to accept legacy
 `schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`,
-`schema_version: 0.5.0`, and `schema_version: 0.6.0` artifacts where their
-compatibility contracts permit those labels. Historical artifacts validate
-against their frozen schema snapshots. The v0.6.0 snapshot remains immutable;
-current v0.6 relational checks continue to apply after validated v0.6.0
-projection, including each evidence-carrying root's self-digest. Published
-v0.6.1 schemas are writer contracts: every root and nested persisted model pins
+`schema_version: 0.5.0`, `schema_version: 0.6.0`, and
+`schema_version: 0.6.1` artifacts where their compatibility contracts permit
+those labels. Historical artifacts validate against their frozen schema
+snapshots. The v0.6.0 and v0.6.1 snapshots remain immutable; current v0.6
+relational checks continue to apply after validated legacy projection,
+including each evidence-carrying root's self-digest. Published v0.6.2 schemas
+are writer contracts: every root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
-operators, expected-detection contracts, and results use `0.6.1`, while the
+operators, expected-detection contracts, and results use `0.6.2`, while the
 independently versioned usage models continue to emit `0.4.3`. Compatibility
 projection of a frozen artifact does not widen the current wire schema.
 Importable models and their direct `model_json_schema()` output retain declared
@@ -34,12 +35,21 @@ admitted by the immutable v0.6.0 schema.
 A current `AgentRunRecord` also requires its evidence references, evidence
 items, claims, and claim-evidence links to carry the current schema version. A
 current `CompiledSuite` likewise requires current resolved expectations. These
-targeted coherence checks match the v0.6.1 writer schemas without applying
+targeted coherence checks match the v0.6.2 writer schemas without applying
 parent-version equality to independently versioned components such as usage
 records. Matching legacy parent/member projections remain supported through
 their frozen schemas.
 
-At schema versions `0.6.0` and `0.6.1`, `evaluation-report` requires
+A current `EvidencePacket` likewise requires each nested persisted artifact
+covered by its writer schema to use the packet schema version, while nested
+`UsageSummary` and `UsageSummaryDelta` retain their independently emitted
+version. The same exact relationship is enforced for coherent v0.6.1 packet
+projection. Packet persistence validates the post-redaction payload against
+the root-version-selected current writer or legacy frozen schema before writing
+bytes, so a current packet cannot embed a legacy evaluation or comparison
+summary.
+
+At schema versions `0.6.0`, `0.6.1`, and `0.6.2`, `evaluation-report` requires
 `runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
 schema-validated, current `RunSet` model JSON projection. The projection
 retains the accepted `schema_version` and materializes schema-permitted omitted
@@ -71,6 +81,7 @@ Exported roots:
 - `comparison-report`
 - `comparison-summary`
 - `control-coverage-report`
+- `control-efficacy-report`
 - `evaluation-report`
 - `evaluation-summary`
 - `emergency-process-record`
@@ -92,15 +103,24 @@ Exported roots:
 - `stream-event-record`
 - `stream-ingestion-diagnostics`
 - `stream-run`
+- `threat-applicability-manifest`
 - `usage-ledger`
 - `usage-pricing-snapshot`
 - `usage-segment`
 - `usage-summary`
 - `usage-summary-delta`
 
+`controls-mutation-onboarding-config` is intentionally absent from this list.
+It is a package-bound authored workflow input, not an exported evidence root.
+Although it carries `artifact_kind` and `schema_version` for strict parsing,
+the project does not publish a frozen JSON Schema or cross-version replay
+contract for it. The exact authored file may still be digest-bound under the
+packet role `control-efficacy-onboarding-config`.
+
 Current evidence-carrying release roots use persisted
-`schema_version: 0.6.1` and a separate semantic contract identity. The four
-roots introduced in v0.6.0 also accept their frozen v0.6.0 shape:
+`schema_version: 0.6.2` and a separate semantic contract identity. The roots
+introduced before v0.6.2 also accept their compatible frozen v0.6.0 and v0.6.1
+shapes:
 
 - `assurance-evidence-descriptor` is `AssuranceEvidenceDescriptor/v1` and has
   an `evidence_digest` computed without its own digest field;
@@ -117,6 +137,72 @@ roots introduced in v0.6.0 also accept their frozen v0.6.0 shape:
 
 Each root carries `contract_version: 1.0.0`. Contract version identifies the
 method semantics, while persisted schema version identifies JSON shape.
+
+Two persisted roots are introduced in v0.6.2:
+
+- `threat-applicability-manifest` is
+  `ThreatApplicabilityManifest/v1`. Its `manifest_digest` is computed over the
+  full RFC 8785 projection except that digest field. It binds a named and
+  versioned threat source, canonically ordered present-control IDs, canonically
+  ordered threat items, and limitations. Each item records applicability,
+  criticality, and review date; `not_applicable` requires both owner and
+  rationale. The authoring loader accepts either the exact persisted form or an
+  exact minimal YAML form and rejects mixed or extension-bearing documents.
+- `control-efficacy-report` is `ControlEfficacyReport/v1`. Its `report_digest`
+  is computed over every persisted field except that digest. It binds campaign,
+  source, suite, catalog, and threat-manifest digests; canonical, selected, and
+  pending operator orders; per-operator outcomes; complete state counts;
+  exact catalog, family, independence, and threat ratios; required and critical
+  survivor IDs; threat coverage; semantic states; and limitations.
+
+An `ExactRate` persists `numerator`, `denominator`, and either `defined` or
+`undefined_zero_denominator`. The numerator cannot exceed the denominator, and
+the state must match whether the denominator is zero. Catalog and stratum kill
+rates use `caught / (caught + survived)`. `inapplicable`, `invalid_operator`,
+`invalid_subject`, and `execution_error` remain separate and cannot enter that
+denominator. The writer JSON Schema enforces the denominator/state relationship
+and requires a zero numerator when the denominator is zero. The general
+`numerator <= denominator` comparison for nonzero denominators remains a
+runtime-model relational check because JSON Schema Draft 2020-12 has no
+standard cross-property numeric comparison keyword.
+
+All five `IndependenceClass` values must appear in canonical order in every
+efficacy report. The fixed independent-challenge policy admits only
+`external_preexisting`, `third_party_contributed`, and
+`first_party_precontrol`; `first_party_postcontrol` and `unknown` are retained
+but ineligible. Threat challenge coverage requires an applicable manifest
+item, a completed referring operator, and at least one target control declared
+present. Challenge coverage and detector outcome are independent projections:
+a survived completed operator can challenge a threat without being caught.
+
+`ControlEfficacyGateProfile` and `ControlEfficacyGateDecision` are strict nested
+models rather than separately exported roots. The profile maps report facts to
+effects without changing `semantic_state` or `threat_scope_state`; the decision
+binds `report_digest` and records stable reason codes. The
+`unscoped_catalog_references` threat-scope state is distinct from the ordinary
+`gap_observed` state for declared but unchallenged threats, and its exact
+residual IDs produce the configurable
+`UNSCOPED_CATALOG_THREAT_REFERENCE` finding (`review` by default). Critical
+operator survivors derive from applicable, critical manifest threats
+referenced by the operator rather than from a separate editable critical-operator
+field. Applicable critical threats without a completed challenge produce
+`CRITICAL_THREAT_UNCOVERED`, also `review` by default. The profile and decision
+must be supplied together to a decision-bearing writer, which freshly derives
+the expected decision and requires exact equality rather than trusting a
+matching report digest.
+
+An `evidence-packet` may carry efficacy only as a complete triple:
+`control_efficacy`, `control_efficacy_gate_profile`, and
+`control_efficacy_gate`. Validation derives a fresh decision from the nested
+report/profile pair and requires exact equality, not only a matching report
+digest. `artifact_digests` must contain exactly one
+`control-efficacy-report` role and exactly one typed configuration role:
+`control-efficacy-onboarding-config` for authored workflow YAML or
+`control-efficacy-gate-profile` for a bare profile JSON file. The generic
+`control-efficacy-config` role is rejected. A packet without a nested report
+rejects every efficacy artifact role. These relations keep catalog-relative
+control challenge scope distinct from the required candidate evaluation
+summary.
 
 The catalog uses `core/v1` identity and
 `operator-id-lexicographic/v1` ordering. Its digest covers the full canonical

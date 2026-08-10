@@ -7,7 +7,7 @@ from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
-    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     DigestHex,
     ExecutionMode,
     coerce_enum,
@@ -22,7 +22,7 @@ _COMPILED_SUITE_JSON_SCHEMA_EXTRA: dict[str, Any] = {
                 "required": ["schema_version"],
                 "properties": {
                     "schema_version": {
-                        "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                        "const": schema_version,
                     }
                 },
             },
@@ -32,7 +32,7 @@ _COMPILED_SUITE_JSON_SCHEMA_EXTRA: dict[str, Any] = {
                         "items": {
                             "properties": {
                                 "schema_version": {
-                                    "const": MACHINE_IDENTIFIER_SCHEMA_VERSION,
+                                    "const": schema_version,
                                 }
                             }
                         }
@@ -40,6 +40,7 @@ _COMPILED_SUITE_JSON_SCHEMA_EXTRA: dict[str, Any] = {
                 }
             },
         }
+        for schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS
     ]
 }
 
@@ -95,7 +96,7 @@ class CompiledSuite(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_expectation_versions(self) -> CompiledSuite:
-        if self.schema_version != MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        if self.schema_version not in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             return self
         mismatches = [
             f"resolved_expectations[{index}]"
@@ -104,7 +105,7 @@ class CompiledSuite(PersistedArtifact):
         ]
         if mismatches:
             raise ValueError(
-                "current compiled suites require current-version expectations: "
+                "machine-ID-era compiled suites require matching-version expectations: "
                 + ", ".join(mismatches)
             )
         return self

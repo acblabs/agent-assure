@@ -79,6 +79,7 @@ _EVALUATION_DATE = date(2026, 7, 20)
 _CORE_OPERATOR_COUNT = 7
 _CORE_CATASTROPHIC_RUNTIME_BUDGET_SECONDS = 30.0
 _CORE_PEAK_MEMORY_BUDGET_BYTES = 128 * 1024 * 1024
+_ROOT = Path(__file__).resolve().parents[3]
 
 
 def test_catalog_digest_is_the_complete_serialized_projection() -> None:
@@ -205,9 +206,23 @@ def test_core_catalog_json_schema_rejects_substituted_operator_identity() -> Non
     descriptor["operator_id"] = "substituted-core-operator"
 
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            writer_json_schema(AssuranceMutationCatalog)
-        ).validate(payload)
+        Draft202012Validator(writer_json_schema(AssuranceMutationCatalog)).validate(payload)
+
+
+def test_frozen_v061_catalog_applies_self_digest_validation_after_shape() -> None:
+    payload = _v061_evidence_root_payload(build_core_catalog().model_dump(mode="json"))
+
+    assert validate_artifact_payload(payload, "assurance-mutation-catalog") == "frozen-jsonschema"
+
+    payload["catalog_digest"] = "0" * 64
+    frozen_schema = json.loads(
+        (_ROOT / "schemas" / "v0.6.1" / "assurance-mutation-catalog.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator(frozen_schema).validate(payload)
+    with pytest.raises(ValueError, match="failed model validation"):
+        validate_artifact_payload(payload, "assurance-mutation-catalog")
 
 
 def test_current_catalog_rejects_v060_label_on_current_nested_operator() -> None:
@@ -230,9 +245,7 @@ def test_current_catalog_rejects_v060_label_on_current_nested_operator() -> None
     _refresh_self_digest(payload, "catalog_digest")
 
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            writer_json_schema(AssuranceMutationCatalog)
-        ).validate(payload)
+        Draft202012Validator(writer_json_schema(AssuranceMutationCatalog)).validate(payload)
     with pytest.raises(
         ValidationError,
         match="catalog and nested operator schema versions must match",
@@ -589,14 +602,36 @@ def test_current_campaign_rejects_v060_labels_on_nested_contract_and_result() ->
     _refresh_self_digest(payload, "campaign_digest")
 
     with pytest.raises(JsonSchemaValidationError):
-        Draft202012Validator(
-            writer_json_schema(AssuranceMutationCampaign)
-        ).validate(payload)
+        Draft202012Validator(writer_json_schema(AssuranceMutationCampaign)).validate(payload)
     with pytest.raises(
         ValidationError,
         match="campaign and nested contract/result schema versions must match",
     ):
         AssuranceMutationCampaign.model_validate(payload)
+
+
+def test_frozen_v061_campaign_applies_self_digest_validation_after_shape() -> None:
+    suite, source = _fixture()
+    payload = _v061_evidence_root_payload(
+        _campaign(
+            suite,
+            source,
+            seed=17,
+            operator_ids=("inject-synthetic-sensitive-summary",),
+        ).campaign.model_dump(mode="json")
+    )
+
+    assert validate_artifact_payload(payload, "assurance-mutation-campaign") == "frozen-jsonschema"
+
+    payload["campaign_digest"] = "0" * 64
+    frozen_schema = json.loads(
+        (_ROOT / "schemas" / "v0.6.1" / "assurance-mutation-campaign.schema.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    Draft202012Validator(frozen_schema).validate(payload)
+    with pytest.raises(ValueError, match="failed model validation"):
+        validate_artifact_payload(payload, "assurance-mutation-campaign")
 
 
 def test_campaign_selected_operator_order_is_unique_and_canonical() -> None:
@@ -1210,6 +1245,52 @@ def _refresh_self_digest(payload: dict[str, Any], digest_field: str) -> None:
     payload[digest_field] = sha256_hexdigest(
         {key: value for key, value in payload.items() if key != digest_field}
     )
+
+
+_SELF_DIGEST_FIELDS = {
+    "assurance-evidence-descriptor": "evidence_digest",
+    "assurance-mutation-operator": "operator_digest",
+    "assurance-mutation-result": "result_digest",
+    "expected-detection-contract": "contract_digest",
+    "assurance-mutation-catalog": "catalog_digest",
+    "assurance-mutation-campaign": "campaign_digest",
+}
+
+
+def _v061_evidence_root_payload(value: object) -> dict[str, Any]:
+    converted = _convert_v061_evidence_value(value)
+    if not isinstance(converted, dict):
+        raise TypeError("evidence root payload must be an object")
+    return converted
+
+
+def _convert_v061_evidence_value(value: object) -> object:
+    if isinstance(value, list):
+        return [_convert_v061_evidence_value(item) for item in value]
+    if not isinstance(value, dict):
+        return value
+
+    payload = {str(key): _convert_v061_evidence_value(nested) for key, nested in value.items()}
+    if payload.get("schema_version") == "0.6.2":
+        payload["schema_version"] = "0.6.1"
+    if payload.get("artifact_kind") == "assurance-mutation-operator":
+        compatible_versions = payload.get("compatible_schema_versions")
+        if isinstance(compatible_versions, list):
+            payload["compatible_schema_versions"] = [
+                version for version in compatible_versions if version != "0.6.2"
+            ]
+    expected_contract = payload.get("expected_detection_contract")
+    result = payload.get("result")
+    if isinstance(expected_contract, dict) and isinstance(result, dict):
+        result["expected_detection_contract_digest"] = expected_contract.get("contract_digest")
+        _refresh_self_digest(result, "result_digest")
+    artifact_kind = payload.get("artifact_kind")
+    digest_field = (
+        _SELF_DIGEST_FIELDS.get(artifact_kind) if isinstance(artifact_kind, str) else None
+    )
+    if digest_field is not None:
+        _refresh_self_digest(payload, digest_field)
+    return payload
 
 
 def test_campaign_payload_has_no_accidental_noncanonical_json_values() -> None:

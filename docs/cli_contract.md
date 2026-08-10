@@ -10,12 +10,16 @@ Current commands:
 - `agent-assure suite run COMPILED_SUITE_JSON --variant VARIANT_YAML --out RUNSET_JSON [--manifest PATH] [--suite-digest DIGEST] [--source SUITE_YAML] [--hmac-key-env ENV]`
 - `agent-assure evaluate RUNSET_JSON --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
-- `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--packet-id ID]`
+- `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--control-efficacy CONTROL_EFFICACY_REPORT_JSON --efficacy-config CONTROLS_MUTATION_YAML] [--packet-id ID]`
+- `agent-assure init controls-mutation [--out-dir DIR]`
+- `agent-assure doctor controls-mutate [--config CONTROLS_MUTATION_YAML]`
 - `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
+- `agent-assure controls efficacy [--config CONTROLS_MUTATION_YAML] [--campaign CAMPAIGN_DIR] [--allow-external-campaign] [--out REPORT_DIR]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
-- `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
-- `agent-assure ci gate SUMMARY_OR_PACKET_JSON [--fail-on-warn] [--fail-on-not-evaluated]`
+- `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure demo assure-the-assurance [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure live adapters`
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
@@ -112,6 +116,133 @@ If the enclosed summaries contain measured usage, the packet preserves that
 usage evidence beside the governance findings. Usage evidence never changes the
 deterministic gate state by itself.
 
+`--control-efficacy` and `--efficacy-config` must be supplied together. The
+first loads a validated `control-efficacy-report`; the second loads the
+controls-mutation configuration and computes a digest-bound gate decision from
+its required catalog, required operators, and configured effects. The packet
+stores the report, exact gate profile, and decision together or stores none of
+them. Validation re-derives the decision and requires exact equality. Its
+Markdown renders this as catalog-relative assurance control challenge scope,
+separate from the candidate evaluation's evidence closure. Packet construction
+records the report and configuration file digests under the
+`control-efficacy-report` and `control-efficacy-onboarding-config` artifact
+roles. The latter role identifies the exact onboarding YAML passed to
+`--efficacy-config` whose parsed policy determined the embedded profile.
+Programmatic producers that bind a standalone gate-profile JSON file use the
+distinct `control-efficacy-gate-profile` role; current packets reject the
+ambiguous legacy `control-efficacy-config` role.
+
+Packet construction requires schema-version coherence for every nested
+persisted artifact constrained by the packet writer schema, except separately
+versioned usage artifacts. The post-redaction JSON is validated against the
+schema selected by the packet root version before any packet bytes are written;
+current output uses the pinned current writer schema and coherent supported
+legacy output uses its frozen schema.
+
+`init controls-mutation` creates four deterministic managed files under
+`agent-assure-controls-mutation` by default: `controls-mutation.yaml`,
+`suite.yaml`, `runset.json`, and `threat-applicability.yaml`. An exact rerun is
+idempotent. An exact partial generation is resumed by creating only its missing
+managed files; any differing managed bytes make the command exit `2` before
+replacing a file. The authored configuration uses confined portable relative
+paths and binds the installed package version, `core/v1` catalog, selected
+operators, required operators, and efficacy gate effects. Selected operator
+IDs are canonicalized into catalog-compatible lexicographic order at the
+configuration boundary.
+
+`controls-mutation-onboarding-config` is package-bound authored input. Its
+`artifact_kind` and `schema_version` support strict parsing, but it is not an
+exported evidence root and has no checked-in frozen JSON Schema compatibility
+contract. Use the matching installed package to read or regenerate it; the
+`control-efficacy-onboarding-config` packet digest role binds its exact input
+bytes without promoting it to a frozen evidence artifact.
+
+`doctor controls-mutate` performs ordered static, read-only diagnostics. It
+checks the configuration and confined paths, package and schema versions,
+suite/RunSet binding, threat manifest, catalog identity, operator selection,
+required-operator coverage, configured operators' catalog threat references,
+output path, and static applicability against the subject.
+`CM_THREAT_SCOPE` names every configured catalog reference absent from the
+manifest. Diagnostics are stable `PASS`, `FAIL`, or `SKIP` records with
+bounded messages and actions. A ready workflow exits `0`; any blocking
+diagnostic exits `2`. Doctor does not mutate a subject, run an evaluator,
+execute a campaign, write workflow output, or access the network.
+
+`controls efficacy` consumes a controls-mutation configuration and a validated,
+atomically published campaign generation. The campaign directory comes from
+`output_dir` in the configuration by default. An explicit `--campaign` is
+still confined beneath the configuration directory unless
+`--allow-external-campaign` is also supplied; the opt-out is intended only for
+verifier-controlled inputs. The report is written to `control-efficacy` beside
+that configuration by default. The command writes
+`control-efficacy-report.json` and `control-efficacy-report.md`. Before writing,
+it rejects lexical, resolved-path, symlink, junction, and hard-link aliases
+between either output and the configuration, threat manifest, or validated
+campaign generation inputs.
+
+The report stores exact `caught / (caught + survived)` ratios. Inapplicable,
+invalid-operator, invalid-subject, and execution-error outcomes remain separate
+counts outside the denominator. A zero denominator is represented as `0/0`
+with `undefined_zero_denominator`, never as a numeric rate. The same rules
+apply to invariant-family and independence strata. All five independence
+classes are emitted even when their counts are zero; only
+`external_preexisting`, `third_party_contributed`, and
+`first_party_precontrol` are eligible for independent threat-challenge counts.
+Completed `caught` and `survived` results must use a deterministic evaluator
+basis. Stochastic or human-reviewed verdict outcomes make efficacy input
+invalid rather than contributing to the ratio.
+
+Threat coverage is derived from the authored, self-digested threat manifest.
+An applicable category is challenged only by a completed operator that
+references it and targets a control declared present. A survived operator can
+therefore exercise a threat category without satisfying its detector contract.
+Critical operator status derives from applicable critical threat references;
+unknown applicability remains explicit.
+
+The report's semantic state and threat-scope state are independent of the gate
+profile. The gate decision maps observed facts through explicit profile fields.
+Required survivors, critical survivors, invalid/error outcomes, and
+unevaluated required operators have block-only fields and non-bypassable
+`block` floors. Remaining applicable survivors, critical and remaining
+applicable uncovered threats, unknown applicability, and unscoped catalog
+references may use configured `block`, `review`, `informational`, or `ignore`
+effects. Critical uncovered threats emit `CRITICAL_THREAT_UNCOVERED` and map to
+`review` by default. A blocking decision
+exits `1`; invalid configuration, manifest, campaign, or binding input exits
+`2`; pass and review-only decisions exit `0` after writing both report files.
+
+Efficacy-aware CLI and programmatic gates use strict verification by default
+when control-efficacy evidence is present. Evidence presence is a separate
+requirement: `--require-efficacy` makes a missing efficacy section in an
+evidence packet invalid with exit `2`, and supplying `--efficacy-policy`
+implicitly requires that evidence. Without either presence requirement, a
+packet with no efficacy section is gated on its evaluation and comparison
+evidence and explicitly records `efficacy_evidence=absent`,
+`efficacy_verification=not_requested`, and `efficacy_required=false`; it does
+not claim an efficacy check occurred.
+
+Strict verification of present efficacy requires a separate verifier-owned
+controls-mutation YAML through `--efficacy-policy`; it pins the installed
+catalog digest, exact selected and required operator scope, and the separately
+loaded threat-manifest digest. Exit `0` requires a passing verifier decision,
+`all_evaluated_applicable_caught`, `all_applicable_challenged`, and no
+invalid/error or required non-verdict operators. Missing verifier inputs for
+present efficacy are invalid with exit `2`. A bare profile JSON is accepted
+only for `--allow-advisory-efficacy`; because it carries no separate selected
+scope, its expected selected operators equal its required operators and a
+report with any additional selected operator is rejected. Advisory mode
+retains `--fail-on-warn` and `--fail-on-not-evaluated` behavior.
+
+Every `GateDecision` records `efficacy_evidence` as `not_applicable`, `absent`,
+or `present`; `efficacy_verification` as `not_requested`, `advisory`, or
+`strict`; and the Boolean `efficacy_required`. Strict and advisory decisions are
+distinguishable in structured CI output even when their outcome and policy
+digests match. Verifier policy files and YAML-referenced threat manifests use
+the confined-input policy: their lexical ancestor chain may not contain a
+symbolic link, junction, or other reparse component, and the final file must be
+a regular file with exactly one hard link. This deliberately fails closed for
+symlinked checkout roots and hardlinked policy files.
+
 `controls map` consumes an evidence packet and writes
 `control-coverage-report.json` and `control-coverage-report.md` for the selected
 framework. The report maps packet-resident evidence to framework concepts for
@@ -191,8 +322,10 @@ operator in canonical order with its semantic state and applicability. It also
 prints complete state and applicability counts, including zero-count states,
 followed by an exact-fixture scope boundary: caught entries support only their
 declared transformations and expected-detector contracts, inapplicable entries
-were not exercised, and the campaign is not a safety score, mutation kill rate,
-or broader robustness result.
+were not exercised, and the campaign itself is not a safety score or broader
+robustness result. The separate `controls efficacy` projection is the only path
+that derives a catalog detector kill ratio, with its numerator, denominator,
+undefined state, strata, and limitations preserved explicitly.
 
 The campaign and catalog are self-digested RFC 8785 JSON artifacts. Exact
 campaign replay requires the same source and suite content, catalog digest and
@@ -221,6 +354,19 @@ campaign members that are absent from the replacement generation. Campaign
 inputs may not alias any protected campaign output through lexical, resolved,
 symlink, junction, or hard-link identity.
 
+`demo assure-the-assurance` runs an installed-package, network-disabled
+detector-of-detectors demonstration. It verifies a passing ordinary baseline,
+a caught material-evidence mutation under the normal control, the same mutation
+surviving a deliberately weakened gate profile, and rejection of an unrelated
+blocking finding as substitute detection. It writes strong and weakened
+campaign generations, `control-efficacy-report.json`,
+`control-efficacy-report.md`, `control-efficacy-config.json`,
+`evidence-packet.json`,
+`reviewer-facing-report.md`, and `demo-summary.json`. The summary uses paths
+relative to the demo root and records exact hashes for its review artifacts.
+The wrapper exits `0` only when all expected facts and internal command exits
+match. `--strict` instead returns the underlying blocking packet-gate exit.
+
 `ci` evaluates a candidate RunSet, optionally compares it with a baseline, writes
 reports, builds a packet, writes a dependency inventory and release manifest,
 then gates the result. `--report-mode full` writes all deterministic findings.
@@ -228,10 +374,29 @@ then gates the result. `--report-mode full` writes all deterministic findings.
 stops before comparison; it consumes an already-created deterministic RunSet and
 does not short-circuit fixture execution. The report metrics continue to reflect
 the evaluated RunSet, while the findings list is intentionally truncated. On
-nonzero exit it writes `ci-diagnostics.json` with exit code, reason code,
-artifact path, validator, and report paths, and prints the same decision as
-structured JSON. `ci gate` remains available for post-hoc gating of an existing
-`evaluation-summary`, `comparison-summary`, or `evidence-packet`.
+nonzero exit it writes `ci-diagnostics.json` with the structural outcome, exit
+code, reason code, artifact path, validator, and report paths, and prints the
+same decision as structured JSON. `--format json` emits one structural decision
+object for every completed `ci` or `ci gate` evaluation, including successful
+and nonblocking outcomes; it also emits an `invalid` decision when a named
+input exists but cannot be loaded or validated. Default `text` output retains
+the existing human-readable success behavior and the existing structured
+failure output from full `ci`. CLI syntax errors that occur before an artifact
+can be evaluated remain ordinary Typer usage errors. Outcomes are `pass`, `review`,
+`not_evaluated`, `fail`, or `invalid`; each outcome is validated against its
+exit code. `ci gate` remains available for post-hoc gating of an existing
+`evaluation-summary`, `comparison-summary`, `control-efficacy-report`, or
+`evidence-packet`. Strict efficacy gating uses only the external verifier
+policy for acceptance. Packet gating still validates the embedded,
+report-digest-bound profile and decision exactly as producer provenance, then
+derives a separate verifier decision. It combines that result with evaluation
+and optional comparison decisions by structural outcome, never by parsing
+display messages. Precedence is `invalid`, `fail`, `review`,
+`not_evaluated`, then `pass`. Strict gating validates transported facts but
+does not rerun operators. A protected CI workflow making an efficacy assurance
+claim must regenerate the campaign and efficacy report from pinned inputs
+before gating and protect policy, manifest, scope, and workflow changes with
+required review.
 
 `live adapters` lists installed live adapter identifiers. `live run` consumes a
 compiled suite, live run configuration, and `live-protocol-record`. The command
@@ -521,7 +686,9 @@ all-inapplicable sentinel:
 - `0`: otherwise, including caught results and mixed caught/inapplicable
   results.
 
-Campaign exits do not compute an aggregate safety score or mutation kill rate.
+Campaign exits do not compute an aggregate score or ratio. A validated
+campaign may be projected later by `controls efficacy`; that command preserves
+the six outcome states and exact denominator semantics described above.
 
 `invalid_subject` diagnostics distinguish bounded schema validation, privacy
 violations, runtime privacy-profile incompatibility, suite binding, and fixture

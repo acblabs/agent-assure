@@ -69,30 +69,28 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     compiled, runset = _runset(BASELINE)
     report = evaluate_runset(compiled, runset)
 
-    assert report.schema_version == "0.6.1"
+    assert report.schema_version == "0.6.2"
     assert report.runset_digest == runset_digest(runset)
     payload = report.model_dump(mode="json")
     payload.pop("runset_digest")
     with pytest.raises(ValidationError, match="requires runset_digest"):
         EvaluationReport.model_validate(payload)
-    payload["schema_version"] = "0.6.0"
-    with pytest.raises(ValidationError, match="requires runset_digest"):
-        EvaluationReport.model_validate(payload)
+    for schema_version in ("0.6.0", "0.6.1"):
+        payload["schema_version"] = schema_version
+        with pytest.raises(ValidationError, match="requires runset_digest"):
+            EvaluationReport.model_validate(payload)
     report_schema = EvaluationReport.model_json_schema(mode="validation")
     current_schema_condition = next(
         condition
         for condition in report_schema["allOf"]
-        if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("const")
-        == "0.6.1"
+        if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("enum")
+        == ["0.6.0", "0.6.1", "0.6.2"]
     )
     assert set(current_schema_condition["then"]["required"]) == {
         "runset_digest",
         "waiver_dispositions",
     }
-    assert (
-        report_schema["properties"]["waiver_dispositions"]["maxItems"]
-        == 4096
-    )
+    assert report_schema["properties"]["waiver_dispositions"]["maxItems"] == 4096
 
 
 def test_load_runset_requires_explicit_current_wire_identity(tmp_path: Path) -> None:
@@ -136,9 +134,7 @@ def test_provider_candidate_fails_provider_policy_control() -> None:
     report = _report(PROVIDER_CANDIDATE)
 
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert ReasonCode.FORBIDDEN_PROVIDER in _reason_codes(
-        report.candidate_vs_expectations
-    )
+    assert ReasonCode.FORBIDDEN_PROVIDER in _reason_codes(report.candidate_vs_expectations)
 
 
 def test_provider_policy_missing_provider_metadata_fails_closed() -> None:
@@ -181,8 +177,7 @@ def test_required_human_review_must_be_performed() -> None:
     mutated = runset.model_copy(
         update={
             "runs": tuple(
-                bad_run if run.case_id == target_run.case_id else run
-                for run in runset.runs
+                bad_run if run.case_id == target_run.case_id else run for run in runset.runs
             )
         }
     )
@@ -193,8 +188,7 @@ def test_required_human_review_must_be_performed() -> None:
     finding = next(
         finding
         for finding in report.candidate_vs_expectations.findings
-        if finding.case_id == target_run.case_id
-        and finding.control_id == "human_review_required"
+        if finding.case_id == target_run.case_id and finding.control_id == "human_review_required"
     )
     assert finding.reason_code is ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT
     assert finding.target == "human_review_performed"
@@ -236,9 +230,7 @@ def test_empty_case_tool_allowlist_overrides_suite_defaults() -> None:
         else expectation
         for expectation in compiled.resolved_expectations
     )
-    mutated_suite = compiled.model_copy(
-        update={"resolved_expectations": resolved_expectations}
-    )
+    mutated_suite = compiled.model_copy(update={"resolved_expectations": resolved_expectations})
     mutated_runset = runset.model_copy(
         update={"suite_digest": compiled_suite_digest(mutated_suite)}
     )
@@ -258,9 +250,7 @@ def test_structured_output_failure_is_reachable() -> None:
     report = evaluate_runset(compiled, mutated)
 
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert ReasonCode.STRUCTURED_OUTPUT_INVALID in _reason_codes(
-        report.candidate_vs_expectations
-    )
+    assert ReasonCode.STRUCTURED_OUTPUT_INVALID in _reason_codes(report.candidate_vs_expectations)
 
 
 def test_raw_sensitive_summary_is_verdict_bearing_redaction_failure() -> None:
@@ -272,9 +262,7 @@ def test_raw_sensitive_summary_is_verdict_bearing_redaction_failure() -> None:
     report = evaluate_runset(compiled, mutated)
 
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert ReasonCode.RAW_SENSITIVE_CONTENT in _reason_codes(
-        report.candidate_vs_expectations
-    )
+    assert ReasonCode.RAW_SENSITIVE_CONTENT in _reason_codes(report.candidate_vs_expectations)
 
 
 def test_persisted_policy_result_failure_is_verdict_bearing() -> None:
@@ -292,7 +280,7 @@ def test_persisted_policy_result_failure_is_verdict_bearing() -> None:
                     severity=Severity.warning,
                     message="adapter-reported policy failure",
                 ),
-            )
+            ),
         }
     )
     mutated = runset.model_copy(update={"runs": (bad_run, *runset.runs[1:])})
@@ -404,8 +392,7 @@ def test_fixture_policy_result_pure_remediation_signal_is_suppressed(
 
     assert remediation_result.reason_codes == (reason_code,)
     assert not any(
-        finding.case_id == remediated_run.case_id
-        and finding.control_id == suppressed_control_id
+        finding.case_id == remediated_run.case_id and finding.control_id == suppressed_control_id
         for finding in (
             *report.candidate_vs_expectations.findings,
             *report.warning_controls,
@@ -457,9 +444,7 @@ def test_fixture_policy_result_mixed_remediation_and_independent_failure_is_repo
 def test_required_policy_id_must_be_observed() -> None:
     compiled, runset = _runset(BASELINE)
     mutated = runset.model_copy(
-        update={
-            "runs": tuple(run.model_copy(update={"policy_results": ()}) for run in runset.runs)
-        }
+        update={"runs": tuple(run.model_copy(update={"policy_results": ()}) for run in runset.runs)}
     )
 
     report = evaluate_runset(compiled, mutated)
@@ -540,9 +525,7 @@ def test_missing_record_counts_as_unevaluated_case_and_blocking_finding() -> Non
     report = evaluate_runset(compiled, mutated)
 
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert ReasonCode.VALID_RECORD_MISSING in _reason_codes(
-        report.candidate_vs_expectations
-    )
+    assert ReasonCode.VALID_RECORD_MISSING in _reason_codes(report.candidate_vs_expectations)
     assert report.metrics.total_cases == 10
     assert report.metrics.evaluated_cases == 9
     assert report.metrics.unevaluated_cases == 1
@@ -732,8 +715,7 @@ def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None
     assert report.warning_controls == initial_report.warning_controls
     assert report.waiver_dispositions == reordered_report.waiver_dispositions
     assert {
-        disposition.waiver_id: disposition.status
-        for disposition in report.waiver_dispositions
+        disposition.waiver_id: disposition.status for disposition in report.waiver_dispositions
     } == {
         "waiver-artifact": WaiverDispositionStatus.unmatched_artifact,
         "waiver-finding": WaiverDispositionStatus.unmatched_finding,
@@ -743,8 +725,7 @@ def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None
     assert isinstance(payload, list)
     assert len(payload) == len(waivers)
     assert all(
-        set(disposition)
-        == {"waiver_id", "status", "reason_code", "finding_id", "expires_on"}
+        set(disposition) == {"waiver_id", "status", "reason_code", "finding_id", "expires_on"}
         for disposition in payload
     )
 
@@ -804,9 +785,7 @@ def test_case_scoped_tool_policies_are_reported_as_evaluated() -> None:
             ),
         }
     )
-    bound_runset = runset.model_copy(
-        update={"suite_digest": compiled_suite_digest(case_scoped)}
-    )
+    bound_runset = runset.model_copy(update={"suite_digest": compiled_suite_digest(case_scoped)})
 
     report = evaluate_runset(
         case_scoped,
@@ -818,8 +797,7 @@ def test_case_scoped_tool_policies_are_reported_as_evaluated() -> None:
         capability.capability_id for capability in report.not_evaluated_capabilities
     }
     assert not any(
-        finding.control_id == "tool_allowlist"
-        and finding.reason_code is ReasonCode.NOT_EVALUATED
+        finding.control_id == "tool_allowlist" and finding.reason_code is ReasonCode.NOT_EVALUATED
         for finding in report.candidate_vs_expectations.findings
     )
 
@@ -831,16 +809,12 @@ def test_forbidden_tool_policy_is_reported_as_evaluated_without_default_allowlis
         update={
             "defaults": compiled.defaults.model_copy(update={"allowed_tools": ()}),
             "resolved_expectations": (
-                first_expectation.model_copy(
-                    update={"forbidden_tools": ("never-used-tool",)}
-                ),
+                first_expectation.model_copy(update={"forbidden_tools": ("never-used-tool",)}),
                 *compiled.resolved_expectations[1:],
             ),
         }
     )
-    bound_runset = runset.model_copy(
-        update={"suite_digest": compiled_suite_digest(forbidden_only)}
-    )
+    bound_runset = runset.model_copy(update={"suite_digest": compiled_suite_digest(forbidden_only)})
 
     report = evaluate_runset(forbidden_only, bound_runset)
 
@@ -906,10 +880,7 @@ def test_nonblocking_failure_rolls_up_as_warning_not_clean_pass() -> None:
     assert report.failed_controls == ()
     assert len(report.warning_controls) == 1
     assert report.warning_controls[0].state is GateState.fail
-    assert (
-        report.warning_controls[0].reason_code
-        is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
-    )
+    assert report.warning_controls[0].reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
     assert report.metrics.blocking_findings == 0
     assert report.metrics.warning_findings == 1
     assert report.metrics.evaluated_cases == 10
@@ -980,8 +951,7 @@ def test_material_claims_require_explicit_claim_evidence_links() -> None:
     }
     assert all(finding.control_id == "material_claims_have_evidence" for finding in findings)
     assert all(
-        finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
-        for finding in findings
+        finding.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE for finding in findings
     )
 
 
@@ -1019,9 +989,7 @@ def test_claim_evidence_links_must_target_evidence_items_not_hollow_refs() -> No
 
     findings = evaluate_material_claim_evidence(run, expectation)
 
-    assert {finding.target for finding in findings} == {
-        claim_finding_target("claim-present")
-    }
+    assert {finding.target for finding in findings} == {claim_finding_target("claim-present")}
 
 
 def test_claim_evidence_links_accept_complete_content_addressed_evidence_pair() -> None:

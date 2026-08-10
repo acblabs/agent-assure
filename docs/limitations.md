@@ -47,10 +47,46 @@ third-party-contributed challenge.
 
 These authored transformations are not a random sample of production failures.
 Their results do not estimate failure prevalence or the probability that a
-release is safe. The catalog is finite: campaign output is not a safety score,
-mutation kill rate, statistical confidence interval, or universal-coverage
-claim. It does not discover new operators, generate attacks, or establish
-catalog completeness.
+release has a desirable production outcome. The catalog is finite: campaign
+output itself is not an aggregate score or ratio. The optional control-efficacy
+projection computes an exact catalog detector kill ratio only as
+`caught / (caught + survived)` for completed applicable outcomes. It preserves
+inapplicable, invalid, and execution-error states outside that denominator and
+marks a zero denominator undefined. The ratio is not a statistical confidence
+interval or universal-coverage claim. The workflow does not discover new
+operators, generate attacks, or establish catalog completeness.
+
+Threat applicability, present controls, criticality, owner, review date, and
+limitations are authored manifest facts. Schema validation can enforce their
+shape, ordering, digest, and required rationale, but it cannot determine
+whether the scope is complete or the judgments are correct. A challenged
+threat category means a completed mapped operator exercised a declared present
+control; it does not mean the operator was caught. Unknown applicability and
+critical uncovered categories remain explicit review facts. Each critical
+uncovered category emits `CRITICAL_THREAT_UNCOVERED`, which maps to review in
+the advisory profile. Strict efficacy CI pins the verifier-owned manifest
+digest and rejects every non-complete threat-scope state, but it still cannot
+determine whether the protected manifest's authored claims are correct.
+
+Control-efficacy verdicts admit only deterministic `caught` and `survived`
+mutation outcomes. Stochastic and human-reviewed assessments remain
+non-verdict until a typed sufficiency artifact is supported; they cannot be
+reinterpreted as deterministic efficacy evidence.
+
+Semantic efficacy state is computed from campaign outcomes. Gate state is a
+separate policy mapping and can vary with configured effects for review-class
+scope findings. Required and critical survivors, invalid/error outcomes, and
+required non-verdict outcomes have block-only floors. A configurable pass or
+warning does not erase remaining survivors, pending optional operators,
+unknown threat applicability, postcontrol provenance, or zero independent
+challenge coverage.
+
+Strict `ci gate` verifies a report against a separate policy; it does not
+re-execute the campaign. A protected CI workflow making an efficacy assurance
+claim must regenerate campaign and efficacy artifacts from pinned inputs.
+Protect the policy, threat manifest, operator scope, and workflow with
+mandatory review; otherwise an authorized repository change can alter the
+facts and the rules together.
 
 The privacy-redaction operator is a narrow exception to ordinary fail-closed
 candidate privacy validation. It permits only the catalog's fixed, clearly

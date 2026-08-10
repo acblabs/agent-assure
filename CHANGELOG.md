@@ -2,6 +2,91 @@
 
 ## Unreleased
 
+- Added opt-in `ci --format json` output for every completed full-run or
+  artifact-gate decision, including `pass`, `review`, `not_evaluated`, and
+  invalid artifact loads, while retaining the existing default text behavior.
+- Made control-efficacy, mutation, and packet CLI output non-wrapping so paths
+  and digests remain copyable at narrow terminal widths, and replaced packet
+  message-content inspection with structural efficacy-decision logic.
+- Canonicalized threat challenger projections locally, named the shared
+  efficacy-limitation bound, narrowed doctor catalog diagnostics to expected
+  failures, and normalized doctor configuration-path reporting.
+- Completed the control-efficacy reason-code registry and its alignment check,
+  removed internal planning terminology from shipped catalog text, and
+  clarified advisory versus strict verifier semantic binding.
+- Strengthened the `ExactRate` writer JSON Schema so zero denominators require
+  both `undefined_zero_denominator` state and a zero numerator, while positive
+  denominators require `defined` state.
+- Made strict efficacy verification cross-check report-owned catalog and threat
+  projections against the installed catalog and separately loaded verifier
+  manifest instead of trusting matching digest strings alone.
+- Made packet construction bind the report to the configuration's current,
+  confined threat-manifest snapshot before publishing outputs, and made legacy
+  packet serialization omit only the newly introduced efficacy fields.
+- Completed the assurance demo's selected-operator threat scope and made
+  destructive demo cleanup reject linked or reparse-point ownership markers.
+- Added self-digested `ControlEfficacyReport/v1` and
+  `ThreatApplicabilityManifest/v1` contracts. Reports preserve exact
+  `caught / (caught + survived)` ratios, explicit undefined zero-denominator
+  state, all mutation-result counts, invariant-family strata, and all five
+  independence strata.
+- Added threat applicability, critical-gap, required-survivor, and independent
+  challenge projections with semantic evidence state kept separate from
+  configurable gate effects. Invalid subjects and execution failures remain
+  visible outside the detector-ratio denominator.
+- Added `controls efficacy`, standalone and packet CI gating, and optional
+  control-efficacy evidence in packets without merging control-challenge scope
+  into candidate evidence closure.
+- Added an idempotent `init controls-mutation` scaffold, static read-only
+  `doctor controls-mutate` diagnostics, and an installed-package offline
+  `demo assure-the-assurance` workflow covering caught, survived, and rejected
+  unrelated-failure detection paths.
+- Extended release-facing claim checks to reject numeric system-safety
+  percentages while preserving legitimate statistical confidence-interval
+  language, and documented the exact metric and review boundaries.
+- Made surviving required and critical mutation operators non-bypassable:
+  their profile fields and gate findings are block-only in both runtime and
+  JSON Schema, while decision derivation reads those pinned authored fields.
+- Added `CRITICAL_THREAT_UNCOVERED` as an explicit gate finding and mapped it
+  to `review` by default. `ci gate --fail-on-warn` makes that review blocking,
+  while `--fail-on-not-evaluated` now covers both control-efficacy semantic
+  state and threat-scope state.
+- Rejected `caught` or `survived` campaign results whose evaluator basis is
+  stochastic or human-reviewed; verdict-bearing control-efficacy outcomes must
+  be deterministic until a typed sufficiency artifact is supported.
+- Preserved catalog threat references missing from the authored manifest as
+  exact `unscoped_catalog_threat_*` residuals, gave them the distinct
+  `unscoped_catalog_references` scope state and
+  `UNSCOPED_CATALOG_THREAT_REFERENCE` gate reason, and mapped them to review
+  by default. The generated quickstart now declares its complete selected
+  operator scope, and doctor reports `CM_THREAT_SCOPE` when an authored
+  manifest is thin.
+- Required efficacy-bearing packets to bind exactly one
+  `control-efficacy-report` digest and one `control-efficacy-config` digest,
+  added release replay for both roles, and defined the config role as the
+  exact authored YAML or JSON input that determined the embedded gate profile.
+- Required efficacy report writers and packets to bind a gate decision to its
+  exact profile and freshly re-derived findings and effects, rather than only
+  its report digest. Evidence-packet construction now enforces nested artifact
+  schema-version coherence and validates the post-redaction packet against the
+  selected current writer or legacy frozen schema before persistence.
+- Documented `controls-mutation-onboarding-config` as package-bound authored
+  input rather than an exported frozen evidence schema.
+- Replaced packet CI routing recovered from human-readable message prefixes
+  with a structural `pass`, `review`, `not_evaluated`, `fail`, or `invalid`
+  outcome that is consistent with the exit code and emitted in diagnostics.
+  Combined packet messages retain the controlling label while disclosing the
+  attached efficacy semantic state, threat-scope state, and survivor and
+  unscoped-reference counts.
+- Changed successful `ci gate` display prefixes so `warn` now emits
+  `ci gate review:` instead of `ci gate pass:`, and `not_evaluated` now emits
+  `ci gate not-evaluated:` instead of `ci gate pass:`. Human-readable prefixes
+  are display text; the structural outcome in diagnostics and the process exit
+  code are the automation contract.
+- Updated packet and efficacy Markdown to render actionable, bounded gate and
+  residual details, and synchronized the assurance walkthrough with all six
+  emitted review artifacts.
+
 ## 0.6.1 - 2026-08-02
 
 - Added an exact, fail-closed recovery and read-only publication-validation

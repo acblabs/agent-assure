@@ -9,6 +9,7 @@ from agent_assure.cli import (
     controls_cmd,
     demo_cmd,
     diff_cmd,
+    doctor_cmd,
     evaluate_cmd,
     init_cmd,
     live_cmd,
@@ -23,6 +24,7 @@ from agent_assure.cli import (
 
 app = typer.Typer(help="Expectation-driven assurance for deterministic AI agent pipelines.")
 app.add_typer(init_cmd.app, name="init")
+app.add_typer(doctor_cmd.app, name="doctor")
 app.command("validate")(validate_cmd.validate)
 app.add_typer(schema_cmd.app, name="schema")
 app.add_typer(suite_cmd.app, name="suite")

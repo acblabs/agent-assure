@@ -139,9 +139,11 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
             "--out",
             str(packet_path),
         ],
+        terminal_width=32,
     )
 
     assert result.exit_code == 0, result.output
+    assert f"evidence packet: {packet_path}" in result.output.splitlines()
     packet = json.loads(packet_path.read_text(encoding="utf-8"))
     assert packet["artifact_kind"] == "evidence-packet"
     assert packet["interpretation"]
@@ -171,6 +173,30 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
 
     gate = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
     assert gate.exit_code == 1, gate.output
+
+
+def test_packet_build_rejects_legacy_summary_before_packet_write(tmp_path: Path) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="legacy-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_payload = evaluation.model_dump(mode="json")
+    evaluation_payload["schema_version"] = "0.6.1"
+    evaluation_path = tmp_path / "legacy-evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    _write_json(evaluation_path, evaluation_payload)
+
+    result = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "evidence packet schema_version '0.6.2' requires" in result.output
+    assert "evaluation.schema_version '0.6.2'; received '0.6.1'" in result.output
+    assert not packet_path.exists()
 
 
 def test_packet_id_excludes_local_environment_and_exact_file_digests() -> None:

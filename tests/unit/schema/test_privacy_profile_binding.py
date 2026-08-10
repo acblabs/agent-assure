@@ -15,7 +15,10 @@ from agent_assure.schema.run import RunSet
 ROOT = Path(__file__).resolve().parents[3]
 
 
-def test_current_artifact_schemas_require_privacy_profile_pair() -> None:
+@pytest.mark.parametrize("schema_version", ("0.6.1", "0.6.2"))
+def test_machine_id_era_artifact_schemas_require_privacy_profile_pair(
+    schema_version: str,
+) -> None:
     artifacts = (
         (
             RunSet,
@@ -45,7 +48,7 @@ def test_current_artifact_schemas_require_privacy_profile_pair() -> None:
         identified_payload = {
             **payload,
             "artifact_kind": model.model_fields["artifact_kind"].default,
-            "schema_version": "0.6.1",
+            "schema_version": schema_version,
         }
         validator = Draft202012Validator(model.model_json_schema())
         with pytest.raises(JsonSchemaValidationError):
@@ -83,7 +86,5 @@ def test_legacy_summary_dumps_remain_valid_against_frozen_schemas() -> None:
         payload = artifact.model_dump(mode="json")
         assert "privacy_profile_id" not in payload
         assert "privacy_profile_digest" not in payload
-        schema = json.loads(
-            (ROOT / "schemas" / "v0.4.3" / schema_name).read_text(encoding="utf-8")
-        )
+        schema = json.loads((ROOT / "schemas" / "v0.4.3" / schema_name).read_text(encoding="utf-8"))
         Draft202012Validator(schema).validate(payload)

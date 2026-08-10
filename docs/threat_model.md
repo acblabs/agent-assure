@@ -14,6 +14,11 @@ a network-isolation boundary against hostile Python or native code.
 
 - Compiled suites, expectations, fixture manifests, policy bundles, and release
   replay files are treated as repository-controlled review artifacts.
+- Controls-mutation configurations and threat-applicability manifests are also
+  repository-controlled review artifacts. Threat applicability, criticality,
+  present-control declarations, review dates, owners, and rationales are
+  authored governance inputs; the engine does not discover or independently
+  verify them.
 - Fixture mode is deterministic and offline. The runner constructs records from
   local fixtures and recomputes built-in controls during evaluation.
 - Live mode treats the configured adapter, static JSONL file, external script,
@@ -131,6 +136,56 @@ a network-isolation boundary against hostile Python or native code.
 - A mutation is caught only when its expected-detection contract matches an
   observed finding from the target control and the declared gate effect. An
   unrelated parse, schema, runtime, or policy failure does not count.
+- Control-efficacy projection consumes only a validated campaign generation and
+  a catalog with matching identity and digest. It binds its report to the
+  campaign, source, suite, catalog, and threat-manifest digests and validates
+  exact outcome partitions, ratios, strata, survivor IDs, and threat counts.
+- The ratio denominator contains only caught and survived applicable outcomes.
+  Invalid, error, inapplicable, and pending work stays visible and cannot be
+  relabeled as detector success. A zero denominator remains explicitly
+  undefined.
+- Critical operator status is derived from applicable critical threat
+  references in the bound manifest. Independent challenge counts admit only
+  external pre-existing, third-party-contributed, and first-party-precontrol
+  provenance; first-party-postcontrol and unknown provenance remain visible but
+  ineligible.
+- Efficacy semantic state and configured gate effects are separate. Required
+  and critical survivors, invalid/error outcomes, and required non-verdict
+  outcomes have block-only policy fields. Report validation prevents internal
+  arithmetic or binding contradictions; it does not establish that the
+  authored threat scope is complete or correctly classified.
+- Efficacy-aware CLI and programmatic gates default to strict verification when
+  efficacy evidence is present. Presence is verifier-controlled separately:
+  `--require-efficacy` requires a packet to contain efficacy evidence and an
+  external verifier policy implies that requirement. Optional absence is
+  reported as `efficacy_evidence=absent` and
+  `efficacy_verification=not_requested`, never as a strict efficacy pass.
+- Strict verification requires a verifier-owned controls-mutation YAML. The
+  verifier policy pins the installed catalog digest, exact selected and
+  required operator sets, and the separately loaded threat-manifest digest.
+  The gate also cross-checks report projections against verifier-owned catalog
+  and manifest semantics, including independence class, invariant family,
+  threat and target-control mappings, applicability, criticality, and
+  present-control scope; digest-string equality alone is insufficient.
+  Acceptance uses a positive allow-list: all evaluated applicable operators
+  were caught, all applicable threats were challenged, the verifier decision
+  passes, and no invalid/error or required non-verdict state exists. The
+  packet's embedded profile remains provenance and cannot select the strict
+  acceptance policy. Gate decisions record the evidence-presence,
+  verification-mode, and efficacy-required facts so strict and advisory output
+  cannot be confused.
+- Verifier policy files and their referenced threat manifests use the confined
+  input policy. Linked or reparse-point ancestors and multiply hardlinked final
+  files are rejected, which intentionally fails closed for symlinked checkout
+  roots and hardlinked policy inputs. Explicit Windows UNC paths are rejected;
+  mapped drive letters and Unix network mounts are not independently detected
+  and remain part of the trusted host/filesystem boundary.
+- Existing reports and packets are not execution attestations. Gate validation
+  re-derives decisions and verifies schema/digest relationships but does not
+  rerun mutation operators. A protected CI workflow making an efficacy
+  assurance claim must regenerate campaigns and efficacy reports from pinned
+  inputs, and repository protections should require review for the verifier
+  policy, threat manifest, operator selection, and workflow.
 - Operator execution does not load caller-supplied executable plugins, invoke
   caller-supplied shell text, or require network access.
 - Reports minimize content to paths, digests, reason codes, bounded summaries,
@@ -152,3 +207,7 @@ a network-isolation boundary against hostile Python or native code.
 - Isolation from a malicious installed package or compromised built-in
   operator implementation.
 - Discovery of every possible control bypass or failure mode.
+- Independent validation of an authored threat-applicability manifest,
+  organizational criticality decision, or required-operator selection.
+- Protection against a malicious change that is authorized to modify both the
+  verifier-owned policy inputs and the CI workflow that consumes them.

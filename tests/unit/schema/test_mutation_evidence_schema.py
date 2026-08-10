@@ -292,6 +292,25 @@ def _legacy_detector_contract() -> ExpectedDetectionContract:
     return _detector_contract(schema_version="0.6.0")
 
 
+def _v061_mutation_operator() -> AssuranceMutationOperator:
+    return _mutation_operator(
+        schema_version="0.6.1",
+        expected_detection_contract=_detector_contract(schema_version="0.6.1"),
+    )
+
+
+def _v061_mutation_result() -> AssuranceMutationResult:
+    return _mutation_result(schema_version="0.6.1")
+
+
+def _v061_evidence_descriptor() -> AssuranceEvidenceDescriptor:
+    return _evidence_descriptor(schema_version="0.6.1")
+
+
+def _v061_detector_contract() -> ExpectedDetectionContract:
+    return _detector_contract(schema_version="0.6.1")
+
+
 @pytest.mark.parametrize(
     ("artifact_kind", "factory"),
     (
@@ -339,6 +358,37 @@ def test_frozen_v060_contracts_apply_self_digest_validation_after_shape(
     payload[digest_field] = "0" * 64
     frozen_schema = json.loads(
         (ROOT / "schemas" / "v0.6.0" / f"{artifact_kind}.schema.json").read_text(encoding="utf-8")
+    )
+    Draft202012Validator(frozen_schema).validate(payload)
+    with pytest.raises(ValueError, match="failed model validation"):
+        validate_artifact_payload(payload, artifact_kind)
+
+
+@pytest.mark.parametrize(
+    ("artifact_kind", "factory", "digest_field"),
+    (
+        (
+            "assurance-evidence-descriptor",
+            _v061_evidence_descriptor,
+            "evidence_digest",
+        ),
+        ("assurance-mutation-operator", _v061_mutation_operator, "operator_digest"),
+        ("assurance-mutation-result", _v061_mutation_result, "result_digest"),
+        ("expected-detection-contract", _v061_detector_contract, "contract_digest"),
+    ),
+)
+def test_frozen_v061_contracts_apply_self_digest_validation_after_shape(
+    artifact_kind: str,
+    factory: Callable[[], StrictModel],
+    digest_field: str,
+) -> None:
+    payload = factory().model_dump(mode="json")
+
+    assert validate_artifact_payload(payload, artifact_kind) == "frozen-jsonschema"
+
+    payload[digest_field] = "0" * 64
+    frozen_schema = json.loads(
+        (ROOT / "schemas" / "v0.6.1" / f"{artifact_kind}.schema.json").read_text(encoding="utf-8")
     )
     Draft202012Validator(frozen_schema).validate(payload)
     with pytest.raises(ValueError, match="failed model validation"):
@@ -397,7 +447,7 @@ def test_current_wire_schemas_pin_each_persisted_model_to_its_own_default() -> N
 
     run_schema = writer_json_schema(SCHEMA_MODELS["agent-run-record"])
     definitions = run_schema["$defs"]
-    assert definitions["EvidenceRef"]["properties"]["schema_version"]["const"] == ("0.6.1")
+    assert definitions["EvidenceRef"]["properties"]["schema_version"]["const"] == ("0.6.2")
     assert definitions["UsageSummary"]["properties"]["schema_version"]["const"] == ("0.4.3")
 
 

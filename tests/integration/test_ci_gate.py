@@ -74,11 +74,106 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
 
     assert RUNNER.invoke(app, ["ci", "gate", str(passing)]).exit_code == 0
     assert RUNNER.invoke(app, ["ci", "gate", str(warning)]).exit_code == 0
-    assert (
-        RUNNER.invoke(app, ["ci", "gate", str(warning), "--fail-on-warn"]).exit_code
-        == 1
-    )
+    assert RUNNER.invoke(app, ["ci", "gate", str(warning), "--fail-on-warn"]).exit_code == 1
     assert RUNNER.invoke(app, ["ci", "gate", str(failing)]).exit_code == 1
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_output"),
+    (
+        (
+            GateState.warn,
+            "ci gate review: evaluation-summary candidate state=warn",
+        ),
+        (
+            GateState.not_evaluated,
+            "ci gate not-evaluated: evaluation-summary candidate state=not_evaluated",
+        ),
+    ),
+)
+def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
+    tmp_path: Path,
+    state: GateState,
+    expected_output: str,
+) -> None:
+    summary_path = tmp_path / f"{state.value}.json"
+    _write_json(
+        summary_path,
+        EvaluationSummary(
+            artifact_kind="evaluation-summary",
+            runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=state,
+        ).model_dump(mode="json"),
+    )
+
+    result = RUNNER.invoke(app, ["ci", "gate", str(summary_path)])
+
+    assert result.exit_code == 0, result.output
+    assert result.output.strip() == expected_output
+
+
+@pytest.mark.parametrize(
+    ("state", "expected_outcome"),
+    (
+        (GateState.pass_, "pass"),
+        (GateState.warn, "review"),
+        (GateState.not_evaluated, "not_evaluated"),
+    ),
+)
+def test_ci_gate_json_output_exposes_every_nonblocking_outcome(
+    tmp_path: Path,
+    state: GateState,
+    expected_outcome: str,
+) -> None:
+    summary_path = tmp_path / f"{state.value}.json"
+    _write_json(
+        summary_path,
+        EvaluationSummary(
+            artifact_kind="evaluation-summary",
+            runset_id="machine-reader",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=state,
+        ).model_dump(mode="json"),
+    )
+
+    result = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(summary_path), "--format", "json"],
+    )
+
+    assert result.exit_code == 0, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == expected_outcome
+    assert decision["exit_code"] == 0
+    assert decision["artifact_kind"] == "evaluation-summary"
+    assert decision["artifact_path"] == str(summary_path)
+    assert decision["reason_code"] is None
+    assert decision["efficacy_evidence"] == "not_applicable"
+    assert decision["efficacy_verification"] == "not_requested"
+    assert decision["efficacy_required"] is False
+
+
+def test_ci_gate_json_output_reports_invalid_artifact_load_structurally(
+    tmp_path: Path,
+) -> None:
+    malformed = tmp_path / "malformed.json"
+    malformed.write_text('{"artifact_kind":', encoding="utf-8", newline="\n")
+
+    result = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(malformed), "--format", "json"],
+    )
+
+    assert result.exit_code == 2, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "invalid"
+    assert decision["exit_code"] == 2
+    assert decision["artifact_path"] == str(malformed)
+    assert decision["efficacy_verification"] == "strict"
+    assert decision["reason_code"] is None
 
 
 def test_ci_gate_exits_two_for_invalid_comparison(tmp_path: Path) -> None:
@@ -128,17 +223,43 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     assert (out_dir / "dependency-inventory.json").exists()
     diagnostics = json.loads((out_dir / "ci-diagnostics.json").read_text(encoding="utf-8"))
     assert diagnostics["exit_code"] == 1
+    assert diagnostics["outcome"] == "fail"
     assert diagnostics["reason_code"] == "MATERIAL_CLAIM_MISSING_EVIDENCE"
     assert diagnostics["artifact_path"].endswith("evidence-packet.json")
     packet = json.loads((out_dir / "evidence-packet.json").read_text(encoding="utf-8"))
     assert packet["environment"]["dependency_inventory_digest"]
     assert "python_executable" not in packet["environment"]
     assert packet["release_manifest"]["artifacts"]
-    inventory = json.loads(
-        (out_dir / "dependency-inventory.json").read_text(encoding="utf-8")
-    )
+    inventory = json.loads((out_dir / "dependency-inventory.json").read_text(encoding="utf-8"))
     assert inventory["artifact_kind"] == "dependency-inventory"
     assert inventory["format"] == "agent-assure-dependency-inventory-v0.1"
+
+
+def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Path) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "passing-ci-report"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(baseline_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "pass"
+    assert decision["exit_code"] == 0
+    assert decision["artifact_kind"] == "evidence-packet"
+    assert decision["artifact_path"] == str(out_dir / "evidence-packet.json")
+    assert decision["reason_code"] is None
 
 
 def test_ci_command_removes_outputs_that_are_stale_for_the_next_run(

@@ -6,8 +6,16 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, model_validator
 from pydantic_core import CoreSchema
 
-SCHEMA_VERSION = "0.6.1"
-SchemaVersion = Literal["0.2.0", "0.3.1", "0.4.3", "0.5.0", "0.6.0", "0.6.1"]
+SCHEMA_VERSION = "0.6.2"
+SchemaVersion = Literal[
+    "0.2.0",
+    "0.3.1",
+    "0.4.3",
+    "0.5.0",
+    "0.6.0",
+    "0.6.1",
+    "0.6.2",
+]
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
 RFC8785_SAFE_INTEGER_MIN = -RFC8785_SAFE_INTEGER_MAX
 
@@ -68,7 +76,7 @@ class PersistedArtifact(FrozenStrictModel):
         hide_input_in_errors=True,
     )
 
-    schema_version: SchemaVersion = "0.6.1"
+    schema_version: SchemaVersion = "0.6.2"
 
     @model_validator(mode="before")
     @classmethod

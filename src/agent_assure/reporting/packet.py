@@ -12,6 +12,12 @@ from agent_assure.reporting.markdown_safety import (
 )
 from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.efficacy import (
+    ControlEfficacyGateDecision,
+    ControlEfficacyGateProfile,
+    ControlEfficacyReport,
+    ExactRate,
+)
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
@@ -20,6 +26,7 @@ from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
 )
 from agent_assure.usage.aggregation import format_usage_delta
 
@@ -40,7 +47,10 @@ DEFAULT_INTERPRETATION = (
     "the capability passed.",
     "If a usage summary is present, treat it as measured usage and declared "
     "estimated cost evidence for human review, not business impact evidence.",
+    "If control efficacy is present, interpret it as catalog-relative challenge "
+    "scope; it remains separate from candidate evidence closure.",
 )
+_MAX_RENDERED_IDENTIFIER_ITEMS = 20
 
 
 def load_evaluation_summary(path: Path) -> EvaluationSummary:
@@ -63,6 +73,9 @@ def build_evidence_packet(
     evaluation: EvaluationSummary,
     *,
     comparison: ComparisonSummary | None = None,
+    control_efficacy: ControlEfficacyReport | None = None,
+    control_efficacy_gate_profile: ControlEfficacyGateProfile | None = None,
+    control_efficacy_gate: ControlEfficacyGateDecision | None = None,
     environment: EnvironmentInfo | None = None,
     release_manifest: ReleaseArtifactManifest | None = None,
     usage_summary: UsageSummary | None = None,
@@ -74,6 +87,9 @@ def build_evidence_packet(
     resolved_packet_id = packet_id or _packet_id(
         evaluation,
         comparison=comparison,
+        control_efficacy=control_efficacy,
+        control_efficacy_gate_profile=control_efficacy_gate_profile,
+        control_efficacy_gate=control_efficacy_gate,
         interpretation=interpretation,
         limitations=limitations,
     )
@@ -83,6 +99,9 @@ def build_evidence_packet(
         interpretation=interpretation,
         evaluation=evaluation,
         comparison=comparison,
+        control_efficacy=control_efficacy,
+        control_efficacy_gate_profile=control_efficacy_gate_profile,
+        control_efficacy_gate=control_efficacy_gate,
         environment=environment,
         release_manifest=release_manifest,
         usage_summary=usage_summary or evaluation.usage_summary,
@@ -103,9 +122,14 @@ def packet_artifact_digest(
 
 
 def write_evidence_packet(packet: EvidencePacket, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = redact_packet_payload(packet.model_dump(mode="json"))
+    payload = redact_packet_payload(
+        packet.model_dump(
+            mode="json",
+        )
+    )
     EvidencePacket.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "evidence-packet")
+    path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(
         path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -145,14 +169,95 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
                 "",
                 "## Comparison Summary",
                 "",
-                "- Baseline run set: "
-                f"{markdown_code_span(packet.comparison.baseline_runset_id)}",
-                "- Candidate run set: "
-                f"{markdown_code_span(packet.comparison.candidate_runset_id)}",
+                f"- Baseline run set: {markdown_code_span(packet.comparison.baseline_runset_id)}",
+                f"- Candidate run set: {markdown_code_span(packet.comparison.candidate_runset_id)}",
                 f"- Classification: {markdown_code_span(packet.comparison.classification.value)}",
                 "- Fixture equivalence: "
                 f"{markdown_code_span(packet.comparison.fixture_equivalence_state.value)}",
             ]
+        )
+    if packet.control_efficacy is not None:
+        efficacy = packet.control_efficacy
+        profile = packet.control_efficacy_gate_profile
+        gate = packet.control_efficacy_gate
+        if profile is None or gate is None:
+            raise ValueError(
+                "control-efficacy packet rendering requires a gate profile and decision"
+            )
+        independent_threat_count = markdown_code_span(
+            str(efficacy.independently_challenged_threat_category_count)
+        )
+        lines.extend(
+            [
+                "",
+                "## Assurance Control Challenge",
+                "",
+                "- Boundary: catalog-relative scope adequacy; this is separate "
+                "from candidate evidence closure.",
+                f"- Catalog: {markdown_code_span(efficacy.catalog_id)}",
+                f"- Semantic state: {markdown_code_span(efficacy.semantic_state.value)}",
+                f"- Gate profile: {markdown_code_span(profile.profile_id)}",
+                f"- Gate mapping: {markdown_code_span(gate.state.value)}",
+                "- Catalog detector kill ratio: "
+                f"{markdown_code_span(_rate_text(efficacy.catalog_kill_rate))}",
+                "- Required survivors: "
+                f"{markdown_code_span(str(efficacy.required_survivor_count))} / "
+                f"{markdown_code_span(str(len(efficacy.required_operator_ids)))} required",
+                "- Critical survivors: "
+                f"{markdown_code_span(str(efficacy.critical_survivor_count))}; "
+                "operator IDs: "
+                f"{_identifier_list(efficacy.critical_survivor_operator_ids)}",
+                "- Threat categories challenged: "
+                f"{markdown_code_span(str(efficacy.challenged_threat_category_count))} / "
+                f"{markdown_code_span(str(efficacy.applicable_threat_category_count))} "
+                "applicable",
+                "- Independently challenged threat categories: "
+                f"{independent_threat_count} / "
+                f"{markdown_code_span(str(efficacy.applicable_threat_category_count))} "
+                "applicable",
+                "- Critical uncovered threats: "
+                f"{markdown_code_span(str(efficacy.critical_uncovered_threat_count))} / "
+                f"{markdown_code_span(str(efficacy.applicable_threat_category_count))} "
+                "applicable",
+                "- Unknown applicability: "
+                f"{markdown_code_span(str(efficacy.unknown_applicability_count))} / "
+                f"{markdown_code_span(str(len(efficacy.threat_coverage)))} declared",
+                "- Unscoped catalog threats: "
+                f"{markdown_code_span(str(efficacy.unscoped_catalog_threat_count))}; "
+                "threat IDs: "
+                f"{_identifier_list(efficacy.unscoped_catalog_threat_ids)}",
+                "",
+                "### Gate Findings",
+                "",
+            ]
+        )
+        if gate.findings:
+            lines.extend(
+                "- Reason: "
+                f"{markdown_code_span(finding.reason_code.value)}; "
+                f"effect: {markdown_code_span(finding.effect.value)}; "
+                f"operator IDs: {_identifier_list(finding.operator_ids)}; "
+                f"threat IDs: {_identifier_list(finding.threat_ids)}"
+                for finding in gate.findings
+            )
+        else:
+            lines.append("- None.")
+        lines.extend(
+            [
+                "",
+                "### Independence Strata",
+                "",
+            ]
+        )
+        lines.extend(
+            "- "
+            f"{markdown_code_span(stratum.stratum)}: "
+            f"{markdown_code_span(_rate_text(stratum.kill_rate))}; "
+            f"caught={stratum.state_counts.caught}, "
+            f"survived={stratum.state_counts.survived}, "
+            f"invalid_subject={stratum.state_counts.invalid_subject}, "
+            f"total={stratum.state_counts.total}"
+            for stratum in efficacy.kill_rate_by_independence_class
         )
     if packet.environment is not None:
         lines.extend(
@@ -198,6 +303,9 @@ def _packet_id(
     evaluation: EvaluationSummary,
     *,
     comparison: ComparisonSummary | None,
+    control_efficacy: ControlEfficacyReport | None,
+    control_efficacy_gate_profile: ControlEfficacyGateProfile | None,
+    control_efficacy_gate: ControlEfficacyGateDecision | None,
     interpretation: tuple[str, ...],
     limitations: tuple[str, ...],
 ) -> str:
@@ -205,13 +313,26 @@ def _packet_id(
         "interpretation": interpretation,
         "evaluation": _summary_for_packet_id(evaluation),
         "comparison": _summary_for_packet_id(comparison) if comparison is not None else None,
+        "control_efficacy": (
+            _summary_for_packet_id(control_efficacy) if control_efficacy is not None else None
+        ),
+        "control_efficacy_gate_profile": (
+            control_efficacy_gate_profile.model_dump(mode="json")
+            if control_efficacy_gate_profile is not None
+            else None
+        ),
+        "control_efficacy_gate": (
+            control_efficacy_gate.model_dump(mode="json")
+            if control_efficacy_gate is not None
+            else None
+        ),
         "limitations": limitations,
     }
     return f"packet-{sha256_hexdigest(redact_packet_payload(payload))[:16]}"
 
 
 def _summary_for_packet_id(
-    summary: EvaluationSummary | ComparisonSummary,
+    summary: EvaluationSummary | ComparisonSummary | ControlEfficacyReport,
 ) -> dict[str, object]:
     return summary.model_dump(mode="json", exclude={"environment"})
 
@@ -238,3 +359,19 @@ def _usage_presence(summary: UsageSummary | None) -> str:
     if summary is None:
         return "not_observed"
     return "observed"
+
+
+def _rate_text(rate: ExactRate) -> str:
+    return f"{rate.numerator}/{rate.denominator} ({rate.state.value})"
+
+
+def _identifier_list(values: tuple[str, ...]) -> str:
+    if not values:
+        return markdown_code_span("<none>")
+    rendered = ", ".join(
+        markdown_code_span(value) for value in values[:_MAX_RENDERED_IDENTIFIER_ITEMS]
+    )
+    omitted = len(values) - _MAX_RENDERED_IDENTIFIER_ITEMS
+    if omitted <= 0:
+        return rendered
+    return f"{rendered}; {markdown_code_span(str(omitted))} omitted"

@@ -33,6 +33,7 @@ def main(argv: list[str] | None = None) -> int:
             wheelhouse = temp_dir / "wheelhouse"
             schema_dir = temp_dir / "schemas"
             flagship_dir = temp_dir / "flagship"
+            assurance_demo_dir = temp_dir / "assure-the-assurance"
             build_wheelhouse(args.dist, wheelhouse, args.lockfile)
             create_virtualenv(venv_dir)
             python = venv_python(venv_dir)
@@ -111,7 +112,55 @@ def main(argv: list[str] | None = None) -> int:
                     "--clean",
                 ],
                 cwd=temp_dir,
+                extra_env=_guarded_demo_env(temp_dir),
             )
+            run(
+                [
+                    str(agent_assure),
+                    "demo",
+                    "assure-the-assurance",
+                    "--out",
+                    str(assurance_demo_dir),
+                    "--clean",
+                ],
+                cwd=temp_dir,
+                extra_env=_guarded_demo_env(temp_dir),
+            )
+            first_summary = (assurance_demo_dir / "demo-summary.json").read_bytes()
+            run(
+                [
+                    str(python),
+                    "-c",
+                    _installed_assurance_demo_assertion(assurance_demo_dir),
+                ],
+                cwd=temp_dir,
+                extra_env=_guarded_demo_env(temp_dir),
+            )
+            run(
+                [
+                    str(agent_assure),
+                    "demo",
+                    "assure-the-assurance",
+                    "--out",
+                    str(assurance_demo_dir),
+                    "--no-clean",
+                    "--format",
+                    "json",
+                    "--strict",
+                ],
+                cwd=temp_dir,
+                expected_exit_codes=(1,),
+                required_stdout_fragments=(
+                    '"status": "success"',
+                    '"underlying_exit_code": 1',
+                ),
+                extra_env=_guarded_demo_env(temp_dir),
+            )
+            if (assurance_demo_dir / "demo-summary.json").read_bytes() != first_summary:
+                raise RuntimeError(
+                    "assure-the-assurance demo was not deterministic across clean and "
+                    "no-clean installed-wheel runs"
+                )
     except (RuntimeError, ValueError) as exc:
         print(f"wheel-smoke: {exc}", file=sys.stderr)
         return 1
@@ -182,9 +231,18 @@ def venv_executable(venv_dir: Path, name: str) -> Path:
     return venv_dir / script_dir / f"{name}{suffix}"
 
 
-def run(args: list[str], *, cwd: Path = ROOT) -> None:
+def run(
+    args: list[str],
+    *,
+    cwd: Path = ROOT,
+    expected_exit_codes: tuple[int, ...] = (0,),
+    required_stdout_fragments: tuple[str, ...] = (),
+    extra_env: dict[str, str] | None = None,
+) -> None:
     env = {**os.environ, "PIP_DISABLE_PIP_VERSION_CHECK": "1"}
     env.pop("PYTHONPATH", None)
+    if extra_env is not None:
+        env.update(extra_env)
     result = subprocess.run(
         args,
         cwd=cwd,
@@ -193,13 +251,22 @@ def run(args: list[str], *, cwd: Path = ROOT) -> None:
         capture_output=True,
         check=False,
     )
-    if result.returncode == 0:
+    stdout_matches = all(fragment in result.stdout for fragment in required_stdout_fragments)
+    if result.returncode in expected_exit_codes and stdout_matches:
         return
     command = " ".join(args)
     details = "\n".join(
         part
         for part in (
-            f"command failed with exit {result.returncode}: {command}",
+            (
+                f"command returned exit {result.returncode}; expected one of "
+                f"{list(expected_exit_codes)}: {command}"
+            ),
+            (
+                "command stdout omitted required fragments: " + ", ".join(required_stdout_fragments)
+                if not stdout_matches
+                else ""
+            ),
             result.stdout.strip(),
             result.stderr.strip(),
         )
@@ -423,7 +490,11 @@ assert len(_blocked_network_events) == _guard_probe_event_count
 
 
 def _demo_network_guard_assertion() -> str:
-    probe = "import socket; socket.create_connection(('127.0.0.1', 9))"
+    probe = (
+        "import socket; "
+        "socket.socket(socket.AF_INET, socket.SOCK_DGRAM)."
+        "sendto(b'agent-assure-offline-probe', ('127.0.0.1', 9))"
+    )
     expected = "network access is disabled for agent-assure demo subprocesses"
     return (
         "from pathlib import Path; "
@@ -436,8 +507,72 @@ def _demo_network_guard_assertion() -> str:
         "cwd=out, env=env, text=True, capture_output=True, check=False); "
         f"expected = {expected!r}; "
         "raise SystemExit(0 if result.returncode != 0 and expected in result.stderr "
-        "else 'demo network guard did not block socket creation')"
+        "else 'demo network guard did not block UDP sendto')"
     )
+
+
+def _guarded_demo_env(temp_dir: Path) -> dict[str, str]:
+    guard_dir = temp_dir / "network-guard-check" / ".runtime"
+    if not (guard_dir / "sitecustomize.py").is_file():
+        raise RuntimeError("installed-wheel demo network guard was not created")
+    return {
+        "PYTHONPATH": str(guard_dir),
+        "PYTHONDONTWRITEBYTECODE": "1",
+        "PYTHONNOUSERSITE": "1",
+        "PYTHONSAFEPATH": "1",
+        "AGENT_ASSURE_DEMO_NETWORK_DISABLED": "1",
+    }
+
+
+def _installed_assurance_demo_assertion(out_dir: Path) -> str:
+    root = str(out_dir.resolve())
+    return f"""
+import hashlib
+import json
+from pathlib import Path
+
+from agent_assure.reporting.campaign import validate_mutation_campaign_artifact_generation
+from agent_assure.schema.validation import validate_artifact
+
+root = Path({root!r})
+summary = json.loads((root / "demo-summary.json").read_text(encoding="utf-8"))
+expected = {{
+    "demo": "assure-the-assurance",
+    "status": "success",
+    "underlying_exit_code": 1,
+    "ordinary_baseline_state": "pass",
+    "strong_mutation_state": "caught",
+    "weakened_mutation_state": "survived",
+    "control_efficacy_gate_state": "fail",
+    "required_survivor_count": 1,
+    "critical_survivor_count": 1,
+    "unrelated_failure_counted_as_detection": False,
+    "unrelated_failure_detector_state": "survived",
+}}
+assert {{key: summary[key] for key in expected}} == expected
+assert str(root) not in json.dumps(summary)
+artifacts = summary["artifacts"]
+assert all(not Path(relative).is_absolute() for relative in artifacts.values())
+assert all((root / relative).exists() for relative in artifacts.values())
+for name, expected_digest in summary["artifact_sha256"].items():
+    actual = hashlib.sha256((root / artifacts[name]).read_bytes()).hexdigest()
+    assert actual == expected_digest
+validate_mutation_campaign_artifact_generation(
+    (root / artifacts["strong_campaign_generation"]).parent
+)
+validate_mutation_campaign_artifact_generation(
+    (root / artifacts["weakened_campaign_generation"]).parent
+)
+assert validate_artifact(
+    root / artifacts["control_efficacy_report"], "control-efficacy-report"
+) == "pydantic+jsonschema"
+assert validate_artifact(
+    root / artifacts["evidence_packet"], "evidence-packet"
+) == "pydantic+jsonschema"
+commands = {{item["name"]: item for item in summary["commands"]}}
+assert commands["ci-gate-efficacy-packet"]["actual_exit_code"] == 1
+assert all(item["matched"] is True for item in commands.values())
+"""
 
 
 def _frozen_schema_resource_paths(
@@ -449,10 +584,7 @@ def _frozen_schema_resource_paths(
     paths: list[str] = []
     for version in versions:
         version_dir = schema_root / version
-        paths.extend(
-            f"{version}/{path.name}"
-            for path in sorted(version_dir.glob("*.schema.json"))
-        )
+        paths.extend(f"{version}/{path.name}" for path in sorted(version_dir.glob("*.schema.json")))
     return tuple(paths)
 
 

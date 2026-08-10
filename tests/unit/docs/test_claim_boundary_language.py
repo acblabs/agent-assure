@@ -35,9 +35,7 @@ def test_claim_boundary_rejects_proof_carrying_category_language(text: str) -> N
         path=Path("README.md"),
     )
 
-    assert [violation.label for violation in violations] == [
-        "proof-carrying category"
-    ]
+    assert [violation.label for violation in violations] == ["proof-carrying category"]
 
 
 @pytest.mark.parametrize(
@@ -198,6 +196,65 @@ def test_claim_boundary_rejects_business_savings() -> None:
     assert [violation.label for violation in violations] == ["business savings"]
 
 
+@pytest.mark.parametrize(
+    "text",
+    (
+        "The system is 95% safe.",
+        "The system is 95 percent safe.",
+        "The system is safe at 95%.",
+        "Reported safety score: 95 percent.",
+        "The control is 99.5% reliable.",
+        "The system is 95%-safe.",
+        "The system is 95%—safe.",
+        "The system is safe—95%.",
+        "The system is ninety-five percent safe.",
+        "The system is ninety–five percent reliable.",
+        "The system is safe at ninety-five percent.",
+        "Reported safety score: ninety-five percent.",
+    ),
+)
+def test_claim_boundary_rejects_numeric_safety_percentages(text: str) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        text,
+        path=Path("README.md"),
+    )
+
+    assert [violation.label for violation in violations] == ["numeric safety percentage"]
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "The detector has a 95% kill rate for this exact campaign.",
+        "Observed threat coverage is 95 percent for the declared manifest.",
+        "The exact detector kill rate is ninety-five percent.",
+    ),
+)
+def test_claim_boundary_allows_scoped_efficacy_percentages(text: str) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        text,
+        path=Path("docs/control_efficacy.md"),
+    )
+
+    assert violations == []
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "The estimate includes a 95 percent confidence interval.",
+        "The estimate includes a 95% confidence interval.",
+    ),
+)
+def test_claim_boundary_allows_confidence_interval_percentages(text: str) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        text,
+        path=Path("docs/live_calibration.md"),
+    )
+
+    assert violations == []
+
+
 def test_claim_boundary_rejects_control_report_overclaim_terms() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "Compliance scorecard. ATLAS validation report. Adversary emulation report. "
@@ -230,8 +287,7 @@ def test_claim_boundary_sentence_splitter_ignores_version_dots() -> None:
 
 def test_claim_boundary_splits_adjacent_markdown_list_items() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
-        "- System is compliant\n"
-        "- This is not a compliance attestation.",
+        "- System is compliant\n- This is not a compliance attestation.",
         path=Path("docs/list.md"),
     )
 
@@ -268,9 +324,15 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     post_dir.mkdir()
     post = post_dir / "output_equivalence_is_not_process_equivalence.md"
     post.write_text("Measured evidence\n", encoding="utf-8")
+    efficacy_doc = docs / "control_efficacy.md"
+    efficacy_doc.write_text("Measured evidence\n", encoding="utf-8")
+    efficacy_post = post_dir / "who_assures_the_assurance.md"
+    efficacy_post.write_text("Measured evidence\n", encoding="utf-8")
     assets_dir.mkdir()
     transcript = assets_dir / "flagship_demo_transcript.txt"
     transcript.write_text("Measured evidence\n", encoding="utf-8")
+    efficacy_walkthrough = assets_dir / "assure_the_assurance_walkthrough.txt"
+    efficacy_walkthrough.write_text("Measured evidence\n", encoding="utf-8")
     visual = assets_dir / "flagship-evidence.svg"
     visual.write_text("<svg><text>Measured evidence</text></svg>\n", encoding="utf-8")
     social_dir.mkdir()
@@ -300,7 +362,10 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     assert process_doc in paths
     assert release_note in paths
     assert post in paths
+    assert efficacy_doc in paths
+    assert efficacy_post in paths
     assert transcript in paths
+    assert efficacy_walkthrough in paths
     assert visual in paths
     assert video_script in paths
     assert golden_html in paths

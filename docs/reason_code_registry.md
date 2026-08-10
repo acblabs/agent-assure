@@ -33,3 +33,31 @@ Reason codes are stable machine-facing identifiers for deterministic findings.
   LLM-derived advisory judgment as verdict-bearing evidence. LLM-derived
   judgments remain advisory and segregated from release gates.
 - `NOT_EVALUATED`: a capability was explicitly not evaluated.
+
+## Control-Efficacy Gate Reasons
+
+Control-efficacy gates use a separate stable reason namespace:
+
+- `REQUIRED_OPERATOR_SURVIVED`: an operator required by the verifier's gate
+  profile survived its challenge. This finding always blocks.
+- `CRITICAL_OPERATOR_SURVIVED`: an operator associated with an applicable,
+  critical threat survived its challenge. This finding always blocks.
+- `APPLICABLE_OPERATOR_SURVIVED`: a selected operator outside the required and
+  critical floors survived its challenge. The default profile maps this finding
+  to `review`.
+- `CRITICAL_THREAT_UNCOVERED`: an applicable, critical threat category had no
+  completed challenge. The default profile maps this finding to `review`.
+- `APPLICABLE_THREAT_UNCOVERED`: an applicable, non-critical threat category had
+  no completed challenge. The default profile maps this finding to `review`.
+- `INVALID_OR_ERROR_OPERATOR`: a selected operator produced an invalid-operator,
+  invalid-subject, or execution-error outcome. This finding always blocks.
+- `REQUIRED_OPERATOR_NOT_EVALUATED`: an operator required by the verifier's gate
+  profile had no caught-or-survived outcome. This finding always blocks.
+- `UNKNOWN_THREAT_APPLICABILITY`: a threat manifest entry retained `unknown`
+  applicability. The default profile maps this finding to `review`.
+- `UNSCOPED_CATALOG_THREAT_REFERENCE`: a selected catalog operator referenced a
+  threat ID absent from the verifier's threat manifest. The default profile maps
+  this finding to `review`.
+
+Strict efficacy CI rejects every one of these finding states regardless of an
+advisory effect mapping.

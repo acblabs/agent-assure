@@ -22,6 +22,7 @@ from agent_assure.schema.common import (  # noqa: E402
     GateState,
     ReasonCode,
 )
+from agent_assure.schema.efficacy import ControlEfficacyGateReason  # noqa: E402
 from agent_assure.schema.export import SCHEMA_MODELS  # noqa: E402
 from agent_assure.schema.run import AgentRunRecord  # noqa: E402
 
@@ -354,9 +355,7 @@ def _check_citation_version() -> list[str]:
         failures.append("CITATION.cff must declare version")
     if date_match is None:
         failures.append("CITATION.cff must declare date-released")
-    latest = _latest_changelog_release(
-        (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    )
+    latest = _latest_changelog_release((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     if latest is None:
         return failures
     expected_version, expected_date = latest
@@ -375,9 +374,7 @@ def _check_citation_version() -> list[str]:
 
 def _check_readme_release_pins() -> list[str]:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
-    latest = _latest_changelog_release(
-        (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    )
+    latest = _latest_changelog_release((ROOT / "CHANGELOG.md").read_text(encoding="utf-8"))
     if latest is None:
         return []
     expected_version, _ = latest
@@ -450,7 +447,7 @@ def _check_reason_codes() -> list[str]:
     text = path.read_text(encoding="utf-8")
     return [
         f"reason-code registry missing: {reason.value}"
-        for reason in ReasonCode
+        for reason in (*ReasonCode, *ControlEfficacyGateReason)
         if f"`{reason.value}`" not in text
     ]
 
@@ -578,14 +575,12 @@ def _derive_flagship_showcase_facts() -> FlagshipShowcaseFacts:
     candidate_findings = candidate_report.candidate_vs_expectations.findings
     if len(candidate_findings) != 1:
         raise ValueError(
-            "flagship candidate must produce exactly one finding; "
-            f"found {len(candidate_findings)}"
+            f"flagship candidate must produce exactly one finding; found {len(candidate_findings)}"
         )
     finding = candidate_findings[0]
     if finding.target != claim_finding_target(missing_claim_id):
         raise ValueError(
-            "flagship candidate finding target does not match the missing claim: "
-            f"{finding.target}"
+            f"flagship candidate finding target does not match the missing claim: {finding.target}"
         )
 
     return FlagshipShowcaseFacts(
@@ -598,9 +593,7 @@ def _derive_flagship_showcase_facts() -> FlagshipShowcaseFacts:
         candidate_state=candidate_report.candidate_vs_expectations.state,
         candidate_reason_code=finding.reason_code,
         classification=comparison_report.comparison_summary.classification,
-        fixture_equivalence_state=(
-            comparison_report.comparison_summary.fixture_equivalence_state
-        ),
+        fixture_equivalence_state=(comparison_report.comparison_summary.fixture_equivalence_state),
     )
 
 
@@ -638,10 +631,7 @@ def _check_otel_mapping() -> list[str]:
         ):
             if attr not in matrix_text or attr not in docs_text:
                 failures.append(f"OTel mapping missing documented attribute: {attr}")
-        if (
-            "gen_ai.operation.name" not in matrix_text
-            or "gen_ai.operation.name" not in docs_text
-        ):
+        if "gen_ai.operation.name" not in matrix_text or "gen_ai.operation.name" not in docs_text:
             failures.append("OTel docs must document gen_ai.operation.name as not emitted")
     return failures
 
@@ -711,11 +701,7 @@ def _markdown_section_content(text: str, section: str) -> str | None:
     if section_index is None:
         return None
     content_start = headings[section_index][2]
-    content_end = (
-        headings[section_index + 1][1]
-        if section_index + 1 < len(headings)
-        else len(text)
-    )
+    content_end = headings[section_index + 1][1] if section_index + 1 < len(headings) else len(text)
     return text[content_start:content_end].strip()
 
 
@@ -817,8 +803,7 @@ def _check_standards_freshness() -> list[str]:
             match = re.search(pattern, lock_text)
             if match and match.group(1) not in checklist_text:
                 failures.append(
-                    "standards freshness checklist does not cite "
-                    f"lock value: {match.group(1)}"
+                    f"standards freshness checklist does not cite lock value: {match.group(1)}"
                 )
     if candidate.exists():
         candidate_text = candidate.read_text(encoding="utf-8")

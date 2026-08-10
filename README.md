@@ -241,11 +241,43 @@ agent-assure controls mutate \
 Every selected operator runs independently against the same immutable source.
 The output binds the canonical catalog digest, normative expected detector,
 observed and prohibited substitute findings, exact changed paths, provenance,
-independence class, seed, and limitations. It is a finite challenge report,
-not a safety score, mutation kill rate, statistical confidence interval, or
+independence class, seed, and limitations. The campaign itself remains a
+finite challenge record. `controls efficacy` can derive an exact
+catalog-relative detector kill ratio over completed applicable outcomes while
+preserving inapplicable, invalid, and error counts outside its denominator.
+That ratio is not a safety score, statistical confidence interval, or
 universal-coverage claim.
 
+Only deterministic `caught` and `survived` campaign outcomes may contribute a
+control-efficacy verdict. An applicable critical threat with no completed
+challenge emits `CRITICAL_THREAT_UNCOVERED` and requires review under the
+default profile. Required and critical survivors, invalid/error outcomes, and
+required non-verdict outcomes are always blocking. Efficacy-aware `ci gate`
+uses strict verification by default when efficacy evidence is present; pass a
+verifier-owned controls-mutation YAML with `--efficacy-policy`. That option
+also requires the evidence to be present, while `--require-efficacy` provides a
+separate presence requirement. Strict CI accepts only complete, all-caught,
+all-applicable-challenged evidence and pins the catalog, selected and required
+operators, and threat manifest. Use `--allow-advisory-efficacy` only for an
+explicit review flow.
+
+The packaged offline demonstration exercises both a strong and deliberately
+weakened assurance control, then verifies that an unrelated failure cannot
+substitute for the expected detector:
+
+```bash
+agent-assure demo assure-the-assurance \
+  --out .tmp/demo/assure-the-assurance \
+  --clean
+```
+
+For a minimal editable workflow, start with `agent-assure init
+controls-mutation`, run the read-only `doctor controls-mutate` preflight, then
+produce a campaign and `control-efficacy-report.json`.
+
 [Inspect the exact seven-operator catalog](docs/mutation_catalog.md) ·
+[Measure control efficacy](docs/control_efficacy.md) ·
+[Read "Who assures the assurance?"](docs/posts/who_assures_the_assurance.md) ·
 [Review the evidence contracts](docs/evidence_carrying_releases.md)
 
 ## Integrate your agent
@@ -403,9 +435,9 @@ and [security guidance](SECURITY.md).
 ## Learn more
 
 - **Start:** [Documentation](docs/index.md) · [For AI leaders](docs/for_ai_leaders.md) · [For architects](docs/architecture.md) · [For engineers](docs/for_engineers.md)
-- **Demos:** [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)
+- **Demos:** [Assure the assurance](docs/control_efficacy.md#one-command-demonstration) · [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)
 - **Integrations:** [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) · [Adapter contract](docs/adapters/adapter_contract.md)
-- **Assurance:** [What this measures](docs/what_this_measures.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
+- **Assurance:** [What this measures](docs/what_this_measures.md) · [Control efficacy](docs/control_efficacy.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
 - **Evidence-carrying releases:** [Core mutation catalog](docs/mutation_catalog.md) · [Contracts and campaign guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
 - **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
 - **Project:** [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [License](LICENSE)
