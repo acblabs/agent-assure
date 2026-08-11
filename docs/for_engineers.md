@@ -68,10 +68,10 @@ content.
 
 ## Schemas
 
-Schema changes are versioned. The released v0.6.1 snapshot is frozen under
-`schemas/v0.6.1/`; the active v0.6.2 release-candidate snapshot is under
-`schemas/v0.6.2/`. `schemas/unreleased/` is only a non-gating exporter
-smoke-test target. Future schema changes require a new versioned snapshot.
+Schema changes are versioned. The released v0.6.2 snapshot is frozen under
+`schemas/v0.6.2/`; earlier released snapshots remain available for replay.
+`schemas/unreleased/` is only a non-gating exporter smoke-test target. Future
+schema changes require a new versioned snapshot.
 
 ## Bundled examples
 

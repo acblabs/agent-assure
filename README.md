@@ -339,8 +339,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.6.1
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.1
+      - run: python -m pip install agent-assure==0.6.2
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.2
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -360,7 +360,7 @@ default retention period is 14 days.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.1`).**
+**Current maturity: Release Candidate (RC, `v0.6.2`).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.

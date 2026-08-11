@@ -1,10 +1,10 @@
 # Schema Evolution
 
-Current released schema snapshot: `schemas/v0.6.1/`. It is immutable because
-the matching `v0.6.1` tag exists.
+Current released schema snapshot: `schemas/v0.6.2/`. It is immutable because
+the matching `v0.6.2` tag exists.
 
-Current released persisted artifact `schema_version`: `0.6.1`. The active
-development models and evidence-carrying roots emit `0.6.2`.
+Current released persisted artifact `schema_version`: `0.6.2`. Current models
+and evidence-carrying roots emit `0.6.2`.
 
 An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
@@ -22,20 +22,20 @@ Use these directories as the release lifecycle:
 - `schemas/v0.5.0/` contains the released v0.5.0 snapshot and is immutable.
 - `schemas/v0.6.0/` contains the released v0.6.0 snapshot and is immutable.
 - `schemas/v0.6.1/` contains the released v0.6.1 snapshot and is immutable.
-- `schemas/v0.6.2/` contains the active v0.6.2 release-candidate snapshot.
+- `schemas/v0.6.2/` contains the released v0.6.2 snapshot and is immutable.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
 Before a matching release tag exists, an active versioned directory is a
 release candidate and may be regenerated as the candidate schema changes. Once
 that tag exists, the directory is immutable: subsequent schema changes must
 bump `SCHEMA_VERSION` and use a new `schemas/vX.Y.Z/` directory. Schema checks
-enforce both active-candidate parity and released-snapshot immutability. The
+enforce both current-schema parity and released-snapshot immutability. The
 historical `v0.1.0` snapshot predates this policy and uses `v0.2.0`, when that
 snapshot stabilized, as its immutable baseline.
 
 Automation has complementary checks:
 
-- frozen schema parity exports the active schema surface to
+- frozen schema parity exports the current schema surface to
   `schemas/v0.6.2/` and fails if those committed files drift;
 - tagged-schema immutability compares every released snapshot with its local
   full-history Git tag baseline; its dedicated CI job requires release tags
@@ -117,9 +117,9 @@ while the persisted artifact schema namespace remains `0.2.0`.
 For the current package line, the CLI keeps replay and validation support for
 the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
 `schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
-`schemas/v0.5.0/`, `schemas/v0.6.0/`, and `schemas/v0.6.1/`. Current-release
-replay remains bounded to tagged snapshots; active-candidate checks target
-`schemas/v0.6.2/`.
+`schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`, and
+`schemas/v0.6.2/`. Current-release replay remains bounded to tagged snapshots;
+current-schema checks target `schemas/v0.6.2/`.
 
 Persisted inputs are checked against their frozen schema before typed runtime
 projection. The v0.1 `release-digest-replay` contract is shape-identical to
@@ -145,7 +145,7 @@ window. It is package-bound input for the onboarding workflow, not an exported
 evidence root, and therefore has no frozen JSON Schema compatibility promise.
 
 The golden check follows the same split: unversioned flagship compiled-suite
-and fixture-manifest goldens track the active v0.6.2 producer, while explicitly
+and fixture-manifest goldens track the current v0.6.2 producer, while explicitly
 named `*.v0.5.0.*.json` goldens are byte-pinned and replayed through the frozen
 v0.5.0 JSON Schemas. `--update-golden` never rewrites those legacy fixtures.
 

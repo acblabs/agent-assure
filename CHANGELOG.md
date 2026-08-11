@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.6.2 - 2026-08-10
+
 - Prevented scaffold rollback from deleting a concurrently replaced file when
   POSIX reuses an inode, and made doctor classify linked output entries before
   resolving their targets.
