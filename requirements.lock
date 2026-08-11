@@ -308,8 +308,8 @@ coverage[toml]==7.14.3 \
     --hash=sha256:fb7e18afb6e903c1a92401a2f0501ac277dca527bb9ca6fe1f691a8a0026a0e8 \
     --hash=sha256:fbb8c3a98e779013786ae01d229662aeacbc77100efbd3f2f245219ace5af700
     # via pytest-cov
-cryptography==49.0.0 ; sys_platform == "linux" \
-    --hash=sha256:0e959b578856a3924bc0cbb710fc12c387b9412a951389f3ca61704a9e25f325
+cryptography==50.0.0 ; sys_platform == "linux" \
+    --hash=sha256:82148ec5bddac30b51a5b3c1945075f896fa022cb93f8e4a01e9f6ee95292c5f
     # via secretstorage
 docutils==0.23 \
     --hash=sha256:25d013af9bf23bc1c7b2b093dff4208166c53a94786c9e447808335ef1185fea \

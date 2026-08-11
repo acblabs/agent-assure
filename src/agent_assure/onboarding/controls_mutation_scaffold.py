@@ -76,6 +76,7 @@ class _CreatedFile:
     path: Path
     device: int
     inode: int
+    pin_descriptor: int | None
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,9 @@ def scaffold_controls_mutation(directory: Path) -> ScaffoldResult:
         for created_directory in reversed(created_directories):
             _remove_created_directory(created_directory)
         raise
+    else:
+        for created_file in created:
+            _release_created_file(created_file)
     return ScaffoldResult(
         status="created",
         directory=destination,
@@ -297,7 +301,19 @@ def _write_new_file(path: Path, content: bytes) -> _CreatedFile:
         metadata = os.fstat(descriptor)
         if not _metadata_is_regular_file(metadata) or metadata.st_nlink != 1:
             raise OSError("new scaffold asset is not an unlinked regular file")
-        created_file = _CreatedFile(path, metadata.st_dev, metadata.st_ino)
+        created_file = _CreatedFile(path, metadata.st_dev, metadata.st_ino, None)
+        # POSIX may immediately recycle an inode after unlink. Keep a duplicate
+        # descriptor open for the full scaffold transaction so rollback cannot
+        # mistake a concurrently replaced path for the file that we created.
+        # Windows CRT descriptors prevent unlink while open, so retain the
+        # existing file-identity check there instead of changing that behavior.
+        pin_descriptor = os.dup(descriptor) if os.name != "nt" else None
+        created_file = _CreatedFile(
+            path,
+            metadata.st_dev,
+            metadata.st_ino,
+            pin_descriptor,
+        )
         with os.fdopen(descriptor, "wb", closefd=True) as handle:
             descriptor = -1
             handle.write(content)
@@ -378,11 +394,17 @@ def _path_matches_created_file(
 ) -> bool:
     try:
         metadata = os.lstat(created.path)
+        pinned_metadata = (
+            os.fstat(created.pin_descriptor)
+            if created.pin_descriptor is not None
+            else metadata
+        )
     except OSError:
         return False
     return (
         _metadata_is_regular_file(metadata)
         and _metadata_matches(metadata, created)
+        and _metadata_matches(pinned_metadata, created)
         and (not require_single_link or metadata.st_nlink == 1)
     )
 
@@ -391,6 +413,17 @@ def _unlink_created_file(created: _CreatedFile) -> None:
     try:
         if _path_matches_created_file(created, require_single_link=False):
             created.path.unlink()
+    except OSError:
+        pass
+    finally:
+        _release_created_file(created)
+
+
+def _release_created_file(created: _CreatedFile) -> None:
+    if created.pin_descriptor is None:
+        return
+    try:
+        os.close(created.pin_descriptor)
     except OSError:
         pass
 

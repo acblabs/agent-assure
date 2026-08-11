@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+- Prevented scaffold rollback from deleting a concurrently replaced file when
+  POSIX reuses an inode, and made doctor classify linked output entries before
+  resolving their targets.
+- Refreshed every audited dependency lock to `cryptography==50.0.0`, resolving
+  `PYSEC-2026-3552`, and made the LangGraph and OpenTelemetry lock-generator
+  headers reproducible from repository-relative commands.
 - Added opt-in `ci --format json` output for every completed full-run or
   artifact-gate decision, including `pass`, `review`, `not_evaluated`, and
   invalid artifact loads, while retaining the existing default text behavior.

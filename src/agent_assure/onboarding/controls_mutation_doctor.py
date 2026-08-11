@@ -476,11 +476,11 @@ def _output_path_error(path: Path, *, root: Path, inputs: tuple[Path, ...]) -> s
     try:
         _require_regular_directory_chain(root.absolute())
         resolved_root = root.resolve(strict=True)
+        if _path_entry_exists(path) and not _is_regular_directory(path):
+            return "output path must be a regular directory: " + _display_path(path)
         candidate = path.resolve(strict=False)
         if not candidate.is_relative_to(resolved_root):
             return "output path escapes configuration directory: " + _display_path(path)
-        if _path_entry_exists(path) and not _is_regular_directory(path):
-            return "output path must be a regular directory: " + _display_path(path)
         for input_path in inputs:
             if candidate == input_path.resolve(strict=True):
                 return "output path aliases an input: " + _display_path(path)

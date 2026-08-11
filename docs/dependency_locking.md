@@ -24,13 +24,28 @@ pip-compile pyproject.toml --extra dev --all-build-deps --generate-hashes --outp
 The RFC 8785 dependency is part of the digest trust core and is pinned exactly in
 `pyproject.toml`.
 
-Optional framework smoke jobs use dedicated Python 3.11/Linux lockfiles so the
-real framework dependency is installed instead of allowing an import-gated test
-to skip:
+Optional framework smoke jobs use dedicated lockfiles so the real framework
+dependency is installed instead of allowing an import-gated test to skip. The
+ADK and OpenTelemetry locks target CPython 3.11 on x86-64 Linux. The LangGraph
+lock uses a universal Python 3.11 resolution so the same checked-in file also
+supports cross-platform integration development; its CI job installs the Linux
+branch:
 
 - `requirements-langgraph.lock` covers the development and LangGraph extras;
 - `requirements-adk.lock` covers the development and Google ADK extras; and
 - `requirements-otel.lock` covers the development and OpenTelemetry extras.
+
+Refresh the LangGraph smoke lock with:
+
+```bash
+uv --cache-dir .tmp/uv-cache pip compile pyproject.toml \
+  --extra dev \
+  --extra langgraph \
+  --generate-hashes \
+  --python-version 3.11 \
+  --universal \
+  --output-file requirements-langgraph.lock
+```
 
 Refresh the ADK smoke lock with:
 
@@ -79,6 +94,12 @@ dispatches, and a weekly schedule. Each lockfile is passed to a separate pinned
 audit-action invocation using only supported action inputs. Dependency auditing
 disables dependency resolution for each lock; the pinned action may still
 create an isolated audit environment while processing it.
+
+For a targeted advisory remediation, add
+`--upgrade-package <distribution-name>` to each applicable compile command,
+review the resulting diff to confirm that unrelated version pins did not move,
+and retain only resolver- or downloader-produced hashes. Validate every changed
+lock with a hash-required install and dependency audit before committing it.
 
 These controls report published advisories; they do not prove that dependencies
 are vulnerability-free. A lock update remains subject to normal tests,
