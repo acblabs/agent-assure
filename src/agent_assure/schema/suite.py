@@ -5,7 +5,7 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     DigestHex,
@@ -89,6 +89,26 @@ class CompiledSuite(PersistedArtifact):
     resolved_expectations: tuple[Expectation, ...]
     source_digest: DigestHex
 
+    @model_validator(mode="before")
+    @classmethod
+    def _require_current_runner_identity(cls, value: object) -> object:
+        if not isinstance(value, dict):
+            return value
+        if value.get("schema_version", SCHEMA_VERSION) != SCHEMA_VERSION:
+            return value
+        defaults = value.get("defaults")
+        if isinstance(defaults, SuiteDefaults):
+            runner_id: object = (
+                defaults.runner_id if "runner_id" in defaults.model_fields_set else None
+            )
+        elif isinstance(defaults, dict):
+            runner_id = defaults.get("runner_id")
+        else:
+            runner_id = None
+        if not isinstance(runner_id, str) or not runner_id:
+            raise ValueError("current compiled suites require an explicit defaults.runner_id")
+        return value
+
     @field_validator("cases", "resolved_expectations", mode="before")
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
@@ -112,6 +132,8 @@ class CompiledSuite(PersistedArtifact):
 
     @model_validator(mode="after")
     def _expectation_links_are_explicit(self) -> CompiledSuite:
+        if self.schema_version == SCHEMA_VERSION and not self.cases:
+            raise ValueError("compiled suites require at least one case")
         case_ids = [case.case_id for case in self.cases]
         duplicate_case_ids = _duplicates(case_ids)
         if duplicate_case_ids:

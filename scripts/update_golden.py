@@ -47,11 +47,12 @@ JSON_GOLDENS: dict[Path, Callable[[], Any]] = {
     COMPILED_GOLDEN_ROOT / "prior_auth_synthetic.compiled.json": lambda: compile_suite(
         SUITE_YAML
     ).model_dump(mode="json"),
-    COMPILED_GOLDEN_ROOT
-    / "prior_auth_synthetic.fixture-manifest.json": lambda: build_fixture_manifest(
-        compile_suite(SUITE_YAML),
-        SUITE_ROOT,
-    ).model_dump(mode="json"),
+    COMPILED_GOLDEN_ROOT / "prior_auth_synthetic.fixture-manifest.json": lambda: (
+        build_fixture_manifest(
+            compile_suite(SUITE_YAML),
+            SUITE_ROOT,
+        ).model_dump(mode="json")
+    ),
 }
 TEXT_GOLDENS: dict[Path, Callable[[], str]] = {
     REPORT_GOLDEN_ROOT / "flagship-evidence-diff.html": lambda: _evidence_diff_html(),
@@ -163,9 +164,7 @@ def _check_legacy_replay_golden(
         if validation_path != "frozen-jsonschema":
             raise ValueError(f"unexpected validation path: {validation_path}")
     except Exception as exc:
-        failures.append(
-            f"legacy replay golden is invalid: {path.relative_to(ROOT)} ({exc})"
-        )
+        failures.append(f"legacy replay golden is invalid: {path.relative_to(ROOT)} ({exc})")
 
 
 def _evidence_diff_html() -> str:
@@ -234,12 +233,25 @@ def _evidence_diff_artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, Evide
         interpretation=("Candidate omitted a material evidence link.",),
         evaluation=candidate_summary,
         comparison=comparison,
-        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256=_DIGEST),),
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256=_DIGEST),
+            PacketArtifactDigest(role="comparison-summary", sha256=_DIGEST),
+        ),
         release_manifest=ReleaseArtifactManifest(
             manifest_id="manifest-duration",
             artifacts=(
                 ReleaseArtifact(role="compiled-suite", path="compiled.json", sha256=_DIGEST),
                 ReleaseArtifact(role="candidate-runset", path="candidate.json", sha256=_DIGEST),
+                ReleaseArtifact(
+                    role="evaluation-summary",
+                    path="evaluation-summary.json",
+                    sha256=_DIGEST,
+                ),
+                ReleaseArtifact(
+                    role="comparison-summary",
+                    path="comparison-summary.json",
+                    sha256=_DIGEST,
+                ),
             ),
             environment=EnvironmentInfo(platform="test", python_version="3.11.0"),
         ),

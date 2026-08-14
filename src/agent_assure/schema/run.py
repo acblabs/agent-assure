@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     MAX_LABEL_CHARS,
@@ -378,6 +378,23 @@ class AgentRunRecord(PersistedArtifact):
         return value
 
     @model_validator(mode="after")
+    def _validate_evidence_item_content_identity(self) -> AgentRunRecord:
+        if self.schema_version != SCHEMA_VERSION:
+            return self
+        content_by_identity: dict[tuple[str, str], set[str]] = {}
+        for item in self.evidence_items:
+            identity = (
+                item.ref_id,
+                item.source_id,
+            )
+            content_by_identity.setdefault(identity, set()).add(item.content_digest)
+        if any(len(content_digests) != 1 for content_digests in content_by_identity.values()):
+            raise ValueError(
+                "evidence items with the same ref_id and source_id must have one content_digest"
+            )
+        return self
+
+    @model_validator(mode="after")
     def _validate_evidence_graph_member_versions(self) -> AgentRunRecord:
         if self.schema_version not in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             return self
@@ -532,6 +549,8 @@ class RunSet(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_protocol_binding(self) -> RunSet:
+        if self.schema_version == SCHEMA_VERSION and not self.runs:
+            raise ValueError("run sets require at least one run record")
         validate_privacy_profile_binding(
             self.schema_version,
             self.privacy_profile_id,

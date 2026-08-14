@@ -11,7 +11,7 @@ from agent_assure.reporting.evidence_diff_html import THESIS_TITLE
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
-from agent_assure.schema.packet import EvidencePacket
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.run import (
     AgentRunRecord,
     ClaimEvidenceLink,
@@ -83,9 +83,7 @@ def test_diff_render_cli_rejects_mismatched_artifact_bundle(tmp_path: Path) -> N
     assert packet.comparison is not None
     stale_packet = packet.model_copy(
         update={
-            "evaluation": packet.evaluation.model_copy(
-                update={"runset_id": "stale-candidate"}
-            ),
+            "evaluation": packet.evaluation.model_copy(update={"runset_id": "stale-candidate"}),
             "comparison": packet.comparison.model_copy(
                 update={"candidate_runset_id": "stale-candidate"}
             ),
@@ -165,6 +163,10 @@ def _artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, EvidencePacket]:
         interpretation=("Candidate omitted a material evidence link.",),
         evaluation=candidate_summary,
         comparison=comparison,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256=_DIGEST),
+            PacketArtifactDigest(role="comparison-summary", sha256=_DIGEST),
+        ),
         limitations=("Local deterministic fixture evidence for human review.",),
     )
     return baseline, candidate, comparison, packet

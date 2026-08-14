@@ -4,8 +4,11 @@ import ctypes
 import json
 import os
 import re
+import select
 import signal
+import stat
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -30,9 +33,17 @@ MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES = 1_048_576
 MAX_EMERGENCY_SUMMARY_SOURCE_CHARS = 500
 OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS = 0.5
 PROCESS_TERMINATION_GRACE_SECONDS = 1.0
+POSIX_SUPERVISOR_START_TIMEOUT_SECONDS = 2.0
+POSIX_SUPERVISOR_SHUTDOWN_TIMEOUT_SECONDS = 2.0
 _REDACTION_MASK_RUN = re.compile(f"{re.escape(REDACTION_MASK_CHARACTER)}+")
+_WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 _WINDOWS_JOBS: dict[int, int] = {}
 _WINDOWS_JOBS_LOCK = threading.Lock()
+_POSIX_TRACKERS: dict[int, _PosixDescendantTracker] = {}
+_POSIX_TRACKERS_LOCK = threading.Lock()
+_POSIX_TRACKER_POLL_SECONDS = 0.01
+_POSIX_SUPERVISORS: set[int] = set()
+_POSIX_SUPERVISORS_LOCK = threading.Lock()
 
 
 class ExternalScriptError(RuntimeError):
@@ -55,6 +66,11 @@ class ExternalScriptInvocation:
     environment_allowlist: tuple[str, ...] = ()
     traceparent: str | None = None
     tracestate: str | None = None
+    script_descriptor: int | None = None
+    script_argv_index: int | None = None
+    cwd_descriptor: int | None = None
+    cwd_device: int | None = None
+    cwd_inode: int | None = None
 
 
 @dataclass(frozen=True)
@@ -199,22 +215,76 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
         process: subprocess.Popen[bytes] | None = None
         capture: _ProcessOutputCapture | None = None
         returncode = -1
+        supervisor_status_read_fd: int | None = None
+        supervisor_status_write_fd: int | None = None
         try:
+            bound_script = _validate_bound_script(invocation)
+            _validate_bound_cwd(invocation)
+            process_options = _process_group_options()
+            launch_argv = invocation.argv
+            if os.name != "nt":
+                supervisor_status_read_fd, supervisor_status_write_fd = os.pipe()
+                launch_argv = _linux_supervisor_argv(
+                    invocation.argv,
+                    status_fd=supervisor_status_write_fd,
+                    script_descriptor=invocation.script_descriptor,
+                    script_argv_index=invocation.script_argv_index,
+                    cwd_descriptor=invocation.cwd_descriptor,
+                )
+                inherited_descriptors = [supervisor_status_write_fd]
+                if invocation.script_descriptor is not None:
+                    inherited_descriptors.append(invocation.script_descriptor)
+                if (
+                    invocation.cwd_descriptor is not None
+                    and invocation.cwd_descriptor not in inherited_descriptors
+                ):
+                    inherited_descriptors.append(invocation.cwd_descriptor)
+                process_options["pass_fds"] = tuple(inherited_descriptors)
             process = subprocess.Popen(
-                list(invocation.argv),
-                cwd=invocation.cwd,
+                list(launch_argv),
+                cwd=(
+                    None
+                    if os.name != "nt" and invocation.cwd_descriptor is not None
+                    else invocation.cwd
+                ),
                 stdin=stdin_file,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 env=env,
-                **_process_group_options(),
+                **process_options,
             )
+            if os.name == "nt":
+                if bound_script is not None:
+                    _require_bound_script_path_unchanged(invocation, bound_script)
+                _validate_bound_cwd(invocation)
+            if supervisor_status_write_fd is not None:
+                _close_file_descriptor(supervisor_status_write_fd)
+                supervisor_status_write_fd = None
+                _register_posix_supervisor(process.pid)
+                try:
+                    _await_posix_supervisor_ready(
+                        supervisor_status_read_fd,
+                        timeout_seconds=min(
+                            float(invocation.timeout_seconds),
+                            POSIX_SUPERVISOR_START_TIMEOUT_SECONDS,
+                        ),
+                    )
+                finally:
+                    _close_file_descriptor(supervisor_status_read_fd)
+                    supervisor_status_read_fd = None
             if not _attach_windows_kill_on_close_job(process):
                 _terminate_process_tree(process)
                 _wait_for_terminated_process(process)
-                raise OSError(
-                    "external script could not be placed in a kill-on-close process job"
-                )
+                raise OSError("external script could not be placed in a kill-on-close process job")
+            if os.name == "nt":
+                if bound_script is not None:
+                    _require_bound_script_path_unchanged(invocation, bound_script)
+                _validate_bound_cwd(invocation)
+            if not _resume_windows_suspended_process(process):
+                _terminate_process_tree(process)
+                _wait_for_terminated_process(process)
+                raise OSError("external script suspended process could not be resumed safely")
+            _start_posix_descendant_tracking(process)
             capture = _capture_process_output(process)
             returncode = process.wait(timeout=invocation.timeout_seconds)
         except subprocess.TimeoutExpired as exc:
@@ -240,6 +310,9 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             )
             raise ExternalScriptError("external script timed out", emergency) from exc
         except OSError as exc:
+            if process is not None:
+                _terminate_process_tree(process)
+                _wait_for_terminated_process(process)
             duration_ms = _duration_ms(started)
             completed_at_utc = _utc_now()
             emergency = _emergency_record(
@@ -257,6 +330,8 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 _release_process_tree(process)
             if capture is not None:
                 capture.finalize()
+            _close_file_descriptor(supervisor_status_read_fd)
+            _close_file_descriptor(supervisor_status_write_fd)
         stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
     duration_ms = _duration_ms(started)
     completed_at_utc = _utc_now()
@@ -441,16 +516,230 @@ def _emergency_id(invocation: ExternalScriptInvocation, failure_kind: FailureKin
 
 def _process_group_options() -> dict[str, Any]:
     if os.name == "nt":
-        return {"creationflags": getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)}
+        # Popen closes the primary thread handle returned by CreateProcess. Start
+        # suspended so no uncontained child can run before we assign the process
+        # to its kill-on-close job, then resume it through a freshly opened
+        # thread handle after assignment succeeds.
+        return {
+            "creationflags": (
+                getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
+                | getattr(subprocess, "CREATE_SUSPENDED", 0x00000004)
+            )
+        }
     return {"start_new_session": True}
+
+
+def _linux_supervisor_argv(
+    argv: tuple[str, ...],
+    *,
+    status_fd: int,
+    script_descriptor: int | None = None,
+    script_argv_index: int | None = None,
+    cwd_descriptor: int | None = None,
+) -> tuple[str, ...]:
+    if sys.platform != "linux":
+        raise OSError("external scripts require Windows job objects or Linux subreaper containment")
+    interpreter = Path(sys.executable)
+    supervisor = Path(__file__).with_name("_posix_supervisor.py")
+    if status_fd <= 2 or not interpreter.is_file() or not supervisor.is_file():
+        raise OSError("Linux subprocess containment supervisor was unavailable")
+    if cwd_descriptor is not None and cwd_descriptor <= 2:
+        raise OSError("external script cwd descriptor binding was invalid")
+    cwd_argument = (
+        "--agent-assure-cwd-fd=none"
+        if cwd_descriptor is None
+        else f"--agent-assure-cwd-fd={cwd_descriptor}"
+    )
+    binding_arguments = ("--agent-assure-no-script-binding", "--")
+    if script_descriptor is not None or script_argv_index is not None:
+        if (
+            script_descriptor is None
+            or script_descriptor <= 2
+            or script_argv_index is None
+            or script_argv_index < 0
+            or script_argv_index >= len(argv)
+        ):
+            raise OSError("external script descriptor binding was invalid")
+        binding_arguments = (
+            f"--agent-assure-script-binding={script_descriptor}:{script_argv_index}",
+            "--",
+        )
+    return (
+        str(interpreter.resolve()),
+        "-I",
+        "-S",
+        str(supervisor.resolve()),
+        str(status_fd),
+        cwd_argument,
+        *binding_arguments,
+        *argv,
+    )
+
+
+def _validate_bound_script(
+    invocation: ExternalScriptInvocation,
+) -> os.stat_result | None:
+    descriptor = invocation.script_descriptor
+    index = invocation.script_argv_index
+    if descriptor is None and index is None:
+        return None
+    if (
+        descriptor is None
+        or descriptor <= 2
+        or index is None
+        or index < 0
+        or index >= len(invocation.argv)
+    ):
+        raise OSError("external script descriptor binding was invalid")
+    try:
+        metadata = os.fstat(descriptor)
+    except OSError as exc:
+        raise OSError("external script descriptor was unavailable") from exc
+    if not stat.S_ISREG(metadata.st_mode):
+        raise OSError("external script descriptor was not a regular file")
+    if os.name == "nt":
+        _require_bound_script_path_unchanged(invocation, metadata)
+    elif sys.platform == "linux":
+        descriptor_path = Path(f"/proc/self/fd/{descriptor}")
+        try:
+            current = descriptor_path.stat()
+        except OSError as exc:
+            raise OSError("external script descriptor path was unavailable") from exc
+        if (metadata.st_dev, metadata.st_ino) != (current.st_dev, current.st_ino):
+            raise OSError("external script descriptor path identity was inconsistent")
+    return metadata
+
+
+def _validate_bound_cwd(invocation: ExternalScriptInvocation) -> None:
+    descriptor = invocation.cwd_descriptor
+    if descriptor is not None:
+        if descriptor <= 2:
+            raise OSError("external script cwd descriptor binding was invalid")
+        try:
+            metadata = os.fstat(descriptor)
+        except OSError as exc:
+            raise OSError("external script cwd descriptor was unavailable") from exc
+        if not stat.S_ISDIR(metadata.st_mode):
+            raise OSError("external script cwd descriptor was not a directory")
+    if invocation.cwd_device is None and invocation.cwd_inode is None:
+        return
+    if invocation.cwd_device is None or invocation.cwd_inode is None:
+        raise OSError("external script cwd identity binding was invalid")
+    if os.name == "nt":
+        _require_bound_cwd_path_unchanged(invocation)
+
+
+def _require_bound_cwd_path_unchanged(invocation: ExternalScriptInvocation) -> None:
+    try:
+        current = os.stat(invocation.cwd, follow_symlinks=False)
+    except OSError as exc:
+        raise OSError("external script cwd changed before execution") from exc
+    attributes = getattr(current, "st_file_attributes", 0)
+    if (
+        not stat.S_ISDIR(current.st_mode)
+        or stat.S_ISLNK(current.st_mode)
+        or attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
+        or (current.st_dev, current.st_ino) != (invocation.cwd_device, invocation.cwd_inode)
+    ):
+        raise OSError("external script cwd changed before execution")
+
+
+def _require_bound_script_path_unchanged(
+    invocation: ExternalScriptInvocation,
+    expected: os.stat_result,
+) -> None:
+    index = invocation.script_argv_index
+    if index is None or index < 0 or index >= len(invocation.argv):
+        raise OSError("external script descriptor binding was invalid")
+    path = Path(invocation.argv[index])
+    try:
+        current = os.stat(path, follow_symlinks=False)
+    except OSError as exc:
+        raise OSError("external script path changed before execution") from exc
+    expected_identity = (expected.st_dev, expected.st_ino, expected.st_size)
+    current_identity = (current.st_dev, current.st_ino, current.st_size)
+    if expected_identity != current_identity or not stat.S_ISREG(current.st_mode):
+        raise OSError("external script path changed before execution")
+
+
+def _await_posix_supervisor_ready(
+    status_fd: int | None,
+    *,
+    timeout_seconds: float,
+) -> None:
+    if status_fd is None:
+        raise OSError("Linux subprocess containment status pipe was unavailable")
+    deadline = time.monotonic() + max(0.001, timeout_seconds)
+    status = bytearray()
+    while b"\n" not in status and len(status) < 64:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise OSError("Linux subprocess containment supervisor did not become ready")
+        try:
+            readable, _, _ = select.select((status_fd,), (), (), remaining)
+        except (OSError, ValueError) as exc:
+            raise OSError("Linux subprocess containment handshake failed") from exc
+        if not readable:
+            raise OSError("Linux subprocess containment supervisor did not become ready")
+        try:
+            chunk = os.read(status_fd, 64 - len(status))
+        except OSError as exc:
+            raise OSError("Linux subprocess containment handshake failed") from exc
+        if not chunk:
+            break
+        status.extend(chunk)
+    line = bytes(status).split(b"\n", 1)[0]
+    if line == b"READY":
+        return
+    if line == b"ERROR:spawn":
+        raise OSError("external script child could not be started")
+    if line == b"ERROR:containment":
+        raise OSError("Linux subprocess containment could not be established")
+    raise OSError("Linux subprocess containment supervisor returned an invalid handshake")
+
+
+def _close_file_descriptor(fd: int | None) -> None:
+    if fd is None:
+        return
+    try:
+        os.close(fd)
+    except OSError:
+        pass
+
+
+def _register_posix_supervisor(pid: int) -> None:
+    with _POSIX_SUPERVISORS_LOCK:
+        _POSIX_SUPERVISORS.add(pid)
+
+
+def _is_posix_supervisor(pid: int) -> bool:
+    with _POSIX_SUPERVISORS_LOCK:
+        return pid in _POSIX_SUPERVISORS
+
+
+def _unregister_posix_supervisor(pid: int) -> None:
+    with _POSIX_SUPERVISORS_LOCK:
+        _POSIX_SUPERVISORS.discard(pid)
 
 
 def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
     if os.name == "nt":
         if not _terminate_windows_job(process.pid):
             _terminate_windows_process_tree(process.pid)
-    else:
-        _kill_posix_process_group(process.pid)
+        if process.poll() is None:
+            try:
+                process.kill()
+            except OSError:
+                pass
+        return
+    if _is_posix_supervisor(process.pid) and _request_posix_supervisor_shutdown(process):
+        return
+    _force_terminate_posix_process_tree(process)
+
+
+def _force_terminate_posix_process_tree(process: subprocess.Popen[bytes]) -> None:
+    _kill_posix_process_group(process.pid)
+    _terminate_tracked_posix_descendants(process.pid)
     if process.poll() is None:
         try:
             process.kill()
@@ -458,13 +747,39 @@ def _terminate_process_tree(process: subprocess.Popen[bytes]) -> None:
             pass
 
 
+def _request_posix_supervisor_shutdown(process: subprocess.Popen[bytes]) -> bool:
+    if process.poll() is not None:
+        return True
+    try:
+        process.terminate()
+    except OSError:
+        return process.poll() is not None
+    try:
+        process.wait(timeout=POSIX_SUPERVISOR_SHUTDOWN_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        return False
+    return True
+
+
 def _release_process_tree(process: subprocess.Popen[bytes]) -> None:
     if os.name == "nt":
         _close_windows_job(process.pid)
         return
-    # External adapters are synchronous. Do not allow a successfully exited
-    # adapter parent to leave descendants running or holding capture pipes.
-    _kill_posix_process_group(process.pid)
+    supervised = _is_posix_supervisor(process.pid)
+    try:
+        if supervised:
+            if process.poll() is None:
+                _terminate_process_tree(process)
+            elif process.returncode is not None and process.returncode < 0:
+                # A signal killed the trusted supervisor before its normal
+                # cleanup proof completed. Retain the tracked/group fallback.
+                _force_terminate_posix_process_tree(process)
+        else:
+            _kill_posix_process_group(process.pid)
+        _release_posix_descendant_tracking(process.pid)
+    finally:
+        if supervised:
+            _unregister_posix_supervisor(process.pid)
 
 
 def _kill_posix_process_group(pid: int) -> None:
@@ -478,6 +793,218 @@ def _kill_posix_process_group(pid: int) -> None:
         killpg(pid, sigkill)
     except OSError:
         pass
+
+
+@dataclass(frozen=True)
+class _PosixProcessIdentity:
+    pid: int
+    start_token: str
+
+
+class _PosixDescendantTracker:
+    """Tracks observed descendants across reparenting and process-group changes."""
+
+    def __init__(self, root_pid: int) -> None:
+        self.root_pid = root_pid
+        self._tracked: dict[int, str] = {}
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+        self._thread = threading.Thread(
+            target=self._monitor,
+            name=f"agent-assure-process-tree-{root_pid}",
+            daemon=True,
+        )
+
+    def start(self) -> None:
+        self.sample()
+        self._thread.start()
+
+    def stop(self) -> None:
+        self._stop.set()
+        self._thread.join(timeout=OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS)
+
+    def sample(self) -> dict[int, tuple[int, str]]:
+        with self._lock:
+            seed_pids = (self.root_pid, *self._tracked)
+        snapshot = _posix_process_snapshot(seed_pids)
+        self.observe(snapshot)
+        return snapshot
+
+    def observe(self, snapshot: dict[int, tuple[int, str]]) -> None:
+        with self._lock:
+            root = snapshot.get(self.root_pid)
+            if root is not None:
+                self._tracked.setdefault(self.root_pid, root[1])
+            live_known = {
+                pid
+                for pid, start_token in self._tracked.items()
+                if snapshot.get(pid, (0, ""))[1] == start_token
+            }
+            changed = True
+            while changed:
+                changed = False
+                for pid, (parent_pid, start_token) in snapshot.items():
+                    if pid in live_known or parent_pid not in live_known:
+                        continue
+                    self._tracked[pid] = start_token
+                    live_known.add(pid)
+                    changed = True
+
+    def descendants(self) -> tuple[_PosixProcessIdentity, ...]:
+        with self._lock:
+            return tuple(
+                _PosixProcessIdentity(pid=pid, start_token=start_token)
+                for pid, start_token in self._tracked.items()
+                if pid != self.root_pid
+            )
+
+    def _monitor(self) -> None:
+        while not self._stop.wait(_POSIX_TRACKER_POLL_SECONDS):
+            self.sample()
+
+
+def _start_posix_descendant_tracking(process: subprocess.Popen[bytes]) -> None:
+    if os.name == "nt":
+        return
+    tracker = _PosixDescendantTracker(process.pid)
+    try:
+        tracker.start()
+    except RuntimeError as exc:
+        raise OSError("POSIX descendant tracking could not be started") from exc
+    with _POSIX_TRACKERS_LOCK:
+        _POSIX_TRACKERS[process.pid] = tracker
+
+
+def _terminate_tracked_posix_descendants(pid: int) -> None:
+    with _POSIX_TRACKERS_LOCK:
+        tracker = _POSIX_TRACKERS.get(pid)
+    if tracker is not None:
+        _kill_tracked_posix_descendants(tracker)
+
+
+def _release_posix_descendant_tracking(pid: int) -> None:
+    with _POSIX_TRACKERS_LOCK:
+        tracker = _POSIX_TRACKERS.pop(pid, None)
+    if tracker is None:
+        return
+    _kill_tracked_posix_descendants(tracker)
+    tracker.stop()
+    # Close the sampling/termination race once more after the monitor exits.
+    _kill_tracked_posix_descendants(tracker)
+
+
+def _kill_tracked_posix_descendants(tracker: _PosixDescendantTracker) -> None:
+    snapshot = tracker.sample()
+    for identity in reversed(tracker.descendants()):
+        current = snapshot.get(identity.pid)
+        if current is None or current[1] != identity.start_token:
+            continue
+        _kill_posix_pid(identity.pid)
+        _reap_posix_child(identity.pid)
+
+
+def _kill_posix_pid(pid: int) -> None:
+    sigkill = getattr(signal, "SIGKILL", None)
+    if sigkill is None:
+        return
+    try:
+        os.kill(pid, sigkill)
+    except OSError:
+        pass
+
+
+def _reap_posix_child(pid: int) -> None:
+    waitpid = getattr(os, "waitpid", None)
+    wait_nohang = getattr(os, "WNOHANG", None)
+    if waitpid is None or wait_nohang is None:
+        return
+    try:
+        waitpid(pid, wait_nohang)
+    except (ChildProcessError, OSError):
+        pass
+
+
+def _posix_process_snapshot(seed_pids: tuple[int, ...]) -> dict[int, tuple[int, str]]:
+    proc = Path("/proc")
+    if proc.is_dir():
+        return _linux_proc_process_snapshot(proc, seed_pids)
+    return _ps_process_snapshot()
+
+
+def _linux_proc_process_snapshot(
+    proc: Path,
+    seed_pids: tuple[int, ...],
+) -> dict[int, tuple[int, str]]:
+    snapshot: dict[int, tuple[int, str]] = {}
+    pending: list[tuple[int, int | None]] = [(pid, None) for pid in dict.fromkeys(seed_pids)]
+    visited: set[int] = set()
+    while pending:
+        pid, observed_parent = pending.pop()
+        if pid in visited:
+            continue
+        visited.add(pid)
+        stat = _linux_proc_stat(proc, pid)
+        if stat is None:
+            continue
+        parent_pid, start_token = stat
+        snapshot[pid] = (
+            observed_parent if observed_parent is not None else parent_pid,
+            start_token,
+        )
+        task_dir = proc / str(pid) / "task"
+        try:
+            tasks = tuple(task_dir.iterdir())
+        except OSError:
+            continue
+        for task in tasks:
+            try:
+                child_pids = (task / "children").read_text(encoding="ascii").split()
+            except OSError:
+                continue
+            for child_pid in child_pids:
+                try:
+                    pending.append((int(child_pid), pid))
+                except ValueError:
+                    continue
+    return snapshot
+
+
+def _linux_proc_stat(proc: Path, pid: int) -> tuple[int, str] | None:
+    try:
+        stat = (proc / str(pid) / "stat").read_text(encoding="ascii")
+        suffix = stat[stat.rfind(")") + 2 :].split()
+        # Fields after comm begin at stat field 3. ppid is field 4 and
+        # starttime is field 22; starttime protects against PID reuse.
+        return int(suffix[1]), suffix[19]
+    except (IndexError, OSError, ValueError):
+        return None
+
+
+def _ps_process_snapshot() -> dict[int, tuple[int, str]]:
+    try:
+        completed = subprocess.run(
+            ["/bin/ps", "-axo", "pid=,ppid=,lstart="],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            check=False,
+            timeout=OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS,
+            text=True,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return {}
+    snapshot: dict[int, tuple[int, str]] = {}
+    for line in completed.stdout.splitlines():
+        fields = line.split()
+        if len(fields) < 7:
+            continue
+        try:
+            pid = int(fields[0])
+            parent_pid = int(fields[1])
+        except ValueError:
+            continue
+        snapshot[pid] = (parent_pid, " ".join(fields[2:7]))
+    return snapshot
 
 
 def _attach_windows_kill_on_close_job(process: subprocess.Popen[bytes]) -> bool:
@@ -508,6 +1035,39 @@ def _attach_windows_kill_on_close_job(process: subprocess.Popen[bytes]) -> bool:
     with _WINDOWS_JOBS_LOCK:
         _WINDOWS_JOBS[process.pid] = int(job)
     return True
+
+
+def _resume_windows_suspended_process(process: subprocess.Popen[bytes]) -> bool:
+    if os.name != "nt":
+        return True
+    kernel32 = _windows_kernel32()
+    snapshot = kernel32.CreateToolhelp32Snapshot(0x00000004, 0)  # TH32CS_SNAPTHREAD
+    invalid_handle = ctypes.c_void_p(-1).value
+    if snapshot in (None, invalid_handle):
+        return False
+    matching_thread_ids: list[int] = []
+    entry = _WindowsThreadEntry32()
+    entry.dwSize = ctypes.sizeof(entry)
+    try:
+        has_entry = kernel32.Thread32First(snapshot, ctypes.byref(entry))
+        while has_entry:
+            if entry.th32OwnerProcessID == process.pid:
+                matching_thread_ids.append(entry.th32ThreadID)
+            has_entry = kernel32.Thread32Next(snapshot, ctypes.byref(entry))
+    finally:
+        kernel32.CloseHandle(snapshot)
+    # CREATE_SUSPENDED guarantees one primary thread. Anything else means we
+    # cannot prove the process remained suspended, so leave it in the job and
+    # let the caller fail closed by terminating that job.
+    if len(matching_thread_ids) != 1:
+        return False
+    thread = kernel32.OpenThread(0x0002, False, matching_thread_ids[0])
+    if not thread:
+        return False
+    try:
+        return cast(int, kernel32.ResumeThread(thread)) == 1
+    finally:
+        kernel32.CloseHandle(thread)
 
 
 def _terminate_windows_job(pid: int) -> bool:
@@ -547,11 +1107,39 @@ def _windows_kernel32() -> Any:
     kernel32.SetInformationJobObject.restype = ctypes.c_int
     kernel32.AssignProcessToJobObject.argtypes = (ctypes.c_void_p, ctypes.c_void_p)
     kernel32.AssignProcessToJobObject.restype = ctypes.c_int
+    kernel32.CreateToolhelp32Snapshot.argtypes = (ctypes.c_uint32, ctypes.c_uint32)
+    kernel32.CreateToolhelp32Snapshot.restype = ctypes.c_void_p
+    kernel32.Thread32First.argtypes = (
+        ctypes.c_void_p,
+        ctypes.POINTER(_WindowsThreadEntry32),
+    )
+    kernel32.Thread32First.restype = ctypes.c_int
+    kernel32.Thread32Next.argtypes = (
+        ctypes.c_void_p,
+        ctypes.POINTER(_WindowsThreadEntry32),
+    )
+    kernel32.Thread32Next.restype = ctypes.c_int
+    kernel32.OpenThread.argtypes = (ctypes.c_uint32, ctypes.c_int, ctypes.c_uint32)
+    kernel32.OpenThread.restype = ctypes.c_void_p
+    kernel32.ResumeThread.argtypes = (ctypes.c_void_p,)
+    kernel32.ResumeThread.restype = ctypes.c_uint32
     kernel32.TerminateJobObject.argtypes = (ctypes.c_void_p, ctypes.c_uint32)
     kernel32.TerminateJobObject.restype = ctypes.c_int
     kernel32.CloseHandle.argtypes = (ctypes.c_void_p,)
     kernel32.CloseHandle.restype = ctypes.c_int
     return kernel32
+
+
+class _WindowsThreadEntry32(ctypes.Structure):
+    _fields_ = (
+        ("dwSize", ctypes.c_uint32),
+        ("cntUsage", ctypes.c_uint32),
+        ("th32ThreadID", ctypes.c_uint32),
+        ("th32OwnerProcessID", ctypes.c_uint32),
+        ("tpBasePri", ctypes.c_long),
+        ("tpDeltaPri", ctypes.c_long),
+        ("dwFlags", ctypes.c_uint32),
+    )
 
 
 class _WindowsJobObjectBasicLimitInformation(ctypes.Structure):

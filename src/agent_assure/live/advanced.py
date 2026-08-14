@@ -15,6 +15,7 @@ from agent_assure.live.primitives import (
 )
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
+    LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION,
     AdvancedAnalysisPlan,
     ClusterCorrelationSummary,
     EndpointPrerequisiteStatus,
@@ -39,6 +40,22 @@ _ObservedIccConfirmatoryUse = Literal[
     "eligible_large_cluster_threshold",
     "eligible_external_review",
 ]
+
+
+def _effective_interpretation(
+    planned: Literal["confirmatory", "exploratory"],
+) -> Literal["confirmatory", "exploratory"]:
+    if LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION:
+        return planned
+    return "exploratory"
+
+
+def _effective_prerequisite_status(
+    observed: EndpointPrerequisiteStatus,
+) -> EndpointPrerequisiteStatus:
+    if not LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION and observed == "met":
+        return "exploratory"
+    return observed
 
 
 def evaluate_statistical_invariants(
@@ -86,6 +103,10 @@ def evaluate_paired_randomization_test(
     if plan is None:
         return None
     endpoint = next(endpoint for endpoint in plan.endpoints if endpoint.role == "primary")
+    if not differences:
+        raise ValueError(
+            "paired randomization observed difference is undefined for an empty sample"
+        )
     observed = mean_decimal(differences)
     margin = Decimal(protocol.non_inferiority_margin)
     seed_material = f"{protocol.protocol_id}:{protocol.analysis_digest}:paired-permutation"
@@ -106,11 +127,17 @@ def evaluate_paired_randomization_test(
         adjusted_p_value = None
         resamples = 0
         exhaustive = False
+    if not LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION:
+        limitations = (
+            *limitations,
+            "execution configuration is not protocol-bound; interpretation is exploratory",
+        )
+    prerequisite_status = _effective_prerequisite_status(prerequisite_status)
     return PairedRandomizationTestResult(
         artifact_kind="paired-randomization-test-result",
         endpoint_id=endpoint.endpoint_id,
         label=endpoint.label,
-        interpretation=endpoint.interpretation,
+        interpretation=_effective_interpretation(endpoint.interpretation),
         analysis_method=analysis_method,
         prerequisite_status=prerequisite_status,
         exchangeability_assumption=endpoint.exchangeability_assumption,
@@ -177,9 +204,7 @@ def paired_randomization_prerequisites(
         )
         return "invalid", tuple(limitations)
     if compared_clusters < endpoint.minimum_clusters:
-        limitations.append(
-            "compared cluster count is below the predeclared endpoint threshold"
-        )
+        limitations.append("compared cluster count is below the predeclared endpoint threshold")
         return "exploratory", tuple(limitations)
     return "met", ()
 
@@ -196,6 +221,10 @@ def _evaluate_endpoint(
     values = _endpoint_values(endpoint, runs, observations)
     numerator = sum(1 for _, event in values if event)
     denominator = len(values)
+    if denominator == 0:
+        raise ValueError(
+            f"statistical endpoint {endpoint.endpoint_id!r} rate is undefined for zero exposure"
+        )
     cluster_count = len({cluster_id for cluster_id, _ in values})
     prerequisite_status = _endpoint_prerequisite_status(
         endpoint,
@@ -203,11 +232,9 @@ def _evaluate_endpoint(
         cluster_count=cluster_count,
         event_count=numerator,
     )
-    if (
-        protocol.cluster_by == "source_group_id"
-        and prerequisite_status == "met"
-    ):
+    if protocol.cluster_by == "source_group_id" and prerequisite_status == "met":
         prerequisite_status = "exploratory"
+    prerequisite_status = _effective_prerequisite_status(prerequisite_status)
     adjusted_alpha = _endpoint_alpha(
         endpoint,
         plan=plan,
@@ -226,11 +253,14 @@ def _evaluate_endpoint(
             "source_group_id membership is not bound in the current protocol schema, "
             "so this endpoint is not eligible for confirmatory interpretation"
         )
+    if not LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION:
+        limitations.append(
+            "execution configuration is not protocol-bound; interpretation is exploratory"
+        )
     rare_event_bound = None
     if endpoint.analysis_method == "poisson_upper_bound":
         bonferroni_adjusted = (
-            endpoint.interpretation == "confirmatory"
-            and plan.multiplicity_method == "bonferroni"
+            endpoint.interpretation == "confirmatory" and plan.multiplicity_method == "bonferroni"
         )
         confidence_alpha = _confidence_alpha(protocol.confidence_level)
         if bonferroni_adjusted:
@@ -255,7 +285,7 @@ def _evaluate_endpoint(
         label=endpoint.label,
         endpoint_kind=endpoint.endpoint_kind,
         role=endpoint.role,
-        interpretation=endpoint.interpretation,
+        interpretation=_effective_interpretation(endpoint.interpretation),
         analysis_method=endpoint.analysis_method,
         prerequisite_status=prerequisite_status,
         multiplicity_method=plan.multiplicity_method,
@@ -321,10 +351,14 @@ def _endpoint_prerequisite_status(
         return "exploratory"
     if event_count < endpoint.minimum_events:
         return "exploratory"
-    if endpoint.analysis_method in {
-        "hierarchical_binomial_summary",
-        "beta_binomial_cluster_summary",
-    } and cluster_count < 2:
+    if (
+        endpoint.analysis_method
+        in {
+            "hierarchical_binomial_summary",
+            "beta_binomial_cluster_summary",
+        }
+        and cluster_count < 2
+    ):
         return "invalid"
     return "met"
 
@@ -368,9 +402,7 @@ def _endpoint_limitations(
 ) -> tuple[str, ...]:
     limitations: list[str] = []
     if prerequisite_status == "invalid":
-        limitations.append(
-            "endpoint prerequisites were not met, so this endpoint is not evaluated"
-        )
+        limitations.append("endpoint prerequisites were not met, so this endpoint is not evaluated")
     elif prerequisite_status == "exploratory":
         limitations.append(
             "endpoint prerequisites were not sufficient for confirmatory interpretation"
@@ -378,9 +410,7 @@ def _endpoint_limitations(
     if denominator == 0:
         limitations.append("endpoint exposure is zero")
     if cluster_count < endpoint.minimum_clusters:
-        limitations.append(
-            "observed cluster count is below the predeclared endpoint threshold"
-        )
+        limitations.append("observed cluster count is below the predeclared endpoint threshold")
     return tuple(limitations)
 
 
@@ -392,16 +422,14 @@ def _rare_event_bound(
     confidence_alpha: Decimal,
     bonferroni_adjusted: bool,
 ) -> RareEventUpperBound:
-    confidence_level = Decimal("1") - confidence_alpha
     if exposure == 0:
-        upper_count = Decimal("0")
-        upper_rate = Decimal("0")
-    else:
-        upper_count = _poisson_upper_count_bound(
-            observed_events,
-            alpha=confidence_alpha,
-        )
-        upper_rate = upper_count / Decimal(exposure)
+        raise ValueError("rare-event rate and bound are undefined for zero exposure")
+    confidence_level = Decimal("1") - confidence_alpha
+    upper_count = _poisson_upper_count_bound(
+        observed_events,
+        alpha=confidence_alpha,
+    )
+    upper_rate = upper_count / Decimal(exposure)
     limitations = [
         (
             "rare-event Poisson bound is a one-sided upper bound at the endpoint-adjusted "
@@ -456,26 +484,43 @@ def _cluster_correlation_summary(
     upper: Decimal | None = None
     uncertainty_method: _IccUncertaintyMethod = "not_evaluated"
     iterations = 0
-    limitations: list[str] = [
-        "observed cluster correlation is reported as descriptive evidence; "
-        "confirmatory rate intervals continue to use the predeclared planning value"
-    ]
+    limitations: list[str] = ["observed cluster correlation is reported as descriptive evidence"]
+    if LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION:
+        limitations.append(
+            "confirmatory rate intervals continue to use the predeclared planning value"
+        )
+    else:
+        limitations.append(
+            "execution configuration is not protocol-bound; observed ICC confirmatory "
+            "use is disabled"
+        )
     if observed_icc is not None and cluster_count >= 3:
-        lower, upper = _bootstrap_icc_interval(
+        interval = _bootstrap_icc_interval(
             tuple(clustered.values()),
             seed=seed,
             confidence_level=protocol.confidence_level,
             iterations=_ICC_BOOTSTRAP_ITERATIONS,
         )
-        uncertainty_method = "cluster_bootstrap_percentile"
-        iterations = _ICC_BOOTSTRAP_ITERATIONS
+        if interval is not None:
+            lower, upper = interval
+            uncertainty_method = "cluster_bootstrap_percentile"
+            iterations = _ICC_BOOTSTRAP_ITERATIONS
+        else:
+            limitations.append(
+                "ICC bootstrap uncertainty is not evaluated because no resample "
+                "produced a defined estimate"
+            )
     elif cluster_count < 3:
         limitations.append("fewer than three clusters makes ICC uncertainty not evaluated")
     confirmatory_use: _ObservedIccConfirmatoryUse = "disabled"
-    if plan.observed_icc_confirmatory_use == "external_review":
+    if (
+        LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION
+        and plan.observed_icc_confirmatory_use == "external_review"
+    ):
         confirmatory_use = "eligible_external_review"
     elif (
-        plan.observed_icc_confirmatory_use == "large_cluster_threshold"
+        LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION
+        and plan.observed_icc_confirmatory_use == "large_cluster_threshold"
         and plan.observed_icc_large_cluster_threshold is not None
         and cluster_count >= plan.observed_icc_large_cluster_threshold
     ):
@@ -495,7 +540,7 @@ def _cluster_correlation_summary(
         ci_upper=signed_unit_decimal_string(upper) if upper is not None else None,
         bootstrap_iterations=iterations,
         confirmatory_use=confirmatory_use,
-        confirmatory_interval_uses_planned_icc=True,
+        confirmatory_interval_uses_planned_icc=LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION,
         limitations=tuple(limitations),
     )
 
@@ -510,6 +555,8 @@ def _cluster_counts(values: tuple[tuple[str, bool], ...]) -> dict[str, tuple[int
 
 def _icc_from_counts(counts: tuple[tuple[int, int], ...]) -> Decimal | None:
     if len(counts) < 2:
+        return None
+    if any(denominator == 0 for _, denominator in counts):
         return None
     total_observations = sum(denominator for _, denominator in counts)
     if total_observations <= len(counts):
@@ -534,7 +581,7 @@ def _icc_from_counts(counts: tuple[tuple[int, int], ...]) -> Decimal | None:
     )
     denominator = ms_between + (n_bar - Decimal("1")) * ms_within
     if denominator == 0:
-        return Decimal("0")
+        return None
     return max(Decimal("-1"), min(Decimal("1"), (ms_between - ms_within) / denominator))
 
 
@@ -544,7 +591,7 @@ def _bootstrap_icc_interval(
     seed: str,
     confidence_level: str,
     iterations: int,
-) -> tuple[Decimal, Decimal]:
+) -> tuple[Decimal, Decimal] | None:
     rng = seeded_random(seed)
     estimates: list[Decimal] = []
     for _ in range(iterations):
@@ -553,7 +600,7 @@ def _bootstrap_icc_interval(
         if estimate is not None:
             estimates.append(estimate)
     if not estimates:
-        return Decimal("0"), Decimal("0")
+        return None
     return percentile_interval(tuple(sorted(estimates)), confidence_level)
 
 
@@ -566,12 +613,11 @@ def _permutation_p_value(
 ) -> tuple[Decimal, int, bool]:
     if margin != Decimal("0"):
         raise ValueError(
-            "paired sign-flip randomization supports only a zero "
-            "non-inferiority margin"
+            "paired sign-flip randomization supports only a zero non-inferiority margin"
         )
-    observed = mean_decimal(differences)
     if not differences:
-        return Decimal("1"), 0, False
+        raise ValueError("paired randomization is undefined for an empty sample")
+    observed = mean_decimal(differences)
     if method == "paired_cluster_permutation_exact":
         if len(differences) > _MAX_EXACT_PERMUTATION_CLUSTERS:
             return Decimal("1"), 0, False
@@ -579,8 +625,7 @@ def _permutation_p_value(
         total = 1 << len(differences)
         for mask in range(total):
             statistic = sum(
-                value if mask & (1 << index) else -value
-                for index, value in enumerate(differences)
+                value if mask & (1 << index) else -value for index, value in enumerate(differences)
             ) / Decimal(len(differences))
             if statistic >= observed:
                 count += 1
@@ -589,10 +634,9 @@ def _permutation_p_value(
     count = 1
     total = _MONTE_CARLO_RESAMPLES + 1
     for _ in range(_MONTE_CARLO_RESAMPLES):
-        statistic = sum(
-            value if rng.randrange(2) else -value
-            for value in differences
-        ) / Decimal(len(differences))
+        statistic = sum(value if rng.randrange(2) else -value for value in differences) / Decimal(
+            len(differences)
+        )
         if statistic >= observed:
             count += 1
     return Decimal(count) / Decimal(total), total, False

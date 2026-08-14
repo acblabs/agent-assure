@@ -13,6 +13,9 @@ from agent_assure.schema.base import PersistedArtifact
 EnumT = TypeVar("EnumT", bound=StrEnum)
 
 
+BLOCKED_PROVIDER_SELECTION = "agent-assure.blocked-provider-selection"
+
+
 class ExecutionMode(StrEnum):
     fixture = "fixture"
     live = "live"

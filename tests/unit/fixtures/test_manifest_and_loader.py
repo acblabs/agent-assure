@@ -16,6 +16,7 @@ from agent_assure.fixtures.loader import (
 from agent_assure.fixtures.manifest import build_fixture_manifest, verify_fixture_manifest
 from agent_assure.fixtures.resolver import FixturePathError, FixtureResolver
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
+from agent_assure.schema.suite import CompiledSuite, SuiteDefaults
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
 BASELINE = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
@@ -158,6 +159,30 @@ def test_compiled_suite_loader_and_source_digest_verification(tmp_path) -> None:
     loaded = load_compiled_suite(out)
     assert loaded == compiled
     verify_source_digest(loaded, SUITE)
+
+
+def test_current_compiled_suite_loader_requires_explicit_runner_id(tmp_path) -> None:
+    compiled = compile_suite(SUITE)
+    payload = compiled.model_dump(mode="json")
+    del payload["defaults"]["runner_id"]
+    out = tmp_path / "missing-runner.compiled.json"
+    out.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="failed model validation") as raised:
+        load_compiled_suite(out)
+    assert raised.value.__cause__ is not None
+    assert "explicit defaults.runner_id" in str(raised.value.__cause__)
+
+
+def test_current_compiled_suite_rejects_implicit_runner_in_defaults_model() -> None:
+    compiled = compile_suite(SUITE)
+    payload = compiled.model_dump(mode="python")
+    defaults = SuiteDefaults()
+    assert "runner_id" not in defaults.model_fields_set
+    payload["defaults"] = defaults
+
+    with pytest.raises(ValueError, match="explicit defaults.runner_id"):
+        CompiledSuite.model_validate(payload)
 
 
 def test_compiled_suite_loader_checks_expected_digest(tmp_path) -> None:  # type: ignore[no-untyped-def]

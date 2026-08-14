@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import DigestHex, coerce_tuple
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.efficacy import (
@@ -187,6 +187,13 @@ class EvidencePacket(PersistedArtifact):
         return self
 
     @model_validator(mode="after")
+    def _validate_summary_digest_roles(self) -> EvidencePacket:
+        error = packet_summary_digest_binding_error(self)
+        if error is not None:
+            raise ValueError(error)
+        return self
+
+    @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> EvidencePacket:
         validate_usage_field_paths_schema_version(
             self.schema_version,
@@ -261,6 +268,43 @@ class EvidencePacket(PersistedArtifact):
                     "report and gate profile"
                 )
         return self
+
+
+def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
+    """Return an exact-file summary-digest binding error for current packets."""
+    if packet.schema_version != SCHEMA_VERSION:
+        return None
+    expected_comparison_count = int(packet.comparison is not None)
+    packet_by_role = {
+        role: tuple(item for item in packet.artifact_digests if item.role == role)
+        for role in ("evaluation-summary", "comparison-summary")
+    }
+    if len(packet_by_role["evaluation-summary"]) != 1:
+        return "current evidence packets require exactly one evaluation-summary digest"
+    if len(packet_by_role["comparison-summary"]) != expected_comparison_count:
+        return "current evidence packet comparison-summary digest must match nested comparison"
+    if packet.release_manifest is None:
+        return None
+    manifest_by_role = {
+        role: tuple(item for item in packet.release_manifest.artifacts if item.role == role)
+        for role in ("evaluation-summary", "comparison-summary")
+    }
+    if len(manifest_by_role["evaluation-summary"]) != 1:
+        return (
+            "current evidence packet release manifest requires exactly one "
+            "evaluation-summary artifact"
+        )
+    if len(manifest_by_role["comparison-summary"]) != expected_comparison_count:
+        return (
+            "current evidence packet release manifest comparison-summary artifact "
+            "must match nested comparison"
+        )
+    for role in ("evaluation-summary", "comparison-summary"):
+        if not packet_by_role[role]:
+            continue
+        if packet_by_role[role][0].sha256 != manifest_by_role[role][0].sha256:
+            return f"current evidence packet {role} digest must match release manifest"
+    return None
 
 
 def _iter_nested_persisted_artifacts(

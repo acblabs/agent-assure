@@ -8,9 +8,19 @@ import pytest
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
+import agent_assure.cli.packet_cmd as packet_cmd
+import agent_assure.onboarding.path_safety as path_safety
+from agent_assure.ci import GateOutcome, gate_evidence_packet
 from agent_assure.cli.main import app
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.reporting.packet import build_evidence_packet
+from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.reporting.packet import (
+    build_evidence_packet,
+    load_evaluation_summary_snapshot,
+    load_evidence_packet,
+    packet_artifact_digest_from_snapshot,
+    release_artifact_from_summary_snapshot,
+)
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
@@ -47,6 +57,11 @@ def test_evidence_packet_schema_exists() -> None:
                 role="evaluation-summary",
                 sha256="0" * 64,
             ),
+            PacketArtifactDigest(
+                artifact_kind="packet-artifact-digest",
+                role="comparison-summary",
+                sha256="1" * 64,
+            ),
         ),
         limitations=("packet summarizes deterministic fixture-mode evidence",),
     )
@@ -74,6 +89,10 @@ def test_evidence_packet_rejects_mismatched_privacy_detector_profiles() -> None:
             interpretation=(),
             evaluation=evaluation,
             comparison=comparison,
+            artifact_digests=(
+                PacketArtifactDigest(role="evaluation-summary", sha256="0" * 64),
+                PacketArtifactDigest(role="comparison-summary", sha256="1" * 64),
+            ),
             limitations=(),
         )
 
@@ -99,6 +118,10 @@ def test_evidence_packet_rejects_evaluation_for_a_different_candidate() -> None:
             interpretation=(),
             evaluation=evaluation,
             comparison=comparison,
+            artifact_digests=(
+                PacketArtifactDigest(role="evaluation-summary", sha256="0" * 64),
+                PacketArtifactDigest(role="comparison-summary", sha256="1" * 64),
+            ),
             limitations=(),
         )
 
@@ -175,6 +198,227 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
     assert gate.exit_code == 1, gate.output
 
 
+def test_summary_snapshot_drives_parse_digest_and_manifest_from_one_read(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="single-snapshot-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    original_reader = path_safety.read_file_bounded_at
+    reads = 0
+
+    def counting_reader(
+        root: Path,
+        relative_path: str | Path,
+        **kwargs: object,
+    ) -> object:
+        nonlocal reads
+        reads += 1
+        return original_reader(root, relative_path, **kwargs)
+
+    monkeypatch.setattr(path_safety, "read_file_bounded_at", counting_reader)
+
+    snapshot = load_evaluation_summary_snapshot(
+        evaluation_path,
+        root=tmp_path,
+        artifact_root=tmp_path,
+    )
+    digest = packet_artifact_digest_from_snapshot("evaluation-summary", snapshot)
+    manifest_artifact = release_artifact_from_summary_snapshot(
+        "evaluation-summary",
+        snapshot,
+    )
+
+    assert reads == 1
+    assert snapshot.summary == evaluation
+    assert digest.sha256 == _file_sha256(evaluation_path)
+    assert manifest_artifact.sha256 == digest.sha256
+    assert manifest_artifact.path == "evaluation-summary.json"
+
+
+def test_packet_build_rejects_summary_replacement_during_snapshot_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="snapshot-race-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    replacement = evaluation.model_copy(update={"runset_id": "replacement-candidate"})
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    original_reader = path_safety.read_file_bounded_at
+    reads = 0
+
+    def replace_after_descriptor_read(
+        root: Path,
+        relative_path: str | Path,
+        **kwargs: object,
+    ) -> object:
+        nonlocal reads
+        contents = original_reader(root, relative_path, **kwargs)
+        if (root / relative_path).absolute() == evaluation_path.absolute():
+            reads += 1
+            _write_json(evaluation_path, replacement.model_dump(mode="json"))
+        return contents
+
+    monkeypatch.setattr(
+        path_safety,
+        "read_file_bounded_at",
+        replace_after_descriptor_read,
+    )
+
+    result = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+
+    assert result.exit_code == 2
+    assert "changed path identity after it was read" in result.output
+    assert reads == 1
+    assert not packet_path.exists()
+
+
+def test_packet_build_and_trusted_gate_reject_summary_file_tampering(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="trusted-source-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    replacement = evaluation.model_copy(update={"runset_id": "tampered-candidate"})
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    manifest_path = tmp_path / "release-artifact-manifest.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    original_environment_builder = packet_cmd.environment_with_dependency_inventory
+
+    def replace_after_creation_snapshot(*args: object, **kwargs: object) -> object:
+        environment = original_environment_builder(*args, **kwargs)
+        _write_json(evaluation_path, replacement.model_dump(mode="json"))
+        return environment
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "environment_with_dependency_inventory",
+        replace_after_creation_snapshot,
+    )
+
+    swapped = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+        terminal_width=200,
+    )
+
+    assert swapped.exit_code == 2
+    assert "source file digest does" in swapped.output
+    assert "not match release manifest" in swapped.output
+    assert not packet_path.exists()
+    assert not manifest_path.exists()
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "environment_with_dependency_inventory",
+        original_environment_builder,
+    )
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    built = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+    assert built.exit_code == 0, built.output
+    packet = load_evidence_packet(packet_path)
+
+    _write_json(evaluation_path, replacement.model_dump(mode="json"))
+    tampered_file = gate_evidence_packet(packet, artifact_root=tmp_path)
+    standalone_tampered_file = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(packet_path)],
+    )
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    nested_tamper = packet.model_copy(
+        update={"evaluation": packet.evaluation.model_copy(update={"runset_id": "forged"})}
+    )
+    tampered_nested = gate_evidence_packet(nested_tamper, artifact_root=tmp_path)
+
+    assert tampered_file.exit_code == 2
+    assert tampered_file.outcome is GateOutcome.invalid
+    assert "source file digest does not match release manifest" in tampered_file.message
+    assert standalone_tampered_file.exit_code == 2
+    assert "source file digest does not match release manifest" in standalone_tampered_file.output
+    assert tampered_nested.exit_code == 2
+    assert tampered_nested.outcome is GateOutcome.invalid
+    assert "source file does not match nested summary" in tampered_nested.message
+
+    assert packet.release_manifest is not None
+    unsafe_artifacts = tuple(
+        item.model_copy(update={"path": "../escaped-evaluation-summary.json"})
+        if item.role == "evaluation-summary"
+        else item
+        for item in packet.release_manifest.artifacts
+    )
+    unsafe_manifest = packet.release_manifest.model_copy(update={"artifacts": unsafe_artifacts})
+    unsafe_packet = packet.model_copy(update={"release_manifest": unsafe_manifest})
+
+    unsafe_path = gate_evidence_packet(unsafe_packet, artifact_root=tmp_path)
+
+    assert unsafe_path.exit_code == 2
+    assert unsafe_path.outcome is GateOutcome.invalid
+    assert "source file could not be safely verified" in unsafe_path.message
+
+
+def test_trusted_gate_rejects_nested_difference_that_redaction_would_mask(
+    tmp_path: Path,
+) -> None:
+    source_summary = EvaluationSummary(
+        runset_id="source-owner@example.com",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    _write_json(evaluation_path, source_summary.model_dump(mode="json"))
+
+    built = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+
+    assert built.exit_code == 0, built.output
+    packet = load_evidence_packet(packet_path)
+    assert packet.evaluation != source_summary
+    assert redact_packet_payload(packet.evaluation.model_dump(mode="json")) == (
+        redact_packet_payload(source_summary.model_dump(mode="json"))
+    )
+
+    gated = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--artifact-root",
+            str(tmp_path),
+        ],
+    )
+
+    assert gated.exit_code == 2
+    assert "source file does not match nested summary" in gated.output
+
+
 def test_packet_build_rejects_legacy_summary_before_packet_write(tmp_path: Path) -> None:
     evaluation = EvaluationSummary(
         runset_id="legacy-candidate",
@@ -194,8 +438,8 @@ def test_packet_build_rejects_legacy_summary_before_packet_write(tmp_path: Path)
     )
 
     assert result.exit_code == 2
-    assert "evidence packet schema_version '0.6.2' requires" in result.output
-    assert "evaluation.schema_version '0.6.2'; received '0.6.1'" in result.output
+    assert f"evidence packet schema_version '{SCHEMA_VERSION}' requires" in result.output
+    assert f"evaluation.schema_version '{SCHEMA_VERSION}'; received '0.6.1'" in result.output
     assert not packet_path.exists()
 
 

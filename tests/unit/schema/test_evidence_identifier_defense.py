@@ -342,7 +342,7 @@ def _compiled_suite_payload(
     expectation_schema_version: str,
     required_evidence_ref: str,
 ) -> dict[str, Any]:
-    return {
+    payload: dict[str, Any] = {
         "artifact_kind": "compiled-suite",
         "schema_version": suite_schema_version,
         "suite_id": "suite-1",
@@ -367,6 +367,9 @@ def _compiled_suite_payload(
         ],
         "source_digest": "0" * 64,
     }
+    if suite_schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+        payload["defaults"] = {"runner_id": "test.runner"}
+    return payload
 
 
 @pytest.mark.parametrize("schema_version", MACHINE_IDENTIFIER_SCHEMA_VERSIONS)

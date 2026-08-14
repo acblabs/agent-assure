@@ -8,7 +8,10 @@ import stat
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from agent_assure.rooted_io import BoundedFileDescriptor, RootedDirectoryDescriptor
 
 MAX_ARTIFACT_JSON_BYTES = 16 * 1024 * 1024
 MAX_JSON_DEPTH = 80
@@ -22,10 +25,91 @@ _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 
 @dataclass(frozen=True)
 class BoundedFileContents:
-    """Bytes and digest obtained from one validated regular-file descriptor."""
+    """Bytes, digest, and identity from one validated regular-file descriptor."""
 
     data: bytes
     sha256: str
+    device: int
+    inode: int
+    size: int
+    modified_ns: int
+    changed_ns: int
+
+
+def open_directory_at(
+    root: Path,
+    relative_path: str | Path,
+    *,
+    label: str,
+) -> RootedDirectoryDescriptor:
+    """Lease a directory through a pinned trusted-root descriptor walk."""
+    from agent_assure.rooted_io import open_rooted_directory
+
+    return open_rooted_directory(root, relative_path, label=label)
+
+
+def open_file_bounded_at(
+    root: Path,
+    relative_path: str | Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> BoundedFileDescriptor:
+    """Open and read one file through a pinned trusted-root descriptor walk."""
+    from agent_assure.rooted_io import open_rooted_bounded_file
+
+    return open_rooted_bounded_file(
+        root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    )
+
+
+def read_file_bounded_at(
+    root: Path,
+    relative_path: str | Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> BoundedFileContents:
+    with open_file_bounded_at(
+        root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    ) as opened:
+        return opened.contents
+
+
+def read_bytes_bounded_at(
+    root: Path,
+    relative_path: str | Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> bytes:
+    return read_file_bounded_at(
+        root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    ).data
+
+
+def read_text_bounded_at(
+    root: Path,
+    relative_path: str | Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> str:
+    return read_bytes_bounded_at(
+        root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    ).decode("utf-8")
 
 
 def read_text_bounded(path: Path, *, max_bytes: int, label: str) -> str:
@@ -33,11 +117,7 @@ def read_text_bounded(path: Path, *, max_bytes: int, label: str) -> str:
 
 
 def read_bytes_bounded(path: Path, *, max_bytes: int, label: str) -> bytes:
-    with path.open("rb") as handle:
-        data = handle.read(max_bytes + 1)
-    if len(data) > max_bytes:
-        raise ValueError(f"{label} exceeds maximum supported size: {path}")
-    return data
+    return read_file_bounded(path, max_bytes=max_bytes, label=label).data
 
 
 def read_file_bounded(
@@ -100,7 +180,15 @@ def read_file_bounded(
         current = os.lstat(path)
         _require_regular_file(current, path=path, label=label)
         _require_same_file_identity(opened, current, path=path, label=label)
-        return BoundedFileContents(data=b"".join(chunks), sha256=digest.hexdigest())
+        return BoundedFileContents(
+            data=b"".join(chunks),
+            sha256=digest.hexdigest(),
+            device=current.st_dev,
+            inode=current.st_ino,
+            size=current.st_size,
+            modified_ns=current.st_mtime_ns,
+            changed_ns=current.st_ctime_ns,
+        )
     finally:
         os.close(descriptor)
 
@@ -153,6 +241,25 @@ def load_json_bounded(
     label: str = "artifact JSON",
 ) -> dict[str, Any]:
     text = read_text_bounded(path, max_bytes=max_bytes, label=label)
+    value = loads_json_bounded(text, label=label)
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} root must be an object")
+    return value
+
+
+def load_json_bounded_at(
+    root: Path,
+    relative_path: str | Path,
+    *,
+    max_bytes: int = MAX_ARTIFACT_JSON_BYTES,
+    label: str = "artifact JSON",
+) -> dict[str, Any]:
+    text = read_text_bounded_at(
+        root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    )
     value = loads_json_bounded(text, label=label)
     if not isinstance(value, dict):
         raise ValueError(f"{label} root must be an object")

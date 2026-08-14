@@ -89,13 +89,16 @@ def build_live_drift_report(
         if window.observation_window_end_utc is not None
     )
     first = reports[0]
-    report_id = "live-drift-" + sha256_hexdigest(
-        {
-            "protocol_digest": protocol_digest,
-            "drift_plan": plan,
-            "runset_ids": [report.runset_id for report in reports],
-        }
-    )[:16]
+    report_id = (
+        "live-drift-"
+        + sha256_hexdigest(
+            {
+                "protocol_digest": protocol_digest,
+                "drift_plan": plan,
+                "runset_ids": [report.runset_id for report in reports],
+            }
+        )[:16]
+    )
     limitations = list(_BASE_LIMITATIONS)
     limitations.extend(comparability.limitations)
     if any(window.provider_version_unknown for window in windows):
@@ -278,7 +281,7 @@ def _metric_value(
         rate = report.overall.expectation_pass_rate
         return _window_metric(
             metric_plan,
-            value=Decimal(rate.rate),
+            value=Decimal(rate.rate) if rate.denominator > 0 else None,
             numerator=rate.numerator,
             denominator=rate.denominator,
             source="pooled_rate",
@@ -287,7 +290,7 @@ def _metric_value(
         rate = report.overall.exclusion_rate
         return _window_metric(
             metric_plan,
-            value=Decimal(rate.rate),
+            value=Decimal(rate.rate) if rate.denominator > 0 else None,
             numerator=rate.numerator,
             denominator=rate.denominator,
             source="observation_rate",
@@ -305,7 +308,7 @@ def _metric_value(
         denominator = len(included)
         return _window_metric(
             metric_plan,
-            value=rate_decimal(numerator, denominator),
+            value=(rate_decimal(numerator, denominator) if denominator > 0 else None),
             numerator=numerator,
             denominator=denominator,
             source="reason_code_rate",
@@ -315,7 +318,7 @@ def _metric_value(
         denominator = len(report.observations)
         return _window_metric(
             metric_plan,
-            value=rate_decimal(numerator, denominator),
+            value=(rate_decimal(numerator, denominator) if denominator > 0 else None),
             numerator=numerator,
             denominator=denominator,
             source="observation_rate",
@@ -327,7 +330,7 @@ def _metric_value(
         denominator = len(report.observations)
         return _window_metric(
             metric_plan,
-            value=rate_decimal(numerator, denominator),
+            value=(rate_decimal(numerator, denominator) if denominator > 0 else None),
             numerator=numerator,
             denominator=denominator,
             source="observation_rate",
@@ -335,7 +338,7 @@ def _metric_value(
     if metric == "latency_p50_ms":
         value = (
             Decimal(report.overall.latency_ms.p50)
-            if report.overall.latency_ms.p50 is not None
+            if (report.overall.latency_ms.count > 0 and report.overall.latency_ms.p50 is not None)
             else None
         )
         return _window_metric(
@@ -348,7 +351,10 @@ def _metric_value(
     if metric == "cost_total_usd":
         value = (
             Decimal(report.overall.estimated_cost_usd.total)
-            if report.overall.estimated_cost_usd.total is not None
+            if (
+                report.overall.estimated_cost_usd.count > 0
+                and report.overall.estimated_cost_usd.total is not None
+            )
             else None
         )
         return _window_metric(
@@ -401,12 +407,8 @@ def _comparability(
     analysis_method_matches = (
         analysis_method_matches and windows[0].analysis_method == protocol.analysis_method
     )
-    configuration_digest_matches = (
-        len({window.configuration_digest for window in windows}) == 1
-    )
-    protocol_digest_matches = all(
-        window.protocol_digest == protocol_digest for window in windows
-    )
+    configuration_digest_matches = len({window.configuration_digest for window in windows}) == 1
+    protocol_digest_matches = all(window.protocol_digest == protocol_digest for window in windows)
     tool_schema_digest_matches = all(
         window.tool_schema_digests == (protocol.tool_schema_digest,) for window in windows
     )
@@ -443,15 +445,11 @@ def _comparability(
     failures.extend(ordering_failures)
     limitations.extend(ordering_limitations)
     plan = protocol.drift_monitoring_plan
-    comparability_mode = (
-        plan.comparability_mode if plan is not None else "strict_protocol_digest"
-    )
+    comparability_mode = plan.comparability_mode if plan is not None else "strict_protocol_digest"
     allow_sensitivity = (
         plan.allow_bounded_sensitivity_on_comparability_failure if plan is not None else False
     )
-    hard_failures = [
-        failure for failure in failures if "reference protocol digest" not in failure
-    ]
+    hard_failures = [failure for failure in failures if "reference protocol digest" not in failure]
     status: DriftComparabilityStatus
     if hard_failures:
         status = "invalid"
@@ -534,12 +532,7 @@ def _ordering_findings(
                 "observation windows are not nondecreasing by start timestamp between "
                 f"{left[0]} and {right[0]}"
             )
-    if (
-        ordering_variable == "window_index"
-        and parsed_rows
-        and not failures
-        and not missing_windows
-    ):
+    if ordering_variable == "window_index" and parsed_rows and not failures and not missing_windows:
         limitations.append(
             "input window order is authoritative; start timestamps were checked for "
             "nondecreasing order"
@@ -636,9 +629,7 @@ def _diagnostic(
         mean_value=decimal_string(mean_decimal(series_values)) if series_values else None,
         slope_per_window=decimal_string(slope) if slope is not None else None,
         max_step_change=decimal_string(max_step) if max_step is not None else None,
-        lag1_autocorrelation=(
-            signed_unit_decimal_string(lag1) if lag1 is not None else None
-        ),
+        lag1_autocorrelation=(signed_unit_decimal_string(lag1) if lag1 is not None else None),
         ar1_phi=signed_unit_decimal_string(ar1_phi) if ar1_phi is not None else None,
         ar1_intercept=decimal_string(ar1_intercept) if ar1_intercept is not None else None,
         ar1_innovation_variance=(
@@ -685,8 +676,7 @@ def _prerequisite_status(
     if len(values) < 2:
         return "invalid", ("fewer than two ordered windows were available",)
     if any(
-        denominator < metric_plan.minimum_observations_per_window
-        for _, _, denominator in values
+        denominator < metric_plan.minimum_observations_per_window for _, _, denominator in values
     ):
         limitations.append("one or more windows are below the metric observation threshold")
     if len(values) < metric_plan.minimum_windows:
@@ -719,10 +709,7 @@ def _dependence_review_reasons(
     ar1_phi: Decimal | None,
 ) -> tuple[str, ...]:
     reasons: list[str] = []
-    if (
-        lag1 is not None
-        and abs(lag1) >= Decimal(metric_plan.autocorrelation_review_threshold)
-    ):
+    if lag1 is not None and abs(lag1) >= Decimal(metric_plan.autocorrelation_review_threshold):
         reasons.append("absolute lag-1 autocorrelation exceeds the metric review threshold")
     if ar1_phi is not None and abs(ar1_phi) >= Decimal(metric_plan.ar1_review_threshold):
         reasons.append("absolute AR(1) coefficient exceeds the metric review threshold")
@@ -767,10 +754,7 @@ def _lag1_autocorrelation(values: tuple[Decimal, ...]) -> Decimal | None:
     denominator = sum((value - mean_value) ** 2 for value in values)
     if denominator == 0:
         return None
-    numerator = sum(
-        (left - mean_value) * (right - mean_value)
-        for left, right in pairwise(values)
-    )
+    numerator = sum((left - mean_value) * (right - mean_value) for left, right in pairwise(values))
     return numerator / denominator
 
 
@@ -789,15 +773,17 @@ def _ar1_summary(
     denominator = sum((value - mean_previous) ** 2 for value in previous)
     if denominator == 0:
         return None, None, None
-    phi = sum(
-        (prev - mean_previous) * (curr - mean_current)
-        for prev, curr in zip(previous, current, strict=True)
-    ) / denominator
+    phi = (
+        sum(
+            (prev - mean_previous) * (curr - mean_current)
+            for prev, curr in zip(previous, current, strict=True)
+        )
+        / denominator
+    )
     phi = max(Decimal("-1"), min(Decimal("1"), phi))
     intercept = mean_current - phi * mean_previous
     residuals = tuple(
-        curr - (intercept + phi * prev)
-        for prev, curr in zip(previous, current, strict=True)
+        curr - (intercept + phi * prev) for prev, curr in zip(previous, current, strict=True)
     )
     variance = mean_decimal(tuple(residual * residual for residual in residuals))
     return phi, intercept, variance
@@ -866,14 +852,16 @@ def _timestamp_bound(values: tuple[str, ...], *, pick: Literal["min", "max"]) ->
     if not values:
         return None
     parsed_rows = tuple(
-        (parsed, value)
-        for value in values
-        if (parsed := parse_timestamp(value)) is not None
+        (parsed, value) for value in values if (parsed := parse_timestamp(value)) is not None
     )
     if len(parsed_rows) != len(values):
         return None
-    selected = min(parsed_rows, key=lambda row: row[0]) if pick == "min" else max(
-        parsed_rows,
-        key=lambda row: row[0],
+    selected = (
+        min(parsed_rows, key=lambda row: row[0])
+        if pick == "min"
+        else max(
+            parsed_rows,
+            key=lambda row: row[0],
+        )
     )
     return selected[1]

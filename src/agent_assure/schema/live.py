@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import (
     DigestHex,
     GateState,
@@ -793,6 +793,39 @@ class LiveRate(PersistedArtifact):
     confidence_level: Literal["0.950000"] = "0.950000"
     ci_lower: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
     ci_upper: DecimalString = Field(pattern=r"^(0|1)\.[0-9]{6}$")
+
+    @model_validator(mode="after")
+    def _validate_zero_denominator_rate(self) -> LiveRate:
+        if self.schema_version != SCHEMA_VERSION or self.denominator != 0:
+            return self
+        if self.analysis_method != "fixed_reference":
+            raise ValueError(
+                "current live rates with denominator=0 must use the "
+                "fixed_reference point-value representation"
+            )
+        point_values = {
+            self.rate,
+            self.cluster_mean_rate,
+            self.interval_center_value,
+            self.ci_lower,
+            self.ci_upper,
+        }
+        if (
+            self.numerator != 0
+            or self.cluster_count != 0
+            or self.effective_n != "0.000000"
+            or self.design_effect != "1.000000"
+            or self.largest_cluster_size != 0
+            or self.largest_cluster_design_effect != "1.000000"
+            or self.largest_cluster_effective_n != "0.000000"
+            or self.exploratory
+            or self.interval_center != "pooled_rate"
+            or len(point_values) != 1
+        ):
+            raise ValueError(
+                "fixed_reference zero-denominator live rates must be count-free point values"
+            )
+        return self
 
 
 class LiveDistribution(PersistedArtifact):

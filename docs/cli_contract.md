@@ -18,7 +18,7 @@ Current commands:
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
-- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
 - `agent-assure demo assure-the-assurance [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure live adapters`
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
@@ -398,6 +398,16 @@ claim must regenerate the campaign and efficacy report from pinned inputs
 before gating and protect policy, manifest, scope, and workflow changes with
 required review.
 
+When `ci gate` receives an evidence packet with a release manifest, it reopens
+the referenced evaluation and optional comparison summary beneath a trusted
+artifact root. The gate requires each exact file's raw SHA-256 to match both
+packet digest records and the release manifest, and requires the fully parsed
+summary to equal the nested packet summary. The CLI infers the root from the
+packet location and enclosing source checkout; use `--artifact-root` when a
+packet bundle was moved elsewhere. Manifest paths remain relative, normalized,
+and confined. `--artifact-root` is not accepted for other gate artifacts or for
+a full `ci` run.
+
 `live adapters` lists installed live adapter identifiers. `live run` consumes a
 compiled suite, live run configuration, and `live-protocol-record`. The command
 checks that the config matches the frozen protocol ID, digest, planned
@@ -411,23 +421,35 @@ static JSONL adapter is intended for offline tests and fixtures. The
 subprocess harness, sends the live request as JSON on stdin, propagates W3C
 trace context through environment variables and request JSON, enforces the
 configured timeout, and expects JSON stdout containing either `content` or a
-structured `record`. Scripts do not inherit the full parent environment by
-default; only names in `script_env_allowlist`, explicit `script_env` entries,
-and runner-injected trace/request variables are passed. The live request
-payload includes the original prompt text. Subprocess spawn failures, timeouts,
-nonzero exits, invalid stdout, and stdout that fails the structured output
-contract create redacted `emergency-process-record` artifacts on the RunSet and
-a structured-output or runtime-failure live record. Risky live configs require
-operator acknowledgement before execution. Prompt-driven runs (without
+structured `record`. The script and working directory are reopened beneath the
+live-config root for every request through component-pinned file and directory
+leases. On Linux, the harness executes the exact bounded script snapshot from a
+sealed memory file and changes directory through the pinned descriptor; a
+subreaper supervisor cleans up ordinary descendants. On Windows, restrictive
+path handles remain open while the child is created suspended, identities are
+revalidated, and a kill-on-close job is assigned before execution resumes.
+Other POSIX platforms fail closed because immutable descriptor-bound script
+execution is unavailable. Scripts do not inherit the full parent environment
+by default; only names in `script_env_allowlist`, explicit `script_env` entries,
+and runner-injected trace/request variables are passed. The configured
+interpreter or executable and runtime-loaded dependencies remain trusted host
+state. The live request payload includes the original prompt text. Subprocess
+spawn failures, timeouts, nonzero exits, invalid stdout, and stdout that fails
+the structured output contract create redacted `emergency-process-record`
+artifacts on the RunSet and a structured-output or runtime-failure live record.
+Risky live configs require
+operator acknowledgement before execution.
+Prompt-driven runs (without
 `--trust-config`) require a separate, default-deny confirmation for each
 capability a config requests: external-script execution, network egress, and/or
 selected host environment variables. Prompts identify the configured script,
 the endpoint host for endpoint-bound adapters, and environment variable names
 without displaying variable values; sensitive-looking configured display text
-is redacted. External scripts are explicitly identified as unsandboxed host code
-that can access caller-readable files and networks;
-their `endpoint_url` is not presented as an enforced destination. Non-interactive
-CI runs must pass `--trust-config` plus the matching risk-specific flags:
+is redacted. External scripts are explicitly identified as unsandboxed same-UID
+host code that can access caller-readable files and networks, signal peer
+processes permitted by the OS, and load unpinned dependencies; their
+`endpoint_url` is not presented as an enforced destination. Non-interactive CI
+runs must pass `--trust-config` plus the matching risk-specific flags:
 `--allow-external-script`, `--allow-network`, and/or
 `--allow-script-env`. Every endpoint-bound network adapter requires endpoint
 DNS safety screening to succeed during adapter construction and request
@@ -441,11 +463,14 @@ environment variable, and validates non-default endpoint hosts against the
 declared allowlist. Literal localhost/private/link-local/reserved/multicast
 hosts are rejected, resolved A/AAAA results are screened at adapter
 construction, and OpenAI-compatible requests repeat that screen immediately
-before dispatch. This is DNS safety screening, not TLS pinning or socket-level
-IP pinning. OpenAI runs must configure both prompt and completion pricing rates
-before dispatch. Every network run also requires `max_output_tokens` and a
-positive per-attempt cost ceiling. Before each network attempt, including a
-retry, the runner reserves the full per-observation ceiling against the total
+before dispatch. Each request dials only the numeric addresses accepted by that
+screen while preserving the original hostname for HTTP Host, TLS SNI, and
+certificate verification. This is per-request socket-level IP pinning, not
+certificate or SPKI pinning. OpenAI runs must configure both prompt and
+completion pricing rates before dispatch. Every network run also requires
+`max_output_tokens` and a positive per-attempt cost ceiling. Before each network
+attempt, including a retry, the runner reserves the full per-observation ceiling
+against the total
 budget. A failed or timed-out attempt retains that reservation because the
 provider may have processed and billed it; only a successful response with
 usable accounting replaces its own reservation with the observed or locally

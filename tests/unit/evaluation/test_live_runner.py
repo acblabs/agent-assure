@@ -5,6 +5,7 @@ import socket
 import sys
 import urllib.error
 import urllib.request
+from collections.abc import Callable
 from pathlib import Path
 
 import pytest
@@ -28,6 +29,8 @@ from agent_assure.live.adapters import (
     _NoRedirectHandler,
     _open_no_redirects,
     _openai_response,
+    _PinnedHTTPSConnection,
+    _PinnedHTTPSHandler,
     _read_provider_response,
     build_adapter,
 )
@@ -1505,10 +1508,7 @@ def test_live_prompt_digest_uses_exact_prompt_not_redacted_projection(tmp_path: 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
     assert runset.runs[0].provenance.prompt_digest == sha256_hexdigest({"prompt": prompt_text})
-    assert (
-        runset.runs[0].provenance.configuration_digest
-        == runset.fixture_manifest_digest
-    )
+    assert runset.runs[0].provenance.configuration_digest == runset.fixture_manifest_digest
     assert "123-45-6789" not in json.dumps(runset.model_dump(mode="json"))
 
     prompt.write_text("different exact prompt", encoding="utf-8")
@@ -1753,7 +1753,11 @@ def test_openai_transport_disables_environment_proxies(
     monkeypatch.setattr(urllib.request, "build_opener", fake_build_opener)
     request = urllib.request.Request("https://api.openai.com/v1/chat/completions")
 
-    _open_no_redirects(request, timeout_seconds=7)
+    _open_no_redirects(
+        request,
+        timeout_seconds=7,
+        pinned_addresses=("93.184.216.34",),
+    )
 
     handlers = captured["handlers"]
     assert isinstance(handlers, tuple)
@@ -1762,7 +1766,78 @@ def test_openai_transport_disables_environment_proxies(
     ]
     assert len(proxy_handlers) == 1
     assert proxy_handlers[0].proxies == {}
+    pinned_handlers = [handler for handler in handlers if isinstance(handler, _PinnedHTTPSHandler)]
+    assert len(pinned_handlers) == 1
+    assert pinned_handlers[0]._pinned_addresses == ("93.184.216.34",)
     assert captured["timeout"] == 7
+
+
+def test_pinned_https_connection_dials_only_screened_ip_with_original_tls_name(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+    raw_socket = object()
+    tls_socket = object()
+
+    def fake_create_connection(
+        address: tuple[str, int],
+        timeout: object,
+        source_address: object,
+    ) -> object:
+        captured["address"] = address
+        captured["timeout"] = timeout
+        captured["source_address"] = source_address
+        return raw_socket
+
+    class FakeTlsContext:
+        def wrap_socket(self, sock: object, *, server_hostname: str) -> object:
+            captured["raw_socket"] = sock
+            captured["server_hostname"] = server_hostname
+            return tls_socket
+
+    monkeypatch.setattr(socket, "create_connection", fake_create_connection)
+    connection = _PinnedHTTPSConnection(
+        "gateway.example.com",
+        pinned_addresses=("93.184.216.34",),
+        timeout=7,
+        context=FakeTlsContext(),  # type: ignore[arg-type]
+    )
+
+    connection.connect()
+
+    assert captured["address"] == ("93.184.216.34", 443)
+    assert captured["server_hostname"] == "gateway.example.com"
+    assert captured["raw_socket"] is raw_socket
+    assert connection.sock is tls_socket
+
+
+def test_pinned_https_handler_passes_verified_tls_context_to_connection_factory(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    handler = _PinnedHTTPSHandler(("93.184.216.34",))
+    request = urllib.request.Request("https://api.openai.com/v1/chat/completions")
+    captured: dict[str, object] = {}
+
+    def fake_do_open(
+        connection_factory: Callable[..., _PinnedHTTPSConnection],
+        opened_request: urllib.request.Request,
+        **connection_kwargs: object,
+    ) -> _PinnedHTTPSConnection:
+        captured.update(connection_kwargs)
+        assert opened_request.host is not None
+        return connection_factory(
+            opened_request.host,
+            timeout=7,
+            **connection_kwargs,
+        )
+
+    monkeypatch.setattr(handler, "do_open", fake_do_open)
+
+    connection = handler.https_open(request)
+
+    tls_context = connection._context
+    assert captured == {"context": tls_context}
+    assert tls_context.check_hostname is True
 
 
 def test_openai_adapter_rejects_allowed_host_resolving_to_private_address(
@@ -1828,6 +1903,7 @@ def test_openai_adapter_strict_resolution_rejects_unresolved_allowed_host(
             base_dir=tmp_path,
             trust=TrustedLiveExecution(allow_network=True),
         )
+
 
 def test_openai_adapter_rechecks_resolution_before_each_request(
     tmp_path: Path,

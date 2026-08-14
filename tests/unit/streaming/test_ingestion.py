@@ -258,6 +258,23 @@ def test_stream_ingest_deduplicates_identical_composite_key(tmp_path: Path) -> N
     assert result.diagnostics.duplicates[0].kept_event_id == "evt-1"
 
 
+def test_stream_ingest_rejects_same_digest_with_unequal_validated_models(
+    tmp_path: Path,
+) -> None:
+    event = _event("evt-1", sequence_number=1, event_type="run_started")
+    legacy_wire_identity = {
+        **event,
+        "schema_version": "0.5.0",
+    }
+    assert _payload_digest(event) == _payload_digest(legacy_wire_identity)
+
+    with pytest.raises(ValueError, match="conflicting normalized payload"):
+        ingest_jsonl_events(
+            _jsonl(tmp_path, [event, legacy_wire_identity]),
+            sequence_scope="global",
+        )
+
+
 def test_stream_ingest_rejects_conflicting_duplicate_event_id(tmp_path: Path) -> None:
     path = _jsonl(
         tmp_path,
@@ -427,6 +444,45 @@ def test_stream_projection_normalizes_timestamp_offsets_for_latency(tmp_path: Pa
     assert runset.runs[0].latency_ms == 1_000
 
 
+def test_stream_projection_requires_one_terminal_completion(tmp_path: Path) -> None:
+    stream_run = ingest_jsonl_events(
+        _jsonl(
+            tmp_path,
+            [_event("evt-start", sequence_number=1, event_type="run_started")],
+        ),
+        sequence_scope="global",
+    ).stream_run
+
+    with pytest.raises(ValueError, match="exactly one run_completed"):
+        stream_run_to_runset(stream_run, _suite())
+
+
+def test_stream_projection_rejects_events_after_terminal_completion(tmp_path: Path) -> None:
+    stream_run = ingest_jsonl_events(
+        _jsonl(
+            tmp_path,
+            [
+                _event("evt-start", sequence_number=1, event_type="run_started"),
+                _event(
+                    "evt-complete",
+                    sequence_number=2,
+                    event_type="run_completed",
+                    attrs={"recommendation": "approve", "outcome": "approved"},
+                ),
+                _event(
+                    "evt-late",
+                    sequence_number=3,
+                    event_type="node_completed",
+                ),
+            ],
+        ),
+        sequence_scope="global",
+    ).stream_run
+
+    with pytest.raises(ValueError, match="events after run_completed"):
+        stream_run_to_runset(stream_run, _suite())
+
+
 def test_stream_projection_uses_timestamp_merge_order_for_producer_local_state(
     tmp_path: Path,
 ) -> None:
@@ -486,9 +542,7 @@ def test_stream_projection_uses_timestamp_merge_order_for_producer_local_state(
     report = evaluate_runset(suite, runset)
 
     assert not runset.runs[0].claim_evidence_links
-    assert {
-        finding.reason_code for finding in report.candidate_vs_expectations.findings
-    } >= {
+    assert {finding.reason_code for finding in report.candidate_vs_expectations.findings} >= {
         ReasonCode.REQUIRED_SOURCE_MISSING,
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
     }
@@ -541,9 +595,46 @@ def test_stream_projection_catches_select_then_bypass_review_regression(
     assert not runset.runs[0].human_review_required
     report = evaluate_runset(suite, runset)
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert {
-        finding.reason_code for finding in report.candidate_vs_expectations.findings
-    } >= {ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT}
+    assert {finding.reason_code for finding in report.candidate_vs_expectations.findings} >= {
+        ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT
+    }
+
+
+def test_selecting_a_review_route_does_not_prove_review_was_performed(
+    tmp_path: Path,
+) -> None:
+    stream_run = ingest_jsonl_events(
+        _jsonl(
+            tmp_path,
+            [
+                _event("evt-1", sequence_number=1, event_type="run_started"),
+                _event(
+                    "evt-2",
+                    sequence_number=2,
+                    event_type="review_route_selected",
+                    attrs={"review_route": "manager_review"},
+                ),
+                _event(
+                    "evt-3",
+                    sequence_number=3,
+                    event_type="run_completed",
+                    attrs={"recommendation": "approve", "outcome": "approved"},
+                ),
+            ],
+        ),
+        sequence_scope="global",
+    ).stream_run
+
+    runset = stream_run_to_runset(stream_run, _review_suite())
+    run = runset.runs[0]
+    report = evaluate_runset(_review_suite(), runset)
+
+    assert run.human_review_required is True
+    assert run.human_review_performed is False
+    assert any(
+        finding.reason_code is ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT
+        for finding in report.candidate_vs_expectations.findings
+    )
 
 
 def test_stream_projection_catches_same_output_evidence_regression(
@@ -568,9 +659,7 @@ def test_stream_projection_catches_same_output_evidence_regression(
     assert not candidate_runset.runs[0].claim_evidence_links
     report = evaluate_runset(suite, candidate_runset)
     assert report.candidate_vs_expectations.state is GateState.fail
-    assert {
-        finding.reason_code for finding in report.candidate_vs_expectations.findings
-    } >= {
+    assert {finding.reason_code for finding in report.candidate_vs_expectations.findings} >= {
         ReasonCode.REQUIRED_SOURCE_MISSING,
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
     }
@@ -584,8 +673,14 @@ def test_stream_projection_rejects_empty_evidence_removal(
         _jsonl(
             tmp_path,
             [
-                *_baseline_events(),
-                _event("evt-4", sequence_number=4, event_type="evidence_link_removed"),
+                *_baseline_events()[:-1],
+                _event("evt-3", sequence_number=3, event_type="evidence_link_removed"),
+                _event(
+                    "evt-4",
+                    sequence_number=4,
+                    event_type="run_completed",
+                    attrs={"recommendation": "approve", "outcome": "approved"},
+                ),
             ],
         ),
         sequence_scope="global",
@@ -625,9 +720,7 @@ def test_stream_projection_ignores_stray_evidence_attrs_on_other_events(
     report = evaluate_runset(suite, runset)
 
     assert not runset.runs[0].evidence_refs
-    assert {
-        finding.reason_code for finding in report.candidate_vs_expectations.findings
-    } >= {
+    assert {finding.reason_code for finding in report.candidate_vs_expectations.findings} >= {
         ReasonCode.REQUIRED_SOURCE_MISSING,
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
     }
@@ -654,9 +747,7 @@ def test_stream_projection_revalidates_persisted_event_digest(
         sequence_scope="global",
     ).stream_run
     bad_event = stream_run.events[0].model_copy(update={"digest": "d" * 64})
-    tampered = stream_run.model_copy(
-        update={"events": (bad_event, *stream_run.events[1:])}
-    )
+    tampered = stream_run.model_copy(update={"events": (bad_event, *stream_run.events[1:])})
 
     with pytest.raises(ValueError, match="digest does not match"):
         stream_run_to_runset(tampered, _suite())
@@ -712,10 +803,7 @@ def test_stream_span_plan_preserves_parent_child_span_context_as_attributes(
     ).stream_run
 
     plan = stream_run_to_span_plans(stream_run)[0]
-    child_attrs = {
-        attribute.key: attribute.value
-        for attribute in plan.events[1].attributes
-    }
+    child_attrs = {attribute.key: attribute.value for attribute in plan.events[1].attributes}
 
     assert child_attrs["agent_assure.stream.span_id"] == "span-child"
     assert child_attrs["agent_assure.stream.parent_span_id"] == "span-parent"
@@ -734,13 +822,19 @@ def test_evidence_diff_renders_stream_operational_and_usage_summary(
         suite,
     )
     candidate_events = [
-        *_baseline_events(),
-        _event("evt-4", sequence_number=4, event_type="retry"),
+        *_baseline_events()[:-1],
+        _event("evt-3", sequence_number=3, event_type="retry"),
+        _event(
+            "evt-4",
+            sequence_number=4,
+            event_type="token_chunk_observed",
+            usage={"segment_id": "seg-stream", "total_tokens": 11, "retry_count": 1},
+        ),
         _event(
             "evt-5",
             sequence_number=5,
-            event_type="token_chunk_observed",
-            usage={"segment_id": "seg-stream", "total_tokens": 11, "retry_count": 1},
+            event_type="run_completed",
+            attrs={"recommendation": "approve", "outcome": "approved"},
         ),
     ]
     candidate = stream_run_to_runset(
@@ -856,12 +950,18 @@ def _baseline_events() -> list[dict[str, object]]:
 
 def _candidate_removed_evidence_events() -> list[dict[str, object]]:
     return [
-        *_baseline_events(),
+        *_baseline_events()[:-1],
+        _event(
+            "evt-3",
+            sequence_number=3,
+            event_type="evidence_link_removed",
+            attrs={"evidence_ref_id": "ref-stream", "claim_id": "claim-stream"},
+        ),
         _event(
             "evt-4",
             sequence_number=4,
-            event_type="evidence_link_removed",
-            attrs={"evidence_ref_id": "ref-stream", "claim_id": "claim-stream"},
+            event_type="run_completed",
+            attrs={"recommendation": "approve", "outcome": "approved"},
         ),
     ]
 

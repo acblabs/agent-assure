@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Generic, TypeVar
 
 from agent_assure.artifact_io import file_sha256, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    BoundedFileContents,
+    load_json_bytes_bounded,
+)
+from agent_assure.onboarding.path_safety import (
+    confined_snapshot_relative_path,
+    read_confined_file_snapshot,
+)
 from agent_assure.privacy.redaction import redact_packet_payload
 from agent_assure.reporting.markdown_safety import (
     markdown_code_span,
@@ -20,8 +31,13 @@ from agent_assure.schema.efficacy import (
 )
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
-from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
-from agent_assure.schema.release import ReleaseArtifactManifest
+from agent_assure.schema.packet import (
+    EvidencePacket,
+    PacketArtifactDigest,
+    PacketArtifactRole,
+    packet_summary_digest_binding_error,
+)
+from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
@@ -51,6 +67,14 @@ DEFAULT_INTERPRETATION = (
     "scope; it remains separate from candidate evidence closure.",
 )
 _MAX_RENDERED_IDENTIFIER_ITEMS = 20
+SummaryT = TypeVar("SummaryT", EvaluationSummary, ComparisonSummary)
+
+
+@dataclass(frozen=True)
+class PacketSummaryFileSnapshot(Generic[SummaryT]):
+    summary: SummaryT
+    contents: BoundedFileContents
+    relative_path: str
 
 
 def load_evaluation_summary(path: Path) -> EvaluationSummary:
@@ -67,6 +91,141 @@ def load_comparison_summary(path: Path) -> ComparisonSummary:
         ComparisonSummary,
         kind="comparison-summary",
     )
+
+
+def load_evaluation_summary_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+) -> PacketSummaryFileSnapshot[EvaluationSummary]:
+    return _load_packet_summary_snapshot(
+        path,
+        root=root,
+        artifact_root=artifact_root,
+        kind="evaluation-summary",
+        model=EvaluationSummary,
+    )
+
+
+def load_comparison_summary_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+) -> PacketSummaryFileSnapshot[ComparisonSummary]:
+    return _load_packet_summary_snapshot(
+        path,
+        root=root,
+        artifact_root=artifact_root,
+        kind="comparison-summary",
+        model=ComparisonSummary,
+    )
+
+
+def _load_packet_summary_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+    kind: PacketArtifactRole,
+    model: type[SummaryT],
+) -> PacketSummaryFileSnapshot[SummaryT]:
+    label = kind.replace("-", " ")
+    contents = read_confined_file_snapshot(
+        path,
+        root=root,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=label,
+    )
+    relative_path = confined_snapshot_relative_path(
+        path,
+        contents,
+        root=root,
+        path_root=artifact_root,
+        label=label,
+    )
+    payload = load_json_bytes_bounded(
+        contents.data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=label,
+    )
+    validate_loaded_artifact_payload(payload, kind)
+    summary = project_validated_artifact_payload(payload, model, kind=kind)
+    return PacketSummaryFileSnapshot(
+        summary=summary,
+        contents=contents,
+        relative_path=relative_path,
+    )
+
+
+def packet_artifact_digest_from_snapshot(
+    role: PacketArtifactRole,
+    snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
+    | PacketSummaryFileSnapshot[ComparisonSummary],
+) -> PacketArtifactDigest:
+    return PacketArtifactDigest(role=role, sha256=snapshot.contents.sha256)
+
+
+def release_artifact_from_summary_snapshot(
+    role: PacketArtifactRole,
+    snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
+    | PacketSummaryFileSnapshot[ComparisonSummary],
+) -> ReleaseArtifact:
+    return ReleaseArtifact(
+        role=role,
+        path=snapshot.relative_path,
+        sha256=snapshot.contents.sha256,
+    )
+
+
+def packet_summary_files_binding_error(
+    packet: EvidencePacket,
+    *,
+    artifact_root: Path,
+) -> str | None:
+    """Verify summary models and exact bytes against trusted manifest paths."""
+    binding_error = packet_summary_digest_binding_error(packet)
+    if binding_error is not None:
+        return binding_error
+    if packet.release_manifest is None:
+        return "trusted summary-file verification requires a release manifest"
+    summaries: tuple[
+        tuple[PacketArtifactRole, EvaluationSummary | ComparisonSummary],
+        ...,
+    ] = (("evaluation-summary", packet.evaluation),)
+    if packet.comparison is not None:
+        summaries = (
+            *summaries,
+            ("comparison-summary", packet.comparison),
+        )
+    manifest_by_role = {item.role: item for item in packet.release_manifest.artifacts}
+    for role, nested_summary in summaries:
+        manifest_artifact = manifest_by_role[role]
+        source_path = artifact_root.absolute() / Path(manifest_artifact.path)
+        try:
+            snapshot = (
+                load_evaluation_summary_snapshot(
+                    source_path,
+                    root=artifact_root,
+                    artifact_root=artifact_root,
+                )
+                if role == "evaluation-summary"
+                else load_comparison_summary_snapshot(
+                    source_path,
+                    root=artifact_root,
+                    artifact_root=artifact_root,
+                )
+            )
+        except (OSError, UnicodeError, ValueError):
+            return f"evidence packet {role} source file could not be safely verified"
+        if snapshot.relative_path != manifest_artifact.path:
+            return f"evidence packet {role} manifest path is not normalized and confined"
+        if snapshot.contents.sha256 != manifest_artifact.sha256:
+            return f"evidence packet {role} source file digest does not match release manifest"
+        if snapshot.summary != nested_summary:
+            return f"evidence packet {role} source file does not match nested summary"
+    return None
 
 
 def build_evidence_packet(

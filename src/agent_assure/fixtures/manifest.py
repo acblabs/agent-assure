@@ -9,7 +9,7 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.resolver import FixtureResolver
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
-    read_bytes_bounded,
+    read_bytes_bounded_at,
 )
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest, FixtureManifestEntry
 from agent_assure.schema.validation import (
@@ -148,7 +148,12 @@ def _iter_fixture_files(root_path: Path) -> tuple[Path, ...]:
 
 def _entry_for_path(path: Path, resolver: FixtureResolver) -> FixtureManifestEntry:
     manifest_path = resolver.manifest_path(path)
-    data = read_bytes_bounded(path, max_bytes=MAX_ARTIFACT_JSON_BYTES, label="fixture file")
+    data = read_bytes_bounded_at(
+        resolver.resolved_root,
+        manifest_path,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label="fixture file",
+    )
     return FixtureManifestEntry(
         path=manifest_path,
         sha256=hashlib.sha256(data).hexdigest(),

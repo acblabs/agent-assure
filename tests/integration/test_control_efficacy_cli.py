@@ -274,6 +274,8 @@ def test_packet_cli_binds_config_profile_and_ci_rejects_a_forged_embedded_pass(
             str(packet_path),
             "--efficacy-policy",
             str(config_path),
+            "--artifact-root",
+            str(workflow),
         ],
     )
     assert original_gate.exit_code == 1, original_gate.output
@@ -350,11 +352,16 @@ def test_packet_cli_hashes_and_manifests_the_exact_efficacy_snapshots(
         report_path.resolve(): report_path.read_bytes(),
         config_path.resolve(): config_path.read_bytes(),
     }
-    original_reader = onboarding_path_safety.read_file_bounded
+    original_reader = onboarding_path_safety.read_file_bounded_at
     read_counts = {path: 0 for path in original_bytes}
 
-    def replace_after_snapshot(path: Path, **kwargs: Any) -> Any:
-        contents = original_reader(path, **kwargs)
+    def replace_after_snapshot(
+        root: Path,
+        relative_path: str | Path,
+        **kwargs: Any,
+    ) -> Any:
+        contents = original_reader(root, relative_path, **kwargs)
+        path = root / relative_path
         resolved = path.resolve()
         if resolved in original_bytes:
             read_counts[resolved] += 1
@@ -363,7 +370,7 @@ def test_packet_cli_hashes_and_manifests_the_exact_efficacy_snapshots(
 
     monkeypatch.setattr(
         onboarding_path_safety,
-        "read_file_bounded",
+        "read_file_bounded_at",
         replace_after_snapshot,
     )
 

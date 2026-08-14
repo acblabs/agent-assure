@@ -3,7 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-from agent_assure.schema.common import GateState, ReasonCode, Severity
+from agent_assure.schema.common import (
+    BLOCKED_PROVIDER_SELECTION,
+    GateState,
+    ReasonCode,
+    Severity,
+)
 
 ProviderPolicyPrecedence = Literal["policy_over_runtime", "runtime_over_policy"]
 
@@ -19,6 +24,7 @@ class PolicyEvent:
 
 @dataclass(frozen=True)
 class ProviderPolicyApplication:
+    effective_provider: str | None
     recommendation: str
     outcome: str
     human_review_required: bool
@@ -47,6 +53,7 @@ def apply_provider_policy(
     )
     if event is None:
         return ProviderPolicyApplication(
+            effective_provider=provider,
             recommendation=recommendation,
             outcome=outcome,
             human_review_required=human_review_required,
@@ -54,12 +61,14 @@ def apply_provider_policy(
         )
     if event.state is GateState.fail:
         return ProviderPolicyApplication(
+            effective_provider=BLOCKED_PROVIDER_SELECTION,
             recommendation=fail_recommendation,
             outcome=fail_outcome,
             human_review_required=True,
             events=(event,),
         )
     return ProviderPolicyApplication(
+        effective_provider=provider,
         recommendation=recommendation,
         outcome=outcome,
         human_review_required=human_review_required,

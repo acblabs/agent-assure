@@ -162,9 +162,7 @@ def test_evidence_diff_html_escapes_dynamic_content_and_stays_static() -> None:
 
 
 def test_evidence_diff_html_removes_controls_and_reredacts_split_secrets() -> None:
-    rendered = _h(
-        "prefix\x1b[31m\x9b2J\u202espoof contact second@example\x00.com <tag>"
-    )
+    rendered = _h("prefix\x1b[31m\x9b2J\u202espoof contact second@example\x00.com <tag>")
 
     assert "\x1b" not in rendered
     assert "\x9b" not in rendered
@@ -183,10 +181,13 @@ def test_evidence_diff_html_rendered_output_passes_claim_boundary_linter() -> No
         packet=packet,
     )
 
-    assert claim_boundaries.find_claim_boundary_violations(
-        html,
-        path=Path("tests/golden/reports/evidence-diff.html"),
-    ) == []
+    assert (
+        claim_boundaries.find_claim_boundary_violations(
+            html,
+            path=Path("tests/golden/reports/evidence-diff.html"),
+        )
+        == []
+    )
 
 
 def test_evidence_diff_html_rejects_mismatched_packet_binding() -> None:
@@ -220,9 +221,7 @@ def test_evidence_diff_html_rejects_packet_state_contradicting_comparison() -> N
 
 def test_evidence_diff_html_rejects_mixed_privacy_detector_profiles() -> None:
     baseline, candidate, comparison, packet = _artifacts()
-    mismatched_candidate = candidate.model_copy(
-        update={"privacy_profile_digest": "f" * 64}
-    )
+    mismatched_candidate = candidate.model_copy(update={"privacy_profile_digest": "f" * 64})
 
     with pytest.raises(ValueError, match="candidate.privacy_profile"):
         render_evidence_diff_html(
@@ -285,8 +284,7 @@ def test_evidence_diff_html_rejects_duplicate_case_ids_before_rendering() -> Non
 def test_evidence_diff_html_summarizes_long_comparison_lists() -> None:
     baseline, candidate, comparison, packet = _artifacts()
     long_changes = tuple(
-        f"case-{index} config_digest baseline={'a' * 64} candidate={'b' * 64}"
-        for index in range(6)
+        f"case-{index} config_digest baseline={'a' * 64} candidate={'b' * 64}" for index in range(6)
     )
     comparison = comparison.model_copy(update={"provenance_changes": long_changes})
     packet = packet.model_copy(update={"comparison": comparison})
@@ -618,12 +616,23 @@ def _artifacts(
         comparison=comparison,
         artifact_digests=(
             PacketArtifactDigest(role="evaluation-summary", sha256=_DIGEST),
+            PacketArtifactDigest(role="comparison-summary", sha256=_DIGEST),
         ),
         release_manifest=ReleaseArtifactManifest(
             manifest_id="manifest-duration",
             artifacts=(
                 ReleaseArtifact(role="compiled-suite", path="compiled.json", sha256=_DIGEST),
                 ReleaseArtifact(role="candidate-runset", path="candidate.json", sha256=_DIGEST),
+                ReleaseArtifact(
+                    role="evaluation-summary",
+                    path="evaluation-summary.json",
+                    sha256=_DIGEST,
+                ),
+                ReleaseArtifact(
+                    role="comparison-summary",
+                    path="comparison-summary.json",
+                    sha256=_DIGEST,
+                ),
             ),
             environment=EnvironmentInfo(platform="test", python_version="3.11.0"),
         ),

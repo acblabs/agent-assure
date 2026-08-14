@@ -2,6 +2,37 @@
 
 ## Unreleased
 
+- Enforced provider allowlists and denylists independently of review routing,
+  scoped fixture-remediation suppression to the controls that actually ran, and
+  made required-policy `not_evaluated` results fail closed without duplicating
+  required-policy findings in live observations.
+- Preserved raw failure history during runset comparison so candidate-only
+  waivers remain visible as waived failures rather than appearing resolved.
+- Made stream ingestion reject digest/model contradictions and tightened stream
+  terminal-event, route, outcome, recommendation, and boolean-label invariants.
+- Pinned OpenAI-compatible HTTPS connections to freshly screened DNS answers
+  while preserving hostname-based TLS verification, closing the resolution-to-
+  connection DNS-rebinding window, and exercised the urllib handler path across
+  the supported Python matrix.
+- Made observed zero-denominator live rates fail closed instead of fabricating
+  numeric zero estimates or intervals, enforced exclusion ceilings before empty
+  sample handling, and downgraded unbound advanced analyses to exploratory
+  evidence.
+- Rejected conflicting content digests for the same evidence identity, bounded
+  rooted file reads through descriptor-based path checks, and strengthened
+  authored YAML against unknown keys, ambiguous defaults, and empty current
+  suites/runsets.
+- Hardened configured external-script launches with root-stable file and
+  working-directory leases, sealed script-byte execution and descendant cleanup
+  on Linux, and suspended launch, identity revalidation, and kill-on-close job
+  assignment on Windows, backed by native Windows containment CI. This remains
+  lifecycle containment for trusted configured scripts, not an adversarial
+  same-UID sandbox.
+- Required current evidence packets to bind exactly one evaluation summary and
+  exactly one comparison summary when present; made evaluation summaries derive
+  coherent verdicts from non-pass findings, and made standalone and full CI
+  revalidate persisted packets against exact source summary bytes.
+
 ## 0.6.2 - 2026-08-10
 
 - Prevented scaffold rollback from deleting a concurrently replaced file when

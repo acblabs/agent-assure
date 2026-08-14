@@ -221,33 +221,56 @@ records. Live adapters capture accepted provider metadata when available and
 record retry/rate-limit/exclusion counters. Configured external scripts run
 through a no-shell subprocess harness that records redacted emergency process
 metadata for spawn failures, timeouts, nonzero exits, invalid stdout, and
-oversized output.
+oversized output. Rooted inputs are opened through component-pinned file or
+directory leases with bounded reads and symlink/reparse-point rejection. Linux
+executes the exact external-script snapshot from a sealed memory file and uses
+a pinned working-directory descriptor. Windows holds restrictive path handles,
+creates the child suspended, revalidates identities, assigns a kill-on-close
+job, and only then resumes it. Unsupported POSIX platforms fail closed for
+external-script execution.
 
 This boundary is not a hardened sandbox against malicious local scripts. The
 external-script adapter sends the full live request payload, including the
-original prompt text, to the configured script. Script executable, argv, and
-working-directory resolution happen in the calling process; compromise of the
-configured script or its allowed environment can affect the host. Scripts do
-not inherit the full parent environment by default, but any variable named in
-`script_env_allowlist` or supplied through `script_env` is intentionally passed
-through. Prompt, JSONL response, script, and script working-directory paths are
-confined to the live config directory; this prevents accidental path escape but
-does not make the script itself trustworthy. Non-interactive live execution
-must pass `--trust-config` plus the specific risk flags for external-script
-execution, network egress, or host environment propagation; these flags are an
-operator acknowledgement, not isolation.
+original prompt text, to the configured script. The configured interpreter or
+executable, native libraries, imports, and runtime-loaded dependencies are
+trusted mutable host state. A malicious same-UID Linux child can signal the
+agent or supervisor, deliberately retain output pipes in an escaped descendant,
+or survive catastrophic parent death; the harness does not provide a separate
+UID, PID or mount namespace, seccomp policy, container, or cgroup. Rooted path
+walks reject traversal aliases, symlinks, and reparse points, but they do not
+reject pre-existing same-filesystem hard links, establish a mount namespace, or
+prevent a POSIX directory lease from being renamed after acquisition. Scripts
+do not inherit the full parent environment by default, but any variable named
+in `script_env_allowlist` or supplied through `script_env` is intentionally
+passed through. Non-interactive live execution must pass `--trust-config` plus
+the specific risk flags for external-script execution, network egress, or host
+environment propagation; these flags are an operator acknowledgement, not
+isolation.
 
 Live adapters are trusted record producers. A static JSONL file, external
 script, or network provider controls the structured observation it returns,
 including recommendations, outcomes, evidence links, claims, tool names, review
 flags, and summaries. Live producer-supplied failing policy results are
 verdict-bearing, but agent-assure does not attest adapter code or provider
-responses. The OpenAI-compatible adapter requires HTTPS and an allowlisted
+responses.
+
+The `prompt_injection_control_boundary` is a review-route invariant for cases
+tagged `prompt-boundary`. It verifies that an upstream injection signal
+preserved
+the declared forbidden-outcome or human-review boundary; it does not inspect raw
+prompts, run an injection detector, or attest the producer that supplied the
+signal. A passing route invariant therefore does not mean that a prompt is free
+of injection. Fixture remediation signals are recognized only under their exact
+owned tag, policy ID, state, and reason-code contract.
+
+The OpenAI-compatible adapter requires HTTPS and an allowlisted
 endpoint host; non-default gateways must be listed explicitly. CI live network
-runs fail closed when endpoint DNS safety screening cannot resolve the host,
-and OpenAI-compatible requests repeat DNS screening immediately before
-dispatch. This reduces but does not eliminate DNS rebinding risk because the
-HTTP stack is not pinned to a screened address.
+runs fail closed when endpoint DNS safety screening cannot resolve the host.
+Each OpenAI-compatible request resolves and screens the endpoint immediately
+before dispatch, then connects only to one of those screened IP addresses while
+preserving the original hostname for TLS verification and the HTTP Host header.
+Redirects are disabled, so each request has one screened, pinned connection
+target.
 
 Optional OpenTelemetry export is a projection from persisted, privacy-filtered
 span plans. OTLP HTTP export requires an explicit HTTPS endpoint and an explicit

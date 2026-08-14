@@ -17,6 +17,7 @@ from agent_assure.examples.langgraph_expense_assurance.runner import (
 from agent_assure.reporting.markdown import render_comparison_markdown
 from agent_assure.reporting.packet import build_evidence_packet, render_evidence_packet_markdown
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
+from agent_assure.schema.packet import PacketArtifactDigest
 from agent_assure.usage.pricing import load_pricing_snapshot, pricing_snapshot_digest
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -104,6 +105,10 @@ def test_langgraph_cheaper_candidate_still_reports_governance_regression() -> No
     packet = build_evidence_packet(
         report.candidate_vs_expectations,
         comparison=report.comparison_summary,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256="e" * 64),
+            PacketArtifactDigest(role="comparison-summary", sha256="f" * 64),
+        ),
     )
     packet_markdown = render_evidence_packet_markdown(packet)
     assert "Baseline total tokens: `20`" in packet_markdown

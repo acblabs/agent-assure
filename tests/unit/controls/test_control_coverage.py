@@ -184,14 +184,8 @@ def test_scope_boundaries_win_over_false_path_not_observed() -> None:
 
 
 def test_all_framework_mappings_load_with_stable_digests() -> None:
-    first = {
-        framework: load_framework_mapping(framework)
-        for framework in ControlFramework
-    }
-    second = {
-        framework: load_framework_mapping(framework)
-        for framework in ControlFramework
-    }
+    first = {framework: load_framework_mapping(framework) for framework in ControlFramework}
+    second = {framework: load_framework_mapping(framework) for framework in ControlFramework}
 
     assert set(first) == set(ControlFramework)
     for framework, loaded in first.items():
@@ -355,13 +349,7 @@ def test_mapping_bytes_reject_shadow_path_without_dev_marker(
     shadow_mapping = shadow_root / "mappings" / "nist_ai_rmf.yaml"
     shadow_mapping.parent.mkdir(parents=True)
     shadow_mapping.write_text("framework: shadow\n", encoding="utf-8")
-    fake_module = (
-        shadow_root
-        / "site-packages"
-        / "agent_assure"
-        / "controls"
-        / "coverage.py"
-    )
+    fake_module = shadow_root / "site-packages" / "agent_assure" / "controls" / "coverage.py"
 
     class MissingPackageRoot:
         def joinpath(self, *_parts: str) -> MissingPackageRoot:
@@ -409,17 +397,13 @@ def _green_packet(*, include_artifact_digest: bool = True) -> EvidencePacket:
         findings=(),
     )
     artifact_digests = (
-        (
-            PacketArtifactDigest(
-                artifact_kind="packet-artifact-digest",
-                role="evaluation-summary",
-                sha256="1" * 64,
-            ),
-        )
-        if include_artifact_digest
-        else ()
+        PacketArtifactDigest(
+            artifact_kind="packet-artifact-digest",
+            role="evaluation-summary",
+            sha256="1" * 64,
+        ),
     )
-    return EvidencePacket(
+    packet = EvidencePacket(
         artifact_kind="evidence-packet",
         packet_id="packet-control-map-green-test",
         interpretation=("Review candidate findings before interpreting mappings.",),
@@ -427,6 +411,7 @@ def _green_packet(*, include_artifact_digest: bool = True) -> EvidencePacket:
         artifact_digests=artifact_digests,
         limitations=("fixture evidence only",),
     )
+    return packet if include_artifact_digest else packet.model_copy(update={"artifact_digests": ()})
 
 
 def _packet_with_control_failure(

@@ -5,7 +5,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any
 
 from agent_assure.canonical.manifest import posix_manifest_path
-from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, load_json_bounded
+from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, load_json_bounded_at
 
 
 class FixturePathError(ValueError):
@@ -42,9 +42,10 @@ class FixtureResolver:
             raise FixturePathError(f"fixture path escapes suite root: {path}") from exc
 
     def read_json(self, relative_path: str | Path) -> dict[str, Any]:
-        resolved = self.resolve(relative_path)
-        return load_json_bounded(
-            resolved,
+        normalized = _normalize_relative_path(relative_path)
+        return load_json_bounded_at(
+            self.resolved_root,
+            normalized,
             max_bytes=MAX_ARTIFACT_JSON_BYTES,
             label=f"fixture JSON {relative_path}",
         )

@@ -71,8 +71,12 @@ def evaluate_evidence_provenance_identity(
     for ref in run.evidence_refs:
         ref_sources.setdefault(ref.ref_id, set()).add(ref.source_id)
     item_sources: dict[str, set[str]] = {}
+    item_content_identities: dict[tuple[str, str], set[str]] = {}
     for item in run.evidence_items:
         item_sources.setdefault(item.ref_id, set()).add(item.source_id)
+        item_content_identities.setdefault((item.ref_id, item.source_id), set()).add(
+            item.content_digest
+        )
 
     findings: list[ControlResult] = []
     for ref_id in sorted(set(ref_sources) | set(item_sources)):
@@ -84,11 +88,13 @@ def evaluate_evidence_provenance_identity(
             and sources_from_items is not None
             and sources_from_refs == sources_from_items
             and len(observed_sources) == 1
-            and _is_meaningful_evidence_identifier(ref_id)
             and all(
-                _is_meaningful_evidence_identifier(source_id)
-                for source_id in observed_sources
+                len(content_digests) == 1
+                for (item_ref_id, _), content_digests in item_content_identities.items()
+                if item_ref_id == ref_id
             )
+            and _is_meaningful_evidence_identifier(ref_id)
+            and all(_is_meaningful_evidence_identifier(source_id) for source_id in observed_sources)
         ):
             continue
         findings.append(
@@ -101,7 +107,7 @@ def evaluate_evidence_provenance_identity(
                 target=evidence_ref_finding_target(ref_id),
                 message=(
                     "evidence reference and content-addressed item records are "
-                    "missing or have inconsistent source identity"
+                    "missing or have inconsistent source/content identity"
                 ),
             )
         )
@@ -128,9 +134,7 @@ def _is_meaningful_evidence_identifier(value: str) -> bool:
     return (
         bool(value)
         and value == value.strip()
-        and not any(
-            unicodedata.category(character).startswith("C") for character in value
-        )
+        and not any(unicodedata.category(character).startswith("C") for character in value)
     )
 
 

@@ -37,6 +37,8 @@ def test_yaml_ambiguous_scalar_preserves_lexeme(tmp_path) -> None:  # type: igno
         """
 suite_id: demo
 suite_version: 0.1.0
+defaults:
+  runner_id: test.runner
 cases:
   - case_id: 00123
     title: Leading zero case
@@ -77,6 +79,8 @@ def test_conflicting_expectation_shortcuts_fail(tmp_path) -> None:  # type: igno
         """
 suite_id: demo
 suite_version: 0.1.0
+defaults:
+  runner_id: test.runner
 cases:
   - case_id: case-001
     title: Conflicting shortcuts
@@ -89,6 +93,127 @@ cases:
     )
     with pytest.raises(ValidationError):
         compile_suite(suite)
+
+
+def test_compiler_requires_explicit_runner_id(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+cases:
+  - case_id: case-001
+    title: Missing runner
+    expectation: {}
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="explicit runner_id"):
+        compile_suite(suite)
+
+
+@pytest.mark.parametrize(
+    "provider_constraint",
+    (
+        "      allowed_providers:\n        - approved-provider",
+        "      forbidden_providers:\n        - forbidden-provider",
+    ),
+)
+def test_compiler_requires_boundary_for_provider_constraints(
+    tmp_path,
+    provider_constraint: str,
+) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        (
+            "suite_id: demo\n"
+            "suite_version: 0.1.0\n"
+            "defaults:\n"
+            "  runner_id: test.runner\n"
+            "cases:\n"
+            "  - case_id: case-001\n"
+            "    title: Missing provider boundary\n"
+            "    expectation:\n"
+            f"{provider_constraint}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match="provider allow/deny lists require"):
+        compile_suite(suite)
+
+
+@pytest.mark.parametrize(
+    ("unknown_line", "match"),
+    (
+        ("suite_typo: rejected", "suite contains unknown keys"),
+        ("case_typo: rejected", "suite case contains unknown keys"),
+    ),
+)
+def test_compiler_rejects_unknown_suite_and_case_keys(
+    tmp_path,
+    unknown_line: str,
+    match: str,
+) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    if unknown_line.startswith("suite_"):
+        top_level_line = unknown_line
+        case_line = ""
+    else:
+        top_level_line = ""
+        case_line = f"    {unknown_line}\n"
+    suite.write_text(
+        (
+            "suite_id: demo\n"
+            "suite_version: 0.1.0\n"
+            f"{top_level_line}\n"
+            "defaults:\n"
+            "  runner_id: test.runner\n"
+            "cases:\n"
+            "  - case_id: case-001\n"
+            "    title: Strict keys\n"
+            f"{case_line}"
+            "    expectation: {}\n"
+        ),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValueError, match=match):
+        compile_suite(suite)
+
+
+def test_compiler_rejects_empty_campaign_and_numeric_identifiers(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    empty = tmp_path / "empty.yaml"
+    empty.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+defaults:
+  runner_id: test.runner
+cases: []
+""".lstrip(),
+        encoding="utf-8",
+    )
+    numeric = tmp_path / "numeric.yaml"
+    numeric.write_text(
+        """
+suite_id: [123]
+suite_version: 0.1.0
+defaults:
+  runner_id: test.runner
+cases:
+  - case_id: case-001
+    title: Strict identifiers
+    expectation: {}
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(ValidationError, match="at least one case"):
+        compile_suite(empty)
+    with pytest.raises(TypeError, match="suite_id must be a string"):
+        compile_suite(numeric)
 
 
 def test_compiled_suite_has_resolved_expectations_only() -> None:
@@ -208,6 +333,7 @@ def test_expectation_defaults_are_resolved_and_digest_recorded(tmp_path) -> None
 suite_id: demo
 suite_version: 0.1.0
 defaults:
+  runner_id: test.runner
   expectation:
     allowed_outcomes:
       - approve
@@ -237,6 +363,7 @@ def test_empty_case_tool_allowlist_is_recorded_as_explicit_override(tmp_path) ->
 suite_id: demo
 suite_version: 0.1.0
 defaults:
+  runner_id: test.runner
   allowed_tools:
     - suite_tool
 cases:

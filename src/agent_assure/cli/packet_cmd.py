@@ -34,9 +34,11 @@ from agent_assure.reporting.environment import (
 )
 from agent_assure.reporting.packet import (
     build_evidence_packet,
-    load_comparison_summary,
-    load_evaluation_summary,
-    packet_artifact_digest,
+    load_comparison_summary_snapshot,
+    load_evaluation_summary_snapshot,
+    packet_artifact_digest_from_snapshot,
+    packet_summary_files_binding_error,
+    release_artifact_from_summary_snapshot,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
@@ -129,8 +131,24 @@ def build(
             (evaluation, out, *optional_sources),
             default_root=source_root,
         )
-        evaluation_summary = load_evaluation_summary(evaluation)
-        comparison_summary = load_comparison_summary(comparison) if comparison else None
+        evaluation_snapshot = load_evaluation_summary_snapshot(
+            evaluation,
+            root=source_root,
+            artifact_root=artifact_root,
+        )
+        comparison_snapshot = (
+            load_comparison_summary_snapshot(
+                comparison,
+                root=source_root,
+                artifact_root=artifact_root,
+            )
+            if comparison is not None
+            else None
+        )
+        evaluation_summary = evaluation_snapshot.summary
+        comparison_summary = (
+            comparison_snapshot.summary if comparison_snapshot is not None else None
+        )
         efficacy_report = None
         efficacy_report_snapshot = None
         efficacy_config_snapshot = None
@@ -177,12 +195,16 @@ def build(
             out.parent,
             artifact_root=artifact_root,
         )
-        digests = [packet_artifact_digest("evaluation-summary", evaluation)]
-        artifacts = [
-            release_artifact(
+        digests = [
+            packet_artifact_digest_from_snapshot(
                 "evaluation-summary",
-                evaluation,
-                project_root=artifact_root,
+                evaluation_snapshot,
+            )
+        ]
+        artifacts = [
+            release_artifact_from_summary_snapshot(
+                "evaluation-summary",
+                evaluation_snapshot,
             ),
             release_artifact(
                 "dependency-inventory",
@@ -190,13 +212,17 @@ def build(
                 project_root=artifact_root,
             ),
         ]
-        if comparison is not None:
-            digests.append(packet_artifact_digest("comparison-summary", comparison))
-            artifacts.append(
-                release_artifact(
+        if comparison_snapshot is not None:
+            digests.append(
+                packet_artifact_digest_from_snapshot(
                     "comparison-summary",
-                    comparison,
-                    project_root=artifact_root,
+                    comparison_snapshot,
+                )
+            )
+            artifacts.append(
+                release_artifact_from_summary_snapshot(
+                    "comparison-summary",
+                    comparison_snapshot,
                 )
             )
         if control_efficacy is not None:
@@ -249,6 +275,12 @@ def build(
             artifact_digests=tuple(digests),
             packet_id=packet_id,
         )
+        summary_file_error = packet_summary_files_binding_error(
+            packet,
+            artifact_root=artifact_root,
+        )
+        if summary_file_error is not None:
+            raise ValueError(summary_file_error)
         write_release_manifest(manifest, manifest_path)
     except (OSError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc

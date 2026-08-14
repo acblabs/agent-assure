@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 from typer.testing import CliRunner
 
+import agent_assure.ci as ci_module
 from agent_assure.artifact_io import file_sha256
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.ci import run_ci
@@ -233,6 +234,49 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     inventory = json.loads((out_dir / "dependency-inventory.json").read_text(encoding="utf-8"))
     assert inventory["artifact_kind"] == "dependency-inventory"
     assert inventory["format"] == "agent-assure-dependency-inventory-v0.1"
+
+
+def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "swap-after-summary-snapshot"
+    original_release_artifact = ci_module.release_artifact
+    swapped = False
+
+    def swap_summary_after_snapshot(
+        role: str,
+        path: Path,
+        *,
+        project_root: Path,
+    ) -> object:
+        nonlocal swapped
+        artifact = original_release_artifact(role, path, project_root=project_root)
+        evaluation_path = out_dir / "evaluation-summary.json"
+        if role == "compiled-suite" and not swapped and evaluation_path.exists():
+            swapped = True
+            replacement = EvaluationSummary(
+                runset_id="post-snapshot-replacement",
+                privacy_profile_id=PRIVACY_PROFILE_ID,
+                privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+                state=GateState.pass_,
+            )
+            _write_json(evaluation_path, replacement.model_dump(mode="json"))
+        return artifact
+
+    monkeypatch.setattr(ci_module, "release_artifact", swap_summary_after_snapshot)
+
+    result = run_ci(
+        baseline_path,
+        suite_path=compiled_path,
+        out_dir=out_dir,
+    )
+
+    assert swapped
+    assert result.decision.exit_code == 2
+    assert result.decision.outcome.value == "invalid"
+    assert "source file digest does not match release manifest" in result.decision.message
 
 
 def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Path) -> None:

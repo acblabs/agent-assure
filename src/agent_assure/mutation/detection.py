@@ -87,37 +87,37 @@ def assess_expected_detection(
         candidate_by_id,
         projection="warning",
     )
-    source_projection_overlap_conflict = _projection_overlap_is_invalid(
+    source_projection_binding_conflict = _projection_bindings_are_invalid(
+        source_report.failed_controls,
+        source_report.warning_controls,
         source_failed_ids,
         source_warning_ids,
         source_by_id,
     )
-    projection_overlap_conflict = _projection_overlap_is_invalid(
+    projection_binding_conflict = _projection_bindings_are_invalid(
+        candidate_report.failed_controls,
+        candidate_report.warning_controls,
         failed_ids,
         warning_ids,
         candidate_by_id,
     )
     observed = tuple(
-        finding
-        for finding in candidate_findings
-        if finding.finding_id not in source_by_id
+        finding for finding in candidate_findings if finding.finding_id not in source_by_id
     )
     if source_conflict or candidate_conflict or cross_report_conflict:
         return DetectionAssessment(
             state="invalid_operator",
             observed_findings=observed,
             matched_finding_ids=(),
-            limitations=(
-                "The evaluator reused a finding ID for conflicting semantic findings.",
-            ),
+            limitations=("The evaluator reused a finding ID for conflicting semantic findings.",),
         )
     if (
         source_failed_projection_conflict
         or source_warning_projection_conflict
-        or source_projection_overlap_conflict
+        or source_projection_binding_conflict
         or failed_projection_conflict
         or warning_projection_conflict
-        or projection_overlap_conflict
+        or projection_binding_conflict
     ):
         return DetectionAssessment(
             state="invalid_operator",
@@ -132,17 +132,13 @@ def assess_expected_detection(
         for finding in observed
         if finding.target == expected_target
         and any(
-            _matches_selector(finding, selector)
-            for selector in contract.required_findings.any_of
+            _matches_selector(finding, selector) for selector in contract.required_findings.any_of
         )
     )
     prohibited = tuple(
         finding
         for finding in observed
-        if any(
-            _matches_selector(finding, selector)
-            for selector in contract.prohibited_substitutes
-        )
+        if any(_matches_selector(finding, selector) for selector in contract.prohibited_substitutes)
     )
     secondary = tuple(
         finding
@@ -254,10 +250,7 @@ def _gate_projection_ids(
     canonical, conflict = _canonical_findings(findings)
     for finding in canonical:
         candidate = candidate_by_id.get(finding.finding_id)
-        if candidate is None or (
-            _finding_identity(candidate) != _finding_identity(finding)
-            or candidate.state is not finding.state
-        ):
+        if candidate is None or _finding_identity(candidate) != _finding_identity(finding):
             conflict = True
         # Projection membership carries the active gate profile's decision. A
         # blocking projection may therefore contain fail, fail-on-warn, or
@@ -273,18 +266,42 @@ def _gate_projection_ids(
     return frozenset(finding.finding_id for finding in canonical), conflict
 
 
-def _projection_overlap_is_invalid(
+def _projection_bindings_are_invalid(
+    failed_findings: tuple[Finding, ...],
+    warning_findings: tuple[Finding, ...],
     failed_ids: frozenset[str],
     warning_ids: frozenset[str],
     candidate_by_id: dict[str, Finding],
 ) -> bool:
     # A warning can also be blocking under a fail-on-warn gate profile. A failed
     # finding cannot simultaneously be the report's nonblocking warning projection.
-    return any(
-        finding_id not in candidate_by_id
-        or candidate_by_id[finding_id].state is not GateState.warn
+    failed_by_id = {finding.finding_id: finding for finding in failed_findings}
+    warning_by_id = {finding.finding_id: finding for finding in warning_findings}
+    if any(
+        failed_by_id[finding_id].state is not GateState.warn
+        or warning_by_id[finding_id].state is not GateState.warn
         for finding_id in failed_ids & warning_ids
-    )
+    ):
+        return True
+
+    # Evaluation summaries carry each finding's effective gate contribution,
+    # while report projections retain the underlying control-result state. Bind
+    # the representations by identity and membership instead of state equality.
+    for finding in candidate_by_id.values():
+        in_failed = finding.finding_id in failed_ids
+        in_warning = finding.finding_id in warning_ids
+        if finding.state is GateState.fail:
+            if not in_failed:
+                return True
+        elif finding.state is GateState.warn:
+            if in_failed or not in_warning:
+                return True
+        elif finding.state is GateState.not_evaluated:
+            if in_failed or in_warning:
+                return True
+        else:
+            return True
+    return False
 
 
 def _finding_identity(finding: Finding) -> tuple[str, str, ReasonCode, str]:

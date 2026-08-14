@@ -488,6 +488,7 @@ def test_runset_rejects_usage_summary_that_conflicts_with_ledger() -> None:
 
     with pytest.raises(ValidationError, match="usage_summary does not match usage_ledger"):
         RunSet(
+            schema_version="0.6.2",
             runset_id="runset-001",
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
@@ -497,7 +498,17 @@ def test_runset_rejects_usage_summary_that_conflicts_with_ledger() -> None:
             fixture_manifest_digest="1" * 64,
             usage_ledger=aggregation.usage_ledger,
             usage_summary=aggregation.usage_summary.model_copy(update={"total_tokens": 999}),
-            runs=(),
+            runs=(
+                AgentRunRecord(
+                    run_id="run-001",
+                    case_id="case-001",
+                    pipeline_id="pipeline-001",
+                    recommendation="approve",
+                    outcome="approved",
+                    input_summary="input",
+                    output_summary="output",
+                ),
+            ),
         )
 
 

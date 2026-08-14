@@ -7,7 +7,7 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import FrozenStrictModel, PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
     GateState,
@@ -91,6 +91,33 @@ class Finding(PersistedArtifact):
         return coerce_enum(ReasonCode, value)
 
 
+def evaluation_summary_coherence_error(
+    *,
+    state: GateState,
+    findings: tuple[Finding, ...],
+) -> str | None:
+    """Return an error when finding verdicts contradict the summary verdict."""
+    finding_states = {finding.state for finding in findings}
+    if GateState.pass_ in finding_states:
+        return "evaluation summaries must not carry pass-state findings"
+    if not finding_states:
+        return None
+    if GateState.fail in finding_states:
+        expected = GateState.fail
+    elif GateState.warn in finding_states:
+        expected = GateState.warn
+    elif GateState.not_evaluated in finding_states:
+        expected = GateState.not_evaluated
+    else:
+        return "evaluation summaries contain unsupported finding states"
+    if state is not expected:
+        return (
+            f"evaluation summary state {state.value!r} contradicts "
+            f"finding-derived state {expected.value!r}"
+        )
+    return None
+
+
 class EvaluationSummary(PersistedArtifact):
     model_config = ConfigDict(
         json_schema_extra=privacy_profile_json_schema_extra(
@@ -125,6 +152,18 @@ class EvaluationSummary(PersistedArtifact):
     @classmethod
     def _coerce_findings(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_state_finding_coherence(self) -> EvaluationSummary:
+        if self.schema_version != SCHEMA_VERSION:
+            return self
+        error = evaluation_summary_coherence_error(
+            state=self.state,
+            findings=self.findings,
+        )
+        if error is not None:
+            raise ValueError(error)
+        return self
 
     @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> EvaluationSummary:

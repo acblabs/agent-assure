@@ -22,7 +22,7 @@ from agent_assure.policies.base import (
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
     DigestHex,
     GateState,
@@ -186,6 +186,10 @@ def evaluate_runset(
     waivers: tuple[Waiver, ...] = (),
     today: date | None = None,
 ) -> EvaluationReport:
+    if suite.schema_version == SCHEMA_VERSION and not suite.cases:
+        raise ValueError("current compiled suites require at least one case for evaluation")
+    if runset.schema_version == SCHEMA_VERSION and not runset.runs:
+        raise ValueError("current run sets require at least one run record for evaluation")
     validate_runset_compatibility(suite, runset)
     resolver = ExpectationResolver(suite)
     artifact_digest = runset_digest(runset)
@@ -210,7 +214,20 @@ def evaluate_runset(
     rollup_results = adjusted_results
     if gate_profile.fail_on_not_evaluated:
         rollup_results = adjusted_results + capability_results
-    findings = tuple(_finding_from_result(result) for result in rollup_results)
+    report_findings = tuple(_finding_from_result(result) for result in rollup_results)
+    summary_findings = tuple(
+        _finding_from_result(
+            result,
+            state=(
+                GateState.fail
+                if gate_profile.is_blocking(result)
+                else GateState.warn
+                if result.state is GateState.fail
+                else result.state
+            ),
+        )
+        for result in rollup_results
+    )
     state = rollup_state(rollup_results, gate_profile)
     usage_summary = usage_summary_for_runset(runset)
     summary = EvaluationSummary(
@@ -219,17 +236,17 @@ def evaluate_runset(
         privacy_profile_id=runset.privacy_profile_id or PRIVACY_PROFILE_ID,
         privacy_profile_digest=runset.privacy_profile_digest or PRIVACY_PROFILE_DIGEST,
         state=state,
-        findings=findings,
+        findings=summary_findings,
         usage_summary=usage_summary,
     )
     failed_controls = tuple(
         finding
-        for result, finding in zip(rollup_results, findings, strict=True)
+        for result, finding in zip(rollup_results, report_findings, strict=True)
         if gate_profile.is_blocking(result)
     )
     warning_controls = tuple(
         finding
-        for result, finding in zip(rollup_results, findings, strict=True)
+        for result, finding in zip(rollup_results, report_findings, strict=True)
         if _is_warning_control(result, gate_profile)
     )
     return EvaluationReport(
@@ -286,14 +303,18 @@ def validate_runset_compatibility(suite: CompiledSuite, runset: RunSet) -> None:
     _verify_run_fixture_binding(runset)
 
 
-def _finding_from_result(result: ControlResult) -> Finding:
+def _finding_from_result(
+    result: ControlResult,
+    *,
+    state: GateState | None = None,
+) -> Finding:
     return Finding(
         artifact_kind="finding",
         finding_id=result.finding_id,
         case_id=result.case_id,
         control_id=result.control_id,
         target=result.target,
-        state=result.state,
+        state=result.state if state is None else state,
         reason_code=result.reason_code,
         message=result.message,
     )

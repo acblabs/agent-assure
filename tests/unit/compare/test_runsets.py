@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -11,8 +12,8 @@ from agent_assure.ci import gate_comparison_summary
 from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
 from agent_assure.compare.provenance_diff import PROVENANCE_FIELDS
 from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
-from agent_assure.evaluation.evaluator import evaluate_runset
-from agent_assure.policies.base import GateProfile
+from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
+from agent_assure.policies.base import GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.base import SCHEMA_VERSION
@@ -48,6 +49,54 @@ def test_compare_classifies_new_candidate_failure() -> None:
     assert any(
         change.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
         for change in report.control_changes
+    )
+
+
+def test_candidate_waiver_does_not_rewrite_raw_comparison_history() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    candidate = _runset(compiled, EVIDENCE_CANDIDATE)
+    raw_report = evaluate_runset(compiled, candidate)
+    finding = raw_report.candidate_vs_expectations.findings[0]
+    today = date(2026, 8, 13)
+    waiver = Waiver(
+        waiver_id="candidate-only-waiver",
+        owner="comparison-security-owner",
+        rationale="temporarily accept the candidate finding without rewriting history",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(candidate),
+        expires_on=today + timedelta(days=1),
+        reviewer="comparison-security-reviewer",
+    )
+
+    report = compare_runsets(
+        compiled,
+        baseline,
+        candidate,
+        waivers=(waiver,),
+        today=today,
+    )
+
+    assert report.candidate_vs_expectations.state is GateState.warn
+    assert report.comparison_summary.candidate_state is GateState.warn
+    assert report.comparison_summary.classification is ComparisonClassification.new_failure
+    assert any(
+        change.classification is ComparisonClassification.new_failure
+        and change.finding_id == finding.finding_id
+        for change in report.control_changes
+    )
+    assert any(
+        "subject=candidate waiver_id=candidate-only-waiver status=matched" in item
+        for item in report.comparison_summary.verdict_findings
+    )
+    assert any(
+        "subject=baseline waiver_id=candidate-only-waiver status=unmatched_artifact" in item
+        for item in report.comparison_summary.verdict_findings
+    )
+    assert any(
+        "matched waivers make the affected evaluation findings nonblocking" in explanation
+        for explanation in report.verdict_explanations
     )
 
 
@@ -90,10 +139,7 @@ def test_compare_diffs_nonblocking_fail_state_findings() -> None:
     )
 
     assert report.candidate_vs_expectations.state is GateState.warn
-    assert (
-        report.comparison_summary.classification
-        is ComparisonClassification.new_failure
-    )
+    assert report.comparison_summary.classification is ComparisonClassification.new_failure
     assert any(
         change.control_id == "policy_result:nonblocking-regression"
         for change in report.control_changes
@@ -116,8 +162,7 @@ def test_provenance_only_changes_do_not_create_verdict_findings() -> None:
     report = compare_runsets(compiled, baseline, candidate)
 
     assert (
-        report.comparison_summary.classification
-        is ComparisonClassification.provenance_only_change
+        report.comparison_summary.classification is ComparisonClassification.provenance_only_change
     )
     assert report.comparison_summary.candidate_state is GateState.pass_
     assert report.comparison_summary.verdict_findings == ()
@@ -136,18 +181,13 @@ def test_identical_runsets_are_classified_as_unchanged() -> None:
     assert report.provenance_changes == ()
     assert report.comparison_summary.privacy_profile_id == PRIVACY_PROFILE_ID
     assert report.comparison_summary.privacy_profile_digest == PRIVACY_PROFILE_DIGEST
-    assert (
-        report.candidate_vs_expectations.privacy_profile_digest
-        == PRIVACY_PROFILE_DIGEST
-    )
+    assert report.candidate_vs_expectations.privacy_profile_digest == PRIVACY_PROFILE_DIGEST
 
 
 def test_compare_rejects_mismatched_privacy_detector_profiles() -> None:
     compiled = compile_suite(SUITE)
     baseline = _runset(compiled, BASELINE)
-    candidate = _runset(compiled, BASELINE).model_copy(
-        update={"privacy_profile_digest": "f" * 64}
-    )
+    candidate = _runset(compiled, BASELINE).model_copy(update={"privacy_profile_digest": "f" * 64})
 
     with pytest.raises(InvalidComparisonError, match="privacy detector profile"):
         compare_runsets(compiled, baseline, candidate)
@@ -214,8 +254,7 @@ def test_behavior_and_provenance_changes_keep_both_signals_in_classification() -
     assert report.behavioral_changes
     assert report.provenance_changes
     assert any(
-        "provenance changes are reported separately" in item
-        for item in report.verdict_explanations
+        "provenance changes are reported separately" in item for item in report.verdict_explanations
     )
 
 
@@ -301,9 +340,7 @@ def _validated_legacy_runset(compiled: CompiledSuite) -> RunSet:
     payload = _legacy_v043_value(current_payload)
     assert isinstance(payload, dict)
     schema = json.loads(
-        (ROOT / "schemas" / "v0.4.3" / "run-set.schema.json").read_text(
-            encoding="utf-8"
-        )
+        (ROOT / "schemas" / "v0.4.3" / "run-set.schema.json").read_text(encoding="utf-8")
     )
     Draft202012Validator(schema).validate(payload)
     return RunSet.model_validate(payload)
@@ -312,9 +349,7 @@ def _validated_legacy_runset(compiled: CompiledSuite) -> RunSet:
 def _legacy_v043_value(value: object) -> object:
     if isinstance(value, dict):
         return {
-            str(key): (
-                "0.4.3" if key == "schema_version" else _legacy_v043_value(nested)
-            )
+            str(key): ("0.4.3" if key == "schema_version" else _legacy_v043_value(nested))
             for key, nested in value.items()
             if key not in {"privacy_profile_id", "privacy_profile_digest"}
         }

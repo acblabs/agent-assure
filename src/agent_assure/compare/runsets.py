@@ -40,7 +40,11 @@ from agent_assure.schema.common import (
 )
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
-from agent_assure.schema.evaluation import EvaluationSummary, Finding
+from agent_assure.schema.evaluation import (
+    EvaluationSummary,
+    Finding,
+    WaiverDispositionStatus,
+)
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.usage import (
@@ -87,9 +91,7 @@ class FixtureEquivalenceReport(StrictModel):
 
 class ComparisonReport(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=usage_container_json_schema_extra(
-            *_COMPARISON_REPORT_USAGE_FIELD_PATHS
-        )
+        json_schema_extra=usage_container_json_schema_extra(*_COMPARISON_REPORT_USAGE_FIELD_PATHS)
     )
 
     artifact_kind: Literal["comparison-report"] = "comparison-report"
@@ -180,7 +182,23 @@ def compare_runsets(
         waivers=waivers,
         today=today,
     )
-    control_changes = diff_control_findings(baseline_report, candidate_report)
+    if waivers:
+        raw_candidate_report = evaluate_runset(
+            suite,
+            candidate,
+            gate_profile=gate_profile,
+            today=today,
+        )
+        raw_baseline_report = evaluate_runset(
+            suite,
+            baseline,
+            gate_profile=gate_profile,
+            today=today,
+        )
+    else:
+        raw_candidate_report = candidate_report
+        raw_baseline_report = baseline_report
+    control_changes = diff_control_findings(raw_baseline_report, raw_candidate_report)
     behavioral_changes = diff_behavior(baseline, candidate)
     provenance_changes = diff_provenance(baseline, candidate)
     baseline_usage = usage_summary_for_runset(baseline)
@@ -194,8 +212,8 @@ def compare_runsets(
         control_changes=control_changes,
         behavioral_changes=behavioral_changes,
         provenance_changes=provenance_changes,
-        baseline_state=baseline_report.candidate_vs_expectations.state,
-        candidate_state=candidate_report.candidate_vs_expectations.state,
+        baseline_state=raw_baseline_report.candidate_vs_expectations.state,
+        candidate_state=raw_candidate_report.candidate_vs_expectations.state,
     )
     summary = ComparisonSummary(
         artifact_kind="comparison-summary",
@@ -210,7 +228,11 @@ def compare_runsets(
         provenance_changes=tuple(
             summarize_provenance_change(change) for change in provenance_changes
         ),
-        verdict_findings=tuple(summarize_control_change(change) for change in control_changes),
+        verdict_findings=(
+            tuple(summarize_control_change(change) for change in control_changes)
+            + _waiver_disposition_lines("baseline", baseline_report)
+            + _waiver_disposition_lines("candidate", candidate_report)
+        ),
         baseline_usage_summary=baseline_usage,
         candidate_usage_summary=candidate_usage,
         usage_delta=usage_delta,
@@ -323,8 +345,7 @@ def _verify_suite_identity(suite: CompiledSuite, baseline: RunSet, candidate: Ru
             runset.privacy_profile_digest,
         ) != (PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST):
             raise InvalidComparisonError(
-                f"{role} run set privacy detector profile is incompatible with the "
-                "runtime profile"
+                f"{role} run set privacy detector profile is incompatible with the runtime profile"
             )
     if baseline.suite_id != candidate.suite_id:
         raise InvalidComparisonError(
@@ -458,27 +479,48 @@ def _verdict_explanations(
     candidate_summary = candidate_report.candidate_vs_expectations
     if candidate_summary.state is GateState.fail:
         lines.extend(
-            f"{finding.case_id} {finding.control_id} {finding.reason_code.value}: "
-            f"{finding.message}"
+            f"{finding.case_id} {finding.control_id} {finding.reason_code.value}: {finding.message}"
             for finding in candidate_report.failed_controls
+        )
+    elif any(
+        disposition.status is WaiverDispositionStatus.matched
+        for disposition in candidate_report.waiver_dispositions
+    ) and classification in {
+        ComparisonClassification.new_failure,
+        ComparisonClassification.persistent_failure,
+    }:
+        lines.append(
+            "The candidate retains raw fail-state comparison findings; matched "
+            "waivers make the affected evaluation findings nonblocking without "
+            "rewriting comparison history."
         )
     else:
         lines.append(
             "The candidate has no blocking deterministic finding under the selected gate profile."
         )
     if classification is ComparisonClassification.provenance_only_change:
-        lines.append(
-            "Only provenance fields changed; provenance changes are reported separately."
-        )
-    elif (
-        classification
-        is ComparisonClassification.allowed_behavioral_and_provenance_change
-    ):
+        lines.append("Only provenance fields changed; provenance changes are reported separately.")
+    elif classification is ComparisonClassification.allowed_behavioral_and_provenance_change:
         lines.append(
             "Behavioral record changes and provenance changes are both present; "
             "provenance changes are reported separately."
         )
     return tuple(lines)
+
+
+def _waiver_disposition_lines(
+    subject: Literal["baseline", "candidate"],
+    report: EvaluationReport,
+) -> tuple[str, ...]:
+    return tuple(
+        "waiver_disposition "
+        f"subject={subject} waiver_id={disposition.waiver_id} "
+        f"status={disposition.status.value} "
+        f"reason_code={disposition.reason_code.value} "
+        f"finding_id={disposition.finding_id} "
+        f"expires_on={disposition.expires_on.isoformat()}"
+        for disposition in report.waiver_dispositions
+    )
 
 
 def _limitations() -> tuple[str, ...]:
@@ -487,4 +529,6 @@ def _limitations() -> tuple[str, ...]:
         "model-quality or stochastic-provider measurements",
         "provenance differences are reported for review and do not create regression "
         "verdicts by themselves",
+        "waivers affect evaluation state but comparison classification is derived from "
+        "the unwaived baseline and candidate findings",
     )

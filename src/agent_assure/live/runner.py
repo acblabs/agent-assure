@@ -10,7 +10,7 @@ from pathlib import Path
 from uuid import uuid5
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.io_limits import MAX_PROMPT_BYTES, read_text_bounded
+from agent_assure.io_limits import MAX_PROMPT_BYTES, read_text_bounded_at
 from agent_assure.live.adapters import (
     LiveProviderAdapter,
     LiveProviderRequest,
@@ -122,8 +122,7 @@ def run_live_suite(
         for prompt_case in config.cases
     }
     prompt_digests = {
-        case_id: sha256_hexdigest({"prompt": prompt})
-        for case_id, prompt in prompts.items()
+        case_id: sha256_hexdigest({"prompt": prompt}) for case_id, prompt in prompts.items()
     }
     schedule = _schedule(config)
     request_budget = _LiveRequestBudget(config.max_requests)
@@ -295,9 +294,7 @@ def run_live_suite(
         )
         token_reservation = _token_reservation(prompt, config)
         generated_token_reservation = (
-            (config.adapter.max_output_tokens or 0)
-            if config.adapter.allow_network
-            else 0
+            (config.adapter.max_output_tokens or 0) if config.adapter.allow_network else 0
         )
         total_token_reservation = (
             _prompt_token_upper_bound(prompt) + generated_token_reservation
@@ -318,18 +315,14 @@ def run_live_suite(
             nonlocal observation_committed_generated_tokens
             nonlocal observation_committed_total_tokens
             nonlocal token_window_started, tokens_window_reserved
-            if (
-                cost_budget is not None
-                and committed_cost + attempt_cost_reservation > cost_budget
-            ):
+            if cost_budget is not None and committed_cost + attempt_cost_reservation > cost_budget:
                 raise LiveBudgetExceededError(
                     "cost_budget_exhausted_before_attempt",
                     "configured live cost budget cannot reserve another adapter attempt",
                 )
             if (
                 config.max_generated_tokens is not None
-                and committed_generated_tokens + generated_reservation
-                > config.max_generated_tokens
+                and committed_generated_tokens + generated_reservation > config.max_generated_tokens
             ):
                 raise LiveBudgetExceededError(
                     "generated_token_budget_exhausted_before_attempt",
@@ -337,8 +330,7 @@ def run_live_suite(
                 )
             if (
                 config.max_total_tokens is not None
-                and committed_total_tokens + total_reservation
-                > config.max_total_tokens
+                and committed_total_tokens + total_reservation > config.max_total_tokens
             ):
                 raise LiveBudgetExceededError(
                     "token_budget_exhausted_before_attempt",
@@ -381,8 +373,7 @@ def run_live_suite(
             response_total_tokens = _response_total_tokens(response)
             response_cost = Decimal(response.estimated_cost_usd)
             if not (
-                config.adapter.allow_network
-                and response.estimated_cost_source == "not_reported"
+                config.adapter.allow_network and response.estimated_cost_source == "not_reported"
             ):
                 committed_cost += response_cost - attempt_cost_reservation
                 observation_committed_cost += response_cost - attempt_cost_reservation
@@ -398,13 +389,9 @@ def run_live_suite(
                 observation_committed_total_tokens += (
                     response_total_tokens - total_token_reservation
                 )
-            if (
-                observation_committed_total_tokens
-                < observation_committed_generated_tokens
-            ):
+            if observation_committed_total_tokens < observation_committed_generated_tokens:
                 commitment_gap = (
-                    observation_committed_generated_tokens
-                    - observation_committed_total_tokens
+                    observation_committed_generated_tokens - observation_committed_total_tokens
                 )
                 committed_total_tokens += commitment_gap
                 observation_committed_total_tokens += commitment_gap
@@ -442,9 +429,7 @@ def run_live_suite(
                 response,
                 prompt_digest=prompt_digest,
                 cost_budget_committed_usd=observation_committed_cost,
-                generated_token_budget_committed=(
-                    observation_committed_generated_tokens
-                ),
+                generated_token_budget_committed=(observation_committed_generated_tokens),
                 total_token_budget_committed=observation_committed_total_tokens,
                 cluster_by=protocol.cluster_by,
                 attempt_count=attempt_state.attempt_count,
@@ -513,9 +498,7 @@ def run_live_suite(
                 trace_context=trace_context,
                 response=response,
                 cost_budget_committed_usd=observation_committed_cost,
-                generated_token_budget_committed=(
-                    observation_committed_generated_tokens
-                ),
+                generated_token_budget_committed=(observation_committed_generated_tokens),
                 total_token_budget_committed=observation_committed_total_tokens,
                 reason_code=reason_code,
                 exc=exc,
@@ -858,13 +841,10 @@ def _validate_protocol_config(
             "network live execution requires adapter max_output_tokens so the "
             "per-attempt cost ceiling is bounded"
         )
-    if (
-        config.adapter.allow_network
-        and Decimal(config.max_cost_per_observation_usd) <= Decimal("0")
+    if config.adapter.allow_network and Decimal(config.max_cost_per_observation_usd) <= Decimal(
+        "0"
     ):
-        raise ValueError(
-            "network live execution requires a positive max_cost_per_observation_usd"
-        )
+        raise ValueError("network live execution requires a positive max_cost_per_observation_usd")
     if (
         protocol.max_generated_tokens is not None
         and config.adapter.max_output_tokens is not None
@@ -1017,10 +997,7 @@ def _prompt_token_upper_bound(prompt: str) -> int:
 
 
 def _verify_response_budgets(response: LiveProviderResponse, config: LiveRunConfig) -> None:
-    if (
-        config.adapter.allow_network
-        and response.estimated_cost_source == "not_reported"
-    ):
+    if config.adapter.allow_network and response.estimated_cost_source == "not_reported":
         raise LiveBudgetExceededError(
             "cost_accounting_unavailable",
             "provider response omitted usage required to enforce cost ceilings",
@@ -1082,8 +1059,13 @@ def _is_retryable_error(exc: Exception) -> bool:
 
 
 def _read_prompt(config_dir: Path, prompt_path: str) -> str:
-    path = resolve_live_config_path(config_dir, prompt_path, field_name="prompt_path")
-    text = read_text_bounded(path, max_bytes=MAX_PROMPT_BYTES, label="live prompt")
+    resolve_live_config_path(config_dir, prompt_path, field_name="prompt_path")
+    text = read_text_bounded_at(
+        config_dir,
+        prompt_path,
+        max_bytes=MAX_PROMPT_BYTES,
+        label="live prompt",
+    )
     if not text.strip():
         raise ValueError(f"prompt file is empty: {prompt_path}")
     return text

@@ -87,6 +87,7 @@ def run_prior_auth_app(
         fail_recommendation="escalate",
         fail_outcome="escalate",
     )
+    provider = provider_application.effective_provider
     recommendation = provider_application.recommendation
     outcome = provider_application.outcome
     human_review_required = provider_application.human_review_required

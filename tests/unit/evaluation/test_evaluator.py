@@ -8,6 +8,7 @@ import pytest
 from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.ci import gate_evaluation_summary
 from agent_assure.evaluation.evaluator import (
     EvaluationReport,
     evaluate_runset,
@@ -20,9 +21,16 @@ from agent_assure.policies.evidence import (
     claim_finding_target,
     evaluate_material_claim_evidence,
 )
+from agent_assure.policies.providers import evaluate_provider_boundary
 from agent_assure.reporting.markdown import render_evaluation_markdown
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
-from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
+from agent_assure.schema.common import (
+    BLOCKED_PROVIDER_SELECTION,
+    ExecutionMode,
+    GateState,
+    ReasonCode,
+    Severity,
+)
 from agent_assure.schema.evaluation import (
     EvaluationSummary,
     WaiverDispositionStatus,
@@ -63,6 +71,18 @@ def test_baseline_evaluation_passes_with_not_evaluated_capabilities_separate() -
         capability.state is GateState.not_evaluated
         for capability in report.not_evaluated_capabilities
     )
+
+
+def test_evaluator_rejects_unchecked_empty_current_artifacts() -> None:
+    compiled, runset = _runset(BASELINE)
+
+    empty_suite = compiled.model_copy(update={"cases": (), "resolved_expectations": ()})
+    with pytest.raises(ValueError, match="at least one case"):
+        evaluate_runset(empty_suite, runset)
+
+    empty_runset = runset.model_copy(update={"runs": ()})
+    with pytest.raises(ValueError, match="at least one run record"):
+        evaluate_runset(compiled, empty_runset)
 
 
 def test_v06_evaluation_report_binds_exact_runset_content() -> None:
@@ -400,6 +420,128 @@ def test_fixture_policy_result_pure_remediation_signal_is_suppressed(
     )
 
 
+def test_untagged_explicit_provider_constraint_remediation_is_suppressed() -> None:
+    compiled, runset = _runset(BASELINE)
+    target_case_id = "forbidden-provider"
+    target_case = next(case for case in compiled.cases if case.case_id == target_case_id)
+    target_expectation = next(
+        expectation
+        for expectation in compiled.resolved_expectations
+        if expectation.case_id == target_case_id
+    )
+    target_run = next(run for run in runset.runs if run.case_id == target_case_id)
+    remediation_result = next(
+        result for result in target_run.policy_results if result.policy_id == "provider-selection"
+    )
+    assert "provider-policy" in target_case.tags
+    assert target_expectation.allowed_providers or target_expectation.forbidden_providers
+    assert target_run.provider == BLOCKED_PROVIDER_SELECTION
+    assert remediation_result.state is GateState.fail
+    assert remediation_result.reason_codes == (ReasonCode.FORBIDDEN_PROVIDER,)
+
+    untagged_case = target_case.model_copy(
+        update={"tags": tuple(tag for tag in target_case.tags if tag != "provider-policy")}
+    )
+    untagged_suite = compiled.model_copy(
+        update={
+            "cases": tuple(
+                untagged_case if case.case_id == target_case_id else case for case in compiled.cases
+            )
+        }
+    )
+    bound_runset = runset.model_copy(update={"suite_digest": compiled_suite_digest(untagged_suite)})
+
+    report = evaluate_runset(untagged_suite, bound_runset)
+
+    assert not any(
+        finding.case_id == target_case_id
+        and finding.control_id in {"provider_review_boundary", "required_policy:provider-selection"}
+        for finding in report.candidate_vs_expectations.findings
+    )
+
+
+def test_untagged_fixture_provider_failure_is_not_suppressed() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    case = next(case for case in compiled.cases if case.case_id == first_run.case_id)
+    expectation = next(
+        expectation
+        for expectation in compiled.resolved_expectations
+        if expectation.case_id == first_run.case_id
+    )
+    assert "provider-policy" not in case.tags
+    assert not expectation.allowed_providers
+    assert not expectation.forbidden_providers
+    failure = PolicyResult(
+        artifact_kind="policy-result",
+        policy_id="provider-selection",
+        state=GateState.fail,
+        reason_codes=(ReasonCode.FORBIDDEN_PROVIDER,),
+        severity=Severity.error,
+        message="imported provider-policy failure",
+    )
+    mutated = runset.model_copy(
+        update={
+            "runs": (
+                first_run.model_copy(
+                    update={
+                        "provider": BLOCKED_PROVIDER_SELECTION,
+                        "policy_results": (failure,),
+                    }
+                ),
+                *runset.runs[1:],
+            )
+        }
+    )
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    assert any(
+        finding.case_id == first_run.case_id
+        and finding.control_id == "required_policy:provider-selection"
+        and finding.reason_code is ReasonCode.FORBIDDEN_PROVIDER
+        for finding in report.candidate_vs_expectations.findings
+    )
+
+
+def test_tagged_fixture_remediation_cannot_mask_forbidden_provider_use() -> None:
+    compiled, runset = _runset(BASELINE)
+    target = next(run for run in runset.runs if run.case_id == "forbidden-provider")
+    expectation = next(
+        item for item in compiled.resolved_expectations if item.case_id == target.case_id
+    )
+    forbidden_provider = expectation.forbidden_providers[0]
+    forged = target.model_copy(
+        update={
+            "provider": forbidden_provider,
+            "human_review_required": True,
+            "human_review_performed": True,
+        }
+    )
+    mutated = runset.model_copy(
+        update={
+            "runs": tuple(forged if run.case_id == target.case_id else run for run in runset.runs)
+        }
+    )
+
+    report = evaluate_runset(compiled, mutated)
+
+    findings = report.candidate_vs_expectations.findings
+    assert any(
+        finding.case_id == target.case_id
+        and finding.control_id == "provider_review_boundary"
+        and finding.reason_code is ReasonCode.FORBIDDEN_PROVIDER
+        for finding in findings
+    )
+    assert any(
+        finding.case_id == target.case_id
+        and finding.control_id == "required_policy:provider-selection"
+        and finding.reason_code is ReasonCode.FORBIDDEN_PROVIDER
+        for finding in findings
+    )
+
+
 @pytest.mark.parametrize(
     ("policy_id", "expected_control_id"),
     (
@@ -439,6 +581,40 @@ def test_fixture_policy_result_mixed_remediation_and_independent_failure_is_repo
     assert finding.case_id == first_run.case_id
     assert finding.state is GateState.fail
     assert report.candidate_vs_expectations.state is GateState.fail
+
+
+@pytest.mark.parametrize("constraint", ("forbidden", "not_allowed"))
+def test_provider_constraints_deny_without_a_review_requirement(constraint: str) -> None:
+    compiled, runset = _runset(BASELINE)
+    case = compiled.cases[0]
+    run = runset.runs[0]
+    expectation = next(
+        item
+        for item in compiled.resolved_expectations
+        if item.expectation_id == case.expectation_id
+    )
+    assert run.provider is not None
+    update = (
+        {"forbidden_providers": (run.provider,), "allowed_providers": ()}
+        if constraint == "forbidden"
+        else {"forbidden_providers": (), "allowed_providers": ("different-provider",)}
+    )
+
+    findings = evaluate_provider_boundary(
+        run,
+        case,
+        expectation.model_copy(
+            update={
+                **update,
+                "required_human_review": False,
+                "forbidden_outcomes": (),
+            }
+        ),
+    )
+
+    assert len(findings) == 1
+    assert findings[0].reason_code is ReasonCode.FORBIDDEN_PROVIDER
+    assert findings[0].state is GateState.fail
 
 
 def test_required_policy_id_must_be_observed() -> None:
@@ -516,6 +692,42 @@ def test_required_policy_id_failure_is_verdict_bearing_in_fixture_mode() -> None
     )
     assert report.metrics.findings_by_control["required_policy:provider-selection"] == 1
     assert "policy_result:provider-selection" not in report.metrics.findings_by_control
+
+
+def test_required_policy_not_evaluated_fails_under_the_default_ci_gate() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    policy_results = tuple(
+        result.model_copy(
+            update={
+                "state": GateState.not_evaluated,
+                "reason_codes": (),
+                "severity": Severity.info,
+            }
+        )
+        if result.policy_id == "provider-selection"
+        else result
+        for result in first_run.policy_results
+    )
+    mutated = runset.model_copy(
+        update={
+            "runs": (
+                first_run.model_copy(update={"policy_results": policy_results}),
+                *runset.runs[1:],
+            )
+        }
+    )
+
+    report = evaluate_runset(compiled, mutated)
+
+    assert report.candidate_vs_expectations.state is GateState.fail
+    finding = next(
+        item
+        for item in report.candidate_vs_expectations.findings
+        if item.control_id == "required_policy_evaluated"
+    )
+    assert finding.reason_code is ReasonCode.POLICY_FAILED
+    assert gate_evaluation_summary(report.candidate_vs_expectations).exit_code == 1
 
 
 def test_missing_record_counts_as_unevaluated_case_and_blocking_finding() -> None:

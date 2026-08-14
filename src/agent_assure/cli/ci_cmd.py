@@ -21,6 +21,8 @@ from agent_assure.ci import (
 from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE
+from agent_assure.reporting.environment import source_project_root
+from agent_assure.schema.packet import EvidencePacket
 
 
 def ci(
@@ -39,6 +41,20 @@ def ci(
     out_dir: Annotated[
         Path | None,
         typer.Option("--out-dir", help="CI artifact output directory."),
+    ] = None,
+    artifact_root: Annotated[
+        Path | None,
+        typer.Option(
+            "--artifact-root",
+            exists=True,
+            file_okay=False,
+            dir_okay=True,
+            readable=True,
+            help=(
+                "Trusted root for evidence-packet release-manifest paths; "
+                "defaults to a root inferred from the packet location."
+            ),
+        ),
     ] = None,
     report_mode: Annotated[
         ReportMode,
@@ -114,8 +130,11 @@ def ci(
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
             output_format=output_format,
+            artifact_root=artifact_root,
         )
         return
+    if artifact_root is not None:
+        raise typer.BadParameter("--artifact-root is only valid with ci gate")
     if efficacy_policy is not None:
         raise typer.BadParameter("--efficacy-policy is only valid with ci gate")
     if require_efficacy:
@@ -223,6 +242,7 @@ def _gate_existing_artifact(
     strict_efficacy: bool,
     require_efficacy: bool,
     output_format: str,
+    artifact_root: Path | None,
 ) -> None:
     if len(argv) != 2:
         raise typer.BadParameter("ci gate requires SUMMARY_OR_PACKET_JSON")
@@ -243,8 +263,19 @@ def _gate_existing_artifact(
             else None
         )
         loaded_artifact = load_gate_artifact(artifact)
+        trusted_artifact_root = None
+        if isinstance(loaded_artifact, EvidencePacket):
+            if loaded_artifact.release_manifest is not None:
+                trusted_artifact_root = (
+                    artifact_root or source_project_root((artifact,), default_root=Path.cwd())
+                ).resolve()
+            elif artifact_root is not None:
+                trusted_artifact_root = artifact_root.resolve()
+        elif artifact_root is not None:
+            raise ValueError("--artifact-root is only valid when gating an evidence packet")
         decision = gate_artifact(
             loaded_artifact,
+            artifact_root=trusted_artifact_root,
             fail_on_warn=fail_on_warn,
             fail_on_not_evaluated=fail_on_not_evaluated,
             verifier_efficacy_policy=verifier_policy,

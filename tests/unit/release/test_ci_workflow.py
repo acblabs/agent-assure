@@ -18,6 +18,25 @@ def test_release_validating_ci_job_fetches_full_history() -> None:
     assert "make release-check" in test_job
 
 
+def test_windows_containment_ci_covers_native_boundaries_without_full_release_matrix() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    job = workflow.split("  windows-containment:\n", maxsplit=1)[1].split(
+        "  schema-immutability:\n", maxsplit=1
+    )[0]
+
+    assert "runs-on: windows-latest" in job
+    assert 'python-version: ["3.11", "3.14"]' in job
+    assert "tests/unit/runner" in job
+    assert "tests/unit/test_rooted_io.py" in job
+    assert job.count("python -m pytest") == 2
+    assert job.count("--fail-on-skip") == 1
+    assert "test_rooted_read_rejects_linked_parent_escape" in job
+    assert "test_rooted_directory_lease_blocks_lexical_rename_until_close" in job
+    assert "test_external_script_timeout_terminates_descendant_process_tree" in job
+    assert "test_windows_external_script_success_kills_descendant_when_job_closes" in job
+    assert "make release-check" not in job
+
+
 def test_evidence_build_and_reproduction_jobs_fetch_full_history() -> None:
     workflow = (ROOT / ".github" / "workflows" / "evidence.yml").read_text(
         encoding="utf-8"

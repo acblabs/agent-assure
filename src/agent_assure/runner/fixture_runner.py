@@ -26,7 +26,7 @@ from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_CONFIG_TEXT_BYTES,
     loads_json_bounded,
-    read_bytes_bounded,
+    read_bytes_bounded_at,
     read_text_bounded,
 )
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
@@ -162,8 +162,9 @@ class RunnerContext:
         expected = self.fixture_entries_by_path.get(manifest_path)
         if expected is None:
             raise ValueError(f"fixture is absent from approved manifest: {manifest_path}")
-        data = read_bytes_bounded(
-            path,
+        data = read_bytes_bounded_at(
+            self.resolver.resolved_root,
+            manifest_path,
             max_bytes=MAX_ARTIFACT_JSON_BYTES,
             label=f"fixture {manifest_path}",
         )

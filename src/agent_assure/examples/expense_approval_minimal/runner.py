@@ -48,7 +48,7 @@ def run_expense_case(
         recommendation=recommendation,
         outcome=outcome,
         input_summary=_input_summary(case, fixtures, context),
-        provider=provider,
+        provider=provider_application.effective_provider,
         model=model,
         tools=tuple(sorted(string_sequence(fixtures.tool_output.get("tools", ())))),
         evidence=evidence_from_tool_output(fixtures.tool_output),

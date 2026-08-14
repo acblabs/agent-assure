@@ -116,6 +116,17 @@ def _run_record_from_events(
     stream_run: StreamRunRecord,
 ) -> AgentRunRecord:
     projection = _project_run(run_id, events)
+    completion_events = tuple(event for event in events if event.event_type == "run_completed")
+    if len(completion_events) != 1:
+        raise ValueError(f"stream run {run_id!r} must contain exactly one run_completed event")
+    if events[-1] is not completion_events[0]:
+        raise ValueError(f"stream run {run_id!r} contains events after run_completed")
+    terminal_attrs = _attributes(completion_events[0])
+    if "recommendation" not in terminal_attrs or "outcome" not in terminal_attrs:
+        raise ValueError(
+            f"stream run {run_id!r} run_completed must carry final recommendation "
+            "and outcome privacy_filtered_attributes"
+        )
     case_id = projection.case_id
     if case_id is None:
         raise ValueError(f"stream run {run_id!r} has no case_id")
@@ -190,8 +201,7 @@ def _run_record_from_events(
         evidence_refs=evidence_refs,
         evidence_items=evidence_items,
         claims=tuple(
-            ClaimRecord(artifact_kind="claim-record", claim_id=claim_id)
-            for claim_id in claim_ids
+            ClaimRecord(artifact_kind="claim-record", claim_id=claim_id) for claim_id in claim_ids
         ),
         claim_evidence_links=links,
         human_review_required=projection.human_review_required,
@@ -346,8 +356,6 @@ def _update_review(
             projection.human_review_performed = False
             return
         projection.human_review_required = True
-        if route.lower() in {"human_review", "manager_review", "clinical_review"}:
-            projection.human_review_performed = True
     required = _bool_label(attrs.get("human_review_required"))
     if required is not None:
         projection.human_review_required = required
@@ -390,7 +398,7 @@ def _bool_label(value: str | None) -> bool | None:
         return True
     if lowered in _FALSEY:
         return False
-    return None
+    raise ValueError(f"invalid boolean label {value!r}")
 
 
 def _usage_segment_for_event(event: StreamEventRecord) -> UsageSegment | None:

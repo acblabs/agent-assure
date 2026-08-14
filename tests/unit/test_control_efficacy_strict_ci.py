@@ -746,7 +746,10 @@ def _passing_evaluation() -> EvaluationSummary:
 
 
 def _packet_without_efficacy() -> Any:
-    return build_evidence_packet(_passing_evaluation())
+    return build_evidence_packet(
+        _passing_evaluation(),
+        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="e" * 64),),
+    )
 
 
 def _incomplete_report(case: str) -> ControlEfficacyReport:
@@ -963,6 +966,10 @@ def _packet(
         control_efficacy_gate_profile=embedded_profile,
         control_efficacy_gate=embedded_gate,
         artifact_digests=(
+            PacketArtifactDigest(
+                role="evaluation-summary",
+                sha256="e" * 64,
+            ),
             PacketArtifactDigest(
                 role="control-efficacy-report",
                 sha256="c" * 64,

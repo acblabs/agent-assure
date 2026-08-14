@@ -41,7 +41,12 @@ from agent_assure.reporting.json_report import write_comparison_json, write_eval
 from agent_assure.reporting.markdown import write_comparison_markdown, write_evaluation_markdown
 from agent_assure.reporting.packet import (
     build_evidence_packet,
-    packet_artifact_digest,
+    load_comparison_summary_snapshot,
+    load_evaluation_summary_snapshot,
+    load_evidence_packet,
+    packet_artifact_digest_from_snapshot,
+    packet_summary_files_binding_error,
+    release_artifact_from_summary_snapshot,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
@@ -60,9 +65,15 @@ from agent_assure.schema.efficacy import (
     ThreatScopeSemanticState,
 )
 from agent_assure.schema.environment import EnvironmentInfo
-from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.evaluation import (
+    EvaluationSummary,
+    evaluation_summary_coherence_error,
+)
 from agent_assure.schema.mutation import GateEffect
-from agent_assure.schema.packet import EvidencePacket
+from agent_assure.schema.packet import (
+    EvidencePacket,
+    packet_summary_digest_binding_error,
+)
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
@@ -406,6 +417,7 @@ def load_control_efficacy_verifier_policy(path: Path) -> VerifierEfficacyPolicy:
 def gate_artifact(
     artifact: GateArtifact,
     *,
+    artifact_root: Path | None = None,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
     verifier_efficacy_policy: VerifierEfficacyPolicy | None = None,
@@ -451,6 +463,7 @@ def gate_artifact(
         )
     return gate_evidence_packet(
         artifact,
+        artifact_root=artifact_root,
         fail_on_warn=fail_on_warn,
         fail_on_not_evaluated=fail_on_not_evaluated,
         verifier_policy=verifier_efficacy_policy,
@@ -484,6 +497,19 @@ def gate_evaluation_summary(
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
 ) -> GateDecision:
+    coherence_error = evaluation_summary_coherence_error(
+        state=summary.state,
+        findings=summary.findings,
+    )
+    if coherence_error is not None:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=f"ci gate invalid: {coherence_error}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=summary.artifact_kind,
+        )
+
     decision = _decision_for_state(
         summary.state,
         subject=f"evaluation-summary {summary.runset_id}",
@@ -553,12 +579,35 @@ def gate_comparison_summary(
 def gate_evidence_packet(
     packet: EvidencePacket,
     *,
+    artifact_root: Path | None = None,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
     verifier_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool = False,
 ) -> GateDecision:
+    summary_digest_error = packet_summary_digest_binding_error(packet)
+    if summary_digest_error is not None:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=f"ci gate invalid: {summary_digest_error}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=packet.artifact_kind,
+        )
+    if artifact_root is not None:
+        summary_file_error = packet_summary_files_binding_error(
+            packet,
+            artifact_root=artifact_root,
+        )
+        if summary_file_error is not None:
+            return GateDecision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=f"ci gate invalid: {summary_file_error}",
+                reason_code=ReasonCode.POLICY_FAILED,
+                artifact_kind=packet.artifact_kind,
+            )
     efficacy_required = require_efficacy or verifier_policy is not None
     efficacy_decision: GateDecision | None = None
     decisions = [
@@ -1358,13 +1407,21 @@ def run_ci(
         environment=environment,
         evaluation_summary_path=out_dir / "evaluation-summary.json",
         comparison_summary_path=(out_dir / "comparison-summary.json") if comparison_paths else None,
-        evaluation_summary=candidate_report.candidate_vs_expectations,
-        comparison_summary=comparison_summary,
+        expected_evaluation_summary=candidate_report.candidate_vs_expectations,
+        expected_comparison_summary=comparison_summary,
         suite_path=suite_path,
         candidate_runset_path=candidate_runset_path,
         baseline_runset_path=baseline_runset_path,
         project_root=artifact_root,
     )
+    packet_decision = gate_evidence_packet(
+        load_evidence_packet(packet_path),
+        artifact_root=artifact_root,
+    )
+    if packet_decision.outcome is GateOutcome.invalid or (
+        decision.exit_code == 0 and packet_decision.exit_code != 0
+    ):
+        decision = packet_decision
     report_paths.extend(
         (
             packet_path,
@@ -1561,43 +1618,78 @@ def _write_ci_packet(
     environment: EnvironmentInfo,
     evaluation_summary_path: Path,
     comparison_summary_path: Path | None,
-    evaluation_summary: EvaluationSummary,
-    comparison_summary: ComparisonSummary | None,
+    expected_evaluation_summary: EvaluationSummary,
+    expected_comparison_summary: ComparisonSummary | None,
     suite_path: Path,
     candidate_runset_path: Path,
     baseline_runset_path: Path | None,
     project_root: Path,
 ) -> tuple[Path, Path, Path]:
+    evaluation_snapshot = load_evaluation_summary_snapshot(
+        evaluation_summary_path,
+        root=project_root,
+        artifact_root=project_root,
+    )
+    comparison_snapshot = (
+        load_comparison_summary_snapshot(
+            comparison_summary_path,
+            root=project_root,
+            artifact_root=project_root,
+        )
+        if comparison_summary_path is not None
+        else None
+    )
+    if evaluation_snapshot.summary != expected_evaluation_summary:
+        raise ValueError("evaluation summary changed before packet snapshot")
+    if (comparison_snapshot is None) is not (expected_comparison_summary is None):
+        raise ValueError("comparison summary path and expected model must be present together")
+    if (
+        comparison_snapshot is not None
+        and comparison_snapshot.summary != expected_comparison_summary
+    ):
+        raise ValueError("comparison summary changed before packet snapshot")
     artifact_paths = [
         release_artifact("compiled-suite", suite_path, project_root=project_root),
         release_artifact("candidate-runset", candidate_runset_path, project_root=project_root),
-        release_artifact("evaluation-summary", evaluation_summary_path, project_root=project_root),
+        release_artifact_from_summary_snapshot(
+            "evaluation-summary",
+            evaluation_snapshot,
+        ),
         release_artifact(
             "dependency-inventory",
             out_dir / "dependency-inventory.json",
             project_root=project_root,
         ),
     ]
-    packet_digests = [packet_artifact_digest("evaluation-summary", evaluation_summary_path)]
+    packet_digests = [
+        packet_artifact_digest_from_snapshot(
+            "evaluation-summary",
+            evaluation_snapshot,
+        )
+    ]
     if baseline_runset_path is not None:
         artifact_paths.append(
             release_artifact("baseline-runset", baseline_runset_path, project_root=project_root)
         )
-    if comparison_summary_path is not None and comparison_summary is not None:
+    if comparison_snapshot is not None:
         artifact_paths.append(
-            release_artifact(
+            release_artifact_from_summary_snapshot(
                 "comparison-summary",
-                comparison_summary_path,
-                project_root=project_root,
+                comparison_snapshot,
             )
         )
-        packet_digests.append(packet_artifact_digest("comparison-summary", comparison_summary_path))
+        packet_digests.append(
+            packet_artifact_digest_from_snapshot(
+                "comparison-summary",
+                comparison_snapshot,
+            )
+        )
     manifest = build_release_manifest(tuple(artifact_paths), environment=environment)
     manifest_path = out_dir / "release-artifact-manifest.json"
     write_release_manifest(manifest, manifest_path)
     packet = build_evidence_packet(
-        evaluation_summary,
-        comparison=comparison_summary,
+        evaluation_snapshot.summary,
+        comparison=(comparison_snapshot.summary if comparison_snapshot is not None else None),
         environment=environment,
         release_manifest=manifest,
         artifact_digests=tuple(packet_digests),

@@ -22,7 +22,7 @@ def signed_unit_decimal_string(value: Decimal | str | int) -> str:
 
 def rate_decimal(numerator: int, denominator: int) -> Decimal:
     if denominator == 0:
-        return Decimal("0")
+        raise ValueError("rate is undefined for a zero denominator")
     return Decimal(numerator) / Decimal(denominator)
 
 
@@ -32,7 +32,7 @@ def rate_string(numerator: int, denominator: int) -> str:
 
 def mean_decimal(values: tuple[Decimal, ...]) -> Decimal:
     if not values:
-        return Decimal("0")
+        raise ValueError("mean is undefined for an empty sample")
     return sum(values, Decimal("0")) / Decimal(len(values))
 
 

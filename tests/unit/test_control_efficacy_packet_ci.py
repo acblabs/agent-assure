@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 from jsonschema import Draft202012Validator
@@ -24,14 +25,16 @@ from agent_assure.release_evidence import build_digest_replay, verify_digest_rep
 from agent_assure.reporting import packet as packet_reporting
 from agent_assure.reporting.efficacy import write_control_efficacy_report
 from agent_assure.reporting.packet import (
-    build_evidence_packet,
+    build_evidence_packet as _build_evidence_packet,
+)
+from agent_assure.reporting.packet import (
     load_evidence_packet,
     packet_artifact_digest,
     render_evidence_packet_markdown,
     write_evidence_packet,
 )
 from agent_assure.schema.base import SCHEMA_VERSION
-from agent_assure.schema.common import ComparisonClassification, GateState
+from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateDecision,
@@ -41,9 +44,10 @@ from agent_assure.schema.efficacy import (
     ThreatApplicabilityManifest,
 )
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
-from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.mutation import GateEffect, MutationResultState
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 from agent_assure.schema.usage import UsageSummary
 from tests.unit.controls.test_control_efficacy import (
     _DROP_OPERATOR,
@@ -89,7 +93,7 @@ def test_packet_accepts_bound_report_gate_and_digest_and_rejects_mismatch(
     )
     config_digest = _config_digest(tmp_path)
 
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -100,6 +104,7 @@ def test_packet_accepts_bound_report_gate_and_digest_and_rejects_mismatch(
     assert packet.control_efficacy == report
     assert packet.control_efficacy_gate == gate
     assert tuple(item.role for item in packet.artifact_digests) == (
+        "evaluation-summary",
         "control-efficacy-report",
         "control-efficacy-onboarding-config",
     )
@@ -112,7 +117,7 @@ def test_packet_accepts_bound_report_gate_and_digest_and_rejects_mismatch(
         findings=gate.findings,
     )
     with pytest.raises(ValidationError, match="must exactly match"):
-        build_evidence_packet(
+        _build_packet(
             _passing_evaluation(),
             control_efficacy=report,
             control_efficacy_gate_profile=_profile(),
@@ -121,7 +126,7 @@ def test_packet_accepts_bound_report_gate_and_digest_and_rejects_mismatch(
         )
 
     with pytest.raises(ValidationError, match="exactly one artifact digest"):
-        build_evidence_packet(
+        _build_packet(
             _passing_evaluation(),
             control_efficacy=report,
             control_efficacy_gate_profile=_profile(),
@@ -130,7 +135,7 @@ def test_packet_accepts_bound_report_gate_and_digest_and_rejects_mismatch(
         )
 
     with pytest.raises(ValidationError, match="exactly one config artifact digest"):
-        build_evidence_packet(
+        _build_packet(
             _passing_evaluation(),
             control_efficacy=report,
             control_efficacy_gate_profile=_profile(),
@@ -158,7 +163,7 @@ def test_packet_rejects_same_digest_decision_that_omits_report_findings(
     )
 
     with pytest.raises(ValidationError, match="must exactly match"):
-        build_evidence_packet(
+        _build_packet(
             _passing_evaluation(),
             control_efficacy=report,
             control_efficacy_gate_profile=profile,
@@ -230,7 +235,7 @@ def test_packet_uses_embedded_custom_efficacy_decision_to_block(tmp_path: Path) 
         gate_decision=custom_gate,
         gate_profile=profile,
     ).report
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -269,7 +274,7 @@ def test_packet_preserves_review_outcome_and_reason(tmp_path: Path) -> None:
     )
     gate = evaluate_control_efficacy_gate(report, profile)
     report_path = write_control_efficacy_report(report, tmp_path / "review").report
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -292,7 +297,7 @@ def test_packet_preserves_review_outcome_and_reason(tmp_path: Path) -> None:
 
 
 def test_packet_gate_message_does_not_infer_context_from_display_text() -> None:
-    packet = build_evidence_packet(_passing_evaluation())
+    packet = _build_packet(_passing_evaluation())
     controlling_decision = GateDecision(
         exit_code=1,
         outcome=GateOutcome.fail,
@@ -379,7 +384,7 @@ def test_fail_on_not_evaluated_applies_to_standalone_and_packet_efficacy(
     assert "threat_scope_state" in strict_report_gate.message
 
     report_path = write_control_efficacy_report(report, tmp_path / "strict").report
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -447,7 +452,7 @@ def test_packet_pass_preserves_efficacy_semantic_facts(tmp_path: Path) -> None:
     )
     efficacy_gate = evaluate_control_efficacy_gate(report, profile)
     report_path = write_control_efficacy_report(report, tmp_path / "passing").report
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -496,7 +501,7 @@ def test_packet_evaluation_review_precedes_efficacy_pass(tmp_path: Path) -> None
         state=GateState.warn,
         findings=(),
     )
-    packet = build_evidence_packet(
+    packet = _build_packet(
         warning_evaluation,
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -524,6 +529,236 @@ def test_packet_evaluation_review_precedes_efficacy_pass(tmp_path: Path) -> None
     assert packet.packet_id in decision.message
 
 
+@pytest.mark.parametrize(
+    "tampered_state",
+    (GateState.pass_, GateState.warn, GateState.not_evaluated),
+)
+def test_nonfailing_evaluation_summary_cannot_hide_fail_findings(
+    tampered_state: GateState,
+) -> None:
+    finding = Finding(
+        finding_id="hidden-finding",
+        case_id="case-001",
+        control_id="required_policy_evaluated",
+        target="provider-selection",
+        state=GateState.fail,
+        reason_code=ReasonCode.POLICY_FAILED,
+        message="required policy was not evaluated",
+    )
+    payload = _passing_evaluation().model_dump(mode="json")
+    payload["state"] = tampered_state.value
+    payload["findings"] = [finding.model_dump(mode="json")]
+
+    with pytest.raises(ValidationError, match="contradicts finding-derived state"):
+        EvaluationSummary.model_validate(payload)
+
+    unchecked = _passing_evaluation().model_copy(
+        update={"state": tampered_state, "findings": (finding,)}
+    )
+    decision = ci_module.gate_evaluation_summary(unchecked)
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+
+
+def test_evaluation_summary_rejects_pass_finding_even_with_failure() -> None:
+    fail_finding = Finding(
+        finding_id="fail-finding",
+        case_id="case-001",
+        control_id="required_policy_evaluated",
+        target="provider-selection",
+        state=GateState.fail,
+        reason_code=ReasonCode.POLICY_FAILED,
+        message="required policy was not evaluated",
+    )
+    pass_finding = fail_finding.model_copy(
+        update={
+            "finding_id": "unexpected-pass-finding",
+            "control_id": "unexpected-pass-control",
+            "state": GateState.pass_,
+        }
+    )
+    payload = _passing_evaluation().model_dump(mode="json")
+    payload["state"] = GateState.fail.value
+    payload["findings"] = [
+        fail_finding.model_dump(mode="json"),
+        pass_finding.model_dump(mode="json"),
+    ]
+
+    with pytest.raises(ValidationError, match="must not carry pass-state findings"):
+        EvaluationSummary.model_validate(payload)
+
+    legacy_payload = {**payload, "schema_version": "0.6.1"}
+    legacy_summary = EvaluationSummary.model_validate(legacy_payload)
+    assert legacy_summary.schema_version == "0.6.1"
+    legacy_decision = ci_module.gate_evaluation_summary(legacy_summary)
+    assert legacy_decision.exit_code == 2
+    assert legacy_decision.outcome is GateOutcome.invalid
+
+    unchecked = _passing_evaluation().model_copy(
+        update={
+            "state": GateState.fail,
+            "findings": (fail_finding, pass_finding),
+        }
+    )
+    decision = ci_module.gate_evaluation_summary(unchecked)
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+
+
+def test_current_packet_cannot_omit_or_duplicate_summary_digests() -> None:
+    with pytest.raises(ValidationError, match="exactly one evaluation-summary digest"):
+        _build_evidence_packet(_passing_evaluation())
+
+    packet = _build_packet(_passing_evaluation())
+    assert tuple(item.role for item in packet.artifact_digests) == ("evaluation-summary",)
+    missing_payload = packet.model_dump(mode="json")
+    missing_payload["artifact_digests"] = []
+    duplicate_payload = packet.model_dump(mode="json")
+    duplicate_payload["artifact_digests"].append(duplicate_payload["artifact_digests"][0])
+
+    with pytest.raises(ValidationError, match="exactly one evaluation-summary digest"):
+        EvidencePacket.model_validate(missing_payload)
+    with pytest.raises(ValidationError, match="exactly one evaluation-summary digest"):
+        EvidencePacket.model_validate(duplicate_payload)
+
+    unchecked = packet.model_copy(update={"artifact_digests": ()})
+    decision = ci_module.gate_evidence_packet(unchecked)
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+
+
+def test_current_packet_model_enforces_summary_digest_cardinality() -> None:
+    valid_payload = _passing_evaluation_packet_payload()
+    missing_evaluation = json.loads(json.dumps(valid_payload))
+    missing_evaluation["artifact_digests"] = []
+    duplicate_evaluation = json.loads(json.dumps(valid_payload))
+    duplicate_evaluation["artifact_digests"].append(duplicate_evaluation["artifact_digests"][0])
+    comparison_without_summary = json.loads(json.dumps(valid_payload))
+    comparison_digest = {
+        "artifact_kind": "packet-artifact-digest",
+        "schema_version": SCHEMA_VERSION,
+        "role": "comparison-summary",
+        "sha256": "2" * 64,
+    }
+    comparison_without_summary["artifact_digests"].extend((comparison_digest, comparison_digest))
+
+    for payload in (
+        missing_evaluation,
+        duplicate_evaluation,
+        comparison_without_summary,
+    ):
+        with pytest.raises(ValidationError):
+            EvidencePacket.model_validate(payload)
+
+
+def test_packet_model_binds_exact_summary_digests_to_release_manifest() -> None:
+    evaluation = _passing_evaluation()
+    comparison = _passing_comparison(evaluation)
+    valid_manifest = _summary_release_manifest(comparison=True)
+
+    packet = _build_packet(
+        evaluation,
+        comparison=comparison,
+        release_manifest=valid_manifest,
+    )
+
+    assert packet.release_manifest == valid_manifest
+
+    evaluation_artifact, comparison_artifact = valid_manifest.artifacts
+    invalid_manifests = (
+        (
+            valid_manifest.model_copy(update={"artifacts": (comparison_artifact,)}),
+            "requires exactly one evaluation-summary artifact",
+        ),
+        (
+            valid_manifest.model_copy(
+                update={
+                    "artifacts": (
+                        *valid_manifest.artifacts,
+                        evaluation_artifact.model_copy(update={"path": "evaluation-copy.json"}),
+                    )
+                }
+            ),
+            "duplicate artifact role: evaluation-summary",
+        ),
+        (
+            valid_manifest.model_copy(
+                update={
+                    "artifacts": (
+                        evaluation_artifact.model_copy(update={"sha256": "a" * 64}),
+                        comparison_artifact,
+                    )
+                }
+            ),
+            "evaluation-summary digest must match release manifest",
+        ),
+        (
+            valid_manifest.model_copy(update={"artifacts": (evaluation_artifact,)}),
+            "comparison-summary artifact must match nested comparison",
+        ),
+    )
+    for manifest, message in invalid_manifests:
+        with pytest.raises(ValidationError, match=message):
+            _build_packet(
+                evaluation,
+                comparison=comparison,
+                release_manifest=manifest,
+            )
+
+    with pytest.raises(
+        ValidationError,
+        match="comparison-summary artifact must match nested comparison",
+    ):
+        _build_packet(evaluation, release_manifest=valid_manifest)
+
+
+def test_packet_writer_and_ci_reject_unchecked_manifest_digest_mismatch(
+    tmp_path: Path,
+) -> None:
+    evaluation = _passing_evaluation()
+    packet = _build_packet(
+        evaluation,
+        release_manifest=_summary_release_manifest(),
+    )
+    tampered_digests = tuple(
+        item.model_copy(update={"sha256": "a" * 64}) if item.role == "evaluation-summary" else item
+        for item in packet.artifact_digests
+    )
+    unchecked = packet.model_copy(update={"artifact_digests": tampered_digests})
+    output = tmp_path / "mismatched-packet.json"
+
+    with pytest.raises(
+        ValidationError,
+        match="evaluation-summary digest must match release manifest",
+    ):
+        write_evidence_packet(unchecked, output)
+
+    decision = ci_module.gate_evidence_packet(unchecked)
+
+    assert not output.exists()
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+    assert "evaluation-summary digest must match release manifest" in decision.message
+
+    assert packet.release_manifest is not None
+    manifest_artifact = packet.release_manifest.artifacts[0]
+    duplicate_manifest = packet.release_manifest.model_copy(
+        update={
+            "artifacts": (
+                manifest_artifact,
+                manifest_artifact.model_copy(update={"path": "evaluation-copy.json"}),
+            )
+        }
+    )
+    duplicate_unchecked = packet.model_copy(update={"release_manifest": duplicate_manifest})
+
+    duplicate_decision = ci_module.gate_evidence_packet(duplicate_unchecked)
+
+    assert duplicate_decision.exit_code == 2
+    assert duplicate_decision.outcome is GateOutcome.invalid
+    assert "requires exactly one evaluation-summary artifact" in duplicate_decision.message
+
+
 def test_packet_preserves_not_evaluated_outcome() -> None:
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
@@ -533,7 +768,7 @@ def test_packet_preserves_not_evaluated_outcome() -> None:
         state=GateState.not_evaluated,
         findings=(),
     )
-    packet = build_evidence_packet(evaluation)
+    packet = _build_packet(evaluation)
 
     decision = gate_artifact(packet)
 
@@ -559,7 +794,7 @@ def test_packet_aggregation_routes_explicit_outcomes_without_parsing_messages(
     outcome: GateOutcome,
     exit_code: int,
 ) -> None:
-    packet = build_evidence_packet(_passing_evaluation())
+    packet = _build_packet(_passing_evaluation())
     component = GateDecision(
         exit_code=exit_code,
         outcome=outcome,
@@ -600,7 +835,7 @@ def test_packet_aggregation_preserves_review_over_not_evaluated_precedence(
         fixture_equivalence_state=GateState.pass_,
         candidate_state=GateState.pass_,
     )
-    packet = build_evidence_packet(evaluation, comparison=comparison)
+    packet = _build_packet(evaluation, comparison=comparison)
     not_evaluated = GateDecision(
         exit_code=0,
         outcome=GateOutcome.not_evaluated,
@@ -646,7 +881,7 @@ def test_packet_markdown_renders_actionable_gate_findings_and_survivor_ids(
     profile = _profile()
     gate = evaluate_control_efficacy_gate(report, profile)
     report_path = write_control_efficacy_report(report, tmp_path / "markdown").report
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -695,7 +930,7 @@ def test_efficacy_packet_json_schemas_reject_partial_members_and_digests(
     profile = _profile()
     gate = evaluate_control_efficacy_gate(report, profile)
     report_path = write_control_efficacy_report(report, tmp_path / "schema").report
-    packet = build_evidence_packet(
+    packet = _build_packet(
         _passing_evaluation(),
         control_efficacy=report,
         control_efficacy_gate_profile=profile,
@@ -725,14 +960,14 @@ def test_efficacy_packet_json_schemas_reject_partial_members_and_digests(
         if item["role"] != "control-efficacy-onboarding-config"
     ]
     digest_without_efficacy = _passing_evaluation_packet_payload()
-    digest_without_efficacy["artifact_digests"] = [
+    digest_without_efficacy["artifact_digests"].append(
         {
             "artifact_kind": "packet-artifact-digest",
             "schema_version": SCHEMA_VERSION,
             "role": "control-efficacy-onboarding-config",
             "sha256": "0" * 64,
         }
-    ]
+    )
     legacy_generic_digest = json.loads(json.dumps(valid_payload))
     legacy_config_digest = next(
         item
@@ -812,9 +1047,9 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
         ValidationError,
         match="evaluation.schema_version '0.6.2'; received '0.6.1'",
     ):
-        build_evidence_packet(legacy_evaluation)
+        _build_packet(legacy_evaluation)
 
-    mixed_packet = build_evidence_packet(_passing_evaluation()).model_copy(
+    mixed_packet = _build_packet(_passing_evaluation()).model_copy(
         update={"evaluation": legacy_evaluation}
     )
     output = tmp_path / "not-created" / "evidence-packet.json"
@@ -833,11 +1068,12 @@ def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
     evaluation = _passing_evaluation().model_copy(
         update={"usage_summary": UsageSummary(total_tokens=1)}
     )
-    payload = build_evidence_packet(evaluation).model_dump(
+    payload = _build_packet(evaluation).model_dump(
         mode="json",
         exclude_none=True,
     )
     payload["schema_version"] = "0.6.1"
+    payload["artifact_digests"] = []
     evaluation_payload = payload["evaluation"]
     assert isinstance(evaluation_payload, dict)
     evaluation_payload["schema_version"] = "0.6.1"
@@ -860,7 +1096,7 @@ def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
 
 
 def test_v061_packet_writer_omits_only_efficacy_fields(tmp_path: Path) -> None:
-    packet = build_evidence_packet(_passing_evaluation())
+    packet = _build_packet(_passing_evaluation())
     legacy_evaluation = packet.evaluation.model_copy(
         update={"schema_version": "0.6.1"},
     )
@@ -868,6 +1104,7 @@ def test_v061_packet_writer_omits_only_efficacy_fields(tmp_path: Path) -> None:
         update={
             "schema_version": "0.6.1",
             "evaluation": legacy_evaluation,
+            "artifact_digests": (),
         }
     )
     output = tmp_path / "legacy-evidence-packet.json"
@@ -897,7 +1134,7 @@ def test_packet_schema_version_coherence_covers_deep_persisted_children() -> Non
             )
         }
     )
-    payload = build_evidence_packet(evaluation).model_dump(mode="json")
+    payload = _build_packet(evaluation).model_dump(mode="json")
     evaluation_payload = payload["evaluation"]
     assert isinstance(evaluation_payload, dict)
     environment_payload = evaluation_payload["environment"]
@@ -913,6 +1150,57 @@ def test_packet_schema_version_coherence_covers_deep_persisted_children() -> Non
         match=r"evaluation\.environment\.installed_packages\[0\]\.schema_version",
     ):
         EvidencePacket.model_validate(payload)
+
+
+def _build_packet(evaluation: EvaluationSummary, **kwargs: Any) -> EvidencePacket:
+    """Build with explicit exact-file digest fixtures for packet-focused tests."""
+    comparison = kwargs.get("comparison")
+    provided = kwargs.pop("artifact_digests", ())
+    summary_digests = [
+        PacketArtifactDigest(role="evaluation-summary", sha256="e" * 64),
+    ]
+    if comparison is not None:
+        summary_digests.append(PacketArtifactDigest(role="comparison-summary", sha256="f" * 64))
+    return _build_evidence_packet(
+        evaluation,
+        artifact_digests=(*summary_digests, *provided),
+        **kwargs,
+    )
+
+
+def _passing_comparison(evaluation: EvaluationSummary) -> ComparisonSummary:
+    return ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id=evaluation.runset_id,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.unchanged,
+        fixture_equivalence_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+
+
+def _summary_release_manifest(*, comparison: bool = False) -> ReleaseArtifactManifest:
+    artifacts = [
+        ReleaseArtifact(
+            role="evaluation-summary",
+            path="evaluation-summary.json",
+            sha256="e" * 64,
+        )
+    ]
+    if comparison:
+        artifacts.append(
+            ReleaseArtifact(
+                role="comparison-summary",
+                path="comparison-summary.json",
+                sha256="f" * 64,
+            )
+        )
+    return ReleaseArtifactManifest(
+        manifest_id="manifest-summary-digests",
+        artifacts=tuple(artifacts),
+        environment=EnvironmentInfo(platform="test", python_version="3.14"),
+    )
 
 
 def _passing_evaluation() -> EvaluationSummary:
@@ -933,12 +1221,15 @@ def _config_digest(tmp_path: Path) -> PacketArtifactDigest:
 
 
 def _passing_evaluation_packet_payload() -> dict[str, object]:
-    return build_evidence_packet(_passing_evaluation()).model_dump(mode="json")
+    return _build_packet(_passing_evaluation()).model_dump(mode="json")
 
 
 def _assert_json_schemas_reject(payload: dict[str, object]) -> None:
     frozen_schema_path = (
-        Path(__file__).resolve().parents[2] / "schemas" / "v0.6.2" / "evidence-packet.schema.json"
+        Path(__file__).resolve().parents[2]
+        / "schemas"
+        / f"v{SCHEMA_VERSION}"
+        / "evidence-packet.schema.json"
     )
     schemas = (
         EvidencePacket.model_json_schema(mode="validation"),
@@ -953,7 +1244,10 @@ def _assert_json_schemas_reject_at(
     expected_path: tuple[str, ...],
 ) -> None:
     frozen_schema_path = (
-        Path(__file__).resolve().parents[2] / "schemas" / "v0.6.2" / "evidence-packet.schema.json"
+        Path(__file__).resolve().parents[2]
+        / "schemas"
+        / f"v{SCHEMA_VERSION}"
+        / "evidence-packet.schema.json"
     )
     schemas = (
         EvidencePacket.model_json_schema(mode="validation"),
@@ -968,7 +1262,10 @@ def _assert_json_schemas_reject_at(
 
 def _assert_json_schemas_accept(payload: dict[str, object]) -> None:
     frozen_schema_path = (
-        Path(__file__).resolve().parents[2] / "schemas" / "v0.6.2" / "evidence-packet.schema.json"
+        Path(__file__).resolve().parents[2]
+        / "schemas"
+        / f"v{SCHEMA_VERSION}"
+        / "evidence-packet.schema.json"
     )
     schemas = (
         EvidencePacket.model_json_schema(mode="validation"),

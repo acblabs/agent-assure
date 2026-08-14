@@ -121,6 +121,100 @@ def test_normative_finding_without_required_gate_effect_is_survived() -> None:
     assert "declared block gate effect" in assessment.limitations[0]
 
 
+def test_nonblocking_raw_failure_matches_normalized_warning_summary() -> None:
+    suite, source_payload = _fixture()
+    source = evaluate_runset(suite, _runset(source_payload))
+    raw_failure = _finding(
+        finding_id="finding-normalized-nonblocking-failure",
+        control_id="material_claims_have_evidence",
+        reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+        target="claim:claim-case-a",
+    )
+    candidate = _report_with_findings(
+        source,
+        (raw_failure,),
+        failed_controls=(),
+        warning_controls=(raw_failure,),
+    )
+
+    assessment = assess_expected_detection(
+        source,
+        candidate,
+        _contract("drop-material-evidence-link"),
+        expected_target="claim:claim-case-a",
+    )
+
+    assert candidate.candidate_vs_expectations.findings[0].state is GateState.warn
+    assert candidate.warning_controls[0].state is GateState.fail
+    assert assessment.state == "survived"
+
+
+def test_fail_on_warn_overlap_matches_normalized_failed_summary() -> None:
+    suite, source_payload = _fixture()
+    source = evaluate_runset(suite, _runset(source_payload))
+    raw_warning = _finding(
+        finding_id="finding-normalized-blocking-warning",
+        control_id="material_claims_have_evidence",
+        reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+        target="claim:claim-case-a",
+        state=GateState.warn,
+    )
+    candidate = _report_with_findings(
+        source,
+        (raw_warning,),
+        failed_controls=(raw_warning,),
+        warning_controls=(raw_warning,),
+    )
+
+    assessment = assess_expected_detection(
+        source,
+        candidate,
+        _contract("drop-material-evidence-link"),
+        expected_target="claim:claim-case-a",
+    )
+
+    assert candidate.candidate_vs_expectations.findings[0].state is GateState.fail
+    assert candidate.failed_controls[0].state is GateState.warn
+    assert assessment.state == "caught"
+
+
+def test_summary_state_must_match_effective_projection_membership() -> None:
+    suite, source_payload = _fixture()
+    source = evaluate_runset(suite, _runset(source_payload))
+    raw_failure = _finding(
+        finding_id="finding-forged-normalized-state",
+        control_id="material_claims_have_evidence",
+        reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+        target="claim:claim-case-a",
+    )
+    candidate = _report_with_findings(
+        source,
+        (raw_failure,),
+        failed_controls=(),
+        warning_controls=(raw_failure,),
+    )
+    forged = candidate.candidate_vs_expectations.findings[0].model_copy(
+        update={"state": GateState.fail}
+    )
+    candidate = candidate.model_copy(
+        update={
+            "candidate_vs_expectations": candidate.candidate_vs_expectations.model_copy(
+                update={"findings": (forged,)}
+            )
+        }
+    )
+
+    assessment = assess_expected_detection(
+        source,
+        candidate,
+        _contract("drop-material-evidence-link"),
+        expected_target="claim:claim-case-a",
+    )
+
+    assert assessment.state == "invalid_operator"
+    assert "gate projections were inconsistent" in assessment.limitations[0]
+
+
 def test_prohibited_substitute_is_invalid_operator_even_if_normative_finding_exists() -> None:
     suite, source_payload = _fixture()
     source = evaluate_runset(suite, _runset(source_payload))
@@ -322,9 +416,7 @@ def test_gate_projection_conflicting_with_summary_is_invalid_operator() -> None:
         reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
         target="claim:claim-case-a",
     )
-    conflicting_projection = normative.model_copy(
-        update={"target": "claim:a-different-claim"}
-    )
+    conflicting_projection = normative.model_copy(update={"target": "claim:a-different-claim"})
     candidate = _report_with_findings(
         source,
         (normative,),
@@ -439,8 +531,24 @@ def _report_with_findings(
     failed_controls: tuple[Finding, ...],
     warning_controls: tuple[Finding, ...] = (),
 ) -> EvaluationReport:
+    failed_ids = {finding.finding_id for finding in failed_controls}
+    warning_ids = {finding.finding_id for finding in warning_controls}
+    normalized_findings = tuple(
+        finding.model_copy(
+            update={
+                "state": (
+                    GateState.fail
+                    if finding.finding_id in failed_ids
+                    else GateState.warn
+                    if finding.finding_id in warning_ids
+                    else GateState.not_evaluated
+                )
+            }
+        )
+        for finding in findings
+    )
     summary = report.candidate_vs_expectations.model_copy(
-        update={"findings": findings},
+        update={"findings": normalized_findings},
     )
     return report.model_copy(
         update={

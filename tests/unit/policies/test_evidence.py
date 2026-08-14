@@ -3,6 +3,9 @@ from __future__ import annotations
 import unicodedata
 from typing import cast
 
+import pytest
+from pydantic import ValidationError
+
 from agent_assure.evaluation.expectations import CaseExpectation
 from agent_assure.evaluation.invariants import evaluate_case
 from agent_assure.policies.evidence import (
@@ -33,6 +36,39 @@ def test_evidence_provenance_identity_accepts_one_shared_source() -> None:
     )
 
     assert evaluate_evidence_provenance_identity(run) == ()
+
+
+def test_run_record_rejects_conflicting_content_for_one_evidence_identity() -> None:
+    first = _item("ref-a", "source-a")
+    conflicting = first.model_copy(update={"content_digest": "e" * 64})
+
+    with pytest.raises(ValidationError, match="must have one content_digest"):
+        _run(
+            evidence_refs=(_ref("ref-a", "source-a"),),
+            evidence_items=(first, conflicting),
+        )
+
+
+def test_evidence_policy_defends_against_unchecked_conflicting_content() -> None:
+    first = _item("ref-a", "source-a")
+    valid = _run(
+        evidence_refs=(_ref("ref-a", "source-a"),),
+        evidence_items=(first,),
+    )
+    unchecked = valid.model_copy(
+        update={
+            "evidence_items": (
+                first,
+                first.model_copy(update={"content_digest": "e" * 64}),
+            )
+        }
+    )
+
+    findings = evaluate_evidence_provenance_identity(unchecked)
+
+    assert len(findings) == 1
+    assert findings[0].reason_code is ReasonCode.EVIDENCE_PROVENANCE_MISMATCH
+    assert findings[0].state is GateState.fail
 
 
 def test_evidence_provenance_identity_is_canonical_and_does_not_leak_sources() -> None:

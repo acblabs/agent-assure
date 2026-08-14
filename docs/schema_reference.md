@@ -49,6 +49,16 @@ the root-version-selected current writer or legacy frozen schema before writing
 bytes, so a current packet cannot embed a legacy evaluation or comparison
 summary.
 
+A current evidence packet also binds exactly one `evaluation-summary` digest.
+It binds exactly one `comparison-summary` digest when, and only when, a nested
+comparison is present. Runtime model validation, packet construction, and CI
+gating enforce this cardinality so a missing or duplicate digest cannot make the
+packet ambiguous. Packet construction obtains the parsed summary, raw SHA-256,
+and release-manifest path from one bounded file snapshot. Trusted packet gating
+reopens that confined source file and requires both its exact raw digest and its
+fully parsed model to match the packet; privacy redaction is not an integrity
+comparison.
+
 At schema versions `0.6.0`, `0.6.1`, and `0.6.2`, `evaluation-report` requires
 `runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
 schema-validated, current `RunSet` model JSON projection. The projection
@@ -439,11 +449,17 @@ carry `agent_assure.stream.span_id` and
 `agent_assure.stream.parent_span_id` as event attributes when present, but the
 schema does not yet model a hierarchy of child `SpanPlan` records.
 
-`LiveRate.rate` is the pooled observation rate. `LiveRate.cluster_mean_rate` is
-the unweighted mean across declared clusters. When the interval center is
-`cluster_mean_rate`, `ci_lower` and `ci_upper` describe that cluster-centered
-estimate and are not required to bracket the pooled rate under unequal
-cluster sizes.
+Observed `LiveRate` values are emitted only for a positive observation
+denominator. If no observation remains for a rate, evaluation fails closed
+rather than serializing a fabricated `0.000000` estimate or `[0, 0]` interval.
+A declared fixed reference is not an observed rate and may still carry its
+configured point value with a zero observation denominator. Current-model
+validation distinguishes that exact fixed-reference representation from an
+observed rate. Otherwise `LiveRate.rate` is the pooled observation rate and
+`LiveRate.cluster_mean_rate` is the unweighted mean across declared clusters.
+When the interval center is `cluster_mean_rate`, `ci_lower` and `ci_upper`
+describe that cluster-centered estimate and are not required to bracket the
+pooled rate under unequal cluster sizes.
 
 External `AgentRunRecord` producers must also follow
 `agent-run-record-producer-contract/v1`, documented in

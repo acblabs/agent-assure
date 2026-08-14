@@ -6,10 +6,7 @@ from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
-from agent_assure.evaluation.invariants import (
-    evaluate_case,
-    evaluate_required_policy_results_for_run,
-)
+from agent_assure.evaluation.invariants import evaluate_case
 from agent_assure.live.advanced import evaluate_statistical_invariants
 from agent_assure.live.intervals import (
     bootstrap_mean_interval,
@@ -74,6 +71,14 @@ def evaluate_live_runset(
         )
         for run in runset.runs
     )
+    if (
+        observations
+        and all(observation.observation_status == "excluded" for observation in observations)
+        and Decimal("1") > Decimal(protocol.max_exclusion_rate)
+    ):
+        raise ValueError(
+            "live exclusion rate exceeds max_exclusion_rate before observed rate estimation"
+        )
     groups = tuple(
         _summarize_group(
             group_id,
@@ -233,9 +238,7 @@ def _verify_protocol_obligations(
         seen_schedule_cells.add(schedule_cell)
         expected_block_id = f"repetition:{run.repetition_index}"
         if run.randomization_block_id != expected_block_id:
-            raise ValueError(
-                "live run randomization_block_id does not match repetition_index"
-            )
+            raise ValueError("live run randomization_block_id does not match repetition_index")
         if run.provenance.configuration_digest != runset.fixture_manifest_digest:
             raise ValueError(
                 "live run provenance configuration_digest does not match "
@@ -324,9 +327,7 @@ def _verify_protocol_obligations(
             "live RunSet observations must form the complete frozen case/repetition schedule"
         )
     planned_clusters = {
-        case_id
-        if protocol.cluster_by == "case_id"
-        else next(iter(case_source_groups[case_id]))
+        case_id if protocol.cluster_by == "case_id" else next(iter(case_source_groups[case_id]))
         for case_id in case_ids
     }
     if None in planned_clusters or len(planned_clusters) != protocol.planned_clusters:
@@ -353,15 +354,11 @@ def _verify_protocol_obligations(
             for run in runset.runs
         )
         if committed_total_tokens > protocol.max_total_tokens:
-            raise ValueError(
-                "live RunSet committed total tokens exceed protocol max_total_tokens"
-            )
+            raise ValueError("live RunSet committed total tokens exceed protocol max_total_tokens")
     if protocol.max_generated_tokens is not None:
         generated_tokens = sum(run.completion_tokens or 0 for run in runset.runs)
         if generated_tokens > protocol.max_generated_tokens:
-            raise ValueError(
-                "live RunSet completion_tokens exceeds protocol max_generated_tokens"
-            )
+            raise ValueError("live RunSet completion_tokens exceeds protocol max_generated_tokens")
         committed_generated_tokens = sum(
             run.generated_token_budget_committed
             if run.generated_token_budget_committed is not None
@@ -401,14 +398,11 @@ def _evaluate_observation(
             ),
         )
         return _observation_result(run, GateState.fail, findings)
-    results = (
-        *evaluate_required_policy_results_for_run(run, required_policy_ids),
-        *evaluate_case(
-            case_expectation,
-            run,
-            allowed_tools=allowed_tools,
-            required_policy_ids=required_policy_ids,
-        ),
+    results = evaluate_case(
+        case_expectation,
+        run,
+        allowed_tools=allowed_tools,
+        required_policy_ids=required_policy_ids,
     )
     evaluated_findings = tuple(_finding_from_result(result) for result in results)
     state = rollup_state(results, gate_profile)
@@ -551,11 +545,7 @@ def _summarize_group(
         ),
         latency_ms=_distribution(
             "latency_ms",
-            tuple(
-                Decimal(run.latency_ms)
-                for run in included_runs
-                if run.latency_ms is not None
-            ),
+            tuple(Decimal(run.latency_ms) for run in included_runs if run.latency_ms is not None),
         ),
         estimated_cost_usd=_distribution(
             "estimated_cost_usd",
@@ -623,28 +613,7 @@ def _rate_from_values(
     denominator = len(values)
     numerator = sum(1 for _, passed in values if passed)
     if denominator == 0:
-        return LiveRate(
-            artifact_kind="live-rate",
-            label=label,
-            numerator=0,
-            denominator=0,
-            cluster_count=0,
-            effective_n="0.000000",
-            design_effect="1.000000",
-            largest_cluster_size=0,
-            largest_cluster_design_effect="1.000000",
-            largest_cluster_effective_n="0.000000",
-            assumed_intraclass_correlation=protocol.assumed_intraclass_correlation,
-            analysis_method=analysis_method,
-            exploratory=True,
-            rate="0.000000",
-            cluster_mean_rate="0.000000",
-            interval_center="cluster_mean_rate",
-            interval_center_value="0.000000",
-            confidence_level=protocol.confidence_level,
-            ci_lower="0.000000",
-            ci_upper="0.000000",
-        )
+        raise ValueError("live rate is undefined for a zero observation denominator")
     clustered = _cluster_values(values)
     cluster_rates = tuple(
         Decimal(cluster_numerator) / Decimal(cluster_denominator)
@@ -767,11 +736,11 @@ def _report_state(
     included = tuple(
         observation for observation in observations if observation.observation_status == "included"
     )
+    if Decimal(overall.exclusion_rate.rate) > Decimal(protocol.max_exclusion_rate):
+        return GateState.fail
     if not included:
         return GateState.not_evaluated
     if any(observation.state is GateState.fail for observation in included):
-        return GateState.fail
-    if Decimal(overall.exclusion_rate.rate) > Decimal(protocol.max_exclusion_rate):
         return GateState.fail
     if stop_reasons:
         return GateState.not_evaluated
@@ -869,8 +838,6 @@ def _rate_exploratory(cluster_count: int, analysis_method: str) -> bool:
 def _stop_reasons(runset: RunSet) -> tuple[str, ...]:
     reasons = set(runset.stop_reasons)
     reasons.update(
-        run.exclusion_reason
-        for run in runset.runs
-        if run.exclusion_reason in BUDGET_STOP_REASONS
+        run.exclusion_reason for run in runset.runs if run.exclusion_reason in BUDGET_STOP_REASONS
     )
     return tuple(sorted(reasons))

@@ -186,6 +186,11 @@ def _deduplicated_events(
                 f"line {line_number}: duplicate stream composite key "
                 f"{_format_key(key)} has conflicting digest"
             )
+        if event != kept:
+            raise ValueError(
+                f"line {line_number}: duplicate stream composite key "
+                f"{_format_key(key)} has conflicting normalized payload"
+            )
         duplicate_event_ids.setdefault(key, []).append(event.event_id)
     duplicates = tuple(
         StreamDuplicateSummary(

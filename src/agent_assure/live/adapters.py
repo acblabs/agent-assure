@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import http.client
+import importlib
 import json
 import os
 import socket
@@ -8,10 +10,12 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from decimal import Decimal
-from pathlib import Path
-from typing import Any, Literal, Protocol, Self
+from pathlib import Path, PurePosixPath
+from typing import Any, Literal, Protocol, Self, cast
 
 from pydantic import Field
 from pydantic.functional_validators import model_validator
@@ -21,16 +25,19 @@ from agent_assure.io_limits import (
     MAX_STATIC_JSONL_BYTES,
     MAX_STATIC_JSONL_LINE_BYTES,
     loads_json_bounded,
-    read_text_bounded,
+    open_directory_at,
+    open_file_bounded_at,
+    read_text_bounded_at,
 )
 from agent_assure.live.config import (
     LiveAdapterConfig,
-    assert_endpoint_resolution_allowed,
     is_disallowed_endpoint_host,
     normalize_endpoint_host,
+    resolve_endpoint_host,
 )
 from agent_assure.live.output_contract import validate_live_structured_content
 from agent_assure.live.paths import resolve_live_config_path
+from agent_assure.rooted_io import BoundedFileDescriptor
 from agent_assure.runner.subprocess_harness import (
     ExternalScriptError,
     ExternalScriptInvocation,
@@ -48,6 +55,7 @@ EstimatedCostSource = Literal[
 
 DEFAULT_OPENAI_ENDPOINT_HOSTS = ("api.openai.com",)
 MAX_PROVIDER_RESPONSE_BYTES = 1_048_576
+MAX_EXTERNAL_SCRIPT_FILE_BYTES = 16 * 1024 * 1024
 
 
 @dataclass(frozen=True)
@@ -145,6 +153,68 @@ class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
         )
 
 
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """TLS connection that dials only addresses screened for this request."""
+
+    def __init__(
+        self,
+        host: str,
+        *,
+        pinned_addresses: tuple[str, ...],
+        **kwargs: Any,
+    ) -> None:
+        super().__init__(host, **kwargs)
+        self._pinned_addresses = pinned_addresses
+
+    def connect(self) -> None:
+        if getattr(self, "_tunnel_host", None) is not None:
+            raise OSError("pinned HTTPS transport does not support tunnels")
+        last_error: OSError | None = None
+        for address in self._pinned_addresses:
+            raw_socket: socket.socket | None = None
+            try:
+                raw_socket = socket.create_connection(
+                    (address, self.port),
+                    self.timeout,
+                    getattr(self, "source_address", None),
+                )
+                tls_context = getattr(self, "_context", None)
+                if tls_context is None:
+                    raise OSError("pinned HTTPS transport has no TLS context")
+                self.sock = tls_context.wrap_socket(
+                    raw_socket,
+                    server_hostname=self.host,
+                )
+                return
+            except OSError as exc:
+                last_error = exc
+                if raw_socket is not None:
+                    raw_socket.close()
+        if last_error is not None:
+            raise last_error
+        raise OSError("pinned HTTPS transport has no screened addresses")
+
+
+class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
+    def __init__(self, pinned_addresses: tuple[str, ...]) -> None:
+        super().__init__()
+        self._pinned_addresses = pinned_addresses
+
+    def https_open(self, request: urllib.request.Request) -> Any:
+        def connection(host: str, **kwargs: Any) -> _PinnedHTTPSConnection:
+            return _PinnedHTTPSConnection(
+                host,
+                pinned_addresses=self._pinned_addresses,
+                **kwargs,
+            )
+
+        return self.do_open(
+            connection,
+            request,
+            context=getattr(self, "_context", None),
+        )
+
+
 class StaticJsonlAdapter:
     adapter_id = "static-jsonl"
 
@@ -157,7 +227,11 @@ class StaticJsonlAdapter:
             config.response_jsonl_path,
             field_name="response_jsonl_path",
         )
-        self._responses = _load_jsonl_responses(path)
+        self._responses = _load_jsonl_responses(
+            base_dir,
+            config.response_jsonl_path,
+            display_path=path,
+        )
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
         payload = self._responses.get((request.case_id, request.repetition_index))
@@ -236,7 +310,7 @@ class OpenAIChatCompletionsAdapter:
         self._api_key = api_key
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
-        _validate_openai_endpoint(self._config)
+        pinned_addresses = _validate_openai_endpoint(self._config)
         body: dict[str, Any] = {
             "model": self._config.model,
             "messages": [{"role": "user", "content": request.prompt}],
@@ -260,6 +334,7 @@ class OpenAIChatCompletionsAdapter:
             with _open_no_redirects(
                 http_request,
                 timeout_seconds=self._config.timeout_seconds,
+                pinned_addresses=pinned_addresses,
             ) as response:
                 payload = loads_json_bounded(
                     _read_provider_response(response).decode("utf-8"),
@@ -297,6 +372,8 @@ class ExternalScriptAdapter:
         if config.script_path is None:
             raise ValueError("external-script adapter requires script_path")
         self._config = config
+        self._script_root = base_dir.resolve()
+        self._script_relative = config.script_path
         self._script = resolve_live_config_path(
             base_dir,
             config.script_path,
@@ -304,6 +381,15 @@ class ExternalScriptAdapter:
         )
         if not self._script.exists():
             raise ValueError(f"external script does not exist: {config.script_path}")
+        with open_file_bounded_at(
+            self._script_root,
+            self._script_relative,
+            max_bytes=MAX_EXTERNAL_SCRIPT_FILE_BYTES,
+            label="external script",
+        ):
+            pass
+        script_parent = PurePosixPath(config.script_path.replace("\\", "/")).parent.as_posix()
+        self._cwd_relative = config.script_cwd if config.script_cwd is not None else script_parent
         self._cwd = (
             resolve_live_config_path(
                 base_dir,
@@ -315,7 +401,16 @@ class ExternalScriptAdapter:
         )
         if not self._cwd.exists() or not self._cwd.is_dir():
             raise ValueError(f"external script cwd is not a directory: {self._cwd}")
+        with open_directory_at(
+            self._script_root,
+            self._cwd_relative,
+            label="external script cwd",
+        ):
+            pass
         self._argv = _script_argv(config, self._script)
+        self._script_argv_index = (
+            1 if config.script_executable is not None or self._script.suffix.lower() == ".py" else 0
+        )
         self._environment = tuple((item.name, item.value) for item in config.script_env)
         self._environment_allowlist = tuple(config.script_env_allowlist)
 
@@ -335,21 +430,45 @@ class ExternalScriptAdapter:
                 "tracestate": request.tracestate,
             },
         }
-        invocation = ExternalScriptInvocation(
-            argv=self._argv,
-            cwd=self._cwd,
-            timeout_seconds=self._config.timeout_seconds,
-            request_payload=payload,
-            observation_id=request.observation_id,
-            run_id=request.run_id,
-            case_id=request.case_id,
-            adapter_id=self.adapter_id,
-            environment=self._environment,
-            environment_allowlist=self._environment_allowlist,
-            traceparent=request.traceparent,
-            tracestate=request.tracestate,
-        )
-        completed = run_external_script(invocation)
+        with (
+            open_directory_at(
+                self._script_root,
+                self._cwd_relative,
+                label="external script cwd",
+            ) as cwd,
+            open_file_bounded_at(
+                self._script_root,
+                self._script_relative,
+                max_bytes=MAX_EXTERNAL_SCRIPT_FILE_BYTES,
+                label="external script",
+            ) as script,
+            _immutable_execution_script_descriptor(script) as script_descriptor,
+        ):
+            if (cwd.root_device, cwd.root_inode) != (
+                script.root_device,
+                script.root_inode,
+            ):
+                raise ValueError("external script root changed while execution was prepared")
+            invocation = ExternalScriptInvocation(
+                argv=self._argv,
+                cwd=self._cwd,
+                timeout_seconds=self._config.timeout_seconds,
+                request_payload=payload,
+                observation_id=request.observation_id,
+                run_id=request.run_id,
+                case_id=request.case_id,
+                adapter_id=self.adapter_id,
+                environment=self._environment,
+                environment_allowlist=self._environment_allowlist,
+                traceparent=request.traceparent,
+                tracestate=request.tracestate,
+                script_descriptor=script_descriptor,
+                script_argv_index=self._script_argv_index,
+                cwd_descriptor=cwd.descriptor,
+                cwd_device=cwd.device,
+                cwd_inode=cwd.inode,
+            )
+            completed = run_external_script(invocation)
         try:
             loaded = loads_json_bounded(
                 completed.stdout,
@@ -456,11 +575,15 @@ def _open_no_redirects(
     request: urllib.request.Request,
     *,
     timeout_seconds: int,
+    pinned_addresses: tuple[str, ...] = (),
 ) -> Any:
-    opener = urllib.request.build_opener(
+    handlers: list[Any] = [
         urllib.request.ProxyHandler({}),
         _NoRedirectHandler(),
-    )
+    ]
+    if pinned_addresses:
+        handlers.append(_PinnedHTTPSHandler(pinned_addresses))
+    opener = urllib.request.build_opener(*handlers)
     return opener.open(request, timeout=timeout_seconds)
 
 
@@ -527,15 +650,24 @@ def _estimate_cost(
     ):
         return "0.000000"
     prompt_cost = Decimal(prompt_tokens) * prompt_rate / Decimal("1000")
-    completion_cost = (
-        Decimal(completion_tokens) * completion_rate / Decimal("1000")
-    )
+    completion_cost = Decimal(completion_tokens) * completion_rate / Decimal("1000")
     return normalize_decimal(prompt_cost + completion_cost)
 
 
-def _load_jsonl_responses(path: Path) -> dict[tuple[str, int | None], dict[str, Any]]:
+def _load_jsonl_responses(
+    root: Path,
+    relative_path: str,
+    *,
+    display_path: Path,
+) -> dict[tuple[str, int | None], dict[str, Any]]:
     responses: dict[tuple[str, int | None], dict[str, Any]] = {}
-    text = read_text_bounded(path, max_bytes=MAX_STATIC_JSONL_BYTES, label="static JSONL")
+    path = display_path
+    text = read_text_bounded_at(
+        root,
+        relative_path,
+        max_bytes=MAX_STATIC_JSONL_BYTES,
+        label="static JSONL",
+    )
     for line_number, line in enumerate(text.splitlines(), start=1):
         if not line.strip():
             continue
@@ -561,6 +693,56 @@ def _load_jsonl_responses(path: Path) -> dict[tuple[str, int | None], dict[str, 
             )
         responses[key] = payload
     return responses
+
+
+@contextmanager
+def _immutable_execution_script_descriptor(
+    script: BoundedFileDescriptor,
+) -> Iterator[int]:
+    if os.name == "nt":
+        yield script.descriptor
+        return
+    if sys.platform != "linux":
+        raise OSError("immutable external-script descriptors require Linux memfd sealing")
+    descriptor = _sealed_script_memfd(script)
+    try:
+        yield descriptor
+    finally:
+        os.close(descriptor)
+
+
+def _sealed_script_memfd(script: BoundedFileDescriptor) -> int:
+    create_memfd = getattr(os, "memfd_create", None)
+    if not callable(create_memfd):
+        raise OSError("Linux memfd_create is required for immutable external scripts")
+    flags = getattr(os, "MFD_CLOEXEC", 0x0001) | getattr(os, "MFD_ALLOW_SEALING", 0x0002)
+    descriptor = int(create_memfd("agent-assure-script", flags))
+    try:
+        source_mode = os.fstat(script.descriptor).st_mode & 0o777
+        cast(Callable[[int, int], None], vars(os)["fchmod"])(descriptor, source_mode)
+        view = memoryview(script.contents.data)
+        written = 0
+        while written < len(view):
+            written += os.write(descriptor, view[written:])
+        os.lseek(descriptor, 0, os.SEEK_SET)
+        fcntl_api = vars(importlib.import_module("fcntl"))
+        add_seals = int(fcntl_api["F_ADD_SEALS"])
+        get_seals = int(fcntl_api["F_GET_SEALS"])
+        required_seals = (
+            int(fcntl_api["F_SEAL_SEAL"])
+            | int(fcntl_api["F_SEAL_SHRINK"])
+            | int(fcntl_api["F_SEAL_GROW"])
+            | int(fcntl_api["F_SEAL_WRITE"])
+        )
+        apply_seals = cast(Callable[..., int], fcntl_api["fcntl"])
+        apply_seals(descriptor, add_seals, required_seals)
+        observed_seals = int(apply_seals(descriptor, get_seals))
+        if observed_seals & required_seals != required_seals:
+            raise OSError("external script memfd could not be sealed")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
 
 
 def _script_response(payload: dict[str, Any], config: LiveAdapterConfig) -> LiveProviderResponse:
@@ -606,7 +788,7 @@ def _script_argv(config: LiveAdapterConfig, script: Path) -> tuple[str, ...]:
 
 def _validate_openai_endpoint(
     config: LiveAdapterConfig,
-) -> None:
+) -> tuple[str, ...]:
     endpoint = config.endpoint_url or ""
     parsed = urllib.parse.urlparse(endpoint)
     if parsed.scheme.lower() != "https":
@@ -627,10 +809,17 @@ def _validate_openai_endpoint(
     }
     if host not in allowed_hosts:
         raise ValueError("openai-chat-completions endpoint host must be in allowed_endpoint_hosts")
-    assert_endpoint_resolution_allowed(
-        host,
-        label="openai-chat-completions",
-    )
+    status = resolve_endpoint_host(host)
+    if status.resolution_failed:
+        raise ValueError(
+            "openai-chat-completions endpoint host could not be resolved for safety screening"
+        )
+    if status.has_disallowed_address:
+        raise ValueError(
+            "openai-chat-completions endpoint host resolves to localhost, private, "
+            "link-local, reserved, or multicast addresses"
+        )
+    return status.addresses
 
 
 def _string(value: object, default: str) -> str:

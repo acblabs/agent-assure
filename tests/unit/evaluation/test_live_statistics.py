@@ -5,18 +5,26 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.fixtures.loader import compiled_suite_digest
-from agent_assure.live.advanced import _permutation_p_value, _poisson_upper_count_bound
+from agent_assure.live.advanced import (
+    _bootstrap_icc_interval,
+    _icc_from_counts,
+    _permutation_p_value,
+    _poisson_upper_count_bound,
+    _rare_event_bound,
+    evaluate_statistical_invariants,
+)
 from agent_assure.live.comparison import (
     _comparison_exploratory,
     _comparison_limitations,
     _comparison_state,
     compare_live_reports,
 )
-from agent_assure.live.drift import build_live_drift_report
+from agent_assure.live.drift import _metric_value, build_live_drift_report
 from agent_assure.live.intervals import difference_t_interval, stable_seed_int, t_critical_95
 from agent_assure.live.primitives import decimal_string as live_decimal_string
 from agent_assure.live.statistics import _rate_from_values, evaluate_live_runset
@@ -31,8 +39,10 @@ from agent_assure.schema.common import (
     decimal_string as schema_decimal_string,
 )
 from agent_assure.schema.live import (
+    DriftMetricPlan,
     LiveEvaluationReport,
     LiveProtocolRecord,
+    LiveRate,
     LiveTrajectoryReport,
     OperationalEventType,
 )
@@ -49,6 +59,7 @@ class RunSet(RunSetModel):
     privacy_profile_id: PrivacyProfileId = PRIVACY_PROFILE_ID
     privacy_profile_digest: PrivacyProfileDigest = PRIVACY_PROFILE_DIGEST
 
+
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
 
 
@@ -57,6 +68,54 @@ def test_live_decimal_rendering_uses_one_schema_helper() -> None:
 
     assert schema_decimal_string(exact_half) == "1.234566"
     assert live_decimal_string(exact_half) == schema_decimal_string(exact_half)
+
+
+def test_current_live_rate_zero_denominator_is_fixed_reference_only() -> None:
+    fixed_reference = LiveRate(
+        artifact_kind="live-rate",
+        label="fixed_reference_expectation_pass",
+        numerator=0,
+        denominator=0,
+        cluster_count=0,
+        effective_n="0.000000",
+        design_effect="1.000000",
+        largest_cluster_size=0,
+        largest_cluster_design_effect="1.000000",
+        largest_cluster_effective_n="0.000000",
+        assumed_intraclass_correlation="0.200000",
+        analysis_method="fixed_reference",
+        exploratory=False,
+        rate="0.000000",
+        cluster_mean_rate="0.000000",
+        interval_center="pooled_rate",
+        interval_center_value="0.000000",
+        confidence_level="0.950000",
+        ci_lower="0.000000",
+        ci_upper="0.000000",
+    )
+    assert fixed_reference.denominator == 0
+    assert fixed_reference.analysis_method == "fixed_reference"
+
+    observed_payload = fixed_reference.model_dump(mode="json")
+    observed_payload.update(
+        {
+            "label": "expectation_pass",
+            "analysis_method": "cluster_t_interval",
+            "exploratory": True,
+            "interval_center": "cluster_mean_rate",
+        }
+    )
+    with pytest.raises(ValidationError, match="fixed_reference point-value"):
+        LiveRate.model_validate(observed_payload)
+
+    malformed_reference = {**fixed_reference.model_dump(mode="json"), "ci_upper": "0.100000"}
+    with pytest.raises(ValidationError, match="count-free point values"):
+        LiveRate.model_validate(malformed_reference)
+
+    legacy_payload = {**observed_payload, "schema_version": "0.6.1"}
+    legacy_rate = LiveRate.model_validate(legacy_payload)
+    assert legacy_rate.schema_version == "0.6.1"
+    assert legacy_rate.denominator == 0
 
 
 def test_live_statistics_aggregate_repeated_observations() -> None:
@@ -122,25 +181,38 @@ def test_live_statistics_enforces_required_policy_ids() -> None:
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
-        runs=(
-            _record(repetition_index=0, linked=True, policy_results=()),
-        ),
+        runs=(_record(repetition_index=0, linked=True, policy_results=()),),
     )
 
     report = evaluate_live_runset(compiled, runset, protocol=protocol)
 
     assert report.state is GateState.fail
     assert report.observations[0].state is GateState.fail
-    finding = next(
+    observation = report.observations[0]
+    findings = tuple(
         finding
-        for finding in report.observations[0].findings
+        for finding in observation.findings
         if finding.control_id == "required_policy_evaluated"
     )
+    assert len(findings) == 1
+    (finding,) = findings
     assert finding.target == "provider-selection"
     assert finding.reason_code is ReasonCode.POLICY_FAILED
+    finding_ids = tuple(finding.finding_id for finding in observation.findings)
+    assert len(finding_ids) == len(set(finding_ids))
 
 
-def test_live_required_policy_failure_is_not_double_counted_as_policy_result() -> None:
+@pytest.mark.parametrize(
+    ("policy_state", "expected_control_id"),
+    (
+        ("fail", "required_policy:provider-selection"),
+        ("not_evaluated", "required_policy_evaluated"),
+    ),
+)
+def test_live_required_policy_nonpass_is_emitted_once(
+    policy_state: Literal["fail", "not_evaluated"],
+    expected_control_id: str,
+) -> None:
     compiled = compile_suite(SUITE)
     protocol = _protocol(compiled, observations=1, clusters=1, repetitions=1)
     protocol_digest = sha256_hexdigest(protocol)
@@ -162,7 +234,7 @@ def test_live_required_policy_failure_is_not_double_counted_as_policy_result() -
                     {
                         "artifact_kind": "policy-result",
                         "policy_id": "provider-selection",
-                        "state": "fail",
+                        "state": policy_state,
                         "reason_codes": [ReasonCode.POLICY_FAILED.value],
                         "severity": "error",
                         "message": "required provider policy failed",
@@ -174,10 +246,20 @@ def test_live_required_policy_failure_is_not_double_counted_as_policy_result() -
 
     report = evaluate_live_runset(compiled, runset, protocol=protocol)
 
-    control_ids = {finding.control_id for finding in report.observations[0].findings}
+    observation = report.observations[0]
+    matching_findings = tuple(
+        finding for finding in observation.findings if finding.control_id == expected_control_id
+    )
+    finding_ids = tuple(finding.finding_id for finding in observation.findings)
+
     assert report.state is GateState.fail
-    assert "required_policy:provider-selection" in control_ids
-    assert "policy_result:provider-selection" not in control_ids
+    assert len(matching_findings) == 1
+    assert matching_findings[0].target == "provider-selection"
+    assert matching_findings[0].reason_code is ReasonCode.POLICY_FAILED
+    assert not any(
+        finding.control_id == "policy_result:provider-selection" for finding in observation.findings
+    )
+    assert len(finding_ids) == len(set(finding_ids))
 
 
 def test_live_statistics_rejects_heterogeneous_execution_arm_identity() -> None:
@@ -380,9 +462,7 @@ def test_live_evaluation_report_rejects_tampered_derivable_rates(
     payload = report.model_dump(mode="json")
     overall = payload["overall"]
     rate = (
-        overall["reason_code_rates"][0]
-        if rate_name == "reason_code_rates"
-        else overall[rate_name]
+        overall["reason_code_rates"][0] if rate_name == "reason_code_rates" else overall[rate_name]
     )
     rate[field_name] = tampered_value
 
@@ -438,34 +518,22 @@ def test_live_binding_rejects_mismatched_suite_and_configuration_digests() -> No
             protocol=protocol,
         )
 
-    mismatched_provenance = record.provenance.model_copy(
-        update={"configuration_digest": "f" * 64}
-    )
+    mismatched_provenance = record.provenance.model_copy(update={"configuration_digest": "f" * 64})
     with pytest.raises(ValueError, match="configuration_digest"):
         evaluate_live_runset(
             compiled,
             runset.model_copy(
-                update={
-                    "runs": (
-                        record.model_copy(update={"provenance": mismatched_provenance}),
-                    )
-                }
+                update={"runs": (record.model_copy(update={"provenance": mismatched_provenance}),)}
             ),
             protocol=protocol,
         )
 
-    mismatched_model = record.provenance.model_copy(
-        update={"model_identifier": "other-model"}
-    )
+    mismatched_model = record.provenance.model_copy(update={"model_identifier": "other-model"})
     with pytest.raises(ValueError, match="model_identifier"):
         evaluate_live_runset(
             compiled,
             runset.model_copy(
-                update={
-                    "runs": (
-                        record.model_copy(update={"provenance": mismatched_model}),
-                    )
-                }
+                update={"runs": (record.model_copy(update={"provenance": mismatched_model}),)}
             ),
             protocol=protocol,
         )
@@ -637,15 +705,17 @@ def test_bootstrap_rate_method_is_used_for_bootstrap_protocols() -> None:
 
 def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> None:
     compiled = _compiled_with_cases(compile_suite(SUITE), 3)
+    advanced_plan = _advanced_plan(
+        primary_minimum_clusters=3,
+        rare_reason_codes=[ReasonCode.RAW_SENSITIVE_CONTENT.value],
+    )
+    advanced_plan["observed_icc_confirmatory_use"] = "external_review"
     protocol = _protocol(
         compiled,
         observations=6,
         clusters=3,
         repetitions=2,
-        advanced_analysis_plan=_advanced_plan(
-            primary_minimum_clusters=3,
-            rare_reason_codes=[ReasonCode.RAW_SENSITIVE_CONTENT.value],
-        ),
+        advanced_analysis_plan=advanced_plan,
     )
     protocol_digest = sha256_hexdigest(protocol)
     runset = RunSet(
@@ -699,11 +769,17 @@ def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> N
     primary = report.statistical_invariants[0]
     rare = report.statistical_invariants[1]
     assert primary.endpoint_id == "expectation-pass"
-    assert primary.prerequisite_status == "met"
+    assert primary.interpretation == "exploratory"
+    assert primary.prerequisite_status == "exploratory"
     assert primary.cluster_correlation is not None
     assert primary.cluster_correlation.planned_intraclass_correlation == "0.200000"
     assert primary.cluster_correlation.observed_intraclass_correlation is not None
-    assert primary.cluster_correlation.confirmatory_interval_uses_planned_icc is True
+    assert primary.cluster_correlation.confirmatory_use == "disabled"
+    assert primary.cluster_correlation.confirmatory_interval_uses_planned_icc is False
+    assert any(
+        "confirmatory use is disabled" in limitation
+        for limitation in primary.cluster_correlation.limitations
+    )
     assert primary.cluster_correlation.bootstrap_iterations == 1000
     assert rare.endpoint_id == "critical-sensitive-content"
     assert rare.rare_event_bound is not None
@@ -711,13 +787,62 @@ def test_advanced_statistical_invariants_report_rare_event_bounds_and_icc() -> N
     assert rare.rare_event_bound.zero_events is True
     assert rare.rare_event_bound.interval_sidedness == "one_sided_upper"
     assert Decimal(rare.rare_event_bound.upper_rate_bound) > Decimal("0.000000")
-    assert any(
-        "one-sided upper" in limitation
-        for limitation in rare.rare_event_bound.limitations
+    assert any("one-sided upper" in limitation for limitation in rare.rare_event_bound.limitations)
+    assert any("not proof" in limitation for limitation in rare.rare_event_bound.limitations)
+
+
+def test_advanced_zero_exposure_estimates_fail_closed() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=1,
+        clusters=1,
+        repetitions=1,
+        advanced_analysis_plan=_advanced_plan(primary_minimum_clusters=1),
     )
-    assert any(
-        "not proof" in limitation for limitation in rare.rare_event_bound.limitations
+
+    with pytest.raises(ValueError, match="rate is undefined for zero exposure"):
+        evaluate_statistical_invariants((), (), protocol)
+
+    assert protocol.advanced_analysis_plan is not None
+    endpoint = next(
+        candidate
+        for candidate in protocol.advanced_analysis_plan.endpoints
+        if candidate.analysis_method == "poisson_upper_bound"
     )
+    with pytest.raises(ValueError, match="bound are undefined for zero exposure"):
+        _rare_event_bound(
+            endpoint,
+            observed_events=0,
+            exposure=0,
+            confidence_alpha=Decimal("0.050000"),
+            bonferroni_adjusted=False,
+        )
+
+
+def test_degenerate_icc_is_not_reported_as_zero_with_a_zero_width_interval() -> None:
+    counts = ((0, 2), (0, 2), (0, 2))
+
+    assert _icc_from_counts(counts) is None
+    assert (
+        _bootstrap_icc_interval(
+            counts,
+            seed="degenerate-icc",
+            confidence_level="0.950000",
+            iterations=25,
+        )
+        is None
+    )
+
+
+def test_empty_paired_randomization_sample_fails_closed() -> None:
+    with pytest.raises(ValueError, match="undefined for an empty sample"):
+        _permutation_p_value(
+            (),
+            margin=Decimal("0"),
+            method="paired_cluster_permutation_exact",
+            seed="empty-sample",
+        )
 
 
 def test_zero_event_poisson_bound_matches_exact_rule_of_three_value() -> None:
@@ -899,9 +1024,7 @@ def test_rare_event_poisson_bound_uses_protocol_confidence_not_familywise_alpha(
         execution_mode=ExecutionMode.live,
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
-        runs=(
-            _record(repetition_index=0, linked=True),
-        ),
+        runs=(_record(repetition_index=0, linked=True),),
     )
 
     report = evaluate_live_runset(compiled, runset, protocol=protocol)
@@ -964,9 +1087,8 @@ def test_confirmatory_bonferroni_poisson_bound_uses_adjusted_alpha() -> None:
     assert rare.rare_event_bound is not None
     assert rare.rare_event_bound.confidence_level == "0.975000"
     assert rare.rare_event_bound.upper_count_bound == "3.688879"
-    assert (
-        Decimal("1") - Decimal(rare.rare_event_bound.confidence_level)
-        == Decimal(rare.adjusted_alpha)
+    assert Decimal("1") - Decimal(rare.rare_event_bound.confidence_level) == Decimal(
+        rare.adjusted_alpha
     )
     assert any(
         "Bonferroni multiplicity control" in limitation
@@ -1067,8 +1189,7 @@ def test_zero_margin_identical_candidate_is_not_a_regression() -> None:
     assert comparison.difference_ci_lower == "0.000000"
     assert comparison.state is GateState.not_evaluated
     assert any(
-        "zero-margin equality boundary" in limitation
-        for limitation in comparison.limitations
+        "zero-margin equality boundary" in limitation for limitation in comparison.limitations
     )
     assert not any("gate fails closed" in limitation for limitation in comparison.limitations)
 
@@ -1111,6 +1232,105 @@ def test_live_statistics_accounts_for_declared_exclusions() -> None:
     assert report.overall.excluded_observations == 1
     assert report.overall.exclusion_rate.rate == "0.500000"
     assert report.observations[1].state is GateState.not_evaluated
+
+
+def test_zero_denominator_rate_estimation_fails_closed() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+    )
+
+    with pytest.raises(ValueError, match="undefined for a zero observation denominator"):
+        _rate_from_values(
+            "expectation_pass",
+            (),
+            protocol=protocol,
+            analysis_method="cluster_t_interval",
+        )
+
+
+def test_drift_zero_denominators_use_missing_metric_semantics() -> None:
+    report = _aggregate_validation_report()
+    reason_plan = DriftMetricPlan(
+        artifact_kind="drift-metric-plan",
+        metric="reason_code_rate",
+        label="Sensitive-content rate",
+        reason_codes=(ReasonCode.RAW_SENSITIVE_CONTENT,),
+    )
+    excluded_report = report.model_copy(
+        update={
+            "observations": tuple(
+                observation.model_copy(update={"observation_status": "excluded"})
+                for observation in report.observations
+            )
+        }
+    )
+
+    computed_rate = _metric_value(excluded_report, reason_plan)
+
+    assert computed_rate.numerator == 0
+    assert computed_rate.denominator == 0
+    assert computed_rate.value is None
+
+    persisted_rate = report.overall.expectation_pass_rate.model_copy(update={"denominator": 0})
+    zero_denominator_report = report.model_copy(
+        update={
+            "overall": report.overall.model_copy(update={"expectation_pass_rate": persisted_rate})
+        }
+    )
+    persisted_metric = _metric_value(
+        zero_denominator_report,
+        DriftMetricPlan(
+            artifact_kind="drift-metric-plan",
+            metric="expectation_pass_rate",
+            label="Expectation pass rate",
+        ),
+    )
+
+    assert persisted_metric.denominator == 0
+    assert persisted_metric.value is None
+
+
+def test_all_excluded_observations_fail_closed_without_fabricating_a_rate() -> None:
+    compiled = compile_suite(SUITE)
+    protocol = _protocol(
+        compiled,
+        observations=2,
+        clusters=1,
+        repetitions=2,
+        allowed_exclusion_reasons=("provider_incident",),
+        max_exclusion_rate="0.500000",
+    )
+    protocol_digest = sha256_hexdigest(protocol)
+    runset = RunSet(
+        artifact_kind="run-set",
+        runset_id="runset-live-all-excluded",
+        suite_id=compiled.suite_id,
+        suite_version=compiled.suite_version,
+        suite_digest=compiled_suite_digest(compiled),
+        fixture_manifest_digest="4" * 64,
+        execution_mode=ExecutionMode.live,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=protocol_digest,
+        runs=(
+            _record(
+                repetition_index=0,
+                linked=True,
+                exclusion_reason="provider_incident",
+            ),
+            _record(
+                repetition_index=1,
+                linked=True,
+                exclusion_reason="provider_incident",
+            ),
+        ),
+    )
+
+    with pytest.raises(ValueError, match="exceeds max_exclusion_rate"):
+        evaluate_live_runset(compiled, runset, protocol=protocol)
 
 
 def test_live_statistics_marks_budget_stop_as_incomplete() -> None:
@@ -1577,7 +1797,8 @@ def test_live_comparison_reports_exact_paired_randomization_test() -> None:
     assert comparison.pass_rate_difference == "1.000000"
     assert len(comparison.randomization_tests) == 1
     test = comparison.randomization_tests[0]
-    assert test.prerequisite_status == "met"
+    assert test.interpretation == "exploratory"
+    assert test.prerequisite_status == "exploratory"
     assert test.p_value == "0.031250"
     assert test.adjusted_p_value == "0.031250"
     assert test.exhaustive is True
@@ -1616,8 +1837,7 @@ def test_zero_margin_identical_candidate_is_not_a_randomization_regression() -> 
     assert comparison.state is GateState.not_evaluated
     assert comparison.randomization_tests[0].p_value == "1.000000"
     assert any(
-        "zero-margin equality boundary" in limitation
-        for limitation in comparison.limitations
+        "zero-margin equality boundary" in limitation for limitation in comparison.limitations
     )
     assert not any("gate fails closed" in limitation for limitation in comparison.limitations)
 
@@ -1640,8 +1860,7 @@ def test_zero_margin_identical_candidate_is_not_a_randomization_regression() -> 
     assert breached.pass_rate_difference == "-1.000000"
     assert breached.state is GateState.fail
     assert any(
-        "does not prove candidate inferiority" in limitation
-        for limitation in breached.limitations
+        "does not prove candidate inferiority" in limitation for limitation in breached.limitations
     )
 
 
@@ -1998,9 +2217,7 @@ def test_live_comparison_rejects_unpaired_cluster_sets() -> None:
         update={
             "observations": (
                 candidate.observations[0],
-                candidate.observations[1].model_copy(
-                    update={"cluster_id": "candidate-only"}
-                ),
+                candidate.observations[1].model_copy(update={"cluster_id": "candidate-only"}),
             )
         }
     )
@@ -2350,8 +2567,7 @@ def test_live_drift_reports_multiple_timestamp_ordering_failures() -> None:
     assert report.monitoring_status == "invalid"
     assert report.comparability.status == "invalid"
     assert any(
-        "missing windows: window-0001" in failure
-        for failure in report.comparability.failures
+        "missing windows: window-0001" in failure for failure in report.comparability.failures
     )
     assert any(
         "between window-0000 and window-0002" in failure
@@ -2611,26 +2827,16 @@ def test_live_protocol_rejects_unsupported_confidence_level() -> None:
 
 
 def test_non_inferiority_boundary_is_exact() -> None:
+    assert _comparison_state(Decimal("-0.050000"), Decimal("0.050000"), 30, False) is GateState.fail
     assert (
-        _comparison_state(Decimal("-0.050000"), Decimal("0.050000"), 30, False)
-        is GateState.fail
+        _comparison_state(Decimal("-0.049999"), Decimal("0.050000"), 30, False) is GateState.pass_
     )
-    assert (
-        _comparison_state(Decimal("-0.049999"), Decimal("0.050000"), 30, False)
-        is GateState.pass_
-    )
-    assert (
-        _comparison_state(Decimal("-0.050001"), Decimal("0.050000"), 30, False)
-        is GateState.fail
-    )
+    assert _comparison_state(Decimal("-0.050001"), Decimal("0.050000"), 30, False) is GateState.fail
     assert (
         _comparison_state(Decimal("0.000000"), Decimal("0.000000"), 30, False)
         is GateState.not_evaluated
     )
-    assert (
-        _comparison_state(Decimal("-0.000001"), Decimal("0.000000"), 30, False)
-        is GateState.fail
-    )
+    assert _comparison_state(Decimal("-0.000001"), Decimal("0.000000"), 30, False) is GateState.fail
 
 
 def _record(
@@ -2882,9 +3088,7 @@ def _protocol(
 ) -> LiveProtocolRecord:  # type: ignore[no-untyped-def]
     planned_observations_per_cluster = Decimal(observations) / Decimal(clusters)
     rho = Decimal("0.200000")
-    expected_design_effect = Decimal("1") + (
-        planned_observations_per_cluster - Decimal("1")
-    ) * rho
+    expected_design_effect = Decimal("1") + (planned_observations_per_cluster - Decimal("1")) * rho
     selected_design_effect = design_effect or _decimal_string(expected_design_effect)
     return LiveProtocolRecord(
         artifact_kind="live-protocol-record",
@@ -2974,8 +3178,7 @@ def _advanced_plan(
                 "role": "secondary",
                 "interpretation": secondary_interpretation,
                 "analysis_method": "poisson_upper_bound",
-                "reason_codes": rare_reason_codes
-                or [ReasonCode.RAW_SENSITIVE_CONTENT.value],
+                "reason_codes": rare_reason_codes or [ReasonCode.RAW_SENSITIVE_CONTENT.value],
                 "minimum_clusters": 1,
                 "minimum_observations": 1,
             },

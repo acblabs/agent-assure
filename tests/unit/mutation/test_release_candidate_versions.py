@@ -20,7 +20,7 @@ from agent_assure.schema.run import (
     EvidenceRef,
     RunSet,
 )
-from agent_assure.schema.suite import CompiledSuite, SuiteCase
+from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
 from agent_assure.schema.validation import validate_artifact_payload
 
 _RELEASE_CANDIDATE_VERSION = "0.6.1rc1"
@@ -106,6 +106,7 @@ def _fixture() -> tuple[CompiledSuite, dict[str, object]]:
     suite = CompiledSuite(
         suite_id="release-candidate-mutation-suite",
         suite_version="1.0.0",
+        defaults=SuiteDefaults(runner_id="release.candidate.mutation.tests"),
         cases=(
             SuiteCase(
                 case_id="case-a",

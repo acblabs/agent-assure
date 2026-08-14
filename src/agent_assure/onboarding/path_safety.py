@@ -4,7 +4,7 @@ import os
 import stat
 from pathlib import Path
 
-from agent_assure.io_limits import BoundedFileContents, read_file_bounded
+from agent_assure.io_limits import BoundedFileContents, read_file_bounded_at
 
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 
@@ -136,10 +136,76 @@ def read_confined_file_snapshot(
     absolute_root = root.absolute()
     if not is_safe_input_file(absolute_path, root=absolute_root):
         raise ValueError(f"{label} must be a confined, unlinked regular file")
-    contents = read_file_bounded(absolute_path, max_bytes=max_bytes, label=label)
+    try:
+        resolved_root = absolute_root.resolve(strict=True)
+        relative_path = absolute_path.resolve(strict=True).relative_to(resolved_root)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError(f"{label} must be a confined, unlinked regular file") from exc
+    contents = read_file_bounded_at(
+        resolved_root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    )
     if not is_safe_input_file(absolute_path, root=absolute_root):
         raise ValueError(f"{label} changed path identity while it was being read")
     return contents
+
+
+def confined_snapshot_relative_path(
+    path: Path,
+    contents: BoundedFileContents,
+    *,
+    root: Path,
+    path_root: Path,
+    label: str,
+) -> str:
+    """Bind a descriptor snapshot to its still-confined lexical path identity."""
+    absolute_path = path.absolute()
+    absolute_root = root.absolute()
+    absolute_path_root = path_root.absolute()
+    if not is_safe_input_file(absolute_path, root=absolute_root):
+        raise ValueError(f"{label} changed path identity after it was read")
+    if is_explicit_network_path(absolute_path_root):
+        raise ValueError(f"{label} path root must be local")
+    try:
+        require_regular_directory_chain(absolute_path_root)
+        metadata = os.lstat(absolute_path)
+    except (OSError, UnsafeDirectoryChainError) as exc:
+        raise ValueError(f"{label} changed path identity after it was read") from exc
+    observed_identity = (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+    expected_identity = (
+        contents.device,
+        contents.inode,
+        contents.size,
+        contents.modified_ns,
+        contents.changed_ns,
+    )
+    if observed_identity != expected_identity:
+        raise ValueError(f"{label} changed path identity after it was read")
+    try:
+        resolved_path = absolute_path.resolve(strict=True)
+        resolved_path_root = absolute_path_root.resolve(strict=True)
+        relative_path = resolved_path.relative_to(resolved_path_root).as_posix()
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise ValueError(f"{label} escapes its artifact root") from exc
+    final_metadata = os.lstat(absolute_path)
+    final_identity = (
+        final_metadata.st_dev,
+        final_metadata.st_ino,
+        final_metadata.st_size,
+        final_metadata.st_mtime_ns,
+        final_metadata.st_ctime_ns,
+    )
+    if final_identity != expected_identity:
+        raise ValueError(f"{label} changed path identity after it was read")
+    return relative_path
 
 
 def path_entry_exists(path: Path) -> bool:

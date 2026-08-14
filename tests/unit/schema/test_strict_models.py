@@ -421,7 +421,7 @@ def test_live_runset_rejects_fixture_run_records() -> None:
 
 @pytest.mark.parametrize("identity_field", ("artifact_kind", "schema_version"))
 def test_raw_runset_requires_explicit_persisted_identity(identity_field: str) -> None:
-    payload = RunSet(
+    payload = RunSet.model_construct(
         runset_id="runset-001",
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
