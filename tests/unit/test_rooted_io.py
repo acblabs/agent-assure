@@ -75,6 +75,24 @@ def test_rooted_descriptor_lease_rewinds_and_closes_file_descriptor(tmp_path: Pa
         os.fstat(descriptor)
 
 
+def test_windows_last_error_preserves_dynamic_ctypes_error_code(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    observed_codes: list[int] = []
+
+    def fake_win_error(error_code: int) -> OSError:
+        observed_codes.append(error_code)
+        return OSError(error_code, "synthetic Windows failure")
+
+    monkeypatch.setattr(rooted_io.ctypes, "get_last_error", lambda: 1234, raising=False)
+    monkeypatch.setattr(rooted_io.ctypes, "WinError", fake_win_error, raising=False)
+
+    error = rooted_io._windows_last_error()
+
+    assert observed_codes == [1234]
+    assert error.errno == 1234
+
+
 def test_rooted_directory_lease_pins_nested_directory_and_root(tmp_path: Path) -> None:
     root = tmp_path / "root"
     nested = root / "nested"

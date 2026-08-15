@@ -760,6 +760,13 @@ def _windows_kernel32() -> Any:
     return win_dll("kernel32", use_last_error=True)
 
 
+def _windows_last_error() -> OSError:
+    ctypes_api = vars(ctypes)
+    get_last_error = cast(Callable[[], int], ctypes_api["get_last_error"])
+    win_error = cast(Callable[[int], OSError], ctypes_api["WinError"])
+    return win_error(get_last_error())
+
+
 def _windows_open_handle(path: Path, *, directory: bool) -> int:
     kernel32 = _windows_kernel32()
     create_file = cast(Any, kernel32.CreateFileW)
@@ -790,7 +797,7 @@ def _windows_open_handle(path: Path, *, directory: bool) -> int:
     )
     invalid_handle = ctypes.c_void_p(-1).value
     if raw_handle is None or raw_handle == invalid_handle:
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise _windows_last_error()
     return int(raw_handle)
 
 
@@ -801,7 +808,7 @@ def _windows_handle_identity(handle: int) -> _WindowsHandleIdentity:
     get_information.restype = wintypes.BOOL
     information = _WindowsByHandleFileInformation()
     if not get_information(wintypes.HANDLE(handle), ctypes.byref(information)):
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise _windows_last_error()
     return _WindowsHandleIdentity(
         attributes=int(information.attributes),
         volume_serial_number=int(information.volume_serial_number),
@@ -821,7 +828,7 @@ def _windows_final_path(handle: int) -> str:
     buffer = ctypes.create_unicode_buffer(capacity)
     length = int(get_final_path(wintypes.HANDLE(handle), buffer, capacity, 0))
     if length == 0:
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise _windows_last_error()
     if length >= capacity:
         raise OSError("opened Windows path exceeded supported length")
     return buffer.value
