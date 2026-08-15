@@ -436,6 +436,7 @@ def test_external_script_fails_closed_when_tree_containment_is_unavailable(
     assert raised.value.emergency_record.failure_kind == "spawn_failed"
 
 
+@pytest.mark.skipif(os.name != "nt", reason="Windows suspended-launch validation")
 def test_post_spawn_validation_failure_terminates_and_reaps_suspended_process(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

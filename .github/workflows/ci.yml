@@ -59,6 +59,7 @@ jobs:
           tests/unit/runner/test_subprocess_harness.py::test_external_script_adapter_invokes_script_with_trace_context
           tests/unit/runner/test_subprocess_harness.py::test_external_script_stdout_is_bounded
           tests/unit/runner/test_subprocess_harness.py::test_external_script_timeout_terminates_descendant_process_tree
+          tests/unit/runner/test_subprocess_harness.py::test_post_spawn_validation_failure_terminates_and_reaps_suspended_process
           tests/unit/runner/test_subprocess_harness.py::test_windows_external_script_success_kills_descendant_when_job_closes
   schema-immutability:
     runs-on: ubuntu-latest

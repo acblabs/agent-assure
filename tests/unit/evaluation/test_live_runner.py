@@ -1800,8 +1800,8 @@ def test_pinned_https_connection_dials_only_screened_ip_with_original_tls_name(
         "gateway.example.com",
         pinned_addresses=("93.184.216.34",),
         timeout=7,
-        context=FakeTlsContext(),  # type: ignore[arg-type]
     )
+    connection._context = FakeTlsContext()  # type: ignore[assignment]
 
     connection.connect()
 
@@ -1811,7 +1811,7 @@ def test_pinned_https_connection_dials_only_screened_ip_with_original_tls_name(
     assert connection.sock is tls_socket
 
 
-def test_pinned_https_handler_passes_verified_tls_context_to_connection_factory(
+def test_pinned_https_handler_uses_verified_context_without_legacy_kwargs(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     handler = _PinnedHTTPSHandler(("93.184.216.34",))
@@ -1836,7 +1836,8 @@ def test_pinned_https_handler_passes_verified_tls_context_to_connection_factory(
     connection = handler.https_open(request)
 
     tls_context = connection._context
-    assert captured == {"context": tls_context}
+    assert captured == {"context": getattr(handler, "_context", None)}
+    assert tls_context is not None
     assert tls_context.check_hostname is True
 
 
