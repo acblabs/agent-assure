@@ -21,6 +21,7 @@ from agent_assure.schema.common import (
     coerce_enum,
     coerce_tuple,
     current_machine_identifier_json_schema_extra,
+    current_non_empty_fields_json_schema_extra,
     validate_machine_identifier,
 )
 from agent_assure.schema.privacy import (
@@ -49,7 +50,7 @@ _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
 )
-_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2"})
+_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3"})
 _RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
@@ -81,6 +82,10 @@ _RUN_SET_USAGE_FIELD_PATHS = (
     ("usage_summary",),
     ("runs", "*", "usage_ledger"),
     ("runs", "*", "usage_summary"),
+)
+_RUN_SET_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_SET_USAGE_FIELD_PATHS)
+_RUN_SET_JSON_SCHEMA_EXTRA["allOf"].extend(
+    current_non_empty_fields_json_schema_extra("runset_id")["allOf"]
 )
 _EVIDENCE_GRAPH_MEMBER_FIELDS = (
     "evidence_refs",
@@ -496,9 +501,7 @@ class AgentRunRecord(PersistedArtifact):
 
 class RunSet(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=privacy_profile_json_schema_extra(
-            usage_container_json_schema_extra(*_RUN_SET_USAGE_FIELD_PATHS)
-        )
+        json_schema_extra=privacy_profile_json_schema_extra(_RUN_SET_JSON_SCHEMA_EXTRA)
     )
 
     artifact_kind: Literal["run-set"] = "run-set"
@@ -549,6 +552,8 @@ class RunSet(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_protocol_binding(self) -> RunSet:
+        if self.schema_version == SCHEMA_VERSION and not self.runset_id:
+            raise ValueError("current run sets require a non-empty runset_id")
         if self.schema_version == SCHEMA_VERSION and not self.runs:
             raise ValueError("run sets require at least one run record")
         validate_privacy_profile_binding(

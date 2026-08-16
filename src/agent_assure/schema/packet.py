@@ -28,6 +28,7 @@ from agent_assure.schema.usage import (
 PacketArtifactRole = Literal[
     "evaluation-summary",
     "comparison-summary",
+    "assurance-evidence-graph",
     "control-efficacy-onboarding-config",
     "control-efficacy-gate-profile",
     "control-efficacy-report",
@@ -52,7 +53,8 @@ _CONTROL_EFFICACY_DIGEST_ROLES = (
     "control-efficacy-report",
     *_CONTROL_EFFICACY_CONFIG_DIGEST_ROLES,
 )
-_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2"})
+_EVIDENCE_GRAPH_ARTIFACT_ROLE: PacketArtifactRole = "assurance-evidence-graph"
+_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2", "0.6.3"})
 _USAGE_ARTIFACT_SCHEMA_VERSION = "0.4.3"
 
 
@@ -120,6 +122,71 @@ def _evidence_packet_json_schema_extra() -> dict[str, Any]:
             },
         }
     )
+    graph_digest_present = {
+        "required": ["evidence_graph_digest"],
+        "properties": {"evidence_graph_digest": {"not": {"type": "null"}}},
+    }
+    exact_graph_digest_constraint = {
+        "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {"role": {"const": _EVIDENCE_GRAPH_ARTIFACT_ROLE}},
+        },
+        "minContains": 1,
+        "maxContains": 1,
+    }
+    no_graph_digest_constraint = {
+        "not": {
+            "contains": {
+                "type": "object",
+                "required": ["role"],
+                "properties": {"role": {"const": _EVIDENCE_GRAPH_ARTIFACT_ROLE}},
+            }
+        }
+    }
+    # JSON Schema can express graph-binding presence and cardinality, but not
+    # equality between digest values selected from two independent arrays.
+    # packet_summary_digest_binding_error enforces that cross-object equality.
+    schema["allOf"].append(
+        {
+            "if": graph_digest_present,
+            "then": {
+                "required": ["artifact_digests"],
+                "properties": {
+                    "artifact_digests": exact_graph_digest_constraint,
+                    "release_manifest": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "required": ["artifacts"],
+                                "properties": {
+                                    "artifacts": exact_graph_digest_constraint,
+                                },
+                            },
+                        ]
+                    },
+                },
+            },
+            "else": {
+                "properties": {
+                    "artifact_digests": no_graph_digest_constraint,
+                    "release_manifest": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "required": ["artifacts"],
+                                "properties": {
+                                    "artifacts": no_graph_digest_constraint,
+                                },
+                            },
+                        ]
+                    },
+                }
+            },
+        }
+    )
     return schema
 
 
@@ -151,6 +218,10 @@ class EvidencePacket(PersistedArtifact):
     )
     environment: EnvironmentInfo | None = None
     release_manifest: ReleaseArtifactManifest | None = None
+    evidence_graph_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     usage_summary: UsageSummary | None = Field(default=None, exclude_if=lambda value: value is None)
     artifact_digests: tuple[PacketArtifactDigest, ...] = ()
     limitations: tuple[str, ...]
@@ -275,19 +346,33 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
     if packet.schema_version != SCHEMA_VERSION:
         return None
     expected_comparison_count = int(packet.comparison is not None)
+    expected_graph_count = int(packet.evidence_graph_digest is not None)
     packet_by_role = {
         role: tuple(item for item in packet.artifact_digests if item.role == role)
-        for role in ("evaluation-summary", "comparison-summary")
+        for role in (
+            "evaluation-summary",
+            "comparison-summary",
+            _EVIDENCE_GRAPH_ARTIFACT_ROLE,
+        )
     }
     if len(packet_by_role["evaluation-summary"]) != 1:
         return "current evidence packets require exactly one evaluation-summary digest"
     if len(packet_by_role["comparison-summary"]) != expected_comparison_count:
         return "current evidence packet comparison-summary digest must match nested comparison"
+    if len(packet_by_role[_EVIDENCE_GRAPH_ARTIFACT_ROLE]) != expected_graph_count:
+        return (
+            "current evidence packet assurance-evidence-graph digest must match "
+            "evidence_graph_digest presence"
+        )
     if packet.release_manifest is None:
         return None
     manifest_by_role = {
         role: tuple(item for item in packet.release_manifest.artifacts if item.role == role)
-        for role in ("evaluation-summary", "comparison-summary")
+        for role in (
+            "evaluation-summary",
+            "comparison-summary",
+            _EVIDENCE_GRAPH_ARTIFACT_ROLE,
+        )
     }
     if len(manifest_by_role["evaluation-summary"]) != 1:
         return (
@@ -299,7 +384,16 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "current evidence packet release manifest comparison-summary artifact "
             "must match nested comparison"
         )
-    for role in ("evaluation-summary", "comparison-summary"):
+    if len(manifest_by_role[_EVIDENCE_GRAPH_ARTIFACT_ROLE]) != expected_graph_count:
+        return (
+            "current evidence packet release manifest assurance-evidence-graph artifact "
+            "must match evidence_graph_digest presence"
+        )
+    for role in (
+        "evaluation-summary",
+        "comparison-summary",
+        _EVIDENCE_GRAPH_ARTIFACT_ROLE,
+    ):
         if not packet_by_role[role]:
             continue
         if packet_by_role[role][0].sha256 != manifest_by_role[role][0].sha256:

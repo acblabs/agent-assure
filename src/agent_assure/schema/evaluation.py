@@ -14,6 +14,7 @@ from agent_assure.schema.common import (
     ReasonCode,
     coerce_enum,
     coerce_tuple,
+    current_non_empty_fields_json_schema_extra,
 )
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.privacy import (
@@ -31,6 +32,12 @@ from agent_assure.schema.usage import (
 
 _EVALUATION_SUMMARY_USAGE_FIELD_PATHS = (("usage_summary",),)
 MAX_WAIVER_DISPOSITIONS = 4096
+_EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
+    *_EVALUATION_SUMMARY_USAGE_FIELD_PATHS
+)
+_EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].extend(
+    current_non_empty_fields_json_schema_extra("runset_id")["allOf"]
+)
 
 
 class WaiverDispositionStatus(StrEnum):
@@ -71,6 +78,10 @@ class WaiverDisposition(FrozenStrictModel):
 
 
 class Finding(PersistedArtifact):
+    model_config = ConfigDict(
+        json_schema_extra=current_non_empty_fields_json_schema_extra("finding_id")
+    )
+
     artifact_kind: Literal["finding"] = "finding"
     finding_id: str
     case_id: str
@@ -89,6 +100,12 @@ class Finding(PersistedArtifact):
     @classmethod
     def _coerce_reason_code(cls, value: object) -> ReasonCode:
         return coerce_enum(ReasonCode, value)
+
+    @model_validator(mode="after")
+    def _require_current_identity(self) -> Finding:
+        if self.schema_version == SCHEMA_VERSION and not self.finding_id:
+            raise ValueError("current findings require a non-empty finding_id")
+        return self
 
 
 def evaluation_summary_coherence_error(
@@ -120,9 +137,7 @@ def evaluation_summary_coherence_error(
 
 class EvaluationSummary(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=privacy_profile_json_schema_extra(
-            usage_container_json_schema_extra(*_EVALUATION_SUMMARY_USAGE_FIELD_PATHS)
-        )
+        json_schema_extra=privacy_profile_json_schema_extra(_EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA)
     )
 
     artifact_kind: Literal["evaluation-summary"] = "evaluation-summary"
@@ -152,6 +167,12 @@ class EvaluationSummary(PersistedArtifact):
     @classmethod
     def _coerce_findings(cls, value: object) -> object:
         return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _require_current_runset_identity(self) -> EvaluationSummary:
+        if self.schema_version == SCHEMA_VERSION and not self.runset_id:
+            raise ValueError("current evaluation summaries require a non-empty runset_id")
+        return self
 
     @model_validator(mode="after")
     def _validate_state_finding_coherence(self) -> EvaluationSummary:

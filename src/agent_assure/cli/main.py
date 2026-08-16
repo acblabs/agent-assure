@@ -11,6 +11,7 @@ from agent_assure.cli import (
     diff_cmd,
     doctor_cmd,
     evaluate_cmd,
+    graph_cmd,
     init_cmd,
     live_cmd,
     otel_cmd,
@@ -31,6 +32,7 @@ app.add_typer(suite_cmd.app, name="suite")
 app.add_typer(demo_cmd.app, name="demo")
 app.add_typer(diff_cmd.app, name="diff")
 app.command("evaluate")(evaluate_cmd.evaluate)
+app.add_typer(graph_cmd.app, name="graph")
 app.command("compare")(compare_cmd.compare)
 app.command("ci")(ci_cmd.ci)
 app.add_typer(controls_cmd.app, name="controls")

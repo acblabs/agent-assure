@@ -61,3 +61,32 @@ Control-efficacy gates use a separate stable reason namespace:
 
 Strict efficacy CI rejects every one of these finding states regardless of an
 advisory effect mapping.
+
+## Evidence Graph Projection Reasons
+
+The evidence graph uses a separate closed reason namespace for findings that
+are created by projection rather than copied from a source finding:
+
+- `EVIDENCE_SCOPE_LIMITATION`: a source limitation was projected as a
+  non-verdict finding.
+- `MUTATION_CAUGHT`: the mutation source recorded a caught outcome.
+- `MUTATION_SURVIVED`: the mutation source recorded a survived outcome.
+- `MUTATION_INAPPLICABLE`: the mutation source recorded an inapplicable
+  outcome.
+- `MUTATION_INVALID_OPERATOR`: the mutation source recorded an invalid
+  operator.
+- `MUTATION_INVALID_SUBJECT`: the mutation source recorded an invalid subject.
+- `MUTATION_EXECUTION_ERROR`: mutation execution failed.
+- `THREAT_CHALLENGED`: an applicable threat category had at least one completed
+  challenger. This means exercised coverage, not successful detection or
+  mitigation.
+- `THREAT_UNCOVERED`: an applicable threat category had no completed
+  challenger.
+- `THREAT_NOT_APPLICABLE`: the threat category was explicitly outside scope.
+- `THREAT_APPLICABILITY_UNKNOWN`: the threat category retained unknown
+  applicability.
+
+Graph validation requires the exact registered reason for each mutation,
+threat-applicability, challenge, and limitation state. Mutation diagnostic
+codes are carried separately under the `diagnostic` reference role and are not
+part of the applicability namespace.

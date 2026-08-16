@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, model_validator
 from pydantic_core import CoreSchema
 
-SCHEMA_VERSION = "0.6.2"
+SCHEMA_VERSION = "0.6.3"
 SchemaVersion = Literal[
     "0.2.0",
     "0.3.1",
@@ -15,16 +15,21 @@ SchemaVersion = Literal[
     "0.6.0",
     "0.6.1",
     "0.6.2",
+    "0.6.3",
 ]
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
 RFC8785_SAFE_INTEGER_MIN = -RFC8785_SAFE_INTEGER_MAX
 
 
 def validate_rfc8785_safe_integers(value: object, *, owner: str) -> None:
-    """Reject integer values that RFC 8785 cannot represent exactly."""
-    pending: list[tuple[str, object]] = [("$", value)]
+    """Reject cycles and integers that RFC 8785 cannot represent exactly."""
+    pending: list[tuple[str, object, bool]] = [("$", value, False)]
+    active_containers: set[int] = set()
     while pending:
-        path, candidate = pending.pop()
+        path, candidate, leaving = pending.pop()
+        if leaving:
+            active_containers.remove(id(candidate))
+            continue
         if isinstance(candidate, bool) or candidate is None:
             continue
         if isinstance(candidate, int):
@@ -34,10 +39,25 @@ def validate_rfc8785_safe_integers(value: object, *, owner: str) -> None:
                 )
             continue
         if isinstance(candidate, Mapping):
-            pending.extend((f"{path}.{key}", nested) for key, nested in candidate.items())
+            container_id = id(candidate)
+            if container_id in active_containers:
+                raise ValueError(f"{owner} value at {path} contains a cyclic reference")
+            active_containers.add(container_id)
+            pending.append((path, candidate, True))
+            pending.extend(
+                (f"{path}.{key}", nested, False) for key, nested in candidate.items()
+            )
             continue
         if isinstance(candidate, Sequence) and not isinstance(candidate, str | bytes | bytearray):
-            pending.extend((f"{path}[{index}]", nested) for index, nested in enumerate(candidate))
+            container_id = id(candidate)
+            if container_id in active_containers:
+                raise ValueError(f"{owner} value at {path} contains a cyclic reference")
+            active_containers.add(container_id)
+            pending.append((path, candidate, True))
+            pending.extend(
+                (f"{path}[{index}]", nested, False)
+                for index, nested in enumerate(candidate)
+            )
 
 
 class StrictModel(BaseModel):
@@ -76,7 +96,7 @@ class PersistedArtifact(FrozenStrictModel):
         hide_input_in_errors=True,
     )
 
-    schema_version: SchemaVersion = "0.6.2"
+    schema_version: SchemaVersion = "0.6.3"
 
     @model_validator(mode="before")
     @classmethod

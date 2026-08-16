@@ -1,0 +1,2706 @@
+{
+  "$defs": {
+    "ComparisonClassification": {
+      "enum": [
+        "new_failure",
+        "resolved_failure",
+        "persistent_failure",
+        "unchanged",
+        "allowed_behavioral_change",
+        "allowed_behavioral_and_provenance_change",
+        "provenance_only_change",
+        "invalid_comparison",
+        "not_evaluated"
+      ],
+      "title": "ComparisonClassification",
+      "type": "string"
+    },
+    "ComparisonSummary": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.2.0"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "baseline_usage_summary"
+                  ]
+                },
+                {
+                  "required": [
+                    "candidate_usage_summary"
+                  ]
+                },
+                {
+                  "required": [
+                    "usage_delta"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.3"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "baseline_runset_id": {
+                "minLength": 1
+              },
+              "candidate_runset_id": {
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "privacy_profile_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "privacy_profile_digest"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": [
+                    "schema_version"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "schema_version": {
+                    "enum": [
+                      "0.5.0",
+                      "0.6.0",
+                      "0.6.1",
+                      "0.6.2",
+                      "0.6.3"
+                    ]
+                  }
+                },
+                "required": [
+                  "schema_version"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "privacy_profile_id",
+              "privacy_profile_digest"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "comparison-summary",
+          "default": "comparison-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "baseline_runset_id": {
+          "title": "Baseline Runset Id",
+          "type": "string"
+        },
+        "baseline_state": {
+          "$ref": "#/$defs/GateState",
+          "default": "not_evaluated"
+        },
+        "baseline_usage_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "candidate_runset_id": {
+          "title": "Candidate Runset Id",
+          "type": "string"
+        },
+        "candidate_state": {
+          "$ref": "#/$defs/GateState",
+          "default": "not_evaluated"
+        },
+        "candidate_usage_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "classification": {
+          "$ref": "#/$defs/ComparisonClassification"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvironmentInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fixture_equivalence_state": {
+          "$ref": "#/$defs/GateState",
+          "default": "not_evaluated"
+        },
+        "privacy_profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Privacy Profile Digest",
+          "type": "string"
+        },
+        "privacy_profile_id": {
+          "minLength": 1,
+          "title": "Privacy Profile Id",
+          "type": "string"
+        },
+        "provenance_changes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Provenance Changes",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "usage_delta": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageSummaryDelta"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "verdict_findings": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Verdict Findings",
+          "type": "array"
+        }
+      },
+      "required": [
+        "baseline_runset_id",
+        "candidate_runset_id",
+        "classification",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "ComparisonSummary",
+      "type": "object"
+    },
+    "ControlEfficacyGateDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "findings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ControlEfficacyGateFinding"
+          },
+          "maxItems": 9,
+          "title": "Findings",
+          "type": "array"
+        },
+        "profile_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "report_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Report Digest",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        }
+      },
+      "required": [
+        "report_digest",
+        "profile_id",
+        "state"
+      ],
+      "title": "ControlEfficacyGateDecision",
+      "type": "object"
+    },
+    "ControlEfficacyGateFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "effect": {
+          "$ref": "#/$defs/GateEffect"
+        },
+        "operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Operator Ids",
+          "type": "array"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ControlEfficacyGateReason"
+        },
+        "threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 8192,
+          "title": "Threat Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "reason_code",
+        "effect"
+      ],
+      "title": "ControlEfficacyGateFinding",
+      "type": "object"
+    },
+    "ControlEfficacyGateProfile": {
+      "additionalProperties": false,
+      "properties": {
+        "applicable_threat_uncovered": {
+          "$ref": "#/$defs/GateEffect",
+          "default": "review"
+        },
+        "critical_threat_uncovered": {
+          "$ref": "#/$defs/GateEffect",
+          "default": "review"
+        },
+        "invalid_or_error_operator": {
+          "const": "block",
+          "default": "block",
+          "title": "Invalid Or Error Operator",
+          "type": "string"
+        },
+        "profile_id": {
+          "default": "control-efficacy/default",
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Profile Id",
+          "type": "string"
+        },
+        "required_catalog": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Required Catalog",
+          "type": "string"
+        },
+        "required_operators": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Required Operators",
+          "type": "array"
+        },
+        "surviving_applicable_operator": {
+          "$ref": "#/$defs/GateEffect",
+          "default": "review"
+        },
+        "surviving_critical_operator": {
+          "const": "block",
+          "default": "block",
+          "title": "Surviving Critical Operator",
+          "type": "string"
+        },
+        "surviving_required_operator": {
+          "const": "block",
+          "default": "block",
+          "title": "Surviving Required Operator",
+          "type": "string"
+        },
+        "unevaluated_required_operator": {
+          "const": "block",
+          "default": "block",
+          "title": "Unevaluated Required Operator",
+          "type": "string"
+        },
+        "unknown_threat_applicability": {
+          "$ref": "#/$defs/GateEffect",
+          "default": "review"
+        },
+        "unscoped_catalog_threat_reference": {
+          "$ref": "#/$defs/GateEffect",
+          "default": "review"
+        }
+      },
+      "required": [
+        "required_catalog",
+        "required_operators"
+      ],
+      "title": "ControlEfficacyGateProfile",
+      "type": "object"
+    },
+    "ControlEfficacyGateReason": {
+      "enum": [
+        "REQUIRED_OPERATOR_SURVIVED",
+        "CRITICAL_OPERATOR_SURVIVED",
+        "APPLICABLE_OPERATOR_SURVIVED",
+        "CRITICAL_THREAT_UNCOVERED",
+        "APPLICABLE_THREAT_UNCOVERED",
+        "INVALID_OR_ERROR_OPERATOR",
+        "REQUIRED_OPERATOR_NOT_EVALUATED",
+        "UNKNOWN_THREAT_APPLICABILITY",
+        "UNSCOPED_CATALOG_THREAT_REFERENCE"
+      ],
+      "title": "ControlEfficacyGateReason",
+      "type": "string"
+    },
+    "ControlEfficacyReport": {
+      "additionalProperties": false,
+      "description": "Standalone deterministic projection of one mutation campaign.",
+      "properties": {
+        "applicable_operator_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Applicable Operator Count",
+          "type": "integer"
+        },
+        "applicable_threat_category_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Applicable Threat Category Count",
+          "type": "integer"
+        },
+        "artifact_kind": {
+          "const": "control-efficacy-report",
+          "default": "control-efficacy-report",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "campaign_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Campaign Digest",
+          "type": "string"
+        },
+        "canonical_invariant_families": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Canonical Invariant Families",
+          "type": "array"
+        },
+        "canonical_operator_ids": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Canonical Operator Ids",
+          "type": "array"
+        },
+        "catalog_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Catalog Digest",
+          "type": "string"
+        },
+        "catalog_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Catalog Id",
+          "type": "string"
+        },
+        "catalog_kill_rate": {
+          "$ref": "#/$defs/ExactRate"
+        },
+        "caught_operator_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Caught Operator Count",
+          "type": "integer"
+        },
+        "challenged_threat_category_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Challenged Threat Category Count",
+          "type": "integer"
+        },
+        "contract_id": {
+          "const": "ControlEfficacyReport/v1",
+          "default": "ControlEfficacyReport/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "critical_survivor_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Critical Survivor Count",
+          "type": "integer"
+        },
+        "critical_survivor_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Critical Survivor Operator Ids",
+          "type": "array"
+        },
+        "critical_uncovered_threat_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Critical Uncovered Threat Count",
+          "type": "integer"
+        },
+        "critical_uncovered_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "title": "Critical Uncovered Threat Ids",
+          "type": "array"
+        },
+        "execution_error_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Execution Error Count",
+          "type": "integer"
+        },
+        "inapplicable_operator_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Inapplicable Operator Count",
+          "type": "integer"
+        },
+        "independent_threat_challenge_rate": {
+          "$ref": "#/$defs/ExactRate"
+        },
+        "independently_challenged_threat_category_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Independently Challenged Threat Category Count",
+          "type": "integer"
+        },
+        "invalid_operator_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Invalid Operator Count",
+          "type": "integer"
+        },
+        "invalid_or_error_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Invalid Or Error Operator Ids",
+          "type": "array"
+        },
+        "invalid_subject_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Invalid Subject Count",
+          "type": "integer"
+        },
+        "kill_rate_by_independence_class": {
+          "items": {
+            "$ref": "#/$defs/EfficacyStratum"
+          },
+          "maxItems": 5,
+          "minItems": 5,
+          "title": "Kill Rate By Independence Class",
+          "type": "array"
+        },
+        "kill_rate_by_invariant_family": {
+          "items": {
+            "$ref": "#/$defs/EfficacyStratum"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Kill Rate By Invariant Family",
+          "type": "array"
+        },
+        "limitations": {
+          "items": {
+            "maxLength": 8192,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "operator_outcomes": {
+          "items": {
+            "$ref": "#/$defs/OperatorEfficacyOutcome"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Operator Outcomes",
+          "type": "array"
+        },
+        "pending_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Pending Operator Ids",
+          "type": "array"
+        },
+        "report_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Report Digest",
+          "type": "string"
+        },
+        "required_not_evaluated_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Required Not Evaluated Operator Ids",
+          "type": "array"
+        },
+        "required_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Required Operator Ids",
+          "type": "array"
+        },
+        "required_survivor_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Required Survivor Count",
+          "type": "integer"
+        },
+        "required_survivor_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Required Survivor Operator Ids",
+          "type": "array"
+        },
+        "schema_name": {
+          "const": "control-efficacy-report",
+          "default": "control-efficacy-report",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "selected_operator_ids": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Selected Operator Ids",
+          "type": "array"
+        },
+        "semantic_state": {
+          "$ref": "#/$defs/ControlEfficacySemanticState"
+        },
+        "source_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Digest",
+          "type": "string"
+        },
+        "state_counts": {
+          "$ref": "#/$defs/MutationStateCounts"
+        },
+        "suite_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Suite Digest",
+          "type": "string"
+        },
+        "survived_operator_count": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Survived Operator Count",
+          "type": "integer"
+        },
+        "threat_challenge_rate": {
+          "$ref": "#/$defs/ExactRate"
+        },
+        "threat_coverage": {
+          "items": {
+            "$ref": "#/$defs/ThreatCoverageItem"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Threat Coverage",
+          "type": "array"
+        },
+        "threat_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Threat Manifest Digest",
+          "type": "string"
+        },
+        "threat_scope_state": {
+          "$ref": "#/$defs/ThreatScopeSemanticState"
+        },
+        "unknown_applicability_count": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Unknown Applicability Count",
+          "type": "integer"
+        },
+        "unknown_applicability_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "title": "Unknown Applicability Threat Ids",
+          "type": "array"
+        },
+        "unscoped_catalog_threat_count": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Unscoped Catalog Threat Count",
+          "type": "integer"
+        },
+        "unscoped_catalog_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 8192,
+          "title": "Unscoped Catalog Threat Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "report_digest",
+        "campaign_digest",
+        "source_digest",
+        "suite_digest",
+        "catalog_id",
+        "catalog_digest",
+        "threat_manifest_digest",
+        "semantic_state",
+        "threat_scope_state",
+        "canonical_operator_ids",
+        "canonical_invariant_families",
+        "selected_operator_ids",
+        "operator_outcomes",
+        "state_counts",
+        "applicable_operator_count",
+        "caught_operator_count",
+        "survived_operator_count",
+        "inapplicable_operator_count",
+        "invalid_operator_count",
+        "invalid_subject_count",
+        "execution_error_count",
+        "catalog_kill_rate",
+        "required_survivor_count",
+        "critical_survivor_count",
+        "kill_rate_by_invariant_family",
+        "kill_rate_by_independence_class",
+        "threat_coverage",
+        "applicable_threat_category_count",
+        "challenged_threat_category_count",
+        "independently_challenged_threat_category_count",
+        "critical_uncovered_threat_count",
+        "unknown_applicability_count",
+        "unscoped_catalog_threat_count",
+        "threat_challenge_rate",
+        "independent_threat_challenge_rate",
+        "limitations",
+        "artifact_kind",
+        "schema_version",
+        "schema_name",
+        "contract_id",
+        "contract_version"
+      ],
+      "title": "ControlEfficacyReport",
+      "type": "object"
+    },
+    "ControlEfficacySemanticState": {
+      "enum": [
+        "survivor_observed",
+        "indeterminate",
+        "not_evaluated",
+        "all_evaluated_applicable_caught"
+      ],
+      "title": "ControlEfficacySemanticState",
+      "type": "string"
+    },
+    "EfficacyStratum": {
+      "additionalProperties": false,
+      "properties": {
+        "independent_challenge_eligible": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Independent Challenge Eligible"
+        },
+        "kill_rate": {
+          "$ref": "#/$defs/ExactRate"
+        },
+        "state_counts": {
+          "$ref": "#/$defs/MutationStateCounts"
+        },
+        "stratum": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Stratum",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stratum",
+        "state_counts",
+        "kill_rate"
+      ],
+      "title": "EfficacyStratum",
+      "type": "object"
+    },
+    "EnvironmentInfo": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "environment-info",
+          "default": "environment-info",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "dependency_inventory_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Digest"
+        },
+        "dependency_inventory_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dependency Inventory Path"
+        },
+        "git_commit": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Commit"
+        },
+        "git_dirty": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Git Dirty"
+        },
+        "installed_packages": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/InstalledPackage"
+          },
+          "title": "Installed Packages",
+          "type": "array"
+        },
+        "lockfile_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Digest"
+        },
+        "lockfile_path": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Lockfile Path"
+        },
+        "platform": {
+          "title": "Platform",
+          "type": "string"
+        },
+        "python_version": {
+          "title": "Python Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "platform",
+        "python_version",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "EnvironmentInfo",
+      "type": "object"
+    },
+    "EvaluationSummary": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.2.0"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "usage_summary"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.3"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "runset_id": {
+                "minLength": 1
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "privacy_profile_id"
+                  ]
+                },
+                {
+                  "required": [
+                    "privacy_profile_digest"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": [
+                    "schema_version"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "schema_version": {
+                    "enum": [
+                      "0.5.0",
+                      "0.6.0",
+                      "0.6.1",
+                      "0.6.2",
+                      "0.6.3"
+                    ]
+                  }
+                },
+                "required": [
+                  "schema_version"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "required": [
+              "privacy_profile_id",
+              "privacy_profile_digest"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "evaluation-summary",
+          "default": "evaluation-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "environment": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EnvironmentInfo"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "findings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/Finding"
+          },
+          "title": "Findings",
+          "type": "array"
+        },
+        "privacy_profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Privacy Profile Digest",
+          "type": "string"
+        },
+        "privacy_profile_id": {
+          "minLength": 1,
+          "title": "Privacy Profile Id",
+          "type": "string"
+        },
+        "runset_id": {
+          "title": "Runset Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        },
+        "usage_summary": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageSummary"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "runset_id",
+        "state",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "EvaluationSummary",
+      "type": "object"
+    },
+    "ExactRate": {
+      "$comment": "JSON Schema enforces the denominator/state relationship and the zero-denominator numerator. Runtime model validation additionally enforces numerator <= denominator for nonzero denominators.",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "state": {
+                "const": "defined"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "if": {
+            "properties": {
+              "denominator": {
+                "const": 0
+              }
+            },
+            "required": [
+              "denominator"
+            ]
+          },
+          "then": {
+            "properties": {
+              "numerator": {
+                "const": 0
+              },
+              "state": {
+                "const": "undefined_zero_denominator"
+              }
+            },
+            "required": [
+              "numerator",
+              "state"
+            ]
+          }
+        }
+      ],
+      "description": "An exact ratio which never substitutes a numeric value for 0/0.",
+      "properties": {
+        "denominator": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Denominator",
+          "type": "integer"
+        },
+        "numerator": {
+          "maximum": 9007199254740991,
+          "minimum": 0,
+          "title": "Numerator",
+          "type": "integer"
+        },
+        "state": {
+          "$ref": "#/$defs/ExactRateState"
+        }
+      },
+      "required": [
+        "numerator",
+        "denominator",
+        "state"
+      ],
+      "title": "ExactRate",
+      "type": "object"
+    },
+    "ExactRateState": {
+      "enum": [
+        "defined",
+        "undefined_zero_denominator"
+      ],
+      "title": "ExactRateState",
+      "type": "string"
+    },
+    "Finding": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.3"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "finding_id": {
+                "minLength": 1
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "finding",
+          "default": "finding",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "case_id": {
+          "title": "Case Id",
+          "type": "string"
+        },
+        "control_id": {
+          "default": "",
+          "title": "Control Id",
+          "type": "string"
+        },
+        "finding_id": {
+          "title": "Finding Id",
+          "type": "string"
+        },
+        "message": {
+          "title": "Message",
+          "type": "string"
+        },
+        "reason_code": {
+          "$ref": "#/$defs/ReasonCode"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/GateState"
+        },
+        "target": {
+          "default": "",
+          "title": "Target",
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_id",
+        "case_id",
+        "state",
+        "reason_code",
+        "message",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "Finding",
+      "type": "object"
+    },
+    "GateEffect": {
+      "enum": [
+        "block",
+        "review",
+        "informational",
+        "ignore"
+      ],
+      "title": "GateEffect",
+      "type": "string"
+    },
+    "GateState": {
+      "enum": [
+        "pass",
+        "fail",
+        "warn",
+        "not_evaluated"
+      ],
+      "title": "GateState",
+      "type": "string"
+    },
+    "IndependenceClass": {
+      "enum": [
+        "external_preexisting",
+        "third_party_contributed",
+        "first_party_precontrol",
+        "first_party_postcontrol",
+        "unknown"
+      ],
+      "title": "IndependenceClass",
+      "type": "string"
+    },
+    "InstalledPackage": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "installed-package",
+          "default": "installed-package",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "name": {
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "version": {
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "InstalledPackage",
+      "type": "object"
+    },
+    "MutationApplicability": {
+      "enum": [
+        "applicable",
+        "inapplicable",
+        "not_evaluated"
+      ],
+      "title": "MutationApplicability",
+      "type": "string"
+    },
+    "MutationResultState": {
+      "enum": [
+        "caught",
+        "survived",
+        "inapplicable",
+        "invalid_operator",
+        "invalid_subject",
+        "execution_error"
+      ],
+      "title": "MutationResultState",
+      "type": "string"
+    },
+    "MutationStateCounts": {
+      "additionalProperties": false,
+      "properties": {
+        "caught": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Caught",
+          "type": "integer"
+        },
+        "execution_error": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Execution Error",
+          "type": "integer"
+        },
+        "inapplicable": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Inapplicable",
+          "type": "integer"
+        },
+        "invalid_operator": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Invalid Operator",
+          "type": "integer"
+        },
+        "invalid_subject": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Invalid Subject",
+          "type": "integer"
+        },
+        "survived": {
+          "maximum": 256,
+          "minimum": 0,
+          "title": "Survived",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "caught",
+        "survived",
+        "inapplicable",
+        "invalid_operator",
+        "invalid_subject",
+        "execution_error"
+      ],
+      "title": "MutationStateCounts",
+      "type": "object"
+    },
+    "OperatorEfficacyOutcome": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/MutationApplicability"
+        },
+        "catalog_threat_ids": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Catalog Threat Ids",
+          "type": "array"
+        },
+        "critical_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Critical Threat Ids",
+          "type": "array"
+        },
+        "independence_class": {
+          "$ref": "#/$defs/IndependenceClass"
+        },
+        "invariant_family": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Invariant Family",
+          "type": "string"
+        },
+        "operator_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Operator Id",
+          "type": "string"
+        },
+        "present_target_control_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Present Target Control Ids",
+          "type": "array"
+        },
+        "required": {
+          "title": "Required",
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/$defs/MutationResultState"
+        },
+        "target_control_ids": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Target Control Ids",
+          "type": "array"
+        },
+        "threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Threat Ids",
+          "type": "array"
+        },
+        "unscoped_catalog_threat_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "title": "Unscoped Catalog Threat Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "operator_id",
+        "invariant_family",
+        "independence_class",
+        "applicability",
+        "state",
+        "required",
+        "catalog_threat_ids",
+        "target_control_ids"
+      ],
+      "title": "OperatorEfficacyOutcome",
+      "type": "object"
+    },
+    "PacketArtifactDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "packet-artifact-digest",
+          "default": "packet-artifact-digest",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "role": {
+          "enum": [
+            "evaluation-summary",
+            "comparison-summary",
+            "assurance-evidence-graph",
+            "control-efficacy-onboarding-config",
+            "control-efficacy-gate-profile",
+            "control-efficacy-report"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "sha256",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "PacketArtifactDigest",
+      "type": "object"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "EVIDENCE_PROVENANCE_MISMATCH",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "RUNSET_INCOMPLETE",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "ReleaseArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "release-artifact",
+          "default": "release-artifact",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "path": {
+          "title": "Path",
+          "type": "string"
+        },
+        "role": {
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "role",
+        "path",
+        "sha256",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "ReleaseArtifact",
+      "type": "object"
+    },
+    "ReleaseArtifactManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "release-artifact-manifest",
+          "default": "release-artifact-manifest",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "artifacts": {
+          "items": {
+            "$ref": "#/$defs/ReleaseArtifact"
+          },
+          "title": "Artifacts",
+          "type": "array"
+        },
+        "environment": {
+          "$ref": "#/$defs/EnvironmentInfo"
+        },
+        "limitations": {
+          "default": [
+            "release artifact manifests record deterministic file digests only; they are not signatures or attestations"
+          ],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "manifest_id": {
+          "title": "Manifest Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.3",
+          "default": "0.6.3",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "manifest_id",
+        "artifacts",
+        "environment",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "ReleaseArtifactManifest",
+      "type": "object"
+    },
+    "ThreatApplicability": {
+      "enum": [
+        "applicable",
+        "not_applicable",
+        "unknown"
+      ],
+      "title": "ThreatApplicability",
+      "type": "string"
+    },
+    "ThreatCoverageItem": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/ThreatApplicability"
+        },
+        "challenging_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Challenging Operator Ids",
+          "type": "array"
+        },
+        "critical": {
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "independent_challenging_operator_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Independent Challenging Operator Ids",
+          "type": "array"
+        },
+        "threat_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Threat Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threat_id",
+        "applicability",
+        "critical"
+      ],
+      "title": "ThreatCoverageItem",
+      "type": "object"
+    },
+    "ThreatScopeSemanticState": {
+      "enum": [
+        "critical_gap_observed",
+        "unknown_applicability",
+        "unscoped_catalog_references",
+        "not_evaluated",
+        "gap_observed",
+        "all_applicable_challenged"
+      ],
+      "title": "ThreatScopeSemanticState",
+      "type": "string"
+    },
+    "UsageSummary": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.3.1"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "cost_basis_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "pricing_snapshot_ids"
+                  ]
+                },
+                {
+                  "required": [
+                    "pricing_snapshot_digests"
+                  ]
+                },
+                {
+                  "required": [
+                    "cost_observation_count"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "currency": {
+                "const": "USD"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "usage-summary",
+          "default": "usage-summary",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "cost_basis_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Cost Basis Ids",
+          "type": "array"
+        },
+        "cost_observation_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Cost Observation Count"
+        },
+        "currency": {
+          "default": "USD",
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "estimated_cost_microusd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Microusd"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "pricing_snapshot_digests": {
+          "default": [],
+          "items": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "title": "Pricing Snapshot Digests",
+          "type": "array"
+        },
+        "pricing_snapshot_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Pricing Snapshot Ids",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.4.3",
+          "default": "0.4.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total_latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms"
+        },
+        "total_retries": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Retries"
+        },
+        "total_tokens": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens"
+        },
+        "total_tool_calls": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tool Calls"
+        }
+      },
+      "required": [
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "UsageSummary",
+      "type": "object"
+    },
+    "UsageSummaryDelta": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.3.1"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "total_tokens_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_tool_calls_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_retries_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "total_latency_ms_delta_bps"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_microusd_delta_bps"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd_delta": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd_delta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "currency": {
+                "const": "USD"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "usage-summary-delta",
+          "default": "usage-summary-delta",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "baseline_observed": {
+          "title": "Baseline Observed",
+          "type": "boolean"
+        },
+        "candidate_observed": {
+          "title": "Candidate Observed",
+          "type": "boolean"
+        },
+        "comparison_state": {
+          "enum": [
+            "observed",
+            "not_observed",
+            "baseline_not_observed",
+            "candidate_not_observed"
+          ],
+          "title": "Comparison State",
+          "type": "string"
+        },
+        "currency": {
+          "default": "USD",
+          "pattern": "^[A-Z]{3}$",
+          "title": "Currency",
+          "type": "string"
+        },
+        "estimated_cost_microusd_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Microusd Delta"
+        },
+        "estimated_cost_microusd_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Microusd Delta Bps"
+        },
+        "limitations": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Limitations",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.4.3",
+          "default": "0.4.3",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "total_latency_ms_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms Delta"
+        },
+        "total_latency_ms_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms Delta Bps"
+        },
+        "total_retries_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Retries Delta"
+        },
+        "total_retries_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Retries Delta Bps"
+        },
+        "total_tokens_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens Delta"
+        },
+        "total_tokens_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tokens Delta Bps"
+        },
+        "total_tool_calls_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tool Calls Delta"
+        },
+        "total_tool_calls_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Tool Calls Delta Bps"
+        }
+      },
+      "required": [
+        "comparison_state",
+        "baseline_observed",
+        "candidate_observed",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "UsageSummaryDelta",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.3/evidence-packet.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.2.0"
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "usage_summary"
+              ]
+            },
+            {
+              "properties": {
+                "evaluation": {
+                  "required": [
+                    "usage_summary"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "evaluation"
+              ]
+            },
+            {
+              "properties": {
+                "comparison": {
+                  "required": [
+                    "baseline_usage_summary"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "comparison"
+              ]
+            },
+            {
+              "properties": {
+                "comparison": {
+                  "required": [
+                    "candidate_usage_summary"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "comparison"
+              ]
+            },
+            {
+              "properties": {
+                "comparison": {
+                  "required": [
+                    "usage_delta"
+                  ],
+                  "type": "object"
+                }
+              },
+              "required": [
+                "comparison"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "artifact_digests": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "role": {
+                    "enum": [
+                      "control-efficacy-report",
+                      "control-efficacy-onboarding-config",
+                      "control-efficacy-gate-profile"
+                    ]
+                  }
+                },
+                "required": [
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "if": {
+        "anyOf": [
+          {
+            "properties": {
+              "control_efficacy": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "control_efficacy"
+            ]
+          },
+          {
+            "properties": {
+              "control_efficacy_gate_profile": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "control_efficacy_gate_profile"
+            ]
+          },
+          {
+            "properties": {
+              "control_efficacy_gate": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "control_efficacy_gate"
+            ]
+          }
+        ]
+      },
+      "then": {
+        "properties": {
+          "artifact_digests": {
+            "allOf": [
+              {
+                "contains": {
+                  "properties": {
+                    "role": {
+                      "const": "control-efficacy-report"
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ],
+                  "type": "object"
+                },
+                "maxContains": 1,
+                "minContains": 1
+              },
+              {
+                "contains": {
+                  "properties": {
+                    "role": {
+                      "enum": [
+                        "control-efficacy-onboarding-config",
+                        "control-efficacy-gate-profile"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "role"
+                  ],
+                  "type": "object"
+                },
+                "maxContains": 1,
+                "minContains": 1
+              }
+            ]
+          },
+          "control_efficacy": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "control_efficacy_gate": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "control_efficacy_gate_profile": {
+            "not": {
+              "type": "null"
+            }
+          }
+        },
+        "required": [
+          "control_efficacy",
+          "control_efficacy_gate_profile",
+          "control_efficacy_gate",
+          "artifact_digests"
+        ]
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "artifact_digests": {
+            "not": {
+              "contains": {
+                "properties": {
+                  "role": {
+                    "const": "assurance-evidence-graph"
+                  }
+                },
+                "required": [
+                  "role"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "release_manifest": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "properties": {
+                  "artifacts": {
+                    "not": {
+                      "contains": {
+                        "properties": {
+                          "role": {
+                            "const": "assurance-evidence-graph"
+                          }
+                        },
+                        "required": [
+                          "role"
+                        ],
+                        "type": "object"
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "artifacts"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "evidence_graph_digest": {
+            "not": {
+              "type": "null"
+            }
+          }
+        },
+        "required": [
+          "evidence_graph_digest"
+        ]
+      },
+      "then": {
+        "properties": {
+          "artifact_digests": {
+            "contains": {
+              "properties": {
+                "role": {
+                  "const": "assurance-evidence-graph"
+                }
+              },
+              "required": [
+                "role"
+              ],
+              "type": "object"
+            },
+            "maxContains": 1,
+            "minContains": 1
+          },
+          "release_manifest": {
+            "anyOf": [
+              {
+                "type": "null"
+              },
+              {
+                "properties": {
+                  "artifacts": {
+                    "contains": {
+                      "properties": {
+                        "role": {
+                          "const": "assurance-evidence-graph"
+                        }
+                      },
+                      "required": [
+                        "role"
+                      ],
+                      "type": "object"
+                    },
+                    "maxContains": 1,
+                    "minContains": 1
+                  }
+                },
+                "required": [
+                  "artifacts"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "required": [
+          "artifact_digests"
+        ]
+      }
+    }
+  ],
+  "properties": {
+    "artifact_digests": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/PacketArtifactDigest"
+      },
+      "title": "Artifact Digests",
+      "type": "array"
+    },
+    "artifact_kind": {
+      "const": "evidence-packet",
+      "default": "evidence-packet",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "comparison": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ComparisonSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "control_efficacy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ControlEfficacyReport"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "control_efficacy_gate": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ControlEfficacyGateDecision"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "control_efficacy_gate_profile": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ControlEfficacyGateProfile"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "environment": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/EnvironmentInfo"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "evaluation": {
+      "$ref": "#/$defs/EvaluationSummary"
+    },
+    "evidence_graph_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Evidence Graph Digest"
+    },
+    "interpretation": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Interpretation",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Limitations",
+      "type": "array"
+    },
+    "packet_id": {
+      "title": "Packet Id",
+      "type": "string"
+    },
+    "release_manifest": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/ReleaseArtifactManifest"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "schema_version": {
+      "const": "0.6.3",
+      "default": "0.6.3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "usage_summary": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/UsageSummary"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "required": [
+    "packet_id",
+    "interpretation",
+    "evaluation",
+    "limitations",
+    "artifact_kind",
+    "schema_version"
+  ],
+  "title": "EvidencePacket",
+  "type": "object"
+}

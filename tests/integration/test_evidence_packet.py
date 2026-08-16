@@ -22,11 +22,12 @@ from agent_assure.reporting.packet import (
     release_artifact_from_summary_snapshot,
 )
 from agent_assure.schema.base import SCHEMA_VERSION
-from agent_assure.schema.common import ComparisonClassification, GateState
+from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
-from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from tests.unit.controls.test_control_efficacy import _DROP_OPERATOR, _campaign
 
 RUNNER = CliRunner()
 
@@ -148,6 +149,7 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
     evaluation_path = tmp_path / "evaluation-summary.json"
     comparison_path = tmp_path / "comparison-summary.json"
     packet_path = tmp_path / "evidence-packet.json"
+    graph_path = tmp_path / "assurance-evidence-graph.json"
     _write_json(evaluation_path, evaluation.model_dump(mode="json"))
     _write_json(comparison_path, comparison.model_dump(mode="json"))
 
@@ -175,6 +177,8 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
     assert packet["environment"]["artifact_kind"] == "environment-info"
     assert "python_executable" not in packet["environment"]
     assert packet["release_manifest"]["artifact_kind"] == "release-artifact-manifest"
+    graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    assert packet["evidence_graph_digest"] == graph["graph_digest"]
     assert packet["artifact_digests"] == [
         {
             "artifact_kind": "packet-artifact-digest",
@@ -184,18 +188,267 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
         },
         {
             "artifact_kind": "packet-artifact-digest",
+            "role": "assurance-evidence-graph",
+            "schema_version": SCHEMA_VERSION,
+            "sha256": _file_sha256(graph_path),
+        },
+        {
+            "artifact_kind": "packet-artifact-digest",
             "role": "comparison-summary",
             "schema_version": SCHEMA_VERSION,
             "sha256": _file_sha256(comparison_path),
         },
     ]
+    manifest_by_role = {
+        artifact["role"]: artifact for artifact in packet["release_manifest"]["artifacts"]
+    }
+    assert manifest_by_role["assurance-evidence-graph"] == {
+        "artifact_kind": "release-artifact",
+        "path": "assurance-evidence-graph.json",
+        "role": "assurance-evidence-graph",
+        "schema_version": SCHEMA_VERSION,
+        "sha256": _file_sha256(graph_path),
+    }
     assert b"\r\n" not in packet_path.read_bytes()
+    assert b"\r\n" not in graph_path.read_bytes()
     assert (tmp_path / "evidence-packet.md").exists()
     assert (tmp_path / "dependency-inventory.json").exists()
     assert (tmp_path / "release-artifact-manifest.json").exists()
 
     gate = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
     assert gate.exit_code == 1, gate.output
+
+
+def test_packet_graph_cli_round_trips_bound_graph_and_rejects_mismatch_and_alias(
+    tmp_path: Path,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="round-trip-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    built_graph_path = tmp_path / "built-graph.json"
+    projected_graph_path = tmp_path / "projected-graph.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+
+    built = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "build",
+            str(evaluation_path),
+            "--out",
+            str(packet_path),
+            "--graph-out",
+            str(built_graph_path),
+        ],
+    )
+
+    assert built.exit_code == 0, built.output
+    projected = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "graph",
+            "--packet",
+            str(packet_path),
+            "--out",
+            str(projected_graph_path),
+        ],
+    )
+    assert projected.exit_code == 0, projected.output
+    assert projected_graph_path.read_bytes() == built_graph_path.read_bytes()
+
+    original_packet_bytes = packet_path.read_bytes()
+    alias = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "graph",
+            "--packet",
+            str(packet_path),
+            "--out",
+            str(packet_path),
+        ],
+    )
+    assert alias.exit_code == 2
+    assert "input aliases an owned output path" in alias.output
+    assert packet_path.read_bytes() == original_packet_bytes
+
+    mismatched_payload = json.loads(original_packet_bytes)
+    mismatched_payload["evidence_graph_digest"] = "f" * 64
+    mismatched_packet_path = tmp_path / "mismatched-packet.json"
+    mismatched_graph_path = tmp_path / "mismatched-graph.json"
+    _write_json(mismatched_packet_path, mismatched_payload)
+    mismatched = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "graph",
+            "--packet",
+            str(mismatched_packet_path),
+            "--out",
+            str(mismatched_graph_path),
+        ],
+    )
+    assert mismatched.exit_code == 2
+    assert "projected graph digest does not match" in mismatched.output
+    assert not mismatched_graph_path.exists()
+
+
+def test_packet_graph_cli_verifies_bound_base_before_mutation_enrichment(
+    tmp_path: Path,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="enriched-graph-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    mutation_result = _campaign(
+        operator_ids=(_DROP_OPERATOR,)
+    ).campaign.operator_results[0].result
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    base_graph_path = tmp_path / "base-graph.json"
+    mutation_path = tmp_path / "mutation-result.json"
+    enriched_graph_path = tmp_path / "enriched-graph.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    _write_json(mutation_path, mutation_result.model_dump(mode="json"))
+
+    built = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "build",
+            str(evaluation_path),
+            "--out",
+            str(packet_path),
+            "--graph-out",
+            str(base_graph_path),
+        ],
+    )
+    assert built.exit_code == 0, built.output
+    packet = load_evidence_packet(packet_path)
+    assert packet.evidence_graph_digest is not None
+
+    for protected_path in (base_graph_path, evaluation_path):
+        protected_bytes = protected_path.read_bytes()
+        protected = RUNNER.invoke(
+            app,
+            [
+                "packet",
+                "graph",
+                "--packet",
+                str(packet_path),
+                "--mutation-result",
+                str(mutation_path),
+                "--out",
+                str(protected_path),
+            ],
+            terminal_width=240,
+        )
+        assert protected.exit_code == 2
+        assert "mutation-enriched graph output aliases" in protected.output
+        assert protected_path.read_bytes() == protected_bytes
+
+    enriched = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "graph",
+            "--packet",
+            str(packet_path),
+            "--mutation-result",
+            str(mutation_path),
+            "--out",
+            str(enriched_graph_path),
+        ],
+    )
+
+    assert enriched.exit_code == 0, enriched.output
+    assert (
+        f"packet-bound base graph digest: {packet.evidence_graph_digest}"
+        in enriched.output
+    )
+    enriched_payload = json.loads(enriched_graph_path.read_text(encoding="utf-8"))
+    assert enriched_payload["graph_digest"] != packet.evidence_graph_digest
+    mutation_evidence = next(
+        node
+        for node in enriched_payload["nodes"]
+        if node["payload"].get("evidence_type") == "mutation_result"
+    )
+    mutation_subject_id = next(
+        edge["target_node_id"]
+        for edge in enriched_payload["edges"]
+        if edge["kind"] == "scoped_to"
+        and edge["source_node_id"] == mutation_evidence["node_id"]
+    )
+    mutation_subject = next(
+        node
+        for node in enriched_payload["nodes"]
+        if node["node_id"] == mutation_subject_id
+    )
+    assert mutation_subject_id != enriched_payload["primary_subject_node_id"]
+    assert mutation_subject["payload"]["subject_id"] == (
+        f"sha256:{mutation_result.source_digest}"
+    )
+    assert mutation_subject["payload"]["subject_digest"] == (
+        mutation_result.source_digest
+    )
+
+
+def test_packet_graph_cli_bounds_aggregate_mutation_input_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="bounded-enrichment-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    mutation_result = _campaign(
+        operator_ids=(_DROP_OPERATOR,)
+    ).campaign.operator_results[0].result
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    mutation_path = tmp_path / "mutation-result.json"
+    output_path = tmp_path / "enriched-graph.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    _write_json(mutation_path, mutation_result.model_dump(mode="json"))
+    built = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+    assert built.exit_code == 0, built.output
+    monkeypatch.setattr(
+        packet_cmd,
+        "_MAX_PACKET_MUTATION_RESULT_BYTES",
+        mutation_path.stat().st_size - 1,
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "graph",
+            "--packet",
+            str(packet_path),
+            "--mutation-result",
+            str(mutation_path),
+            "--out",
+            str(output_path),
+        ],
+        terminal_width=240,
+    )
+
+    assert result.exit_code == 2
+    assert "mutation result inputs exceed" in result.output
+    assert not output_path.exists()
 
 
 def test_summary_snapshot_drives_parse_digest_and_manifest_from_one_read(
@@ -286,6 +539,169 @@ def test_packet_build_rejects_summary_replacement_during_snapshot_binding(
     assert "changed path identity after it was read" in result.output
     assert reads == 1
     assert not packet_path.exists()
+
+
+def test_packet_build_rolls_back_every_owned_output_after_late_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="rollback-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    owned_paths = (
+        packet_path,
+        packet_path.with_suffix(".md"),
+        tmp_path / "release-artifact-manifest.json",
+        tmp_path / "assurance-evidence-graph.json",
+        tmp_path / "dependency-inventory.json",
+    )
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    initial = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+    assert initial.exit_code == 0, initial.output
+    original_bytes = {path: path.read_bytes() for path in owned_paths}
+
+    changed = evaluation.model_copy(update={"state": GateState.not_evaluated})
+    _write_json(evaluation_path, changed.model_dump(mode="json"))
+
+    def fail_markdown_write(*_args: object, **_kwargs: object) -> None:
+        raise OSError("injected late packet publication failure")
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "write_evidence_packet_markdown",
+        fail_markdown_write,
+    )
+    failed = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+        terminal_width=240,
+    )
+
+    assert failed.exit_code == 2
+    assert "injected late packet publication failure" in failed.output
+    assert {path: path.read_bytes() for path in owned_paths} == original_bytes
+
+
+def test_packet_build_rollback_refuses_to_clobber_concurrent_output(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="rollback-concurrency-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    initial = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+    assert initial.exit_code == 0, initial.output
+    _write_json(
+        evaluation_path,
+        evaluation.model_copy(update={"state": GateState.not_evaluated}).model_dump(
+            mode="json"
+        ),
+    )
+    concurrent_bytes = b"concurrent writer output\n"
+
+    def fail_after_concurrent_write(*_args: object, **_kwargs: object) -> None:
+        packet_path.write_bytes(concurrent_bytes)
+        raise OSError("injected failure after concurrent write")
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "write_evidence_packet_markdown",
+        fail_after_concurrent_write,
+    )
+
+    failed = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+        terminal_width=240,
+    )
+
+    assert failed.exit_code == 2
+    assert "packet publication failed" in failed.output
+    assert packet_path.read_bytes() == concurrent_bytes
+
+
+def test_packet_build_rejects_custom_graph_output_outside_artifact_root(
+    tmp_path: Path,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="confined-output-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    outside_graph = tmp_path.parent / f"{tmp_path.name}-outside-graph.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "build",
+            str(evaluation_path),
+            "--out",
+            str(packet_path),
+            "--graph-out",
+            str(outside_graph),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "output paths must stay within the artifact root" in result.output
+    assert not outside_graph.exists()
+    assert not packet_path.exists()
+    assert not (tmp_path / "dependency-inventory.json").exists()
+
+
+def test_packet_build_rejects_nested_owned_outputs_before_writing(
+    tmp_path: Path,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="nested-output-candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "packet"
+    nested_graph_path = packet_path / "graph.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "build",
+            str(evaluation_path),
+            "--out",
+            str(packet_path),
+            "--graph-out",
+            str(nested_graph_path),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "output paths must not contain one another" in result.output
+    assert not packet_path.exists()
+    assert not (tmp_path / "dependency-inventory.json").exists()
 
 
 def test_packet_build_and_trusted_gate_reject_summary_file_tampering(
@@ -382,14 +798,26 @@ def test_packet_build_and_trusted_gate_reject_summary_file_tampering(
 def test_trusted_gate_rejects_nested_difference_that_redaction_would_mask(
     tmp_path: Path,
 ) -> None:
+    nested_sensitive_value = "nested-owner@example.com"
     source_summary = EvaluationSummary(
         runset_id="source-owner@example.com",
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
-        state=GateState.pass_,
+        state=GateState.fail,
+        findings=(
+            Finding(
+                finding_id="nested-sensitive-finding",
+                case_id="case-sensitive",
+                control_id="material_claims_have_evidence",
+                state=GateState.fail,
+                reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+                message=f"Contact {nested_sensitive_value} about the missing evidence.",
+            ),
+        ),
     )
     evaluation_path = tmp_path / "evaluation-summary.json"
     packet_path = tmp_path / "evidence-packet.json"
+    graph_path = tmp_path / "assurance-evidence-graph.json"
     _write_json(evaluation_path, source_summary.model_dump(mode="json"))
 
     built = RUNNER.invoke(
@@ -403,6 +831,12 @@ def test_trusted_gate_rejects_nested_difference_that_redaction_would_mask(
     assert redact_packet_payload(packet.evaluation.model_dump(mode="json")) == (
         redact_packet_payload(source_summary.model_dump(mode="json"))
     )
+    persisted_graph = graph_path.read_text(encoding="utf-8")
+    assert source_summary.runset_id not in persisted_graph
+    assert nested_sensitive_value not in persisted_graph
+    assert packet.evaluation.runset_id in persisted_graph
+    assert packet.evaluation.findings[0].message in persisted_graph
+    assert packet.evidence_graph_digest == json.loads(persisted_graph)["graph_digest"]
 
     gated = RUNNER.invoke(
         app,

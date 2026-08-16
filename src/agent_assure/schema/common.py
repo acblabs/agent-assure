@@ -8,7 +8,7 @@ from typing import Annotated, Any, Literal, TypeVar
 
 from pydantic import Field
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 
 EnumT = TypeVar("EnumT", bound=StrEnum)
 
@@ -77,12 +77,13 @@ MAX_SUMMARY_CHARS = 8192
 MAX_LABEL_CHARS = 512
 MACHINE_IDENTIFIER_MAX_CHARS = 256
 MACHINE_IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
-MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.2"
+MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.3"
 # v0.6.1 introduced the bounded ASCII machine-identifier contract. Keep the
 # version set explicit so compatibility projection cannot silently weaken that
 # released contract when the current writer version advances.
 MACHINE_IDENTIFIER_SCHEMA_VERSIONS = (
     "0.6.1",
+    "0.6.2",
     MACHINE_IDENTIFIER_SCHEMA_VERSION,
 )
 _MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN = (
@@ -144,6 +145,25 @@ def current_machine_identifier_json_schema_extra(
         schema["allOf"] = rules
 
     return update_schema
+
+
+def current_non_empty_fields_json_schema_extra(
+    *field_names: str,
+) -> dict[str, Any]:
+    """Require selected string fields to be non-empty on the current writer schema."""
+    return {
+        "allOf": [
+            {
+                "if": {
+                    "required": ["schema_version"],
+                    "properties": {"schema_version": {"const": SCHEMA_VERSION}},
+                },
+                "then": {
+                    "properties": {field_name: {"minLength": 1} for field_name in field_names}
+                },
+            }
+        ]
+    }
 
 
 def validate_machine_identifier(value: str, *, field_name: str) -> str:

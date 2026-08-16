@@ -26,14 +26,33 @@ from agent_assure.schema.validation import (
     validate_loaded_artifact_payload,
 )
 
-CORE_RELEASE_ROLES = (
+LEGACY_CORE_RELEASE_ROLES = (
     "compiled-suite",
     "fixture-manifest",
     "evidence-packet",
     "release-artifact-manifest",
 )
+CORE_RELEASE_ROLES = (
+    "compiled-suite",
+    "fixture-manifest",
+    "assurance-evidence-graph",
+    "evidence-packet",
+    "release-artifact-manifest",
+)
+_CORE_RELEASE_ROLES_BY_SCHEMA_VERSION: dict[str, tuple[str, ...]] = {
+    # Frozen v0.1 replays are projected to v0.2 before this policy is applied.
+    "0.2.0": LEGACY_CORE_RELEASE_ROLES,
+    "0.3.1": LEGACY_CORE_RELEASE_ROLES,
+    "0.4.3": LEGACY_CORE_RELEASE_ROLES,
+    "0.5.0": LEGACY_CORE_RELEASE_ROLES,
+    "0.6.0": LEGACY_CORE_RELEASE_ROLES,
+    "0.6.1": LEGACY_CORE_RELEASE_ROLES,
+    "0.6.2": LEGACY_CORE_RELEASE_ROLES,
+    "0.6.3": CORE_RELEASE_ROLES,
+}
 ManifestDigestMode = Literal["raw-sha256", "replay-stable-json-sha256", "not-replayed"]
 ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
+    "assurance-evidence-graph": "replay-stable-json-sha256",
     "baseline-runset": "raw-sha256",
     "candidate-runset": "raw-sha256",
     "compiled-suite": "raw-sha256",
@@ -49,6 +68,7 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
     "release-artifact-manifest": "replay-stable-json-sha256",
 }
 _STABLE_JSON_ROLE_ARTIFACT_KINDS = {
+    "assurance-evidence-graph": "assurance-evidence-graph",
     "comparison-report": "comparison-report",
     "comparison-summary": "comparison-summary",
     "control-efficacy-report": "control-efficacy-report",
@@ -95,6 +115,16 @@ class DigestReplayVerification:
     @property
     def ok(self) -> bool:
         return not self.findings
+
+
+def core_release_roles_for_schema_version(schema_version: str) -> tuple[str, ...]:
+    """Return the core release roles authored by a replay schema version."""
+    try:
+        return _CORE_RELEASE_ROLES_BY_SCHEMA_VERSION[schema_version]
+    except KeyError as exc:
+        raise ValueError(
+            f"no core release-role policy for schema version: {schema_version}"
+        ) from exc
 
 
 def build_digest_replay(
@@ -539,6 +569,8 @@ def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[s
     except KeyError as exc:
         raise ValueError(f"role has no stable JSON artifact contract: {role}") from exc
     validate_loaded_artifact_payload(payload, artifact_kind)
+    if role == "assurance-evidence-graph":
+        return _stable_graph_projection(payload)
     if role == "evidence-packet":
         return _stable_packet_projection(payload)
     if role == "release-artifact-manifest":
@@ -558,8 +590,34 @@ def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
         for key, value in payload.items()
         if key not in {"artifact_digests", "environment", "release_manifest"}
     }
+    if projected.pop("evidence_graph_digest", None) is not None:
+        projected["evidence_graph_binding"] = True
     _drop_nested_keys(projected, "evaluation", {"environment"})
     _drop_nested_keys(projected, "comparison", {"environment"})
+    return projected
+
+
+def _stable_graph_projection(payload: dict[str, object]) -> dict[str, object]:
+    """Retain graph semantics while excluding volatile, derived digest values."""
+    projected = _without_keys(payload, {"graph_digest"})
+    nodes = payload.get("nodes")
+    if not isinstance(nodes, list):
+        raise ValueError("assurance evidence graph nodes must be a list")
+    projected["nodes"] = [_stable_graph_node_projection(node) for node in nodes]
+    return projected
+
+
+def _stable_graph_node_projection(node: object) -> dict[str, object]:
+    if not isinstance(node, dict):
+        raise ValueError("assurance evidence graph node must be an object")
+    projected = _without_keys(node, {"payload_digest"})
+    payload = node.get("payload")
+    if not isinstance(payload, dict):
+        raise ValueError("assurance evidence graph node payload must be an object")
+    stable_payload = dict(payload)
+    if stable_payload.get("evidence_type") in {"evaluation", "comparison"}:
+        stable_payload.pop("source_digest", None)
+    projected["payload"] = stable_payload
     return projected
 
 

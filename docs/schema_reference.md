@@ -1,27 +1,29 @@
 # Schema Reference
 
-Current schema version: `0.6.2`.
+Current development writer schema version: `0.6.3`.
+Current released schema snapshot: `schemas/v0.6.2/`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
-models emit `schema_version: 0.6.2` and continue to accept legacy
+models emit `schema_version: 0.6.3` and continue to accept legacy
 `schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`,
 `schema_version: 0.5.0`, `schema_version: 0.6.0`, and
-`schema_version: 0.6.1` artifacts where their compatibility contracts permit
-those labels. Historical artifacts validate against their frozen schema
-snapshots. The v0.6.0 and v0.6.1 snapshots remain immutable; current v0.6
-relational checks continue to apply after validated legacy projection,
-including each evidence-carrying root's self-digest. Published v0.6.2 schemas
-are writer contracts: every root and nested persisted model pins
+`schema_version: 0.6.1` and `schema_version: 0.6.2` artifacts where their
+compatibility contracts permit those labels. Historical artifacts validate
+against their frozen schema snapshots. The v0.6.0, v0.6.1, and v0.6.2
+snapshots remain immutable; current v0.6 relational checks continue to apply
+after validated legacy projection, including each evidence-carrying root's
+self-digest. The active v0.6.3 schemas are development writer contracts: every
+root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
-operators, expected-detection contracts, and results use `0.6.2`, while the
+operators, expected-detection contracts, and results use `0.6.3`, while the
 independently versioned usage models continue to emit `0.4.3`. Compatibility
 projection of a frozen artifact does not widen the current wire schema.
 Importable models and their direct `model_json_schema()` output retain declared
 legacy read compatibility; checked-in schemas and current artifact validation
 use the separately pinned writer-schema projection.
 
-In v0.6.1 the evidence graph uses the same exact ASCII machine-identifier
-grammar in runtime and JSON Schema. This covers `EvidenceRef.ref_id`,
+Since v0.6.1 the run-set evidence-link identifiers use the same exact ASCII
+machine-identifier grammar in runtime and JSON Schema. This covers `EvidenceRef.ref_id`,
 `EvidenceRef.source_id`, `EvidenceRef.claim_ids`, `EvidenceItem.ref_id`,
 `EvidenceItem.source_id`, `ClaimRecord.claim_id`,
 `ClaimEvidenceLink.claim_id`, `ClaimEvidenceLink.evidence_ref_id`,
@@ -35,7 +37,7 @@ admitted by the immutable v0.6.0 schema.
 A current `AgentRunRecord` also requires its evidence references, evidence
 items, claims, and claim-evidence links to carry the current schema version. A
 current `CompiledSuite` likewise requires current resolved expectations. These
-targeted coherence checks match the v0.6.2 writer schemas without applying
+targeted coherence checks match the v0.6.3 writer schemas without applying
 parent-version equality to independently versioned components such as usage
 records. Matching legacy parent/member projections remain supported through
 their frozen schemas.
@@ -43,11 +45,11 @@ their frozen schemas.
 A current `EvidencePacket` likewise requires each nested persisted artifact
 covered by its writer schema to use the packet schema version, while nested
 `UsageSummary` and `UsageSummaryDelta` retain their independently emitted
-version. The same exact relationship is enforced for coherent v0.6.1 packet
-projection. Packet persistence validates the post-redaction payload against
-the root-version-selected current writer or legacy frozen schema before writing
-bytes, so a current packet cannot embed a legacy evaluation or comparison
-summary.
+version. The same exact relationship is enforced for coherent v0.6.1 and
+v0.6.2 packet projection. Packet persistence validates the post-redaction
+payload against the root-version-selected current writer or legacy frozen
+schema before writing bytes, so a current packet cannot embed a legacy
+evaluation or comparison summary.
 
 A current evidence packet also binds exactly one `evaluation-summary` digest.
 It binds exactly one `comparison-summary` digest when, and only when, a nested
@@ -59,7 +61,19 @@ reopens that confined source file and requires both its exact raw digest and its
 fully parsed model to match the packet; privacy redaction is not an integrity
 comparison.
 
-At schema versions `0.6.0`, `0.6.1`, and `0.6.2`, `evaluation-report` requires
+A current packet may bind an evidence graph by carrying both
+`evidence_graph_digest`, the graph's semantic RFC 8785 digest, and exactly one
+`assurance-evidence-graph` artifact digest, the raw SHA-256 of the transported
+JSON file. When a release manifest is nested, it must contain the same exact
+artifact digest. The two bindings are all-or-none, but graph binding remains
+optional in the packet schema for compatible third-party producers. The graph
+does not contain packet identity or packet-file digests, so this relationship
+does not create a digest cycle. Current first-party packet and CI producers emit
+the graph, privacy-filter its sources before projection, and verify the exact
+file plus a fresh semantic reconstruction before publishing the packet.
+
+At schema versions `0.6.0`, `0.6.1`, `0.6.2`, and `0.6.3`,
+`evaluation-report` requires
 `runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
 schema-validated, current `RunSet` model JSON projection. The projection
 retains the accepted `schema_version` and materializes schema-permitted omitted
@@ -82,6 +96,7 @@ distinct from provider-reported usage and estimated invoice cost.
 Exported roots:
 
 - `assurance-evidence-descriptor`
+- `assurance-evidence-graph`
 - `assurance-mutation-campaign`
 - `assurance-mutation-catalog`
 - `assurance-mutation-operator`
@@ -128,8 +143,9 @@ contract for it. The exact authored file may still be digest-bound under the
 packet role `control-efficacy-onboarding-config`.
 
 Current evidence-carrying release roots use persisted
-`schema_version: 0.6.2` and a separate semantic contract identity. The roots
-introduced before v0.6.2 also accept their compatible frozen v0.6.0 and v0.6.1
+`schema_version: 0.6.3` and a separate semantic contract identity. Roots
+introduced before v0.6.2 also accept their compatible frozen v0.6.0, v0.6.1,
+and v0.6.2 shapes, while roots introduced in v0.6.2 accept their frozen v0.6.2
 shapes:
 
 - `assurance-evidence-descriptor` is `AssuranceEvidenceDescriptor/v1` and has
@@ -164,6 +180,23 @@ Two persisted roots are introduced in v0.6.2:
   pending operator orders; per-operator outcomes; complete state counts;
   exact catalog, family, independence, and threat ratios; required and critical
   survivor IDs; threat coverage; semantic states; and limitations.
+
+One persisted root is introduced on the v0.6.3 development writer surface:
+
+- `assurance-evidence-graph` is `AssuranceEvidenceGraph/v1`. Its
+  `graph_digest` covers the RFC 8785 canonical artifact except that digest
+  field, while each node separately binds its typed payload digest. The closed
+  node vocabulary is `subject`, `requirement`, `evidence`, and `finding`; the
+  closed edge vocabulary is `supports`, `contradicts`, `targets`,
+  `derived_from`, and `scoped_to`. Validation rejects duplicate node IDs or
+  edges, node IDs that do not match their schema-owned typed projection,
+  dangling or self edges, endpoint-kind mismatches, noncanonical ordering,
+  invalid digests, incoherent evidence/finding states, invalid typed reference
+  values, empty source identifiers, and undeclared graph reason codes. A
+  complete compatibility manifest
+  accounts for every legacy evidence-packet field and rejects an unsupported
+  verdict-bearing projection. See
+  [Minimal Assurance Evidence Graph](evidence_graph.md).
 
 An `ExactRate` persists `numerator`, `denominator`, and either `defined` or
 `undefined_zero_denominator`. The numerator cannot exceed the denominator, and

@@ -66,25 +66,25 @@ _BUNDLED_SYNTHETIC_SUITE_IDENTITIES = {
     # mutable package resources at runtime. Updating a bundled example requires
     # an explicit review and update of its identity here.
     "expense-approval-minimal": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="41d86e73e4d6d0673aa6642a7b420046d7d9db75a66315cf01bb477362c4a073",
-        fixture_manifest_digest="c8764ffa9d01756a9cc9179cbf2452b1fb446b675837ad9551dbbf61ee879a9b",
+        compiled_suite_digest="6e3194cb428e7af1348b4154ea4a24cacfc8edf93f83d6b3d258d80faaf6b9e0",
+        fixture_manifest_digest="10b31be47bdbd8f9b2d52356ccf012104fdebcb4178f10809e278ace93e23579",
         allowed_runner_ids=frozenset({"expense_approval.minimal"}),
     ),
     "prior-auth-synthetic": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="c86a34a391af0df997b5beba0cace8d0b5313a78f0a279e9999772a036911ccd",
-        fixture_manifest_digest="a9bd3658a58de03d3de695ede02a43ef745d41fd2f731a2ad0711a01e2b632dc",
+        compiled_suite_digest="df413c3d35f885af9f975ace4974d3c7f3e470a74a2e3d5ace85f276b5c649a9",
+        fixture_manifest_digest="3c4d91f7cc372d1138a08010b9735d2bbc3ac785849b826883ebc9f73d0496ed",
         allowed_runner_ids=frozenset(
             {"prior_auth.synthetic", "prior_auth.synthetic_evidence_refactor"}
         ),
     ),
     "prior-auth-synthetic-rag": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="7b7b4f8bab42c3116d58817f25bcdcaf08b0275651eaf2fd7db4b3bef6526a40",
-        fixture_manifest_digest="f92e757431a916abc8701e0613ea74fe726ff7b478a9736f9fe9a1ed37ffc009",
+        compiled_suite_digest="18e7112efaf29247504613347b667743a70529bfa5797a8c29c43778fb1fe179",
+        fixture_manifest_digest="180043dc3e7584e2bd404cb9e331ed4f3fef80bb112d52ffe5a7a4e3242b3839",
         allowed_runner_ids=frozenset({"prior_auth.synthetic_rag"}),
     ),
     "process-measurement-cases": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="8369e3ad7dc69040a185f6e56ae823b4edd1a1cd429fd64aa818030c5c610d49",
-        fixture_manifest_digest="2c10c00cbce496d9e9a73fc52d7cb4741da6362432eb40816c55fb7e3d387713",
+        compiled_suite_digest="d5789e197258653441722d1a04a5f485fb28420af17e1e36595111fdddb46ed9",
+        fixture_manifest_digest="c0935c8832676d0eee9ddfd4b0bd3b5f8de91b477909d6f2a31ada7686607682",
         allowed_runner_ids=frozenset({"process_measurement.synthetic"}),
     ),
 }

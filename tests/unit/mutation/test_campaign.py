@@ -1271,13 +1271,15 @@ def _convert_v061_evidence_value(value: object) -> object:
         return value
 
     payload = {str(key): _convert_v061_evidence_value(nested) for key, nested in value.items()}
-    if payload.get("schema_version") == "0.6.2":
+    if payload.get("schema_version") in {"0.6.2", "0.6.3"}:
         payload["schema_version"] = "0.6.1"
     if payload.get("artifact_kind") == "assurance-mutation-operator":
         compatible_versions = payload.get("compatible_schema_versions")
         if isinstance(compatible_versions, list):
             payload["compatible_schema_versions"] = [
-                version for version in compatible_versions if version != "0.6.2"
+                version
+                for version in compatible_versions
+                if version not in {"0.6.2", "0.6.3"}
             ]
     expected_contract = payload.get("expected_detection_contract")
     result = payload.get("result")

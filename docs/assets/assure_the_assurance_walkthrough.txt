@@ -34,6 +34,8 @@ Artifacts:
   mutation-results
   control-efficacy-report.json
   control-efficacy-config.json
+  assurance-evidence-graph.json
+  mutation-evidence-graph.json
   evidence-packet.json
   reviewer-facing-report.md
   demo-summary.json
@@ -57,10 +59,17 @@ EXPECTED FIELDS INCLUDE:
   "required_survivor_count": 1
   "critical_survivor_count": 1
   "unrelated_failure_counted_as_detection": false
+  "evidence_graph_digest": "<SHA-256 semantic graph digest>"
+  "mutation_evidence_graph_digest": "<SHA-256 enriched graph digest>"
 
 The summary also contains relative artifact paths, SHA-256 file hashes, and the
-internal command results checked by the demo. Compare values from the generated
-file; this prepared script does not supply or claim pre-recorded hashes.
+internal command results checked by the demo. Both graphs have the fixed
+`AssuranceEvidenceGraph/v1` contract identifier. The packet binds the canonical
+packet-evidence projection by semantic digest and exact graph-file SHA-256. A
+separate mutation-enriched graph carries the individual strong and weakened
+mutation results without pretending those extra inputs are nested packet fields.
+Compare values from the generated files; this prepared script does not supply or
+claim pre-recorded hashes.
 
 4. REVIEW THE HUMAN-READABLE REPORT
 
@@ -73,7 +82,9 @@ Alternatively, use a local text editor or pager to open:
 Review the exact catalog ratio, all independence strata, required and critical
 survivor IDs, threat applicability, semantic states, gate mapping, and the
 unrelated-failure rejection. The report's ratio is bounded to its exact
-catalog, campaign, source, evaluator, and manifest.
+catalog, campaign, source, evaluator, and manifest. It also reports the graph
+digest and exact node / edge counts while keeping contradictions and limitations
+visible as first-class findings.
 
 5. EXPOSE THE UNDERLYING BLOCKING EXIT
 

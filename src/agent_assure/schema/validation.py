@@ -24,6 +24,7 @@ FROZEN_SCHEMA_VERSIONS = frozenset(
         "0.5.0",
         "0.6.0",
         "0.6.1",
+        "0.6.2",
     }
 )
 _DRAFT_2020_12_URI = "https://json-schema.org/draft/2020-12/schema"
@@ -41,9 +42,14 @@ _V061_SEMANTIC_ARTIFACT_KINDS = _V060_SEMANTIC_ARTIFACT_KINDS | {
     "assurance-mutation-catalog",
     "assurance-mutation-campaign",
 }
+_V062_SEMANTIC_ARTIFACT_KINDS = _V061_SEMANTIC_ARTIFACT_KINDS | {
+    "control-efficacy-report",
+    "threat-applicability-manifest",
+}
 _LEGACY_SEMANTIC_ARTIFACT_KINDS = {
     "0.6.0": _V060_SEMANTIC_ARTIFACT_KINDS,
     "0.6.1": _V061_SEMANTIC_ARTIFACT_KINDS,
+    "0.6.2": _V062_SEMANTIC_ARTIFACT_KINDS,
 }
 
 
@@ -130,7 +136,7 @@ def _validate_legacy_semantics(
 ) -> None:
     """Apply compatible v0.6 semantic checks after immutable shape validation.
 
-    Evidence-carrying roots introduced in v0.6.0 and v0.6.1 are
+    Evidence-carrying roots introduced from v0.6.0 through v0.6.2 are
     shape-compatible with their current projection for values admitted by the
     corresponding frozen schema. Projecting only after frozen validation
     retains each historical vocabulary while restoring self-digest and

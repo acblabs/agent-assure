@@ -12,7 +12,7 @@ or compliance conclusion.
 
 ## Contract Set
 
-The contract set has six durable JSON objects:
+The contract set has seven durable JSON objects:
 
 - `AssuranceEvidenceDescriptor/v1` carries method identity, scope,
   prerequisites, assumptions, limitations, dependencies, and validity.
@@ -29,17 +29,37 @@ The contract set has six durable JSON objects:
 - `AssuranceMutationCampaign/v1` binds one source and suite to the catalog
   digest, selection and execution order, seed, mode, per-operator results,
   pending operators, completion state, and limitations.
+- `AssuranceEvidenceGraph/v1` projects evaluation, comparison, mutation,
+  control-efficacy, gate, and limitation evidence into a closed, digest-bound
+  graph without replacing the authoritative typed gate decision.
 
-Current roots use persisted `schema_version: 0.6.2`, a `contract_id` ending in
+Current roots use persisted `schema_version: 0.6.3`, a `contract_id` ending in
 `/v1`, and `contract_version: 1.0.0`. Contracts introduced in v0.6.0 also
 accept their frozen v0.6.0 representation through version-aware reads; catalog
-and campaign roots additionally accept their frozen v0.6.1 representation.
-Current builders emit v0.6.2 by default, and official writers validate the
-selected version before persistence.
+and campaign roots additionally accept their frozen v0.6.1 and v0.6.2
+representations. The graph is introduced on the v0.6.3 development writer
+surface and has no historical wire form. Current builders emit v0.6.3 by
+default, and official writers validate the selected version before persistence.
 Fields and reason codes introduced after v0.6.0 therefore cannot be written
 under a v0.6.0 label. The contract version identifies method semantics; the schema
 version identifies the persisted JSON shape. A contract version must not be
 used to relabel an artifact from another schema release.
+
+The graph uses exactly four node kinds (`subject`, `requirement`, `evidence`,
+and `finding`) and five edge kinds (`supports`, `contradicts`, `targets`,
+`derived_from`, and `scoped_to`). Stable node IDs derive from schema-owned
+typed payload and topology projection rather than display prose, and persisted
+validation independently recomputes that identity. Each node binds its typed
+payload digest, and `graph_digest` covers the complete RFC 8785 canonical
+artifact except that digest field. Duplicate or forged IDs, duplicate edges,
+dangling or self edges, endpoint-kind mismatches, noncanonical ordering, invalid
+digests, incoherent subtype states, and undeclared graph-projection reasons fail
+closed. Non-deterministic mutation observations remain visible but non-verdict,
+and gate-profile artifacts remain policy provenance rather than pass evidence.
+The exhaustive legacy-packet compatibility manifest may mark only non-verdict
+fields unsupported. See the
+[minimal assurance evidence graph](evidence_graph.md) for projection and packet
+binding semantics.
 
 ## Evidence Descriptor
 
@@ -51,7 +71,7 @@ each execution; all other values are producer-owned contract values.
 ```yaml
 artifact_kind: assurance-evidence-descriptor
 schema_name: assurance-evidence-descriptor
-schema_version: 0.6.2
+schema_version: 0.6.3
 contract_id: AssuranceEvidenceDescriptor/v1
 contract_version: 1.0.0
 evidence_id: "ev-control-efficacy-<result-digest-prefix-24-hex>"
@@ -132,7 +152,7 @@ dependencies:
     digest: "<mutation-result-digest-64-lowercase-hex>"
 producer:
   name: agent-assure
-  version: 0.6.2
+  version: 0.6.3
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 
@@ -272,7 +292,7 @@ An expected-detection contract is explicit:
 ```yaml
 artifact_kind: expected-detection-contract
 schema_name: expected-detection-contract
-schema_version: 0.6.2
+schema_version: 0.6.3
 contract_id: ExpectedDetectionContract/v1
 contract_version: 1.0.0
 contract_digest: <64 lowercase hexadecimal characters>

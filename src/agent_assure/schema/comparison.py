@@ -5,12 +5,13 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import (
     ComparisonClassification,
     GateState,
     coerce_enum,
     coerce_tuple,
+    current_non_empty_fields_json_schema_extra,
 )
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.privacy import (
@@ -32,13 +33,20 @@ _COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (
     ("candidate_usage_summary",),
     ("usage_delta",),
 )
+_COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
+    *_COMPARISON_SUMMARY_USAGE_FIELD_PATHS
+)
+_COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].extend(
+    current_non_empty_fields_json_schema_extra(
+        "baseline_runset_id",
+        "candidate_runset_id",
+    )["allOf"]
+)
 
 
 class ComparisonSummary(PersistedArtifact):
     model_config = ConfigDict(
-        json_schema_extra=privacy_profile_json_schema_extra(
-            usage_container_json_schema_extra(*_COMPARISON_SUMMARY_USAGE_FIELD_PATHS)
-        )
+        json_schema_extra=privacy_profile_json_schema_extra(_COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA)
     )
 
     artifact_kind: Literal["comparison-summary"] = "comparison-summary"
@@ -89,6 +97,16 @@ class ComparisonSummary(PersistedArtifact):
     @classmethod
     def _coerce_state(cls, value: object) -> GateState:
         return coerce_enum(GateState, value)
+
+    @model_validator(mode="after")
+    def _require_current_runset_identities(self) -> ComparisonSummary:
+        if self.schema_version == SCHEMA_VERSION and (
+            not self.baseline_runset_id or not self.candidate_runset_id
+        ):
+            raise ValueError(
+                "current comparison summaries require non-empty baseline and candidate runset IDs"
+            )
+        return self
 
     @field_validator("provenance_changes", "verdict_findings", mode="before")
     @classmethod

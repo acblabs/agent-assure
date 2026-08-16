@@ -8,7 +8,7 @@ import typer
 from rich.console import Console
 
 from agent_assure.release_evidence import (
-    CORE_RELEASE_ROLES,
+    core_release_roles_for_schema_version,
     load_digest_replay,
     verify_digest_replay,
 )
@@ -61,17 +61,21 @@ def replay(
         bool,
         typer.Option(
             "--require-core/--no-require-core",
-            help="Require compiled suite, fixture manifest, packet, and manifest roles.",
+            help="Require the core artifact roles defined by the replay schema version.",
         ),
     ] = True,
 ) -> None:
     try:
         replay_artifact = load_digest_replay(digest_replay)
+        core_roles = (
+            core_release_roles_for_schema_version(replay_artifact.schema_version)
+            if require_core
+            else ()
+        )
     except ValueError as exc:
         raise typer.BadParameter(str(exc)) from exc
     required_roles = tuple(require_role or ())
-    if require_core:
-        required_roles = (*CORE_RELEASE_ROLES, *required_roles)
+    required_roles = (*core_roles, *required_roles)
     verification = verify_digest_replay(
         replay_artifact,
         artifact_root=artifact_root,

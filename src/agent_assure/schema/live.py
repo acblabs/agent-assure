@@ -22,7 +22,7 @@ SignedDecimalString = str
 # The current protocol records statistical and safety constraints but does not
 # yet bind the complete arm configuration and prompt manifest before execution.
 LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION = False
-_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2"})
+_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3"})
 
 
 def _require_non_null_schema_fields(

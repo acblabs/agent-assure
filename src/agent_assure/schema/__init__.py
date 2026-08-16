@@ -34,6 +34,7 @@ from agent_assure.schema.efficacy import (
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
+from agent_assure.schema.graph import AssuranceEvidenceGraph
 from agent_assure.schema.live import (
     LiveComparisonReport,
     LiveDistribution,
@@ -86,6 +87,7 @@ from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary, U
 __all__ = [
     "AgentRunRecord",
     "AssuranceEvidenceDescriptor",
+    "AssuranceEvidenceGraph",
     "AssuranceMutationCampaign",
     "AssuranceMutationCatalog",
     "AssuranceMutationOperator",

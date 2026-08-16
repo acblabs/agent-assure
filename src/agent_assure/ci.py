@@ -14,6 +14,7 @@ from agent_assure.artifact_io import (
     unlink_file_if_exists,
     write_text_atomic,
 )
+from agent_assure.artifact_transaction import OutputPublicationRollback
 from agent_assure.authoring.yaml_nodes import MAX_YAML_BYTES, load_yaml_nodes_text
 from agent_assure.compare.runsets import ComparisonReport, InvalidComparisonError, compare_runsets
 from agent_assure.controls.efficacy import (
@@ -22,7 +23,10 @@ from agent_assure.controls.efficacy import (
 )
 from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
-from agent_assure.io_limits import load_json_bytes_bounded
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    load_json_bytes_bounded,
+)
 from agent_assure.mutation.campaign import build_core_catalog
 from agent_assure.onboarding.controls_mutation import ControlsMutationOnboardingConfig
 from agent_assure.onboarding.path_safety import read_confined_file_snapshot
@@ -37,12 +41,16 @@ from agent_assure.reporting.environment import (
     source_project_root,
     write_release_manifest,
 )
+from agent_assure.reporting.graph import write_evidence_graph
 from agent_assure.reporting.json_report import write_comparison_json, write_evaluation_json
 from agent_assure.reporting.markdown import write_comparison_markdown, write_evaluation_markdown
 from agent_assure.reporting.packet import (
+    DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
+    build_privacy_filtered_evidence_graph,
     load_comparison_summary_snapshot,
     load_evaluation_summary_snapshot,
+    load_evidence_graph_snapshot,
     load_evidence_packet,
     packet_artifact_digest_from_snapshot,
     packet_summary_files_binding_error,
@@ -94,10 +102,16 @@ _CI_OUTPUT_FILENAMES = (
     "comparison-report.md",
     "evidence-packet.json",
     "evidence-packet.md",
+    "assurance-evidence-graph.json",
     "release-artifact-manifest.json",
     "dependency-inventory.json",
     "ci-diagnostics.json",
 )
+_MAX_CI_PACKET_ROLLBACK_BYTES = 4 * MAX_ARTIFACT_JSON_BYTES
+
+
+class _CiPacketBindingError(ValueError):
+    """Raised when trusted source bytes change during CI packet publication."""
 
 
 class GateOutcome(StrEnum):
@@ -1402,18 +1416,44 @@ def run_ci(
         comparison_summary = comparison_report.comparison_summary
         decision = gate_comparison_summary(comparison_summary)
 
-    packet_path, packet_markdown_path, manifest_path = _write_ci_packet(
-        out_dir=out_dir,
-        environment=environment,
-        evaluation_summary_path=out_dir / "evaluation-summary.json",
-        comparison_summary_path=(out_dir / "comparison-summary.json") if comparison_paths else None,
-        expected_evaluation_summary=candidate_report.candidate_vs_expectations,
-        expected_comparison_summary=comparison_summary,
-        suite_path=suite_path,
-        candidate_runset_path=candidate_runset_path,
-        baseline_runset_path=baseline_runset_path,
-        project_root=artifact_root,
-    )
+    try:
+        packet_path, packet_markdown_path, graph_path, manifest_path = _write_ci_packet(
+            out_dir=out_dir,
+            environment=environment,
+            evaluation_summary_path=out_dir / "evaluation-summary.json",
+            comparison_summary_path=(
+                (out_dir / "comparison-summary.json") if comparison_paths else None
+            ),
+            expected_evaluation_summary=candidate_report.candidate_vs_expectations,
+            expected_comparison_summary=comparison_summary,
+            suite_path=suite_path,
+            candidate_runset_path=candidate_runset_path,
+            baseline_runset_path=baseline_runset_path,
+            project_root=artifact_root,
+        )
+    except _CiPacketBindingError as exc:
+        packet_path = out_dir / "evidence-packet.json"
+        report_paths.append(out_dir / "dependency-inventory.json")
+        decision = GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=f"ci gate invalid: {exc}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind="evidence-packet",
+            artifact_path=str(packet_path),
+        )
+        binding_diagnostics_path = out_dir / "ci-diagnostics.json"
+        write_diagnostics(
+            decision,
+            binding_diagnostics_path,
+            report_paths=tuple(report_paths),
+        )
+        return CiRunResult(
+            decision=decision,
+            report_paths=tuple((*report_paths, binding_diagnostics_path)),
+            packet_path=packet_path,
+            diagnostics_path=binding_diagnostics_path,
+        )
     packet_decision = gate_evidence_packet(
         load_evidence_packet(packet_path),
         artifact_root=artifact_root,
@@ -1426,6 +1466,7 @@ def run_ci(
         (
             packet_path,
             packet_markdown_path,
+            graph_path,
             manifest_path,
             out_dir / "dependency-inventory.json",
         )
@@ -1624,7 +1665,7 @@ def _write_ci_packet(
     candidate_runset_path: Path,
     baseline_runset_path: Path | None,
     project_root: Path,
-) -> tuple[Path, Path, Path]:
+) -> tuple[Path, Path, Path, Path]:
     evaluation_snapshot = load_evaluation_summary_snapshot(
         evaluation_summary_path,
         root=project_root,
@@ -1648,54 +1689,109 @@ def _write_ci_packet(
         and comparison_snapshot.summary != expected_comparison_summary
     ):
         raise ValueError("comparison summary changed before packet snapshot")
-    artifact_paths = [
-        release_artifact("compiled-suite", suite_path, project_root=project_root),
-        release_artifact("candidate-runset", candidate_runset_path, project_root=project_root),
-        release_artifact_from_summary_snapshot(
-            "evaluation-summary",
-            evaluation_snapshot,
-        ),
-        release_artifact(
-            "dependency-inventory",
-            out_dir / "dependency-inventory.json",
-            project_root=project_root,
-        ),
-    ]
-    packet_digests = [
-        packet_artifact_digest_from_snapshot(
-            "evaluation-summary",
-            evaluation_snapshot,
-        )
-    ]
-    if baseline_runset_path is not None:
-        artifact_paths.append(
-            release_artifact("baseline-runset", baseline_runset_path, project_root=project_root)
-        )
-    if comparison_snapshot is not None:
-        artifact_paths.append(
-            release_artifact_from_summary_snapshot(
-                "comparison-summary",
-                comparison_snapshot,
-            )
-        )
-        packet_digests.append(
-            packet_artifact_digest_from_snapshot(
-                "comparison-summary",
-                comparison_snapshot,
-            )
-        )
-    manifest = build_release_manifest(tuple(artifact_paths), environment=environment)
-    manifest_path = out_dir / "release-artifact-manifest.json"
-    write_release_manifest(manifest, manifest_path)
-    packet = build_evidence_packet(
+    packet_limitations = DEFAULT_PACKET_LIMITATIONS
+    evidence_graph = build_privacy_filtered_evidence_graph(
         evaluation_snapshot.summary,
         comparison=(comparison_snapshot.summary if comparison_snapshot is not None else None),
-        environment=environment,
-        release_manifest=manifest,
-        artifact_digests=tuple(packet_digests),
+        limitations=packet_limitations,
     )
+    graph_path = out_dir / "assurance-evidence-graph.json"
+    manifest_path = out_dir / "release-artifact-manifest.json"
     packet_path = out_dir / "evidence-packet.json"
     packet_markdown_path = out_dir / "evidence-packet.md"
-    write_evidence_packet(packet, packet_path)
-    write_evidence_packet_markdown(packet, packet_markdown_path)
-    return packet_path, packet_markdown_path, manifest_path
+    rollback = OutputPublicationRollback.capture(
+        (graph_path, manifest_path, packet_path, packet_markdown_path),
+        max_bytes=_MAX_CI_PACKET_ROLLBACK_BYTES,
+        label="CI packet output",
+        path_resolution_error="CI artifact path cannot be safely resolved",
+        concurrent_change_error=(
+            "CI packet output changed concurrently; refusing rollback overwrite"
+        ),
+    )
+    try:
+        write_evidence_graph(evidence_graph, graph_path)
+        rollback.mark_written(graph_path)
+        graph_snapshot = load_evidence_graph_snapshot(
+            graph_path,
+            root=project_root,
+            artifact_root=project_root,
+        )
+        artifact_paths = [
+            release_artifact("compiled-suite", suite_path, project_root=project_root),
+            release_artifact("candidate-runset", candidate_runset_path, project_root=project_root),
+            release_artifact_from_summary_snapshot(
+                "evaluation-summary",
+                evaluation_snapshot,
+            ),
+            release_artifact_from_summary_snapshot(
+                "assurance-evidence-graph",
+                graph_snapshot,
+            ),
+            release_artifact(
+                "dependency-inventory",
+                out_dir / "dependency-inventory.json",
+                project_root=project_root,
+            ),
+        ]
+        packet_digests = [
+            packet_artifact_digest_from_snapshot(
+                "evaluation-summary",
+                evaluation_snapshot,
+            ),
+            packet_artifact_digest_from_snapshot(
+                "assurance-evidence-graph",
+                graph_snapshot,
+            ),
+        ]
+        if baseline_runset_path is not None:
+            artifact_paths.append(
+                release_artifact(
+                    "baseline-runset",
+                    baseline_runset_path,
+                    project_root=project_root,
+                )
+            )
+        if comparison_snapshot is not None:
+            artifact_paths.append(
+                release_artifact_from_summary_snapshot(
+                    "comparison-summary",
+                    comparison_snapshot,
+                )
+            )
+            packet_digests.append(
+                packet_artifact_digest_from_snapshot(
+                    "comparison-summary",
+                    comparison_snapshot,
+                )
+            )
+        manifest = build_release_manifest(tuple(artifact_paths), environment=environment)
+        packet = build_evidence_packet(
+            evaluation_snapshot.summary,
+            comparison=(comparison_snapshot.summary if comparison_snapshot is not None else None),
+            environment=environment,
+            release_manifest=manifest,
+            evidence_graph_digest=evidence_graph.graph_digest,
+            artifact_digests=tuple(packet_digests),
+            limitations=packet_limitations,
+        )
+        binding_error = packet_summary_files_binding_error(
+            packet,
+            artifact_root=project_root,
+        )
+        if binding_error is not None:
+            raise _CiPacketBindingError(binding_error)
+        write_release_manifest(manifest, manifest_path)
+        rollback.mark_written(manifest_path)
+        write_evidence_packet(packet, packet_path)
+        rollback.mark_written(packet_path)
+        write_evidence_packet_markdown(packet, packet_markdown_path)
+        rollback.mark_written(packet_markdown_path)
+    except BaseException:
+        try:
+            rollback.restore()
+        except BaseException as rollback_exc:
+            raise ValueError(
+                "CI packet publication failed and prior outputs could not be restored"
+            ) from rollback_exc
+        raise
+    return packet_path, packet_markdown_path, graph_path, manifest_path

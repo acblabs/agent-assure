@@ -27,8 +27,8 @@
     ],
     "mode": "full_report",
     "pending_operator_order": [],
-    "producer_version": "0.6.2",
-    "schema_version": "0.6.2",
+    "producer_version": "0.6.3",
+    "schema_version": "0.6.3",
     "selected_operator_order": [
       "bypass-required-human-review",
       "drop-material-evidence-link",
@@ -39,11 +39,11 @@
       "skew-evidence-source-identity"
     ],
     "semantic_projection_contract": "assurance-mutation-campaign/runtime-neutral/v1",
-    "semantic_projection_digest": "3e25a131493da7cc0159c26744706897202ba9ff8dd65c3f38aa3321de9cc47d",
+    "semantic_projection_digest": "79980ee46f6bdb343f27cedf626a9ff245633adebe3e2a1c8169ae5ab3c903ad",
     "source_artifact_kind": "run-set"
   },
   "catalog_identity": {
-    "catalog_digest": "0f23def8f0c5163ac66b2cb7a2d2458526c9dcd94647d34a679bd078d4137257",
+    "catalog_digest": "af822b5be2527518d6a8358af694e08ecfe4fdaba643471e280d910e4c96cfe7",
     "catalog_id": "core/v1",
     "operator_order": [
       "bypass-required-human-review",
@@ -61,7 +61,7 @@
     {
       "applicability": "applicable",
       "changed_paths": [
-        "/runs/2/human_review_performed"
+        "/runs/2/human_review_required"
       ],
       "diagnostic": {
         "code": null,
@@ -78,14 +78,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "898ea27abe4d949edeb069059f5b73d0b9d269942c625fd3fcbe510cce0b4f17",
+        "contract_digest": "c3ea258bdac6f3acb08dc068aa066556293d6db95d219268bdf5e12ba991b114",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -109,24 +109,24 @@
       "independence_class": "first_party_postcontrol",
       "invariant_family": "human-review-routing",
       "matched_finding_ids": [
-        "finding-dd5f5e792ec88f181729b4334cc5e9b5b74d1495d2ace16b920bad25a4d8ca27"
+        "finding-10dd55c40f147da7feff6f49ac730c3324023e035aec8ba69b5d206d5f923d9a"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "898ea27abe4d949edeb069059f5b73d0b9d269942c625fd3fcbe510cce0b4f17",
-        "expected_finding_target_digest": "a556b3011613119797517af2ad9ee526dcf67b85d728ea3721ea558d440639de",
-        "implementation_digest": "41f34640df6a1a97114c1e7b76d61b9f38f40c44de05bbb9bf2f1d50f9711aba",
-        "mutated_digest": "43c698f0e124c00ddaa2d90d7bca2d9fc8c4bc565a718215650cf304e3194ca5",
-        "operator_digest": "afff2ce666aec862d2f61887e7d2587d794d2d854c87bf9ed9847ae96b673854",
+        "expected_detection_contract_digest": "c3ea258bdac6f3acb08dc068aa066556293d6db95d219268bdf5e12ba991b114",
+        "expected_finding_target_digest": "43914f1e4ef2e024830fc548c46e96e03078ac06830e1b1cd436931660b5871f",
+        "implementation_digest": "be299bc731efb58e6b3f7cc9e5f89102e67d6a29d7c2a4580b98ee978e49ae4b",
+        "mutated_digest": "87c504dfebf64d6083e399829b13174d258f62e202bf1ea203e06192e4a0cb24",
+        "operator_digest": "b9b74815762b0694d59379a893639548aa115a34fead95e114dcda48c72e41a3",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
           "control_id": "human_review_required",
-          "finding_id": "finding-dd5f5e792ec88f181729b4334cc5e9b5b74d1495d2ace16b920bad25a4d8ca27",
+          "finding_id": "finding-10dd55c40f147da7feff6f49ac730c3324023e035aec8ba69b5d206d5f923d9a",
           "reason_code": "REQUIRED_HUMAN_REVIEW_ABSENT",
           "state": "fail",
-          "target_digest": "a556b3011613119797517af2ad9ee526dcf67b85d728ea3721ea558d440639de"
+          "target_digest": "43914f1e4ef2e024830fc548c46e96e03078ac06830e1b1cd436931660b5871f"
         }
       ],
       "operator_id": "bypass-required-human-review",
@@ -154,14 +154,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "fdfc8e8729d349be3fe3a6b054b02c7a883b15bc7a51ba9cd18031c29149e961",
+        "contract_digest": "2d21a9e922eb384410a1f5de332b54d1e67ddb88d548866bcddf3ae6e9fe0343",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -188,13 +188,13 @@
         "finding-f91e278475e3c6d7ce0f89d25335372169b95d2b2e27c1c5b03c5cb42223ba2a"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "fdfc8e8729d349be3fe3a6b054b02c7a883b15bc7a51ba9cd18031c29149e961",
+        "expected_detection_contract_digest": "2d21a9e922eb384410a1f5de332b54d1e67ddb88d548866bcddf3ae6e9fe0343",
         "expected_finding_target_digest": "4efd52b32cef24f82d8ccc2c4500a0772ff7cc420a03ec82ffa8adf59e6ec154",
-        "implementation_digest": "7c3756f92f84b6a17a9af2d7e7091dbeb828b70df0cf64ff0f5b2c661a4b3880",
-        "mutated_digest": "09b5daf2ff57b6db443d6a968731794278d4a756c3dabaf28e27b40a3948d38a",
-        "operator_digest": "3793b469eefa365897f3ce6f766303bf64a0b5219399aaf722e15c2b81aae5f9",
+        "implementation_digest": "414b2992b01db7f3f511288b0f4cbda3ee2a02bc65c96137ba6112d4b4720f85",
+        "mutated_digest": "2fcc443c79581d42708ee71f9819f4f26c9d53223b1ec56324fecd9094351867",
+        "operator_digest": "78d796b27bf8da25bc92e5457cb376d94ac5713afaca146cf17b09e944b08d04",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
@@ -213,7 +213,7 @@
     {
       "applicability": "applicable",
       "changed_paths": [
-        "/runs/1/tools"
+        "/runs/2/tools"
       ],
       "diagnostic": {
         "code": null,
@@ -230,14 +230,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "28744714a3314f70271ef088174c24bf73e2a1bca587df26cd17c48f044f62f3",
+        "contract_digest": "96403165bed2077bdf62d234c91d5a5b8a8f94d85dfb31086527212fd2e8ab29",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -261,21 +261,21 @@
       "independence_class": "first_party_postcontrol",
       "invariant_family": "tool-boundary",
       "matched_finding_ids": [
-        "finding-9d8dcde54da01298a5fe52baf757249c844169db53cec8c4bdc9e99299643259"
+        "finding-0de0b91f5f2df9eacec49cd65665669c78d2392fc070d9bdfe965f3811dd3408"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "28744714a3314f70271ef088174c24bf73e2a1bca587df26cd17c48f044f62f3",
+        "expected_detection_contract_digest": "96403165bed2077bdf62d234c91d5a5b8a8f94d85dfb31086527212fd2e8ab29",
         "expected_finding_target_digest": "44b5b89a9d885e531c72dc2382b6e51bfea61742d1d4774b1a687ff24c222f81",
-        "implementation_digest": "5f8b1166b95b5fe6ca297e579e8af0f60ca99a0f4a3e6d96750577fbee7869e6",
-        "mutated_digest": "f3b528e74c7b9f64478b4dff83267e738b425b55a9abba26d79f5a2e604499c8",
-        "operator_digest": "74c66af9478de9ce3d4cca171898c45500d53cf25d29dffcc745e8a63f895f76",
+        "implementation_digest": "8a33bf95f8e85e64f1d0a8a198852677d78e49ada0d088674b0494ea5fbbb3a7",
+        "mutated_digest": "e853c04de2a8b2683683f079bcda7982033ebf3ac7b263b523bf956a164d6bfc",
+        "operator_digest": "31eec404994cbac35dd50950bff8e1ead185922c0a5e5a8dc2a32f38836d0ac8",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
           "control_id": "tool_allowlist",
-          "finding_id": "finding-9d8dcde54da01298a5fe52baf757249c844169db53cec8c4bdc9e99299643259",
+          "finding_id": "finding-0de0b91f5f2df9eacec49cd65665669c78d2392fc070d9bdfe965f3811dd3408",
           "reason_code": "FORBIDDEN_TOOL",
           "state": "fail",
           "target_digest": "44b5b89a9d885e531c72dc2382b6e51bfea61742d1d4774b1a687ff24c222f81"
@@ -289,7 +289,7 @@
     {
       "applicability": "applicable",
       "changed_paths": [
-        "/runs/2/output_summary"
+        "/runs/1/output_summary"
       ],
       "diagnostic": {
         "code": null,
@@ -306,14 +306,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "9f778e0d315b248f0b70d92f680ed8a9cb620ac837ae59fba919e6ef4c54fd1a",
+        "contract_digest": "2d84d76aaa7c806d6556658f857dff8cef835282e63c5a681032e0a100dad571",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -337,21 +337,21 @@
       "independence_class": "first_party_postcontrol",
       "invariant_family": "privacy-redaction",
       "matched_finding_ids": [
-        "finding-7a07e2c5a056d40ad2386831caac2bc009eb560834cfd0b51f60de1723e80db3"
+        "finding-dd9ccf4fdb63e4b1f006f3ec82e495ca466ff957cf626287551bc8e7d620a31d"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "9f778e0d315b248f0b70d92f680ed8a9cb620ac837ae59fba919e6ef4c54fd1a",
+        "expected_detection_contract_digest": "2d84d76aaa7c806d6556658f857dff8cef835282e63c5a681032e0a100dad571",
         "expected_finding_target_digest": "48cacc6f6b7741481a91217d91aaf59046956556c65b2c3625c62b903bc8281c",
-        "implementation_digest": "39c384218d6b582af465d6f3876d3acc247b30922d4e8ece7678c2134c81d483",
-        "mutated_digest": "e7a1fddff45058197ed8ad5a3296f9bb46153279f5a6aca5b474d7d8cd9aee73",
-        "operator_digest": "c670ee6eae55ad277895bbe095de0ee5d63d9b5c3f4ac7147e0bdd46b960019f",
+        "implementation_digest": "6400e05df2c3493b507404ac1f9c55ed000ee1cb706d0df9bdfc2a462eacc818",
+        "mutated_digest": "2236d1c426a672120adafc74a16f147cd3eaa80399d42d8fe87a5a0b6157ca17",
+        "operator_digest": "1d7919fc7760051a6f034fd7779b7003d7468df37d80109bbf5ca74c52396d87",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
           "control_id": "redaction_required",
-          "finding_id": "finding-7a07e2c5a056d40ad2386831caac2bc009eb560834cfd0b51f60de1723e80db3",
+          "finding_id": "finding-dd9ccf4fdb63e4b1f006f3ec82e495ca466ff957cf626287551bc8e7d620a31d",
           "reason_code": "RAW_SENSITIVE_CONTENT",
           "state": "fail",
           "target_digest": "48cacc6f6b7741481a91217d91aaf59046956556c65b2c3625c62b903bc8281c"
@@ -383,14 +383,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "999476b1f69dd45129d68b832dbfc9b3435c1da5b822f9fa2475fee3ccec8490",
+        "contract_digest": "c6b92121fa2d1268b4aa676cfe84b919476d6156ba5166fb70b7c19293b369ab",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -417,13 +417,13 @@
         "finding-ef60f518d230949f40bd248517d66f8a7930cf9cd05a69085a6f65fd221d0fc2"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "999476b1f69dd45129d68b832dbfc9b3435c1da5b822f9fa2475fee3ccec8490",
+        "expected_detection_contract_digest": "c6b92121fa2d1268b4aa676cfe84b919476d6156ba5166fb70b7c19293b369ab",
         "expected_finding_target_digest": "e5ac33cac09f143293ec62290c6e238c971c98e811c0d3dd86bd3468da6e69a9",
-        "implementation_digest": "5b754d38156a9ee194be52d953f077edeaa1cc6b17080acb167f7c48408be0cf",
-        "mutated_digest": "eb8a4ed277fcd225c5f1809bfbae8060322eaa174a1d00bb8e9e5955d2e13231",
-        "operator_digest": "7bb6edc4ab73b17f294c2aa48e7b2ea8aaeafa895f38b76c3349468438d06ec4",
+        "implementation_digest": "b932c0c5f30635bdb5ec2c3e2ff5b6bc2f75f5e24bf8134ed584b108a4c5b43a",
+        "mutated_digest": "07fb2a82d6045fa43f49e82838cd9bbcd345e23a5c6231ffe965c8cef6c32a9c",
+        "operator_digest": "bab04355237f2bdcc86c5ed80f3a4071bdef5c724ffcea928b76eb7977cad73c",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
@@ -459,14 +459,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "b79edb15c7f866140c9c494df7d3520b368f6b49f9424c2e1f97c0d7e820d1d3",
+        "contract_digest": "9a628336edadc721169eb14ef34a6d5bd009ca41059a5faba1363c7efc272106",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -490,21 +490,21 @@
       "independence_class": "first_party_postcontrol",
       "invariant_family": "stream-replay-integrity",
       "matched_finding_ids": [
-        "finding-c75fbe3eb60e48c573a225e297e3c740827d0c98611639e03f4af5263cbeded8"
+        "finding-358d2b7694156559663b7689ebd342ac990b154d6cc6f35dc0da46ac23b29341"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "b79edb15c7f866140c9c494df7d3520b368f6b49f9424c2e1f97c0d7e820d1d3",
+        "expected_detection_contract_digest": "9a628336edadc721169eb14ef34a6d5bd009ca41059a5faba1363c7efc272106",
         "expected_finding_target_digest": "2c2c80ed9a18a04b59e8bae28e287d776d27cc6361f45e1eb6572775f8929a24",
-        "implementation_digest": "3f65fac3ebe4fd523ef14aef8899808c191655429567a11000eb67821566c703",
-        "mutated_digest": "7dae8f9f38287213073887309da240a6e3c33f0be3303960fb873c783a4b2f1c",
-        "operator_digest": "f7285be66f7c2e6ecf7f32094c70b2e4dfe3abcc55561b1f921f81c467180811",
+        "implementation_digest": "e3ea9368ec5f14a9d5909ce937f28837f4d8da46b4c961ab22a57956cab19bd1",
+        "mutated_digest": "40f7ffc21ceef417cbd60ae00cb94ffc4d1c2e80c138610e0c6aeb5685b7e781",
+        "operator_digest": "20182336ac145ef8288730815f995a0bc7ab9b12312789bb6e288098d6eab945",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
           "control_id": "valid_record_required",
-          "finding_id": "finding-c75fbe3eb60e48c573a225e297e3c740827d0c98611639e03f4af5263cbeded8",
+          "finding_id": "finding-358d2b7694156559663b7689ebd342ac990b154d6cc6f35dc0da46ac23b29341",
           "reason_code": "VALID_RECORD_MISSING",
           "state": "fail",
           "target_digest": "2c2c80ed9a18a04b59e8bae28e287d776d27cc6361f45e1eb6572775f8929a24"
@@ -518,7 +518,7 @@
     {
       "applicability": "applicable",
       "changed_paths": [
-        "/runs/1/evidence_refs/0/source_id"
+        "/runs/0/evidence_refs/0/source_id"
       ],
       "diagnostic": {
         "code": null,
@@ -535,14 +535,14 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.2",
+        "implementation_version": "0.6.3",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
         "waiver_set_digest": "7fc0f1823eb4d3edd8a732f4a3ec6f2cd38ebe27f347e56c5c1926314f149558"
       },
       "expected_contract": {
-        "contract_digest": "db06b769f2c5907cd1e07aa4c274819db4f3d2c83cd9b1b9c104b30826cf0994",
+        "contract_digest": "cbb308e59c353f79ae86e9d9a85b37495ab104e15c1b29124b9451970b51fe9e",
         "expected_gate_effect": "block",
         "prohibited_substitutes": [
           {
@@ -566,24 +566,24 @@
       "independence_class": "first_party_postcontrol",
       "invariant_family": "provenance-corpus-identity",
       "matched_finding_ids": [
-        "finding-f8cc51b622f0ad1ff4cf7feee7a61ee7b866e3edf4a4ea9bd3b1c1ad6f629ee6"
+        "finding-28c5601594230adc311ee805b498c0ca44c6daf9b4167dad3d7e45fd97252179"
       ],
       "mutation_identity": {
-        "expected_detection_contract_digest": "db06b769f2c5907cd1e07aa4c274819db4f3d2c83cd9b1b9c104b30826cf0994",
-        "expected_finding_target_digest": "a2a08b6f02a930564e3a7d81cccb1018b43fc9be40ae09ef21bb38eb15ec44d2",
-        "implementation_digest": "7c5ae9a8712dac3450042d83b43f870ef770a05514d20d928703f3b48bd73dba",
-        "mutated_digest": "ede8a708e0a1b0e8c68c563191ef3aec35ecab2c6e6f1883044fe5aaee0aea0b",
-        "operator_digest": "e328d8f1f25ffea811a7ae4654e77be8f0480dd02be8372158ad8930c653d78a",
+        "expected_detection_contract_digest": "cbb308e59c353f79ae86e9d9a85b37495ab104e15c1b29124b9451970b51fe9e",
+        "expected_finding_target_digest": "270458c556ff3a0e76459000905c9fa0b98fb73a8d02426b469107565a75da41",
+        "implementation_digest": "3f61670522e424c869c19e646df78d37dd2bee3c59547066f9968fa6eaf5dd94",
+        "mutated_digest": "f651192e6a49f37384a717578f81f7f341482fa0a7402bbb98b26242e4201ab5",
+        "operator_digest": "5dc9eaf664fda332c05afc0307d31112a649cc727e55b9ebe64cb1dd2b67abe0",
         "operator_version": "1.0.0",
-        "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a"
+        "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1"
       },
       "observed_findings": [
         {
           "control_id": "evidence_provenance_identity",
-          "finding_id": "finding-f8cc51b622f0ad1ff4cf7feee7a61ee7b866e3edf4a4ea9bd3b1c1ad6f629ee6",
+          "finding_id": "finding-28c5601594230adc311ee805b498c0ca44c6daf9b4167dad3d7e45fd97252179",
           "reason_code": "EVIDENCE_PROVENANCE_MISMATCH",
           "state": "fail",
-          "target_digest": "a2a08b6f02a930564e3a7d81cccb1018b43fc9be40ae09ef21bb38eb15ec44d2"
+          "target_digest": "270458c556ff3a0e76459000905c9fa0b98fb73a8d02426b469107565a75da41"
         }
       ],
       "operator_id": "skew-evidence-source-identity",
@@ -601,9 +601,9 @@
   "source_identity": {
     "artifact_kind": "run-set",
     "run_count": 3,
-    "runset_id": "stream-runset-c8380fb06bbe8d64",
-    "source_digest": "b7f7b8d386cfe1007c992aa50af105ab81c30e4ed875b3deb1e3c920e708f11a",
-    "suite_digest": "248890441b2df385e90d39b86d534b5537fe8fe2d522dc5f562cb0fac862bd6b",
+    "runset_id": "stream-runset-21a8de25453e8248",
+    "source_digest": "af47b56898af6af783d871ae40acc64e6946dda80f17f9a91e3f170b5f27b2b1",
+    "suite_digest": "3a22b652127a2b19775ce810acd844ffe4232e9c2523724c570354e4068aa24b",
     "suite_id": "streaming-process-regression"
   },
   "summary_contract": "mutation-campaign-golden-summary/v2"

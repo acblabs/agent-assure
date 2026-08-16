@@ -495,6 +495,10 @@ def test_composite_action_uploads_minimal_reports_by_default() -> None:
         "    - name: Upload full assurance artifacts\n", maxsplit=1
     )[0]
     assert "evidence-packet.json" in minimal
+    assert (
+        "${{ steps.prepare.outputs.out_dir }}"
+        "/reports/assurance-evidence-graph.json"
+    ) in minimal
     assert "release-artifact-manifest.json" in minimal
     assert "baseline.runset.json" not in minimal
     assert "path: ${{ inputs.out-dir }}" not in minimal
@@ -545,6 +549,10 @@ def test_composite_action_full_upload_is_an_explicit_artifact_whitelist() -> Non
     assert "${{ steps.prepare.outputs.out_dir }}/suite.compiled.json" in full
     assert "${{ steps.prepare.outputs.out_dir }}/candidate.runset.json" in full
     assert "${{ steps.prepare.outputs.out_dir }}/reports/evaluation-report.json" in full
+    assert (
+        "${{ steps.prepare.outputs.out_dir }}"
+        "/reports/assurance-evidence-graph.json"
+    ) in full
 
 
 def test_composite_action_clears_owned_outputs_before_any_producer_runs() -> None:

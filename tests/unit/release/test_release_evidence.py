@@ -9,13 +9,17 @@ from typer.testing import CliRunner
 
 from agent_assure import release_evidence
 from agent_assure.cli.main import app
+from agent_assure.graph.builder import build_evidence_graph
 from agent_assure.release_evidence import (
     CORE_RELEASE_ROLES,
+    LEGACY_CORE_RELEASE_ROLES,
     build_digest_replay,
+    core_release_roles_for_schema_version,
     verify_digest_replay,
     write_digest_replay,
 )
-from agent_assure.schema.release import ReleaseArtifact
+from agent_assure.schema.graph import EvidenceGraphSubjectPayload
+from agent_assure.schema.release import ReleaseArtifact, ReleaseDigestReplay
 
 RUNNER = CliRunner()
 
@@ -48,6 +52,26 @@ def test_load_digest_replay_projects_validated_v01_contract_to_typed_runtime(
     assert replay.schema_version == "0.2.0"
     assert replay.artifacts[0].schema_version == "0.2.0"
     assert replay.source_commit == "abc123"
+    assert core_release_roles_for_schema_version(replay.schema_version) == LEGACY_CORE_RELEASE_ROLES
+
+
+@pytest.mark.parametrize(
+    "schema_version",
+    ("0.2.0", "0.3.1", "0.4.3", "0.5.0", "0.6.0", "0.6.1", "0.6.2"),
+)
+def test_core_release_roles_preserve_historical_replay_contract(
+    schema_version: str,
+) -> None:
+    assert core_release_roles_for_schema_version(schema_version) == LEGACY_CORE_RELEASE_ROLES
+
+
+def test_core_release_roles_require_graph_for_current_schema() -> None:
+    assert core_release_roles_for_schema_version("0.6.3") == CORE_RELEASE_ROLES
+
+
+def test_core_release_roles_fail_closed_for_unmapped_schema() -> None:
+    with pytest.raises(ValueError, match="no core release-role policy"):
+        core_release_roles_for_schema_version("0.6.4")
 
 
 def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:
@@ -68,6 +92,7 @@ def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:
     ] == [
         "raw-sha256",
         "raw-sha256",
+        "replay-stable-json-sha256",
         "replay-stable-json-sha256",
         "replay-stable-json-sha256",
     ]
@@ -465,6 +490,94 @@ def test_release_replay_cli_exits_nonzero_for_missing_required_role(tmp_path: Pa
     assert "compiled-suite" in missing_roles
 
 
+def test_release_replay_cli_accepts_v062_legacy_core_roles(tmp_path: Path) -> None:
+    legacy_artifacts = tuple(
+        artifact
+        for artifact in _write_core_artifacts(tmp_path)
+        if artifact[0] != "assurance-evidence-graph"
+    )
+    replay = build_digest_replay(legacy_artifacts, project_root=tmp_path)
+    replay_path = tmp_path / "release-digest-replay.v0.6.2.json"
+    _write_versioned_digest_replay(replay_path, replay, schema_version="0.6.2")
+
+    result = RUNNER.invoke(
+        app,
+        ["release", "replay", str(replay_path), "--artifact-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 0, result.output
+
+
+def test_release_replay_cli_requires_graph_for_current_schema(tmp_path: Path) -> None:
+    legacy_artifacts = tuple(
+        artifact
+        for artifact in _write_core_artifacts(tmp_path)
+        if artifact[0] != "assurance-evidence-graph"
+    )
+    replay = build_digest_replay(legacy_artifacts, project_root=tmp_path)
+    replay_path = tmp_path / "release-digest-replay.json"
+    write_digest_replay(replay, replay_path)
+
+    result = RUNNER.invoke(
+        app,
+        ["release", "replay", str(replay_path), "--artifact-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert {finding["role"] for finding in payload["findings"]} == {"assurance-evidence-graph"}
+
+
+def test_release_replay_cli_rejects_missing_legacy_core_role(tmp_path: Path) -> None:
+    incomplete_artifacts = tuple(
+        artifact
+        for artifact in _write_core_artifacts(tmp_path)
+        if artifact[0] not in {"assurance-evidence-graph", "fixture-manifest"}
+    )
+    replay = build_digest_replay(incomplete_artifacts, project_root=tmp_path)
+    replay_path = tmp_path / "release-digest-replay.v0.6.2.json"
+    _write_versioned_digest_replay(replay_path, replay, schema_version="0.6.2")
+
+    result = RUNNER.invoke(
+        app,
+        ["release", "replay", str(replay_path), "--artifact-root", str(tmp_path)],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert {finding["role"] for finding in payload["findings"]} == {"fixture-manifest"}
+
+
+def test_release_replay_cli_adds_explicit_roles_to_versioned_core(
+    tmp_path: Path,
+) -> None:
+    legacy_artifacts = tuple(
+        artifact
+        for artifact in _write_core_artifacts(tmp_path)
+        if artifact[0] != "assurance-evidence-graph"
+    )
+    replay = build_digest_replay(legacy_artifacts, project_root=tmp_path)
+    replay_path = tmp_path / "release-digest-replay.v0.6.2.json"
+    _write_versioned_digest_replay(replay_path, replay, schema_version="0.6.2")
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "release",
+            "replay",
+            str(replay_path),
+            "--artifact-root",
+            str(tmp_path),
+            "--require-role",
+            "assurance-evidence-graph",
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert {finding["role"] for finding in payload["findings"]} == {"assurance-evidence-graph"}
+
+
 def test_release_replay_cli_checks_expected_commit_against_replay_file(
     tmp_path: Path,
 ) -> None:
@@ -581,6 +694,7 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
     evaluation_summary = tmp_path / "evaluation-summary.json"
     comparison_summary = tmp_path / "comparison-summary.json"
     dependency_inventory = tmp_path / "dependency-inventory.json"
+    evidence_graph = tmp_path / "assurance-evidence-graph.json"
     evidence_packet = tmp_path / "evidence-packet.json"
     release_manifest = tmp_path / "release-artifact-manifest.json"
 
@@ -667,6 +781,13 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
             "components": [{"name": "agent-assure", "version": "0.1.0"}],
         },
     )
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id="release-replay-subject",
+        )
+    )
+    _write_json(evidence_graph, graph.model_dump(mode="json"))
     manifest_payload: dict[str, object] = {
         "artifact_kind": "release-artifact-manifest",
         "schema_version": "0.2.0",
@@ -719,6 +840,7 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
     return (
         ("compiled-suite", compiled),
         ("fixture-manifest", fixture_manifest),
+        ("assurance-evidence-graph", evidence_graph),
         ("evidence-packet", evidence_packet),
         ("release-artifact-manifest", release_manifest),
     )
@@ -737,3 +859,16 @@ def _manifest_artifact(role: str, path: Path, root: Path) -> dict[str, str]:
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, sort_keys=True) + "\n", encoding="utf-8", newline="\n")
+
+
+def _write_versioned_digest_replay(
+    path: Path,
+    replay: ReleaseDigestReplay,
+    *,
+    schema_version: str,
+) -> None:
+    payload = replay.model_dump(mode="json")
+    payload["schema_version"] = schema_version
+    for artifact in payload["artifacts"]:
+        artifact["schema_version"] = schema_version
+    _write_json(path, payload)

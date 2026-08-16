@@ -54,7 +54,7 @@ _EVALUATION_REPORT_USAGE_FIELD_PATHS = (
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_EVALUATION_REPORT_USAGE_FIELD_PATHS
 )
-_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2"})
+_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3"})
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {

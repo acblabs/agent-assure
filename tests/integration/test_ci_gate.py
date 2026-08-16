@@ -220,6 +220,8 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     assert (out_dir / "comparison-report.json").exists()
     assert (out_dir / "evidence-packet.json").exists()
     assert (out_dir / "evidence-packet.md").exists()
+    graph_path = out_dir / "assurance-evidence-graph.json"
+    assert graph_path.exists()
     assert (out_dir / "release-artifact-manifest.json").exists()
     assert (out_dir / "dependency-inventory.json").exists()
     diagnostics = json.loads((out_dir / "ci-diagnostics.json").read_text(encoding="utf-8"))
@@ -228,9 +230,24 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     assert diagnostics["reason_code"] == "MATERIAL_CLAIM_MISSING_EVIDENCE"
     assert diagnostics["artifact_path"].endswith("evidence-packet.json")
     packet = json.loads((out_dir / "evidence-packet.json").read_text(encoding="utf-8"))
+    graph = json.loads(graph_path.read_text(encoding="utf-8"))
     assert packet["environment"]["dependency_inventory_digest"]
     assert "python_executable" not in packet["environment"]
     assert packet["release_manifest"]["artifacts"]
+    assert packet["evidence_graph_digest"] == graph["graph_digest"]
+    graph_digest = next(
+        item
+        for item in packet["artifact_digests"]
+        if item["role"] == "assurance-evidence-graph"
+    )
+    graph_manifest = next(
+        item
+        for item in packet["release_manifest"]["artifacts"]
+        if item["role"] == "assurance-evidence-graph"
+    )
+    assert graph_digest["sha256"] == file_sha256(graph_path)
+    assert graph_manifest["sha256"] == graph_digest["sha256"]
+    assert graph_manifest["path"].endswith("assurance-evidence-graph.json")
     inventory = json.loads((out_dir / "dependency-inventory.json").read_text(encoding="utf-8"))
     assert inventory["artifact_kind"] == "dependency-inventory"
     assert inventory["format"] == "agent-assure-dependency-inventory-v0.1"
@@ -277,6 +294,38 @@ def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
     assert result.decision.exit_code == 2
     assert result.decision.outcome.value == "invalid"
     assert "source file digest does not match release manifest" in result.decision.message
+
+
+def test_ci_packet_publication_rolls_back_graph_and_packet_on_late_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "late-packet-failure"
+
+    def fail_markdown_write(*_args: object, **_kwargs: object) -> None:
+        raise OSError("injected late CI packet failure")
+
+    monkeypatch.setattr(
+        ci_module,
+        "write_evidence_packet_markdown",
+        fail_markdown_write,
+    )
+
+    with pytest.raises(OSError, match="injected late CI packet failure"):
+        run_ci(
+            baseline_path,
+            suite_path=compiled_path,
+            out_dir=out_dir,
+        )
+
+    for filename in (
+        "assurance-evidence-graph.json",
+        "release-artifact-manifest.json",
+        "evidence-packet.json",
+        "evidence-packet.md",
+    ):
+        assert not (out_dir / filename).exists()
 
 
 def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Path) -> None:

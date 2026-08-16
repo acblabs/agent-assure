@@ -18,6 +18,10 @@ from agent_assure.demo.assure_the_assurance import (
 )
 from agent_assure.demo.common import DemoError
 from agent_assure.reporting.campaign import validate_mutation_campaign_artifact_generation
+from agent_assure.reporting.packet import (
+    load_evidence_packet,
+    packet_summary_files_binding_error,
+)
 from agent_assure.schema.validation import validate_artifact
 
 RUNNER = CliRunner()
@@ -46,6 +50,8 @@ def test_prepared_walkthrough_console_facts_match_the_authoritative_renderer() -
             "mutation_results": "mutation-results",
             "control_efficacy_report": "control-efficacy-report.json",
             "control_efficacy_config": "control-efficacy-config.json",
+            "assurance_evidence_graph": "assurance-evidence-graph.json",
+            "mutation_evidence_graph": "mutation-evidence-graph.json",
             "evidence_packet": "evidence-packet.json",
             "reviewer_facing_report": "reviewer-facing-report.md",
             "summary": "demo-summary.json",
@@ -159,20 +165,66 @@ def test_assure_the_assurance_demo_is_offline_portable_and_rejects_substitution(
         )
         == "pydantic+jsonschema"
     )
+    assert (
+        validate_artifact(
+            out / artifacts["assurance_evidence_graph"],
+            "assurance-evidence-graph",
+        )
+        == "pydantic+jsonschema"
+    )
+    graph = _json(out / artifacts["assurance_evidence_graph"])
+    mutation_graph = _json(out / artifacts["mutation_evidence_graph"])
+    assert graph["contract_id"] == "AssuranceEvidenceGraph/v1"
+    assert graph["graph_digest"] == summary["evidence_graph_digest"]
+    assert graph["nodes"]
+    assert graph["edges"]
+    assert graph["limitations"]
+    assert mutation_graph["graph_digest"] == summary["mutation_evidence_graph_digest"]
+    assert any(
+        node["payload"].get("evidence_type") == "mutation_result"
+        for node in cast(list[dict[str, Any]], mutation_graph["nodes"])
+    )
     packet = _json(out / artifacts["evidence_packet"])
+    persisted_packet = load_evidence_packet(out / artifacts["evidence_packet"])
+    assert persisted_packet.release_manifest is not None
+    assert packet_summary_files_binding_error(persisted_packet, artifact_root=out) is None
+    assert artifacts["release_artifact_manifest"] == "release-artifact-manifest.json"
+    assert packet["release_manifest"] == _json(
+        out / artifacts["release_artifact_manifest"]
+    )
     config_digest = next(
         item
         for item in cast(list[dict[str, Any]], packet["artifact_digests"])
         if item["role"] == "control-efficacy-gate-profile"
     )
     assert config_digest["sha256"] == file_sha256(out / artifacts["control_efficacy_config"])
+    graph_digest = next(
+        item
+        for item in cast(list[dict[str, Any]], packet["artifact_digests"])
+        if item["role"] == "assurance-evidence-graph"
+    )
+    graph_file_sha256 = file_sha256(out / artifacts["assurance_evidence_graph"])
+    assert graph_digest["sha256"] == graph_file_sha256
+    assert packet["evidence_graph_digest"] == graph["graph_digest"]
 
     hashes = cast(dict[str, str], summary["artifact_sha256"])
     for name, digest in hashes.items():
         assert file_sha256(out / artifacts[name]) == digest
+    assert hashes["assurance_evidence_graph"] == graph_file_sha256
     reviewer = (out / artifacts["reviewer_facing_report"]).read_text(encoding="utf-8")
     assert "the unrelated failure did not count as a kill" in reviewer
     assert "Matched normative finding count: `0`" in reviewer
+    assert f"Packet-bound graph digest: {graph['graph_digest']}." in reviewer
+    assert (
+        f"Mutation-enriched graph digest: {mutation_graph['graph_digest']}."
+        in reviewer
+    )
+    assert (
+        "Mutation-enriched nodes / edges: "
+        f"{len(mutation_graph['nodes'])} / {len(mutation_graph['edges'])}."
+        in reviewer
+    )
+    assert "Contradictions and limitations remain first-class findings." in reviewer
     assert "http://" not in reviewer.lower()
     assert "https://" not in reviewer.lower()
 

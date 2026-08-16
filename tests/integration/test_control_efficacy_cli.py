@@ -253,6 +253,7 @@ def test_packet_cli_binds_config_profile_and_ci_rejects_a_forged_embedded_pass(
     digests = cast(list[dict[str, Any]], packet["artifact_digests"])
     assert [item["role"] for item in digests] == [
         "evaluation-summary",
+        "assurance-evidence-graph",
         "control-efficacy-report",
         "control-efficacy-onboarding-config",
     ]

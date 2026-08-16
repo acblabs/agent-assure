@@ -23,6 +23,7 @@ from agent_assure.schema.efficacy import (
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
+from agent_assure.schema.graph import AssuranceEvidenceGraph
 from agent_assure.schema.live import (
     LiveComparisonReport,
     LiveDriftReport,
@@ -61,6 +62,7 @@ CONTRACT_IDENTITY_FIELDS = ("schema_name", "contract_id", "contract_version")
 CONTRACT_ARTIFACT_KINDS = frozenset(
     {
         "assurance-evidence-descriptor",
+        "assurance-evidence-graph",
         "assurance-mutation-campaign",
         "assurance-mutation-catalog",
         "assurance-mutation-operator",
@@ -74,6 +76,7 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
 SCHEMA_MODELS: dict[str, SchemaModel] = {
     "agent-run-record": AgentRunRecord,
     "assurance-evidence-descriptor": AssuranceEvidenceDescriptor,
+    "assurance-evidence-graph": AssuranceEvidenceGraph,
     "assurance-mutation-campaign": AssuranceMutationCampaign,
     "assurance-mutation-catalog": AssuranceMutationCatalog,
     "assurance-mutation-operator": AssuranceMutationOperator,

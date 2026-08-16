@@ -1,15 +1,15 @@
 # API Surface
 
 The current public surface is intentionally narrow and status-qualified.
-The v0.6.2 release-candidate surface consists of:
+The v0.6.3 development release-candidate surface consists of:
 
 - the `agent-assure` CLI;
-- package candidate v0.6.2, which uses the active v0.6.2 schema snapshot
-  under `schemas/v0.6.2`, with
+- package candidate v0.6.3, which uses the active v0.6.3 schema snapshot
+  under `schemas/v0.6.3`, with
   earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,
-  `schemas/v0.4.3`, `schemas/v0.5.0`, `schemas/v0.6.0`, and
-  `schemas/v0.6.1`;
+  `schemas/v0.4.3`, `schemas/v0.5.0`, `schemas/v0.6.0`,
+  `schemas/v0.6.1`, and `schemas/v0.6.2`;
 - importable schema models under `agent_assure.schema`;
 - fixture-mode helpers used by the bundled examples; and
 - framework evidence mapping through `agent-assure controls map`.
@@ -33,7 +33,9 @@ The development package additionally exposes non-stable surfaces:
 - development-RFC `AssuranceEvidenceDescriptor/v1`,
   `AssuranceMutationOperator/v1`, `ExpectedDetectionContract/v1`, and
   `AssuranceMutationResult/v1` persisted contracts, plus
-  `AssuranceMutationCatalog/v1` and `AssuranceMutationCampaign/v1`.
+  `AssuranceMutationCatalog/v1` and `AssuranceMutationCampaign/v1`; and
+- development-RFC `AssuranceEvidenceGraph/v1`, with a closed four-node,
+  five-edge vocabulary and canonical semantic digest.
 
 The `/v1` suffix identifies the proposed method-contract generation; it does
 not make an RFC surface a stable compatibility commitment. Promotion requires
@@ -74,3 +76,5 @@ claim-evidence links that point to present evidence items.
 
 The evidence-carrying release contracts and their compatibility boundaries are
 documented in `docs/evidence_carrying_releases.md`.
+The graph contract, identity rules, and explicit non-goals are documented in
+`docs/evidence_graph.md`.

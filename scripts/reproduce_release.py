@@ -16,8 +16,8 @@ if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
 from agent_assure.release_evidence import (  # noqa: E402
-    CORE_RELEASE_ROLES,
     build_digest_replay,
+    core_release_roles_for_schema_version,
     load_digest_replay,
     verify_digest_replay,
     write_digest_replay,
@@ -96,7 +96,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         verification = verify_digest_replay(
             expected,
             artifact_root=ROOT,
-            required_roles=CORE_RELEASE_ROLES,
+            required_roles=core_release_roles_for_schema_version(expected.schema_version),
             require_current_commit=True,
         )
         if not verification.ok:
@@ -285,6 +285,10 @@ def release_artifacts(out: Path, *, artifact_prefix: str) -> tuple[tuple[str, Pa
     return (
         ("compiled-suite", out / f"{artifact_prefix}.compiled.json"),
         ("fixture-manifest", out / f"{artifact_prefix}.fixtures.json"),
+        (
+            "assurance-evidence-graph",
+            out / "reports" / "assurance-evidence-graph.json",
+        ),
         ("evidence-packet", out / "reports" / "evidence-packet.json"),
         (
             "release-artifact-manifest",

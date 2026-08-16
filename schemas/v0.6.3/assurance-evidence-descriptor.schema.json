@@ -1,0 +1,813 @@
+{
+  "$defs": {
+    "EvidenceDependency": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Digest",
+          "type": "string"
+        },
+        "evidence_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Evidence Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "evidence_id",
+        "digest"
+      ],
+      "title": "EvidenceDependency",
+      "type": "object"
+    },
+    "EvidenceEvaluationBasis": {
+      "enum": [
+        "deterministic",
+        "stochastic",
+        "human_reviewed",
+        "llm_advisory"
+      ],
+      "title": "EvidenceEvaluationBasis",
+      "type": "string"
+    },
+    "EvidenceMethod": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluation_basis": {
+          "$ref": "#/$defs/EvidenceEvaluationBasis"
+        },
+        "implementation_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Implementation Digest",
+          "type": "string"
+        },
+        "implementation_version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+          "title": "Implementation Version",
+          "type": "string"
+        },
+        "method_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Method Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method_id",
+        "implementation_digest",
+        "implementation_version",
+        "evaluation_basis"
+      ],
+      "title": "EvidenceMethod",
+      "type": "object"
+    },
+    "EvidencePrerequisites": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "satisfied"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "checks": {
+                "items": {
+                  "properties": {
+                    "state": {
+                      "const": "satisfied"
+                    }
+                  }
+                },
+                "minItems": 1
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/PrerequisiteCheck"
+          },
+          "title": "Checks",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/PrerequisiteState"
+        }
+      },
+      "required": [
+        "state",
+        "checks"
+      ],
+      "title": "EvidencePrerequisites",
+      "type": "object"
+    },
+    "EvidenceProducer": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "EvidenceProducer",
+      "type": "object"
+    },
+    "EvidenceResult": {
+      "additionalProperties": false,
+      "properties": {
+        "metrics": {
+          "maxProperties": 128,
+          "patternProperties": {
+            "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$": {
+              "anyOf": [
+                {
+                  "type": "integer"
+                },
+                {
+                  "maxLength": 8192,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "boolean"
+                }
+              ]
+            }
+          },
+          "propertyNames": {
+            "maxLength": 512,
+            "minLength": 1
+          },
+          "title": "Metrics",
+          "type": "object"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/EvidenceState"
+        },
+        "verdict_bearing": {
+          "title": "Verdict Bearing",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "state",
+        "verdict_bearing"
+      ],
+      "title": "EvidenceResult",
+      "type": "object"
+    },
+    "EvidenceScope": {
+      "additionalProperties": false,
+      "properties": {
+        "evaluation_date": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "title": "Evaluation Date",
+          "type": "string"
+        },
+        "gate_profile_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Gate Profile Digest",
+          "type": "string"
+        },
+        "gate_profile_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Gate Profile Id",
+          "type": "string"
+        },
+        "population_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Population Id",
+          "type": "string"
+        },
+        "protocol_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Protocol Digest"
+        },
+        "suite_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Suite Digest",
+          "type": "string"
+        },
+        "waiver_set_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Waiver Set Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "suite_digest",
+        "population_id",
+        "gate_profile_id",
+        "gate_profile_digest",
+        "waiver_set_digest",
+        "evaluation_date"
+      ],
+      "title": "EvidenceScope",
+      "type": "object"
+    },
+    "EvidenceState": {
+      "enum": [
+        "supported",
+        "contradicted",
+        "violated",
+        "inconclusive",
+        "not_evaluated",
+        "prerequisites_unmet",
+        "out_of_scope",
+        "expired",
+        "invalidated",
+        "waived",
+        "error"
+      ],
+      "title": "EvidenceState",
+      "type": "string"
+    },
+    "EvidenceSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Digest"
+        },
+        "subject_type": {
+          "enum": [
+            "agent_release",
+            "run_set"
+          ],
+          "title": "Subject Type",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_type",
+        "digest"
+      ],
+      "title": "EvidenceSubject",
+      "type": "object"
+    },
+    "EvidenceValidity": {
+      "additionalProperties": false,
+      "properties": {
+        "expires_at": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Expires At"
+        },
+        "generated_at": {
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]+)?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Generated At",
+          "type": "string"
+        },
+        "invalidated_by": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "title": "Invalidated By",
+          "type": "array"
+        }
+      },
+      "required": [
+        "generated_at",
+        "invalidated_by"
+      ],
+      "title": "EvidenceValidity",
+      "type": "object"
+    },
+    "PrerequisiteCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Check Id",
+          "type": "string"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/PrerequisiteState"
+        }
+      },
+      "required": [
+        "check_id",
+        "state"
+      ],
+      "title": "PrerequisiteCheck",
+      "type": "object"
+    },
+    "PrerequisiteState": {
+      "enum": [
+        "satisfied",
+        "unmet",
+        "not_evaluated"
+      ],
+      "title": "PrerequisiteState",
+      "type": "string"
+    },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "EVIDENCE_PROVENANCE_MISMATCH",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "RUNSET_INCOMPLETE",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.3/assurance-evidence-descriptor.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "method_id": {
+                "const": "assurance-mutation/core/v1"
+              }
+            },
+            "required": [
+              "method_id"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prerequisites": {
+            "properties": {
+              "checks": {
+                "maxItems": 4,
+                "minItems": 4,
+                "prefixItems": [
+                  {
+                    "properties": {
+                      "check_id": {
+                        "const": "subject-valid"
+                      }
+                    },
+                    "required": [
+                      "check_id"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "check_id": {
+                        "const": "operator-valid"
+                      }
+                    },
+                    "required": [
+                      "check_id"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "check_id": {
+                        "const": "operator-applicable"
+                      }
+                    },
+                    "required": [
+                      "check_id"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "check_id": {
+                        "const": "mutation-execution-completed"
+                      }
+                    },
+                    "required": [
+                      "check_id"
+                    ]
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "subject": {
+            "properties": {
+              "digest": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "digest"
+            ]
+          }
+        },
+        "required": [
+          "subject"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prerequisites": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "unmet",
+                  "not_evaluated"
+                ]
+              }
+            }
+          },
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "evaluation_basis": {
+                "const": "stochastic"
+              }
+            },
+            "required": [
+              "evaluation_basis"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prerequisites": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "check_id": {
+                      "const": "statistical-sufficiency-established"
+                    },
+                    "state": {
+                      "enum": [
+                        "unmet",
+                        "not_evaluated"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "check_id",
+                    "state"
+                  ]
+                }
+              },
+              "state": {
+                "enum": [
+                  "unmet",
+                  "not_evaluated"
+                ]
+              }
+            }
+          },
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
+          },
+          "scope": {
+            "properties": {
+              "protocol_digest": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "protocol_digest"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "evaluation_basis": {
+                "const": "human_reviewed"
+              }
+            },
+            "required": [
+              "evaluation_basis"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "prerequisites": {
+            "properties": {
+              "checks": {
+                "contains": {
+                  "properties": {
+                    "check_id": {
+                      "const": "human-review-sufficiency-established"
+                    },
+                    "state": {
+                      "enum": [
+                        "unmet",
+                        "not_evaluated"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "check_id",
+                    "state"
+                  ]
+                }
+              },
+              "state": {
+                "enum": [
+                  "unmet",
+                  "not_evaluated"
+                ]
+              }
+            }
+          },
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
+          },
+          "scope": {
+            "properties": {
+              "protocol_digest": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "protocol_digest"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "method": {
+            "properties": {
+              "evaluation_basis": {
+                "const": "llm_advisory"
+              }
+            },
+            "required": [
+              "evaluation_basis"
+            ]
+          }
+        },
+        "required": [
+          "method"
+        ]
+      },
+      "then": {
+        "properties": {
+          "result": {
+            "properties": {
+              "verdict_bearing": {
+                "const": false
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "artifact_kind": {
+      "const": "assurance-evidence-descriptor",
+      "default": "assurance-evidence-descriptor",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "assumptions": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "contract_id": {
+      "const": "AssuranceEvidenceDescriptor/v1",
+      "default": "AssuranceEvidenceDescriptor/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "dependencies": {
+      "items": {
+        "$ref": "#/$defs/EvidenceDependency"
+      },
+      "title": "Dependencies",
+      "type": "array"
+    },
+    "evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Evidence Digest",
+      "type": "string"
+    },
+    "evidence_id": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Evidence Id",
+      "type": "string"
+    },
+    "evidence_kind": {
+      "maxLength": 512,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Evidence Kind",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "method": {
+      "$ref": "#/$defs/EvidenceMethod"
+    },
+    "prerequisites": {
+      "$ref": "#/$defs/EvidencePrerequisites"
+    },
+    "producer": {
+      "$ref": "#/$defs/EvidenceProducer"
+    },
+    "result": {
+      "$ref": "#/$defs/EvidenceResult"
+    },
+    "schema_name": {
+      "const": "assurance-evidence-descriptor",
+      "default": "assurance-evidence-descriptor",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.3",
+      "default": "0.6.3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "scope": {
+      "$ref": "#/$defs/EvidenceScope"
+    },
+    "subject": {
+      "$ref": "#/$defs/EvidenceSubject"
+    },
+    "validity": {
+      "$ref": "#/$defs/EvidenceValidity"
+    }
+  },
+  "required": [
+    "evidence_digest",
+    "evidence_id",
+    "evidence_kind",
+    "subject",
+    "scope",
+    "method",
+    "result",
+    "prerequisites",
+    "assumptions",
+    "limitations",
+    "validity",
+    "dependencies",
+    "producer",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "AssuranceEvidenceDescriptor",
+  "type": "object"
+}

@@ -29,6 +29,7 @@ evidence link. The CI gate blocks that process regression as expected.
 - [Evidence-carrying release contracts](evidence_carrying_releases.md)
 - [Core mutation catalog and deterministic campaigns](mutation_catalog.md)
 - [Control efficacy and assurance-control gating](control_efficacy.md)
+- [Minimal Assurance Evidence Graph](evidence_graph.md)
 - [Who assures the assurance?](posts/who_assures_the_assurance.md)
 - [Flagship demo](demo_flagship.md)
 - [RAG provenance demo](demo_rag.md)

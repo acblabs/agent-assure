@@ -4,11 +4,14 @@ import sys
 import tempfile
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[3]
 SCRIPTS = ROOT / "scripts"
 if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
+import reproduce_release  # noqa: E402
 from reproduce_release import (  # noqa: E402
     RELEASE_SOURCE_DATE_EPOCH,
     ReleaseCommand,
@@ -16,6 +19,12 @@ from reproduce_release import (  # noqa: E402
     release_commands,
     run_release_commands,
 )
+
+from agent_assure.release_evidence import (  # noqa: E402
+    LEGACY_CORE_RELEASE_ROLES,
+    DigestReplayVerification,
+)
+from agent_assure.schema.release import ReleaseDigestReplay  # noqa: E402
 
 
 def test_run_release_commands_writes_step_log(tmp_path: Path) -> None:
@@ -103,3 +112,66 @@ def test_release_workflows_share_reproduction_epoch() -> None:
     ):
         text = workflow.read_text(encoding="utf-8")
         assert f'SOURCE_DATE_EPOCH: "{RELEASE_SOURCE_DATE_EPOCH}"' in text
+
+
+def test_expected_digest_replay_uses_historical_core_role_policy(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = ReleaseDigestReplay(schema_version="0.6.2", artifacts=())
+    generated = ReleaseDigestReplay(artifacts=())
+    captured: dict[str, object] = {}
+
+    monkeypatch.setattr(
+        reproduce_release,
+        "run_release_commands",
+        lambda commands, *, logs_dir: 0,
+    )
+    monkeypatch.setattr(
+        reproduce_release,
+        "build_digest_replay",
+        lambda artifacts, **kwargs: generated,
+    )
+    monkeypatch.setattr(
+        reproduce_release,
+        "write_digest_replay",
+        lambda replay, path: None,
+    )
+    monkeypatch.setattr(
+        reproduce_release,
+        "load_digest_replay",
+        lambda path: expected,
+    )
+
+    def fake_verify_digest_replay(
+        replay: ReleaseDigestReplay,
+        *,
+        artifact_root: Path,
+        required_roles: tuple[str, ...],
+        require_current_commit: bool,
+    ) -> DigestReplayVerification:
+        captured["replay"] = replay
+        captured["artifact_root"] = artifact_root
+        captured["required_roles"] = required_roles
+        captured["require_current_commit"] = require_current_commit
+        return DigestReplayVerification(replay=replay, findings=())
+
+    monkeypatch.setattr(
+        reproduce_release,
+        "verify_digest_replay",
+        fake_verify_digest_replay,
+    )
+
+    exit_code = reproduce_release.main(
+        [
+            "--out",
+            str(tmp_path / "release"),
+            "--expected-digests",
+            str(tmp_path / "expected.json"),
+        ]
+    )
+
+    assert exit_code == 0
+    assert captured["replay"] is expected
+    assert captured["required_roles"] == LEGACY_CORE_RELEASE_ROLES
+    assert captured["require_current_commit"] is True

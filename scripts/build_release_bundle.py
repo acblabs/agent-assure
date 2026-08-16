@@ -23,6 +23,7 @@ from agent_assure.reporting.environment import (  # noqa: E402
 )
 from agent_assure.reporting.packet import (  # noqa: E402
     load_evidence_packet,
+    packet_summary_files_binding_error,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
@@ -243,8 +244,11 @@ def _write_release_sbom_and_manifest(
         (*existing_manifest.artifacts, *extra_artifacts),
         environment=environment,
     )
-    write_release_manifest(manifest, manifest_path)
     packet = load_evidence_packet(packet_path).model_copy(update={"release_manifest": manifest})
+    binding_error = packet_summary_files_binding_error(packet, artifact_root=ROOT)
+    if binding_error is not None:
+        raise ValueError(f"release packet graph binding is invalid: {binding_error}")
+    write_release_manifest(manifest, manifest_path)
     write_evidence_packet(packet, packet_path)
     write_evidence_packet_markdown(packet, packet_markdown_path)
     return extra_artifacts

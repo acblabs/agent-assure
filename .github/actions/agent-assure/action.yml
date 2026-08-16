@@ -90,6 +90,7 @@ runs:
           "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/comparison-report.md"
           "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.json"
           "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.md"
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/assurance-evidence-graph.json"
           "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/release-artifact-manifest.json"
           "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/dependency-inventory.json"
           "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/ci-diagnostics.json"
@@ -181,6 +182,7 @@ runs:
         path: |
           ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.json
           ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.md
+          ${{ steps.prepare.outputs.out_dir }}/reports/assurance-evidence-graph.json
           ${{ steps.prepare.outputs.out_dir }}/reports/release-artifact-manifest.json
           ${{ steps.prepare.outputs.out_dir }}/reports/evaluation-summary.json
           ${{ steps.prepare.outputs.out_dir }}/reports/comparison-summary.json
@@ -209,6 +211,7 @@ runs:
           ${{ steps.prepare.outputs.out_dir }}/reports/comparison-report.md
           ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.json
           ${{ steps.prepare.outputs.out_dir }}/reports/evidence-packet.md
+          ${{ steps.prepare.outputs.out_dir }}/reports/assurance-evidence-graph.json
           ${{ steps.prepare.outputs.out_dir }}/reports/release-artifact-manifest.json
           ${{ steps.prepare.outputs.out_dir }}/reports/dependency-inventory.json
           ${{ steps.prepare.outputs.out_dir }}/reports/ci-diagnostics.json

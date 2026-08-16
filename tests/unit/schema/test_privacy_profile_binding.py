@@ -15,7 +15,7 @@ from agent_assure.schema.run import RunSet
 ROOT = Path(__file__).resolve().parents[3]
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.1", "0.6.2"))
+@pytest.mark.parametrize("schema_version", ("0.6.1", "0.6.2", "0.6.3"))
 def test_machine_id_era_artifact_schemas_require_privacy_profile_pair(
     schema_version: str,
 ) -> None:

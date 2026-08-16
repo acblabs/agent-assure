@@ -227,7 +227,7 @@ def test_frozen_v060_runset_retains_legacy_unbounded_evidence_identifiers() -> N
     assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
 def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="cost_budget_committed_usd"):
         _record(
@@ -241,7 +241,7 @@ def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
 def test_v06_live_observations_require_pairing_identity(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="prompt, schedule, and randomization identity"):
         LiveObservationResult(
@@ -258,7 +258,7 @@ def test_v06_live_observations_require_pairing_identity(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
 def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="configuration_digest"):
         DriftWindowSummary(
@@ -275,7 +275,7 @@ def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
 def test_v06_drift_comparability_requires_configuration_match(
     schema_version: str,
 ) -> None:
@@ -332,6 +332,54 @@ def test_runset_is_first_class_schema() -> None:
         runs=(_record(),),
     )
     assert runset.artifact_kind == "run-set"
+
+
+def test_current_runset_rejects_empty_graph_source_identity() -> None:
+    runset = RunSet(
+        runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(_record(),),
+    )
+    payload = runset.model_dump(mode="json")
+    payload["runset_id"] = ""
+
+    with pytest.raises(ValidationError, match="non-empty runset_id"):
+        RunSet.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(writer_json_schema(RunSet)).validate(payload)
+
+
+def test_legacy_runset_retains_historical_empty_graph_source_identity() -> None:
+    runset = RunSet(
+        schema_version="0.6.2",
+        runset_id="",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(_record(schema_version="0.6.2"),),
+    )
+
+    assert runset.runset_id == ""
+    payload = runset.model_dump(mode="json")
+    pending: list[object] = [payload]
+    while pending:
+        value = pending.pop()
+        if isinstance(value, dict):
+            if "schema_version" in value:
+                value["schema_version"] = "0.6.2"
+            pending.extend(value.values())
+        elif isinstance(value, list):
+            pending.extend(value)
+
+    assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
 
 
 @pytest.mark.parametrize("value", (1 << 53, -(1 << 53)))

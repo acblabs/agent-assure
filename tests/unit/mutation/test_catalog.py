@@ -171,13 +171,14 @@ def test_evaluator_manifest_is_shared_and_covers_every_evaluator_policy() -> Non
 def test_catalog_frozen_runset_schema_paths_match_validator_versions() -> None:
     assert catalog._FROZEN_RUNSET_SCHEMA_PATHS == _EXPECTED_FROZEN_RUNSET_SCHEMA_PATHS
     assert "schemas/v0.6.1/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
-    assert "schemas/v0.6.2/run-set.schema.json" not in catalog._FROZEN_RUNSET_SCHEMA_PATHS
+    assert "schemas/v0.6.2/run-set.schema.json" in catalog._FROZEN_RUNSET_SCHEMA_PATHS
+    assert "schemas/v0.6.3/run-set.schema.json" not in catalog._FROZEN_RUNSET_SCHEMA_PATHS
 
 
 def test_core_operators_declare_current_and_frozen_v06_compatibility() -> None:
     assert {
         operator.descriptor.compatible_schema_versions for operator in registered_operators()
-    } == {("0.5.0", "0.6.0", "0.6.1", "0.6.2")}
+    } == {("0.5.0", "0.6.0", "0.6.1", "0.6.2", "0.6.3")}
 
 
 def test_component_digests_are_lf_normalized_current_source_digests() -> None:

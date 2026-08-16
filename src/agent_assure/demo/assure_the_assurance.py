@@ -39,10 +39,20 @@ from agent_assure.reporting.efficacy import (
     render_control_efficacy_markdown,
     write_control_efficacy_report,
 )
+from agent_assure.reporting.environment import (
+    build_release_manifest,
+    release_artifact,
+    write_release_manifest,
+)
+from agent_assure.reporting.graph import write_evidence_graph
 from agent_assure.reporting.packet import (
+    DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
+    build_privacy_filtered_evidence_graph,
     load_evaluation_summary,
+    load_evidence_packet,
     packet_artifact_digest,
+    packet_summary_files_binding_error,
     write_evidence_packet,
 )
 from agent_assure.schema.common import GateState, ReasonCode, Severity
@@ -53,6 +63,7 @@ from agent_assure.schema.efficacy import (
     ThreatApplicabilityManifest,
     ThreatSourceIdentity,
 )
+from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.mutation import MutationResultState
 from agent_assure.schema.packet import EvidencePacket
@@ -165,6 +176,32 @@ def _run_assure_the_assurance_demo(
         gate_decision=gate_decision,
         gate_profile=gate_profile,
     )
+    packet_limitations = DEFAULT_PACKET_LIMITATIONS
+    packet_evidence_graph = build_privacy_filtered_evidence_graph(
+        baseline_summary,
+        control_efficacy=efficacy,
+        control_efficacy_gate_profile=gate_profile,
+        control_efficacy_gate=gate_decision,
+        limitations=packet_limitations,
+    )
+    evidence_graph_path = root / "assurance-evidence-graph.json"
+    write_evidence_graph(packet_evidence_graph, evidence_graph_path)
+    mutation_evidence_graph = build_privacy_filtered_evidence_graph(
+        baseline_summary,
+        mutation_results=(
+            strong.campaign.operator_results[0].result,
+            weakened.campaign.operator_results[0].result,
+        ),
+        control_efficacy=efficacy,
+        control_efficacy_gate_profile=gate_profile,
+        control_efficacy_gate=gate_decision,
+        limitations=packet_limitations,
+    )
+    mutation_evidence_graph_path = root / "mutation-evidence-graph.json"
+    write_evidence_graph(
+        mutation_evidence_graph,
+        mutation_evidence_graph_path,
+    )
 
     unrelated = _unrelated_failure_probes(
         suite=suite,
@@ -189,15 +226,56 @@ def _run_assure_the_assurance_demo(
             "- Matched normative finding count: "
             f"`{sum(len(item.matched_finding_ids) for item in unrelated.values())}`.\n"
             "- Result: the unrelated failure did not count as a kill.\n"
+            "\n## Assurance Evidence Graph\n\n"
+            f"- Packet-bound graph digest: {packet_evidence_graph.graph_digest}.\n"
+            "- Mutation-enriched graph digest: "
+            f"{mutation_evidence_graph.graph_digest}.\n"
+            "- Mutation-enriched nodes / edges: "
+            f"{len(mutation_evidence_graph.nodes)} / "
+            f"{len(mutation_evidence_graph.edges)}.\n"
+            "- Contradictions and limitations remain first-class findings.\n"
         ),
     )
 
     evaluation_summary_path = baseline_report_dir / "evaluation-summary.json"
+    manifest_environment = baseline_summary.environment or EnvironmentInfo(
+        platform="not-recorded",
+        python_version="not-recorded",
+    )
+    release_manifest = build_release_manifest(
+        (
+            release_artifact(
+                "evaluation-summary",
+                evaluation_summary_path,
+                project_root=root,
+            ),
+            release_artifact(
+                "control-efficacy-report",
+                efficacy_paths.report,
+                project_root=root,
+            ),
+            release_artifact(
+                "control-efficacy-gate-profile",
+                efficacy_config_path,
+                project_root=root,
+            ),
+            release_artifact(
+                "assurance-evidence-graph",
+                evidence_graph_path,
+                project_root=root,
+            ),
+        ),
+        environment=manifest_environment,
+    )
+    release_manifest_path = root / "release-artifact-manifest.json"
+    write_release_manifest(release_manifest, release_manifest_path)
     packet = build_evidence_packet(
         baseline_summary,
         control_efficacy=efficacy,
         control_efficacy_gate_profile=gate_profile,
         control_efficacy_gate=gate_decision,
+        environment=manifest_environment,
+        release_manifest=release_manifest,
         artifact_digests=(
             packet_artifact_digest("evaluation-summary", evaluation_summary_path),
             packet_artifact_digest(
@@ -208,10 +286,26 @@ def _run_assure_the_assurance_demo(
                 "control-efficacy-gate-profile",
                 efficacy_config_path,
             ),
+            packet_artifact_digest(
+                "assurance-evidence-graph",
+                evidence_graph_path,
+            ),
         ),
+        evidence_graph_digest=packet_evidence_graph.graph_digest,
+        limitations=packet_limitations,
     )
     packet_path = root / "evidence-packet.json"
     write_evidence_packet(packet, packet_path)
+    persisted_packet = load_evidence_packet(packet_path)
+    binding_error = packet_summary_files_binding_error(
+        persisted_packet,
+        artifact_root=root,
+    )
+    if binding_error is not None or persisted_packet != packet:
+        raise DemoError(
+            "persisted demo packet did not verify against its exact evidence graph binding"
+        )
+    packet = persisted_packet
     commands.append(
         run_cli_command(
             name="ci-gate-efficacy-packet",
@@ -236,7 +330,12 @@ def _run_assure_the_assurance_demo(
         weakened_state=weakened.campaign.operator_results[0].result.state,
         efficacy_report_path=efficacy_paths.report,
         efficacy_config_path=efficacy_config_path,
+        evidence_graph_path=evidence_graph_path,
+        evidence_graph_digest=packet_evidence_graph.graph_digest,
+        mutation_evidence_graph_path=mutation_evidence_graph_path,
+        mutation_evidence_graph_digest=mutation_evidence_graph.graph_digest,
         packet_path=packet_path,
+        release_manifest_path=release_manifest_path,
         reviewer_path=reviewer_path,
         strong_manifest_path=strong_paths.generation_manifest,
         weakened_manifest_path=weakened_paths.generation_manifest,
@@ -347,6 +446,8 @@ def render_assure_the_assurance_text(summary: dict[str, object]) -> str:
             f"  {artifacts['mutation_results']}",
             f"  {artifacts['control_efficacy_report']}",
             f"  {artifacts['control_efficacy_config']}",
+            f"  {artifacts['assurance_evidence_graph']}",
+            f"  {artifacts['mutation_evidence_graph']}",
             f"  {artifacts['evidence_packet']}",
             f"  {artifacts['reviewer_facing_report']}",
             f"  {artifacts['summary']}",
@@ -546,7 +647,12 @@ def _build_summary(
     weakened_state: MutationResultState,
     efficacy_report_path: Path,
     efficacy_config_path: Path,
+    evidence_graph_path: Path,
+    evidence_graph_digest: str,
+    mutation_evidence_graph_path: Path,
+    mutation_evidence_graph_digest: str,
     packet_path: Path,
+    release_manifest_path: Path,
     reviewer_path: Path,
     strong_manifest_path: Path,
     weakened_manifest_path: Path,
@@ -560,7 +666,10 @@ def _build_summary(
     artifact_paths = {
         "control_efficacy_report": efficacy_report_path,
         "control_efficacy_config": efficacy_config_path,
+        "assurance_evidence_graph": evidence_graph_path,
+        "mutation_evidence_graph": mutation_evidence_graph_path,
         "evidence_packet": packet_path,
+        "release_artifact_manifest": release_manifest_path,
         "reviewer_facing_report": reviewer_path,
         "strong_campaign_generation": strong_manifest_path,
         "weakened_campaign_generation": weakened_manifest_path,
@@ -587,6 +696,8 @@ def _build_summary(
             for dimension, assessment in unrelated.items()
         },
         "packet_id": packet.packet_id,
+        "evidence_graph_digest": evidence_graph_digest,
+        "mutation_evidence_graph_digest": mutation_evidence_graph_digest,
         "artifacts": {
             "summary": artifact_path(root / "demo-summary.json", root=root),
             "mutation_results": artifact_path(root / "mutation-results", root=root),

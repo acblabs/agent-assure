@@ -89,13 +89,13 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     compiled, runset = _runset(BASELINE)
     report = evaluate_runset(compiled, runset)
 
-    assert report.schema_version == "0.6.2"
+    assert report.schema_version == "0.6.3"
     assert report.runset_digest == runset_digest(runset)
     payload = report.model_dump(mode="json")
     payload.pop("runset_digest")
     with pytest.raises(ValidationError, match="requires runset_digest"):
         EvaluationReport.model_validate(payload)
-    for schema_version in ("0.6.0", "0.6.1"):
+    for schema_version in ("0.6.0", "0.6.1", "0.6.2"):
         payload["schema_version"] = schema_version
         with pytest.raises(ValidationError, match="requires runset_digest"):
             EvaluationReport.model_validate(payload)
@@ -104,7 +104,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
         condition
         for condition in report_schema["allOf"]
         if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("enum")
-        == ["0.6.0", "0.6.1", "0.6.2"]
+        == ["0.6.0", "0.6.1", "0.6.2", "0.6.3"]
     )
     assert set(current_schema_condition["then"]["required"]) == {
         "runset_digest",

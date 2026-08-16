@@ -324,8 +324,10 @@ links for the material claims they intend to satisfy.
 <details>
 <summary><strong>GitHub Actions example using the bundled fixture</strong></summary>
 
-Pin both the package and composite action in release workflows. Replace the
-example suite and variant paths with your own controlled materials.
+Pin both the package and composite action in release workflows. The example
+uses the latest published tag, v0.6.2; move both pins together only after a
+newer tag is published. Replace the example suite and variant paths with your
+own controlled materials.
 
 ```yaml
 name: agent-assure
@@ -351,16 +353,17 @@ jobs:
 `full` produces the complete review artifacts; `fail-fast` gives shorter
 blocking feedback. The configured gate follows declared expectations and
 policies, the selected gate profile, and explicit strictness flags.
-The composite action uploads only the packet, manifest, summaries, and CI
-diagnostics by default. Set `upload-full-artifacts: "true"` only when the
-workflow is approved to retain compiled suites, fixture data, and RunSets; the
-default retention period is 14 days.
+The composite action uploads only the packet, its privacy-filtered assurance
+evidence graph, manifest, summaries, and CI diagnostics by default. Set
+`upload-full-artifacts: "true"` only when the workflow is approved to retain
+compiled suites, fixture data, and RunSets; the default retention period is 14
+days.
 
 </details>
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.2`).**
+**Current maturity: Release Candidate (RC, `v0.6.3` development candidate).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.
@@ -438,7 +441,7 @@ and [security guidance](SECURITY.md).
 - **Demos:** [Assure the assurance](docs/control_efficacy.md#one-command-demonstration) · [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)
 - **Integrations:** [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) · [Adapter contract](docs/adapters/adapter_contract.md)
 - **Assurance:** [What this measures](docs/what_this_measures.md) · [Control efficacy](docs/control_efficacy.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
-- **Evidence-carrying releases:** [Core mutation catalog](docs/mutation_catalog.md) · [Contracts and campaign guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
+- **Evidence-carrying releases:** [Core mutation catalog](docs/mutation_catalog.md) · [Minimal evidence graph](docs/evidence_graph.md) · [Contracts and campaign guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
 - **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
 - **Project:** [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [License](LICENSE)
 

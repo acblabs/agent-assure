@@ -5,8 +5,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
 
+from pydantic import BaseModel
+
 from agent_assure.artifact_io import file_sha256, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.graph import build_evidence_graph
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     BoundedFileContents,
@@ -22,6 +25,7 @@ from agent_assure.reporting.markdown_safety import (
     markdown_text,
 )
 from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
+from agent_assure.schema.common import DigestHex
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateDecision,
@@ -31,6 +35,11 @@ from agent_assure.schema.efficacy import (
 )
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.graph import (
+    AssuranceEvidenceGraph,
+    EvidenceGraphSubjectPayload,
+)
+from agent_assure.schema.mutation import AssuranceMutationResult
 from agent_assure.schema.packet import (
     EvidencePacket,
     PacketArtifactDigest,
@@ -67,7 +76,13 @@ DEFAULT_INTERPRETATION = (
     "scope; it remains separate from candidate evidence closure.",
 )
 _MAX_RENDERED_IDENTIFIER_ITEMS = 20
-SummaryT = TypeVar("SummaryT", EvaluationSummary, ComparisonSummary)
+SummaryT = TypeVar(
+    "SummaryT",
+    EvaluationSummary,
+    ComparisonSummary,
+    AssuranceEvidenceGraph,
+)
+GraphSourceT = TypeVar("GraphSourceT", bound=BaseModel)
 
 
 @dataclass(frozen=True)
@@ -75,6 +90,53 @@ class PacketSummaryFileSnapshot(Generic[SummaryT]):
     summary: SummaryT
     contents: BoundedFileContents
     relative_path: str
+
+
+def build_privacy_filtered_evidence_graph(
+    evaluation: EvaluationSummary,
+    *,
+    comparison: ComparisonSummary | None = None,
+    mutation_results: tuple[AssuranceMutationResult, ...] = (),
+    control_efficacy: ControlEfficacyReport | None = None,
+    control_efficacy_gate_profile: ControlEfficacyGateProfile | None = None,
+    control_efficacy_gate: ControlEfficacyGateDecision | None = None,
+    limitations: tuple[str, ...],
+) -> AssuranceEvidenceGraph:
+    '''Project packet-shaped evidence after applying the mandatory privacy profile.'''
+    graph_evaluation = _privacy_filtered_graph_source(evaluation, EvaluationSummary)
+    graph_comparison = _privacy_filtered_optional_graph_source(
+        comparison,
+        ComparisonSummary,
+    )
+    graph_mutation_results = tuple(
+        _privacy_filtered_graph_source(result, AssuranceMutationResult)
+        for result in mutation_results
+    )
+    graph_efficacy = _privacy_filtered_optional_graph_source(
+        control_efficacy,
+        ControlEfficacyReport,
+    )
+    graph_profile = _privacy_filtered_optional_graph_source(
+        control_efficacy_gate_profile,
+        ControlEfficacyGateProfile,
+    )
+    graph_decision = _privacy_filtered_optional_graph_source(
+        control_efficacy_gate,
+        ControlEfficacyGateDecision,
+    )
+    return build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type='run_set',
+            subject_id=graph_evaluation.runset_id,
+        ),
+        evaluation=graph_evaluation,
+        comparison=graph_comparison,
+        mutation_results=graph_mutation_results,
+        control_efficacy=graph_efficacy,
+        gate_profile=graph_profile,
+        gate_decision=graph_decision,
+        limitations=_privacy_filtered_graph_limitations(limitations),
+    )
 
 
 def load_evaluation_summary(path: Path) -> EvaluationSummary:
@@ -123,6 +185,21 @@ def load_comparison_summary_snapshot(
     )
 
 
+def load_evidence_graph_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+) -> PacketSummaryFileSnapshot[AssuranceEvidenceGraph]:
+    return _load_packet_summary_snapshot(
+        path,
+        root=root,
+        artifact_root=artifact_root,
+        kind="assurance-evidence-graph",
+        model=AssuranceEvidenceGraph,
+    )
+
+
 def _load_packet_summary_snapshot(
     path: Path,
     *,
@@ -162,7 +239,8 @@ def _load_packet_summary_snapshot(
 def packet_artifact_digest_from_snapshot(
     role: PacketArtifactRole,
     snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
-    | PacketSummaryFileSnapshot[ComparisonSummary],
+    | PacketSummaryFileSnapshot[ComparisonSummary]
+    | PacketSummaryFileSnapshot[AssuranceEvidenceGraph],
 ) -> PacketArtifactDigest:
     return PacketArtifactDigest(role=role, sha256=snapshot.contents.sha256)
 
@@ -170,7 +248,8 @@ def packet_artifact_digest_from_snapshot(
 def release_artifact_from_summary_snapshot(
     role: PacketArtifactRole,
     snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
-    | PacketSummaryFileSnapshot[ComparisonSummary],
+    | PacketSummaryFileSnapshot[ComparisonSummary]
+    | PacketSummaryFileSnapshot[AssuranceEvidenceGraph],
 ) -> ReleaseArtifact:
     return ReleaseArtifact(
         role=role,
@@ -184,7 +263,7 @@ def packet_summary_files_binding_error(
     *,
     artifact_root: Path,
 ) -> str | None:
-    """Verify summary models and exact bytes against trusted manifest paths."""
+    """Verify bound artifact models and exact bytes against trusted manifest paths."""
     binding_error = packet_summary_digest_binding_error(packet)
     if binding_error is not None:
         return binding_error
@@ -225,6 +304,55 @@ def packet_summary_files_binding_error(
             return f"evidence packet {role} source file digest does not match release manifest"
         if snapshot.summary != nested_summary:
             return f"evidence packet {role} source file does not match nested summary"
+    if packet.evidence_graph_digest is not None:
+        graph_role: PacketArtifactRole = "assurance-evidence-graph"
+        manifest_artifact = manifest_by_role[graph_role]
+        source_path = artifact_root.absolute() / Path(manifest_artifact.path)
+        try:
+            graph_snapshot = load_evidence_graph_snapshot(
+                source_path,
+                root=artifact_root,
+                artifact_root=artifact_root,
+            )
+        except (OSError, UnicodeError, ValueError):
+            return (
+                "evidence packet assurance-evidence-graph source file could not be "
+                "safely verified"
+            )
+        if graph_snapshot.relative_path != manifest_artifact.path:
+            return (
+                "evidence packet assurance-evidence-graph manifest path is not normalized "
+                "and confined"
+            )
+        if graph_snapshot.contents.sha256 != manifest_artifact.sha256:
+            return (
+                "evidence packet assurance-evidence-graph source file digest does not "
+                "match release manifest"
+            )
+        if graph_snapshot.summary.graph_digest != packet.evidence_graph_digest:
+            return (
+                "evidence packet assurance-evidence-graph semantic digest does not match "
+                "evidence_graph_digest"
+            )
+        try:
+            expected_graph = build_privacy_filtered_evidence_graph(
+                packet.evaluation,
+                comparison=packet.comparison,
+                control_efficacy=packet.control_efficacy,
+                control_efficacy_gate_profile=packet.control_efficacy_gate_profile,
+                control_efficacy_gate=packet.control_efficacy_gate,
+                limitations=packet.limitations,
+            )
+        except (TypeError, ValueError):
+            return (
+                "evidence packet assurance-evidence-graph projection could not be "
+                "safely reconstructed"
+            )
+        if expected_graph.graph_digest != graph_snapshot.summary.graph_digest:
+            return (
+                "evidence packet assurance-evidence-graph does not correspond to "
+                "nested packet evidence"
+            )
     return None
 
 
@@ -237,6 +365,7 @@ def build_evidence_packet(
     control_efficacy_gate: ControlEfficacyGateDecision | None = None,
     environment: EnvironmentInfo | None = None,
     release_manifest: ReleaseArtifactManifest | None = None,
+    evidence_graph_digest: DigestHex | None = None,
     usage_summary: UsageSummary | None = None,
     artifact_digests: tuple[PacketArtifactDigest, ...] = (),
     packet_id: str | None = None,
@@ -249,6 +378,7 @@ def build_evidence_packet(
         control_efficacy=control_efficacy,
         control_efficacy_gate_profile=control_efficacy_gate_profile,
         control_efficacy_gate=control_efficacy_gate,
+        evidence_graph_digest=evidence_graph_digest,
         interpretation=interpretation,
         limitations=limitations,
     )
@@ -263,6 +393,7 @@ def build_evidence_packet(
         control_efficacy_gate=control_efficacy_gate,
         environment=environment,
         release_manifest=release_manifest,
+        evidence_graph_digest=evidence_graph_digest,
         usage_summary=usage_summary or evaluation.usage_summary,
         artifact_digests=artifact_digests,
         limitations=limitations,
@@ -288,7 +419,6 @@ def write_evidence_packet(packet: EvidencePacket, path: Path) -> None:
     )
     EvidencePacket.model_validate(payload)
     validate_loaded_artifact_payload(payload, "evidence-packet")
-    path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(
         path,
         json.dumps(payload, indent=2, sort_keys=True) + "\n",
@@ -446,6 +576,29 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
             f"{markdown_code_span(artifact.path)} {markdown_code_span(artifact.sha256)}"
             for artifact in packet.release_manifest.artifacts
         )
+    if packet.evidence_graph_digest is not None:
+        graph_artifacts = tuple(
+            item
+            for item in packet.artifact_digests
+            if item.role == "assurance-evidence-graph"
+        )
+        if len(graph_artifacts) != 1:
+            raise ValueError(
+                "evidence-graph packet rendering requires exactly one exact-file digest"
+            )
+        graph_artifact = graph_artifacts[0]
+        lines.extend(
+            [
+                "",
+                "## Evidence Graph",
+                "",
+                "- Contract: `AssuranceEvidenceGraph/v1`",
+                "- Semantic digest: "
+                f"{markdown_code_span(packet.evidence_graph_digest)}",
+                "- Exact-file digest: "
+                f"{markdown_code_span(graph_artifact.sha256)}",
+            ]
+        )
     lines.extend(["", "## Measured Usage", ""])
     lines.extend(_packet_usage_lines(packet))
     lines.extend(["", "## Limitations", ""])
@@ -454,8 +607,36 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
 
 
 def write_evidence_packet_markdown(packet: EvidencePacket, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, render_evidence_packet_markdown(packet))
+
+
+def _privacy_filtered_graph_source(
+    value: GraphSourceT,
+    model: type[GraphSourceT],
+) -> GraphSourceT:
+    payload = redact_packet_payload(value.model_dump(mode="json"))
+    return model.model_validate(payload)
+
+
+def _privacy_filtered_optional_graph_source(
+    value: GraphSourceT | None,
+    model: type[GraphSourceT],
+) -> GraphSourceT | None:
+    if value is None:
+        return None
+    return _privacy_filtered_graph_source(value, model)
+
+
+def _privacy_filtered_graph_limitations(
+    limitations: tuple[str, ...],
+) -> tuple[str, ...]:
+    payload = redact_packet_payload({"limitations": limitations})
+    filtered = payload.get("limitations")
+    if not isinstance(filtered, list | tuple) or not all(
+        isinstance(item, str) for item in filtered
+    ):
+        raise ValueError("packet limitations are invalid after graph privacy filtering")
+    return tuple(filtered)
 
 
 def _packet_id(
@@ -465,10 +646,11 @@ def _packet_id(
     control_efficacy: ControlEfficacyReport | None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None,
     control_efficacy_gate: ControlEfficacyGateDecision | None,
+    evidence_graph_digest: DigestHex | None,
     interpretation: tuple[str, ...],
     limitations: tuple[str, ...],
 ) -> str:
-    payload = {
+    payload: dict[str, object] = {
         "interpretation": interpretation,
         "evaluation": _summary_for_packet_id(evaluation),
         "comparison": _summary_for_packet_id(comparison) if comparison is not None else None,
@@ -487,6 +669,8 @@ def _packet_id(
         ),
         "limitations": limitations,
     }
+    if evidence_graph_digest is not None:
+        payload["evidence_graph_digest"] = evidence_graph_digest
     return f"packet-{sha256_hexdigest(redact_packet_payload(payload))[:16]}"
 
 

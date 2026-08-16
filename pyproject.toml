@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "agent-assure"
-version = "0.6.2"
+version = "0.6.3"
 description = "Local-first process assurance for agentic AI pipelines."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -108,6 +108,7 @@ exclude = [
 "schemas/v0.6.0" = "agent_assure/schema_resources/v0.6.0"
 "schemas/v0.6.1" = "agent_assure/schema_resources/v0.6.1"
 "schemas/v0.6.2" = "agent_assure/schema_resources/v0.6.2"
+"schemas/v0.6.3" = "agent_assure/schema_resources/v0.6.3"
 
 [tool.hatch.build.targets.sdist]
 include = [

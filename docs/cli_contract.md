@@ -104,11 +104,14 @@ when currency, cost basis, pricing snapshot IDs, and pricing snapshot digests
 are explicitly declared and match on both sides.
 
 `packet build` writes an `evidence-packet` JSON artifact, `evidence-packet.md`,
-`dependency-inventory.json`, and `release-artifact-manifest.json` from an
-evaluation summary and optional comparison summary. The packet records SHA-256
-file digests for the summary artifacts it encloses, local environment metadata,
-lockfile digest when a supported lockfile is present, dependency-inventory
-digest, and an interpretation block. These exact-file digests are
+`assurance-evidence-graph.json`, `dependency-inventory.json`, and
+`release-artifact-manifest.json` from an evaluation summary and optional
+comparison summary. The ordinary `ci` producer writes and binds the same graph
+beside its packet. The packet records SHA-256 file digests for the summary and
+graph artifacts it encloses, the graph's semantic RFC 8785 digest, local
+environment metadata, lockfile digest when a supported lockfile is present,
+dependency-inventory digest, and an interpretation block. These exact-file
+digests are
 environment-bound reproducibility anchors, not signatures or attestations; they
 are separate from the cross-platform-stable JCS content digests used for suites,
 fixture manifests, and runset provenance.
@@ -638,9 +641,18 @@ bytes, including SBOM, wheel, source distribution, and dependency inventory
 entries.
 For environment-bearing manifest children, the raw manifest hash is checked
 against bytes and the manifest replay projection uses the child's stable digest.
-By default it requires the compiled-suite, fixture-manifest, evidence-packet,
-and release-artifact-manifest roles. `--require-current-commit` requires the
-current git checkout to match the replay file's `source_commit`;
+By default, `--require-core` selects the first-party core roles from the replay
+schema version. Supported schemas through v0.6.2 require compiled-suite,
+fixture-manifest, evidence-packet, and release-artifact-manifest; v0.6.3 also
+requires assurance-evidence-graph. An unmapped schema version fails closed, and
+each explicit `--require-role` is additive to the versioned core set. Stable
+graph replay removes only self/payload digests and summary source digests
+transitively affected by excluded environment metadata; all semantic payloads,
+states, identities, and edges remain covered.
+The corresponding packet graph digest is normalized as a presence binding in
+the stable projection, while raw packet, graph, and manifest hashes remain
+byte-exact verification inputs. `--require-current-commit` requires the current
+git checkout to match the replay file's `source_commit`;
 `--expect-commit` checks the replay file's `source_commit` value without reading
 the current checkout; `--expect-ref` checks the replay file's `source_ref`.
 Replay artifact paths must be relative to `--artifact-root` and cannot contain

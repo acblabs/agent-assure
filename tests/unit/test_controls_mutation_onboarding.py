@@ -78,7 +78,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
     expected_hashes = {
         "controls-mutation.yaml": (
             747,
-            "351cb1275dec24ad64eec6ccda5ec7bcb047c675042a7b8aa422016cb582a7f9",
+            "f05fb4b174a12fa9c7f3e9b4748b8e5e9f30cb427c83d336bee38c53fd66f88b",
         ),
         "suite.yaml": (
             318,
@@ -86,7 +86,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
         ),
         "runset.json": (
             3610,
-            "b3036f217cbed032d1c570c716111d1a67a32c4b998750a2617593b03bb60a9b",
+            "7815904e875eebf4cc3cf2d1be775348b865b87d35d110c66d113409a182e547",
         ),
         "threat-applicability.yaml": (
             685,

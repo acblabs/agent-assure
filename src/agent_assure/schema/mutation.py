@@ -777,7 +777,7 @@ class AssuranceEvidenceDescriptor(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_evidence_descriptor_json_schema_extra)
 
     artifact_kind: Literal["assurance-evidence-descriptor"] = "assurance-evidence-descriptor"
-    schema_version: Literal["0.6.0", "0.6.1", "0.6.2"] = "0.6.2"
+    schema_version: Literal["0.6.0", "0.6.1", "0.6.2", "0.6.3"] = "0.6.3"
     schema_name: Literal["assurance-evidence-descriptor"] = "assurance-evidence-descriptor"
     contract_id: Literal["AssuranceEvidenceDescriptor/v1"] = "AssuranceEvidenceDescriptor/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -908,7 +908,7 @@ class ExpectedDetectionContract(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_expected_detection_contract_json_schema_extra)
 
     artifact_kind: Literal["expected-detection-contract"] = "expected-detection-contract"
-    schema_version: Literal["0.6.0", "0.6.1", "0.6.2"] = "0.6.2"
+    schema_version: Literal["0.6.0", "0.6.1", "0.6.2", "0.6.3"] = "0.6.3"
     schema_name: Literal["expected-detection-contract"] = "expected-detection-contract"
     contract_id: Literal["ExpectedDetectionContract/v1"] = "ExpectedDetectionContract/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -1113,7 +1113,7 @@ class AssuranceMutationOperator(SelfDigestedArtifact):
     _digest_field = "operator_digest"
 
     artifact_kind: Literal["assurance-mutation-operator"] = "assurance-mutation-operator"
-    schema_version: Literal["0.6.0", "0.6.1", "0.6.2"] = "0.6.2"
+    schema_version: Literal["0.6.0", "0.6.1", "0.6.2", "0.6.3"] = "0.6.3"
     schema_name: Literal["assurance-mutation-operator"] = "assurance-mutation-operator"
     contract_id: Literal["AssuranceMutationOperator/v1"] = "AssuranceMutationOperator/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION
@@ -1207,7 +1207,7 @@ class AssuranceMutationResult(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_mutation_result_json_schema_extra)
 
     artifact_kind: Literal["assurance-mutation-result"] = "assurance-mutation-result"
-    schema_version: Literal["0.6.0", "0.6.1", "0.6.2"] = "0.6.2"
+    schema_version: Literal["0.6.0", "0.6.1", "0.6.2", "0.6.3"] = "0.6.3"
     schema_name: Literal["assurance-mutation-result"] = "assurance-mutation-result"
     contract_id: Literal["AssuranceMutationResult/v1"] = "AssuranceMutationResult/v1"
     contract_version: Literal["1.0.0"] = CONTRACT_VERSION

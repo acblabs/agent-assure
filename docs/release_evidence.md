@@ -1,9 +1,9 @@
 # Release Evidence
 
 Release evidence consists of the flagship fixture-mode outputs, an evidence
-packet, a release artifact manifest, a digest replay file, an SBOM, Python
-distribution artifacts, and optional keyless cosign bundles created by GitHub
-Actions workflows.
+packet, its assurance evidence graph, a release artifact manifest, a digest
+replay file, an SBOM, Python distribution artifacts, and optional keyless
+cosign bundles created by GitHub Actions workflows.
 
 The digest replay file records raw SHA-256 file digests for replay-stable
 source artifacts, such as the compiled suite and fixture manifest. For
@@ -17,7 +17,10 @@ For environment-bearing child artifacts, replay still uses stable child
 projections when computing the release-manifest replay digest. The top-level
 packet, manifest, and replay-file blobs are still exact release artifacts and
 must be verified with their matching cosign bundles when cryptographic workflow
-identity is required.
+identity is required. Evidence-graph stable replay retains semantic payloads,
+states, identities, and edges while excluding only graph/payload digests and
+evaluation/comparison source digests transitively affected by volatile
+environment metadata. Raw graph bytes remain independently SHA-256 checked.
 
 ## Build a Release Bundle
 
@@ -26,14 +29,14 @@ From a clean checkout:
 ```bash
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
-python scripts/build_release_bundle.py --expected-release 0.6.2 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/build_release_bundle.py --expected-release 0.6.3 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 
-The bundle directory contains the evidence packet, Markdown packet, release
-artifact manifest, digest replay file, SBOM, Python source distribution, wheel,
-run sets, reports, fixture manifest, dependency inventory, and per-step command
-logs under `logs/`.
+The bundle directory contains the evidence packet, Markdown packet, assurance
+evidence graph, release artifact manifest, digest replay file, SBOM, Python
+source distribution, wheel, run sets, reports, fixture manifest, dependency
+inventory, and per-step command logs under `logs/`.
 
 ## Reproduce From a Tag
 
@@ -41,7 +44,7 @@ After the target tag exists, reproduce from a clean checkout of the tagged
 commit and the downloaded release bundle:
 
 ```bash
-TAG=v0.6.2
+TAG=v0.6.3
 RELEASE="${TAG#v}"
 git checkout "${TAG}"
 python -m pip install --require-hashes -r requirements.lock
@@ -56,6 +59,13 @@ files. It fails if the checkout commit differs from the commit recorded in the
 replay file, a required release artifact is missing, or any regenerated replay
 digest differs. If the current git commit cannot be determined, commit-bound
 replay fails closed.
+
+Core completeness follows the loaded replay schema version. Frozen replay
+schemas through v0.6.2 require the historical compiled-suite, fixture-manifest,
+evidence-packet, and release-artifact-manifest roles. The v0.6.3 writer also
+requires assurance-evidence-graph. Unknown version policies fail closed;
+explicit `--require-role` options add requirements without replacing that
+versioned core set.
 
 For an already generated artifact directory:
 
@@ -77,8 +87,8 @@ the broader release-manifest replay check runs.
 Release bundle scripts pin waiver-sensitive CI evaluation to `2026-07-03` and
 default subprocesses to `SOURCE_DATE_EPOCH=1783036800` unless the environment
 already sets a value. Those values were established for v0.6.0 replay,
-deliberately retained for v0.6.1, and continue to be used for v0.6.2. Keep them
-fixed when replaying these release lines.
+deliberately retained for v0.6.1, v0.6.2, and v0.6.3. Keep them fixed when
+replaying these release lines.
 
 Replay artifact paths must be relative to `--artifact-root` and cannot include
 parent-directory segments. `--expect-commit` validates the replay file's
@@ -127,8 +137,8 @@ cosign sign-blob --yes --bundle evidence-packet.md.bundle evidence-packet.md
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
 cosign sign-blob --yes --bundle sbom.cdx.json.bundle sbom.cdx.json
-cosign sign-blob --yes --bundle agent_assure-0.6.2-py3-none-any.whl.bundle agent_assure-0.6.2-py3-none-any.whl
-cosign sign-blob --yes --bundle agent_assure-0.6.2.tar.gz.bundle agent_assure-0.6.2.tar.gz
+cosign sign-blob --yes --bundle agent_assure-0.6.3-py3-none-any.whl.bundle agent_assure-0.6.3-py3-none-any.whl
+cosign sign-blob --yes --bundle agent_assure-0.6.3.tar.gz.bundle agent_assure-0.6.3.tar.gz
 ```
 
 The tag release workflow also signs its reviewed `release-notes.md`. The
@@ -146,7 +156,7 @@ that produced the signed release bundle:
 
 ```bash
 REPO=acblabs/agent-assure
-TAG=v0.6.2
+TAG=v0.6.3
 SHA=<release-commit-sha>
 ISSUER="https://token.actions.githubusercontent.com"
 IDENTITY="https://github.com/${REPO}/.github/workflows/release.yml@refs/tags/${TAG}"

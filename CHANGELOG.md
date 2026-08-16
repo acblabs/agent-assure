@@ -2,6 +2,23 @@
 
 ## Unreleased
 
+- Kept default release replay compatible with frozen bundles by selecting core
+  artifact roles from the replay schema version: schemas through v0.6.2 retain
+  the legacy four-role contract, while v0.6.3 additionally requires the
+  assurance evidence graph. Unmapped schema versions fail closed, and explicit
+  `--require-role` checks remain additive.
+- Added `AssuranceEvidenceGraph/v1` as a closed four-node/five-edge,
+  RFC-8785-digested projection of evaluation, comparison, mutation,
+  control-efficacy, gate, and limitation evidence. Current first-party packet
+  and CI output bind both its semantic graph digest and exact graph-file digest,
+  while graphless third-party v0.6 packets remain valid. Persisted validation
+  recomputes schema-owned node identities, preserves non-deterministic mutation
+  outcomes as non-verdict evidence, keeps gate profiles as policy provenance,
+  rejects fixture-invalid comparison support, and closes graph reason and
+  reference-role semantics. Graph and current source models reject empty
+  projected identifiers, and the graph contract documents that digest-scoped
+  gate evidence may occupy a component separate from its primary textual
+  subject.
 - Enforced provider allowlists and denylists independently of review routing,
   scoped fixture-remediation suppression to the controls that actually ran, and
   made required-policy `not_evaluated` results fail closed without duplicating
