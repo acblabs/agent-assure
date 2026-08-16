@@ -128,6 +128,7 @@ def test_actual_malicious_wheel_fails_even_when_manifest_lies_about_its_digest(
     (
         "reports/evidence-packet.json",
         "reports/evidence-packet.md",
+        "reports/assurance-evidence-graph.json",
         "reports/release-artifact-manifest.json",
         "release-digest-replay.json",
         "release-notes.md",
@@ -173,11 +174,15 @@ def test_verified_staging_contains_only_independently_rebuilt_signing_inputs(
     )
 
     assert not (destination / "logs").exists()
-    assert compare_release_bundle_artifacts(
-        rebuilt,
-        destination,
-        require_release_notes=True,
-    ) == ()
+    assert (destination / "reports" / "assurance-evidence-graph.json").is_file()
+    assert (
+        compare_release_bundle_artifacts(
+            rebuilt,
+            destination,
+            require_release_notes=True,
+        )
+        == ()
+    )
 
 
 def test_unsigned_bundle_with_preexisting_signature_sidecar_fails_closed(
@@ -230,6 +235,7 @@ def _write_signing_bundle(
     files: dict[str, bytes] = {
         "reports/evidence-packet.json": b"{}\n",
         "reports/evidence-packet.md": b"# Evidence\n",
+        "reports/assurance-evidence-graph.json": b"{}\n",
         "reports/release-artifact-manifest.json": manifest,
         "release-digest-replay.json": b"{}\n",
         "sbom.cdx.json": b"{}\n",

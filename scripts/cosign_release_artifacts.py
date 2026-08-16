@@ -156,6 +156,7 @@ def release_artifacts(release_dir: Path) -> tuple[Path, ...]:
     fixed = (
         release_dir / "reports" / "evidence-packet.json",
         release_dir / "reports" / "evidence-packet.md",
+        release_dir / "reports" / "assurance-evidence-graph.json",
         release_dir / "reports" / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",

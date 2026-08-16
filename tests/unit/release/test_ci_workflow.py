@@ -285,6 +285,7 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     assert "--ref refs/tags/v0.6.0" in recover_verify
     assert "--event-name push" in recover_verify
     assert "test \"${#release_assets[@]}\" -eq 16" in recover_verify
+    assert "assurance-evidence-graph" not in recover_verify
     assert "actual-release-files.txt" in recover_verify
     assert "non-regular-release-entries.txt" in recover_verify
     assert "test ! -s" in recover_verify
@@ -322,6 +323,7 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     assert ".author.id == 104098411" in recover_release
     assert 'type == "array"' in recover_release
     assert "and length == 16" in recover_release
+    assert "assurance-evidence-graph" not in recover_release
     assert '.uploader.login == "acblabs"' in recover_release
     assert ".uploader.id == 104098411" in recover_release
     assert "Accept: application/octet-stream" in recover_release
@@ -368,6 +370,25 @@ def test_release_requires_reproduction_before_signing_and_publication() -> None:
     assert "--clobber" not in workflow
     assert "gh release create" in workflow
     assert "concurrency:" in workflow
+
+
+def test_current_release_and_evidence_workflows_sign_and_publish_graph() -> None:
+    graph = ".tmp/release/reports/assurance-evidence-graph.json"
+    release = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    release_sign = release.split("  sign:\n", maxsplit=1)[1].split(
+        "  verify-signatures:\n", maxsplit=1
+    )[0]
+    release_publish = release.split("  github-release:\n", maxsplit=1)[1].split(
+        "  pypi-publish:\n", maxsplit=1
+    )[0]
+    evidence = (ROOT / ".github" / "workflows" / "evidence.yml").read_text(encoding="utf-8")
+    evidence_sign = evidence.split("  sign:\n", maxsplit=1)[1].split("  verify:\n", maxsplit=1)[0]
+
+    assert graph in release_sign
+    assert graph in evidence_sign
+    assert graph in release_publish
+    assert f"{graph}.bundle" in release_publish
+    assert 'test "${#assets[@]}" -eq 18' in release_publish
 
 
 def test_signers_only_consume_reproducer_promoted_artifacts() -> None:

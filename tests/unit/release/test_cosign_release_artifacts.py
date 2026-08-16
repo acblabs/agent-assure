@@ -16,6 +16,7 @@ def test_release_artifacts_include_fixed_files_and_distributions(tmp_path: Path)
     for path in (
         reports / "evidence-packet.json",
         reports / "evidence-packet.md",
+        reports / "assurance-evidence-graph.json",
         reports / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",
@@ -31,6 +32,7 @@ def test_release_artifacts_include_fixed_files_and_distributions(tmp_path: Path)
     assert artifacts == (
         reports / "evidence-packet.json",
         reports / "evidence-packet.md",
+        reports / "assurance-evidence-graph.json",
         reports / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",
@@ -48,6 +50,7 @@ def test_release_artifacts_reports_missing_required_file(tmp_path: Path) -> None
     except RuntimeError as exc:
         assert "missing release artifact" in str(exc)
         assert "evidence-packet.json" in str(exc)
+        assert "assurance-evidence-graph.json" in str(exc)
     else:
         raise AssertionError("expected missing artifacts to fail")
 
@@ -61,6 +64,7 @@ def test_release_artifacts_reject_unexpected_distribution_file(tmp_path: Path) -
     for path in (
         reports / "evidence-packet.json",
         reports / "evidence-packet.md",
+        reports / "assurance-evidence-graph.json",
         reports / "release-artifact-manifest.json",
         release_dir / "release-digest-replay.json",
         release_dir / "sbom.cdx.json",

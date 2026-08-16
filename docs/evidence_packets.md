@@ -5,7 +5,8 @@ release review. A packet contains an evaluation summary, an optional comparison
 summary, optional control-efficacy evidence with its exact gate profile and
 derived decision, measured usage evidence when observed, a machine-readable
 interpretation section, local environment metadata, deterministic SHA-256
-digests of the summary/report files used to build it, a dependency-inventory
+digests of the summary/report files used to build it, an assurance evidence
+graph with semantic and exact-file digest bindings, a dependency-inventory
 digest, a release artifact manifest, and explicit limitations.
 
 ```bash
@@ -20,9 +21,10 @@ agent-assure ci gate .tmp/showcase/evidence-packet.json \
 ```
 
 `packet build` also writes `evidence-packet.md`,
-`dependency-inventory.json`, and `release-artifact-manifest.json` beside the
-JSON packet unless explicit output paths are provided. For a known failing
-candidate, the CI gate is expected to exit `1` after reading the packet.
+`assurance-evidence-graph.json`, `dependency-inventory.json`, and
+`release-artifact-manifest.json` beside the JSON packet unless explicit output
+paths are provided. For a known failing candidate, the CI gate is expected to
+exit `1` after reading the packet.
 
 The dependency inventory is a best-effort runtime package listing generated
 from the active Python environment. Release bundles additionally write an SBOM
@@ -120,8 +122,9 @@ Missing usage is rendered as `not_observed` and does not create a failing gate.
 Cheaper usage is not interpreted as a better candidate when governance evidence
 regresses.
 
-Release evidence can attach keyless cosign bundles to the packet, release
-artifact manifest, digest replay file, SBOM, wheel, and source distribution.
+Release evidence can attach keyless cosign bundles to the packet, assurance
+evidence graph, release artifact manifest, digest replay file, SBOM, wheel, and
+source distribution.
 Those signatures verify the exact bytes and workflow identity that signed them;
 they do not turn packet contents into safety, compliance, clinical-validation,
 live model-quality, or standards adoption evidence. See

@@ -199,6 +199,7 @@ jobs:
           artifacts=(
             .tmp/release/reports/evidence-packet.json
             .tmp/release/reports/evidence-packet.md
+            .tmp/release/reports/assurance-evidence-graph.json
             .tmp/release/reports/release-artifact-manifest.json
             .tmp/release/release-digest-replay.json
             .tmp/release/sbom.cdx.json

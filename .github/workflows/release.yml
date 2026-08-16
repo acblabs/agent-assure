@@ -238,6 +238,7 @@ jobs:
           artifacts=(
             .tmp/release/reports/evidence-packet.json
             .tmp/release/reports/evidence-packet.md
+            .tmp/release/reports/assurance-evidence-graph.json
             .tmp/release/reports/release-artifact-manifest.json
             .tmp/release/release-digest-replay.json
             .tmp/release/release-notes.md
@@ -386,6 +387,8 @@ jobs:
             .tmp/release/reports/evidence-packet.json.bundle
             .tmp/release/reports/evidence-packet.md
             .tmp/release/reports/evidence-packet.md.bundle
+            .tmp/release/reports/assurance-evidence-graph.json
+            .tmp/release/reports/assurance-evidence-graph.json.bundle
             .tmp/release/reports/release-artifact-manifest.json
             .tmp/release/reports/release-artifact-manifest.json.bundle
             .tmp/release/release-digest-replay.json
@@ -395,7 +398,7 @@ jobs:
             .tmp/release/sbom.cdx.json
             .tmp/release/sbom.cdx.json.bundle
           )
-          test "${#assets[@]}" -eq 16
+          test "${#assets[@]}" -eq 18
           for asset in "${assets[@]}"; do
             test -f "${asset}"
             test ! -L "${asset}"

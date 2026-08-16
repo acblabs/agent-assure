@@ -15,12 +15,13 @@ artifact manifest, it also cross-checks each manifest-listed `sha256` against
 the available artifact bytes, including SBOM and Python distribution entries.
 For environment-bearing child artifacts, replay still uses stable child
 projections when computing the release-manifest replay digest. The top-level
-packet, manifest, and replay-file blobs are still exact release artifacts and
-must be verified with their matching cosign bundles when cryptographic workflow
-identity is required. Evidence-graph stable replay retains semantic payloads,
-states, identities, and edges while excluding only graph/payload digests and
-evaluation/comparison source digests transitively affected by volatile
-environment metadata. Raw graph bytes remain independently SHA-256 checked.
+packet, evidence-graph, manifest, and replay-file blobs are still exact release
+artifacts and must be verified with their matching cosign bundles when
+cryptographic workflow identity is required. Evidence-graph stable replay
+retains semantic payloads, states, identities, and edges while excluding only
+graph/payload digests and evaluation/comparison source digests transitively
+affected by volatile environment metadata. Raw graph bytes remain independently
+SHA-256 checked.
 
 ## Build a Release Bundle
 
@@ -134,6 +135,7 @@ is reachable from the repository's default branch before its OIDC job can run.
 ```bash
 cosign sign-blob --yes --bundle evidence-packet.json.bundle evidence-packet.json
 cosign sign-blob --yes --bundle evidence-packet.md.bundle evidence-packet.md
+cosign sign-blob --yes --bundle assurance-evidence-graph.json.bundle assurance-evidence-graph.json
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
 cosign sign-blob --yes --bundle sbom.cdx.json.bundle sbom.cdx.json
@@ -173,8 +175,8 @@ cosign verify-blob evidence-packet.json \
 ```
 
 Repeat the same verification command for `evidence-packet.md`,
-`release-artifact-manifest.json`, `release-digest-replay.json`, `sbom.cdx.json`,
-the wheel, and the source
+`assurance-evidence-graph.json`, `release-artifact-manifest.json`,
+`release-digest-replay.json`, `sbom.cdx.json`, the wheel, and the source
 distribution with their matching `.bundle` files. The evidence workflow may
 also produce signed evidence blobs; for those artifacts, use workflow name
 `evidence`. Cosign verification is byte-exact: changing a signed file
