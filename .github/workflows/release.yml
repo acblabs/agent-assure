@@ -226,7 +226,7 @@ jobs:
           path: .tmp/release
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Sign the reviewed fixed artifact set
@@ -290,7 +290,7 @@ jobs:
       - run: python -m pip install --no-deps --no-build-isolation -e .
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Assert a modified packet cannot verify
@@ -352,7 +352,7 @@ jobs:
       - run: python -m pip install --require-hashes -r requirements.lock
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       # actions/download-artifact@v4
@@ -825,7 +825,7 @@ jobs:
           path: .tmp/source-dist
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
-        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       - name: Reverify original signed bytes and stage exact distributions
