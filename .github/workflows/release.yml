@@ -118,7 +118,7 @@ jobs:
       - name: Upload exact unsigned release bundle
         id: upload-bundle
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: unsigned-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -197,7 +197,7 @@ jobs:
       - name: Upload verified signing inputs and replay support
         id: upload-verified
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: verified-unsigned-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-release
@@ -255,7 +255,7 @@ jobs:
       - name: Upload signed release bundle
         id: upload-signed
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: signed-release-bundle-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -315,7 +315,7 @@ jobs:
       - name: Upload verified distributions by immutable artifact ID
         id: upload-distributions
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: verified-python-distributions-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-promotion/distributions
@@ -324,7 +324,7 @@ jobs:
       - name: Promote the fully verified signed release bundle
         id: upload-verified-bundle
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: verified-signed-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-promotion/release
@@ -923,7 +923,7 @@ jobs:
       - name: Promote reverified signed bundle
         id: upload-bundle
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: recovery-verified-signed-release-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -932,7 +932,7 @@ jobs:
       - name: Promote reverified Python distributions
         id: upload-distributions
         # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: recovery-verified-python-distributions-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/publish
