@@ -41,7 +41,7 @@ jobs:
       bundle_artifact_digest: ${{ steps.upload-bundle.outputs.artifact-digest }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -136,7 +136,7 @@ jobs:
       verified_bundle_artifact_digest: ${{ steps.upload-verified.outputs.artifact-digest }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -273,7 +273,7 @@ jobs:
       verified_signed_bundle_artifact_id: ${{ steps.upload-verified-bundle.outputs.artifact-id }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # actions/setup-python@v5
@@ -342,7 +342,7 @@ jobs:
       verified_signed_bundle_artifact_id: ${{ steps.verify-uploaded.outputs.verified_signed_bundle_artifact_id }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # actions/setup-python@v5
@@ -796,7 +796,7 @@ jobs:
           test "${pypi_status}" = "404"
 
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           ref: 2c83bafc0e53f25ee27f72179797331d0d7fc5d4
           fetch-depth: 0

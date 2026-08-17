@@ -20,7 +20,7 @@ jobs:
       contents: read
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # actions/dependency-review-action@v5.0.0
@@ -48,7 +48,7 @@ jobs:
           - requirements-otel.lock
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # pypa/gh-action-pip-audit@v1.1.0
@@ -65,7 +65,7 @@ jobs:
       security-events: write
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # github/codeql-action/init@v4.35.2
