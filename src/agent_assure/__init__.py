@@ -1,4 +1,4 @@
 """agent-assure public package."""
 
-__version__ = "0.6.3rc1"
+__version__ = "0.6.3"
 SCHEMA_VERSION = "0.6.3"
