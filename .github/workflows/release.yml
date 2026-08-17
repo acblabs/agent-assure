@@ -194,7 +194,7 @@ jobs:
           set -euo pipefail
           dirty="$(git -c core.fsmonitor=false status --porcelain=v1 --untracked-files=all)"
           test -z "${dirty}"
-      - name: Upload only verified inputs from fresh-job rebuild
+      - name: Upload verified signing inputs and replay support
         id: upload-verified
         # actions/upload-artifact@v4
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -238,6 +238,8 @@ jobs:
           artifacts=(
             .tmp/release/reports/evidence-packet.json
             .tmp/release/reports/evidence-packet.md
+            .tmp/release/reports/evaluation-summary.json
+            .tmp/release/reports/comparison-summary.json
             .tmp/release/reports/assurance-evidence-graph.json
             .tmp/release/reports/release-artifact-manifest.json
             .tmp/release/release-digest-replay.json
@@ -268,9 +270,7 @@ jobs:
       contents: read
     outputs:
       distributions_artifact_id: ${{ steps.upload-distributions.outputs.artifact-id }}
-      distributions_artifact_digest: ${{ steps.upload-distributions.outputs.artifact-digest }}
       verified_signed_bundle_artifact_id: ${{ steps.upload-verified-bundle.outputs.artifact-id }}
-      verified_signed_bundle_artifact_digest: ${{ steps.upload-verified-bundle.outputs.artifact-digest }}
     steps:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -286,37 +286,39 @@ jobs:
           artifact-ids: ${{ needs.sign.outputs.signed_bundle_artifact_id }}
           merge-multiple: true
           path: .tmp/release
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
       - name: Install cosign
         # sigstore/cosign-installer@v4.0.0
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
-      - name: Verify exact workflow identity signatures
-        run: >
-          python scripts/cosign_release_artifacts.py verify
-          --release-dir .tmp/release
-          --workflow-name release
-          --workflow-path .github/workflows/release.yml
       - name: Assert a modified packet cannot verify
         run: >
           python scripts/cosign_release_artifacts.py verify-modified-fails
           --release-dir .tmp/release
           --workflow-name release
           --workflow-path .github/workflows/release.yml
-      - name: Validate and stage exact PyPI files
-        shell: bash
-        run: |
-          set -euo pipefail
-          python scripts/check_wheel_contents.py --dist .tmp/release/dist --allow-signature-bundles
-          mkdir -p .tmp/publish
-          cp .tmp/release/dist/*.whl .tmp/release/dist/*.tar.gz .tmp/publish/
-      - name: Upload verified distributions by content-addressed artifact ID
+      - name: Validate exact PyPI files before final verification
+        run: >
+          python scripts/check_wheel_contents.py
+          --dist .tmp/release/dist
+          --allow-signature-bundles
+      - name: Verify exact workflow identity and atomically promote snapshots
+        run: >
+          python scripts/cosign_release_artifacts.py verify-and-promote
+          --release-dir .tmp/release
+          --promotion-dir .tmp/verified-promotion
+          --workflow-name release
+          --workflow-path .github/workflows/release.yml
+          --require-release-notes
+      - name: Upload verified distributions by immutable artifact ID
         id: upload-distributions
         # actions/upload-artifact@v4
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: verified-python-distributions-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/publish
+          path: .tmp/verified-promotion/distributions
           if-no-files-found: error
           retention-days: 14
       - name: Promote the fully verified signed release bundle
@@ -325,13 +327,71 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: verified-signed-release-${{ github.run_id }}-${{ github.run_attempt }}
-          path: .tmp/release
+          path: .tmp/verified-promotion/release
           if-no-files-found: error
           retention-days: 30
 
+  verify-uploaded-artifacts:
+    name: Fresh-job verify immutable uploaded release artifacts
+    needs: verify-signatures
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      distributions_artifact_id: ${{ steps.verify-uploaded.outputs.distributions_artifact_id }}
+      verified_signed_bundle_artifact_id: ${{ steps.verify-uploaded.outputs.verified_signed_bundle_artifact_id }}
+    steps:
+      # actions/checkout@v4
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+      # actions/setup-python@v5
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - name: Install cosign
+        # sigstore/cosign-installer@v4.0.0
+        uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
+        with:
+          cosign-release: ${{ env.COSIGN_VERSION }}
+      # actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.verify-signatures.outputs.verified_signed_bundle_artifact_id }}
+          merge-multiple: true
+          path: .tmp/release
+      # actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          artifact-ids: ${{ needs.verify-signatures.outputs.distributions_artifact_id }}
+          merge-multiple: true
+          path: .tmp/distributions
+      - name: Verify immutable uploaded release views
+        id: verify-uploaded
+        env:
+          DISTRIBUTIONS_ARTIFACT_ID: ${{ needs.verify-signatures.outputs.distributions_artifact_id }}
+          VERIFIED_BUNDLE_ARTIFACT_ID: ${{ needs.verify-signatures.outputs.verified_signed_bundle_artifact_id }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          python scripts/cosign_release_artifacts.py verify-uploaded \
+            --release-dir .tmp/release \
+            --distributions-dir .tmp/distributions \
+            --workflow-name release \
+            --workflow-path .github/workflows/release.yml \
+            --require-release-notes
+          [[ "${VERIFIED_BUNDLE_ARTIFACT_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${DISTRIBUTIONS_ARTIFACT_ID}" =~ ^[1-9][0-9]*$ ]]
+          test "${VERIFIED_BUNDLE_ARTIFACT_ID}" != "${DISTRIBUTIONS_ARTIFACT_ID}"
+          {
+            printf 'verified_signed_bundle_artifact_id=%s\n' "${VERIFIED_BUNDLE_ARTIFACT_ID}"
+            printf 'distributions_artifact_id=%s\n' "${DISTRIBUTIONS_ARTIFACT_ID}"
+          } >> "${GITHUB_OUTPUT}"
+
   github-release:
     name: Create immutable GitHub release
-    needs: verify-signatures
+    needs: verify-uploaded-artifacts
     runs-on: ubuntu-latest
     environment:
       name: github-release
@@ -341,7 +401,7 @@ jobs:
       # actions/download-artifact@v4
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          artifact-ids: ${{ needs.verify-signatures.outputs.verified_signed_bundle_artifact_id }}
+          artifact-ids: ${{ needs.verify-uploaded-artifacts.outputs.verified_signed_bundle_artifact_id }}
           merge-multiple: true
           path: .tmp/release
       - name: Create release once without replacing assets
@@ -387,6 +447,10 @@ jobs:
             .tmp/release/reports/evidence-packet.json.bundle
             .tmp/release/reports/evidence-packet.md
             .tmp/release/reports/evidence-packet.md.bundle
+            .tmp/release/reports/evaluation-summary.json
+            .tmp/release/reports/evaluation-summary.json.bundle
+            .tmp/release/reports/comparison-summary.json
+            .tmp/release/reports/comparison-summary.json.bundle
             .tmp/release/reports/assurance-evidence-graph.json
             .tmp/release/reports/assurance-evidence-graph.json.bundle
             .tmp/release/reports/release-artifact-manifest.json
@@ -398,7 +462,7 @@ jobs:
             .tmp/release/sbom.cdx.json
             .tmp/release/sbom.cdx.json.bundle
           )
-          test "${#assets[@]}" -eq 18
+          test "${#assets[@]}" -eq 22
           for asset in "${assets[@]}"; do
             test -f "${asset}"
             test ! -L "${asset}"
@@ -437,7 +501,7 @@ jobs:
 
   pypi-publish:
     name: Publish verified distributions to PyPI
-    needs: [verify-signatures, github-release]
+    needs: [verify-uploaded-artifacts, github-release]
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -449,7 +513,7 @@ jobs:
       # actions/download-artifact@v4
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
-          artifact-ids: ${{ needs.verify-signatures.outputs.distributions_artifact_id }}
+          artifact-ids: ${{ needs.verify-uploaded-artifacts.outputs.distributions_artifact_id }}
           merge-multiple: true
           path: dist
       # pypa/gh-action-pypi-publish@v1.14.0

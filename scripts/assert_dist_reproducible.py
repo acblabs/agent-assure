@@ -15,10 +15,18 @@ for import_path in (ROOT, SRC):
     if str(import_path) not in sys.path:
         sys.path.insert(0, str(import_path))
 
+from agent_assure.io_limits import read_file_bounded_at  # noqa: E402
+from agent_assure.release_evidence import load_digest_replay  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
+from agent_assure.schema.validation import (  # noqa: E402
+    load_validated_artifact_payload,
+    project_validated_artifact_payload,
+)
 from scripts.cosign_release_artifacts import release_artifacts  # noqa: E402
 
 DIST_ROLES = frozenset({"python-distribution", "python-wheel", "source-distribution"})
+MAX_VERIFICATION_SUPPORT_BYTES = 128 * 1024 * 1024
+_BACKSLASH = "\\"
 
 
 @dataclass(frozen=True)
@@ -56,8 +64,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         "--verified-out",
         type=Path,
         help=(
-            "After a successful comparison, copy only independently rebuilt, "
-            "signable blobs into this new directory."
+            "After a successful comparison, copy independently rebuilt signable "
+            "blobs plus digest-checked data files required for manifest/replay "
+            "verification into this new directory."
         ),
     )
     args = parser.parse_args(argv)
@@ -165,7 +174,7 @@ def stage_verified_release_bundle(
     require_release_notes: bool = False,
     expected_sha256: Mapping[str, str] | None = None,
 ) -> None:
-    """Stage only independently rebuilt signing inputs after byte verification."""
+    """Stage rebuilt signing inputs and their data-only verification support."""
 
     source_root = rebuilt_bundle.resolve()
     destination_root = destination.resolve(strict=False)
@@ -181,8 +190,12 @@ def stage_verified_release_bundle(
     expected = dict(expected_sha256) if expected_sha256 is not None else source
     if source != expected:
         raise RuntimeError("rebuilt signing inputs changed after byte comparison")
+    support = _verification_support_index(
+        rebuilt_bundle,
+        signable_paths=frozenset(source),
+    )
     destination.mkdir(parents=True)
-    for relative_path in sorted(source):
+    for relative_path in sorted({*source, *support}):
         source_path = rebuilt_bundle / Path(relative_path)
         destination_path = destination / Path(relative_path)
         destination_path.parent.mkdir(parents=True, exist_ok=True)
@@ -194,6 +207,161 @@ def stage_verified_release_bundle(
     )
     if staged != expected:
         raise RuntimeError("staged signing inputs changed while they were copied")
+    staged_support = {
+        relative_path: read_file_bounded_at(
+            destination,
+            relative_path,
+            max_bytes=MAX_VERIFICATION_SUPPORT_BYTES,
+            label=f"staged verification support {relative_path}",
+        ).sha256
+        for relative_path in support
+    }
+    if staged_support != support:
+        raise RuntimeError("staged verification support changed while it was copied")
+
+
+def _verification_support_index(
+    rebuilt_bundle: Path,
+    *,
+    signable_paths: frozenset[str],
+) -> dict[str, str]:
+    manifest_path = rebuilt_bundle / "reports" / "release-artifact-manifest.json"
+    manifest = project_validated_artifact_payload(
+        load_validated_artifact_payload(
+            manifest_path,
+            "release-artifact-manifest",
+        ),
+        ReleaseArtifactManifest,
+        kind="release-artifact-manifest",
+    )
+    replay = load_digest_replay(rebuilt_bundle / "release-digest-replay.json")
+    artifact_root = _release_artifact_root(
+        manifest,
+        rebuilt_bundle=rebuilt_bundle,
+    )
+    support: dict[str, str] = {}
+    for artifact in manifest.artifacts:
+        relative_path, actual_sha256 = _verified_bundle_artifact(
+            artifact_root,
+            artifact.path,
+            rebuilt_bundle=rebuilt_bundle,
+            label=f"release manifest artifact {artifact.role}",
+        )
+        if actual_sha256 != artifact.sha256:
+            raise ValueError(
+                "release manifest artifact digest mismatch before staging: "
+                f"{artifact.role} ({artifact.path})"
+            )
+        if relative_path not in signable_paths:
+            _record_support_digest(
+                support,
+                relative_path=relative_path,
+                sha256=actual_sha256,
+            )
+    for replay_artifact in replay.artifacts:
+        relative_path, actual_sha256 = _verified_bundle_artifact(
+            artifact_root,
+            replay_artifact.path,
+            rebuilt_bundle=rebuilt_bundle,
+            label=f"release replay artifact {replay_artifact.role}",
+        )
+        if replay_artifact.digest_mode == "raw-sha256":
+            if actual_sha256 != replay_artifact.sha256:
+                raise ValueError(
+                    "raw release replay artifact digest mismatch before staging: "
+                    f"{replay_artifact.role} ({replay_artifact.path})"
+                )
+        elif relative_path not in signable_paths:
+            raise ValueError(
+                "stable-projection replay support must also be a signable artifact: "
+                f"{replay_artifact.role} ({replay_artifact.path})"
+            )
+        if relative_path not in signable_paths:
+            _record_support_digest(
+                support,
+                relative_path=relative_path,
+                sha256=actual_sha256,
+            )
+    return support
+
+
+def _release_artifact_root(
+    manifest: ReleaseArtifactManifest,
+    *,
+    rebuilt_bundle: Path,
+) -> Path:
+    graph_artifact = next(
+        (
+            artifact
+            for artifact in manifest.artifacts
+            if artifact.role == "assurance-evidence-graph"
+        ),
+        None,
+    )
+    if graph_artifact is None:
+        raise ValueError("release manifest has no assurance evidence graph artifact")
+    graph_path = _normalized_relative_path(
+        graph_artifact.path,
+        label="release manifest assurance evidence graph",
+    )
+    expected_graph = (rebuilt_bundle / "reports" / "assurance-evidence-graph.json").resolve(
+        strict=True
+    )
+    candidate_root = expected_graph
+    for expected_part in reversed(graph_path.parts):
+        if candidate_root.name != expected_part:
+            raise ValueError(
+                "release manifest assurance evidence graph does not identify the rebuilt bundle"
+            )
+        candidate_root = candidate_root.parent
+    return candidate_root
+
+
+def _verified_bundle_artifact(
+    artifact_root: Path,
+    artifact_path: str,
+    *,
+    rebuilt_bundle: Path,
+    label: str,
+) -> tuple[str, str]:
+    relative_to_root = _normalized_relative_path(artifact_path, label=label)
+    contents = read_file_bounded_at(
+        artifact_root,
+        relative_to_root,
+        max_bytes=MAX_VERIFICATION_SUPPORT_BYTES,
+        label=label,
+    )
+    source_path = (artifact_root / relative_to_root).resolve(strict=True)
+    resolved_bundle = rebuilt_bundle.resolve(strict=True)
+    try:
+        relative_to_bundle = source_path.relative_to(resolved_bundle)
+    except ValueError as exc:
+        raise ValueError(f"{label} is outside the rebuilt release bundle") from exc
+    return relative_to_bundle.as_posix(), contents.sha256
+
+
+def _normalized_relative_path(value: str, *, label: str) -> Path:
+    path = Path(value)
+    if (
+        path.is_absolute()
+        or not path.parts
+        or _BACKSLASH in value
+        or path.as_posix() != value
+        or any(part in {"", ".", ".."} for part in path.parts)
+    ):
+        raise ValueError(f"{label} path is not normalized and confined")
+    return path
+
+
+def _record_support_digest(
+    support: dict[str, str],
+    *,
+    relative_path: str,
+    sha256: str,
+) -> None:
+    prior = support.setdefault(relative_path, sha256)
+    if prior != sha256:
+        raise ValueError(f"verification support has conflicting digests for {relative_path}")
 
 
 def _release_bundle_index(
@@ -298,10 +466,7 @@ def compare_distribution_artifacts(
                     filename=filename,
                     expected=expected_artifact.sha256,
                     actual=actual_artifact.sha256,
-                    message=(
-                        "distribution artifact is not byte-reproducible: "
-                        f"{role} {filename}"
-                    ),
+                    message=(f"distribution artifact is not byte-reproducible: {role} {filename}"),
                 )
             )
     return tuple(findings)

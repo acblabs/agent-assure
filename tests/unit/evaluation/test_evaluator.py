@@ -91,6 +91,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
 
     assert report.schema_version == "0.6.3"
     assert report.runset_digest == runset_digest(runset)
+    assert report.candidate_vs_expectations.runset_digest == runset_digest(runset)
     payload = report.model_dump(mode="json")
     payload.pop("runset_digest")
     with pytest.raises(ValidationError, match="requires runset_digest"):
@@ -111,6 +112,21 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
         "waiver_dispositions",
     }
     assert report_schema["properties"]["waiver_dispositions"]["maxItems"] == 4096
+
+
+def test_evaluation_report_rejects_conflicting_nested_runset_digest() -> None:
+    report = _report(BASELINE)
+    conflicting_summary = report.candidate_vs_expectations.model_copy(
+        update={"runset_digest": "f" * 64}
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="evaluation summary runset_digest must match evaluation report runset_digest",
+    ):
+        EvaluationReport.model_validate(
+            report.model_dump(mode="python") | {"candidate_vs_expectations": conflicting_summary}
+        )
 
 
 def test_load_runset_requires_explicit_current_wire_identity(tmp_path: Path) -> None:

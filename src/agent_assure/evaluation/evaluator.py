@@ -153,6 +153,11 @@ class EvaluationReport(PersistedArtifact):
     def _validate_usage_schema_version(self) -> EvaluationReport:
         if self.schema_version in _RUNSET_DIGEST_SCHEMA_VERSIONS and self.runset_digest is None:
             raise ValueError("v0.6 evaluation report requires runset_digest")
+        summary_digest = self.candidate_vs_expectations.runset_digest
+        if summary_digest is not None and summary_digest != self.runset_digest:
+            raise ValueError(
+                "evaluation summary runset_digest must match evaluation report runset_digest"
+            )
         validate_usage_field_paths_schema_version(
             self.schema_version,
             owner="evaluation report",
@@ -233,6 +238,7 @@ def evaluate_runset(
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=runset.runset_id,
+        runset_digest=artifact_digest,
         privacy_profile_id=runset.privacy_profile_id or PRIVACY_PROFILE_ID,
         privacy_profile_digest=runset.privacy_profile_digest or PRIVACY_PROFILE_DIGEST,
         state=state,

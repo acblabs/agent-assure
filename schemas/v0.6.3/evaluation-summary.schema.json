@@ -597,6 +597,20 @@
       "title": "Privacy Profile Id",
       "type": "string"
     },
+    "runset_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Canonical digest of the evaluated RunSet when the producer can authenticate that source identity. The first-party evaluator emits it so packet graph evidence can share one authenticated run-set subject.",
+      "title": "Runset Digest"
+    },
     "runset_id": {
       "title": "Runset Id",
       "type": "string"

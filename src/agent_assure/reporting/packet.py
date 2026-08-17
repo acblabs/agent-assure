@@ -102,7 +102,7 @@ def build_privacy_filtered_evidence_graph(
     control_efficacy_gate: ControlEfficacyGateDecision | None = None,
     limitations: tuple[str, ...],
 ) -> AssuranceEvidenceGraph:
-    '''Project packet-shaped evidence after applying the mandatory privacy profile.'''
+    """Project packet-shaped evidence after applying the mandatory privacy profile."""
     graph_evaluation = _privacy_filtered_graph_source(evaluation, EvaluationSummary)
     graph_comparison = _privacy_filtered_optional_graph_source(
         comparison,
@@ -126,8 +126,9 @@ def build_privacy_filtered_evidence_graph(
     )
     return build_evidence_graph(
         subject=EvidenceGraphSubjectPayload(
-            subject_type='run_set',
+            subject_type="run_set",
             subject_id=graph_evaluation.runset_id,
+            subject_digest=graph_evaluation.runset_digest,
         ),
         evaluation=graph_evaluation,
         comparison=graph_comparison,
@@ -263,12 +264,49 @@ def packet_summary_files_binding_error(
     *,
     artifact_root: Path,
 ) -> str | None:
-    """Verify bound artifact models and exact bytes against trusted manifest paths."""
+    """Independently verify bound artifact models and bytes from packet evidence."""
+    return _packet_summary_files_binding_error(
+        packet,
+        artifact_root=artifact_root,
+        trusted_expected_graph=None,
+    )
+
+
+def packet_summary_files_binding_error_for_trusted_publication(
+    packet: EvidencePacket,
+    *,
+    artifact_root: Path,
+    expected_graph: AssuranceEvidenceGraph,
+) -> str | None:
+    """Verify an in-process publication using its already-built graph projection.
+
+    This producer-only performance path is intended solely for an in-process publication
+    transaction.
+    ``expected_graph`` must be the exact projection built from the same nested evidence
+    passed to ``build_evidence_packet`` in that transaction. External or persisted
+    packets must use ``packet_summary_files_binding_error`` so the projection is
+    reconstructed independently.
+    """
+    if not isinstance(expected_graph, AssuranceEvidenceGraph):
+        return "expected assurance-evidence-graph projection has an invalid type"
+    return _packet_summary_files_binding_error(
+        packet,
+        artifact_root=artifact_root,
+        trusted_expected_graph=expected_graph,
+    )
+
+
+def _packet_summary_files_binding_error(
+    packet: EvidencePacket,
+    *,
+    artifact_root: Path,
+    trusted_expected_graph: AssuranceEvidenceGraph | None,
+) -> str | None:
     binding_error = packet_summary_digest_binding_error(packet)
     if binding_error is not None:
         return binding_error
     if packet.release_manifest is None:
-        return "trusted summary-file verification requires a release manifest"
+        return "summary-file verification requires a release manifest"
     summaries: tuple[
         tuple[PacketArtifactRole, EvaluationSummary | ComparisonSummary],
         ...,
@@ -280,7 +318,9 @@ def packet_summary_files_binding_error(
         )
     manifest_by_role = {item.role: item for item in packet.release_manifest.artifacts}
     for role, nested_summary in summaries:
-        manifest_artifact = manifest_by_role[role]
+        manifest_artifact = manifest_by_role.get(role)
+        if manifest_artifact is None:
+            return f"evidence packet {role} is missing from release manifest"
         source_path = artifact_root.absolute() / Path(manifest_artifact.path)
         try:
             snapshot = (
@@ -306,7 +346,9 @@ def packet_summary_files_binding_error(
             return f"evidence packet {role} source file does not match nested summary"
     if packet.evidence_graph_digest is not None:
         graph_role: PacketArtifactRole = "assurance-evidence-graph"
-        manifest_artifact = manifest_by_role[graph_role]
+        manifest_artifact = manifest_by_role.get(graph_role)
+        if manifest_artifact is None:
+            return "evidence packet assurance-evidence-graph is missing from release manifest"
         source_path = artifact_root.absolute() / Path(manifest_artifact.path)
         try:
             graph_snapshot = load_evidence_graph_snapshot(
@@ -316,8 +358,7 @@ def packet_summary_files_binding_error(
             )
         except (OSError, UnicodeError, ValueError):
             return (
-                "evidence packet assurance-evidence-graph source file could not be "
-                "safely verified"
+                "evidence packet assurance-evidence-graph source file could not be safely verified"
             )
         if graph_snapshot.relative_path != manifest_artifact.path:
             return (
@@ -334,21 +375,22 @@ def packet_summary_files_binding_error(
                 "evidence packet assurance-evidence-graph semantic digest does not match "
                 "evidence_graph_digest"
             )
-        try:
-            expected_graph = build_privacy_filtered_evidence_graph(
-                packet.evaluation,
-                comparison=packet.comparison,
-                control_efficacy=packet.control_efficacy,
-                control_efficacy_gate_profile=packet.control_efficacy_gate_profile,
-                control_efficacy_gate=packet.control_efficacy_gate,
-                limitations=packet.limitations,
-            )
-        except (TypeError, ValueError):
-            return (
-                "evidence packet assurance-evidence-graph projection could not be "
-                "safely reconstructed"
-            )
-        if expected_graph.graph_digest != graph_snapshot.summary.graph_digest:
+        if trusted_expected_graph is None:
+            try:
+                trusted_expected_graph = build_privacy_filtered_evidence_graph(
+                    packet.evaluation,
+                    comparison=packet.comparison,
+                    control_efficacy=packet.control_efficacy,
+                    control_efficacy_gate_profile=packet.control_efficacy_gate_profile,
+                    control_efficacy_gate=packet.control_efficacy_gate,
+                    limitations=packet.limitations,
+                )
+            except (TypeError, ValueError):
+                return (
+                    "evidence packet assurance-evidence-graph projection could not be "
+                    "safely reconstructed"
+                )
+        if trusted_expected_graph != graph_snapshot.summary:
             return (
                 "evidence packet assurance-evidence-graph does not correspond to "
                 "nested packet evidence"
@@ -578,9 +620,7 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
         )
     if packet.evidence_graph_digest is not None:
         graph_artifacts = tuple(
-            item
-            for item in packet.artifact_digests
-            if item.role == "assurance-evidence-graph"
+            item for item in packet.artifact_digests if item.role == "assurance-evidence-graph"
         )
         if len(graph_artifacts) != 1:
             raise ValueError(
@@ -593,10 +633,8 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
                 "## Evidence Graph",
                 "",
                 "- Contract: `AssuranceEvidenceGraph/v1`",
-                "- Semantic digest: "
-                f"{markdown_code_span(packet.evidence_graph_digest)}",
-                "- Exact-file digest: "
-                f"{markdown_code_span(graph_artifact.sha256)}",
+                f"- Semantic digest: {markdown_code_span(packet.evidence_graph_digest)}",
+                f"- Exact-file digest: {markdown_code_span(graph_artifact.sha256)}",
             ]
         )
     lines.extend(["", "## Measured Usage", ""])

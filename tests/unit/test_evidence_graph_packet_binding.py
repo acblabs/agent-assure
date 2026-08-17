@@ -3,10 +3,12 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from pydantic import ValidationError
 
+import agent_assure.reporting.packet as packet_reporting
 from agent_assure.graph.builder import build_evidence_graph
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_packet_payload
@@ -16,6 +18,7 @@ from agent_assure.reporting.packet import (
     build_evidence_packet,
     build_privacy_filtered_evidence_graph,
     packet_summary_files_binding_error,
+    packet_summary_files_binding_error_for_trusted_publication,
     render_evidence_packet_markdown,
 )
 from agent_assure.schema.common import GateState
@@ -119,7 +122,10 @@ def test_shared_graph_projection_applies_mandatory_packet_privacy_filter() -> No
     assert graph.graph_digest != unfiltered.graph_digest
 
 
-def test_graph_binding_verifies_manifest_bytes_and_semantic_digest(tmp_path: Path) -> None:
+def test_graph_binding_verifies_manifest_bytes_and_semantic_digest(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     evaluation = _evaluation()
     graph = build_evidence_graph(
         subject=EvidenceGraphSubjectPayload(
@@ -165,7 +171,36 @@ def test_graph_binding_verifies_manifest_bytes_and_semantic_digest(tmp_path: Pat
         ),
     )
 
-    assert packet_summary_files_binding_error(packet, artifact_root=tmp_path) is None
+    def fail_rebuild(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("the supplied graph must avoid a redundant projection rebuild")
+
+    monkeypatch.setattr(
+        packet_reporting,
+        "build_privacy_filtered_evidence_graph",
+        fail_rebuild,
+    )
+    assert (
+        packet_summary_files_binding_error_for_trusted_publication(
+            packet,
+            artifact_root=tmp_path,
+            expected_graph=graph,
+        )
+        is None
+    )
+
+    legacy_missing_manifest_role = packet.model_copy(
+        update={
+            "schema_version": "0.6.2",
+            "release_manifest": manifest.model_copy(update={"artifacts": ()}),
+        }
+    )
+    assert (
+        packet_summary_files_binding_error(
+            legacy_missing_manifest_role,
+            artifact_root=tmp_path,
+        )
+        == "evidence packet evaluation-summary is missing from release manifest"
+    )
 
     semantic_mismatch = packet.model_copy(update={"evidence_graph_digest": "f" * 64})
     assert packet_summary_files_binding_error(
@@ -177,14 +212,19 @@ def test_graph_binding_verifies_manifest_bytes_and_semantic_digest(tmp_path: Pat
     )
 
     graph_path.write_bytes(graph_path.read_bytes() + b" ")
-    assert packet_summary_files_binding_error(packet, artifact_root=tmp_path) == (
+    assert packet_summary_files_binding_error_for_trusted_publication(
+        packet,
+        artifact_root=tmp_path,
+        expected_graph=graph,
+    ) == (
         "evidence packet assurance-evidence-graph source file digest does not match "
         "release manifest"
     )
 
 
-def test_graph_binding_rejects_valid_graph_for_different_nested_evidence(
+def test_public_graph_binding_reconstructs_and_rejects_unrelated_valid_graph(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     evaluation = _evaluation()
     unrelated = evaluation.model_copy(update={"runset_id": "unrelated-candidate"})
@@ -199,8 +239,7 @@ def test_graph_binding_rejects_valid_graph_for_different_nested_evidence(
     evaluation_path = tmp_path / "evaluation-summary.json"
     graph_path = tmp_path / "assurance-evidence-graph.json"
     evaluation_path.write_text(
-        json.dumps(evaluation.model_dump(mode="json"), indent=2, sort_keys=True)
-        + "\n",
+        json.dumps(evaluation.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
         newline="\n",
     )
@@ -239,13 +278,17 @@ def test_graph_binding_rejects_valid_graph_for_different_nested_evidence(
         ),
     )
 
+    rebuild = Mock(wraps=packet_reporting.build_privacy_filtered_evidence_graph)
+    monkeypatch.setattr(
+        packet_reporting,
+        "build_privacy_filtered_evidence_graph",
+        rebuild,
+    )
     assert packet_summary_files_binding_error(
         packet,
         artifact_root=tmp_path,
-    ) == (
-        "evidence packet assurance-evidence-graph does not correspond to "
-        "nested packet evidence"
-    )
+    ) == ("evidence packet assurance-evidence-graph does not correspond to nested packet evidence")
+    rebuild.assert_called_once()
 
 
 def test_graph_release_manifest_role_and_raw_digest_are_exact() -> None:

@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import os
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Annotated
 
 import typer
@@ -34,7 +35,7 @@ from agent_assure.reporting.environment import (
     source_project_root,
     write_release_manifest,
 )
-from agent_assure.reporting.graph import write_evidence_graph
+from agent_assure.reporting.graph import evidence_graph_json_text, write_evidence_graph
 from agent_assure.reporting.packet import (
     DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
@@ -44,11 +45,13 @@ from agent_assure.reporting.packet import (
     load_evidence_graph_snapshot,
     load_evidence_packet,
     packet_artifact_digest_from_snapshot,
-    packet_summary_files_binding_error,
+    packet_summary_files_binding_error_for_trusted_publication,
     release_artifact_from_summary_snapshot,
+    render_evidence_packet_markdown,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
+from agent_assure.rooted_io import portable_relative_path_parts
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateProfile,
     ControlEfficacyReport,
@@ -64,7 +67,8 @@ from agent_assure.schema.validation import (
 app = typer.Typer(help="Evidence packet utilities.")
 _MAX_PACKET_ROLLBACK_BYTES = 4 * MAX_ARTIFACT_JSON_BYTES
 _MAX_PACKET_MUTATION_RESULTS = 4_096
-_MAX_PACKET_MUTATION_RESULT_BYTES = MAX_ARTIFACT_JSON_BYTES
+_MAX_PACKET_MUTATION_RESULTS_TOTAL_BYTES = MAX_ARTIFACT_JSON_BYTES
+_BACKSLASH = "\\"
 
 
 @app.callback()
@@ -345,9 +349,10 @@ def build(
             packet_id=packet_id,
             limitations=packet_limitations,
         )
-        summary_file_error = packet_summary_files_binding_error(
+        summary_file_error = packet_summary_files_binding_error_for_trusted_publication(
             packet,
             artifact_root=artifact_root,
+            expected_graph=evidence_graph,
         )
         if summary_file_error is not None:
             raise ValueError(summary_file_error)
@@ -403,12 +408,6 @@ def graph(
     try:
         _ensure_packet_paths_do_not_alias((packet, *mutation_paths), (out,))
         loaded_packet = load_evidence_packet(packet)
-        if mutation_paths:
-            _require_graph_output_not_packet_bound(
-                packet,
-                out,
-                loaded_packet=loaded_packet,
-            )
         loaded_results = _load_mutation_results(mutation_paths)
         base_graph = build_privacy_filtered_evidence_graph(
             loaded_packet.evaluation,
@@ -438,6 +437,17 @@ def graph(
             if loaded_results
             else base_graph
         )
+        projected_graph_file_sha256 = hashlib.sha256(
+            evidence_graph_json_text(evidence_graph).encode("utf-8")
+        ).hexdigest()
+        _require_graph_output_not_packet_bound(
+            packet,
+            out,
+            loaded_packet=loaded_packet,
+            projected_graph_digest=evidence_graph.graph_digest,
+            projected_graph_file_sha256=projected_graph_file_sha256,
+            mutation_enriched=bool(loaded_results),
+        )
         write_evidence_graph(evidence_graph, out)
     except (OSError, UnicodeError, ValueError) as exc:
         raise typer.BadParameter(str(exc)) from exc
@@ -451,9 +461,7 @@ def _load_mutation_results(
     paths: tuple[Path, ...],
 ) -> tuple[AssuranceMutationResult, ...]:
     if len(paths) > _MAX_PACKET_MUTATION_RESULTS:
-        raise ValueError(
-            "mutation result input count exceeds the supported aggregate limit"
-        )
+        raise ValueError("mutation result input count exceeds the supported aggregate limit")
     results: list[AssuranceMutationResult] = []
     total_bytes = 0
     for path in paths:
@@ -463,10 +471,8 @@ def _load_mutation_results(
             label="assurance mutation result",
         )
         total_bytes += contents.size
-        if total_bytes > _MAX_PACKET_MUTATION_RESULT_BYTES:
-            raise ValueError(
-                "mutation result inputs exceed the supported aggregate byte limit"
-            )
+        if total_bytes > _MAX_PACKET_MUTATION_RESULTS_TOTAL_BYTES:
+            raise ValueError("mutation result inputs exceed the supported aggregate byte limit")
         payload = load_json_bytes_bounded(
             contents.data,
             max_bytes=MAX_ARTIFACT_JSON_BYTES,
@@ -488,36 +494,133 @@ def _require_graph_output_not_packet_bound(
     output_path: Path,
     *,
     loaded_packet: EvidencePacket,
+    projected_graph_digest: str,
+    projected_graph_file_sha256: str,
+    mutation_enriched: bool,
 ) -> None:
-    protected_sha256 = {item.sha256 for item in loaded_packet.artifact_digests}
+    alias_error = (
+        "mutation-enriched graph output aliases a packet-bound artifact"
+        if mutation_enriched
+        else "graph output aliases a packet-bound artifact"
+    )
+    markdown_output_error = (
+        "mutation-enriched graph output must not target packet Markdown"
+        if mutation_enriched
+        else "graph output must not target packet Markdown"
+    )
+    output_identity = _path_identity(output_path, strict=False)
+    resolved_output_path = Path(output_identity)
+    if _path_uses_packet_markdown_suffix(output_path) or _path_uses_packet_markdown_suffix(
+        resolved_output_path
+    ):
+        raise ValueError(markdown_output_error)
+    packet_markdown_paths = (
+        packet_path.with_suffix(".md"),
+        packet_path.resolve(strict=True).with_suffix(".md"),
+    )
+    if any(
+        output_identity == _path_identity(markdown_path, strict=False)
+        or _same_file(output_path, markdown_path)
+        for markdown_path in packet_markdown_paths
+    ):
+        raise ValueError(markdown_output_error)
+    protected_roles_by_sha256: dict[str, set[str]] = {}
+    for item in loaded_packet.artifact_digests:
+        protected_roles_by_sha256.setdefault(item.sha256, set()).add(item.role)
     manifest = loaded_packet.release_manifest
-    if manifest is not None:
-        protected_sha256.update(item.sha256 for item in manifest.artifacts)
-        output_identity = _path_identity(output_path, strict=False)
-        packet_parent = packet_path.resolve().parent
-        for artifact in manifest.artifacts:
-            relative_path = Path(artifact.path)
-            if relative_path.is_absolute() or ".." in relative_path.parts:
-                continue
-            for candidate_root in (packet_parent, *packet_parent.parents):
-                candidate = candidate_root / relative_path
-                if output_identity == _path_identity(candidate, strict=False) or _same_file(
-                    output_path,
-                    candidate,
-                ):
-                    raise ValueError(
-                        "mutation-enriched graph output aliases a packet-bound artifact"
-                    )
-    if output_path.exists():
-        output = read_file_bounded(
+    manifest_artifact_paths = (
+        tuple(
+            (artifact, _normalized_manifest_artifact_path(artifact.path))
+            for artifact in manifest.artifacts
+        )
+        if manifest is not None
+        else ()
+    )
+    if manifest_artifact_paths:
+        for artifact, _relative_path in manifest_artifact_paths:
+            protected_roles_by_sha256.setdefault(artifact.sha256, set()).add(artifact.role)
+    packet_graph_file_sha256s = tuple(
+        item.sha256
+        for item in loaded_packet.artifact_digests
+        if item.role == "assurance-evidence-graph"
+    )
+    bound_graph_file_sha256 = (
+        packet_graph_file_sha256s[0] if len(packet_graph_file_sha256s) == 1 else None
+    )
+    manifest_graph_file_sha256s: tuple[str, ...] = ()
+    if manifest_artifact_paths:
+        manifest_graph_file_sha256s = tuple(
+            artifact.sha256
+            for artifact, _relative_path in manifest_artifact_paths
+            if artifact.role == "assurance-evidence-graph"
+        )
+    existing_output = (
+        read_file_bounded(
             output_path,
             max_bytes=_MAX_PACKET_ROLLBACK_BYTES,
             label="existing graph output",
         )
-        if output.sha256 in protected_sha256:
-            raise ValueError(
-                "mutation-enriched graph output aliases a packet-bound artifact"
-            )
+        if output_path.exists()
+        else None
+    )
+    if existing_output is not None and existing_output.data == render_evidence_packet_markdown(
+        loaded_packet
+    ).encode("utf-8"):
+        raise ValueError(markdown_output_error)
+    projected_graph_matches_binding = (
+        not mutation_enriched
+        and loaded_packet.evidence_graph_digest is not None
+        and projected_graph_digest == loaded_packet.evidence_graph_digest
+        and bound_graph_file_sha256 == projected_graph_file_sha256
+        and (manifest is None or manifest_graph_file_sha256s == (bound_graph_file_sha256,))
+    )
+    bound_graph_reemission = projected_graph_matches_binding and (
+        existing_output is None or existing_output.sha256 == bound_graph_file_sha256
+    )
+    matching_manifest_artifacts = tuple(
+        (artifact, relative_path)
+        for artifact, relative_path in manifest_artifact_paths
+        if _path_identity_ends_with(output_identity, relative_path)
+    )
+    if matching_manifest_artifacts:
+        most_specific_length = max(
+            len(relative_path.parts) for _artifact, relative_path in matching_manifest_artifacts
+        )
+        most_specific_matches = tuple(
+            (artifact, relative_path)
+            for artifact, relative_path in matching_manifest_artifacts
+            if len(relative_path.parts) == most_specific_length
+        )
+        if len(most_specific_matches) != 1:
+            raise ValueError("graph output ambiguously matches packet-bound artifacts")
+        matched_artifact, _matched_relative_path = most_specific_matches[0]
+        if matched_artifact.role == "assurance-evidence-graph" and not bound_graph_reemission:
+            if mutation_enriched:
+                raise ValueError(alias_error)
+            elif projected_graph_matches_binding:
+                raise ValueError("existing graph bytes do not match packet binding")
+            else:
+                raise ValueError("projected graph bytes do not match packet binding")
+        elif matched_artifact.role != "assurance-evidence-graph":
+            raise ValueError(alias_error)
+    if existing_output is not None:
+        protected_roles = protected_roles_by_sha256.get(existing_output.sha256, set())
+        if protected_roles and not (
+            bound_graph_reemission and protected_roles == {"assurance-evidence-graph"}
+        ):
+            raise ValueError(alias_error)
+        if manifest is not None:
+            try:
+                output_payload = load_json_bytes_bounded(
+                    existing_output.data,
+                    max_bytes=_MAX_PACKET_ROLLBACK_BYTES,
+                    label="existing graph output",
+                )
+            except (UnicodeError, ValueError):
+                pass
+            else:
+                if output_payload == manifest.model_dump(mode="json"):
+                    raise ValueError(alias_error)
 
 
 def _configured_threat_manifest_digest(
@@ -582,8 +685,7 @@ def _ensure_packet_paths_do_not_alias(
         ):
             raise ValueError("packet output paths must be distinct")
         if any(
-            _path_is_strict_ancestor(output, previous)
-            or _path_is_strict_ancestor(previous, output)
+            _path_is_strict_ancestor(output, previous) or _path_is_strict_ancestor(previous, output)
             for previous in output_paths[: len(output_identities)]
         ):
             raise ValueError("packet output paths must not contain one another")
@@ -612,9 +714,7 @@ def _require_packet_outputs_within_artifact_root(
         try:
             path.resolve(strict=False).relative_to(resolved_root)
         except (OSError, RuntimeError, ValueError) as exc:
-            raise ValueError(
-                "packet output paths must stay within the artifact root"
-            ) from exc
+            raise ValueError("packet output paths must stay within the artifact root") from exc
 
 
 def _path_identity(path: Path, *, strict: bool) -> str:
@@ -623,6 +723,37 @@ def _path_identity(path: Path, *, strict: bool) -> str:
     except RuntimeError as exc:
         raise ValueError("packet artifact path cannot be safely resolved") from exc
     return os.path.normcase(os.path.abspath(resolved))
+
+
+def _path_uses_packet_markdown_suffix(path: Path) -> bool:
+    name = path.name.rstrip(" .") if os.name == "nt" else path.name
+    return name.casefold().endswith(".md")
+
+
+def _normalized_manifest_artifact_path(value: str) -> Path:
+    posix_path = PurePosixPath(value)
+    if _BACKSLASH in value or posix_path.as_posix() != value:
+        raise ValueError("manifest path is not canonical portable POSIX-relative")
+    try:
+        parts = portable_relative_path_parts(value)
+    except ValueError as exc:
+        raise ValueError("manifest path is not canonical portable POSIX-relative") from exc
+    return Path(*parts)
+
+
+def _path_identity_ends_with(path_identity: str, relative_path: Path) -> bool:
+    path_parts = Path(path_identity).parts
+    relative_parts = relative_path.parts
+    if not relative_parts or len(path_parts) < len(relative_parts):
+        return False
+
+    def component_identity(component: str) -> str:
+        normalized = component.rstrip(" .") if os.name == "nt" else component
+        return os.path.normcase(normalized)
+
+    return tuple(component_identity(part) for part in path_parts[-len(relative_parts) :]) == tuple(
+        component_identity(part) for part in relative_parts
+    )
 
 
 def _same_file(left: Path, right: Path) -> bool:

@@ -78,13 +78,14 @@ def build_evidence_graph(
         raise TypeError("graph evaluation input must be an EvaluationSummary")
     if comparison is not None and not isinstance(comparison, ComparisonSummary):
         raise TypeError("graph comparison input must be a ComparisonSummary")
-    resolved_subject = _resolve_subject_digest(
+    _validate_subject_digest_coherence(
         subject,
+        evaluation=evaluation,
         mutation_results=mutation_results,
         control_efficacy=control_efficacy,
     )
     _validate_source_coherence(
-        resolved_subject,
+        subject,
         evaluation=evaluation,
         comparison=comparison,
         mutation_results=mutation_results,
@@ -97,7 +98,7 @@ def build_evidence_graph(
     graph = _GraphAccumulator()
     primary_subject_id = graph.add_node(
         EvidenceGraphNodeKind.subject,
-        resolved_subject,
+        subject,
     )
     if evaluation is not None:
         _project_evaluation(graph, primary_subject_id, evaluation)
@@ -107,7 +108,7 @@ def build_evidence_graph(
         mutation_subject_id = _source_evidence_subject_id(
             graph,
             primary_subject_id,
-            resolved_subject,
+            subject,
             source_digest=result.source_digest,
             unbound_identity=f"mutation-result:{result.result_digest}",
         )
@@ -117,7 +118,7 @@ def build_evidence_graph(
         efficacy_subject_id = _source_evidence_subject_id(
             graph,
             primary_subject_id,
-            resolved_subject,
+            subject,
             source_digest=control_efficacy.source_digest,
             unbound_identity=(f"control-efficacy-report:{control_efficacy.report_digest}"),
         )
@@ -305,7 +306,6 @@ def _project_evaluation(
     value: EvaluationInput,
 ) -> None:
     summary = value
-    limitations: tuple[str, ...] = ()
     evidence_id = graph.add_node(
         EvidenceGraphNodeKind.evidence,
         EvidenceGraphEvidencePayload(
@@ -318,7 +318,6 @@ def _project_evaluation(
             privacy_profile_id=summary.privacy_profile_id,
             privacy_profile_digest=summary.privacy_profile_digest,
             references=_references(("candidate_subject", summary.runset_id)),
-            limitations=limitations,
         ),
         subject_node_id=subject_id,
     )
@@ -338,13 +337,6 @@ def _project_evaluation(
             finding,
             source_path=f"/findings/{index}",
         )
-    _project_limitations(
-        graph,
-        subject_id,
-        evidence_id,
-        source_artifact_kind="evaluation-summary",
-        limitations=limitations,
-    )
 
 
 def _project_evaluation_finding(
@@ -398,7 +390,6 @@ def _project_comparison(
     value: ComparisonInput,
 ) -> None:
     summary = value
-    limitations: tuple[str, ...] = ()
     baseline_payload = EvidenceGraphSubjectPayload(
         subject_type="run_set",
         subject_id=summary.baseline_runset_id,
@@ -431,7 +422,6 @@ def _project_comparison(
                 ("baseline_subject", summary.baseline_runset_id),
                 ("candidate_subject", summary.candidate_runset_id),
             ),
-            limitations=limitations,
         ),
         subject_node_id=subject_id,
     )
@@ -481,13 +471,6 @@ def _project_comparison(
         )
         graph.add_edge(EvidenceGraphEdgeKind.derived_from, finding_id, evidence_id)
         graph.add_edge(EvidenceGraphEdgeKind.scoped_to, finding_id, subject_id)
-    _project_limitations(
-        graph,
-        subject_id,
-        evidence_id,
-        source_artifact_kind="comparison-summary",
-        limitations=limitations,
-    )
 
 
 def _project_mutation_result(
@@ -1010,15 +993,20 @@ def _add_semantic_edge(
         graph.add_edge(EvidenceGraphEdgeKind.contradicts, source_id, requirement_id)
 
 
-def _resolve_subject_digest(
+def _validate_subject_digest_coherence(
     subject: EvidenceGraphSubjectPayload,
     *,
+    evaluation: EvaluationInput | None,
     mutation_results: tuple[AssuranceMutationResult, ...],
     control_efficacy: ControlEfficacyReport | None,
-) -> EvidenceGraphSubjectPayload:
+) -> None:
+    evaluation_digest = evaluation.runset_digest if evaluation is not None else None
+    if evaluation_digest is not None and subject.subject_digest != evaluation_digest:
+        raise ValueError("graph subject digest does not match evaluation runset digest")
     digests = {
         digest
         for digest in (
+            evaluation_digest,
             *(result.source_digest for result in mutation_results),
             *((control_efficacy.source_digest,) if control_efficacy is not None else ()),
         )
@@ -1030,7 +1018,6 @@ def _resolve_subject_digest(
     if subject.subject_digest is not None and observed is not None:
         if subject.subject_digest != observed:
             raise ValueError("graph subject digest does not match source artifacts")
-    return subject
 
 
 def _source_evidence_subject_id(
@@ -1107,12 +1094,12 @@ def _validate_source_coherence(
     if gate_profile is not None and gate_decision is not None:
         if gate_profile.profile_id != gate_decision.profile_id:
             raise ValueError("gate profile and decision identities do not match")
-    if gate_profile is not None and control_efficacy is not None:
+    if gate_decision is not None and gate_profile is not None and control_efficacy is not None:
         expected_decision = derive_control_efficacy_gate_decision(
             control_efficacy,
             gate_profile,
         )
-        if gate_decision is not None and gate_decision != expected_decision:
+        if gate_decision != expected_decision:
             raise ValueError("gate decision does not match the supplied report and profile")
     if control_efficacy is not None and gate_decision is not None:
         if control_efficacy.report_digest != gate_decision.report_digest:

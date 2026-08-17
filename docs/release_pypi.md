@@ -17,11 +17,16 @@ fresh-job reproducibility check, not reproduction by an independent
 implementation or diverse toolchain. A minimal OIDC job downloads only that
 promoted artifact and signs the fixed file set; it cannot access the original
 build artifact through its job dependencies and does not check out or execute
-package code. A separate
-non-OIDC job verifies every signature and promotes the signed bundle and an
-exact wheel-plus-sdist artifact. The PyPI job has only two steps: download that
-exact verified distribution artifact ID and invoke Trusted Publishing. It does
-not check out, rebuild, import, or smoke-test package code.
+package code. A separate non-OIDC job verifies every signature, rejects any
+missing, extra, linked, reparse, or non-regular full-tree entry, and promotes the
+signed bundle and an exact wheel-plus-sdist artifact. After those uploads, a new
+unprivileged job downloads the exact immutable IDs, repeats signature and
+coherent-binding verification from a captured private snapshot, and requires
+the separate two-file distribution artifact to byte-match the wheel and sdist in
+the full bundle. It exposes those same IDs only after success and does not
+reupload them. The PyPI job has only two steps: download that exact verified
+distribution artifact ID and invoke Trusted Publishing. It does not check out,
+rebuild, import, or smoke-test package code.
 
 The workflows have distinct roles:
 
@@ -282,7 +287,23 @@ agent-assure demo expense --out $ExpenseOut --clean
 
 ## Final PyPI Release
 
-Create and push the final release tag only after TestPyPI install checks pass:
+Before selecting the final tag target, prepare and review one release commit
+that:
+
+1. moves the release entries from `Unreleased` under a dated `## 0.6.3`
+   changelog heading;
+2. creates `docs/release_notes/v0.6.3.md` and adds it to `mkdocs.yml`;
+3. updates `CITATION.cff`, README package/action pins and maturity wording, and
+   the released-schema wording in `docs/for_engineers.md` and
+   `docs/schema_evolution.md`;
+4. records separately authorized remediation in the approved private governance
+   record without exposing internal planning metadata in public files; and
+5. passes docs alignment, schema parity, release checks, and a clean-worktree
+   check from the exact commit that will receive the tag.
+
+Do not tag an implementation checkpoint that lacks this collateral. Create and
+push the final release tag only after the release commit is reviewed and the
+TestPyPI install checks pass:
 
 ```bash
 git checkout main
@@ -301,20 +322,28 @@ match the mapped release schema version `0.6.3`, or if `schemas/v0.6.3` is
 missing. The tag must resolve to `GITHUB_SHA`, be an ancestor of the default
 branch, have matching release notes, and start and finish generation with a
 clean source tree. A fresh job rebuilds the complete signing allowlist, compares
-the actual bytes of the downloaded packet JSON, packet Markdown, manifest,
-replay, release notes, SBOM, wheel, and source distribution against that
-rebuild, and replays the digests from the fresh-job rebuild. It stages only
-byte-matched files from that rebuild under a new artifact ID. Manifest claims
-alone cannot satisfy this gate.
+the actual bytes of the downloaded evaluation summary, comparison summary,
+assurance evidence graph, packet JSON, packet Markdown, manifest, replay,
+release notes, SBOM, wheel, and source distribution against that rebuild, and
+replays the digests from the fresh-job rebuild. It stages the byte-matched
+signing allowlist plus normalized, confined manifest/replay support files whose
+raw digests are verified before and after copy. Those support files remain
+outside the signing and GitHub Release allowlists. Manifest claims alone cannot
+satisfy this gate.
 
 After keyless signing, a non-OIDC verification job checks the exact workflow
 identity, rejects modified-blob verification, validates the signed distribution
-directory, and promotes both the complete verified signed bundle and a staged
-`.whl`/`.tar.gz` pair. GitHub Release consumes the verifier-promoted full-bundle
-ID; the PyPI publisher consumes the verifier-promoted distribution ID and
-invokes the pinned publication action. Neither publisher executes project code.
+directory, verifies a confined descriptor-backed private snapshot, and atomically
+promotes both the complete verified signed bundle and an exact
+`.whl`/`.tar.gz` pair. A fresh post-upload job then downloads both immutable
+artifact IDs, repeats full signature and binding verification, and proves that
+the separate two-file distribution view is byte-identical by filename to the
+full bundle's distributions. GitHub Release and PyPI consume those same IDs only
+after this job succeeds; no new artifact is uploaded after the final check.
+Neither publisher reads the mutable verifier input or executes project code.
 
-PyPI receives only the wheel and source distribution. The release packet,
+PyPI receives only the wheel and source distribution. The packet-bound
+evaluation and comparison summaries, assurance evidence graph, release packet,
 manifest, SBOM, digest replay file, and signature bundles live on the GitHub
 release and are the cryptographic provenance chain for the package files.
 

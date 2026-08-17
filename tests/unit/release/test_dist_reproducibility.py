@@ -76,18 +76,22 @@ def test_actual_malicious_wheel_fails_even_when_manifest_lies_about_its_digest(
     clean_wheel = b"clean independently rebuilt wheel"
     malicious_wheel = b"parseable but malicious downloaded wheel"
     sdist = b"clean source distribution"
-    manifest = _manifest(
-        _artifact(
-            "python-wheel",
-            ".tmp/release/dist/agent_assure-0.1.0-py3-none-any.whl",
-            hashlib.sha256(clean_wheel).hexdigest(),
-        ),
-        _artifact(
-            "source-distribution",
-            ".tmp/release/dist/agent_assure-0.1.0.tar.gz",
-            hashlib.sha256(sdist).hexdigest(),
-        ),
-    ).model_dump_json(indent=2).encode("utf-8")
+    manifest = (
+        _manifest(
+            _artifact(
+                "python-wheel",
+                ".tmp/release/dist/agent_assure-0.1.0-py3-none-any.whl",
+                hashlib.sha256(clean_wheel).hexdigest(),
+            ),
+            _artifact(
+                "source-distribution",
+                ".tmp/release/dist/agent_assure-0.1.0.tar.gz",
+                hashlib.sha256(sdist).hexdigest(),
+            ),
+        )
+        .model_dump_json(indent=2)
+        .encode("utf-8")
+    )
     _write_signing_bundle(
         downloaded,
         wheel=malicious_wheel,
@@ -103,9 +107,7 @@ def test_actual_malicious_wheel_fails_even_when_manifest_lies_about_its_digest(
 
     findings = compare_release_bundle_artifacts(downloaded, rebuilt)
 
-    assert [finding.path for finding in findings] == [
-        "dist/agent_assure-0.1.0-py3-none-any.whl"
-    ]
+    assert [finding.path for finding in findings] == ["dist/agent_assure-0.1.0-py3-none-any.whl"]
     assert findings[0].downloaded_sha256 == hashlib.sha256(malicious_wheel).hexdigest()
     assert findings[0].rebuilt_sha256 == hashlib.sha256(clean_wheel).hexdigest()
     verified = tmp_path / "verified"
@@ -128,6 +130,8 @@ def test_actual_malicious_wheel_fails_even_when_manifest_lies_about_its_digest(
     (
         "reports/evidence-packet.json",
         "reports/evidence-packet.md",
+        "reports/evaluation-summary.json",
+        "reports/comparison-summary.json",
         "reports/assurance-evidence-graph.json",
         "reports/release-artifact-manifest.json",
         "release-digest-replay.json",
@@ -157,7 +161,7 @@ def test_every_future_signing_input_is_compared_by_actual_bytes(
     assert [finding.path for finding in findings] == [relative_path]
 
 
-def test_verified_staging_contains_only_independently_rebuilt_signing_inputs(
+def test_verified_staging_requires_valid_manifest_and_replay_support(
     tmp_path: Path,
 ) -> None:
     rebuilt = tmp_path / "rebuilt"
@@ -167,22 +171,14 @@ def test_verified_staging_contains_only_independently_rebuilt_signing_inputs(
     unrelated.parent.mkdir()
     unrelated.write_text("not a signing input\n", encoding="utf-8")
 
-    stage_verified_release_bundle(
-        rebuilt,
-        destination,
-        require_release_notes=True,
-    )
-
-    assert not (destination / "logs").exists()
-    assert (destination / "reports" / "assurance-evidence-graph.json").is_file()
-    assert (
-        compare_release_bundle_artifacts(
+    with pytest.raises(ValueError):
+        stage_verified_release_bundle(
             rebuilt,
             destination,
             require_release_notes=True,
         )
-        == ()
-    )
+
+    assert not destination.exists()
 
 
 def test_unsigned_bundle_with_preexisting_signature_sidecar_fails_closed(
@@ -235,6 +231,8 @@ def _write_signing_bundle(
     files: dict[str, bytes] = {
         "reports/evidence-packet.json": b"{}\n",
         "reports/evidence-packet.md": b"# Evidence\n",
+        "reports/evaluation-summary.json": b"{}\n",
+        "reports/comparison-summary.json": b"{}\n",
         "reports/assurance-evidence-graph.json": b"{}\n",
         "reports/release-artifact-manifest.json": manifest,
         "release-digest-replay.json": b"{}\n",

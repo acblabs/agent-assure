@@ -1,10 +1,10 @@
 # API Surface
 
 The current public surface is intentionally narrow and status-qualified.
-The v0.6.3 development release-candidate surface consists of:
+The v0.6.3 release-candidate surface consists of:
 
 - the `agent-assure` CLI;
-- package candidate v0.6.3, which uses the active v0.6.3 schema snapshot
+- package release v0.6.3, which uses the current v0.6.3 schema snapshot
   under `schemas/v0.6.3`, with
   earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,

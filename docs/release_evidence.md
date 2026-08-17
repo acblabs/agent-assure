@@ -117,10 +117,14 @@ digests, not byte-replay-stable fixture evidence.
 Only after a fresh job rebuilds the complete signing set and compares every
 downloaded signing input by its actual SHA-256 bytes does a minimal GitHub
 Actions OIDC job sign the reviewed blob set. The comparison covers packet JSON,
-packet Markdown, manifest, replay, SBOM, wheel, source distribution, and release
+packet Markdown, packet-bound evaluation and comparison summaries, assurance
+evidence graph, manifest, replay, SBOM, wheel, source distribution, and release
 notes when present; it never treats manifest-declared hashes as proof of the
-downloaded bytes. The reproduction job stages under a new artifact ID only
-files rebuilt in that fresh job and byte-matched to the downloaded inputs. This
+downloaded bytes. The reproduction job stages under a new artifact ID only files
+rebuilt in that fresh job: byte-matched signing inputs plus normalized,
+confined manifest/replay dependencies whose raw digests are checked before and
+after staging. The support files let the later verifier replay the complete
+manifest; they are not added to the signing or public-release allowlists. This
 establishes same-toolchain fresh-job reproducibility, not reproduction by an
 independent implementation or diverse toolchain. The signer downloads only
 that ID and has no checkout, Python setup, dependency installation, package
@@ -135,6 +139,8 @@ is reachable from the repository's default branch before its OIDC job can run.
 ```bash
 cosign sign-blob --yes --bundle evidence-packet.json.bundle evidence-packet.json
 cosign sign-blob --yes --bundle evidence-packet.md.bundle evidence-packet.md
+cosign sign-blob --yes --bundle evaluation-summary.json.bundle evaluation-summary.json
+cosign sign-blob --yes --bundle comparison-summary.json.bundle comparison-summary.json
 cosign sign-blob --yes --bundle assurance-evidence-graph.json.bundle assurance-evidence-graph.json
 cosign sign-blob --yes --bundle release-artifact-manifest.json.bundle release-artifact-manifest.json
 cosign sign-blob --yes --bundle release-digest-replay.json.bundle release-digest-replay.json
@@ -146,7 +152,10 @@ cosign sign-blob --yes --bundle agent_assure-0.6.3.tar.gz.bundle agent_assure-0.
 The tag release workflow also signs its reviewed `release-notes.md`. The
 human-readable evidence packet and release notes are signed exact-byte
 derivatives; they are not included in the release manifest because doing so
-would create a circular digest relationship with the packet they render.
+would create a circular digest relationship with the packet they render. The
+unprivileged verifier reconstructs packet Markdown from the validated packet
+model and reads release notes from the immutable release-commit Git blob, then
+requires exact byte equality.
 
 The repository workflow pins the cosign binary to `v3.0.6` through the
 `cosign-release` installer input.
@@ -175,21 +184,55 @@ cosign verify-blob evidence-packet.json \
 ```
 
 Repeat the same verification command for `evidence-packet.md`,
+`evaluation-summary.json`, `comparison-summary.json`,
 `assurance-evidence-graph.json`, `release-artifact-manifest.json`,
 `release-digest-replay.json`, `sbom.cdx.json`, the wheel, and the source
-distribution with their matching `.bundle` files. The evidence workflow may
-also produce signed evidence blobs; for those artifacts, use workflow name
-`evidence`. Cosign verification is byte-exact: changing a signed file
-invalidates the signature. This is separate from digest replay, which uses
-stable projections for environment-bearing JSON artifacts.
+distribution with their matching `.bundle` files. After every exact-blob
+signature passes, the repository verifier requires the signed top-level
+manifest to equal the manifest nested in the packet. It then reopens the signed
+evaluation summary, comparison summary, and graph through the trusted artifact
+root, checks their exact manifest digests and nested packet models, and
+reconstructs the graph from the packet evidence. The verifier also hashes every
+manifest-listed file, requires the manifest's SBOM, wheel, and source-distribution
+roles to identify the signed runtime-discovered files, and checks the complete
+versioned replay role set against the trusted workflow SHA and ref. Replay roles
+for the graph, packet, and manifest must identify those same signed files. Packet
+Markdown must exactly match deterministic rendering of the signed packet, while
+tag release notes must exactly match `docs/release_notes/<tag>.md` at the signed
+Git commit. These bindings connect every fixed and runtime-discovered release
+asset, so a mixed set from distinct otherwise valid builds fails before
+promotion even when every file has a valid signature for the same workflow
+identity. The workflow verifier copies the confined allowlist through validated
+file descriptors into a private snapshot, verifies that snapshot, rejects every
+missing or extra file or directory and every link, reparse point, or non-regular
+entry, rechecks the exact inventory and bytes, and atomically promotes separate
+full-release and wheel-plus-sdist views.
+
+Promotion is not the publication trust boundary because the promoted workspace
+remains writable until upload completes. The verifier therefore uploads both
+views, then a new unprivileged job downloads those exact immutable artifact IDs.
+That fresh job repeats full-tree signature and coherent-binding verification
+from a private captured snapshot and requires the independently uploaded
+distribution view to contain exactly the same wheel and source-distribution
+bytes as the full bundle. Only after that check succeeds does it expose the
+same IDs to the GitHub Release and PyPI jobs; it does not upload another copy.
+The evidence workflow applies the same post-upload full-bundle verification to
+its immutable artifact ID. Publisher jobs never read a mutable verifier tree.
+Verification reads and validates data only; it does not import from or execute
+the wheel or source distribution. The evidence workflow may also produce
+signed evidence blobs; for those artifacts, use workflow name `evidence`. Cosign
+verification is byte-exact: changing a signed file invalidates the signature.
+This is separate from digest replay, which uses stable projections for
+environment-bearing JSON artifacts.
 
 Sigstore documents keyless blob signing and GitHub Actions OIDC signing at
 https://docs.sigstore.dev/cosign/signing/signing_with_blobs/ and
 https://docs.sigstore.dev/quickstart/quickstart-ci/.
 
 An unprivileged prerequisite job performs workflow-identity verification and
-stages an exact two-file distribution artifact. The PyPI publisher downloads
-that verified artifact by immutable artifact ID and performs no checkout or
+stages an exact two-file distribution artifact. A second fresh job re-downloads
+and verifies the uploaded full and distribution artifact IDs. The PyPI publisher
+downloads that same verified distribution ID and performs no checkout or
 project-code execution.
 
 ## Limits

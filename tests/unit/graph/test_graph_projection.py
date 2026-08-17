@@ -11,6 +11,7 @@ from agent_assure.controls.efficacy import (
 )
 from agent_assure.graph.builder import build_evidence_graph
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.reporting.packet import build_privacy_filtered_evidence_graph
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.efficacy import (
@@ -656,6 +657,106 @@ def test_digest_only_mutation_evidence_is_not_joined_to_textual_runset_id(
         graph.primary_subject_node_id,
         scoped_subject_id,
     }
+
+
+def test_authenticated_packet_graph_keeps_gate_decision_on_primary_subject(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    sources = representative_sources
+    evaluation = sources.evaluation.model_copy(
+        update={"runset_digest": sources.efficacy.source_digest}
+    )
+    graph = build_privacy_filtered_evidence_graph(
+        evaluation,
+        control_efficacy=sources.efficacy,
+        control_efficacy_gate_profile=sources.gate_profile,
+        control_efficacy_gate=sources.gate_decision,
+        limitations=(),
+    )
+    gate_evidence = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.gate_decision
+    )
+    gate_subject_id = next(
+        edge.target_node_id
+        for edge in graph.edges
+        if edge.kind is EvidenceGraphEdgeKind.scoped_to
+        and edge.source_node_id == gate_evidence.node_id
+    )
+    primary_subject = next(
+        node for node in graph.nodes if node.node_id == graph.primary_subject_node_id
+    )
+
+    assert gate_subject_id == graph.primary_subject_node_id
+    assert isinstance(primary_subject.payload, EvidenceGraphSubjectPayload)
+    assert primary_subject.payload.subject_digest == sources.efficacy.source_digest
+
+
+def test_authenticated_packet_graph_rejects_conflicting_source_digest(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    sources = representative_sources
+    conflicting_digest = "f" * 64 if sources.efficacy.source_digest != "f" * 64 else "e" * 64
+    evaluation = sources.evaluation.model_copy(update={"runset_digest": conflicting_digest})
+
+    with pytest.raises(ValueError, match="graph sources do not share one subject digest"):
+        build_privacy_filtered_evidence_graph(
+            evaluation,
+            control_efficacy=sources.efficacy,
+            control_efficacy_gate_profile=sources.gate_profile,
+            control_efficacy_gate=sources.gate_decision,
+            limitations=(),
+        )
+
+
+def test_graph_builder_rejects_dropping_authenticated_evaluation_digest(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    sources = representative_sources
+    evaluation = sources.evaluation.model_copy(
+        update={"runset_digest": sources.efficacy.source_digest}
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="graph subject digest does not match evaluation runset digest",
+    ):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=evaluation.runset_id,
+            ),
+            evaluation=evaluation,
+        )
+
+
+def test_missing_gate_decision_does_not_trigger_gate_derivation(
+    representative_sources: _RepresentativeSources,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sources = representative_sources
+
+    def fail_derivation(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("gate derivation must not run without a supplied decision")
+
+    monkeypatch.setattr(
+        "agent_assure.graph.builder.derive_control_efficacy_gate_decision",
+        fail_derivation,
+    )
+    graph = build_evidence_graph(
+        subject=sources.subject,
+        control_efficacy=sources.efficacy,
+        gate_profile=sources.gate_profile,
+        gate_decision=None,
+    )
+
+    assert not any(
+        isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.gate_decision
+        for node in graph.nodes
+    )
 
 
 def test_primary_subject_is_an_identity_anchor_not_a_complete_traversal_root(

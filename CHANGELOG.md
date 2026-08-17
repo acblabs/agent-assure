@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## 0.6.3 - 2026-08-17
+
+- Made signed-release verification enforce one coherent packet, graph, source-
+  summary, and manifest set after every blob signature is verified. The
+  privacy-filtered evaluation and comparison summaries are retained, signed,
+  and published with the release evidence so independently valid same-commit
+  workflow reruns cannot be silently mixed.
+- Prevented `packet graph --out` from overwriting any packet-bound artifact.
+  Re-emitting the packet's exact bound graph in place remains idempotent, while
+  evaluation summaries, release manifests, and every other bound role fail
+  closed before a write.
+- Added an optional canonical `runset_digest` to evaluation summaries and made
+  first-party evaluators populate it, allowing packet evidence graphs to join
+  control-efficacy and gate evidence to the primary run-set subject only when
+  the source identity is authenticated.
 - Kept default release replay compatible with frozen bundles by selecting core
   artifact roles from the replay schema version: schemas through v0.6.2 retain
   the legacy four-role contract, while v0.6.3 additionally requires the

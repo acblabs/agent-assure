@@ -68,8 +68,8 @@ content.
 
 ## Schemas
 
-Schema changes are versioned. The released v0.6.2 snapshot is frozen under
-`schemas/v0.6.2/`; earlier released snapshots remain available for replay.
+Schema changes are versioned. The released v0.6.3 snapshot is frozen under
+`schemas/v0.6.3/`; earlier released snapshots remain available for replay.
 `schemas/unreleased/` is only a non-gating exporter smoke-test target. Future
 schema changes require a new versioned snapshot.
 
@@ -82,7 +82,7 @@ demos work from editable installs, wheels, and arbitrary current directories.
 ## Public vs experimental API
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
-`AgentRunRecord` producer contract are the v0.6.3 development Release Candidate
+`AgentRunRecord` producer contract are the v0.6.3 Release Candidate
 primary surface. The package-level PyPI `Development Status :: 4 - Beta` classifier is
 the closest standardized classifier to an RC; framework adapters, live
 execution, streaming, and mutation contracts remain experimental or

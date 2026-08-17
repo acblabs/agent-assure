@@ -1,7 +1,7 @@
 # Schema Reference
 
-Current development writer schema version: `0.6.3`.
-Current released schema snapshot: `schemas/v0.6.2/`.
+Current writer schema version: `0.6.3`.
+Current released schema snapshot: `schemas/v0.6.3/`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
 models emit `schema_version: 0.6.3` and continue to accept legacy
@@ -9,10 +9,10 @@ models emit `schema_version: 0.6.3` and continue to accept legacy
 `schema_version: 0.5.0`, `schema_version: 0.6.0`, and
 `schema_version: 0.6.1` and `schema_version: 0.6.2` artifacts where their
 compatibility contracts permit those labels. Historical artifacts validate
-against their frozen schema snapshots. The v0.6.0, v0.6.1, and v0.6.2
+against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, and v0.6.3
 snapshots remain immutable; current v0.6 relational checks continue to apply
 after validated legacy projection, including each evidence-carrying root's
-self-digest. The active v0.6.3 schemas are development writer contracts: every
+self-digest. The v0.6.3 schemas are current writer contracts: every
 root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
 operators, expected-detection contracts, and results use `0.6.3`, while the
@@ -85,6 +85,16 @@ binding for both source and candidate reports so equal `runset_id` labels
 cannot make stale report content admissible. Campaign source, nested mutation
 result, evidence subject, and source evaluator digests use this same
 projection; transformed-result and candidate evaluator digests do likewise.
+
+The v0.6.3 `evaluation-summary` writer also admits an optional `runset_digest`
+with the same canonical projection. The built-in evaluator always copies its
+authenticated report digest into the summary, and a first-party packet graph
+uses that value as its primary subject digest. A present summary digest must
+match its enclosing evaluation report and the graph's primary subject; any
+conflict with mutation or control-efficacy source digests fails closed. The
+field is optional for current independent producers, while frozen summary
+schemas through v0.6.2 omit it. Graph projection never infers the missing join
+for those summaries.
 
 Every v0.6 live `agent-run-record` also requires
 `cost_budget_committed_usd`, `generated_token_budget_committed`, and
@@ -181,7 +191,7 @@ Two persisted roots are introduced in v0.6.2:
   exact catalog, family, independence, and threat ratios; required and critical
   survivor IDs; threat coverage; semantic states; and limitations.
 
-One persisted root is introduced on the v0.6.3 development writer surface:
+One persisted root is introduced on the v0.6.3 writer surface:
 
 - `assurance-evidence-graph` is `AssuranceEvidenceGraph/v1`. Its
   `graph_digest` covers the RFC 8785 canonical artifact except that digest

@@ -143,6 +143,13 @@ def test_separate_leases_expose_root_replacement_between_acquisitions(
             original_root.rename(root)
 
 
+def test_portable_relative_path_parts_public_internal_contract() -> None:
+    assert rooted_io.portable_relative_path_parts("nested/artifact.json") == (
+        "nested",
+        "artifact.json",
+    )
+
+
 @pytest.mark.parametrize(
     "relative_path",
     (

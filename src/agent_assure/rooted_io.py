@@ -192,7 +192,7 @@ def open_rooted_bounded_file(
 ) -> BoundedFileDescriptor:
     """Open one relative regular file while pinning and validating its full path."""
     _validate_max_bytes(max_bytes)
-    parts = _relative_path_parts(relative_path)
+    parts = portable_relative_path_parts(relative_path)
     if os.name == "nt":
         return _open_windows_rooted_file(root, parts, max_bytes=max_bytes, label=label)
     return _open_posix_rooted_file(root, parts, max_bytes=max_bytes, label=label)
@@ -689,7 +689,8 @@ def _read_descriptor_bounded(
     )
 
 
-def _relative_path_parts(relative_path: str | Path) -> tuple[str, ...]:
+def portable_relative_path_parts(relative_path: str | Path) -> tuple[str, ...]:
+    """Return validated path parts portable across POSIX and Windows filesystems."""
     raw = str(relative_path).replace("\\", "/")
     posix_path = PurePosixPath(raw)
     windows_path = PureWindowsPath(str(relative_path))
@@ -724,7 +725,7 @@ def _relative_directory_parts(relative_path: str | Path) -> tuple[str, ...]:
         return ()
     if raw == "":
         raise ValueError("rooted directory path must not be empty")
-    return _relative_path_parts(relative_path)
+    return portable_relative_path_parts(relative_path)
 
 
 def _validate_max_bytes(max_bytes: int) -> None:

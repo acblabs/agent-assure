@@ -96,23 +96,30 @@ model:
 - every supplied limitation becomes a non-verdict-bearing finding as well as
   remaining attached to its source evidence.
 
-Evaluation summaries identify a run set by text, while mutation and
-control-efficacy artifacts identify their source by canonical digest. The
-builder does not invent a join between those different identifiers. Unless the
-caller explicitly supplies the same subject digest, digest-only evidence is
-scoped to a separate subject labeled by that digest; missing-digest mutation
-evidence is scoped to an explicit unbound subject.
+The current v0.6.3 `evaluation-summary` schema optionally carries the canonical
+RunSet digest. The built-in evaluator always emits that digest, and the
+first-party packet projector preserves it as the primary run-set subject
+digest. When mutation or control-efficacy source digests match, their evidence,
+including an authoritative gate decision, is therefore scoped to the same
+primary subject without an inferred join. The builder rejects an authenticated
+evaluation digest that is omitted from or differs from the supplied primary
+subject, and it rejects conflicting source digests.
 
-The resulting graph may therefore contain multiple weakly disconnected
+The field remains optional so current independent producers that cannot
+authenticate RunSet content remain representable; frozen evaluation summaries
+through v0.6.2 do not carry it. When the digest is absent, digest-only evidence
+is scoped to a separate subject labeled by that digest, and missing-digest
+mutation evidence is scoped to an explicit unbound subject. The builder does
+not add an unauthenticated connecting edge.
+
+The resulting graph may therefore still contain multiple weakly disconnected
 components. `primary_subject_node_id` is the graph's primary identity anchor,
-not a complete traversal root or a claim that every verdict is reachable from
-that subject. In a graph whose textual run-set subject has no authenticated
-digest join, the authoritative gate-decision evidence is scoped to the
-control-efficacy source-digest subject and is outside the primary subject's
-component. Consumers must inspect all typed subject and evidence nodes (or
-maintain an all-node index); they must not infer graph-wide completeness from
-the primary component. The contract does not add an unauthenticated connecting
-edge merely to make traversal convenient.
+not a claim that every verdict is reachable from that subject. Consumers of
+legacy, third-party, or otherwise unbound graphs must inspect all typed subject
+and evidence nodes (or maintain an all-node index); they must not infer
+graph-wide completeness from the primary component. Current first-party packet
+graphs retain matched control-efficacy and gate evidence in the primary
+component through the authenticated digest join.
 
 Supported and violated source states may produce supports or contradicts
 edges. Other states remain visible in payloads without being collapsed into a

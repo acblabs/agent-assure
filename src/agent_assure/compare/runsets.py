@@ -25,6 +25,7 @@ from agent_assure.evaluation.evaluator import (
     EvaluationMetrics,
     EvaluationReport,
     evaluate_runset,
+    runset_digest,
 )
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, ControlResult, GateProfile, Waiver
@@ -390,6 +391,7 @@ def _invalid_comparison_report(
     baseline_summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=baseline.runset_id,
+        runset_digest=runset_digest(baseline),
         privacy_profile_id=privacy_profile_id,
         privacy_profile_digest=privacy_profile_digest,
         state=GateState.not_evaluated,
@@ -397,6 +399,7 @@ def _invalid_comparison_report(
     candidate_summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id=candidate.runset_id,
+        runset_digest=runset_digest(candidate),
         privacy_profile_id=privacy_profile_id,
         privacy_profile_digest=privacy_profile_digest,
         state=GateState.not_evaluated,

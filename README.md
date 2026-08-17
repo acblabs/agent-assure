@@ -325,7 +325,7 @@ links for the material claims they intend to satisfy.
 <summary><strong>GitHub Actions example using the bundled fixture</strong></summary>
 
 Pin both the package and composite action in release workflows. The example
-uses the latest published tag, v0.6.2; move both pins together only after a
+uses the latest published tag, v0.6.3; move both pins together only after a
 newer tag is published. Replace the example suite and variant paths with your
 own controlled materials.
 
@@ -341,8 +341,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.6.2
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.2
+      - run: python -m pip install agent-assure==0.6.3
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.3
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -363,7 +363,7 @@ days.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.3` development candidate).**
+**Current maturity: Release Candidate (RC, `v0.6.3`).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.

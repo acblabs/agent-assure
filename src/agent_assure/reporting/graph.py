@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 from pathlib import Path
 
@@ -17,7 +16,6 @@ from agent_assure.schema.validation import (
 
 def evidence_graph_json_text(graph: AssuranceEvidenceGraph) -> str:
     payload = graph.model_dump(mode="json")
-    AssuranceEvidenceGraph.model_validate(payload)
     validate_loaded_artifact_payload(payload, "assurance-evidence-graph")
     if redact_packet_payload(payload) != payload:
         raise ValueError("assurance evidence graph must be privacy-filtered before persistence")
@@ -25,10 +23,6 @@ def evidence_graph_json_text(graph: AssuranceEvidenceGraph) -> str:
     if len(rendered.encode("utf-8")) > MAX_ARTIFACT_JSON_BYTES:
         raise ValueError("assurance evidence graph exceeds the artifact JSON byte limit")
     return rendered
-
-
-def evidence_graph_file_sha256(graph: AssuranceEvidenceGraph) -> str:
-    return hashlib.sha256(evidence_graph_json_text(graph).encode("utf-8")).hexdigest()
 
 
 def write_evidence_graph(graph: AssuranceEvidenceGraph, path: Path) -> None:

@@ -66,6 +66,14 @@ def test_graph_persistence_rejects_unfiltered_sensitive_payloads() -> None:
         evidence_graph_json_text(graph)
 
 
+def test_graph_persistence_revalidates_forged_model_copies() -> None:
+    graph = _subject_only_graph()
+    forged = graph.model_copy(update={"graph_digest": "f" * 64})
+
+    with pytest.raises(ValueError, match="model validation"):
+        evidence_graph_json_text(forged)
+
+
 def test_oversized_graph_is_rejected_before_destination_side_effects(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

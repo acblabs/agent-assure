@@ -10,6 +10,7 @@ from pydantic.functional_validators import field_validator
 from agent_assure.schema.base import SCHEMA_VERSION, FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
+    DigestHex,
     GateState,
     ReasonCode,
     coerce_enum,
@@ -142,6 +143,15 @@ class EvaluationSummary(PersistedArtifact):
 
     artifact_kind: Literal["evaluation-summary"] = "evaluation-summary"
     runset_id: str
+    runset_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Canonical digest of the evaluated RunSet when the producer can authenticate "
+            "that source identity. The first-party evaluator emits it so packet graph "
+            "evidence can share one authenticated run-set subject."
+        ),
+    )
     privacy_profile_id: PrivacyProfileId = Field(
         exclude_if=lambda value: value is None,
     )

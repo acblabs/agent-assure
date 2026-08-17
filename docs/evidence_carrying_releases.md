@@ -37,7 +37,7 @@ Current roots use persisted `schema_version: 0.6.3`, a `contract_id` ending in
 `/v1`, and `contract_version: 1.0.0`. Contracts introduced in v0.6.0 also
 accept their frozen v0.6.0 representation through version-aware reads; catalog
 and campaign roots additionally accept their frozen v0.6.1 and v0.6.2
-representations. The graph is introduced on the v0.6.3 development writer
+representations. The graph is introduced on the v0.6.3 writer
 surface and has no historical wire form. Current builders emit v0.6.3 by
 default, and official writers validate the selected version before persistence.
 Fields and reason codes introduced after v0.6.0 therefore cannot be written

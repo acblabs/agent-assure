@@ -54,6 +54,7 @@ from agent_assure.reporting.packet import (
     load_evidence_packet,
     packet_artifact_digest_from_snapshot,
     packet_summary_files_binding_error,
+    packet_summary_files_binding_error_for_trusted_publication,
     release_artifact_from_summary_snapshot,
     write_evidence_packet,
     write_evidence_packet_markdown,
@@ -1440,7 +1441,6 @@ def run_ci(
             message=f"ci gate invalid: {exc}",
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind="evidence-packet",
-            artifact_path=str(packet_path),
         )
         binding_diagnostics_path = out_dir / "ci-diagnostics.json"
         write_diagnostics(
@@ -1774,9 +1774,10 @@ def _write_ci_packet(
             artifact_digests=tuple(packet_digests),
             limitations=packet_limitations,
         )
-        binding_error = packet_summary_files_binding_error(
+        binding_error = packet_summary_files_binding_error_for_trusted_publication(
             packet,
             artifact_root=project_root,
+            expected_graph=evidence_graph,
         )
         if binding_error is not None:
             raise _CiPacketBindingError(binding_error)

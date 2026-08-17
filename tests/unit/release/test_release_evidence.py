@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from typing import get_args
 
 import pytest
 from typer.testing import CliRunner
@@ -18,6 +19,7 @@ from agent_assure.release_evidence import (
     verify_digest_replay,
     write_digest_replay,
 )
+from agent_assure.schema.base import SchemaVersion
 from agent_assure.schema.graph import EvidenceGraphSubjectPayload
 from agent_assure.schema.release import ReleaseArtifact, ReleaseDigestReplay
 
@@ -67,6 +69,12 @@ def test_core_release_roles_preserve_historical_replay_contract(
 
 def test_core_release_roles_require_graph_for_current_schema() -> None:
     assert core_release_roles_for_schema_version("0.6.3") == CORE_RELEASE_ROLES
+
+
+def test_core_release_role_policy_covers_every_schema_version() -> None:
+    assert set(release_evidence._CORE_RELEASE_ROLES_BY_SCHEMA_VERSION) == set(
+        get_args(SchemaVersion)
+    )
 
 
 def test_core_release_roles_fail_closed_for_unmapped_schema() -> None:

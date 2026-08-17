@@ -294,6 +294,8 @@ def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
     assert result.decision.exit_code == 2
     assert result.decision.outcome.value == "invalid"
     assert "source file digest does not match release manifest" in result.decision.message
+    assert result.decision.artifact_path == ""
+    assert not (out_dir / "evidence-packet.json").exists()
 
 
 def test_ci_packet_publication_rolls_back_graph_and_packet_on_late_failure(

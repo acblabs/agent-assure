@@ -1,12 +1,10 @@
 # Schema Evolution
 
-Current released schema snapshot: `schemas/v0.6.2/`. It is immutable because
-the matching `v0.6.2` tag exists.
+Current released schema snapshot: `schemas/v0.6.3/`. It is immutable because
+the matching `v0.6.3` tag exists.
 
-Current released persisted artifact `schema_version`: `0.6.2`. Current
-development models and evidence-carrying roots emit `0.6.3`; the active writer
-candidate is exported to `schemas/v0.6.3/` without changing the released
-v0.6.2 snapshot.
+Current released persisted artifact `schema_version`: `0.6.3`. Current models
+and evidence-carrying roots emit `0.6.3`.
 
 An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
@@ -25,8 +23,7 @@ Use these directories as the release lifecycle:
 - `schemas/v0.6.0/` contains the released v0.6.0 snapshot and is immutable.
 - `schemas/v0.6.1/` contains the released v0.6.1 snapshot and is immutable.
 - `schemas/v0.6.2/` contains the released v0.6.2 snapshot and is immutable.
-- `schemas/v0.6.3/` contains the active development writer candidate and is
-  mutable until a matching release tag exists.
+- `schemas/v0.6.3/` contains the released v0.6.3 snapshot and is immutable.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
 Before a matching release tag exists, an active versioned directory is a
@@ -39,15 +36,15 @@ snapshot stabilized, as its immutable baseline.
 
 Automation has complementary checks:
 
-- current-writer schema parity exports the current schema surface to
-  `schemas/v0.6.3/` and fails if those committed candidate files drift;
+- frozen schema parity exports the current schema surface to
+  `schemas/v0.6.3/` and fails if those committed files drift;
 - tagged-schema immutability compares every released snapshot with its local
   full-history Git tag baseline; its dedicated CI job requires release tags
   rather than silently skipping when history is unavailable;
 - schema packaging consistency discovers frozen `schemas/v*` directories and
   fails if `pyproject.toml` does not force-include the same directories under
   `agent_assure/schema_resources/`;
-- schema staging exports the current development schema surface to
+- schema staging exports the current schema surface to
   `schemas/unreleased/` and fails if no schema files are produced.
 
 When a release freezes a new `schemas/vX.Y.Z/` directory, run
@@ -121,9 +118,9 @@ while the persisted artifact schema namespace remains `0.2.0`.
 For the current package line, the CLI keeps replay and validation support for
 the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
 `schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
-`schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`, and
-`schemas/v0.6.2/`. Current-release replay remains bounded to tagged snapshots;
-current-development-writer checks target `schemas/v0.6.3/`.
+`schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`,
+`schemas/v0.6.2/`, and `schemas/v0.6.3/`. Current-release replay remains bounded
+to tagged snapshots; current-schema checks target `schemas/v0.6.3/`.
 
 Persisted inputs are checked against their frozen schema before typed runtime
 projection. The v0.1 `release-digest-replay` contract is shape-identical to
@@ -191,8 +188,8 @@ future additive JSON shape change to follow the ordinary schema lifecycle
 without implying that the method semantics changed, and allows a behavioral
 contract revision to be identified without relabeling historical JSON.
 
-`AssuranceEvidenceGraph/v1` is introduced on the v0.6.3 development writer
-surface. It projects evaluation, comparison, mutation, control-efficacy, gate,
+`AssuranceEvidenceGraph/v1` is introduced on the v0.6.3 writer surface. It
+projects evaluation, comparison, mutation, control-efficacy, gate,
 and limitation evidence into a closed four-node/five-edge vocabulary. Its
 canonical `graph_digest` excludes only itself, and every typed node payload has
 its own canonical digest. The graph contract has no historical wire form;
