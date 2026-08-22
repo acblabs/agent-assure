@@ -72,12 +72,12 @@ def test_install_exact_distribution_is_offline_no_dependency_and_no_compile(
             str(tmp_path / "python"),
             "-m",
             "pip",
-                "install",
-                "--disable-pip-version-check",
-                "--no-cache-dir",
-                "--no-deps",
-                "--no-compile",
-                "--no-index",
+            "install",
+            "--disable-pip-version-check",
+            "--no-cache-dir",
+            "--no-deps",
+            "--no-compile",
+            "--no-index",
             "--find-links",
             str(wheelhouse),
             str(wheel),
@@ -202,6 +202,94 @@ def test_preplanted_snapshot_destination_reparse_point_is_rejected(
 
     with pytest.raises(ValueError, match="not a regular directory"):
         smoke_install._require_regular_directory(destination, label="test destination")
+
+
+@pytest.mark.skipif(os.name != "posix", reason="CPython lib64 aliases are POSIX-only")
+def test_tree_snapshot_records_only_the_exact_cpython_venv_alias(tmp_path: Path) -> None:
+    phase = tmp_path / "phase"
+    library = phase / "venv" / "lib"
+    library.mkdir(parents=True)
+    alias = phase / "venv" / "lib64"
+    alias.symlink_to("lib", target_is_directory=True)
+
+    with pytest.raises(ValueError, match="link or reparse point"):
+        smoke_install.capture_tree_snapshot(phase, label="test environment")
+
+    snapshot = smoke_install.capture_tree_snapshot(
+        phase,
+        label="test environment",
+        allowed_directory_links={"venv/lib64": "lib"},
+    )
+
+    assert snapshot.links == {"venv/lib64": "lib"}
+    assert "venv/lib64" not in snapshot.directories
+
+    alias.unlink()
+    with pytest.raises(ValueError, match="test environment changed"):
+        smoke_install.assert_tree_snapshot_unchanged(
+            phase,
+            snapshot,
+            label="test environment",
+        )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="CPython lib64 aliases are POSIX-only")
+@pytest.mark.parametrize("target", ("other", "../outside", "/tmp/outside"))
+def test_tree_snapshot_rejects_unexpected_cpython_venv_alias_targets(
+    tmp_path: Path,
+    target: str,
+) -> None:
+    phase = tmp_path / "phase"
+    library = phase / "venv" / "lib"
+    library.mkdir(parents=True)
+    (phase / "venv" / "lib64").symlink_to(target, target_is_directory=True)
+
+    with pytest.raises(ValueError, match="unexpected directory link target"):
+        smoke_install.capture_tree_snapshot(
+            phase,
+            label="test environment",
+            allowed_directory_links={"venv/lib64": "lib"},
+        )
+
+
+@pytest.mark.skipif(os.name != "posix", reason="CPython lib64 aliases are POSIX-only")
+def test_tree_snapshot_rejects_links_beyond_the_cpython_venv_alias(tmp_path: Path) -> None:
+    phase = tmp_path / "phase"
+    library = phase / "venv" / "lib"
+    library.mkdir(parents=True)
+    (phase / "venv" / "lib64").symlink_to("lib", target_is_directory=True)
+    (phase / "venv" / "extra").symlink_to("lib", target_is_directory=True)
+
+    with pytest.raises(ValueError, match=r"link or reparse point: venv/extra"):
+        smoke_install.capture_tree_snapshot(
+            phase,
+            label="test environment",
+            allowed_directory_links={"venv/lib64": "lib"},
+        )
+
+
+def test_install_delta_rejects_virtualenv_directory_link_changes(tmp_path: Path) -> None:
+    before = smoke_install.TreeSnapshot(
+        directories=frozenset(),
+        files={},
+        links={"venv/lib64": "lib"},
+    )
+    after = smoke_install.TreeSnapshot(directories=frozenset(), files={})
+
+    with pytest.raises(ValueError, match="changed virtualenv directory links"):
+        smoke_install.validate_project_install_delta(
+            before,
+            after,
+            environment_root=tmp_path,
+            layout=smoke_install.EnvironmentLayout(purelib="lib", scripts="bin"),
+            wheel=tmp_path / "missing.whl",
+            wheel_snapshot=smoke_install.DistributionSnapshot(
+                name="missing.whl",
+                data=b"",
+                sha256=hashlib.sha256(b"").hexdigest(),
+            ),
+            label="test install",
+        )
 
 
 def test_full_environment_delta_rejects_pth_and_sourceless_pyc_injection(

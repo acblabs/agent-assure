@@ -17,7 +17,7 @@ import tempfile
 import venv
 import zipfile
 from contextlib import ExitStack
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -73,6 +73,7 @@ class TreeFile:
 class TreeSnapshot:
     directories: frozenset[str]
     files: dict[str, TreeFile]
+    links: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -224,9 +225,22 @@ def main(argv: list[str] | None = None) -> int:
                 sdist_venv_dir,
                 cwd=temp_dir,
             )
-            wheel_baseline = capture_tree_snapshot(wheel_phase, label="wheel environment")
-            sdist_baseline = capture_tree_snapshot(sdist_phase, label="sdist environment")
-            build_baseline = capture_tree_snapshot(build_phase, label="build environment")
+            expected_venv_links = _expected_virtualenv_directory_links()
+            wheel_baseline = capture_tree_snapshot(
+                wheel_phase,
+                label="wheel environment",
+                allowed_directory_links=expected_venv_links,
+            )
+            sdist_baseline = capture_tree_snapshot(
+                sdist_phase,
+                label="sdist environment",
+                allowed_directory_links=expected_venv_links,
+            )
+            build_baseline = capture_tree_snapshot(
+                build_phase,
+                label="build environment",
+                allowed_directory_links=expected_venv_links,
+            )
             protected_roots = {
                 "verified distributions": (
                     verified_dir,
@@ -323,6 +337,7 @@ def main(argv: list[str] | None = None) -> int:
                 wheel_installed = capture_tree_snapshot(
                     wheel_phase,
                     label="installed wheel environment",
+                    allowed_directory_links=wheel_baseline.links,
                 )
                 validate_project_install_delta(
                     wheel_baseline,
@@ -351,6 +366,7 @@ def main(argv: list[str] | None = None) -> int:
                 sdist_installed = capture_tree_snapshot(
                     sdist_phase,
                     label="installed sdist-built-wheel environment",
+                    allowed_directory_links=sdist_baseline.links,
                 )
                 validate_project_install_delta(
                     sdist_baseline,
@@ -750,10 +766,7 @@ def _require_regular_directory(path: Path, *, label: str) -> os.stat_result:
     if (
         not stat.S_ISDIR(metadata.st_mode)
         or stat.S_ISLNK(metadata.st_mode)
-        or bool(
-            getattr(metadata, "st_file_attributes", 0)
-            & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
-        )
+        or bool(getattr(metadata, "st_file_attributes", 0) & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT)
     ):
         raise ValueError(f"{label} is not a regular directory: {path}")
     return metadata
@@ -821,11 +834,39 @@ def assert_snapshot_unchanged(path: Path, snapshot: DistributionSnapshot) -> Non
         raise ValueError(f"materialized distribution bytes changed: {path}")
 
 
-def capture_tree_snapshot(root: Path, *, label: str) -> TreeSnapshot:
+def _expected_virtualenv_directory_links() -> dict[str, str]:
+    """Return the exact directory alias created by CPython's venv implementation."""
+    if sys.maxsize > 2**32 and os.name == "posix" and sys.platform != "darwin":
+        return {"venv/lib64": "lib"}
+    return {}
+
+
+def _link_identity(metadata: os.stat_result) -> tuple[int, int, int, int, int, int]:
+    return (
+        metadata.st_dev,
+        metadata.st_ino,
+        metadata.st_mode,
+        metadata.st_size,
+        metadata.st_mtime_ns,
+        metadata.st_ctime_ns,
+    )
+
+
+def capture_tree_snapshot(
+    root: Path,
+    *,
+    label: str,
+    allowed_directory_links: dict[str, str] | None = None,
+) -> TreeSnapshot:
     """Capture a bounded, race-resistant regular-file tree manifest."""
     _require_regular_directory(root, label=label)
+    allowed_links = dict(allowed_directory_links or {})
+    unsupported_links = set(allowed_links) - {"venv/lib64"}
+    if unsupported_links or any(target != "lib" for target in allowed_links.values()):
+        raise ValueError(f"{label} declares an unsupported allowed directory link")
     directories: set[str] = set()
     files: dict[str, TreeFile] = {}
+    links: dict[str, str] = {}
     portable_names: dict[str, str] = {}
     pending = [Path(".")]
     member_count = 0
@@ -857,10 +898,33 @@ def capture_tree_snapshot(root: Path, *, label: str) -> TreeSnapshot:
             portable_names[collision_key] = portable
             metadata = entry.stat(follow_symlinks=False)
             is_reparse = bool(
-                getattr(metadata, "st_file_attributes", 0)
-                & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
+                getattr(metadata, "st_file_attributes", 0) & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
             )
-            if entry.is_symlink() or stat.S_ISLNK(metadata.st_mode) or is_reparse:
+            is_symlink = entry.is_symlink() or stat.S_ISLNK(metadata.st_mode)
+            if is_symlink or is_reparse:
+                expected_target = allowed_links.get(portable)
+                if (
+                    expected_target is not None
+                    and os.name == "posix"
+                    and entry.is_symlink()
+                    and stat.S_ISLNK(metadata.st_mode)
+                    and not is_reparse
+                ):
+                    target = os.readlink(entry.path)
+                    current = os.lstat(entry.path)
+                    if _link_identity(current) != _link_identity(metadata):
+                        raise ValueError(f"{label} link changed while it was inspected: {portable}")
+                    if target != expected_target:
+                        raise ValueError(
+                            f"{label} contains an unexpected directory link target: "
+                            f"{portable} -> {target!r}"
+                        )
+                    _require_regular_directory(
+                        root / relative.parent / target,
+                        label=f"{label} directory link target",
+                    )
+                    links[portable] = target
+                    continue
                 raise ValueError(f"{label} contains a link or reparse point: {portable}")
             if stat.S_ISDIR(metadata.st_mode):
                 directories.add(portable)
@@ -880,11 +944,15 @@ def capture_tree_snapshot(root: Path, *, label: str) -> TreeSnapshot:
                     f"{label} exceeds the {MAX_ENVIRONMENT_TOTAL_BYTES}-byte aggregate limit"
                 )
             files[portable] = TreeFile(size=contents.size, sha256=contents.sha256)
-    return TreeSnapshot(directories=frozenset(directories), files=files)
+    return TreeSnapshot(directories=frozenset(directories), files=files, links=links)
 
 
 def assert_tree_snapshot_unchanged(root: Path, expected: TreeSnapshot, *, label: str) -> None:
-    actual = capture_tree_snapshot(root, label=label)
+    actual = capture_tree_snapshot(
+        root,
+        label=label,
+        allowed_directory_links=expected.links,
+    )
     if actual != expected:
         missing = sorted(set(expected.files) - set(actual.files))
         unexpected = sorted(set(actual.files) - set(expected.files))
@@ -1063,6 +1131,8 @@ def validate_project_install_delta(
     label: str,
 ) -> None:
     """Require the complete venv delta to be exactly one validated wheel install."""
+    if before.links != after.links:
+        raise ValueError(f"{label} changed virtualenv directory links")
     removed_files = sorted(set(before.files) - set(after.files))
     modified_files = sorted(
         name
