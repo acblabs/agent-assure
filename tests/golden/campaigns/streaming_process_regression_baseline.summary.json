@@ -27,7 +27,7 @@
     ],
     "mode": "full_report",
     "pending_operator_order": [],
-    "producer_version": "0.6.4",
+    "producer_version": "0.6.4rc1",
     "schema_version": "0.6.4",
     "selected_operator_order": [
       "bypass-required-human-review",
@@ -39,11 +39,11 @@
       "skew-evidence-source-identity"
     ],
     "semantic_projection_contract": "assurance-mutation-campaign/runtime-neutral/v1",
-    "semantic_projection_digest": "1c605f2fba21a52220e11d7703702b15d7d1b41c972abd751b8f210c6600bb4a",
+    "semantic_projection_digest": "232a2b7376837f388b3ceaca08cfdc9b329a653382ccbaf79187d117811f3fd4",
     "source_artifact_kind": "run-set"
   },
   "catalog_identity": {
-    "catalog_digest": "97177295beda12950111dec1147530051885499eeac6f08ad484d120f62b3ace",
+    "catalog_digest": "919d43253f0944146871c74253c3e6cbf04ab999dc6b7c80ab43fa880b7d8f34",
     "catalog_id": "core/v1",
     "operator_order": [
       "bypass-required-human-review",
@@ -78,7 +78,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -114,9 +114,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "1845f44fa2fbb06fb8d31934b6bcaedec4ef60e01a1a5ba6cb975bd933528cee",
         "expected_finding_target_digest": "43914f1e4ef2e024830fc548c46e96e03078ac06830e1b1cd436931660b5871f",
-        "implementation_digest": "f1bec23148be662cc5d55f564825602b07639a6f7a79cd7e3567dde1892f2af1",
+        "implementation_digest": "4407186d6bb9fa454c9bbf02b3ab63924cd414a7c7a3163a3020119579184bcc",
         "mutated_digest": "163fc99fc0423009cc9652fec36d23bd932f675fc242d42ada34b751bd941256",
-        "operator_digest": "6d4f807208f936a63cfb6f1031239fe71dbc00c254404d3db232784197eaf3cc",
+        "operator_digest": "9f9f34a75724a81935db3a216f2319e4c7fa0bcbc79bd008bab4e0fa912a69be",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
@@ -154,7 +154,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -190,9 +190,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "16aa9c839571f37ac256a19c133a2df6fbecb843c171470abd8416a9f59e6250",
         "expected_finding_target_digest": "f05ac5512ab61393aa29ab796a27f451a7c00839a1013f7aa59d7f1db4666272",
-        "implementation_digest": "d4cd97c6b821261fc3d0b1048bded721b6a5f08175262a0320f096479fc103f6",
+        "implementation_digest": "74e28d9bff407e6a4f52412e5e14cfca75f79c409582e294160b64d9b884a79b",
         "mutated_digest": "b2e6a1a3c62ff7b5599dce22b4ba1da578f850b51f0ca1da8010a2bc9c9ae453",
-        "operator_digest": "d2e3fbcc7e8831097ed11453ef4927536554d1ce4d451b634f86f08df23d8cdc",
+        "operator_digest": "69170e2fc12a429d0461a51a5918a0480bfbb381ab4957aebf2ed5c6f7559c98",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
@@ -230,7 +230,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -266,9 +266,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "b3a5bec603616c06df11b0440558f329637e38fd34116aac934aa6499ece4a68",
         "expected_finding_target_digest": "44b5b89a9d885e531c72dc2382b6e51bfea61742d1d4774b1a687ff24c222f81",
-        "implementation_digest": "2c9dfd25f4a1b1f01439b86994083645177f95af8fd42d8dab023cac5d99932e",
+        "implementation_digest": "e15a985362cb75efa485fc75ba85b3a41d1b4a5026fa16061a6d1d04b4406fa1",
         "mutated_digest": "1c2da236cd456cf5c5f1d58fc312bce094f8118230d1228375566238dc71dcd3",
-        "operator_digest": "f0067e915ec93eec1ac55d6ad792fd37cc3bc9d1e7543b051aa059211fe1c5c6",
+        "operator_digest": "2511dfecf667ad8a57dd5a832ff85f05c96d4eb6b35857378e81765dbee05467",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
@@ -306,7 +306,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -342,9 +342,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "5094093882f7e12390ea71bc4d80e2c68c1265195ff7f65d8efe463d61237076",
         "expected_finding_target_digest": "48cacc6f6b7741481a91217d91aaf59046956556c65b2c3625c62b903bc8281c",
-        "implementation_digest": "7e3a5c6ad7dab6de0ede8350f2384e801c0a254134908458afd800adf93038a6",
+        "implementation_digest": "a68fcc86cc8c4d52361b45537d17e220b05e27c98e2d5e72247a0085d49e23a7",
         "mutated_digest": "8461770693927ffc571f805e8a59613a18dc52d43b846785280ec2d89e7747ee",
-        "operator_digest": "077cfe9c41bca89c67d30ebf342a06698ba95aa6dac16243301e31993f606447",
+        "operator_digest": "6e10cee1a58e77cd1b89d2958128f08d8dceb5191837490c9c5ddc5bc6741a43",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
@@ -383,7 +383,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -419,9 +419,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "6d805a04a746857c517eec7e0246cf0f9d7148ad23db0eada2cebc6be8073e7d",
         "expected_finding_target_digest": "e5ac33cac09f143293ec62290c6e238c971c98e811c0d3dd86bd3468da6e69a9",
-        "implementation_digest": "aa84a2ec2301a2159c2a2fff42c952ced5d7f3bb7f1027f89ecfc5bc38a01db6",
+        "implementation_digest": "e77edd24f0ee0705d0e0d8e269db964e5745e9dc76671732724b9a6faf4fc6d2",
         "mutated_digest": "24133c8eb3d9b5b01e9e6a5f0093fde2358e4dcd5198683c290a89b4210c2061",
-        "operator_digest": "1e9265e8dadd13f88fd6f5bbaf55025e36d3565198b0eeb9ebc1457329833fa9",
+        "operator_digest": "efa45cef0b5cb88b7e5c0b3eb5021883734245836f7beeddb34d4a6fd600c96a",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
@@ -459,7 +459,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -495,9 +495,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "64a3709d4216faef847377cf1163a0b31fcaff72b0226ec0722e15da05cafcae",
         "expected_finding_target_digest": "2c2c80ed9a18a04b59e8bae28e287d776d27cc6361f45e1eb6572775f8929a24",
-        "implementation_digest": "7da7a69643ca0195aa496b6a4bc3cc90fbb7e3db4965e2d9eea8a549dbad6684",
+        "implementation_digest": "8ccd8ec4ebf3f664961f102b3a33e2c63596b6be234ff2f37b6a4fb779242acc",
         "mutated_digest": "5892955a15bbbcfd572523fa562a98a76c7f668397d387ba0ad5e2ef9b3d9747",
-        "operator_digest": "b2ba1d2dcfd341dadd9a579c40dce770d7df5ff5ff36fc152702103260c3898a",
+        "operator_digest": "a5536ebabeda2c8f4f3bdba823964aca7e4cb6d288491e15c47d3aa62a71ccf8",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
@@ -535,7 +535,7 @@
         "evaluation_date": "2026-07-20",
         "gate_profile_digest": "aa6209a9052c3702f492c7a3a9c0a79c09b0405a4a7c37972b4ebe27782682dc",
         "gate_profile_id": "default",
-        "implementation_version": "0.6.4",
+        "implementation_version": "0.6.4rc1",
         "method_id": "assurance-mutation/core/v1",
         "population_id": "deterministic-fixture-v1",
         "protocol_digest": null,
@@ -571,9 +571,9 @@
       "mutation_identity": {
         "expected_detection_contract_digest": "5f658e2584ea71e7c7777d1e339781d1e946271319c44b8483a06a8276589b20",
         "expected_finding_target_digest": "92d6286d5599bf37dd1cef2a88c1492f8ddfa3cb387ed5fe56ec374ebdb5994c",
-        "implementation_digest": "33ea90bc0d0b9fc013b6538af1793380fd60f9d2b9466ffb2e51ef76c0effc35",
+        "implementation_digest": "58997ba5c4431f626cf8868f18cf7dcb1192ba79c4f8b7624f7c1b9e1aba55fb",
         "mutated_digest": "318fdcf9dc36e8db32b942fd68f86981021dc31e8be74c56192b7eea1e3e8ddc",
-        "operator_digest": "d0749593f0adb44644a6947de63f0f2968725b62e2dd140e6aedc3d0d972a001",
+        "operator_digest": "5c7171ca774eef8421f444a67fae744c3849b6f49b631c215e8a164e8797a77e",
         "operator_version": "1.0.0",
         "source_digest": "c961e32f6d117e02d948919a28bb863cfd2ed98002b5418721d54303f1301d81"
       },
