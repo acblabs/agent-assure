@@ -88,8 +88,8 @@ the broader release-manifest replay check runs.
 Release bundle scripts pin waiver-sensitive CI evaluation to `2026-07-03` and
 default subprocesses to `SOURCE_DATE_EPOCH=1783036800` unless the environment
 already sets a value. Those values were established for v0.6.0 replay,
-deliberately retained for v0.6.1, v0.6.2, and v0.6.3. Keep them fixed when
-replaying these release lines.
+deliberately retained for v0.6.1, v0.6.2, v0.6.3, and v0.6.4. Keep them fixed
+when replaying these release lines.
 
 Replay artifact paths must be relative to `--artifact-root` and cannot include
 parent-directory segments. `--expect-commit` validates the replay file's
