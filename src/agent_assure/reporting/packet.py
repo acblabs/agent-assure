@@ -704,7 +704,7 @@ def _manifest_paths_binding_error(manifest: ReleaseArtifactManifest) -> str | No
             return f"evidence packet {artifact.role} manifest path is not normalized and confined"
         if canonical_path != artifact.path:
             return f"evidence packet {artifact.role} manifest path is not normalized and confined"
-        portable_identity = canonical_path.casefold()
+        portable_identity = os.path.normcase(canonical_path)
         previous = portable_paths.get(portable_identity)
         if previous is not None and previous != canonical_path:
             return "evidence packet release manifest contains ambiguous artifact paths"
@@ -734,7 +734,7 @@ def _materialize_manifest_snapshots(
                 return None, "evidence packet artifact snapshot path is not normalized"
             if canonical_path != path:
                 return None, "evidence packet artifact snapshot path is not normalized"
-            portable_identity = canonical_path.casefold()
+            portable_identity = os.path.normcase(canonical_path)
             previous = portable_paths.get(portable_identity)
             if previous is not None:
                 return None, "evidence packet artifact snapshots contain ambiguous paths"

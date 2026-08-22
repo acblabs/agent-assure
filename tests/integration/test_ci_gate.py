@@ -5,6 +5,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 import agent_assure.ci as ci_module
@@ -262,7 +263,9 @@ def test_legacy_unbound_comparison_option_is_rejected_outside_ci_gate() -> None:
     )
 
     assert result.exit_code == 2
-    assert "--allow-legacy-unbound-comparison is only valid with ci gate" in result.output
+    assert "--allow-legacy-unbound-comparison is only valid with ci gate" in unstyle(
+        result.output
+    )
 
 
 def test_ci_gate_rejects_unused_legacy_unbound_comparison_override(tmp_path: Path) -> None:
@@ -367,7 +370,7 @@ def test_ci_gate_rejects_artifact_root_for_non_packet(tmp_path: Path) -> None:
     )
 
     assert result.exit_code == 2, result.output
-    assert "--artifact-root is only valid when gating an evidence packet" in result.output
+    assert "--artifact-root is only valid when gating an evidence packet" in unstyle(result.output)
 
 
 def test_ci_gate_text_sanitizes_terminal_controls_but_json_preserves_values(
@@ -473,7 +476,7 @@ def test_ci_gate_rejects_ambiguous_inferred_roots_and_honors_explicit_root(
 
     assert ambiguous.exit_code == 2, ambiguous.output
     assert "artifact root is ambiguous" in ambiguous.output
-    assert "--artifact-root" in ambiguous.output
+    assert "--artifact-root" in unstyle(ambiguous.output)
     assert explicit.exit_code == 0, explicit.output
 
 

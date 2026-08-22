@@ -250,7 +250,7 @@ def test_packet_snapshot_verifier_rejects_missing_and_extra_snapshots(
     assert extra_error == "evidence packet artifact snapshots contain unmanifested paths"
 
 
-def test_packet_snapshot_verifier_rejects_ambiguous_portable_paths(
+def test_packet_snapshot_verifier_classifies_case_variant_extra_by_host(
     tmp_path: Path,
 ) -> None:
     packet = _packet_with_release_manifest(tmp_path, include_auxiliary=True)
@@ -265,7 +265,12 @@ def test_packet_snapshot_verifier_rejects_ambiguous_portable_paths(
         snapshots_by_path=ambiguous,
     )
 
-    assert error == "evidence packet artifact snapshots contain ambiguous paths"
+    expected = (
+        "evidence packet artifact snapshots contain ambiguous paths"
+        if os.path.normcase("A") == os.path.normcase("a")
+        else "evidence packet artifact snapshots contain unmanifested paths"
+    )
+    assert error == expected
 
 
 def test_packet_snapshot_verifier_revalidates_model_copy_tampering(
