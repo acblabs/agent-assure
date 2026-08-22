@@ -8,6 +8,7 @@ import pytest
 
 import agent_assure.artifact_io as artifact_io
 import agent_assure.reporting.environment as environment
+from agent_assure.privacy.redaction import redact_packet_payload
 from agent_assure.reporting.environment import (
     artifact_project_root,
     build_release_manifest,
@@ -210,6 +211,24 @@ def test_release_manifest_rejects_duplicate_roles(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="duplicate release artifact role"):
         build_release_manifest(artifacts, environment=environment_info)
+
+
+def test_release_manifest_default_id_is_privacy_safe(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        environment,
+        "sha256_hexdigest",
+        lambda _payload: "1234567890123456" + "a" * 48,
+    )
+    environment_info = collect_environment(project_root=tmp_path)
+
+    manifest = build_release_manifest((), environment=environment_info)
+
+    assert manifest.manifest_id == "manifest-h1234567890123456"
+    payload = {"manifest_id": manifest.manifest_id}
+    assert redact_packet_payload(payload) == payload
 
 
 def test_collect_environment_records_a_clean_tree_as_false(
