@@ -1313,8 +1313,10 @@ def _write_bound_signing_bundle(
         platform=platform,
         python_version="3.14.0",
     )
+    candidate_digest = "c" * 64
     evaluation = EvaluationSummary(
         runset_id="candidate",
+        runset_digest=candidate_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1323,6 +1325,8 @@ def _write_bound_signing_bundle(
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest=candidate_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.unchanged,

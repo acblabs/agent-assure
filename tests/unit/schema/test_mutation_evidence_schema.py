@@ -447,7 +447,7 @@ def test_current_wire_schemas_pin_each_persisted_model_to_its_own_default() -> N
 
     run_schema = writer_json_schema(SCHEMA_MODELS["agent-run-record"])
     definitions = run_schema["$defs"]
-    assert definitions["EvidenceRef"]["properties"]["schema_version"]["const"] == ("0.6.3")
+    assert definitions["EvidenceRef"]["properties"]["schema_version"]["const"] == ("0.6.4")
     assert definitions["UsageSummary"]["properties"]["schema_version"]["const"] == ("0.4.3")
 
 

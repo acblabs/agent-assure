@@ -1,0 +1,186 @@
+{
+  "$defs": {
+    "ThreatApplicability": {
+      "enum": [
+        "applicable",
+        "not_applicable",
+        "unknown"
+      ],
+      "title": "ThreatApplicability",
+      "type": "string"
+    },
+    "ThreatApplicabilityItem": {
+      "additionalProperties": false,
+      "properties": {
+        "applicability": {
+          "$ref": "#/$defs/ThreatApplicability"
+        },
+        "critical": {
+          "title": "Critical",
+          "type": "boolean"
+        },
+        "owner": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Owner"
+        },
+        "rationale": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Rationale"
+        },
+        "reviewed_at": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "title": "Reviewed At",
+          "type": "string"
+        },
+        "threat_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Threat Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "threat_id",
+        "applicability",
+        "critical",
+        "reviewed_at"
+      ],
+      "title": "ThreatApplicabilityItem",
+      "type": "object"
+    },
+    "ThreatSourceIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "version"
+      ],
+      "title": "ThreatSourceIdentity",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.4/threat-applicability-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "threat-applicability-manifest",
+      "default": "threat-applicability-manifest",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "ThreatApplicabilityManifest/v1",
+      "default": "ThreatApplicabilityManifest/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ThreatApplicabilityItem"
+      },
+      "maxItems": 4096,
+      "minItems": 1,
+      "title": "Items",
+      "type": "array"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Manifest Digest",
+      "type": "string"
+    },
+    "present_control_ids": {
+      "default": [],
+      "items": {
+        "maxLength": 512,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Present Control Ids",
+      "type": "array"
+    },
+    "schema_name": {
+      "const": "threat-applicability-manifest",
+      "default": "threat-applicability-manifest",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.4",
+      "default": "0.6.4",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "threat_source": {
+      "$ref": "#/$defs/ThreatSourceIdentity"
+    }
+  },
+  "required": [
+    "manifest_digest",
+    "threat_source",
+    "items",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ThreatApplicabilityManifest",
+  "type": "object"
+}

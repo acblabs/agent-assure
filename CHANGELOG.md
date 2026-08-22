@@ -2,6 +2,102 @@
 
 ## Unreleased
 
+## 0.6.4 - 2026-08-22
+
+- Added a deterministic, authority-scoped RAG evidence-sensitivity protocol
+  that reruns the full synthetic subject path against two exact committed
+  corpora while holding the suite, fixtures, request, query family, subject,
+  prompt, model, tools, retrieval configuration, and producer version fixed.
+- Added self-digested corpus-manifest, knowledge-authority, protocol, and
+  sensitivity-report contracts. Reports distinguish responsive and
+  evidence-insensitive verdicts from confounded or prerequisite-unmet
+  non-verdicts, preserve exact retrieval and claim-link evidence for both arms,
+  and emit stable reason codes and JSON, Markdown, and HTML views.
+- Made sensitivity evidence self-contained with manifest-bound raw request,
+  subject, and tool fixture snapshots plus self-digested raw-and-decoded corpus
+  snapshots. Validation replays ranked retrieval, tie-breaking, links, and
+  subject-mode outputs exactly; undeclared distractor drift is confounded, and
+  decoded privacy violations reject transactionally before publication.
+- Added the offline `demo evidence-sensitivity` detector contract with a
+  responsive control and an evidence-inertial regression, plus a synthetic
+  process-equivalence reproduction index spanning
+  same-output/different-process and evidence-insensitivity strata. Neither
+  artifact reports real-model prevalence or benchmark results.
+- Extended evidence packets and the closed four-node/five-edge assurance graph
+  projection to carry optional evidence-sensitivity results without introducing
+  a general intervention, checkpoint, state-injection, or causal-model surface.
+- Bound sensitivity comparisons to the authenticated baseline and counterfactual
+  RunSet digests, emitted a packet-ready comparison sidecar, and covered the
+  ordinary CLI compare-to-packet-and-CI workflow including environment metadata.
+  The v0.6.4 comparison model and writer schema now both require the authenticated
+  baseline/candidate digest pair; comparison reports, packets, CI gates, and JSON
+  publication reject contradictory comparison/evaluation identities.
+- Added direction-aware sensitivity outcome classifications and rendering so a
+  wrong-direction decision flip cannot be presented as an expected response;
+  made the reversed negative-control assets mandatory in source, wheel, and
+  installed-package verification.
+- Revalidated complete comparison-summary, packet, and sensitivity-report models
+  at public graph and CI trust boundaries, closing non-validating in-memory copy
+  bypasses while keeping validation diagnostics free of untrusted input values.
+  Packet Markdown now carries the typed outcome classification and canonical
+  directional message.
+- Tightened graph and canonical-message directionality: verdict-bearing
+  sensitivity evidence requires a bound, distinct `approve`/`deny` expected
+  path, observed relations must match the exact decision pair, and non-verdict
+  projections cannot carry the verdict-only expected-response-missing reason.
+
+- Made the advertised 256-document sensitivity envelope usable without allowing
+  an oversized aggregate manifest scalar to be silently redacted. Digest-bound
+  raw JSON is retained only after decoded-equivalence and privacy checks, while
+  privacy-policy rejections are now classified consistently as invalid input.
+- Introduced privacy detector profile v2. Its profile-bound NFKC/category-C
+  deobfuscation view detects sensitive values split by bidi, zero-width,
+  control, surrogate, private-use, or unassigned code points; reconstructed
+  matches redact the exact original scalar in full without mutating accepted
+  raw evidence bytes.
+- Enforced synthetic provenance for sensitivity inputs: bundled fixtures are
+  accepted only against reviewed immutable digest pins, and custom corpora need
+  a self-digested operator declaration bound to every suite, fixture, contract,
+  corpus, and raw snapshot identity. Reports disclose whether provenance was
+  package-verified or operator-declared and that exact raw bytes persist.
+- Revalidated every typed graph and direct-gate input at the trust boundary,
+  required exact evaluation-to-sensitivity and authenticated-comparison digest
+  bindings, and rejected v0.6.3 graph labels carrying v0.6.4-only content.
+  Packet CI can now require sensitivity evidence explicitly and treats
+  sensitivity non-verdicts as invalid unless an advisory override is selected.
+- Made sensitivity publication an exclusive, no-overwrite transaction. Its
+  manifest binds all 14 non-circular source and reviewer artifacts; verification
+  consumes the same descriptor-pinned bounded byte snapshots used for typed
+  parsing and packet binding. Atomic rooted directory claims and anchored
+  rollback prevent output-directory swaps from diverting artifact bytes. An
+  existing output is accepted without rewriting only when all 17 generated files
+  and every nested binding form one exact deterministic generation.
+- Made Windows sensitivity publication claim directories and create files
+  relative to pinned native handles. Parent identity and canonical final path
+  are revalidated, child native and descriptor identities must match, no handle
+  shares delete access, and rollback uses identity-checked handle disposition
+  instead of mutable path deletion. Native API loss, anomalous status or
+  disposition values, reparse entries, collisions, and incomplete cleanup fail
+  closed and are required by Windows CI. Link or reparse substitution during
+  rollback is treated as ownership loss while every retained pin and directory
+  lease is released unconditionally. The `0600`/`0700` creation modes are POSIX
+  controls only; Windows confidentiality depends on the parent directory DACL.
+- Made authenticated comparison identity verifier-owned in CI. Standalone and
+  packet-embedded legacy unbound comparisons fail closed by default; the
+  compatibility override is use-scoped, rejected when unnecessary, and recorded
+  on every decision path. Packet root inference now requires exactly one fully
+  valid candidate, while terminal diagnostics re-redact after Unicode-control
+  normalization.
+- Hardened distribution verification with bounded, link-safe, single-pass
+  archive inspection, exact wheel `RECORD` verification, and byte-for-byte
+  wheel/sdist source equivalence. Smoke verification builds the sdist offline,
+  requires its wheel to match the published wheel including metadata, installs
+  project artifacts with `--no-deps --no-compile --no-index`, and admits only the
+  exact declared whole-environment delta. Core Metadata cardinality follows the
+  standard's multiple-use fields, including optional extras and import identity
+  declarations. Packaged examples and the process-equivalence reproduction
+  index are enforced in CI.
+
 ## 0.6.3 - 2026-08-17
 
 - Made signed-release verification enforce one coherent packet, graph, source-

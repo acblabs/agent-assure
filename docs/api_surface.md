@@ -1,11 +1,12 @@
 # API Surface
 
-The current public surface is intentionally narrow and status-qualified.
-The v0.6.3 release-candidate surface consists of:
+The public surface is intentionally narrow and status-qualified. v0.6.4 is the
+latest published package and its `schemas/v0.6.4` snapshot is immutable. The
+v0.6.4 release-candidate surface consists of:
 
 - the `agent-assure` CLI;
-- package release v0.6.3, which uses the current v0.6.3 schema snapshot
-  under `schemas/v0.6.3`, with
+- package v0.6.4, which uses the released writer snapshot under
+  `schemas/v0.6.4`, with the published `schemas/v0.6.3` snapshot and
   earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,
   `schemas/v0.4.3`, `schemas/v0.5.0`, `schemas/v0.6.0`,
@@ -35,7 +36,12 @@ The development package additionally exposes non-stable surfaces:
   `AssuranceMutationResult/v1` persisted contracts, plus
   `AssuranceMutationCatalog/v1` and `AssuranceMutationCampaign/v1`; and
 - development-RFC `AssuranceEvidenceGraph/v1`, with a closed four-node,
-  five-edge vocabulary and canonical semantic digest.
+  five-edge vocabulary and canonical semantic digest; and
+- development-RFC `RAGSensitivityCorpusManifest/v1`,
+  `RAGSensitivityCorpusSnapshot/v1`, `RAGSensitivityKnowledgeAuthority/v1`,
+  `RAGSensitivityProtocol/v1`, `RAGSensitivityReport/v1`, and
+  `ProcessEquivalenceReproductionIndex/v1`, plus the deterministic
+  `rag sensitivity` and `demo evidence-sensitivity` commands.
 
 The `/v1` suffix identifies the proposed method-contract generation; it does
 not make an RFC surface a stable compatibility commitment. Promotion requires
@@ -63,6 +69,13 @@ Their `GateDecision` records `efficacy_evidence`, `efficacy_verification`, and
 `efficacy_required`, so optional absence is represented as `absent`,
 `not_requested`, and `false` rather than as a strict efficacy pass.
 
+`gate_artifact` and `gate_evidence_packet` also accept verifier-owned
+`require_evidence_sensitivity`. Use it whenever report presence is part of the
+acceptance policy; otherwise producer-schema optionality remains intact.
+Sensitivity-bearing packets reject non-verdict reports by default.
+`allow_sensitivity_non_verdict=True` is an explicit advisory opt-in and is
+valid only when gating an evidence packet.
+
 The mutation surface is deliberately closed over the built-in operator
 registry. It is not a public executable-plugin API. Contract consumers should
 use the persisted artifact kinds and documented CLI rather than importing
@@ -78,3 +91,5 @@ The evidence-carrying release contracts and their compatibility boundaries are
 documented in `docs/evidence_carrying_releases.md`.
 The graph contract, identity rules, and explicit non-goals are documented in
 `docs/evidence_graph.md`.
+The controlled evidence-sensitivity contract, authority boundary, research
+context, and non-goals are documented in `docs/evidence_sensitivity.md`.

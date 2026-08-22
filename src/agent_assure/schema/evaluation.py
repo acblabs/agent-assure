@@ -7,9 +7,10 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import SCHEMA_VERSION, FrozenStrictModel, PersistedArtifact
+from agent_assure.schema.base import FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
+    V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
     GateState,
     ReasonCode,
@@ -104,7 +105,7 @@ class Finding(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_current_identity(self) -> Finding:
-        if self.schema_version == SCHEMA_VERSION and not self.finding_id:
+        if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not self.finding_id:
             raise ValueError("current findings require a non-empty finding_id")
         return self
 
@@ -180,13 +181,13 @@ class EvaluationSummary(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_current_runset_identity(self) -> EvaluationSummary:
-        if self.schema_version == SCHEMA_VERSION and not self.runset_id:
+        if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not self.runset_id:
             raise ValueError("current evaluation summaries require a non-empty runset_id")
         return self
 
     @model_validator(mode="after")
     def _validate_state_finding_coherence(self) -> EvaluationSummary:
-        if self.schema_version != SCHEMA_VERSION:
+        if self.schema_version not in V063_CONTRACT_SCHEMA_VERSIONS:
             return self
         error = evaluation_summary_coherence_error(
             state=self.state,

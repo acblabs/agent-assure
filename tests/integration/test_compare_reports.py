@@ -4,11 +4,14 @@ import json
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from typer.testing import CliRunner
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.main import app
+from agent_assure.compare.runsets import compare_runsets
 from agent_assure.fixtures.loader import write_compiled_suite
+from agent_assure.reporting.json_report import write_comparison_json
 from agent_assure.reporting.markdown import _behavioral_change_heading
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.base import SCHEMA_VERSION
@@ -50,17 +53,10 @@ def test_compare_cli_writes_candidate_first_reports_for_regression(tmp_path: Pat
     assert report["baseline_vs_expectations"]["environment"]["dependency_inventory_digest"]
     summary = json.loads((out_dir / "comparison-summary.json").read_text(encoding="utf-8"))
     assert summary["classification"] == ComparisonClassification.new_failure.value
-    assert summary["environment"]["dependency_inventory_path"].endswith(
-        "dependency-inventory.json"
-    )
+    assert summary["environment"]["dependency_inventory_path"].endswith("dependency-inventory.json")
     assert (out_dir / "dependency-inventory.json").exists()
-    manifest = json.loads(
-        (out_dir / "release-artifact-manifest.json").read_text(encoding="utf-8")
-    )
-    assert {
-        artifact["role"]
-        for artifact in manifest["artifacts"]
-    } == {
+    manifest = json.loads((out_dir / "release-artifact-manifest.json").read_text(encoding="utf-8"))
+    assert {artifact["role"] for artifact in manifest["artifacts"]} == {
         "compiled-suite",
         "baseline-runset",
         "candidate-runset",
@@ -103,11 +99,34 @@ def test_allowed_behavioral_change_heading_uses_nonblocking_language() -> None:
     )
 
 
+def test_comparison_writer_rejects_current_digestless_summary_before_publication(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    baseline = run_suite(compiled, load_variant_config(BASELINE), SUITE.parent)
+    candidate = run_suite(compiled, load_variant_config(EVIDENCE_CANDIDATE), SUITE.parent)
+    report = compare_runsets(compiled, baseline, candidate)
+    digestless_summary = report.comparison_summary.model_copy(
+        update={
+            "baseline_runset_digest": None,
+            "candidate_runset_digest": None,
+        }
+    )
+    unchecked_report = report.model_copy(update={"comparison_summary": digestless_summary})
+    out_dir = tmp_path / "reports"
+
+    with pytest.raises(
+        ValueError,
+        match="comparison-report artifact failed JSON Schema validation",
+    ):
+        write_comparison_json(unchecked_report, out_dir)
+
+    assert not out_dir.exists()
+
+
 def test_compare_cli_exits_two_for_invalid_fixture_equivalence(tmp_path: Path) -> None:
     compiled_path, baseline_path, _ = _write_inputs(tmp_path)
-    bad_candidate = _bad_fixture_digest(
-        json.loads(baseline_path.read_text(encoding="utf-8"))
-    )
+    bad_candidate = _bad_fixture_digest(json.loads(baseline_path.read_text(encoding="utf-8")))
     candidate_path = tmp_path / "bad-candidate.json"
     candidate_path.write_text(json.dumps(bad_candidate, indent=2) + "\n", encoding="utf-8")
     out_dir = tmp_path / "reports"
@@ -132,9 +151,7 @@ def test_compare_cli_exits_two_for_invalid_fixture_equivalence(tmp_path: Path) -
     assert summary["environment"]["dependency_inventory_digest"]
     report = json.loads((out_dir / "comparison-report.json").read_text(encoding="utf-8"))
     assert report["candidate_vs_expectations"]["state"] == "not_evaluated"
-    assert report["environment"]["dependency_inventory_path"].endswith(
-        "dependency-inventory.json"
-    )
+    assert report["environment"]["dependency_inventory_path"].endswith("dependency-inventory.json")
     assert report["behavioral_changes"] == []
     assert report["provenance_changes"] == []
 

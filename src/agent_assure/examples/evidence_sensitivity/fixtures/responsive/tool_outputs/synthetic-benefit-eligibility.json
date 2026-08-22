@@ -1,0 +1,7 @@
+{
+  "retrieval_algorithm_id": "deterministic-term-overlap",
+  "retrieval_algorithm_version": "1.0.0",
+  "tool_id": "governing-policy-lookup",
+  "tool_schema_digest": "ab72f2449da6de27489c10fe35c6bc5e6431d3cede8f13eff0e769dfe52dc498",
+  "top_k": 1
+}

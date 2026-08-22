@@ -49,10 +49,13 @@ _CORE_RELEASE_ROLES_BY_SCHEMA_VERSION: dict[str, tuple[str, ...]] = {
     "0.6.1": LEGACY_CORE_RELEASE_ROLES,
     "0.6.2": LEGACY_CORE_RELEASE_ROLES,
     "0.6.3": CORE_RELEASE_ROLES,
+    "0.6.4": CORE_RELEASE_ROLES,
 }
 ManifestDigestMode = Literal["raw-sha256", "replay-stable-json-sha256", "not-replayed"]
 ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
     "assurance-evidence-graph": "replay-stable-json-sha256",
+    "baseline-corpus-snapshot": "raw-sha256",
+    "baseline-evaluation-summary": "replay-stable-json-sha256",
     "baseline-runset": "raw-sha256",
     "candidate-runset": "raw-sha256",
     "compiled-suite": "raw-sha256",
@@ -63,17 +66,24 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
     "control-efficacy-report": "replay-stable-json-sha256",
     "evaluation-report": "replay-stable-json-sha256",
     "evaluation-summary": "replay-stable-json-sha256",
+    "evidence-sensitivity-html": "raw-sha256",
+    "evidence-sensitivity-markdown": "raw-sha256",
+    "evidence-sensitivity-protocol": "raw-sha256",
+    "evidence-sensitivity-report": "replay-stable-json-sha256",
     "evidence-packet": "replay-stable-json-sha256",
     "fixture-manifest": "raw-sha256",
     "release-artifact-manifest": "replay-stable-json-sha256",
+    "counterfactual-corpus-snapshot": "raw-sha256",
 }
 _STABLE_JSON_ROLE_ARTIFACT_KINDS = {
     "assurance-evidence-graph": "assurance-evidence-graph",
+    "baseline-evaluation-summary": "evaluation-summary",
     "comparison-report": "comparison-report",
     "comparison-summary": "comparison-summary",
     "control-efficacy-report": "control-efficacy-report",
     "evaluation-report": "evaluation-report",
     "evaluation-summary": "evaluation-summary",
+    "evidence-sensitivity-report": "evidence-sensitivity-report",
     "evidence-packet": "evidence-packet",
     "release-artifact-manifest": "release-artifact-manifest",
 }
@@ -81,12 +91,17 @@ _RAW_FILE_ROLES = frozenset(
     {
         "control-efficacy-gate-profile",
         "control-efficacy-onboarding-config",
+        "evidence-sensitivity-html",
+        "evidence-sensitivity-markdown",
     }
 )
 _RAW_JSON_ROLE_ARTIFACT_KINDS = {
+    "baseline-corpus-snapshot": "rag-sensitivity-corpus-snapshot",
     "baseline-runset": "run-set",
     "candidate-runset": "run-set",
     "compiled-suite": "compiled-suite",
+    "counterfactual-corpus-snapshot": "rag-sensitivity-corpus-snapshot",
+    "evidence-sensitivity-protocol": "evidence-sensitivity-protocol",
     "fixture-manifest": "fixture-manifest",
 }
 NON_REPLAYED_ROLE_DIGEST_MODES: dict[str, Literal["not-replayed"]] = {
@@ -575,13 +590,29 @@ def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[s
         return _stable_packet_projection(payload)
     if role == "release-artifact-manifest":
         return _stable_manifest_projection(payload, project_root)
-    if role in {"evaluation-summary", "comparison-summary"}:
+    if role in {"baseline-evaluation-summary", "evaluation-summary", "comparison-summary"}:
         return _without_keys(payload, {"environment"})
     if role == "evaluation-report":
         return _stable_evaluation_report_projection(payload)
     if role == "comparison-report":
         return _stable_comparison_report_projection(payload)
+    if role == "evidence-sensitivity-report":
+        return _stable_sensitivity_projection(payload)
     return payload
+
+
+def _stable_sensitivity_projection(payload: dict[str, object]) -> dict[str, object]:
+    """Retain detector semantics while excluding environment-derived identities."""
+    projected = _without_keys(payload, {"report_digest"})
+    for arm_name in ("baseline_arm", "counterfactual_arm"):
+        _drop_nested_keys(
+            projected,
+            arm_name,
+            {"runset_digest", "evaluation_summary_digest"},
+        )
+    for evaluation_name in ("baseline_evaluation", "counterfactual_evaluation"):
+        _drop_nested_keys(projected, evaluation_name, {"environment", "runset_digest"})
+    return projected
 
 
 def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
@@ -594,6 +625,11 @@ def _stable_packet_projection(payload: dict[str, object]) -> dict[str, object]:
         projected["evidence_graph_binding"] = True
     _drop_nested_keys(projected, "evaluation", {"environment"})
     _drop_nested_keys(projected, "comparison", {"environment"})
+    sensitivity = payload.get("evidence_sensitivity")
+    if sensitivity is not None:
+        if not isinstance(sensitivity, dict):
+            raise ValueError("packet evidence_sensitivity must be an object")
+        projected["evidence_sensitivity"] = _stable_sensitivity_projection(sensitivity)
     return projected
 
 
@@ -615,7 +651,11 @@ def _stable_graph_node_projection(node: object) -> dict[str, object]:
     if not isinstance(payload, dict):
         raise ValueError("assurance evidence graph node payload must be an object")
     stable_payload = dict(payload)
-    if stable_payload.get("evidence_type") in {"evaluation", "comparison"}:
+    if stable_payload.get("evidence_type") in {
+        "evaluation",
+        "comparison",
+        "evidence_sensitivity",
+    }:
         stable_payload.pop("source_digest", None)
     projected["payload"] = stable_payload
     return projected

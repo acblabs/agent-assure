@@ -1,0 +1,101 @@
+AGENT ASSURE: CONTROLLED EVIDENCE-SENSITIVITY WALKTHROUGH
+
+STATUS
+Repository-recorded deterministic terminal walkthrough. The expected console
+block is mechanically checked against the authoritative packaged renderer. It
+is not an external reproduction record, a real-provider experiment, or a
+prevalence measurement. Paths may vary by environment; no provider key,
+network call, or token spend is required.
+
+PREREQUISITE
+Python 3.11 or newer with the current agent-assure package installed.
+
+1. SHOW THE INSTALLED VERSION
+
+$ agent-assure --version
+
+EXPECTED: the command identifies the installed package version.
+
+2. RUN THE COMPLETE OFFLINE DETECTOR CONTRACT TEST
+
+$ agent-assure demo evidence-sensitivity --out .tmp/demo/evidence-sensitivity --clean
+
+EXPECTED CONSOLE FACTS:
+
+agent-assure controlled evidence sensitivity demo
+
+Synthetic declarative fixture harness/oracle only; this result does not show that a model used contextual evidence instead of parametric memory. This detector contract is not a causal guarantee or a real-model failure-prevalence estimate.
+
+Authoritative corpus substitution:
+  Policy A expected decision: approve
+  Policy B expected decision: deny
+
+Responsive synthetic subject:
+  observed relation: decision_flip
+  state: responsive
+  gate effect: pass
+
+Intentionally evidence-inertial synthetic subject:
+  decisions: approve -> approve
+  retrieval and citation prerequisites: pass
+  ordinary arm evaluations: pass
+  decision inertia: true
+  state: evidence_insensitive
+  gate effect: block
+
+Artifacts:
+  demo-summary.json
+  responsive/evidence-sensitivity.json
+  evidence-inertial/evidence-sensitivity.json
+  evidence-inertial/evidence-sensitivity.md
+  evidence-inertial/evidence-sensitivity.html
+
+Demo result:
+  success: citations pass while controlled sensitivity blocks inertia
+
+The wrapper returns zero only after independently executing both complete
+two-arm experiments, validating their artifacts, observing the responsive
+control, and observing the expected blocking result for the intentionally
+evidence-inertial fixture.
+
+3. INSPECT THE MACHINE SUMMARY
+
+$ python -m json.tool .tmp/demo/evidence-sensitivity/demo-summary.json
+
+EXPECTED FIELDS INCLUDE:
+
+  "status": "success"
+  "underlying_exit_code": 1
+  "expected_behavior_observed": true
+  "notice": "Synthetic declarative fixture harness/oracle only; this result does not show that a model used contextual evidence instead of parametric memory. This detector contract is not a causal guarantee or a real-model failure-prevalence estimate."
+
+The responsive experiment records `approve -> deny`, `decision_flip`, and a
+passing gate effect. The evidence-inertial experiment records `approve ->
+approve`, passing retrieval/citation prerequisites and ordinary evaluations,
+`decision_same`, decision inertia, and a blocking gate effect. The summary also
+records the two internal commands and their expected exit codes without
+embedding environment-specific absolute paths.
+
+4. REVIEW THE PORTABLE EVIDENCE BUNDLE
+
+$ python -m json.tool .tmp/demo/evidence-sensitivity/evidence-inertial/evidence-sensitivity.json
+
+Open these reviewer views locally as needed:
+
+  .tmp/demo/evidence-sensitivity/evidence-inertial/evidence-sensitivity.md
+  .tmp/demo/evidence-sensitivity/evidence-inertial/evidence-sensitivity.html
+
+The JSON report embeds the exact compiled suite, both RunSets, both evaluation
+summaries, fixture snapshots, corpus snapshots, authority contract, controlled
+difference checks, deterministic retrieval replay, result, assumptions, and
+limitations. The Markdown and HTML are derived reviewer views.
+
+5. EXPOSE THE UNDERLYING BLOCKING EXIT
+
+$ agent-assure demo evidence-sensitivity --out .tmp/demo/evidence-sensitivity --clean --strict
+
+EXPECTED: the same evidence is regenerated and the process exits 1 because
+the evidence-inertial fixture did not make the declared decision response when
+the authority-bound governing evidence changed.
+
+END OF RECORDED WALKTHROUGH

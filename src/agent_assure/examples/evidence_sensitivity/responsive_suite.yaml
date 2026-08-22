@@ -1,0 +1,23 @@
+suite_id: evidence-sensitivity-responsive
+suite_version: 0.1.0
+defaults:
+  execution_mode: fixture
+  runner_id: rag_sensitivity.synthetic
+  fixture_roots:
+    - fixtures/responsive
+  allowed_tools:
+    - governing-policy-lookup
+cases:
+  - case_id: synthetic-benefit-eligibility
+    title: Responsive governing-policy substitution
+    fixture_id: synthetic-benefit-eligibility
+    tags:
+      - evidence-sensitivity
+    expectation:
+      allowed_outcomes:
+        - approved
+        - denied
+      required_evidence_refs:
+        - ref-governing-benefit-policy
+      material_claim_ids:
+        - claim-benefit-eligibility

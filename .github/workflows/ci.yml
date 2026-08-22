@@ -53,6 +53,8 @@ jobs:
           tests/unit/test_rooted_io.py::test_rooted_read_pins_nested_file_and_preserves_bounded_metadata
           tests/unit/test_rooted_io.py::test_rooted_descriptor_lease_rewinds_and_closes_file_descriptor
           tests/unit/test_rooted_io.py::test_rooted_directory_lease_pins_nested_directory_and_root
+          tests/unit/test_rooted_io.py::test_rooted_directory_claim_owns_independent_pins_and_writer_operations
+          tests/unit/test_rooted_io.py::test_windows_rooted_directory_claim_blocks_rename_until_close
           tests/unit/test_rooted_io.py::test_rooted_read_rejects_unsafe_and_windows_ambiguous_paths
           tests/unit/test_rooted_io.py::test_rooted_read_rejects_linked_parent_escape
           tests/unit/test_rooted_io.py::test_rooted_directory_lease_blocks_lexical_rename_until_close
@@ -61,6 +63,7 @@ jobs:
           tests/unit/runner/test_subprocess_harness.py::test_external_script_timeout_terminates_descendant_process_tree
           tests/unit/runner/test_subprocess_harness.py::test_post_spawn_validation_failure_terminates_and_reaps_suspended_process
           tests/unit/runner/test_subprocess_harness.py::test_windows_external_script_success_kills_descendant_when_job_closes
+          tests/integration/test_evidence_sensitivity_cli.py::test_responsive_subject_emits_a_verdict_bearing_pass_and_renderings
   schema-immutability:
     runs-on: ubuntu-latest
     steps:

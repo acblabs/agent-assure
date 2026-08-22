@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 from pathlib import Path
 
 from agent_assure.artifact_io import write_text_atomic
@@ -10,6 +11,11 @@ from agent_assure.fixtures.resolver import FixtureResolver
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     read_bytes_bounded_at,
+)
+from agent_assure.onboarding.path_safety import (
+    metadata_is_regular_directory,
+    metadata_is_regular_file,
+    metadata_is_reparse,
 )
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest, FixtureManifestEntry
 from agent_assure.schema.validation import (
@@ -20,14 +26,28 @@ from agent_assure.schema.validation import (
 REQUIRED_FIXTURE_SUBDIRS = ("requests", "model_outputs", "tool_outputs")
 
 
+MAX_FIXTURE_MANIFEST_ENTRIES = 8_192
+MAX_FIXTURE_MANIFEST_DIRECTORIES = 2_048
+MAX_FIXTURE_MANIFEST_DEPTH = 16
+MAX_FIXTURE_MANIFEST_AGGREGATE_BYTES = 64 * 1024 * 1024
+
+
 def build_fixture_manifest(compiled: CompiledSuite, suite_root: Path) -> FixtureManifest:
     resolver = FixtureResolver(suite_root)
     validate_fixture_layout(compiled, resolver)
     entries: list[FixtureManifestEntry] = []
+    verified_bytes = 0
     for fixture_root in sorted(compiled.defaults.fixture_roots):
         root_path = resolver.resolve(fixture_root)
-        for path in _iter_fixture_files(root_path):
-            entries.append(_entry_for_path(path, resolver))
+        fixture_paths = _iter_fixture_files(root_path)
+        if len(entries) + len(fixture_paths) > MAX_FIXTURE_MANIFEST_ENTRIES:
+            raise ValueError("fixture manifest exceeds the entry limit")
+        for path in fixture_paths:
+            entry = _entry_for_path(path, resolver)
+            verified_bytes += entry.size_bytes
+            if verified_bytes > MAX_FIXTURE_MANIFEST_AGGREGATE_BYTES:
+                raise ValueError("fixture manifest exceeds the aggregate byte limit")
+            entries.append(entry)
     return FixtureManifest(
         suite_id=compiled.suite_id,
         suite_version=compiled.suite_version,
@@ -138,11 +158,35 @@ def _resolve_case_fixture_root(
 
 def _iter_fixture_files(root_path: Path) -> tuple[Path, ...]:
     paths: list[Path] = []
-    for path in root_path.rglob("*"):
-        if path.is_symlink():
-            raise ValueError(f"fixture manifest refuses symlinked path: {path}")
-        if path.is_file():
-            paths.append(path)
+    pending = [(root_path, 0)]
+    entry_count = 0
+    directory_count = 1
+    aggregate_file_bytes = 0
+    while pending:
+        directory, depth = pending.pop()
+        with os.scandir(directory) as entries:
+            for entry in entries:
+                entry_count += 1
+                if entry_count > MAX_FIXTURE_MANIFEST_ENTRIES:
+                    raise ValueError("fixture manifest exceeds the entry limit")
+                path = Path(entry.path)
+                metadata = entry.stat(follow_symlinks=False)
+                if metadata_is_reparse(metadata):
+                    raise ValueError("fixture manifest refuses symlinked path or reparse point")
+                if metadata_is_regular_directory(metadata):
+                    if depth >= MAX_FIXTURE_MANIFEST_DEPTH:
+                        raise ValueError("fixture manifest exceeds the directory depth limit")
+                    directory_count += 1
+                    if directory_count > MAX_FIXTURE_MANIFEST_DIRECTORIES:
+                        raise ValueError("fixture manifest exceeds the directory limit")
+                    pending.append((path, depth + 1))
+                elif metadata_is_regular_file(metadata):
+                    aggregate_file_bytes += metadata.st_size
+                    if aggregate_file_bytes > MAX_FIXTURE_MANIFEST_AGGREGATE_BYTES:
+                        raise ValueError("fixture manifest exceeds the aggregate byte limit")
+                    paths.append(path)
+                else:
+                    raise ValueError("fixture manifest contains a non-regular entry")
     return tuple(sorted(paths, key=_path_key))
 
 

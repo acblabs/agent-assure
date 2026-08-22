@@ -1,16 +1,19 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 import pytest
 from pydantic import ValidationError
 
+from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.controls.efficacy import (
     build_control_efficacy_report,
     evaluate_control_efficacy_gate,
 )
 from agent_assure.graph.builder import build_evidence_graph
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.rag.sensitivity import execute_sensitivity_experiment
 from agent_assure.reporting.packet import build_privacy_filtered_evidence_graph
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
@@ -19,6 +22,7 @@ from agent_assure.schema.efficacy import (
     ControlEfficacyGateProfile,
     ControlEfficacyReport,
 )
+from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.graph import (
     AssuranceEvidenceGraph,
@@ -26,12 +30,15 @@ from agent_assure.schema.graph import (
     EvidenceGraphEdgeKind,
     EvidenceGraphEvidencePayload,
     EvidenceGraphEvidenceType,
+    EvidenceGraphFindingIdentityProjection,
     EvidenceGraphFindingPayload,
     EvidenceGraphFindingType,
+    EvidenceGraphNode,
     EvidenceGraphNodeKind,
     EvidenceGraphReferenceRole,
     EvidenceGraphRequirementPayload,
     EvidenceGraphRequirementType,
+    EvidenceGraphSensitivityProjection,
     EvidenceGraphSubjectPayload,
 )
 from agent_assure.schema.mutation import (
@@ -43,6 +50,14 @@ from agent_assure.schema.mutation import (
     GateEffect,
     MutationResultState,
 )
+from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityExpectedRelation,
+    EvidenceSensitivityOutcomeClassification,
+    EvidenceSensitivityReasonCode,
+    EvidenceSensitivityState,
+    RAGSensitivityReport,
+)
+from agent_assure.sensitivity_comparison import derive_sensitivity_comparison
 from tests.unit.controls.test_control_efficacy import (
     _DROP_OPERATOR,
     _campaign,
@@ -89,6 +104,8 @@ def representative_sources() -> _RepresentativeSources:
     comparison = ComparisonSummary(
         baseline_runset_id="control-efficacy-baseline",
         candidate_runset_id=evaluation.runset_id,
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest=efficacy.source_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
@@ -106,6 +123,35 @@ def representative_sources() -> _RepresentativeSources:
         gate_profile=profile,
         gate_decision=decision,
     )
+
+
+@pytest.fixture(scope="module")
+def sensitivity_reports() -> tuple[
+    RAGSensitivityReport,
+    RAGSensitivityReport,
+    RAGSensitivityReport,
+]:
+    root = Path(__file__).resolve().parents[3]
+    example = root / "examples" / "evidence_sensitivity"
+    arguments = {
+        "baseline_corpus_dir": example / "corpora" / "policy_a",
+        "counterfactual_corpus_dir": example / "corpora" / "policy_b",
+        "knowledge_contract_path": example / "knowledge-contract.yaml",
+        "expected_relation": EvidenceSensitivityExpectedRelation.decision_flip,
+    }
+    responsive = execute_sensitivity_experiment(
+        suite_path=example / "responsive_suite.yaml",
+        **arguments,
+    )
+    inertial = execute_sensitivity_experiment(
+        suite_path=example / "evidence_inertial_suite.yaml",
+        **arguments,
+    )
+    reversed_response = execute_sensitivity_experiment(
+        suite_path=example / "evidence_reversed_suite.yaml",
+        **arguments,
+    )
+    return responsive.report, inertial.report, reversed_response.report
 
 
 def _evaluation(*, runset_id: str, message: str) -> EvaluationSummary:
@@ -129,9 +175,12 @@ def _evaluation(*, runset_id: str, message: str) -> EvaluationSummary:
 
 
 def _complete_graph(sources: _RepresentativeSources) -> AssuranceEvidenceGraph:
+    evaluation_payload = sources.evaluation.model_dump(mode="json")
+    evaluation_payload["runset_digest"] = sources.comparison.candidate_runset_digest
+    authenticated_evaluation = EvaluationSummary.model_validate(evaluation_payload)
     return build_evidence_graph(
         subject=sources.subject,
-        evaluation=sources.evaluation,
+        evaluation=authenticated_evaluation,
         comparison=sources.comparison,
         mutation_results=(sources.mutation_result,),
         control_efficacy=sources.efficacy,
@@ -139,6 +188,34 @@ def _complete_graph(sources: _RepresentativeSources) -> AssuranceEvidenceGraph:
         gate_decision=sources.gate_decision,
         limitations=("Packet-level review remains required.",),
     )
+
+
+def _sensitivity_graph(report: RAGSensitivityReport) -> AssuranceEvidenceGraph:
+    counterfactual = report.counterfactual_arm
+    return build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=counterfactual.runset_id,
+            subject_digest=counterfactual.runset_digest,
+        ),
+        evidence_sensitivity=report,
+    )
+
+
+def _comparison_with_runset_digests(
+    comparison: ComparisonSummary,
+    *,
+    baseline_digest: str,
+    candidate_digest: str,
+) -> ComparisonSummary:
+    payload = comparison.model_dump(mode="json")
+    payload.update(
+        {
+            "baseline_runset_digest": baseline_digest,
+            "candidate_runset_digest": candidate_digest,
+        }
+    )
+    return ComparisonSummary.model_validate(payload)
 
 
 def _mutation_with_evaluation_basis(
@@ -159,26 +236,831 @@ def _mutation_with_evaluation_basis(
 
 def test_representative_projection_exercises_the_complete_closed_vocabulary(
     representative_sources: _RepresentativeSources,
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
 ) -> None:
-    graph = _complete_graph(representative_sources)
+    graphs = (
+        _complete_graph(representative_sources),
+        _sensitivity_graph(sensitivity_reports[0]),
+    )
 
-    assert {node.kind for node in graph.nodes} == set(EvidenceGraphNodeKind)
-    assert {edge.kind for edge in graph.edges} == set(EvidenceGraphEdgeKind)
+    assert {node.kind for graph in graphs for node in graph.nodes} == set(EvidenceGraphNodeKind)
+    assert {edge.kind for graph in graphs for edge in graph.edges} == set(EvidenceGraphEdgeKind)
     assert {
         node.payload.requirement_type
+        for graph in graphs
         for node in graph.nodes
         if isinstance(node.payload, EvidenceGraphRequirementPayload)
     } == set(EvidenceGraphRequirementType)
     assert {
         node.payload.evidence_type
+        for graph in graphs
         for node in graph.nodes
         if isinstance(node.payload, EvidenceGraphEvidencePayload)
     } == set(EvidenceGraphEvidenceType)
     assert {
         node.payload.finding_type
+        for graph in graphs
         for node in graph.nodes
         if isinstance(node.payload, EvidenceGraphFindingPayload)
     } == set(EvidenceGraphFindingType)
+
+
+def test_sensitivity_projection_preserves_authenticated_boundaries_and_limitations(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    report = sensitivity_reports[0]
+    graph = _sensitivity_graph(report)
+    evidence_node = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    evidence = evidence_node.payload
+    projection = evidence.evidence_sensitivity_projection
+
+    assert projection is not None
+    assert projection.subject_execution_scope == report.subject_execution_scope
+    assert projection.provenance_binding == report.provenance_binding
+    assert projection.detector_test_status.value == "synthetic_detector_contract_test"
+    assert projection.synthetic_data_provenance == report.synthetic_data_provenance
+    assert (
+        projection.synthetic_data_attestation_digest
+        == report.protocol.synthetic_data_attestation_digest
+    )
+    assert projection.raw_content_persistence == report.raw_content_persistence
+    assert projection.population_claim == report.population_claim
+    assert evidence.source_id == report.report_id
+    assert evidence.source_digest == report.report_digest
+    assert evidence.state is EvidenceState.supported
+    assert evidence.verdict_bearing is True
+    assert evidence.limitations == report.limitations
+    assert projection.state is EvidenceSensitivityState.responsive
+    assert projection.endpoint_value is True
+    assert (
+        projection.outcome_classification
+        is EvidenceSensitivityOutcomeClassification.expected_response_observed
+    )
+    assert projection.baseline_expected_decision is report.baseline_arm.expected_decision
+    assert (
+        projection.counterfactual_expected_decision is report.counterfactual_arm.expected_decision
+    )
+    assert projection.baseline_observed_decision is report.baseline_arm.decision
+    assert projection.counterfactual_observed_decision is report.counterfactual_arm.decision
+    assert projection.protocol_digest == report.protocol.protocol_digest
+    assert (
+        projection.knowledge_contract_digest == report.authority_contract.knowledge_contract_digest
+    )
+    assert (
+        projection.baseline_runset_id,
+        projection.baseline_runset_digest,
+        projection.counterfactual_runset_id,
+        projection.counterfactual_runset_digest,
+    ) == (
+        report.baseline_arm.runset_id,
+        report.baseline_arm.runset_digest,
+        report.counterfactual_arm.runset_id,
+        report.counterfactual_arm.runset_digest,
+    )
+    assert {(reference.role, reference.value) for reference in evidence.references} == {
+        (
+            EvidenceGraphReferenceRole.baseline_subject,
+            report.baseline_arm.runset_id,
+        ),
+        (
+            EvidenceGraphReferenceRole.candidate_subject,
+            report.counterfactual_arm.runset_id,
+        ),
+    }
+
+    baseline_subject = next(
+        node.payload
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphSubjectPayload)
+        and node.payload.subject_id == report.baseline_arm.runset_id
+    )
+    assert baseline_subject.subject_digest == report.baseline_arm.runset_digest
+
+    requirement_node = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphRequirementPayload)
+        and node.payload.requirement_type is EvidenceGraphRequirementType.expected_decision_response
+    )
+    outcome_node = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphFindingPayload)
+        and node.payload.finding_type is EvidenceGraphFindingType.evidence_sensitivity_outcome
+    )
+    assert outcome_node.payload.source_path == "/outcome_classification"
+    assert outcome_node.payload.state is EvidenceState.supported
+    assert outcome_node.payload.verdict_bearing is True
+    assert outcome_node.payload.reason_codes == ()
+    assert outcome_node.payload.messages == (report.outcome_message,)
+    assert any(
+        edge.kind is EvidenceGraphEdgeKind.supports
+        and edge.source_node_id == evidence_node.node_id
+        and edge.target_node_id == requirement_node.node_id
+        for edge in graph.edges
+    )
+
+    limitation_by_path = {
+        node.payload.source_path: node.payload.messages[0]
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphFindingPayload)
+        and node.payload.finding_type is EvidenceGraphFindingType.limitation
+        and node.payload.source_artifact_kind == report.artifact_kind
+    }
+    assert limitation_by_path == {
+        f"/limitations/{index}": limitation for index, limitation in enumerate(report.limitations)
+    }
+
+
+@pytest.mark.parametrize(
+    ("field_name", "invalid_value"),
+    (
+        ("subject_execution_scope", "hosted_model_evidence_use"),
+        ("provenance_binding", "independently_verified_digests"),
+    ),
+)
+def test_sensitivity_projection_rejects_overstated_harness_or_provenance_scope(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+    field_name: str,
+    invalid_value: str,
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[0])
+    projection = next(
+        node.payload.evidence_sensitivity_projection
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload[field_name] = invalid_value
+
+    with pytest.raises(ValidationError):
+        EvidenceGraphSensitivityProjection.model_validate(payload)
+
+
+def test_sensitivity_projection_preserves_operator_attestation_boundary(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[0])
+    projection = next(
+        node.payload.evidence_sensitivity_projection
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload.update(
+        {
+            "synthetic_data_provenance": "operator_attested",
+            "synthetic_data_attestation_digest": "a" * 64,
+            "population_claim": "none_operator_attested_synthetic_fixture_only",
+        }
+    )
+
+    operator_projection = EvidenceGraphSensitivityProjection.model_validate(payload)
+
+    assert operator_projection.synthetic_data_provenance.value == "operator_attested"
+    assert operator_projection.synthetic_data_attestation_digest == "a" * 64
+    assert operator_projection.population_claim == "none_operator_attested_synthetic_fixture_only"
+
+
+@pytest.mark.parametrize(
+    "updates",
+    (
+        {"synthetic_data_attestation_digest": "a" * 64},
+        {
+            "synthetic_data_provenance": "operator_attested",
+            "population_claim": "none_operator_attested_synthetic_fixture_only",
+        },
+        {
+            "synthetic_data_provenance": "operator_attested",
+            "synthetic_data_attestation_digest": "a" * 64,
+        },
+        {"raw_content_persistence": "redacted_or_externalized"},
+    ),
+)
+def test_sensitivity_projection_rejects_incoherent_synthetic_provenance(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+    updates: dict[str, object],
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[0])
+    projection = next(
+        node.payload.evidence_sensitivity_projection
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload.update(updates)
+
+    with pytest.raises(ValidationError):
+        EvidenceGraphSensitivityProjection.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("baseline_expected", "counterfactual_expected", "message"),
+    (
+        (None, None, "requires distinct bound approve/deny expected decisions"),
+        ("approve", "approve", "must define a decision flip"),
+        ("approve", "escalate", "must be approve or deny when bound"),
+    ),
+)
+def test_verdict_projection_requires_a_bound_binary_expected_flip(
+    sensitivity_reports: tuple[
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+    ],
+    baseline_expected: str | None,
+    counterfactual_expected: str | None,
+    message: str,
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[2])
+    projection = next(
+        node.payload.evidence_sensitivity_projection
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload["baseline_expected_decision"] = baseline_expected
+    payload["counterfactual_expected_decision"] = counterfactual_expected
+
+    with pytest.raises(
+        ValidationError,
+        match=message,
+    ):
+        EvidenceGraphSensitivityProjection.model_validate(payload)
+
+
+def test_nonverdict_projection_rejects_the_verdict_only_failure_code(
+    sensitivity_reports: tuple[
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+    ],
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[0])
+    projection = next(
+        node.payload.evidence_sensitivity_projection
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload.update(
+        {
+            "state": "confounded",
+            "gate_effect": "non_verdict",
+            "endpoint_value": None,
+            "outcome_classification": "not_evaluated",
+            "reason_codes": sorted(
+                (
+                    EvidenceSensitivityReasonCode.confounded.value,
+                    EvidenceSensitivityReasonCode.expected_response_missing.value,
+                    EvidenceSensitivityReasonCode.prerequisites_unmet.value,
+                )
+            ),
+        }
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="state contradicts its endpoint, gate, or reason role",
+    ):
+        EvidenceGraphSensitivityProjection.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("baseline_expected", "counterfactual_expected", "message"),
+    (
+        ("approve", "approve", "must define a decision flip"),
+        ("approve", "escalate", "must be approve or deny when bound"),
+    ),
+)
+def test_nonverdict_projection_rejects_an_invalid_bound_expected_path(
+    sensitivity_reports: tuple[
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+    ],
+    baseline_expected: str,
+    counterfactual_expected: str,
+    message: str,
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[0])
+    projection = next(
+        node.payload.evidence_sensitivity_projection
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload.update(
+        {
+            "state": "confounded",
+            "gate_effect": "non_verdict",
+            "endpoint_value": None,
+            "outcome_classification": "not_evaluated",
+            "reason_codes": sorted(
+                (
+                    EvidenceSensitivityReasonCode.confounded.value,
+                    EvidenceSensitivityReasonCode.prerequisites_unmet.value,
+                )
+            ),
+            "baseline_expected_decision": baseline_expected,
+            "counterfactual_expected_decision": counterfactual_expected,
+        }
+    )
+
+    with pytest.raises(ValidationError, match=message):
+        EvidenceGraphSensitivityProjection.model_validate(payload)
+
+
+def test_sensitivity_comparison_is_canonical_and_reuses_authenticated_baseline_subject(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    report, foreign_report = sensitivity_reports[:2]
+    comparison = derive_sensitivity_comparison(report)
+    counterfactual = report.counterfactual_arm
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=counterfactual.runset_id,
+            subject_digest=counterfactual.runset_digest,
+        ),
+        comparison=comparison,
+        evidence_sensitivity=report,
+    )
+
+    baseline_subjects = tuple(
+        node.payload
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphSubjectPayload)
+        and node.payload.subject_id == report.baseline_arm.runset_id
+    )
+    assert len(baseline_subjects) == 1
+    assert baseline_subjects[0].subject_digest == report.baseline_arm.runset_digest
+
+    contradictory = comparison.model_copy(update={"baseline_state": GateState.fail})
+    with pytest.raises(ValueError, match="must exactly equal the canonical comparison"):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=counterfactual.runset_id,
+                subject_digest=counterfactual.runset_digest,
+            ),
+            comparison=contradictory,
+            evidence_sensitivity=report,
+        )
+
+    foreign_comparison = derive_sensitivity_comparison(foreign_report)
+    assert (
+        foreign_comparison.baseline_runset_id,
+        foreign_comparison.candidate_runset_id,
+    ) != (
+        comparison.baseline_runset_id,
+        comparison.candidate_runset_id,
+    )
+    with pytest.raises(ValueError, match=r"does not match (?:the )?graph subject"):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=counterfactual.runset_id,
+                subject_digest=counterfactual.runset_digest,
+            ),
+            comparison=foreign_comparison,
+            evidence_sensitivity=report,
+        )
+
+
+def test_comparison_projection_uses_its_authenticated_runset_identities(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    baseline_digest = "b" * 64
+    candidate_digest = "c" * 64
+    comparison = _comparison_with_runset_digests(
+        representative_sources.comparison,
+        baseline_digest=baseline_digest,
+        candidate_digest=candidate_digest,
+    )
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=comparison.candidate_runset_id,
+            subject_digest=candidate_digest,
+        ),
+        comparison=comparison,
+    )
+
+    subjects = tuple(
+        node.payload
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphSubjectPayload)
+    )
+    assert any(
+        item.subject_id == comparison.baseline_runset_id and item.subject_digest == baseline_digest
+        for item in subjects
+    )
+    assert (
+        sum(
+            item.subject_id == comparison.candidate_runset_id
+            and item.subject_digest == candidate_digest
+            for item in subjects
+        )
+        == 1
+    )
+    comparison_evidence = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.comparison
+    )
+    scoped_subject_id = next(
+        edge.target_node_id
+        for edge in graph.edges
+        if edge.kind is EvidenceGraphEdgeKind.scoped_to
+        and edge.source_node_id == comparison_evidence.node_id
+    )
+    assert scoped_subject_id == graph.primary_subject_node_id
+
+
+def test_digestless_comparison_remains_disconnected_from_authenticated_subject(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    payload = representative_sources.comparison.model_dump(mode="json")
+    payload["schema_version"] = "0.6.3"
+    payload.pop("baseline_runset_digest")
+    payload.pop("candidate_runset_digest")
+    comparison = ComparisonSummary.model_validate(payload)
+    assert comparison.candidate_runset_digest is None
+    graph = build_evidence_graph(
+        subject=EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=comparison.candidate_runset_id,
+            subject_digest="c" * 64,
+        ),
+        comparison=comparison,
+    )
+    comparison_evidence = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.comparison
+    )
+    scoped_subject_id = next(
+        edge.target_node_id
+        for edge in graph.edges
+        if edge.kind is EvidenceGraphEdgeKind.scoped_to
+        and edge.source_node_id == comparison_evidence.node_id
+    )
+    scoped_subject = next(node for node in graph.nodes if node.node_id == scoped_subject_id)
+
+    assert scoped_subject_id != graph.primary_subject_node_id
+    assert isinstance(scoped_subject.payload, EvidenceGraphSubjectPayload)
+    assert scoped_subject.payload.subject_id == comparison.candidate_runset_id
+    assert scoped_subject.payload.subject_digest is None
+
+
+def test_comparison_candidate_digest_must_match_authenticated_primary_subject(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    comparison = _comparison_with_runset_digests(
+        representative_sources.comparison,
+        baseline_digest="b" * 64,
+        candidate_digest="c" * 64,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="candidate_runset_digest does not match graph subject digest",
+    ):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=comparison.candidate_runset_id,
+                subject_digest="d" * 64,
+            ),
+            comparison=comparison,
+        )
+
+
+def test_comparison_candidate_digest_must_match_evaluation_runset_digest(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    evaluation_payload = representative_sources.evaluation.model_dump(mode="json")
+    evaluation_payload["runset_digest"] = "d" * 64
+    evaluation = EvaluationSummary.model_validate(evaluation_payload)
+    comparison = _comparison_with_runset_digests(
+        representative_sources.comparison,
+        baseline_digest="b" * 64,
+        candidate_digest="c" * 64,
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="candidate_runset_digest does not match evaluation runset digest",
+    ):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=evaluation.runset_id,
+                subject_digest=evaluation.runset_digest,
+            ),
+            evaluation=evaluation,
+            comparison=comparison,
+        )
+
+
+def test_evidence_insensitive_projection_is_verdict_bearing_and_contradictory(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    report = sensitivity_reports[1]
+    graph = _sensitivity_graph(report)
+    evidence_node = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    requirement_node = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphRequirementPayload)
+        and node.payload.requirement_type is EvidenceGraphRequirementType.expected_decision_response
+    )
+    outcome = next(
+        node.payload
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphFindingPayload)
+        and node.payload.finding_type is EvidenceGraphFindingType.evidence_sensitivity_outcome
+    )
+
+    assert report.state is EvidenceSensitivityState.evidence_insensitive
+    assert evidence_node.payload.state is EvidenceState.violated
+    assert evidence_node.payload.verdict_bearing is True
+    assert outcome.state is EvidenceState.violated
+    assert outcome.verdict_bearing is True
+    assert outcome.reason_codes == tuple(item.value for item in report.reason_codes)
+    assert any(
+        edge.kind is EvidenceGraphEdgeKind.contradicts
+        and edge.source_node_id == evidence_node.node_id
+        and edge.target_node_id == requirement_node.node_id
+        for edge in graph.edges
+    )
+
+
+def test_wrong_direction_flip_projects_a_distinct_violated_outcome(
+    sensitivity_reports: tuple[
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+    ],
+) -> None:
+    report = sensitivity_reports[2]
+    graph = _sensitivity_graph(report)
+    evidence = next(
+        node.payload
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphEvidencePayload)
+        and node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+    )
+    outcome = next(
+        node.payload
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphFindingPayload)
+        and node.payload.finding_type is EvidenceGraphFindingType.evidence_sensitivity_outcome
+    )
+
+    projection = evidence.evidence_sensitivity_projection
+    assert projection is not None
+    assert (
+        projection.outcome_classification
+        is EvidenceSensitivityOutcomeClassification.wrong_direction_flip
+    )
+    assert projection.baseline_expected_decision is report.baseline_arm.expected_decision
+    assert (
+        projection.counterfactual_expected_decision is report.counterfactual_arm.expected_decision
+    )
+    assert projection.baseline_observed_decision is report.baseline_arm.decision
+    assert projection.counterfactual_observed_decision is report.counterfactual_arm.decision
+    assert projection.decision_inertia_detected is False
+    assert outcome.source_path == "/outcome_classification"
+    assert outcome.state is EvidenceState.violated
+    assert outcome.messages == (report.outcome_message,)
+    assert "wrong direction relative to the authority contract" in outcome.messages[0]
+    assert "Decision inertia was not observed" not in outcome.messages[0]
+
+
+def test_graph_rejects_an_outcome_message_detached_from_its_typed_projection(
+    sensitivity_reports: tuple[
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+        RAGSensitivityReport,
+    ],
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[2])
+    outcome_node = next(
+        node
+        for node in graph.nodes
+        if isinstance(node.payload, EvidenceGraphFindingPayload)
+        and node.payload.finding_type is EvidenceGraphFindingType.evidence_sensitivity_outcome
+    )
+    assert isinstance(outcome_node.identity, EvidenceGraphFindingIdentityProjection)
+    forged_payload = outcome_node.payload.model_copy(
+        update={"messages": ("Decision inertia was not observed.",)}
+    )
+    forged_node = EvidenceGraphNode.build(
+        kind=outcome_node.kind,
+        payload=forged_payload,
+        subject_node_id=outcome_node.identity.subject_node_id,
+        parent_evidence_node_id=outcome_node.identity.parent_evidence_node_id,
+    )
+    forged_nodes = tuple(
+        forged_node if node.node_id == outcome_node.node_id else node for node in graph.nodes
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence-sensitivity outcome message must match its typed projection",
+    ):
+        AssuranceEvidenceGraph.from_parts(
+            primary_subject_node_id=graph.primary_subject_node_id,
+            nodes=forged_nodes,
+            edges=graph.edges,
+            compatibility=graph.compatibility,
+            limitations=graph.limitations,
+        )
+
+
+def test_sensitivity_projection_rejects_a_mismatched_authenticated_subject(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    report = sensitivity_reports[0]
+
+    with pytest.raises(
+        ValueError,
+        match="does not match sensitivity counterfactual runset digest",
+    ):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=report.counterfactual_arm.runset_id,
+                subject_digest="f" * 64,
+            ),
+            evidence_sensitivity=report,
+        )
+
+
+def test_sensitivity_projection_revalidates_an_existing_model_instance(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    report = sensitivity_reports[0]
+    unvalidated_copy = report.model_copy(
+        update={"state": EvidenceSensitivityState.evidence_insensitive}
+    )
+
+    with pytest.raises(ValidationError):
+        _sensitivity_graph(unvalidated_copy)
+
+
+def test_comparison_projection_revalidates_an_existing_model_instance(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    comparison = representative_sources.comparison.model_copy(
+        update={
+            "baseline_runset_digest": None,
+            "candidate_runset_digest": None,
+        }
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="require authenticated baseline and candidate RunSet digests",
+    ):
+        build_evidence_graph(
+            subject=representative_sources.subject,
+            comparison=comparison,
+        )
+
+
+def test_graph_revalidates_evaluation_model_copy_before_projection(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    evaluation = representative_sources.evaluation.model_copy(update={"state": GateState.pass_})
+
+    with pytest.raises(ValidationError, match="finding-derived state"):
+        build_evidence_graph(
+            subject=representative_sources.subject,
+            evaluation=evaluation,
+        )
+
+
+def test_graph_revalidates_mutation_result_model_copy_before_projection(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    result = representative_sources.mutation_result.model_copy(
+        update={"operator_version": "not-a-semver"}
+    )
+
+    with pytest.raises(ValidationError, match="operator_version"):
+        build_evidence_graph(
+            subject=representative_sources.subject,
+            mutation_results=(result,),
+        )
+
+
+def test_graph_revalidates_control_efficacy_model_copy_before_projection(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    report = representative_sources.efficacy.model_copy(update={"report_digest": "0" * 64})
+
+    with pytest.raises(ValidationError, match="report_digest"):
+        build_evidence_graph(
+            subject=representative_sources.subject,
+            control_efficacy=report,
+        )
+
+
+def test_graph_revalidates_gate_profile_model_copy_before_projection(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    profile = representative_sources.gate_profile.model_copy(update={"required_operators": ()})
+
+    with pytest.raises(ValidationError, match="required_operators"):
+        build_evidence_graph(
+            subject=representative_sources.subject,
+            control_efficacy=representative_sources.efficacy,
+            gate_profile=profile,
+        )
+
+
+def test_graph_revalidates_gate_decision_model_copy_before_projection(
+    representative_sources: _RepresentativeSources,
+) -> None:
+    decision = representative_sources.gate_decision.model_copy(update={"state": GateState.pass_})
+
+    with pytest.raises(ValidationError, match="gate state does not match"):
+        build_evidence_graph(
+            subject=representative_sources.subject,
+            control_efficacy=representative_sources.efficacy,
+            gate_profile=representative_sources.gate_profile,
+            gate_decision=decision,
+        )
+
+
+def test_graph_binds_evaluation_projection_to_sensitivity_evaluation_digest(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    report = sensitivity_reports[0]
+    evaluation = report.counterfactual_evaluation.model_copy(
+        update={
+            "environment": EnvironmentInfo(
+                platform="different-environment",
+                python_version="3.14",
+            )
+        }
+    )
+
+    with pytest.raises(
+        ValueError,
+        match="canonical digest does not match the sensitivity counterfactual",
+    ):
+        build_evidence_graph(
+            subject=EvidenceGraphSubjectPayload(
+                subject_type="run_set",
+                subject_id=report.counterfactual_arm.runset_id,
+                subject_digest=report.counterfactual_arm.runset_digest,
+            ),
+            evaluation=evaluation,
+            evidence_sensitivity=report,
+        )
+
+
+def test_v063_graph_label_rejects_v064_sensitivity_content(
+    sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
+) -> None:
+    graph = _sensitivity_graph(sensitivity_reports[0])
+    payload = graph.model_dump(mode="json", exclude={"graph_digest"})
+    payload["schema_version"] = "0.6.3"
+    payload["graph_digest"] = sha256_hexdigest(payload)
+
+    with pytest.raises(
+        ValidationError,
+        match="evidence-sensitivity graph content requires schema_version",
+    ):
+        AssuranceEvidenceGraph.model_validate(payload)
 
 
 def test_projection_preserves_verdict_states_provenance_and_gate_effects(
@@ -357,10 +1239,13 @@ def test_comparison_display_wording_is_payload_not_identity() -> None:
     subject = EvidenceGraphSubjectPayload(
         subject_type="run_set",
         subject_id="candidate",
+        subject_digest="c" * 64,
     )
     first_summary = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
@@ -457,7 +1342,7 @@ def test_projection_rejects_cross_artifact_identity_mismatches(
             )
         }
     )
-    with pytest.raises(ValueError, match="does not match the supplied report and profile"):
+    with pytest.raises(ValidationError, match="gate state does not match finding effects"):
         build_evidence_graph(
             subject=sources.subject,
             control_efficacy=sources.efficacy,
@@ -470,16 +1355,20 @@ def test_subject_identity_is_stable_between_primary_and_baseline_roles() -> None
     subject = EvidenceGraphSubjectPayload(
         subject_type="run_set",
         subject_id="same-runset",
+        subject_digest="b" * 64,
     )
     primary_graph = build_evidence_graph(subject=subject)
     comparison_graph = build_evidence_graph(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id="other-runset",
+            subject_digest="c" * 64,
         ),
         comparison=ComparisonSummary(
             baseline_runset_id="same-runset",
             candidate_runset_id="other-runset",
+            baseline_runset_digest="b" * 64,
+            candidate_runset_digest="c" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             classification=ComparisonClassification.not_evaluated,
@@ -499,6 +1388,8 @@ def test_not_evaluated_comparison_messages_remain_non_verdict_findings() -> None
     summary = ComparisonSummary(
         baseline_runset_id="not-evaluated-baseline",
         candidate_runset_id="not-evaluated-candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.not_evaluated,
@@ -509,6 +1400,7 @@ def test_not_evaluated_comparison_messages_remain_non_verdict_findings() -> None
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=summary.candidate_runset_id,
+            subject_digest=summary.candidate_runset_digest,
         ),
         comparison=summary,
     )
@@ -1121,6 +2013,8 @@ def test_non_pass_fixture_equivalence_cannot_support_comparison_acceptability(
     summary = ComparisonSummary(
         baseline_runset_id="fixture-baseline",
         candidate_runset_id="fixture-candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.unchanged,
@@ -1133,6 +2027,7 @@ def test_non_pass_fixture_equivalence_cannot_support_comparison_acceptability(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=summary.candidate_runset_id,
+            subject_digest=summary.candidate_runset_digest,
         ),
         comparison=summary,
     )

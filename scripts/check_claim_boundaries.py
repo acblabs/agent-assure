@@ -50,6 +50,27 @@ APPROVED_LIMITATION_SENTENCES = (
         "adversary-emulation result, ATLAS coverage claim, validation result, endorsement, "
         "or threat-resistance claim."
     ),
+    (
+        "Their reports record synthetic_data_provenance=bundled_digest_verified and carry "
+        "no attestation."
+    ),
+    (
+        "Any changed or external suite, fixture, contract, or corpus is a custom input and "
+        "must provide --synthetic-data-attestation PATH."
+    ),
+    (
+        "A binding mismatch, stale self-digest, or missing attestation is invalid input "
+        "(exit 2) before publication."
+    ),
+    (
+        "Accepted custom runs record synthetic_data_provenance=operator_attested and the "
+        "attestation digest."
+    ),
+    (
+        "Operator attestation is an attributable machine-readable assertion by the artifact "
+        "author; it is not semantic inspection, independent verification, a signature, or "
+        "proof that the bytes are synthetic."
+    ),
 )
 
 _SPELLED_PERCENT_NUMBER = (
@@ -218,10 +239,12 @@ DEFAULT_SCAN_FILES = (
     Path("docs/evidence_carrying_releases.md"),
     Path("docs/claim_boundary.md"),
     Path("docs/control_efficacy.md"),
+    Path("docs/evidence_sensitivity.md"),
     Path("docs/posts/output_equivalence_is_not_process_equivalence.md"),
     Path("docs/posts/who_assures_the_assurance.md"),
     Path("docs/assets/flagship_demo_transcript.txt"),
     Path("docs/assets/assure_the_assurance_walkthrough.txt"),
+    Path("docs/assets/evidence_sensitivity_walkthrough.txt"),
     Path("docs/social/demo_video_script.md"),
 )
 

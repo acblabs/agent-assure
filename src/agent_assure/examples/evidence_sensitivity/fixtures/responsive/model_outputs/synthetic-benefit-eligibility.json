@@ -1,0 +1,14 @@
+{
+  "agent_implementation_digest": "3678ca2dc87bd9ed4306af91b4c7e22e12d8f63044a4544bff10d817fe65965c",
+  "agent_implementation_id": "synthetic-responsive-agent-v1",
+  "deterministic": true,
+  "emit_evidence_links": true,
+  "fixed_decision": null,
+  "fixed_outcome": null,
+  "mode": "responsive",
+  "model_digest": "bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c",
+  "model_id": "deterministic-fixture-model-v1",
+  "prompt_template_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
+  "prompt_template_id": "sensitivity-prompt-v1",
+  "subject_id": "responsive-policy-subject"
+}

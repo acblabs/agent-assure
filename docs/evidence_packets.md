@@ -3,7 +3,8 @@
 Evidence packets summarize deterministic fixture-mode evidence for CI and
 release review. A packet contains an evaluation summary, an optional comparison
 summary, optional control-efficacy evidence with its exact gate profile and
-derived decision, measured usage evidence when observed, a machine-readable
+derived decision, an optional controlled evidence-sensitivity report, measured
+usage evidence when observed, a machine-readable
 interpretation section, local environment metadata, deterministic SHA-256
 digests of the summary/report files used to build it, semantic and exact-file
 digest bindings to a separately persisted assurance evidence graph, a
@@ -16,6 +17,7 @@ agent-assure packet build \
   --comparison .tmp/showcase/comparison-report/comparison-summary.json \
   --control-efficacy assurance-controls/control-efficacy/control-efficacy-report.json \
   --efficacy-config assurance-controls/controls-mutation.yaml \
+  --evidence-sensitivity .tmp/evidence-sensitivity/evidence-sensitivity.json \
   --out .tmp/showcase/evidence-packet.json
 agent-assure ci gate .tmp/showcase/evidence-packet.json \
   --efficacy-policy assurance-controls/controls-mutation.yaml
@@ -55,6 +57,24 @@ by the packet root version—the pinned current writer schema for current output
 or the matching frozen schema for supported legacy output. A mixed-version
 packet therefore fails before packet bytes are created.
 
+The v0.6.4 comparison contract requires canonical digests for both compared
+RunSets. Packet construction requires the comparison candidate RunSet ID to
+match the evaluation RunSet ID and rejects unequal candidate digests when the
+evaluation also carries an authenticated digest. An evaluation without a
+digest remains explicitly unbound; the packet never invents one from the
+comparison. Frozen comparison summaries through v0.6.3 remain digestless.
+Legacy readability does not imply CI acceptance: a standalone legacy
+comparison or a comparison-bearing packet with either comparison digest absent
+is invalid with exit `2` by default. This closes an ID-only downgrade in which
+a schema-valid legacy comparison can share the evaluation's display ID while
+referring to unauthenticated bytes. A verifier that must retain this historical
+behavior can opt in explicitly with `--allow-legacy-unbound-comparison`; the
+compatibility use is recorded in the decision message. Supplying the override
+for a packet without a comparison or for an already digest-bound comparison is
+itself invalid, so the exception cannot be enabled speculatively across all
+artifacts. The override applies only after normal frozen-schema and model
+validation and does not weaken artifact loading.
+
 `control-efficacy-onboarding-config` identifies the exact controls-mutation
 onboarding YAML supplied to `packet build --efficacy-config`.
 Packet construction also loads that configuration's confined threat manifest
@@ -73,10 +93,34 @@ gate findings. A candidate evaluation may pass while the efficacy decision
 fails; packet CI treats that required-control failure as blocking without
 rewriting the candidate evaluation facts.
 
+`--evidence-sensitivity` is optional in the producer schema. When present,
+packet construction parses and hashes the report from one bounded snapshot and
+carries the complete self-digested report. The report's counterfactual RunSet ID,
+RunSet digest, and canonical evaluation-summary digest must exactly match the
+packet evaluation. If the packet also contains a comparison, the report's
+baseline and counterfactual arms must exactly match the comparison pair. The
+packet and its release manifest each require exactly one raw digest role named
+`evidence-sensitivity-report`; an absent nested report rejects that role.
+Packet Markdown preserves the detector state, verdict role, gate effect,
+endpoint, expected and observed relations, arm identities, decision inertia,
+reason codes, synthetic status, and every limitation.
+
+The packet section leads with an explicit boundary: v1 is a synthetic
+declarative fixture harness/oracle, and its result is not evidence that a model
+used contextual evidence instead of parametric memory.
+
 When `ci gate` receives a packet, an invalid nested decision or other invalid
-component takes precedence, followed by a blocking evaluation, comparison, or
-efficacy decision. Efficacy-aware CLI gating uses strict verification by
-default when efficacy evidence is present and requires a separate
+component takes precedence, followed by a blocking evaluation, comparison,
+evidence-sensitivity, or efficacy decision. A responsive sensitivity report
+passes its dimension; an evidence-insensitive report exits `1` with its stable
+reason code. A confounded or prerequisite-unmet sensitivity report is
+non-verdict evidence. Sensitivity-bearing packets fail closed as invalid with
+exit `2` by default, matching the producer's refusal to claim a result. A
+verifier may explicitly accept this advisory state with
+`--allow-sensitivity-non-verdict`, which restores the `not_evaluated`,
+exit-`0` behavior. `--fail-on-not-evaluated` instead maps it to a blocking
+exit `1`. Efficacy-aware CLI gating uses strict verification by default when
+efficacy evidence is present and requires a separate
 verifier-owned controls-mutation YAML for that verification. Strict mode pins
 catalog, operator scope, and threat-manifest digest, re-derives a verifier
 decision, and accepts only complete all-caught/all-challenged evidence. The
@@ -84,13 +128,27 @@ packet's embedded profile and decision must remain exact but are producer
 provenance, not the strict acceptance policy. A standalone
 `control-efficacy-report` uses the same external verifier policy requirement.
 
-Presence is controlled separately. `--require-efficacy` makes an efficacy-free
-packet invalid, and `--efficacy-policy` implies that requirement. Otherwise an
-efficacy-free packet remains eligible for ordinary evaluation/comparison gating
-but explicitly reports `efficacy_evidence=absent` and
-`efficacy_verification=not_requested`. Gate decisions also record
-`efficacy_required`, so neither absence nor advisory verification can be
-mistaken for a strict efficacy pass.
+For a packet carrying a release manifest, CLI gating verifies every bound
+summary and graph against candidate roots rather than choosing a root from path
+shape alone. It considers the packet directory for current self-contained
+producer output and the enclosing source/Git root for legacy repo-relative
+manifests. Exactly one distinct candidate must satisfy the full digest, parsed
+model, and graph-projection checks. Two valid trees are ambiguous and fail
+closed; no valid tree surfaces the binding failure. `--artifact-root` selects
+one verifier-trusted root exclusively.
+
+Presence is controlled by verifier-owned policy. `--require-efficacy` makes an
+efficacy-free packet invalid, and `--efficacy-policy` implies that requirement.
+Otherwise an efficacy-free packet remains eligible for ordinary
+evaluation/comparison gating but explicitly reports
+`efficacy_evidence=absent`, `efficacy_verification=not_requested`, and
+`efficacy_required=false`; it does not claim an efficacy check occurred.
+`--require-evidence-sensitivity` independently makes a sensitivity-free packet
+invalid. Use that option in release automation whenever sensitivity is required;
+a generic evaluation/comparison packet cannot safely infer that an omitted
+report should have been present merely from shared RunSet identities. Without
+the sensitivity requirement, the field remains intentionally optional for
+non-RAG and legacy workflows.
 
 `--allow-advisory-efficacy` explicitly restores transported-profile advisory
 gating. In that mode, `--fail-on-not-evaluated` examines both semantic

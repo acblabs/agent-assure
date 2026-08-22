@@ -22,8 +22,147 @@ from agent_assure.release_evidence import (
 from agent_assure.schema.base import SchemaVersion
 from agent_assure.schema.graph import EvidenceGraphSubjectPayload
 from agent_assure.schema.release import ReleaseArtifact, ReleaseDigestReplay
+from agent_assure.schema.sensitivity import RAGSensitivityReport
 
 RUNNER = CliRunner()
+ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_sensitivity_bundle_manifest_roles_have_explicit_replay_contracts() -> None:
+    expected_modes = {
+        "compiled-suite": "raw-sha256",
+        "fixture-manifest": "raw-sha256",
+        "evidence-sensitivity-protocol": "raw-sha256",
+        "baseline-corpus-snapshot": "raw-sha256",
+        "counterfactual-corpus-snapshot": "raw-sha256",
+        "baseline-runset": "raw-sha256",
+        "candidate-runset": "raw-sha256",
+        "baseline-evaluation-summary": "replay-stable-json-sha256",
+        "evaluation-summary": "replay-stable-json-sha256",
+        "comparison-summary": "replay-stable-json-sha256",
+        "evidence-sensitivity-report": "replay-stable-json-sha256",
+        "evidence-sensitivity-markdown": "raw-sha256",
+        "evidence-sensitivity-html": "raw-sha256",
+        "assurance-evidence-graph": "replay-stable-json-sha256",
+    }
+
+    assert {
+        role: release_evidence.digest_mode_for_role(role) for role in expected_modes
+    } == expected_modes
+
+
+def test_sensitivity_release_role_has_environment_stable_projection() -> None:
+    path = ROOT / "tests" / "golden" / "reports" / "evidence-sensitivity-responsive.json"
+    source = json.loads(path.read_text(encoding="utf-8"))
+
+    projected = release_evidence._stable_json_projection(
+        "evidence-sensitivity-report",
+        path,
+        ROOT,
+    )
+
+    baseline_arm = projected["baseline_arm"]
+    counterfactual_arm = projected["counterfactual_arm"]
+    assert isinstance(baseline_arm, dict)
+    assert isinstance(counterfactual_arm, dict)
+    assert "report_digest" not in projected
+    assert projected["report_id"] == source["report_id"]
+    assert "runset_digest" not in baseline_arm
+    assert "evaluation_summary_digest" not in counterfactual_arm
+    assert not _nested_key_exists(projected, "environment")
+
+
+def test_sensitivity_stable_projection_does_not_drop_unrelated_nested_keys() -> None:
+    payload: dict[str, object] = {
+        "report_digest": "a" * 64,
+        "report_id": "report-a",
+        "baseline_arm": {"runset_digest": "b" * 64},
+        "counterfactual_arm": {"evaluation_summary_digest": "c" * 64},
+        "baseline_evaluation": {"environment": {"python": "3.14"}},
+        "counterfactual_evaluation": {"runset_digest": "d" * 64},
+        "semantic_extension": {"environment": "must-remain-bound"},
+    }
+
+    projected = release_evidence._stable_sensitivity_projection(payload)
+
+    assert projected["semantic_extension"] == {"environment": "must-remain-bound"}
+
+
+def test_packet_stable_projection_uses_sensitivity_projection() -> None:
+    payload: dict[str, object] = {
+        "artifact_kind": "evidence-packet",
+        "evaluation": {"environment": {"platform": "volatile"}},
+        "evidence_sensitivity": {
+            "report_digest": "a" * 64,
+            "report_id": "bound-report-id",
+            "baseline_arm": {"evaluation_summary_digest": "b" * 64},
+            "counterfactual_arm": {"runset_digest": "c" * 64},
+            "baseline_evaluation": {"environment": {"platform": "volatile"}},
+            "counterfactual_evaluation": {"runset_digest": "d" * 64},
+            "population_claim": "none_bundled_synthetic_fixture_only",
+        },
+    }
+
+    projected = release_evidence._stable_packet_projection(payload)
+
+    sensitivity = projected["evidence_sensitivity"]
+    assert isinstance(sensitivity, dict)
+    assert "report_digest" not in sensitivity
+    assert sensitivity["report_id"] == "bound-report-id"
+    assert sensitivity["population_claim"] == "none_bundled_synthetic_fixture_only"
+
+
+def test_sensitivity_release_replay_detects_report_identity_drift(tmp_path: Path) -> None:
+    source = ROOT / "tests" / "golden" / "reports" / "evidence-sensitivity-responsive.json"
+    report = RAGSensitivityReport.model_validate(json.loads(source.read_text(encoding="utf-8")))
+    path = tmp_path / "evidence-sensitivity.json"
+    _write_json(path, report.model_dump(mode="json"))
+    replay = build_digest_replay(
+        (("evidence-sensitivity-report", path),),
+        project_root=tmp_path,
+    )
+
+    changed = report.model_dump(mode="json", exclude={"report_digest"})
+    changed["report_id"] = "rag-sensitivity-identity-drift"
+    drifted = RAGSensitivityReport.build(**changed)
+    _write_json(path, drifted.model_dump(mode="json"))
+
+    verification = verify_digest_replay(replay, artifact_root=tmp_path)
+
+    assert not verification.ok
+    finding = next(
+        item for item in verification.findings if item.role == "evidence-sensitivity-report"
+    )
+    assert finding.actual is not None
+    assert finding.actual != finding.expected
+
+
+def test_graph_stable_projection_drops_sensitivity_report_source_digest() -> None:
+    node: dict[str, object] = {
+        "node_id": "evidence-a",
+        "payload_digest": "a" * 64,
+        "payload": {
+            "payload_kind": "evidence",
+            "evidence_type": "evidence_sensitivity",
+            "source_digest": "b" * 64,
+            "state": "supported",
+        },
+    }
+
+    projected = release_evidence._stable_graph_node_projection(node)
+
+    payload = projected["payload"]
+    assert isinstance(payload, dict)
+    assert "source_digest" not in payload
+    assert payload["state"] == "supported"
+
+
+def _nested_key_exists(value: object, key: str) -> bool:
+    if isinstance(value, dict):
+        return key in value or any(_nested_key_exists(item, key) for item in value.values())
+    if isinstance(value, list):
+        return any(_nested_key_exists(item, key) for item in value)
+    return False
 
 
 def test_load_digest_replay_projects_validated_v01_contract_to_typed_runtime(
@@ -67,8 +206,9 @@ def test_core_release_roles_preserve_historical_replay_contract(
     assert core_release_roles_for_schema_version(schema_version) == LEGACY_CORE_RELEASE_ROLES
 
 
-def test_core_release_roles_require_graph_for_current_schema() -> None:
-    assert core_release_roles_for_schema_version("0.6.3") == CORE_RELEASE_ROLES
+@pytest.mark.parametrize("schema_version", ("0.6.3", "0.6.4"))
+def test_core_release_roles_require_graph_for_graph_era_schemas(schema_version: str) -> None:
+    assert core_release_roles_for_schema_version(schema_version) == CORE_RELEASE_ROLES
 
 
 def test_core_release_role_policy_covers_every_schema_version() -> None:
@@ -79,7 +219,7 @@ def test_core_release_role_policy_covers_every_schema_version() -> None:
 
 def test_core_release_roles_fail_closed_for_unmapped_schema() -> None:
     with pytest.raises(ValueError, match="no core release-role policy"):
-        core_release_roles_for_schema_version("0.6.4")
+        core_release_roles_for_schema_version("0.6.5")
 
 
 def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:
@@ -95,9 +235,7 @@ def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:
     assert verification.ok
     assert replay.source_commit == "abc123"
     assert [artifact.role for artifact in replay.artifacts] == list(CORE_RELEASE_ROLES)
-    assert [
-        artifact.digest_mode for artifact in replay.artifacts
-    ] == [
+    assert [artifact.digest_mode for artifact in replay.artifacts] == [
         "raw-sha256",
         "raw-sha256",
         "replay-stable-json-sha256",
@@ -394,8 +532,7 @@ def test_release_digest_replay_verification_rejects_duplicate_roles(
 
     assert not verification.ok
     assert any(
-        "duplicate release replay role" in finding.message
-        for finding in verification.findings
+        "duplicate release replay role" in finding.message for finding in verification.findings
     )
 
 
@@ -447,9 +584,7 @@ def test_release_digest_replay_rejects_raw_role_contract_mismatch(
     tampered_compiled = replay.artifacts[0].model_copy(
         update={"sha256": hashlib.sha256(compiled_path.read_bytes()).hexdigest()}
     )
-    tampered = replay.model_copy(
-        update={"artifacts": (tampered_compiled, *replay.artifacts[1:])}
-    )
+    tampered = replay.model_copy(update={"artifacts": (tampered_compiled, *replay.artifacts[1:])})
 
     verification = verify_digest_replay(
         tampered,
@@ -458,9 +593,7 @@ def test_release_digest_replay_rejects_raw_role_contract_mismatch(
     )
 
     assert not verification.ok
-    finding = next(
-        finding for finding in verification.findings if finding.role == "compiled-suite"
-    )
+    finding = next(finding for finding in verification.findings if finding.role == "compiled-suite")
     assert finding.actual is None
     assert "could not be replayed" in finding.message
 

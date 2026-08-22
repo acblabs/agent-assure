@@ -1,0 +1,14 @@
+{
+  "agent_implementation_digest": "29162f7640adaa3cb5339481b86fb4b78842af6457b2b41f13f10e8fe7b987b4",
+  "agent_implementation_id": "synthetic-evidence-inertial-agent-v1",
+  "deterministic": true,
+  "emit_evidence_links": true,
+  "fixed_decision": "approve",
+  "fixed_outcome": "approved",
+  "mode": "evidence_inertial",
+  "model_digest": "bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c",
+  "model_id": "deterministic-fixture-model-v1",
+  "prompt_template_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
+  "prompt_template_id": "sensitivity-prompt-v1",
+  "subject_id": "evidence-inertial-policy-subject"
+}

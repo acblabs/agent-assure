@@ -32,6 +32,18 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
     assert job.count("--fail-on-skip") == 1
     assert "test_rooted_read_rejects_linked_parent_escape" in job
     assert "test_rooted_directory_lease_blocks_lexical_rename_until_close" in job
+    assert (
+        "tests/unit/test_rooted_io.py::"
+        "test_rooted_directory_claim_owns_independent_pins_and_writer_operations"
+    ) in job
+    assert (
+        "tests/unit/test_rooted_io.py::"
+        "test_windows_rooted_directory_claim_blocks_rename_until_close"
+    ) in job
+    assert (
+        "tests/integration/test_evidence_sensitivity_cli.py::"
+        "test_responsive_subject_emits_a_verdict_bearing_pass_and_renderings"
+    ) in job
     assert "test_external_script_timeout_terminates_descendant_process_tree" in job
     assert "test_post_spawn_validation_failure_terminates_and_reaps_suspended_process" in job
     assert "test_windows_external_script_success_kills_descendant_when_job_closes" in job
@@ -110,6 +122,18 @@ def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> 
     )
     assert workflow.count('make release-check EXPECTED_RELEASE="${EXPECTED_VERSION}"') == 1
     assert 'make release-check EXPECTED_RELEASE="${EXPECTED_RELEASE}"' in workflow
+
+
+def test_testpypi_checks_committed_version_bound_goldens_before_release_checks() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "publish-testpypi.yml").read_text(encoding="utf-8")
+    build_job, remainder = workflow.split("  reproduce:\n", maxsplit=1)
+    reproduce_job = remainder.split("  testpypi-publish:\n", maxsplit=1)[0]
+
+    assert workflow.count("Verify committed version-bound deterministic goldens") == 2
+    assert "include matching committed version-bound deterministic goldens" in workflow
+    assert "for example 0.6.4rc1" in workflow
+    for job in (build_job, reproduce_job):
+        assert job.index("python scripts/update_golden.py") < job.index("make release-check")
 
 
 def test_every_checkout_disables_persisted_credentials() -> None:

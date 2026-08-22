@@ -90,8 +90,11 @@ a network-isolation boundary against hostile Python or native code.
   content while skipping digest/hash/provenance metadata. This is a guardrail,
   not production PHI de-identification or comprehensive DLP.
 - Privacy scanning includes mapping keys and fails closed on individual scalar
-  values above the bounded detector budget. OpenTelemetry export repeats the
-  recursive sensitive-content check at the final egress boundary and applies
+  values above the bounded detector budget. It scans a second, profile-bound
+  Unicode deobfuscation view so bidi, zero-width, private-use, surrogate, and
+  other category-C code points cannot split an otherwise detectable email,
+  identifier, or credential. OpenTelemetry export repeats the recursive
+  sensitive-content check at the final egress boundary and applies
   explicit span, event, attribute, key, and value limits. Its SDK resource,
   trace propagator, root context, sampler, span limits, and OTLP compression are
   explicitly constructed rather than selected from ambient SDK settings.

@@ -4,7 +4,7 @@ SCHEMA_DIR ?= $(shell $(PYTHON) scripts/schema_target.py)
 PROJECT_VERSION := $(shell $(PYTHON) -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
 EXPECTED_RELEASE ?= $(PROJECT_VERSION)
 
-.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity schemas schema-force-includes schema-staging schema-check release-provenance release-bundle check release-check demo
+.PHONY: test lint type clean-dist build docs-align claim-boundary examples-parity reproduction-index-check schemas schema-force-includes schema-staging schema-check release-provenance release-bundle check release-check demo
 
 test:
 	$(PYTHON) -m pytest
@@ -36,7 +36,10 @@ claim-boundary:
 examples-parity:
 	$(PYTHON) scripts/check_packaged_examples.py
 
-check: lint type test docs-align claim-boundary examples-parity build
+reproduction-index-check:
+	$(PYTHON) scripts/update_process_equivalence_reproduction_index.py
+
+check: lint type test docs-align claim-boundary examples-parity reproduction-index-check build
 
 release-check: check schema-check release-provenance
 	$(PYTHON) -m twine check dist/*

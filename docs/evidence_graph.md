@@ -1,12 +1,12 @@
 # Minimal Assurance Evidence Graph
 
-Status: development RFC for the v0.6.3 writer surface.
+Status: development RFC for the v0.6.4 writer surface.
 
 AssuranceEvidenceGraph/v1 is a deterministic, digest-bound projection of
 existing Agent Assure artifacts. It gives evaluation, comparison, mutation,
-control-efficacy, gate, and limitation evidence one small machine-readable
-shape without claiming that the graph proves adequacy, authenticity, safety,
-or compliance.
+control-efficacy, controlled evidence-sensitivity, gate, and limitation
+evidence one small machine-readable shape without claiming that the graph
+proves adequacy, authenticity, safety, or compliance.
 
 ## Vocabulary
 
@@ -50,7 +50,7 @@ The identity projections are closed and schema-owned:
 | evidence | scoped subject node ID, evidence type, source artifact kind, source ID |
 | finding | scoped subject node ID, parent evidence node ID, finding type, source artifact kind, source ID, source path |
 
-Source IDs are non-empty. Current v0.6.3 run sets, evaluation summaries,
+Source IDs are non-empty. Current v0.6.4 run sets, evaluation summaries,
 comparison summaries, and evaluation findings reject empty identifiers before
 first-party graph projection. Older artifacts retain their historical parsing
 contract, but an older artifact with an empty projected identifier cannot be
@@ -74,6 +74,13 @@ unsafe numeric input, noncanonical ordering, or an endpoint-kind mismatch.
 The public digest helper rejects a mapping that still contains graph_digest so
 the digest cannot accidentally include itself.
 
+The public graph builder reparses every supplied typed model through its complete
+JSON projection before reading any identity, semantic-state, policy, or digest
+field. This includes the subject, evaluation, comparison, sensitivity report,
+every mutation result, control-efficacy report, gate profile, and gate decision.
+An in-memory `model_copy(update=...)` object therefore cannot bypass normal
+model invariants or carry a stale self-digest into the graph.
+
 ## Projection semantics
 
 The pure builder accepts typed artifacts and does not perform I/O or invoke a
@@ -92,11 +99,33 @@ model:
 - control-efficacy outcomes and threat coverage preserve their semantic state;
 - gate profiles preserve non-verdict policy provenance, while gate decisions
   preserve authoritative verdicts and exact gate effects without recalculating
-  or changing CI behavior; and
+  or changing CI behavior;
+- controlled evidence-sensitivity reports project an
+  `expected_decision_response` requirement, typed sensitivity evidence, and one
+  outcome finding. Responsive evidence is supported, evidence-insensitive
+  evidence is violated, and confounded or prerequisite-unmet evidence remains
+  inconclusive and non-verdict. The counterfactual RunSet is the primary
+  subject, the exact baseline RunSet is an authenticated secondary subject, and
+  every report limitation remains a limitation finding. The projection carries
+  the exact baseline-to-counterfactual expected and observed decisions plus the
+  derived outcome classification. It also preserves whether synthetic inputs
+  were bundled and digest-verified or operator-attested, the nullable
+  attestation digest, the exact raw-content persistence warning, and the
+  provenance-specific population-claim boundary. Operator-attested projections
+  require a lowercase SHA-256 attestation digest; bundled projections forbid
+  one. Verdict-bearing projections require a bound, distinct
+  `approve`/`deny` expected path, and non-verdict projections cannot carry the
+  verdict-only expected-response-missing reason. Non-verdict evidence may
+  preserve partial or unbound expectations when contract validation failed, but
+  any fully bound expected path must still be a distinct `approve`/`deny`
+  flip. The outcome finding message must equal the
+  canonical directional message for that typed projection; decision inertia
+  remains a separate boolean subfinding and is not reused as the overall
+  outcome message; and
 - every supplied limitation becomes a non-verdict-bearing finding as well as
   remaining attached to its source evidence.
 
-The current v0.6.3 `evaluation-summary` schema optionally carries the canonical
+The current v0.6.4 `evaluation-summary` schema optionally carries the canonical
 RunSet digest. The built-in evaluator always emits that digest, and the
 first-party packet projector preserves it as the primary run-set subject
 digest. When mutation or control-efficacy source digests match, their evidence,
@@ -105,12 +134,31 @@ primary subject without an inferred join. The builder rejects an authenticated
 evaluation digest that is omitted from or differs from the supplied primary
 subject, and it rejects conflicting source digests.
 
-The field remains optional so current independent producers that cannot
-authenticate RunSet content remain representable; frozen evaluation summaries
-through v0.6.2 do not carry it. When the digest is absent, digest-only evidence
-is scoped to a separate subject labeled by that digest, and missing-digest
-mutation evidence is scoped to an explicit unbound subject. The builder does
-not add an unauthenticated connecting edge.
+Current v0.6.4 comparison summaries require authenticated baseline and
+candidate RunSet digests. The graph uses those fields directly for the
+comparison subjects. When paired with an evaluation, the evaluation must carry
+an authenticated RunSet digest and it must equal the comparison candidate
+digest; falling back to the matching human-readable RunSet ID is rejected. A
+digestless legacy comparison remains scoped to its own digestless candidate
+subject when the primary subject is authenticated. The projector does not infer
+either comparison digest from an evaluation, sensitivity report, or
+caller-supplied subject.
+
+The evaluation digest field remains optional so current independent producers
+that cannot authenticate RunSet content remain representable as standalone or
+legacy evidence; frozen evaluation summaries through v0.6.2 do not carry it.
+They cannot be paired with a current digest-authenticated comparison. When no
+such comparison is present, digest-only evidence is scoped to a separate
+subject labeled by that digest, and missing-digest mutation evidence is scoped
+to an explicit unbound subject. The builder does not add an unauthenticated
+connecting edge.
+
+When evaluation and evidence-sensitivity inputs are supplied together, the
+builder additionally hashes the complete canonical evaluation summary and
+requires it to equal the counterfactual arm's authenticated evaluation digest.
+Matching only RunSet ID and RunSet digest is insufficient. Sensitivity graph
+vocabulary is v0.6.4-only: direct model validation rejects a graph labeled
+`0.6.3` when it carries a sensitivity projection, finding, or requirement.
 
 The resulting graph may therefore still contain multiple weakly disconnected
 components. `primary_subject_node_id` is the graph's primary identity anchor,
@@ -161,7 +209,8 @@ are not forced to emit a graph. When one binding is present, the corresponding
 binding must be complete and exact.
 
 The first-party bound graph is the exact canonical projection of the packet's
-nested evaluation, comparison, control-efficacy, gate, and limitation fields.
+nested evaluation, comparison, control-efficacy, controlled
+evidence-sensitivity, gate, and limitation fields.
 Trusted verification reconstructs that projection and rejects a structurally
 valid graph for different evidence. Optional mutation results are not nested
 packet fields, so they do not alter the packet-bound digest. Supplying
@@ -176,8 +225,8 @@ avoiding a graph-to-packet-to-graph digest cycle.
     agent-assure graph validate assurance-evidence-graph.json
     agent-assure graph digest assurance-evidence-graph.json
 
-Packet projection is available through packet graph, and the first-party
-packet builder writes a graph beside new packets. Packet publication restores
+Packet projection is available through `packet graph --packet`, and the
+first-party packet builder writes a graph beside new packets. Packet publication restores
 all pre-existing owned outputs when an ordinary late write fails; this is
 best-effort rollback, not a multi-file crash-atomic transaction. Loaders are
 bounded, validate JSON Schema before current-model projection, and return

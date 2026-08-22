@@ -3,24 +3,44 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import shutil
+from dataclasses import replace
 from pathlib import Path
+from typing import cast
 
 import pytest
+import yaml
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
 import agent_assure.cli.packet_cmd as packet_cmd
 import agent_assure.onboarding.path_safety as path_safety
-from agent_assure.ci import GateOutcome, gate_evidence_packet
+import agent_assure.reporting.packet as packet_reporting
+from agent_assure.ci import (
+    GateOutcome,
+    gate_evidence_packet,
+    gate_evidence_sensitivity_report,
+)
 from agent_assure.cli.main import app
+from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES, BoundedFileContents
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.rag.sensitivity import (
+    execute_sensitivity_experiment,
+    load_sensitivity_corpus,
+)
+from agent_assure.release_evidence import build_digest_replay, verify_digest_replay
 from agent_assure.reporting.packet import (
+    DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
+    build_privacy_filtered_evidence_graph,
     load_evaluation_summary_snapshot,
     load_evidence_packet,
     packet_artifact_digest_from_snapshot,
+    packet_summary_files_binding_error,
+    packet_summary_snapshots_binding_error,
     release_artifact_from_summary_snapshot,
+    render_evidence_packet_markdown,
 )
 from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
@@ -28,6 +48,20 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
+from agent_assure.schema.sensitivity import (
+    DetectorTestStatus,
+    EvidenceSensitivityExpectedRelation,
+    EvidenceSensitivityGateEffect,
+    EvidenceSensitivityOutcomeClassification,
+    EvidenceSensitivityReasonCode,
+    EvidenceSensitivityState,
+    RAGSensitivityCorpusManifest,
+    RAGSensitivityKnowledgeContract,
+    RAGSensitivityReport,
+    RAGSensitivitySyntheticDataAttestation,
+)
+from agent_assure.sensitivity_comparison import derive_sensitivity_comparison
 from tests.unit.controls.test_control_efficacy import _DROP_OPERATOR, _campaign
 
 RUNNER = CliRunner()
@@ -40,6 +74,7 @@ def test_evidence_packet_schema_exists() -> None:
         evaluation=EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="runset-001",
+            runset_digest="c" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.not_evaluated,
@@ -48,6 +83,8 @@ def test_evidence_packet_schema_exists() -> None:
             artifact_kind="comparison-summary",
             baseline_runset_id="baseline",
             candidate_runset_id="runset-001",
+            baseline_runset_digest="b" * 64,
+            candidate_runset_digest="c" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             classification=ComparisonClassification.provenance_only_change,
@@ -70,9 +107,344 @@ def test_evidence_packet_schema_exists() -> None:
     assert packet.schema_version == SCHEMA_VERSION
 
 
+def test_packet_markdown_revalidates_model_copy_and_privacy_payload() -> None:
+    evaluation = EvaluationSummary(
+        runset_id="renderer-candidate",
+        runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    packet = build_evidence_packet(
+        evaluation,
+        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),),
+    )
+    tampered = packet.model_copy(
+        update={"evaluation": evaluation.model_copy(update={"runset_id": ""})}
+    )
+    unsafe = packet.model_copy(update={"interpretation": ("contact reviewer@example.com",)})
+
+    with pytest.raises(ValidationError):
+        render_evidence_packet_markdown(tampered)
+    rendered = render_evidence_packet_markdown(unsafe)
+    assert "reviewer@example.com" not in rendered
+    assert "REDACTED" in rendered
+
+
+def test_packet_manifest_verifier_caps_entries_before_filesystem_reads(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=False)
+    (tmp_path / "evaluation-summary.json").unlink()
+
+    monkeypatch.setattr(packet_reporting, "_MAX_RELEASE_MANIFEST_ARTIFACTS", 0)
+
+    error = packet_summary_files_binding_error(packet, artifact_root=tmp_path)
+
+    assert error == "evidence packet release manifest exceeds the artifact verification limit"
+
+
+def test_packet_manifest_verifier_stops_at_aggregate_read_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=True)
+    evaluation_size = (tmp_path / "evaluation-summary.json").stat().st_size
+    (tmp_path / "auxiliary-review.txt").unlink()
+
+    monkeypatch.setattr(
+        packet_reporting,
+        "_MAX_RELEASE_MANIFEST_TOTAL_BYTES",
+        evaluation_size - 1,
+    )
+
+    error = packet_summary_files_binding_error(packet, artifact_root=tmp_path)
+
+    assert error == "evidence packet release manifest exceeds the aggregate verification limit"
+
+
+def test_packet_snapshot_and_path_manifest_verifiers_agree(tmp_path: Path) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=True)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+
+    path_error = packet_summary_files_binding_error(packet, artifact_root=tmp_path)
+    snapshot_error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=snapshots,
+    )
+
+    assert path_error is None
+    assert snapshot_error == path_error
+
+
+@pytest.mark.parametrize("role", ["evaluation-summary", "auxiliary-review"])
+def test_packet_snapshot_verifier_checks_every_manifest_artifact_digest(
+    tmp_path: Path,
+    role: str,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=True)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    assert packet.release_manifest is not None
+    artifact = next(item for item in packet.release_manifest.artifacts if item.role == role)
+    original = snapshots[artifact.path]
+    corrupt_bytes = original.data + b"corruption"
+    snapshots[artifact.path] = replace(
+        original,
+        data=corrupt_bytes,
+        sha256=hashlib.sha256(corrupt_bytes).hexdigest(),
+        size=len(corrupt_bytes),
+    )
+
+    error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=snapshots,
+    )
+
+    assert error == (f"evidence packet {role} source file digest does not match release manifest")
+
+
+def test_packet_snapshot_verifier_rejects_corrupt_snapshot_metadata(
+    tmp_path: Path,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=False)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    evaluation = snapshots["evaluation-summary.json"]
+    snapshots["evaluation-summary.json"] = replace(
+        evaluation,
+        data=evaluation.data + b"corruption",
+    )
+
+    error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=snapshots,
+    )
+
+    assert error == (
+        "evidence packet evaluation-summary source snapshot metadata does not match exact bytes"
+    )
+
+
+def test_packet_snapshot_verifier_rejects_missing_and_extra_snapshots(
+    tmp_path: Path,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=True)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    missing = dict(snapshots)
+    missing.pop("auxiliary-review.txt")
+    extra = {
+        **snapshots,
+        "unmanifested-review.txt": snapshots["auxiliary-review.txt"],
+    }
+
+    missing_error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=missing,
+    )
+    extra_error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=extra,
+    )
+
+    assert missing_error == "evidence packet auxiliary-review source snapshot is missing"
+    assert extra_error == "evidence packet artifact snapshots contain unmanifested paths"
+
+
+def test_packet_snapshot_verifier_rejects_ambiguous_portable_paths(
+    tmp_path: Path,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=True)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    ambiguous = {
+        **snapshots,
+        "AUXILIARY-REVIEW.TXT": snapshots["auxiliary-review.txt"],
+    }
+
+    error = packet_summary_snapshots_binding_error(
+        packet,
+        snapshots_by_path=ambiguous,
+    )
+
+    assert error == "evidence packet artifact snapshots contain ambiguous paths"
+
+
+def test_packet_snapshot_verifier_revalidates_model_copy_tampering(
+    tmp_path: Path,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=False)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    tampered = packet.model_copy(
+        update={
+            "evaluation": packet.evaluation.model_copy(update={"runset_id": ""}),
+        }
+    )
+
+    path_error = packet_summary_files_binding_error(tampered, artifact_root=tmp_path)
+    snapshot_error = packet_summary_snapshots_binding_error(
+        tampered,
+        snapshots_by_path=snapshots,
+    )
+
+    assert path_error == "evidence packet failed trusted model revalidation"
+    assert snapshot_error == path_error
+
+
+def test_packet_snapshot_verifier_parses_summary_from_captured_bytes(
+    tmp_path: Path,
+) -> None:
+    packet = _packet_with_release_manifest(tmp_path, include_auxiliary=False)
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    replacement = packet.evaluation.model_copy(update={"runset_id": "different-candidate"})
+    replacement_bytes = (json.dumps(replacement.model_dump(mode="json"), indent=2) + "\n").encode()
+    replacement_digest = hashlib.sha256(replacement_bytes).hexdigest()
+    evaluation_snapshot = snapshots["evaluation-summary.json"]
+    snapshots["evaluation-summary.json"] = replace(
+        evaluation_snapshot,
+        data=replacement_bytes,
+        sha256=replacement_digest,
+        size=len(replacement_bytes),
+    )
+    assert packet.release_manifest is not None
+    rebound_manifest = packet.release_manifest.model_copy(
+        update={
+            "artifacts": tuple(
+                artifact.model_copy(update={"sha256": replacement_digest})
+                if artifact.role == "evaluation-summary"
+                else artifact
+                for artifact in packet.release_manifest.artifacts
+            )
+        }
+    )
+    rebound_packet = packet.model_copy(
+        update={
+            "release_manifest": rebound_manifest,
+            "artifact_digests": (
+                PacketArtifactDigest(
+                    role="evaluation-summary",
+                    sha256=replacement_digest,
+                ),
+            ),
+        }
+    )
+
+    error = packet_summary_snapshots_binding_error(
+        rebound_packet,
+        snapshots_by_path=snapshots,
+    )
+
+    assert error == ("evidence packet evaluation-summary source file does not match nested summary")
+
+
+def test_packet_snapshot_verifier_reconstructs_graph_from_nested_evidence(
+    tmp_path: Path,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="snapshot-graph-candidate",
+        runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    graph = build_privacy_filtered_evidence_graph(
+        evaluation,
+        limitations=DEFAULT_PACKET_LIMITATIONS,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    graph_path = tmp_path / "assurance-evidence-graph.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    _write_json(graph_path, graph.model_dump(mode="json"))
+    manifest = ReleaseArtifactManifest(
+        manifest_id="snapshot-graph-manifest",
+        artifacts=(
+            ReleaseArtifact(
+                role="evaluation-summary",
+                path=evaluation_path.name,
+                sha256=_file_sha256(evaluation_path),
+            ),
+            ReleaseArtifact(
+                role="assurance-evidence-graph",
+                path=graph_path.name,
+                sha256=_file_sha256(graph_path),
+            ),
+        ),
+        environment=EnvironmentInfo(platform="test", python_version="3.14"),
+    )
+    packet = build_evidence_packet(
+        evaluation,
+        release_manifest=manifest,
+        evidence_graph_digest=graph.graph_digest,
+        artifact_digests=(
+            PacketArtifactDigest(
+                role="evaluation-summary",
+                sha256=_file_sha256(evaluation_path),
+            ),
+            PacketArtifactDigest(
+                role="assurance-evidence-graph",
+                sha256=_file_sha256(graph_path),
+            ),
+        ),
+    )
+    snapshots = _manifest_file_snapshots(packet, root=tmp_path)
+    assert (
+        packet_summary_snapshots_binding_error(
+            packet,
+            snapshots_by_path=snapshots,
+        )
+        is None
+    )
+
+    replacement_graph = build_privacy_filtered_evidence_graph(
+        evaluation,
+        limitations=("different graph limitation",),
+    )
+    replacement_bytes = (
+        json.dumps(replacement_graph.model_dump(mode="json"), indent=2) + "\n"
+    ).encode()
+    replacement_digest = hashlib.sha256(replacement_bytes).hexdigest()
+    graph_snapshot = snapshots[graph_path.name]
+    snapshots[graph_path.name] = replace(
+        graph_snapshot,
+        data=replacement_bytes,
+        sha256=replacement_digest,
+        size=len(replacement_bytes),
+    )
+    rebound_manifest = manifest.model_copy(
+        update={
+            "artifacts": tuple(
+                artifact.model_copy(update={"sha256": replacement_digest})
+                if artifact.role == "assurance-evidence-graph"
+                else artifact
+                for artifact in manifest.artifacts
+            )
+        }
+    )
+    rebound_packet = packet.model_copy(
+        update={
+            "release_manifest": rebound_manifest,
+            "evidence_graph_digest": replacement_graph.graph_digest,
+            "artifact_digests": tuple(
+                artifact.model_copy(update={"sha256": replacement_digest})
+                if artifact.role == "assurance-evidence-graph"
+                else artifact
+                for artifact in packet.artifact_digests
+            ),
+        }
+    )
+
+    error = packet_summary_snapshots_binding_error(
+        rebound_packet,
+        snapshots_by_path=snapshots,
+    )
+
+    assert error == (
+        "evidence packet assurance-evidence-graph does not correspond to nested packet evidence"
+    )
+
+
 def test_evidence_packet_rejects_mismatched_privacy_detector_profiles() -> None:
     evaluation = EvaluationSummary(
         runset_id="candidate",
+        runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -80,6 +452,8 @@ def test_evidence_packet_rejects_mismatched_privacy_detector_profiles() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest="f" * 64,
         classification=ComparisonClassification.unchanged,
@@ -102,6 +476,7 @@ def test_evidence_packet_rejects_mismatched_privacy_detector_profiles() -> None:
 def test_evidence_packet_rejects_evaluation_for_a_different_candidate() -> None:
     evaluation = EvaluationSummary(
         runset_id="stale-candidate",
+        runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -109,6 +484,8 @@ def test_evidence_packet_rejects_evaluation_for_a_different_candidate() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.unchanged,
@@ -128,10 +505,81 @@ def test_evidence_packet_rejects_evaluation_for_a_different_candidate() -> None:
         )
 
 
+def test_packet_build_load_and_gate_reject_contradictory_candidate_runset_digests(
+    tmp_path: Path,
+) -> None:
+    candidate_digest = "a" * 64
+    evaluation = EvaluationSummary(
+        runset_id="candidate",
+        runset_digest=candidate_digest,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest=candidate_digest,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.unchanged,
+        fixture_equivalence_state=GateState.pass_,
+        baseline_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+    artifact_digests = (
+        PacketArtifactDigest(role="evaluation-summary", sha256="0" * 64),
+        PacketArtifactDigest(role="comparison-summary", sha256="1" * 64),
+    )
+    valid_packet = build_evidence_packet(
+        evaluation,
+        comparison=comparison,
+        artifact_digests=artifact_digests,
+    )
+    contradictory = comparison.model_copy(update={"candidate_runset_digest": "c" * 64})
+
+    with pytest.raises(ValidationError, match="candidate_runset_digest"):
+        build_evidence_packet(
+            evaluation,
+            comparison=contradictory,
+            artifact_digests=artifact_digests,
+        )
+
+    payload = valid_packet.model_dump(mode="json")
+    nested_comparison = cast(dict[str, object], payload["comparison"])
+    nested_comparison["candidate_runset_digest"] = "c" * 64
+    packet_path = tmp_path / "contradictory-packet.json"
+    _write_json(packet_path, payload)
+    with pytest.raises(ValueError, match="evidence-packet artifact failed model validation"):
+        load_evidence_packet(packet_path)
+
+    unchecked = valid_packet.model_copy(update={"comparison": contradictory})
+    decision = gate_evidence_packet(unchecked)
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.exit_code == 2
+    assert "candidate_runset_digest" in decision.message
+
+    unbound_evaluation = evaluation.model_copy(update={"runset_digest": None})
+    with pytest.raises(
+        ValidationError,
+        match=(
+            "comparison candidate_runset_digest requires an authenticated evaluation runset_digest"
+        ),
+    ):
+        build_evidence_packet(
+            unbound_evaluation,
+            comparison=comparison,
+            artifact_digests=artifact_digests,
+        )
+
+
 def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: Path) -> None:
+    candidate_runset_digest = "c" * 64
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate",
+        runset_digest=candidate_runset_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -140,6 +588,8 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
         artifact_kind="comparison-summary",
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest=candidate_runset_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
@@ -1610,6 +2060,596 @@ def test_packet_id_excludes_local_environment_and_exact_file_digests() -> None:
     )
 
     assert first.packet_id == second.packet_id
+
+
+def test_packet_build_cli_carries_authenticated_evidence_sensitivity(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "responsive_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    evaluation_path = tmp_path / "counterfactual-evaluation-summary.json"
+    sensitivity_path = tmp_path / "evidence-sensitivity.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    graph_path = tmp_path / "assurance-evidence-graph.json"
+    _write_json(
+        evaluation_path,
+        artifacts.counterfactual_evaluation.model_dump(mode="json"),
+    )
+    _write_json(
+        sensitivity_path,
+        artifacts.report.model_dump(mode="json"),
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "build",
+            str(evaluation_path),
+            "--evidence-sensitivity",
+            str(sensitivity_path),
+            "--out",
+            str(packet_path),
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    packet = load_evidence_packet(packet_path)
+    assert packet.evidence_sensitivity == artifacts.report
+    assert packet.evidence_sensitivity.detector_test_status is (
+        DetectorTestStatus.synthetic_detector_contract_test
+    )
+    assert {item.role: item.sha256 for item in packet.artifact_digests}[
+        "evidence-sensitivity-report"
+    ] == _file_sha256(sensitivity_path)
+    assert packet.release_manifest is not None
+    assert {item.role: item.sha256 for item in packet.release_manifest.artifacts}[
+        "evidence-sensitivity-report"
+    ] == _file_sha256(sensitivity_path)
+
+    graph = json.loads(graph_path.read_text(encoding="utf-8"))
+    sensitivity_evidence = next(
+        node["payload"]
+        for node in graph["nodes"]
+        if node["payload"].get("evidence_type") == "evidence_sensitivity"
+    )
+    projection = sensitivity_evidence["evidence_sensitivity_projection"]
+    assert sensitivity_evidence["source_digest"] == artifacts.report.report_digest
+    assert sensitivity_evidence["limitations"] == list(artifacts.report.limitations)
+    assert projection["state"] == "responsive"
+    assert projection["endpoint_value"] is True
+    assert projection["claim_scope"] == ("controlled_evidence_sensitivity_not_causal_guarantee")
+    assert projection["population_claim"] == "none_bundled_synthetic_fixture_only"
+    assert projection["synthetic_data_provenance"] == "bundled_digest_verified"
+    assert projection["synthetic_data_attestation_digest"] is None
+    assert projection["raw_content_persistence"] == "exact_corpus_and_fixture_utf8_embedded"
+    assert projection["detector_test_status"] == "synthetic_detector_contract_test"
+    markdown = packet_path.with_suffix(".md").read_text(encoding="utf-8")
+    assert "## Controlled Evidence Sensitivity" in markdown
+    assert (
+        "does not show that a model used contextual evidence instead of parametric memory"
+        in markdown
+    )
+    assert "not a causal guarantee or real-model prevalence estimate" in markdown
+    assert all(limitation in markdown for limitation in artifacts.report.limitations)
+    replay = build_digest_replay(
+        (("evidence-sensitivity-report", sensitivity_path),),
+        project_root=tmp_path,
+    )
+    assert replay.artifacts[0].digest_mode == "replay-stable-json-sha256"
+    assert verify_digest_replay(replay, artifact_root=tmp_path).ok
+
+    gated = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--artifact-root",
+            str(tmp_path),
+        ],
+    )
+    assert gated.exit_code == 0, gated.output
+
+
+def test_cli_comparison_of_sensitivity_runsets_packet_builds_end_to_end(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    sensitivity_out = tmp_path / "sensitivity"
+    sensitivity_result = RUNNER.invoke(
+        app,
+        [
+            "rag",
+            "sensitivity",
+            "--suite",
+            str(example / "responsive_suite.yaml"),
+            "--baseline-corpus",
+            str(example / "corpora" / "policy_a"),
+            "--counterfactual-corpus",
+            str(example / "corpora" / "policy_b"),
+            "--knowledge-contract",
+            str(example / "knowledge-contract.yaml"),
+            "--expected-relation",
+            "decision_flip",
+            "--out",
+            str(sensitivity_out),
+        ],
+    )
+    assert sensitivity_result.exit_code == 0, sensitivity_result.output
+
+    comparison_out = tmp_path / "comparison"
+    comparison_result = RUNNER.invoke(
+        app,
+        [
+            "compare",
+            str(sensitivity_out / "baseline.runset.json"),
+            str(sensitivity_out / "counterfactual.runset.json"),
+            "--suite",
+            str(sensitivity_out / "compiled-suite.json"),
+            "--out-dir",
+            str(comparison_out),
+        ],
+    )
+    assert comparison_result.exit_code == 0, comparison_result.output
+    cli_comparison = ComparisonSummary.model_validate(
+        json.loads((comparison_out / "comparison-summary.json").read_text(encoding="utf-8"))
+    )
+    assert cli_comparison.environment is not None
+
+    packet_path = tmp_path / "packet" / "evidence-packet.json"
+    packet_result = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "build",
+            str(sensitivity_out / "counterfactual-evaluation-summary.json"),
+            "--comparison",
+            str(comparison_out / "comparison-summary.json"),
+            "--evidence-sensitivity",
+            str(sensitivity_out / "evidence-sensitivity.json"),
+            "--out",
+            str(packet_path),
+            "--project-root",
+            str(tmp_path),
+        ],
+    )
+    assert packet_result.exit_code == 0, packet_result.output
+    packet = load_evidence_packet(packet_path)
+    report = packet.evidence_sensitivity
+    comparison = packet.comparison
+    assert report is not None
+    assert comparison is not None
+    assert comparison.environment == cli_comparison.environment
+    assert comparison.baseline_runset_digest == report.baseline_arm.runset_digest
+    assert comparison.candidate_runset_digest == report.counterfactual_arm.runset_digest
+
+    gate_result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--artifact-root",
+            str(tmp_path),
+        ],
+    )
+    assert gate_result.exit_code == 0, gate_result.output
+
+
+def test_packet_and_ci_reject_comparison_that_contradicts_embedded_sensitivity() -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "responsive_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    comparison = derive_sensitivity_comparison(artifacts.report)
+    packet = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        comparison=comparison,
+        evidence_sensitivity=artifacts.report,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),
+            PacketArtifactDigest(role="comparison-summary", sha256="b" * 64),
+            PacketArtifactDigest(role="evidence-sensitivity-report", sha256="c" * 64),
+        ),
+    )
+    environment = EnvironmentInfo(platform="test", python_version="3.14")
+    environment_comparison = comparison.model_copy(update={"environment": environment})
+    environment_packet = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        comparison=environment_comparison,
+        evidence_sensitivity=artifacts.report,
+        artifact_digests=packet.artifact_digests,
+    )
+    assert environment_packet.comparison is not None
+    assert environment_packet.comparison.environment == environment
+
+    for field_name in ("baseline_runset_digest", "candidate_runset_digest"):
+        original_digest = getattr(comparison, field_name)
+        replacement = "0" * 64 if original_digest != "0" * 64 else "1" * 64
+        digest_tampered = comparison.model_copy(update={field_name: replacement})
+        with pytest.raises(ValidationError, match=field_name):
+            build_evidence_packet(
+                artifacts.counterfactual_evaluation,
+                comparison=digest_tampered,
+                evidence_sensitivity=artifacts.report,
+                artifact_digests=packet.artifact_digests,
+            )
+
+    contradictory = comparison.model_copy(update={"baseline_state": GateState.fail})
+
+    with pytest.raises(
+        ValidationError,
+        match="must exactly equal the canonical comparison",
+    ):
+        build_evidence_packet(
+            artifacts.counterfactual_evaluation,
+            comparison=contradictory,
+            evidence_sensitivity=artifacts.report,
+            artifact_digests=packet.artifact_digests,
+        )
+
+    unchecked = packet.model_copy(update={"comparison": contradictory})
+    decision = gate_evidence_packet(unchecked)
+
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+    assert "must exactly equal the canonical comparison" in decision.message
+
+
+def test_report_rejects_unauthenticated_sensitivity_evaluation_digest_before_packet() -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "responsive_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    report_payload = artifacts.report.model_dump(
+        mode="json",
+        exclude={"report_digest"},
+    )
+    counterfactual = cast(dict[str, object], report_payload["counterfactual_arm"])
+    counterfactual["evaluation_summary_digest"] = "a" * 64
+
+    with pytest.raises(
+        ValidationError,
+        match="counterfactual exact evaluation summary must match the sensitivity arm",
+    ):
+        RAGSensitivityReport.build(**report_payload)
+
+
+def test_evidence_insensitive_packet_blocks_ci_gate_and_cannot_be_silently_required(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "evidence_inertial_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    packet = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        evidence_sensitivity=artifacts.report,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),
+            PacketArtifactDigest(
+                role="evidence-sensitivity-report",
+                sha256="b" * 64,
+            ),
+        ),
+    )
+
+    decision = gate_evidence_packet(packet)
+
+    assert artifacts.report.state is EvidenceSensitivityState.evidence_insensitive
+    assert decision.outcome is GateOutcome.fail
+    assert decision.exit_code == 1
+    assert decision.reason_code is EvidenceSensitivityReasonCode.expected_response_missing
+    assert "state=evidence_insensitive gate_effect=block" in decision.message
+
+    stripped = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),),
+    )
+    assert gate_evidence_packet(stripped).outcome is GateOutcome.pass_
+
+    required = gate_evidence_packet(
+        stripped,
+        require_evidence_sensitivity=True,
+    )
+    assert required.outcome is GateOutcome.invalid
+    assert required.exit_code == 2
+    assert "--require-evidence-sensitivity" in required.message
+
+    stripped_path = tmp_path / "stripped-packet.json"
+    _write_json(stripped_path, stripped.model_dump(mode="json"))
+    cli_required = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(stripped_path),
+            "--require-evidence-sensitivity",
+        ],
+    )
+    assert cli_required.exit_code == 2
+    assert "--require-evidence-sensitivity" in cli_required.output
+
+
+def test_sensitivity_gates_revalidate_model_copy_tampering() -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "evidence_inertial_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    packet = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        evidence_sensitivity=artifacts.report,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),
+            PacketArtifactDigest(role="evidence-sensitivity-report", sha256="b" * 64),
+        ),
+    )
+    forged_report = artifacts.report.model_copy(
+        update={
+            "state": EvidenceSensitivityState.responsive,
+            "gate_effect": EvidenceSensitivityGateEffect.pass_,
+            "verdict_bearing": True,
+            "reason_codes": (),
+            "outcome_classification": (
+                EvidenceSensitivityOutcomeClassification.expected_response_observed
+            ),
+            "endpoint_value": True,
+        }
+    )
+
+    direct_decision = gate_evidence_sensitivity_report(forged_report)
+    packet_decision = gate_evidence_packet(
+        packet.model_copy(update={"evidence_sensitivity": forged_report})
+    )
+
+    for decision in (direct_decision, packet_decision):
+        assert decision.outcome is GateOutcome.invalid
+        assert decision.exit_code == 2
+        assert "failed trusted model revalidation" in decision.message
+
+
+def test_reversed_sensitivity_packet_markdown_explains_wrong_direction() -> None:
+    root = Path(__file__).resolve().parents[2]
+    example = root / "examples" / "evidence_sensitivity"
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "evidence_reversed_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    packet = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        evidence_sensitivity=artifacts.report,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),
+            PacketArtifactDigest(role="evidence-sensitivity-report", sha256="b" * 64),
+        ),
+    )
+
+    markdown = render_evidence_packet_markdown(packet)
+
+    assert "- Outcome classification: `wrong_direction_flip`" in markdown
+    assert "- Outcome: Expected decisions" in markdown
+    assert "wrong direction relative to the authority contract" in markdown
+
+
+def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
+    tmp_path: Path,
+) -> None:
+    root = Path(__file__).resolve().parents[2]
+    source_example = root / "examples" / "evidence_sensitivity"
+    example = tmp_path / "evidence-sensitivity"
+    shutil.copytree(source_example, example)
+    bundled_artifacts = execute_sensitivity_experiment(
+        suite_path=example / "responsive_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=example / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    manifest_path = example / "corpora" / "policy_b" / "corpus-manifest.json"
+    manifest_payload = cast(
+        dict[str, object],
+        json.loads(manifest_path.read_text(encoding="utf-8")),
+    )
+    old_digest = cast(str, manifest_payload.pop("corpus_digest"))
+    manifest_payload["top_k"] = 2
+    manifest = RAGSensitivityCorpusManifest.build(**manifest_payload)
+    _write_json(manifest_path, manifest.model_dump(mode="json"))
+
+    contract_path = example / "knowledge-contract.yaml"
+    contract_payload = yaml.safe_load(contract_path.read_text(encoding="utf-8"))
+    assert isinstance(contract_payload, dict)
+    contract_payload.pop("knowledge_contract_digest")
+    assignments = cast(list[dict[str, object]], contract_payload["assignments"])
+    for assignment in assignments:
+        if assignment["corpus_digest"] == old_digest:
+            assignment["corpus_digest"] = manifest.corpus_digest
+    assignments.sort(key=lambda item: cast(str, item["corpus_digest"]))
+    contract = RAGSensitivityKnowledgeContract.build(**contract_payload)
+    contract_path.write_text(
+        yaml.safe_dump(contract.model_dump(mode="json"), sort_keys=False),
+        encoding="utf-8",
+    )
+    baseline_corpus = load_sensitivity_corpus(example / "corpora" / "policy_a")
+    counterfactual_corpus = load_sensitivity_corpus(example / "corpora" / "policy_b")
+    attestation = RAGSensitivitySyntheticDataAttestation.build(
+        attestation_id="operator-attested-nonverdict-fixture",
+        suite_digest=bundled_artifacts.protocol.suite_digest,
+        fixture_manifest_digest=bundled_artifacts.protocol.fixture_manifest_digest,
+        knowledge_contract_digest=contract.knowledge_contract_digest,
+        corpus_digests=tuple(
+            sorted(
+                (
+                    bundled_artifacts.protocol.baseline_corpus_digest,
+                    manifest.corpus_digest,
+                )
+            )
+        ),
+        corpus_snapshot_digests=tuple(
+            sorted(
+                (
+                    baseline_corpus.snapshot.snapshot_digest,
+                    counterfactual_corpus.snapshot.snapshot_digest,
+                )
+            )
+        ),
+    )
+    attestation_path = example / "synthetic-data-attestation.json"
+    _write_json(attestation_path, attestation.model_dump(mode="json"))
+    artifacts = execute_sensitivity_experiment(
+        suite_path=example / "responsive_suite.yaml",
+        baseline_corpus_dir=example / "corpora" / "policy_a",
+        counterfactual_corpus_dir=example / "corpora" / "policy_b",
+        knowledge_contract_path=contract_path,
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+        synthetic_data_attestation_path=attestation_path,
+    )
+    packet = build_evidence_packet(
+        artifacts.counterfactual_evaluation,
+        evidence_sensitivity=artifacts.report,
+        artifact_digests=(
+            PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),
+            PacketArtifactDigest(
+                role="evidence-sensitivity-report",
+                sha256="b" * 64,
+            ),
+        ),
+    )
+
+    direct = gate_evidence_sensitivity_report(artifacts.report)
+    packet_default = gate_evidence_packet(packet)
+    packet_allowed = gate_evidence_packet(
+        packet,
+        allow_sensitivity_non_verdict=True,
+    )
+    packet_strict = gate_evidence_packet(packet, fail_on_not_evaluated=True)
+
+    assert artifacts.report.state is EvidenceSensitivityState.confounded
+    assert artifacts.counterfactual_evaluation.state is GateState.pass_
+    assert direct.outcome is GateOutcome.not_evaluated
+    assert direct.reason_code is EvidenceSensitivityReasonCode.confounded
+    assert packet_default.outcome is GateOutcome.invalid
+    assert packet_default.exit_code == 2
+    assert "--allow-sensitivity-non-verdict" in packet_default.message
+    assert packet_allowed.outcome is GateOutcome.not_evaluated
+    assert packet_allowed.exit_code == 0
+    assert "state=confounded gate_effect=non_verdict" in packet_allowed.message
+    assert packet_strict.outcome is GateOutcome.fail
+    assert packet_strict.exit_code == 1
+    assert packet_strict.reason_code is EvidenceSensitivityReasonCode.confounded
+
+    packet_path = tmp_path / "confounded-packet.json"
+    _write_json(packet_path, packet.model_dump(mode="json"))
+    cli_default = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    cli_allowed = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-sensitivity-non-verdict",
+        ],
+    )
+    assert cli_default.exit_code == 2
+    assert "--allow-sensitivity-non-verdict" in cli_default.output
+    assert cli_allowed.exit_code == 0, cli_allowed.output
+    assert "state=confounded gate_effect=non_verdict" in cli_allowed.output
+
+
+def _packet_with_release_manifest(
+    root: Path,
+    *,
+    include_auxiliary: bool,
+) -> EvidencePacket:
+    evaluation = EvaluationSummary(
+        runset_id="manifest-budget-candidate",
+        runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = root / "evaluation-summary.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    artifacts = [
+        ReleaseArtifact(
+            role="evaluation-summary",
+            path=evaluation_path.name,
+            sha256=_file_sha256(evaluation_path),
+        )
+    ]
+    if include_auxiliary:
+        auxiliary_path = root / "auxiliary-review.txt"
+        auxiliary_path.write_text("bounded auxiliary review\n", encoding="utf-8")
+        artifacts.append(
+            ReleaseArtifact(
+                role="auxiliary-review",
+                path=auxiliary_path.name,
+                sha256=_file_sha256(auxiliary_path),
+            )
+        )
+    manifest = ReleaseArtifactManifest(
+        manifest_id="manifest-budget-test",
+        artifacts=tuple(artifacts),
+        environment=EnvironmentInfo(platform="test", python_version="3.14"),
+    )
+    return build_evidence_packet(
+        evaluation,
+        release_manifest=manifest,
+        artifact_digests=(
+            PacketArtifactDigest(
+                role="evaluation-summary",
+                sha256=_file_sha256(evaluation_path),
+            ),
+        ),
+    )
+
+
+def _manifest_file_snapshots(
+    packet: EvidencePacket,
+    *,
+    root: Path,
+) -> dict[str, BoundedFileContents]:
+    assert packet.release_manifest is not None
+    return {
+        artifact.path: path_safety.read_confined_file_snapshot(
+            root / artifact.path,
+            root=root,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label=f"test {artifact.role} artifact",
+        )
+        for artifact in packet.release_manifest.artifacts
+    }
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

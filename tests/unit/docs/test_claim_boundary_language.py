@@ -120,6 +120,47 @@ def test_claim_boundary_allows_project_limitation_phrase() -> None:
     assert violations == []
 
 
+@pytest.mark.parametrize(
+    "sentence",
+    (
+        "Their reports record synthetic_data_provenance=bundled_digest_verified and carry "
+        "no attestation.",
+        "Any changed or external suite, fixture, contract, or corpus is a custom input and "
+        "must provide --synthetic-data-attestation PATH.",
+        "A binding mismatch, stale self-digest, or missing attestation is invalid input "
+        "(exit 2) before publication.",
+        "Accepted custom runs record synthetic_data_provenance=operator_attested and the "
+        "attestation digest.",
+        "Operator attestation is an attributable machine-readable assertion by the artifact "
+        "author; it is not semantic inspection, independent verification, a signature, or "
+        "proof that the bytes are synthetic.",
+    ),
+)
+def test_claim_boundary_allows_reviewed_synthetic_attestation_language(
+    sentence: str,
+) -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        sentence,
+        path=Path("docs/evidence_sensitivity.md"),
+    )
+
+    assert violations == []
+
+
+def test_claim_boundary_rejects_unreviewed_synthetic_attestation_claim() -> None:
+    violations = claim_boundaries.find_claim_boundary_violations(
+        "The operator attestation independently proves that the corpus is synthetic.",
+        path=Path("docs/evidence_sensitivity.md"),
+    )
+
+    assert [(violation.label, violation.sentence) for violation in violations] == [
+        (
+            "attestation",
+            "The operator attestation independently proves that the corpus is synthetic.",
+        )
+    ]
+
+
 def test_claim_boundary_allows_markdown_decorated_limitation_phrase() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "- **This report is not a compliance attestation.**",
@@ -326,6 +367,8 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     post.write_text("Measured evidence\n", encoding="utf-8")
     efficacy_doc = docs / "control_efficacy.md"
     efficacy_doc.write_text("Measured evidence\n", encoding="utf-8")
+    sensitivity_doc = docs / "evidence_sensitivity.md"
+    sensitivity_doc.write_text("Measured evidence\n", encoding="utf-8")
     efficacy_post = post_dir / "who_assures_the_assurance.md"
     efficacy_post.write_text("Measured evidence\n", encoding="utf-8")
     assets_dir.mkdir()
@@ -333,6 +376,8 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     transcript.write_text("Measured evidence\n", encoding="utf-8")
     efficacy_walkthrough = assets_dir / "assure_the_assurance_walkthrough.txt"
     efficacy_walkthrough.write_text("Measured evidence\n", encoding="utf-8")
+    sensitivity_walkthrough = assets_dir / "evidence_sensitivity_walkthrough.txt"
+    sensitivity_walkthrough.write_text("Measured evidence\n", encoding="utf-8")
     visual = assets_dir / "flagship-evidence.svg"
     visual.write_text("<svg><text>Measured evidence</text></svg>\n", encoding="utf-8")
     social_dir.mkdir()
@@ -363,9 +408,11 @@ def test_default_scan_paths_use_fixed_release_facing_scope(tmp_path: Path) -> No
     assert release_note in paths
     assert post in paths
     assert efficacy_doc in paths
+    assert sensitivity_doc in paths
     assert efficacy_post in paths
     assert transcript in paths
     assert efficacy_walkthrough in paths
+    assert sensitivity_walkthrough in paths
     assert visual in paths
     assert video_script in paths
     assert golden_html in paths

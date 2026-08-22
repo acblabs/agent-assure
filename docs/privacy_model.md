@@ -28,11 +28,16 @@ encoding before rendering parsed report fields in terminals, logs, or review UIs
 
 The detector semantics have an explicit compatibility identity. Current
 `RunSet`, `EvaluationSummary`, and `ComparisonSummary` artifacts require
-`privacy_profile_id: agent-assure/privacy-detectors/v1` and a
+`privacy_profile_id: agent-assure/privacy-detectors/v2` and a
 `privacy_profile_digest`. The digest is SHA-256 over an RFC 8785 canonical
 manifest containing the ordered detector IDs, regular expressions and flags,
-their mandatory literal guards, the search and substitution algorithms, and
-the redaction replacement text.
+their mandatory literal guards, Unicode scan-view normalization, the search and
+substitution algorithms, and the redaction replacement text. The v2 scanner
+checks both the exact scalar and an NFKC compatibility view that converts
+tab/line-break controls to spaces and removes other Unicode category-C code
+points. If that view reconstructs a sensitive-looking value, the exact original
+scalar is redacted in full; accepted values are never silently normalized before
+persistence.
 Changing any manifest entry changes the digest; changing detector behavior
 also requires an intentional profile-ID version decision. The digest is a
 reproducibility and compatibility anchor, not a signature or attestation.
@@ -44,6 +49,17 @@ also skip detectors whose mandatory marker is absent. Mapping keys are scanned
 as well as values; sensitive-looking or control-character-bearing keys fail
 closed at persistence and telemetry boundaries rather than becoming attribute
 names.
+
+Evidence-sensitivity has one bounded exception for exact JSON source mirrors
+that may legitimately cross the scalar cap. A mirror is preserved only when
+its UTF-8 bytes match the adjacent SHA-256 digest (and declared size, for
+fixtures), it decodes to a mapping, and a recursive privacy pass leaves the
+decoded mapping unchanged. Fixture mirrors are limited to the schema roles
+`request`, `subject_configuration`, and `tool_configuration`; unknown or legacy
+role spellings do not receive the exemption. The exception independently
+rejects inputs above the declared 1 MiB corpus/fixture byte envelope before
+hashing or JSON parsing. A byte-limit, digest, size, decoded-value, or privacy
+mismatch falls back to ordinary fail-closed redaction.
 
 Evaluation fails closed when a current-schema RunSet declares a detector
 profile different from the runtime profile. Baseline/candidate comparison

@@ -1,6 +1,6 @@
 # PyPI Release Runbook
 
-This runbook covers the Python package upload path for `agent-assure` v0.6.3.
+This runbook covers the Python package upload path for `agent-assure` v0.6.4.
 The default path is GitHub Trusted Publishing with OIDC. Local `twine upload`
 is a fallback only when Trusted Publishing is unavailable.
 
@@ -45,8 +45,8 @@ Release, evidence, and TestPyPI workflows use the exact Python 3.14.6 canonical
 producer, matching the checked-in `requirements.lock` generator version. The
 compatibility CI matrix remains minor-version based. The tag validator checks the
 package version, exported schema version constants, and matching frozen schema
-directory before package upload. For the v0.6.3 package release, the active
-schema is `0.6.3` and the candidate schema directory is `schemas/v0.6.3` until
+directory before package upload. For the v0.6.4 package release, the active
+schema is `0.6.4` and the candidate schema directory is `schemas/v0.6.4` until
 the matching tag freezes it.
 
 ## Owner Setup
@@ -112,11 +112,11 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 schema_review_dir="$(mktemp -d)"
-agent-assure schema export --out "${schema_review_dir}/v0.6.3"
-git diff --no-index -- schemas/v0.6.3 "${schema_review_dir}/v0.6.3"
+agent-assure schema export --out "${schema_review_dir}/v0.6.4"
+git diff --no-index -- schemas/v0.6.4 "${schema_review_dir}/v0.6.4"
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.3
+python scripts/check_version_matches_tag.py v0.6.4
 rm -rf "${schema_review_dir}"
 ```
 
@@ -130,18 +130,39 @@ python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 $SchemaReviewRoot = Join-Path $env:TEMP "agent-assure-schema-review"
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force -ErrorAction SilentlyContinue
-$SchemaReview = Join-Path $SchemaReviewRoot "v0.6.3"
+$SchemaReview = Join-Path $SchemaReviewRoot "v0.6.4"
 agent-assure schema export --out $SchemaReview
-git diff --no-index -- schemas/v0.6.3 $SchemaReview
+git diff --no-index -- schemas/v0.6.4 $SchemaReview
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.3
+python scripts/check_version_matches_tag.py v0.6.4
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
 
 If the schema review diff is intentional, run `make schemas`, review
-`git diff -- schemas/v0.6.3`, run `make schema-force-includes`, then rerun
+`git diff -- schemas/v0.6.4`, run `make schema-force-includes`, then rerun
 `make schema-check` before continuing.
+
+`make release-check` also verifies the committed process-equivalence
+reproduction index in check mode and requires its public and packaged copies to
+match exactly. The distribution verifier rejects non-portable paths, duplicate
+or colliding names, links and special files, expansion-limit violations,
+missing source or packaged resources, wheel `RECORD` mismatches, and any
+filename, archive-layout, or metadata identity/version disagreement between the
+wheel and sdist. Every non-`.dist-info` wheel payload path and byte must match
+its intended sdist source (`src/agent_assure`, `mappings`, or a frozen schema),
+so wheel-only `.pth`/`.data` payloads, missing sources, and build byte drift are
+release blockers. Before any package code runs, the smoke phase creates and
+pins every artifact, cache, build, and environment root; installs the
+hash-locked dependencies separately; builds the exact sdist offline; and
+requires the resulting wheel's complete payload and metadata to reproduce the
+published wheel. Both verified wheels are then installed into separate clean
+environments with `--no-deps --no-compile`. Each whole-environment delta must
+match the wheel payload, declared console scripts, deterministic pip metadata,
+and installed `RECORD` exactly. Unexpected `.pth`, bytecode, packages, modules,
+metadata, scripts, links, reparse points, special files, or dependency changes
+are release blockers, and pip cannot fetch a direct or transitive dependency
+from project metadata during either project install.
 
 ## Temporary Virtual Environments
 
@@ -204,25 +225,38 @@ requires the introduction commit to be in the release commit's ancestry and
 each target control's `first_seen_commit` to precede the operator introduction.
 A remaining `git:uncommitted` value is an intentional hard release blocker. An
 operator intended for an RC must truthfully name that RC or an earlier version;
-a stable `0.6.3` introduction is correctly considered newer than `0.6.3rc2`.
+a stable `0.6.4` introduction is correctly considered newer than `0.6.4rc2`.
 
 TestPyPI package versions are immutable. A second upload of the same version
 will fail, so each release candidate needs a unique version such as
-`0.6.3rc1`, then `0.6.3rc2` if another candidate is needed.
+`0.6.4rc1`, then `0.6.4rc2` if another candidate is needed.
 
 1. Create a candidate ref whose package metadata already contains the unique
-   candidate version, for example `project.version = "0.6.3rc1"` and
-   `agent_assure.__version__ = "0.6.3rc1"`.
-2. Build and verify locally with `make release-check`.
-3. Run the `Publish to TestPyPI` workflow manually from that ref and set
-   `expected-version` explicitly to the same value, for example `0.6.3rc1`.
+   candidate version, for example `project.version = "0.6.4rc1"` and
+   `agent_assure.__version__ = "0.6.4rc1"`.
+2. Regenerate the version-bound deterministic goldens with
+   `python scripts/update_golden.py --update-golden`. The evidence-sensitivity
+   reports carry `producer_version`, so changing to an RC intentionally changes
+   their bytes and self-digests. Review the complete golden diff, then commit
+   the regenerated RC goldens on the candidate ref; do not leave them as
+   uncommitted local changes.
+3. From the committed candidate ref, run `python scripts/update_golden.py` in
+   check mode and then build and verify with `make release-check`. The
+   TestPyPI workflow repeats the version-bound golden check before its release
+   check and rejects stale or uncommitted candidate evidence.
+4. Run the `Publish to TestPyPI` workflow manually from that ref and set
+   `expected-version` explicitly to the same value, for example `0.6.4rc1`.
    The workflow intentionally has no default version because the selected ref
    must already contain matching package metadata. Dispatch it from the
-   candidate branch or commit; do not create or push a `v0.6.3rcN` tag.
-4. Install the release candidate from a clean environment.
+   candidate branch or commit; do not create or push a `v0.6.4rcN` tag.
+5. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package
-version to `0.6.3` before creating the final `v0.6.3` tag.
+version to `0.6.4`, run `python scripts/update_golden.py --update-golden` again,
+review and commit the stable-version golden regeneration, then run
+`python scripts/update_golden.py` and `make release-check` from the clean final
+commit before creating the `v0.6.4` tag. RC-generated sensitivity goldens must
+not remain on the final tag.
 
 CI, WSL, or Git Bash:
 
@@ -233,7 +267,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps \
   --index-url https://test.pypi.org/simple/ \
-  agent-assure==0.6.3rc1
+  agent-assure==0.6.4rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out /tmp/agent-assure-testpypi-schemas
@@ -257,7 +291,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps `
   --index-url https://test.pypi.org/simple/ `
-  agent-assure==0.6.3rc1
+  agent-assure==0.6.4rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out $SchemaTemp
@@ -290,9 +324,9 @@ agent-assure demo expense --out $ExpenseOut --clean
 Before selecting the final tag target, prepare and review one release commit
 that:
 
-1. moves the release entries from `Unreleased` under a dated `## 0.6.3`
+1. moves the release entries from `Unreleased` under a dated `## 0.6.4`
    changelog heading;
-2. creates `docs/release_notes/v0.6.3.md` and adds it to `mkdocs.yml`;
+2. creates `docs/release_notes/v0.6.4.md` and adds it to `mkdocs.yml`;
 3. updates `CITATION.cff`, README package/action pins and maturity wording, and
    the released-schema wording in `docs/for_engineers.md` and
    `docs/schema_evolution.md`;
@@ -310,15 +344,15 @@ git checkout main
 git pull
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.3
-git tag v0.6.3
-git push origin v0.6.3
+python scripts/check_version_matches_tag.py v0.6.4
+git tag v0.6.4
+git push origin v0.6.4
 ```
 
 The release workflow runs only its privileged jobs on matching tags. It blocks
-if `v0.6.3` does not match `project.version = "0.6.3"` and
-`agent_assure.__version__ = "0.6.3"`, if the active schema constants do not
-match the mapped release schema version `0.6.3`, or if `schemas/v0.6.3` is
+if `v0.6.4` does not match `project.version = "0.6.4"` and
+`agent_assure.__version__ = "0.6.4"`, if the active schema constants do not
+match the mapped release schema version `0.6.4`, or if `schemas/v0.6.4` is
 missing. The tag must resolve to `GITHUB_SHA`, be an ancestor of the default
 branch, have matching release notes, and start and finish generation with a
 clean source tree. A fresh job rebuilds the complete signing allowlist, compares
@@ -378,7 +412,7 @@ CI, WSL, or Git Bash:
 python -m venv /tmp/agent-assure-pypi
 source /tmp/agent-assure-pypi/bin/activate
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.6.3
+python -m pip install agent-assure==0.6.4
 agent-assure --version
 agent-assure demo flagship --out /tmp/agent-assure-pypi-flagship --clean
 deactivate
@@ -393,7 +427,7 @@ $FlagshipOut = Join-Path $env:TEMP "agent-assure-pypi-flagship"
 python -m venv $InstallTemp
 & (Join-Path $InstallTemp "Scripts\Activate.ps1")
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.6.3
+python -m pip install agent-assure==0.6.4
 agent-assure --version
 agent-assure demo flagship --out $FlagshipOut --clean
 deactivate

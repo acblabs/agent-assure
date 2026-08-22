@@ -6,8 +6,9 @@ from typing import Any, Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
+from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
+    V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
     GateState,
     ReasonCode,
@@ -22,7 +23,7 @@ SignedDecimalString = str
 # The current protocol records statistical and safety constraints but does not
 # yet bind the complete arm configuration and prompt manifest before execution.
 LIVE_PROTOCOL_BINDS_EXECUTION_CONFIGURATION = False
-_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3"})
+_V06_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"})
 
 
 def _require_non_null_schema_fields(
@@ -796,7 +797,7 @@ class LiveRate(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_zero_denominator_rate(self) -> LiveRate:
-        if self.schema_version != SCHEMA_VERSION or self.denominator != 0:
+        if self.schema_version not in V063_CONTRACT_SCHEMA_VERSIONS or self.denominator != 0:
             return self
         if self.analysis_method != "fixed_reference":
             raise ValueError(

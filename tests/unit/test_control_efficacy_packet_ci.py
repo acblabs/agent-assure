@@ -336,6 +336,21 @@ def test_direct_efficacy_gate_rejects_a_forged_same_digest_decision(
     assert "does not exactly match" in gate.message
 
 
+def test_direct_efficacy_report_gate_revalidates_model_copy_tampering(
+    required_survivor_report: ControlEfficacyReport,
+) -> None:
+    tampered = required_survivor_report.model_copy(update={"required_operator_ids": 1})
+
+    gate = ci_module.gate_control_efficacy_report(
+        tampered,
+        strict_efficacy=False,
+    )
+
+    assert gate.exit_code == 2
+    assert gate.outcome is GateOutcome.invalid
+    assert "failed trusted model revalidation" in gate.message
+
+
 def test_fail_on_not_evaluated_applies_to_standalone_and_packet_efficacy(
     tmp_path: Path,
 ) -> None:
@@ -560,6 +575,24 @@ def test_nonfailing_evaluation_summary_cannot_hide_fail_findings(
     assert decision.outcome is GateOutcome.invalid
 
 
+def test_comparison_gate_revalidates_an_existing_model_instance() -> None:
+    comparison = _passing_comparison(_passing_evaluation()).model_copy(
+        update={
+            "baseline_runset_digest": None,
+            "candidate_runset_digest": None,
+        }
+    )
+
+    decision = ci_module.gate_comparison_summary(comparison)
+
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.reason_code is ReasonCode.POLICY_FAILED
+    assert decision.artifact_kind == "comparison-summary"
+    assert "failed trusted model revalidation" in decision.message
+    assert "require authenticated baseline and candidate RunSet digests" in decision.message
+
+
 def test_evaluation_summary_rejects_pass_finding_even_with_failure() -> None:
     fail_finding = Finding(
         finding_id="fail-finding",
@@ -652,7 +685,7 @@ def test_current_packet_model_enforces_summary_digest_cardinality() -> None:
 
 
 def test_packet_model_binds_exact_summary_digests_to_release_manifest() -> None:
-    evaluation = _passing_evaluation()
+    evaluation = _passing_authenticated_evaluation()
     comparison = _passing_comparison(evaluation)
     valid_manifest = _summary_release_manifest(comparison=True)
 
@@ -756,7 +789,187 @@ def test_packet_writer_and_ci_reject_unchecked_manifest_digest_mismatch(
 
     assert duplicate_decision.exit_code == 2
     assert duplicate_decision.outcome is GateOutcome.invalid
-    assert "requires exactly one evaluation-summary artifact" in duplicate_decision.message
+    assert "duplicate artifact role: evaluation-summary" in duplicate_decision.message
+
+
+def test_v063_raw_packet_and_ci_reject_cross_array_digest_mismatch() -> None:
+    payload = _build_packet(
+        _passing_evaluation(),
+        release_manifest=_summary_release_manifest(),
+    ).model_dump(mode="json")
+
+    def project_v063(value: object) -> None:
+        if isinstance(value, dict):
+            if "schema_version" in value:
+                value["schema_version"] = "0.6.3"
+            for nested in value.values():
+                project_v063(nested)
+        elif isinstance(value, list):
+            for nested in value:
+                project_v063(nested)
+
+    project_v063(payload)
+    frozen_schema_path = (
+        Path(__file__).resolve().parents[2] / "schemas" / "v0.6.3" / "evidence-packet.schema.json"
+    )
+    frozen_schema = json.loads(frozen_schema_path.read_text(encoding="utf-8"))
+    Draft202012Validator(frozen_schema).validate(payload)
+    valid_packet = EvidencePacket.model_validate(payload)
+
+    tampered_payload = json.loads(json.dumps(payload))
+    artifact_digests = tampered_payload["artifact_digests"]
+    assert isinstance(artifact_digests, list)
+    artifact_digest = artifact_digests[0]
+    assert isinstance(artifact_digest, dict)
+    artifact_digest["sha256"] = "a" * 64
+    Draft202012Validator(frozen_schema).validate(tampered_payload)
+
+    with pytest.raises(
+        ValidationError,
+        match="evaluation-summary digest must match release manifest",
+    ):
+        EvidencePacket.model_validate(tampered_payload)
+
+    unchecked_digest = valid_packet.artifact_digests[0].model_copy(update={"sha256": "a" * 64})
+    unchecked = valid_packet.model_copy(update={"artifact_digests": (unchecked_digest,)})
+    decision = ci_module.gate_evidence_packet(unchecked)
+
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+    assert "evaluation-summary digest must match release manifest" in decision.message
+
+
+def test_legacy_comparison_packet_requires_explicit_unbound_compatibility() -> None:
+    evaluation = EvaluationSummary(
+        schema_version="0.6.3",
+        runset_id="same-display-id",
+        runset_digest="d" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    authenticated_comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id=evaluation.runset_id,
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.unchanged,
+        fixture_equivalence_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+    downgraded_comparison_payload = authenticated_comparison.model_dump(mode="json")
+    downgraded_comparison_payload["schema_version"] = "0.6.3"
+    downgraded_comparison_payload.pop("baseline_runset_digest")
+    downgraded_comparison_payload.pop("candidate_runset_digest")
+    downgraded_comparison = ComparisonSummary.model_validate(downgraded_comparison_payload)
+    packet = EvidencePacket(
+        schema_version="0.6.3",
+        packet_id="legacy-id-only-comparison",
+        interpretation=("legacy compatibility regression",),
+        evaluation=evaluation,
+        comparison=downgraded_comparison,
+        artifact_digests=(
+            PacketArtifactDigest(
+                schema_version="0.6.3",
+                role="evaluation-summary",
+                sha256="e" * 64,
+            ),
+            PacketArtifactDigest(
+                schema_version="0.6.3",
+                role="comparison-summary",
+                sha256="f" * 64,
+            ),
+        ),
+        limitations=("legacy comparison omits authenticated RunSet digests",),
+    )
+
+    assert evaluation.runset_id == downgraded_comparison.candidate_runset_id
+    assert evaluation.runset_digest != authenticated_comparison.candidate_runset_digest
+    assert downgraded_comparison.candidate_runset_digest is None
+
+    default_direct = ci_module.gate_evidence_packet(packet)
+    default_routed = gate_artifact(packet)
+    standalone_default = ci_module.gate_comparison_summary(downgraded_comparison)
+    allowed_direct = ci_module.gate_evidence_packet(
+        packet,
+        allow_legacy_unbound_comparison=True,
+    )
+    allowed_routed = gate_artifact(
+        packet,
+        allow_legacy_unbound_comparison=True,
+    )
+    standalone_allowed = ci_module.gate_comparison_summary(
+        downgraded_comparison,
+        allow_legacy_unbound_comparison=True,
+    )
+    standalone_allowed_routed = gate_artifact(
+        downgraded_comparison,
+        allow_legacy_unbound_comparison=True,
+    )
+
+    for decision in (default_direct, default_routed, standalone_default):
+        assert decision.exit_code == 2
+        assert decision.outcome is GateOutcome.invalid
+        assert "without authenticated baseline and candidate RunSet digests" in decision.message
+    for decision in (
+        allowed_direct,
+        allowed_routed,
+        standalone_allowed,
+        standalone_allowed_routed,
+    ):
+        assert decision.exit_code == 0
+        assert decision.outcome is GateOutcome.pass_
+        assert "legacy_unbound_comparison=allowed" in decision.message
+
+
+def test_legacy_unbound_override_must_be_consumed_by_the_target() -> None:
+    evaluation = _passing_authenticated_evaluation()
+    comparison = _passing_comparison(evaluation)
+    no_comparison = _build_packet(evaluation)
+    bound_comparison = _build_packet(evaluation, comparison=comparison)
+
+    decisions = (
+        ci_module.gate_evidence_packet(
+            no_comparison,
+            allow_legacy_unbound_comparison=True,
+        ),
+        gate_artifact(
+            no_comparison,
+            allow_legacy_unbound_comparison=True,
+        ),
+        ci_module.gate_evidence_packet(
+            bound_comparison,
+            allow_legacy_unbound_comparison=True,
+        ),
+        ci_module.gate_comparison_summary(
+            comparison,
+            allow_legacy_unbound_comparison=True,
+        ),
+        gate_artifact(
+            comparison,
+            allow_legacy_unbound_comparison=True,
+        ),
+    )
+
+    for decision in decisions:
+        assert decision.exit_code == 2
+        assert decision.outcome is GateOutcome.invalid
+        assert "has no legacy unbound comparison" in decision.message
+        assert "remove the unused compatibility override" in decision.message
+
+
+def test_gate_artifact_rejects_artifact_root_for_non_packet_input() -> None:
+    decision = gate_artifact(
+        _passing_evaluation(),
+        artifact_root=Path("."),
+    )
+
+    assert decision.exit_code == 2
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.reason_code is ReasonCode.POLICY_FAILED
+    assert "artifact_root is only valid for an evidence packet" in decision.message
 
 
 def test_packet_preserves_not_evaluated_outcome() -> None:
@@ -825,16 +1038,8 @@ def test_packet_aggregation_routes_explicit_outcomes_without_parsing_messages(
 def test_packet_aggregation_preserves_review_over_not_evaluated_precedence(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    evaluation = _passing_evaluation()
-    comparison = ComparisonSummary(
-        baseline_runset_id="baseline",
-        candidate_runset_id=evaluation.runset_id,
-        privacy_profile_id=PRIVACY_PROFILE_ID,
-        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
-        classification=ComparisonClassification.unchanged,
-        fixture_equivalence_state=GateState.pass_,
-        candidate_state=GateState.pass_,
-    )
+    evaluation = _passing_authenticated_evaluation()
+    comparison = _passing_comparison(evaluation)
     packet = _build_packet(evaluation, comparison=comparison)
     not_evaluated = GateDecision(
         exit_code=0,
@@ -907,7 +1112,7 @@ def test_packet_markdown_renders_actionable_gate_findings_and_survivor_ids(
 
     for missing_field in ("control_efficacy_gate_profile", "control_efficacy_gate"):
         malformed = packet.model_copy(update={missing_field: None})
-        with pytest.raises(ValueError, match="requires a gate profile and decision"):
+        with pytest.raises(ValueError, match="must be present together"):
             render_evidence_packet_markdown(malformed)
 
 
@@ -1045,7 +1250,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
 
     with pytest.raises(
         ValidationError,
-        match="evaluation.schema_version '0.6.3'; received '0.6.1'",
+        match="evaluation.schema_version '0.6.4'; received '0.6.1'",
     ):
         _build_packet(legacy_evaluation)
 
@@ -1055,7 +1260,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
     output = tmp_path / "not-created" / "evidence-packet.json"
     with pytest.raises(
         ValidationError,
-        match="evaluation.schema_version '0.6.3'; received '0.6.1'",
+        match="evaluation.schema_version '0.6.4'; received '0.6.1'",
     ):
         write_evidence_packet(mixed_packet, output)
 
@@ -1172,6 +1377,8 @@ def _passing_comparison(evaluation: EvaluationSummary) -> ComparisonSummary:
     return ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id=evaluation.runset_id,
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.unchanged,
@@ -1211,6 +1418,16 @@ def _passing_evaluation() -> EvaluationSummary:
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
         findings=(),
+    )
+
+
+def _passing_authenticated_evaluation() -> EvaluationSummary:
+    """Return a current evaluation bound to the candidate digest fixture."""
+    return EvaluationSummary.model_validate(
+        {
+            **_passing_evaluation().model_dump(mode="json"),
+            "runset_digest": "c" * 64,
+        }
     )
 
 

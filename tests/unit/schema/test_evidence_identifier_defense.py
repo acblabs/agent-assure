@@ -13,6 +13,7 @@ from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_MAX_CHARS,
     MACHINE_IDENTIFIER_SCHEMA_VERSION,
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
+    V063_CONTRACT_SCHEMA_VERSIONS,
 )
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.export import writer_json_schema
@@ -367,7 +368,7 @@ def _compiled_suite_payload(
         ],
         "source_digest": "0" * 64,
     }
-    if suite_schema_version == MACHINE_IDENTIFIER_SCHEMA_VERSION:
+    if suite_schema_version in V063_CONTRACT_SCHEMA_VERSIONS:
         payload["defaults"] = {"runner_id": "test.runner"}
     return payload
 

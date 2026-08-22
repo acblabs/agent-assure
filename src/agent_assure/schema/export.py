@@ -39,8 +39,17 @@ from agent_assure.schema.mutation import (
 )
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
+from agent_assure.schema.reproduction_index import ProcessEquivalenceReproductionIndex
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.runtime import EmergencyProcessRecord
+from agent_assure.schema.sensitivity import (
+    RAGSensitivityCorpusManifest,
+    RAGSensitivityCorpusSnapshot,
+    RAGSensitivityKnowledgeContract,
+    RAGSensitivityProtocol,
+    RAGSensitivityReport,
+    RAGSensitivitySyntheticDataAttestation,
+)
 from agent_assure.schema.stream import (
     StreamEventRecord,
     StreamIngestionDiagnostics,
@@ -69,6 +78,13 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
         "assurance-mutation-result",
         "control-efficacy-report",
         "expected-detection-contract",
+        "process-equivalence-reproduction-index",
+        "evidence-sensitivity-protocol",
+        "evidence-sensitivity-report",
+        "rag-sensitivity-corpus-manifest",
+        "rag-sensitivity-corpus-snapshot",
+        "rag-sensitivity-knowledge-contract",
+        "rag-sensitivity-synthetic-data-attestation",
         "threat-applicability-manifest",
     }
 )
@@ -90,6 +106,8 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "evaluation-summary": EvaluationSummary,
     "emergency-process-record": EmergencyProcessRecord,
     "evidence-packet": EvidencePacket,
+    "evidence-sensitivity-protocol": RAGSensitivityProtocol,
+    "evidence-sensitivity-report": RAGSensitivityReport,
     "environment-info": EnvironmentInfo,
     "expectation": Expectation,
     "expectation-change-record": ExpectationChangeRecord,
@@ -100,8 +118,13 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "live-evaluation-report": LiveEvaluationReport,
     "live-protocol-record": LiveProtocolRecord,
     "live-trajectory-report": LiveTrajectoryReport,
+    "process-equivalence-reproduction-index": ProcessEquivalenceReproductionIndex,
     "release-artifact-manifest": ReleaseArtifactManifest,
     "release-digest-replay": ReleaseDigestReplay,
+    "rag-sensitivity-corpus-manifest": RAGSensitivityCorpusManifest,
+    "rag-sensitivity-corpus-snapshot": RAGSensitivityCorpusSnapshot,
+    "rag-sensitivity-knowledge-contract": RAGSensitivityKnowledgeContract,
+    "rag-sensitivity-synthetic-data-attestation": (RAGSensitivitySyntheticDataAttestation),
     "run-set": RunSet,
     "span-plan": SpanPlan,
     "stream-event-record": StreamEventRecord,

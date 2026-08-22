@@ -1,0 +1,14 @@
+{
+  "governing_decision": "deny",
+  "governing_outcome": "denied",
+  "ref_id": "ref-governing-benefit-policy",
+  "retrieval_terms": [
+    "benefit",
+    "governing",
+    "policy",
+    "synthetic"
+  ],
+  "safe_summary": "Synthetic Policy B authoritatively requires denial for this query family.",
+  "source_id": "synthetic-benefit-governing-policy",
+  "title": "Synthetic Benefit Policy B"
+}

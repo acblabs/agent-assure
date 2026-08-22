@@ -62,6 +62,12 @@ def test_v060_runset_routes_through_immutable_frozen_schema() -> None:
     assert validation.validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
 
 
+def test_released_v063_is_frozen_while_current_writer_is_not() -> None:
+    assert "0.6.3" in validation.FROZEN_SCHEMA_VERSIONS
+    assert SCHEMA_VERSION == "0.6.4"
+    assert SCHEMA_VERSION not in validation.FROZEN_SCHEMA_VERSIONS
+
+
 def test_frozen_schema_requires_expected_self_identity(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         validation,

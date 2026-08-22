@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import unicodedata
 from pathlib import Path
 
 from agent_assure.privacy.redaction import redact_text
@@ -22,6 +23,19 @@ def display_path(path: Path) -> str:
 
 
 def _safe_summary(value: str, *, fallback: str) -> str:
-    normalized = " ".join(redact_text(value).split())
-    printable = "".join(character for character in normalized if character.isprintable())
-    return (printable or fallback)[:MAX_DIAGNOSTIC_CHARS]
+    # Strip controls before the final detector pass. A format character can split
+    # a sensitive token during the first scan and its removal can reconstruct the
+    # token (for example an SSN containing a bidi override).
+    without_controls = "".join(
+        (
+            " "
+            if character.isspace()
+            else ""
+            if unicodedata.category(character).startswith("C")
+            else character
+        )
+        for character in value
+    )
+    normalized = " ".join(without_controls.split())
+    redacted = redact_text(normalized)
+    return (redacted or fallback)[:MAX_DIAGNOSTIC_CHARS]

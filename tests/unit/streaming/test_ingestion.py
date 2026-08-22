@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_assure.evaluation.evaluator import evaluate_runset
+from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
 from agent_assure.reporting.evidence_diff_html import render_evidence_diff_html
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
@@ -843,6 +843,7 @@ def test_evidence_diff_renders_stream_operational_and_usage_summary(
     )
     summary = EvaluationSummary(
         runset_id=candidate.runset_id,
+        runset_digest=runset_digest(candidate),
         privacy_profile_id=candidate.privacy_profile_id,
         privacy_profile_digest=candidate.privacy_profile_digest,
         state=GateState.fail,
@@ -861,6 +862,8 @@ def test_evidence_diff_renders_stream_operational_and_usage_summary(
     comparison = ComparisonSummary(
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=candidate.privacy_profile_id,
         privacy_profile_digest=candidate.privacy_profile_digest,
         classification="new_failure",

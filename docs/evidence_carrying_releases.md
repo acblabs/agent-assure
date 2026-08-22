@@ -33,13 +33,13 @@ The contract set has seven durable JSON objects:
   control-efficacy, gate, and limitation evidence into a closed, digest-bound
   graph without replacing the authoritative typed gate decision.
 
-Current roots use persisted `schema_version: 0.6.3`, a `contract_id` ending in
-`/v1`, and `contract_version: 1.0.0`. Contracts introduced in v0.6.0 also
-accept their frozen v0.6.0 representation through version-aware reads; catalog
-and campaign roots additionally accept their frozen v0.6.1 and v0.6.2
-representations. The graph is introduced on the v0.6.3 writer
-surface and has no historical wire form. Current builders emit v0.6.3 by
-default, and official writers validate the selected version before persistence.
+Current development roots use persisted `schema_version: 0.6.4`, a
+`contract_id` ending in `/v1`, and `contract_version: 1.0.0`; v0.6.3 remains
+the latest published release. Contracts introduced in v0.6.0 also accept their
+frozen historical representations through version-aware reads. The graph was
+introduced on the v0.6.3 writer surface and accepts that frozen wire form.
+Current builders emit v0.6.4 by default, and official writers validate the
+selected version before persistence.
 Fields and reason codes introduced after v0.6.0 therefore cannot be written
 under a v0.6.0 label. The contract version identifies method semantics; the schema
 version identifies the persisted JSON shape. A contract version must not be
@@ -71,7 +71,7 @@ each execution; all other values are producer-owned contract values.
 ```yaml
 artifact_kind: assurance-evidence-descriptor
 schema_name: assurance-evidence-descriptor
-schema_version: 0.6.3
+schema_version: 0.6.4
 contract_id: AssuranceEvidenceDescriptor/v1
 contract_version: 1.0.0
 evidence_id: "ev-control-efficacy-<result-digest-prefix-24-hex>"
@@ -152,7 +152,7 @@ dependencies:
     digest: "<mutation-result-digest-64-lowercase-hex>"
 producer:
   name: agent-assure
-  version: 0.6.3
+  version: 0.6.4
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 
@@ -292,7 +292,7 @@ An expected-detection contract is explicit:
 ```yaml
 artifact_kind: expected-detection-contract
 schema_name: expected-detection-contract
-schema_version: 0.6.3
+schema_version: 0.6.4
 contract_id: ExpectedDetectionContract/v1
 contract_version: 1.0.0
 contract_digest: <64 lowercase hexadecimal characters>

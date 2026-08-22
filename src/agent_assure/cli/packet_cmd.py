@@ -16,12 +16,13 @@ from agent_assure.controls.efficacy import (
 )
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
+    BoundedFileContents,
     load_json_bytes_bounded,
     read_file_bounded,
 )
 from agent_assure.onboarding.controls_mutation import (
     ControlsMutationOnboardingConfig,
-    load_controls_mutation_config_snapshot,
+    parse_controls_mutation_config,
 )
 from agent_assure.onboarding.path_safety import (
     confined_config_input_file,
@@ -44,8 +45,11 @@ from agent_assure.reporting.packet import (
     load_evaluation_summary_snapshot,
     load_evidence_graph_snapshot,
     load_evidence_packet,
+    load_evidence_sensitivity_report_snapshot,
+    load_packet_source_file_snapshot,
     packet_artifact_digest_from_snapshot,
     packet_summary_files_binding_error_for_trusted_publication,
+    release_artifact_from_source_snapshot,
     release_artifact_from_summary_snapshot,
     render_evidence_packet_markdown,
     write_evidence_packet,
@@ -58,7 +62,6 @@ from agent_assure.schema.efficacy import (
 )
 from agent_assure.schema.mutation import AssuranceMutationResult
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
-from agent_assure.schema.release import ReleaseArtifact
 from agent_assure.schema.validation import (
     project_validated_artifact_payload,
     validate_loaded_artifact_payload,
@@ -86,6 +89,15 @@ def build(
     comparison: Annotated[
         Path | None,
         typer.Option("--comparison", exists=True, readable=True, help="Comparison summary JSON."),
+    ] = None,
+    evidence_sensitivity: Annotated[
+        Path | None,
+        typer.Option(
+            "--evidence-sensitivity",
+            exists=True,
+            readable=True,
+            help="Deterministic evidence-sensitivity report JSON.",
+        ),
     ] = None,
     control_efficacy: Annotated[
         Path | None,
@@ -132,6 +144,7 @@ def build(
             raise ValueError("--control-efficacy and --efficacy-config must be provided together")
         optional_sources = (
             *(() if comparison is None else (comparison,)),
+            *(() if evidence_sensitivity is None else (evidence_sensitivity,)),
             *(() if control_efficacy is None else (control_efficacy, efficacy_config)),
         )
         source_candidates = (evaluation, *optional_sources)
@@ -182,9 +195,21 @@ def build(
             if comparison is not None
             else None
         )
+        sensitivity_snapshot = (
+            load_evidence_sensitivity_report_snapshot(
+                evidence_sensitivity,
+                root=source_root,
+                artifact_root=artifact_root,
+            )
+            if evidence_sensitivity is not None
+            else None
+        )
         evaluation_summary = evaluation_snapshot.summary
         comparison_summary = (
             comparison_snapshot.summary if comparison_snapshot is not None else None
+        )
+        sensitivity_report = (
+            sensitivity_snapshot.summary if sensitivity_snapshot is not None else None
         )
         efficacy_report = None
         efficacy_report_snapshot = None
@@ -192,21 +217,27 @@ def build(
         efficacy_decision = None
         efficacy_profile: ControlEfficacyGateProfile | None = None
         if control_efficacy is not None and efficacy_config is not None:
-            efficacy_report_snapshot = read_confined_file_snapshot(
+            efficacy_report_snapshot = load_packet_source_file_snapshot(
                 control_efficacy,
                 root=source_root,
+                artifact_root=artifact_root,
                 max_bytes=MAX_ARTIFACT_JSON_BYTES,
                 label="control-efficacy report",
             )
             efficacy_report = ControlEfficacyReport.model_validate(
                 load_json_bytes_bounded(
-                    efficacy_report_snapshot.data,
+                    efficacy_report_snapshot.contents.data,
                     label="control-efficacy report",
                 )
             )
-            authored, efficacy_config_snapshot = load_controls_mutation_config_snapshot(
-                efficacy_config
+            efficacy_config_snapshot = load_packet_source_file_snapshot(
+                efficacy_config,
+                root=source_root,
+                artifact_root=artifact_root,
+                max_bytes=MAX_YAML_BYTES,
+                label="controls-mutation config",
             )
+            authored = parse_controls_mutation_config(efficacy_config_snapshot.contents.data)
             threat_manifest_digest = _configured_threat_manifest_digest(
                 authored,
                 config_path=efficacy_config,
@@ -232,6 +263,7 @@ def build(
         evidence_graph = build_privacy_filtered_evidence_graph(
             evaluation_summary,
             comparison=comparison_summary,
+            evidence_sensitivity=sensitivity_report,
             control_efficacy=efficacy_report,
             control_efficacy_gate_profile=efficacy_profile,
             control_efficacy_gate=efficacy_decision,
@@ -284,6 +316,7 @@ def build(
                 project_root=artifact_root,
             ),
         ]
+        captured_efficacy_snapshots: dict[str, BoundedFileContents] = {}
         if comparison_snapshot is not None:
             digests.append(
                 packet_artifact_digest_from_snapshot(
@@ -291,12 +324,23 @@ def build(
                     comparison_snapshot,
                 )
             )
-            artifacts.append(
-                release_artifact_from_summary_snapshot(
-                    "comparison-summary",
-                    comparison_snapshot,
+            comparison_artifact = release_artifact_from_summary_snapshot(
+                "comparison-summary",
+                comparison_snapshot,
+            )
+            artifacts.append(comparison_artifact)
+        if sensitivity_snapshot is not None:
+            digests.append(
+                packet_artifact_digest_from_snapshot(
+                    "evidence-sensitivity-report",
+                    sensitivity_snapshot,
                 )
             )
+            sensitivity_artifact = release_artifact_from_summary_snapshot(
+                "evidence-sensitivity-report",
+                sensitivity_snapshot,
+            )
+            artifacts.append(sensitivity_artifact)
         if control_efficacy is not None:
             if efficacy_report_snapshot is None:
                 raise ValueError("control-efficacy report snapshot is unavailable")
@@ -304,16 +348,16 @@ def build(
                 PacketArtifactDigest(
                     artifact_kind="packet-artifact-digest",
                     role="control-efficacy-report",
-                    sha256=efficacy_report_snapshot.sha256,
+                    sha256=efficacy_report_snapshot.contents.sha256,
                 )
             )
-            artifacts.append(
-                _release_artifact_from_snapshot(
-                    "control-efficacy-report",
-                    control_efficacy,
-                    project_root=artifact_root,
-                    sha256=efficacy_report_snapshot.sha256,
-                )
+            efficacy_report_artifact = release_artifact_from_source_snapshot(
+                "control-efficacy-report",
+                efficacy_report_snapshot,
+            )
+            artifacts.append(efficacy_report_artifact)
+            captured_efficacy_snapshots[efficacy_report_artifact.path] = (
+                efficacy_report_snapshot.contents
             )
             if efficacy_config is None or efficacy_config_snapshot is None:
                 raise ValueError("control-efficacy config snapshot is unavailable")
@@ -321,16 +365,16 @@ def build(
                 PacketArtifactDigest(
                     artifact_kind="packet-artifact-digest",
                     role="control-efficacy-onboarding-config",
-                    sha256=efficacy_config_snapshot.sha256,
+                    sha256=efficacy_config_snapshot.contents.sha256,
                 )
             )
-            artifacts.append(
-                _release_artifact_from_snapshot(
-                    "control-efficacy-onboarding-config",
-                    efficacy_config,
-                    project_root=artifact_root,
-                    sha256=efficacy_config_snapshot.sha256,
-                )
+            efficacy_config_artifact = release_artifact_from_source_snapshot(
+                "control-efficacy-onboarding-config",
+                efficacy_config_snapshot,
+            )
+            artifacts.append(efficacy_config_artifact)
+            captured_efficacy_snapshots[efficacy_config_artifact.path] = (
+                efficacy_config_snapshot.contents
             )
         manifest = build_release_manifest(
             tuple(artifacts),
@@ -339,6 +383,7 @@ def build(
         packet = build_evidence_packet(
             evaluation_summary,
             comparison=comparison_summary,
+            evidence_sensitivity=sensitivity_report,
             control_efficacy=efficacy_report,
             control_efficacy_gate_profile=efficacy_profile,
             control_efficacy_gate=efficacy_decision,
@@ -353,6 +398,7 @@ def build(
             packet,
             artifact_root=artifact_root,
             expected_graph=evidence_graph,
+            captured_snapshots_by_path=captured_efficacy_snapshots,
         )
         if summary_file_error is not None:
             raise ValueError(summary_file_error)
@@ -412,6 +458,7 @@ def graph(
         base_graph = build_privacy_filtered_evidence_graph(
             loaded_packet.evaluation,
             comparison=loaded_packet.comparison,
+            evidence_sensitivity=loaded_packet.evidence_sensitivity,
             control_efficacy=loaded_packet.control_efficacy,
             control_efficacy_gate_profile=loaded_packet.control_efficacy_gate_profile,
             control_efficacy_gate=loaded_packet.control_efficacy_gate,
@@ -428,6 +475,7 @@ def graph(
             build_privacy_filtered_evidence_graph(
                 loaded_packet.evaluation,
                 comparison=loaded_packet.comparison,
+                evidence_sensitivity=loaded_packet.evidence_sensitivity,
                 mutation_results=loaded_results,
                 control_efficacy=loaded_packet.control_efficacy,
                 control_efficacy_gate_profile=loaded_packet.control_efficacy_gate_profile,
@@ -772,27 +820,3 @@ def _path_is_strict_ancestor(left: Path, right: Path) -> bool:
         return os.path.commonpath((left_identity, right_identity)) == left_identity
     except ValueError:
         return False
-
-
-def _release_artifact_from_snapshot(
-    role: str,
-    path: Path,
-    *,
-    project_root: Path,
-    sha256: str,
-) -> ReleaseArtifact:
-    resolved_root = project_root.resolve()
-    resolved_path = path.resolve()
-    try:
-        relative_path = resolved_path.relative_to(resolved_root).as_posix()
-    except ValueError as exc:
-        raise ValueError(
-            "release artifact paths must stay under project_root: "
-            f"{resolved_path} is outside {resolved_root}"
-        ) from exc
-    return ReleaseArtifact(
-        artifact_kind="release-artifact",
-        role=role,
-        path=relative_path,
-        sha256=sha256,
-    )

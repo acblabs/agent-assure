@@ -17,7 +17,10 @@ from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFI
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 
 RUNNER = CliRunner()
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -77,6 +80,23 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
     assert RUNNER.invoke(app, ["ci", "gate", str(warning)]).exit_code == 0
     assert RUNNER.invoke(app, ["ci", "gate", str(warning), "--fail-on-warn"]).exit_code == 1
     assert RUNNER.invoke(app, ["ci", "gate", str(failing)]).exit_code == 1
+
+
+def test_direct_evaluation_gate_revalidates_model_copy_tampering() -> None:
+    summary = EvaluationSummary(
+        artifact_kind="evaluation-summary",
+        runset_id="candidate",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    tampered = summary.model_copy(update={"runset_id": ""})
+
+    decision = ci_module.gate_evaluation_summary(tampered)
+
+    assert decision.exit_code == 2
+    assert decision.outcome.value == "invalid"
+    assert "failed trusted model revalidation" in decision.message
 
 
 @pytest.mark.parametrize(
@@ -182,6 +202,8 @@ def test_ci_gate_exits_two_for_invalid_comparison(tmp_path: Path) -> None:
         artifact_kind="comparison-summary",
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.invalid_comparison,
@@ -193,6 +215,266 @@ def test_ci_gate_exits_two_for_invalid_comparison(tmp_path: Path) -> None:
     result = RUNNER.invoke(app, ["ci", "gate", str(path)])
 
     assert result.exit_code == 2
+
+
+def test_ci_gate_legacy_unbound_comparison_requires_explicit_compatibility(
+    tmp_path: Path,
+) -> None:
+    packet = _legacy_unbound_comparison_packet()
+    path = tmp_path / "legacy-comparison-packet.json"
+    _write_json(path, packet.model_dump(mode="json"))
+    assert packet.comparison is not None
+    comparison_path = tmp_path / "legacy-comparison.json"
+    _write_json(comparison_path, packet.comparison.model_dump(mode="json"))
+
+    rejected = RUNNER.invoke(app, ["ci", "gate", str(path)])
+    allowed = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(path), "--allow-legacy-unbound-comparison"],
+    )
+    standalone_rejected = RUNNER.invoke(app, ["ci", "gate", str(comparison_path)])
+    standalone_allowed = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(comparison_path),
+            "--allow-legacy-unbound-comparison",
+        ],
+    )
+
+    assert rejected.exit_code == 2, rejected.output
+    assert "without authenticated baseline and candidate RunSet digests" in rejected.output
+    assert allowed.exit_code == 0, allowed.output
+    assert "legacy_unbound_comparison=allowed" in allowed.output
+    assert standalone_rejected.exit_code == 2, standalone_rejected.output
+    assert (
+        "without authenticated baseline and candidate RunSet digests" in standalone_rejected.output
+    )
+    assert standalone_allowed.exit_code == 0, standalone_allowed.output
+    assert "legacy_unbound_comparison=allowed" in standalone_allowed.output
+
+
+def test_legacy_unbound_comparison_option_is_rejected_outside_ci_gate() -> None:
+    result = RUNNER.invoke(
+        app,
+        ["ci", "candidate.json", "--allow-legacy-unbound-comparison"],
+    )
+
+    assert result.exit_code == 2
+    assert "--allow-legacy-unbound-comparison is only valid with ci gate" in result.output
+
+
+def test_ci_gate_rejects_unused_legacy_unbound_comparison_override(tmp_path: Path) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="bound-candidate",
+        runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    packet = EvidencePacket(
+        packet_id="no-comparison",
+        interpretation=("unused compatibility override regression",),
+        evaluation=evaluation,
+        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="e" * 64),),
+        limitations=("test fixture",),
+    )
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id=evaluation.runset_id,
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest=evaluation.runset_digest,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.unchanged,
+        fixture_equivalence_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+    packet_path = tmp_path / "no-comparison-packet.json"
+    comparison_path = tmp_path / "bound-comparison.json"
+    _write_json(packet_path, packet.model_dump(mode="json"))
+    _write_json(comparison_path, comparison.model_dump(mode="json"))
+
+    for path in (packet_path, comparison_path):
+        result = RUNNER.invoke(
+            app,
+            ["ci", "gate", str(path), "--allow-legacy-unbound-comparison"],
+        )
+        assert result.exit_code == 2, result.output
+        assert "has no legacy unbound comparison" in result.output
+        assert "remove the unused compatibility override" in result.output
+
+
+@pytest.mark.parametrize("root_kind", ("missing", "file"))
+def test_ci_gate_json_structures_invalid_explicit_artifact_root(
+    tmp_path: Path,
+    root_kind: str,
+) -> None:
+    summary_path = tmp_path / "evaluation-summary.json"
+    _write_json(
+        summary_path,
+        EvaluationSummary(
+            runset_id="artifact-root-candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        ).model_dump(mode="json"),
+    )
+    artifact_root = tmp_path / root_kind
+    if root_kind == "file":
+        artifact_root.write_text("not a directory\n", encoding="utf-8")
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(summary_path),
+            "--artifact-root",
+            str(artifact_root),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "invalid"
+    assert decision["exit_code"] == 2
+    assert decision["artifact_path"] == str(summary_path)
+    expected = "does not exist" if root_kind == "missing" else "must be a directory"
+    assert expected in decision["message"]
+
+
+def test_ci_gate_rejects_artifact_root_for_non_packet(tmp_path: Path) -> None:
+    summary_path = tmp_path / "evaluation-summary.json"
+    artifact_root = tmp_path / "artifacts"
+    artifact_root.mkdir()
+    _write_json(
+        summary_path,
+        EvaluationSummary(
+            runset_id="artifact-root-candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        ).model_dump(mode="json"),
+    )
+
+    result = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(summary_path), "--artifact-root", str(artifact_root)],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert "--artifact-root is only valid when gating an evidence packet" in result.output
+
+
+def test_ci_gate_text_sanitizes_terminal_controls_but_json_preserves_values(
+    tmp_path: Path,
+) -> None:
+    hostile_packet_id = "trusted-packet\nFORGED-DECISION\x1b[31m"
+    packet = EvidencePacket(
+        packet_id=hostile_packet_id,
+        interpretation=("terminal output safety regression",),
+        evaluation=EvaluationSummary(
+            runset_id="candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        ),
+        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="e" * 64),),
+        limitations=("test fixture",),
+    )
+    path = tmp_path / "hostile-packet.json"
+    _write_json(path, packet.model_dump(mode="json"))
+
+    text_result = RUNNER.invoke(app, ["ci", "gate", str(path)])
+    json_result = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(path), "--format", "json"],
+    )
+
+    assert text_result.exit_code == 0, text_result.output
+    assert text_result.output.count("\n") == 1
+    assert "\x1b" not in text_result.output
+    assert "FORGED-DECISION" in text_result.output
+    assert json_result.exit_code == 0, json_result.output
+    payload = json.loads(json_result.output)
+    assert hostile_packet_id in payload["message"]
+    assert "\\n" in json_result.output
+    assert "\\u001b" in json_result.output
+
+
+def test_ci_gate_infers_packet_local_producer_root_inside_git(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    out = repo / "sensitivity-output"
+    example = Path("examples/evidence_sensitivity")
+    produced = RUNNER.invoke(
+        app,
+        [
+            "rag",
+            "sensitivity",
+            "--suite",
+            str(example / "responsive_suite.yaml"),
+            "--baseline-corpus",
+            str(example / "corpora" / "policy_a"),
+            "--counterfactual-corpus",
+            str(example / "corpora" / "policy_b"),
+            "--knowledge-contract",
+            str(example / "knowledge-contract.yaml"),
+            "--expected-relation",
+            "decision_flip",
+            "--out",
+            str(out),
+        ],
+    )
+    assert produced.exit_code == 0, produced.output
+    _init_git_repo(repo)
+
+    result = RUNNER.invoke(app, ["ci", "gate", str(out / "evidence-packet.json")])
+
+    assert result.exit_code == 0, result.output
+
+
+def test_ci_gate_falls_back_to_legacy_repo_relative_manifest_root(tmp_path: Path) -> None:
+    repo = tmp_path / "repo"
+    packet_path = repo / "packet-output" / "evidence-packet.json"
+    _write_release_bound_packet(
+        packet_path,
+        manifest_relative_path="evidence/evaluation-summary.json",
+        artifact_roots=(repo,),
+    )
+    _init_git_repo(repo)
+
+    result = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+
+    assert result.exit_code == 0, result.output
+
+
+def test_ci_gate_rejects_ambiguous_inferred_roots_and_honors_explicit_root(
+    tmp_path: Path,
+) -> None:
+    repo = tmp_path / "repo"
+    packet_dir = repo / "packet-output"
+    packet_path = packet_dir / "evidence-packet.json"
+    _write_release_bound_packet(
+        packet_path,
+        manifest_relative_path="evidence/evaluation-summary.json",
+        artifact_roots=(packet_dir, repo),
+    )
+    _init_git_repo(repo)
+
+    ambiguous = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    explicit = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(packet_path), "--artifact-root", str(packet_dir)],
+    )
+
+    assert ambiguous.exit_code == 2, ambiguous.output
+    assert "artifact root is ambiguous" in ambiguous.output
+    assert "--artifact-root" in ambiguous.output
+    assert explicit.exit_code == 0, explicit.output
 
 
 def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Path) -> None:
@@ -236,9 +518,7 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
     assert packet["release_manifest"]["artifacts"]
     assert packet["evidence_graph_digest"] == graph["graph_digest"]
     graph_digest = next(
-        item
-        for item in packet["artifact_digests"]
-        if item["role"] == "assurance-evidence-graph"
+        item for item in packet["artifact_digests"] if item["role"] == "assurance-evidence-graph"
     )
     graph_manifest = next(
         item
@@ -616,11 +896,13 @@ def test_core_commands_accept_out_dir_outside_cwd(tmp_path: Path) -> None:
 
     packet_summary = workspace / "evaluation-summary.json"
     packet_comparison = workspace / "comparison-summary.json"
+    candidate_digest = "c" * 64
     _write_json(
         packet_summary,
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            runset_digest=candidate_digest,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -632,6 +914,8 @@ def test_core_commands_accept_out_dir_outside_cwd(tmp_path: Path) -> None:
             artifact_kind="comparison-summary",
             baseline_runset_id="baseline",
             candidate_runset_id="candidate",
+            baseline_runset_digest="b" * 64,
+            candidate_runset_digest=candidate_digest,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             classification=ComparisonClassification.provenance_only_change,
@@ -697,6 +981,93 @@ def test_ci_fail_fast_stops_before_comparison_after_candidate_blocker(tmp_path: 
     report = json.loads((out_dir / "evaluation-report.json").read_text(encoding="utf-8"))
     assert report["metrics"]["blocking_findings"] >= 1
     assert report["metrics"]["findings_by_reason"]["MATERIAL_CLAIM_MISSING_EVIDENCE"] == 1
+
+
+def _legacy_unbound_comparison_packet() -> EvidencePacket:
+    evaluation = EvaluationSummary(
+        schema_version="0.6.3",
+        runset_id="same-display-id",
+        runset_digest="d" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    comparison = ComparisonSummary(
+        schema_version="0.6.3",
+        baseline_runset_id="baseline",
+        candidate_runset_id=evaluation.runset_id,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.unchanged,
+        fixture_equivalence_state=GateState.pass_,
+        candidate_state=GateState.pass_,
+    )
+    return EvidencePacket(
+        schema_version="0.6.3",
+        packet_id="legacy-id-only-comparison",
+        interpretation=("legacy compatibility regression",),
+        evaluation=evaluation,
+        comparison=comparison,
+        artifact_digests=(
+            PacketArtifactDigest(
+                schema_version="0.6.3",
+                role="evaluation-summary",
+                sha256="e" * 64,
+            ),
+            PacketArtifactDigest(
+                schema_version="0.6.3",
+                role="comparison-summary",
+                sha256="f" * 64,
+            ),
+        ),
+        limitations=("legacy comparison omits authenticated RunSet digests",),
+    )
+
+
+def _write_release_bound_packet(
+    packet_path: Path,
+    *,
+    manifest_relative_path: str,
+    artifact_roots: tuple[Path, ...],
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="root-inference-candidate",
+        runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    for artifact_root in artifact_roots:
+        evaluation_path = artifact_root / Path(manifest_relative_path)
+        evaluation_path.parent.mkdir(parents=True, exist_ok=True)
+        _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    evaluation_digest = file_sha256(artifact_roots[0] / Path(manifest_relative_path))
+    manifest = ReleaseArtifactManifest(
+        manifest_id="artifact-root-inference",
+        artifacts=(
+            ReleaseArtifact(
+                role="evaluation-summary",
+                path=manifest_relative_path,
+                sha256=evaluation_digest,
+            ),
+        ),
+        environment=EnvironmentInfo(platform="test", python_version="3.14"),
+    )
+    packet = EvidencePacket(
+        packet_id="artifact-root-inference-packet",
+        interpretation=("artifact root inference regression",),
+        evaluation=evaluation,
+        release_manifest=manifest,
+        artifact_digests=(
+            PacketArtifactDigest(
+                role="evaluation-summary",
+                sha256=evaluation_digest,
+            ),
+        ),
+        limitations=("test fixture",),
+    )
+    packet_path.parent.mkdir(parents=True, exist_ok=True)
+    _write_json(packet_path, packet.model_dump(mode="json"))
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

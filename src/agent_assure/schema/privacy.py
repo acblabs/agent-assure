@@ -14,7 +14,14 @@ PrivacyProfileId: TypeAlias = Annotated[str, Field(min_length=1)] | SkipJsonSche
 PrivacyProfileDigest: TypeAlias = DigestHex | SkipJsonSchema[None]
 
 _PRIVACY_PROFILE_FIELDS = ("privacy_profile_id", "privacy_profile_digest")
-_PRIVACY_PROFILE_SCHEMA_VERSIONS = ("0.5.0", "0.6.0", "0.6.1", "0.6.2", "0.6.3")
+_PRIVACY_PROFILE_SCHEMA_VERSIONS = (
+    "0.5.0",
+    "0.6.0",
+    "0.6.1",
+    "0.6.2",
+    "0.6.3",
+    "0.6.4",
+)
 
 
 def privacy_profile_json_schema_extra(

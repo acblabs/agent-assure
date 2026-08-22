@@ -282,6 +282,44 @@ Catastrophic host termination, production workload isolation, and distributed
 tracing beyond the local W3C context propagated by the live runner remain out
 of scope.
 
+## Controlled Evidence-Sensitivity Boundary
+
+The v1 RAG sensitivity method is limited to two exact committed corpora, one
+authority-bound `decision_flip` relation, and a deterministic synthetic fixture
+subject. It validates a controlled evidence-response contract under those
+declared conditions. It does not estimate how often hosted or stochastic models
+ignore context, identify latent parametric knowledge, or establish a causal
+effect of evidence in a general agent system.
+
+Only the full-arm rerun is supported. General interventions, checkpoint/resume,
+mid-run state replacement, hidden-state injection, structural causal models,
+and arbitrary counterfactual orchestration are outside this surface. A changed
+controlled dimension makes the result confounded and non-verdict. Missing
+authority, retrieval, evidence support, or claim-link prerequisites likewise
+cannot be interpreted as evidence insensitivity.
+
+The bundled RAG sensitivity examples are called synthetic only under exact
+machine-verified package digest pins. Custom inputs require an exact
+suite/fixture/contract/corpus-bound author attestation and are labeled
+`operator_attested`; this does not independently inspect or prove that their
+contents are synthetic. Sensitivity artifacts deliberately persist the exact
+raw UTF-8 of corpus manifests, corpus documents, and selected fixtures, and a
+packet embedding the report carries those bytes onward. The pattern-based
+privacy screen can reject known sensitive-looking values but is not a DLP
+system and cannot recognize arbitrary member IDs, case notes, trade secrets, or
+domain-specific confidential text. Authors must not use this surface with real
+personal, confidential, or production data.
+
+The process-equivalence reproduction index is not a benchmark, leaderboard, or
+population study. Its required strata reproduce known synthetic detector
+contract cases only and do not measure real-model performance.
+
+Each reproduction-index case cryptographically closes the regular source files
+under its declared demo resource root, with runtime caches excluded by policy.
+That closure does not bind interpreter, dependency, operating-system, or other
+runtime bytes outside the declared root; replay results still depend on the
+installed execution environment.
+
 ## Release-Evidence Boundary
 
 Digest replay checks reproducibility. Keyless cosign verification can verify

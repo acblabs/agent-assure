@@ -42,10 +42,29 @@ from agent_assure.schema.mutation import (
     MutationResultState,
     SelfDigestedArtifact,
 )
+from agent_assure.schema.sensitivity import (
+    DetectorTestStatus,
+    EvidenceSensitivityExpectedRelation,
+    EvidenceSensitivityGateEffect,
+    EvidenceSensitivityObservedRelation,
+    EvidenceSensitivityOutcomeClassification,
+    EvidenceSensitivityReasonCode,
+    EvidenceSensitivityState,
+    RAGSensitivityDecision,
+    SyntheticDataProvenance,
+    derive_sensitivity_directional_outcome_classification,
+    derive_sensitivity_outcome_message,
+)
+from agent_assure.sensitivity_contract import (
+    SENSITIVITY_PROVENANCE_BINDING,
+    SENSITIVITY_SUBJECT_EXECUTION_SCOPE,
+    SensitivityProvenanceBinding,
+    SensitivitySubjectExecutionScope,
+)
 
 GRAPH_CONTRACT_ID: Literal["AssuranceEvidenceGraph/v1"] = "AssuranceEvidenceGraph/v1"
 GRAPH_CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
-GRAPH_SCHEMA_VERSION: Literal["0.6.3"] = "0.6.3"
+GRAPH_SCHEMA_VERSION: Literal["0.6.4"] = "0.6.4"
 MAX_GRAPH_NODES = 131_072
 MAX_GRAPH_EDGES = 524_288
 MAX_GRAPH_REFERENCES = MAX_CATALOG_THREAT_REFERENCES + 1
@@ -77,6 +96,7 @@ class EvidenceGraphRequirementType(StrEnum):
     control_efficacy = "control_efficacy"
     threat_scope = "threat_scope"
     gate_profile = "gate_profile"
+    expected_decision_response = "expected_decision_response"
 
 
 class EvidenceGraphEvidenceType(StrEnum):
@@ -87,6 +107,7 @@ class EvidenceGraphEvidenceType(StrEnum):
     gate_profile = "gate_profile"
     gate_decision = "gate_decision"
     packet_limitations = "packet_limitations"
+    evidence_sensitivity = "evidence_sensitivity"
 
 
 class EvidenceGraphFindingType(StrEnum):
@@ -99,6 +120,7 @@ class EvidenceGraphFindingType(StrEnum):
     control_efficacy_threat = "control_efficacy_threat"
     control_efficacy_gate = "control_efficacy_gate"
     limitation = "limitation"
+    evidence_sensitivity_outcome = "evidence_sensitivity_outcome"
 
 
 class EvidenceGraphReferenceRole(StrEnum):
@@ -279,6 +301,232 @@ class EvidenceGraphComparisonProjection(FrozenStrictModel):
     @classmethod
     def _coerce_gate_state(cls, value: object) -> GateState:
         return coerce_enum(GateState, value)
+
+
+class EvidenceGraphSensitivityProjection(FrozenStrictModel):
+    state: EvidenceSensitivityState
+    gate_effect: EvidenceSensitivityGateEffect
+    endpoint: Literal["expected_decision_response"] = "expected_decision_response"
+    endpoint_value: bool | None
+    expected_relation: EvidenceSensitivityExpectedRelation
+    observed_relation: EvidenceSensitivityObservedRelation
+    outcome_classification: EvidenceSensitivityOutcomeClassification
+    baseline_expected_decision: RAGSensitivityDecision | None
+    counterfactual_expected_decision: RAGSensitivityDecision | None
+    baseline_observed_decision: RAGSensitivityDecision
+    counterfactual_observed_decision: RAGSensitivityDecision
+    deterministic: Literal[True] = True
+    detector_test_status: DetectorTestStatus
+    subject_execution_scope: SensitivitySubjectExecutionScope = SENSITIVITY_SUBJECT_EXECUTION_SCOPE
+    provenance_binding: SensitivityProvenanceBinding = SENSITIVITY_PROVENANCE_BINDING
+    synthetic_data_provenance: SyntheticDataProvenance
+    synthetic_data_attestation_digest: DigestHex | None = None
+    raw_content_persistence: Literal["exact_corpus_and_fixture_utf8_embedded"]
+    claim_scope: Literal["controlled_evidence_sensitivity_not_causal_guarantee"]
+    population_claim: Literal[
+        "none_bundled_synthetic_fixture_only",
+        "none_operator_attested_synthetic_fixture_only",
+    ]
+    protocol_digest: DigestHex
+    knowledge_contract_digest: DigestHex
+    baseline_runset_id: GraphSourceId
+    baseline_runset_digest: DigestHex
+    counterfactual_runset_id: GraphSourceId
+    counterfactual_runset_digest: DigestHex
+    decision_inertia_detected: bool
+    reason_codes: tuple[EvidenceSensitivityReasonCode, ...] = Field(
+        default=(),
+        max_length=MAX_GRAPH_REASON_CODES,
+    )
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, value: object) -> EvidenceSensitivityState:
+        return coerce_enum(EvidenceSensitivityState, value)
+
+    @field_validator("gate_effect", mode="before")
+    @classmethod
+    def _coerce_gate_effect(cls, value: object) -> EvidenceSensitivityGateEffect:
+        return coerce_enum(EvidenceSensitivityGateEffect, value)
+
+    @field_validator("expected_relation", mode="before")
+    @classmethod
+    def _coerce_expected_relation(
+        cls,
+        value: object,
+    ) -> EvidenceSensitivityExpectedRelation:
+        return coerce_enum(EvidenceSensitivityExpectedRelation, value)
+
+    @field_validator("observed_relation", mode="before")
+    @classmethod
+    def _coerce_observed_relation(
+        cls,
+        value: object,
+    ) -> EvidenceSensitivityObservedRelation:
+        return coerce_enum(EvidenceSensitivityObservedRelation, value)
+
+    @field_validator("outcome_classification", mode="before")
+    @classmethod
+    def _coerce_outcome_classification(
+        cls,
+        value: object,
+    ) -> EvidenceSensitivityOutcomeClassification:
+        return coerce_enum(EvidenceSensitivityOutcomeClassification, value)
+
+    @field_validator(
+        "baseline_expected_decision",
+        "counterfactual_expected_decision",
+        "baseline_observed_decision",
+        "counterfactual_observed_decision",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_sensitivity_decisions(cls, value: object) -> object:
+        if value is None:
+            return None
+        return coerce_enum(RAGSensitivityDecision, value)
+
+    @field_validator("detector_test_status", mode="before")
+    @classmethod
+    def _coerce_detector_test_status(cls, value: object) -> DetectorTestStatus:
+        return coerce_enum(DetectorTestStatus, value)
+
+    @field_validator("synthetic_data_provenance", mode="before")
+    @classmethod
+    def _coerce_synthetic_data_provenance(
+        cls,
+        value: object,
+    ) -> SyntheticDataProvenance:
+        return coerce_enum(SyntheticDataProvenance, value)
+
+    @field_validator("reason_codes", mode="before")
+    @classmethod
+    def _coerce_reason_codes(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            return tuple(coerce_enum(EvidenceSensitivityReasonCode, item) for item in value)
+        return value
+
+    @model_validator(mode="after")
+    def _validate_projection(self) -> Self:
+        expected_population_claim = {
+            SyntheticDataProvenance.bundled_digest_verified: (
+                "none_bundled_synthetic_fixture_only"
+            ),
+            SyntheticDataProvenance.operator_attested: (
+                "none_operator_attested_synthetic_fixture_only"
+            ),
+        }[self.synthetic_data_provenance]
+        if self.population_claim != expected_population_claim:
+            raise ValueError(
+                "sensitivity projection population claim must match synthetic-data provenance"
+            )
+        if (self.synthetic_data_attestation_digest is not None) is not (
+            self.synthetic_data_provenance is SyntheticDataProvenance.operator_attested
+        ):
+            raise ValueError(
+                "operator-attested sensitivity projection requires exactly one "
+                "synthetic-data attestation digest"
+            )
+        if self.reason_codes != tuple(sorted(set(self.reason_codes), key=lambda item: item.value)):
+            raise ValueError("sensitivity projection reason codes must be unique and sorted")
+        if (
+            self.baseline_runset_id,
+            self.baseline_runset_digest,
+        ) == (
+            self.counterfactual_runset_id,
+            self.counterfactual_runset_digest,
+        ):
+            raise ValueError("sensitivity projection arms must have distinct run-set identities")
+        if self.baseline_runset_id == self.counterfactual_runset_id:
+            raise ValueError("sensitivity projection arms must have distinct run-set IDs")
+        expected_endpoint = {
+            EvidenceSensitivityState.responsive: True,
+            EvidenceSensitivityState.evidence_insensitive: False,
+            EvidenceSensitivityState.confounded: None,
+            EvidenceSensitivityState.prerequisites_unmet: None,
+        }[self.state]
+        expected_gate_effect = {
+            EvidenceSensitivityState.responsive: EvidenceSensitivityGateEffect.pass_,
+            EvidenceSensitivityState.evidence_insensitive: (EvidenceSensitivityGateEffect.block),
+            EvidenceSensitivityState.confounded: (EvidenceSensitivityGateEffect.non_verdict),
+            EvidenceSensitivityState.prerequisites_unmet: (
+                EvidenceSensitivityGateEffect.non_verdict
+            ),
+        }[self.state]
+        expected_reason_role = {
+            EvidenceSensitivityState.responsive: self.reason_codes == (),
+            EvidenceSensitivityState.evidence_insensitive: self.reason_codes
+            == (EvidenceSensitivityReasonCode.expected_response_missing,),
+            EvidenceSensitivityState.confounded: {
+                EvidenceSensitivityReasonCode.confounded,
+                EvidenceSensitivityReasonCode.prerequisites_unmet,
+            }.issubset(self.reason_codes)
+            and EvidenceSensitivityReasonCode.expected_response_missing not in self.reason_codes,
+            EvidenceSensitivityState.prerequisites_unmet: (
+                EvidenceSensitivityReasonCode.prerequisites_unmet in self.reason_codes
+                and EvidenceSensitivityReasonCode.confounded not in self.reason_codes
+                and EvidenceSensitivityReasonCode.expected_response_missing not in self.reason_codes
+            ),
+        }[self.state]
+        if (
+            self.endpoint_value is not expected_endpoint
+            or self.gate_effect is not expected_gate_effect
+            or not expected_reason_role
+        ):
+            raise ValueError(
+                "sensitivity projection state contradicts its endpoint, gate, or reason role"
+            )
+        if (
+            self.state is EvidenceSensitivityState.responsive
+            and self.observed_relation is not EvidenceSensitivityObservedRelation.decision_flip
+        ):
+            raise ValueError("responsive sensitivity projection requires a decision flip")
+        observed_relation = (
+            EvidenceSensitivityObservedRelation.incomparable
+            if RAGSensitivityDecision.escalate
+            in {self.baseline_observed_decision, self.counterfactual_observed_decision}
+            else EvidenceSensitivityObservedRelation.decision_same
+            if self.baseline_observed_decision is self.counterfactual_observed_decision
+            else EvidenceSensitivityObservedRelation.decision_flip
+        )
+        if self.observed_relation is not observed_relation:
+            raise ValueError("sensitivity projection relation must match its directional decisions")
+        expected_outputs_bound = (
+            self.baseline_expected_decision is not None
+            and self.counterfactual_expected_decision is not None
+        )
+        expected_response_observed = expected_outputs_bound and (
+            self.baseline_observed_decision,
+            self.counterfactual_observed_decision,
+        ) == (
+            self.baseline_expected_decision,
+            self.counterfactual_expected_decision,
+        )
+        if self.endpoint_value is not None and (
+            self.endpoint_value is not expected_response_observed
+        ):
+            raise ValueError("sensitivity projection endpoint must match its directional decisions")
+        expected_outcome_classification = derive_sensitivity_directional_outcome_classification(
+            state=self.state,
+            observed_relation=self.observed_relation,
+            baseline_expected_decision=self.baseline_expected_decision,
+            counterfactual_expected_decision=self.counterfactual_expected_decision,
+            baseline_observed_decision=self.baseline_observed_decision,
+            counterfactual_observed_decision=self.counterfactual_observed_decision,
+        )
+        if self.outcome_classification is not expected_outcome_classification:
+            raise ValueError(
+                "sensitivity projection outcome classification contradicts state and relation"
+            )
+        expected_inertia = (
+            self.state is EvidenceSensitivityState.evidence_insensitive
+            and self.observed_relation is EvidenceSensitivityObservedRelation.decision_same
+        )
+        if self.decision_inertia_detected is not expected_inertia:
+            raise ValueError(
+                "sensitivity projection decision inertia contradicts state and relation"
+            )
+        return self
 
 
 class EvidenceGraphControlEfficacyProjection(FrozenStrictModel):
@@ -653,6 +901,22 @@ def _control_efficacy_evidence_state(
             assert_never(unreachable)
 
 
+def _evidence_sensitivity_role(
+    state: EvidenceSensitivityState,
+) -> tuple[EvidenceState, bool]:
+    match state:
+        case EvidenceSensitivityState.responsive:
+            return EvidenceState.supported, True
+        case EvidenceSensitivityState.evidence_insensitive:
+            return EvidenceState.violated, True
+        case EvidenceSensitivityState.confounded:
+            return EvidenceState.inconclusive, False
+        case EvidenceSensitivityState.prerequisites_unmet:
+            return EvidenceState.prerequisites_unmet, False
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
 class EvidenceGraphEvidencePayload(FrozenStrictModel):
     payload_kind: Literal["evidence"] = "evidence"
     evidence_type: EvidenceGraphEvidenceType
@@ -666,6 +930,10 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
     evaluation_basis: EvidenceEvaluationBasis | None = None
     comparison_projection: EvidenceGraphComparisonProjection | None = None
     control_efficacy_projection: EvidenceGraphControlEfficacyProjection | None = None
+    evidence_sensitivity_projection: EvidenceGraphSensitivityProjection | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     references: tuple[EvidenceGraphReference, ...] = Field(
         default=(),
         max_length=MAX_GRAPH_REFERENCES,
@@ -726,6 +994,12 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
             self.evidence_type is EvidenceGraphEvidenceType.control_efficacy
         ):
             raise ValueError("control-efficacy evidence requires exactly one efficacy projection")
+        if (self.evidence_sensitivity_projection is not None) != (
+            self.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+        ):
+            raise ValueError(
+                "evidence-sensitivity evidence requires exactly one sensitivity projection"
+            )
         if self.comparison_projection is not None:
             expected_state = _comparison_evidence_state(self.comparison_projection)
             if self.state is not expected_state:
@@ -745,6 +1019,23 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
             )
             if self.verdict_bearing is not expected_verdict:
                 raise ValueError("efficacy verdict-bearing state contradicts its projection")
+        if self.evidence_sensitivity_projection is not None:
+            expected_state, expected_verdict = _evidence_sensitivity_role(
+                self.evidence_sensitivity_projection.state
+            )
+            if (self.state, self.verdict_bearing) != (
+                expected_state,
+                expected_verdict,
+            ):
+                raise ValueError(
+                    "sensitivity evidence state or verdict role contradicts its projection"
+                )
+            if self.source_artifact_kind != "evidence-sensitivity-report":
+                raise ValueError(
+                    "sensitivity evidence requires the evidence-sensitivity-report source kind"
+                )
+            if not self.limitations:
+                raise ValueError("sensitivity evidence must preserve report limitations")
         exact_state_roles = {
             EvidenceGraphEvidenceType.gate_profile: (
                 EvidenceState.inconclusive,
@@ -889,6 +1180,22 @@ class EvidenceGraphFindingPayload(FrozenStrictModel):
             EvidenceGraphProjectionReason.evidence_scope_limitation.value,
         ):
             raise ValueError("limitation finding requires its exact registered reason")
+        if self.finding_type is EvidenceGraphFindingType.evidence_sensitivity_outcome:
+            try:
+                tuple(EvidenceSensitivityReasonCode(item) for item in self.reason_codes)
+            except ValueError as exc:
+                raise ValueError("evidence-sensitivity finding reason is not registered") from exc
+            if self.source_artifact_kind != "evidence-sensitivity-report":
+                raise ValueError("evidence-sensitivity findings require their typed report source")
+            if (self.state, self.verdict_bearing) not in {
+                (EvidenceState.supported, True),
+                (EvidenceState.violated, True),
+                (EvidenceState.inconclusive, False),
+                (EvidenceState.prerequisites_unmet, False),
+            }:
+                raise ValueError(
+                    "evidence-sensitivity finding state and verdict role are incoherent"
+                )
         gate_finding = self.finding_type is EvidenceGraphFindingType.control_efficacy_gate
         if (self.gate_effect is not None) is not gate_finding:
             raise ValueError("gate_effect belongs exactly to control-efficacy gate findings")
@@ -1394,7 +1701,7 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
     _digest_field = "graph_digest"
 
     artifact_kind: Literal["assurance-evidence-graph"] = "assurance-evidence-graph"
-    schema_version: Literal["0.6.3"] = GRAPH_SCHEMA_VERSION
+    schema_version: Literal["0.6.3", "0.6.4"] = GRAPH_SCHEMA_VERSION
     schema_name: Literal["assurance-evidence-graph"] = "assurance-evidence-graph"
     contract_id: Literal["AssuranceEvidenceGraph/v1"] = GRAPH_CONTRACT_ID
     contract_version: Literal["1.0.0"] = GRAPH_CONTRACT_VERSION
@@ -1421,6 +1728,30 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_graph(self) -> Self:
+        if self.schema_version != GRAPH_SCHEMA_VERSION and any(
+            (
+                isinstance(node.payload, EvidenceGraphEvidencePayload)
+                and (
+                    node.payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity
+                    or node.payload.evidence_sensitivity_projection is not None
+                )
+            )
+            or (
+                isinstance(node.payload, EvidenceGraphFindingPayload)
+                and node.payload.finding_type
+                is EvidenceGraphFindingType.evidence_sensitivity_outcome
+            )
+            or (
+                isinstance(node.payload, EvidenceGraphRequirementPayload)
+                and node.payload.requirement_type
+                is EvidenceGraphRequirementType.expected_decision_response
+            )
+            for node in self.nodes
+        ):
+            raise ValueError(
+                "evidence-sensitivity graph content requires schema_version "
+                f"{GRAPH_SCHEMA_VERSION!r}"
+            )
         expected_nodes = tuple(sorted(self.nodes, key=evidence_graph_node_sort_key))
         if self.nodes != expected_nodes:
             raise ValueError("graph nodes must use canonical kind-and-ID ordering")
@@ -1539,6 +1870,9 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
                 EvidenceGraphFindingType.control_efficacy_gate: (
                     EvidenceGraphEvidenceType.gate_decision
                 ),
+                EvidenceGraphFindingType.evidence_sensitivity_outcome: (
+                    EvidenceGraphEvidenceType.evidence_sensitivity
+                ),
             }
             expected_parent = expected_parent_types.get(payload.finding_type)
             if expected_parent is not None and parent.evidence_type is not expected_parent:
@@ -1624,6 +1958,77 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
                 if len(mutation_outcomes) != 1:
                     raise ValueError(
                         "mutation-result evidence requires exactly one outcome finding"
+                    )
+            if payload.evidence_type is EvidenceGraphEvidenceType.evidence_sensitivity:
+                sensitivity_outcomes = tuple(
+                    child.payload
+                    for child in children
+                    if isinstance(child.payload, EvidenceGraphFindingPayload)
+                    and child.payload.finding_type
+                    is EvidenceGraphFindingType.evidence_sensitivity_outcome
+                )
+                if len(sensitivity_outcomes) != 1:
+                    raise ValueError(
+                        "evidence-sensitivity evidence requires exactly one outcome finding"
+                    )
+                sensitivity_projection = payload.evidence_sensitivity_projection
+                if sensitivity_projection is None:
+                    raise ValueError("evidence-sensitivity outcome requires its typed projection")
+                outcome = sensitivity_outcomes[0]
+                if (
+                    outcome.state,
+                    outcome.verdict_bearing,
+                    outcome.reason_codes,
+                ) != (
+                    payload.state,
+                    payload.verdict_bearing,
+                    tuple(item.value for item in sensitivity_projection.reason_codes),
+                ):
+                    raise ValueError(
+                        "evidence-sensitivity outcome must match its report projection"
+                    )
+                expected_outcome_message = derive_sensitivity_outcome_message(
+                    classification=sensitivity_projection.outcome_classification,
+                    state=sensitivity_projection.state,
+                    observed_relation=sensitivity_projection.observed_relation,
+                    baseline_expected_decision=(sensitivity_projection.baseline_expected_decision),
+                    counterfactual_expected_decision=(
+                        sensitivity_projection.counterfactual_expected_decision
+                    ),
+                    baseline_observed_decision=(sensitivity_projection.baseline_observed_decision),
+                    counterfactual_observed_decision=(
+                        sensitivity_projection.counterfactual_observed_decision
+                    ),
+                )
+                if outcome.messages != (expected_outcome_message,):
+                    raise ValueError(
+                        "evidence-sensitivity outcome message must match its typed projection"
+                    )
+                limitation_findings = tuple(
+                    child.payload
+                    for child in children
+                    if isinstance(child.payload, EvidenceGraphFindingPayload)
+                    and child.payload.finding_type is EvidenceGraphFindingType.limitation
+                )
+                expected_limitations = {
+                    f"/limitations/{index}": (
+                        f"limitation-{index}",
+                        payload.source_artifact_kind,
+                        (limitation,),
+                    )
+                    for index, limitation in enumerate(payload.limitations)
+                }
+                observed_limitations = {
+                    finding.source_path: (
+                        finding.source_id,
+                        finding.source_artifact_kind,
+                        finding.messages,
+                    )
+                    for finding in limitation_findings
+                }
+                if observed_limitations != expected_limitations:
+                    raise ValueError(
+                        "evidence-sensitivity limitations require exact finding projections"
                     )
         for node in self.nodes:
             payload = node.payload

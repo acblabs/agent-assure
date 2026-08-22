@@ -6,12 +6,13 @@ from pathlib import Path
 
 import pytest
 from jsonschema import Draft202012Validator
+from pydantic import ValidationError
 
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.ci import gate_comparison_summary
 from agent_assure.compare.invariant_diff import diff_behavior, diff_control_findings
 from agent_assure.compare.provenance_diff import PROVENANCE_FIELDS
-from agent_assure.compare.runsets import InvalidComparisonError, compare_runsets
+from agent_assure.compare.runsets import ComparisonReport, InvalidComparisonError, compare_runsets
 from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
 from agent_assure.policies.base import GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
@@ -50,6 +51,23 @@ def test_compare_classifies_new_candidate_failure() -> None:
         change.reason_code is ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE
         for change in report.control_changes
     )
+
+
+@pytest.mark.parametrize("role", ("baseline", "candidate"))
+def test_comparison_report_rejects_contradictory_authenticated_runset_digest(
+    role: str,
+) -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, BASELINE)
+    candidate = _runset(compiled, EVIDENCE_CANDIDATE)
+    report = compare_runsets(compiled, baseline, candidate)
+    payload = report.model_dump(mode="json")
+    summary = payload["comparison_summary"]
+    assert isinstance(summary, dict)
+    summary[f"{role}_runset_digest"] = "f" * 64
+
+    with pytest.raises(ValidationError, match=f"{role}_runset_digest"):
+        ComparisonReport.model_validate(payload)
 
 
 def test_candidate_waiver_does_not_rewrite_raw_comparison_history() -> None:

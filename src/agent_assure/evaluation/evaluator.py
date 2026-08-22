@@ -22,8 +22,9 @@ from agent_assure.policies.base import (
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, StrictModel
+from agent_assure.schema.base import PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
+    V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
     GateState,
     ReasonCode,
@@ -54,7 +55,7 @@ _EVALUATION_REPORT_USAGE_FIELD_PATHS = (
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_EVALUATION_REPORT_USAGE_FIELD_PATHS
 )
-_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3"})
+_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"})
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
@@ -191,9 +192,9 @@ def evaluate_runset(
     waivers: tuple[Waiver, ...] = (),
     today: date | None = None,
 ) -> EvaluationReport:
-    if suite.schema_version == SCHEMA_VERSION and not suite.cases:
+    if suite.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not suite.cases:
         raise ValueError("current compiled suites require at least one case for evaluation")
-    if runset.schema_version == SCHEMA_VERSION and not runset.runs:
+    if runset.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not runset.runs:
         raise ValueError("current run sets require at least one run record for evaluation")
     validate_runset_compatibility(suite, runset)
     resolver = ExpectationResolver(suite)

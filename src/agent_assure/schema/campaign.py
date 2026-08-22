@@ -161,7 +161,7 @@ class AssuranceMutationCatalog(SelfDigestedArtifact):
     model_config = ConfigDict(json_schema_extra=_core_catalog_json_schema_extra)
 
     artifact_kind: Literal["assurance-mutation-catalog"] = "assurance-mutation-catalog"
-    schema_version: Literal["0.6.1", "0.6.2", "0.6.3"] = "0.6.3"
+    schema_version: Literal["0.6.1", "0.6.2", "0.6.3", "0.6.4"] = "0.6.4"
     schema_name: Literal["assurance-mutation-catalog"] = "assurance-mutation-catalog"
     contract_id: Literal["AssuranceMutationCatalog/v1"] = "AssuranceMutationCatalog/v1"
     contract_version: Literal["1.0.0"] = "1.0.0"
@@ -272,7 +272,7 @@ class AssuranceMutationCampaign(SelfDigestedArtifact):
     _digest_field = "campaign_digest"
 
     artifact_kind: Literal["assurance-mutation-campaign"] = "assurance-mutation-campaign"
-    schema_version: Literal["0.6.1", "0.6.2", "0.6.3"] = "0.6.3"
+    schema_version: Literal["0.6.1", "0.6.2", "0.6.3", "0.6.4"] = "0.6.4"
     schema_name: Literal["assurance-mutation-campaign"] = "assurance-mutation-campaign"
     contract_id: Literal["AssuranceMutationCampaign/v1"] = "AssuranceMutationCampaign/v1"
     contract_version: Literal["1.0.0"] = "1.0.0"
