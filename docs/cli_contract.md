@@ -10,7 +10,7 @@ Current commands:
 - `agent-assure suite run COMPILED_SUITE_JSON --variant VARIANT_YAML --out RUNSET_JSON [--manifest PATH] [--suite-digest DIGEST] [--source SUITE_YAML] [--hmac-key-env ENV]`
 - `agent-assure evaluate RUNSET_JSON --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
-- `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--control-efficacy CONTROL_EFFICACY_REPORT_JSON --efficacy-config CONTROLS_MUTATION_YAML] [--packet-id ID]`
+- `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--control-efficacy CONTROL_EFFICACY_REPORT_JSON --efficacy-config CONTROLS_MUTATION_YAML] [--evidence-sensitivity EVIDENCE_SENSITIVITY_REPORT_JSON] [--packet-id ID]`
 - `agent-assure init controls-mutation [--out-dir DIR]`
 - `agent-assure doctor controls-mutate [--config CONTROLS_MUTATION_YAML]`
 - `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
@@ -18,8 +18,10 @@ Current commands:
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
-- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--require-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
 - `agent-assure demo assure-the-assurance [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
+- `agent-assure demo evidence-sensitivity [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
+- `agent-assure rag sensitivity --suite SUITE_YAML --baseline-corpus DIR --counterfactual-corpus DIR --knowledge-contract CONTRACT_YAML --expected-relation decision_flip --out DIR [--synthetic-data-attestation ATTESTATION_JSON]`
 - `agent-assure live adapters`
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
@@ -31,6 +33,61 @@ Current commands:
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header-env NAME=ENV_VAR] [--header-file NAME=PATH]`
+
+`rag sensitivity` accepts only the v1 `decision_flip` relation. It compiles one
+deterministic fixture-mode suite case, validates two distinct exact-inventory
+corpora and a self-digested knowledge-authority contract, and independently
+reruns retrieval, subject generation, evidence linking, RunSet construction,
+and ordinary evaluation for each arm. It writes `protocol.json`, both RunSets,
+both evaluation summaries, a canonical `comparison-summary.json`, the detector
+JSON/Markdown/HTML, a privacy-filtered assurance graph, a release manifest, and
+a gate-ready evidence packet in JSON and Markdown.
+It exits `0` for `responsive`, `1` for a valid `evidence_insensitive` result,
+and `2` for invalid input, `confounded`, or `prerequisites_unmet`. A confounded
+or prerequisite-unmet report is explicitly non-verdict. Exit `4` is reserved
+for bounded internal construction/execution or artifact-publication faults;
+declared sensitivity input and path-validation faults remain exit `2`.
+
+Bundled sensitivity resources are classified as synthetic only when all pinned
+suite/fixture, authority-contract, corpus, and corpus-snapshot digests match.
+Every other exact input set requires a self-digested
+`--synthetic-data-attestation` bound to the current suite, fixture manifest,
+authority contract, two corpus digests, and two exact corpus-snapshot digests.
+Reports distinguish
+`bundled_digest_verified` from `operator_attested`; the latter is an author
+assertion, not semantic verification. The protocol and report disclose
+`raw_content_persistence=exact_corpus_and_fixture_utf8_embedded`. Exact raw
+input UTF-8 is copied into detector artifacts and downstream packets, so custom
+inputs must contain no real personal, confidential, or production data.
+
+The output directory must be disjoint from both corpora and every authenticated
+fixture root. If it already exists, it may contain only regular, non-link files
+whose names belong to the sensitivity artifact set. Every pre-existing owned
+file must exactly match the deterministic generation being published; a
+mismatched sidecar or packet, mixed namespace, link, or unrelated artifact is
+invalid input and is not replaced.
+
+The v1 command runs only the `responsive`, `evidence_reversed`, and
+`evidence_inertial` declarative fixture subject modes; it does not execute an
+arbitrary agent or hosted model. The reversed mode is a negative control that
+produces an incorrect decision flip without decision inertia while retaining
+governing retrieval and links. Verdict-bearing stdout always states that the
+synthetic harness result does not show that a model used contextual evidence
+instead of parametric memory.
+
+The canonical comparison sidecar is rederived from the exact nested RunSets
+with the detector's fixed evaluation date, default gate profile, and no waivers.
+It carries both canonical RunSet digests and intentionally omits producer-local
+environment metadata. The producer's packet binds that comparison, the exact
+counterfactual evaluation, the sensitivity report, and the graph's raw and
+semantic identities in the same rollback-protected publication.
+
+`demo evidence-sensitivity` stages the installed-package fixtures and verifies
+one responsive control plus one caught evidence-inertial regression. The
+ordinary wrapper exits `0` when that detector contract behaves as declared;
+`--strict` propagates the expected blocking result as exit `1`. The demo is a
+synthetic detector contract test, not a real-model benchmark or prevalence
+measurement. See [Controlled RAG Evidence Sensitivity](evidence_sensitivity.md).
 
 OTLP authentication values are never accepted directly in command-line arguments. Use
 `--header-env` to read a value from an environment variable or `--header-file` to read it
@@ -103,6 +160,14 @@ integer basis-point deltas. Declared estimated cost deltas are compared only
 when currency, cost basis, pricing snapshot IDs, and pricing snapshot digests
 are explicitly declared and match on both sides.
 
+Current first-party comparison summaries carry canonical baseline and candidate
+RunSet digests. A comparison of the exact RunSets emitted by `rag sensitivity`
+is compatible with the accompanying report even though ordinary `compare`
+adds local environment metadata: sensitivity binding excludes only that
+top-level environment field and still exactly compares every semantic field.
+Non-default gate profiles or waivers remain outside the canonical detector
+comparison and are rejected whenever they change its semantic projection.
+
 `packet build` writes an `evidence-packet` JSON artifact, `evidence-packet.md`,
 `assurance-evidence-graph.json`, `dependency-inventory.json`, and
 `release-artifact-manifest.json` from an evaluation summary and optional
@@ -118,6 +183,18 @@ fixture manifests, and runset provenance.
 If the enclosed summaries contain measured usage, the packet preserves that
 usage evidence beside the governance findings. Usage evidence never changes the
 deterministic gate state by itself.
+
+`--evidence-sensitivity` carries one validated controlled RAG sensitivity
+report. Its counterfactual RunSet must exactly match the packet evaluation; a
+present comparison must exactly match both report arms. Packet construction
+binds the report's exact bytes under the `evidence-sensitivity-report` role in
+both packet digests and the release manifest, and the packet graph preserves its
+typed status, endpoint, decision-inertia finding, reason codes, and limitations.
+Packet CI consumes the nested gate effect: `evidence_insensitive` exits `1`,
+`responsive` passes that dimension, and a sensitivity non-verdict becomes an
+explicit `not_evaluated` outcome that blocks under `--fail-on-not-evaluated`.
+Packet Markdown leads the sensitivity section with the same declarative-harness
+non-claim as the direct CLI.
 
 `--control-efficacy` and `--efficacy-config` must be supplied together. The
 first loads a validated `control-efficacy-report`; the second loads the
@@ -141,6 +218,18 @@ versioned usage artifacts. The post-redaction JSON is validated against the
 schema selected by the packet root version before any packet bytes are written;
 current output uses the pinned current writer schema and coherent supported
 legacy output uses its frozen schema.
+
+CI acceptance is stricter than legacy model readability. A standalone legacy
+comparison, or a comparison-bearing packet whose comparison lacks authenticated
+baseline and candidate RunSet digests, is invalid with exit `2` by default.
+This includes a schema-valid v0.6.3 packet downgrade whose candidate ID still
+matches an evaluation carrying different bytes.
+`--allow-legacy-unbound-comparison` is an explicit compatibility opt-in for
+`ci gate` only; the human-readable decision records
+`legacy_unbound_comparison=allowed`. The option is invalid when the selected
+artifact has no comparison or already has both digests, preventing a latent
+always-on downgrade policy. It is also rejected for a full `ci` producer
+invocation and cannot make malformed legacy bytes loadable.
 
 `init controls-mutation` creates four deterministic managed files under
 `agent-assure-controls-mutation` by default: `controls-mutation.yaml`,
@@ -223,6 +312,17 @@ packet with no efficacy section is gated on its evaluation and comparison
 evidence and explicitly records `efficacy_evidence=absent`,
 `efficacy_verification=not_requested`, and `efficacy_required=false`; it does
 not claim an efficacy check occurred.
+
+Evidence-sensitivity presence is independently verifier-owned.
+`--require-evidence-sensitivity` makes a packet without the report invalid
+with exit `2`, closing the optional-field stripping downgrade for workflows
+that require Sprint 5 sensitivity evidence. Generic packet construction cannot
+infer the missing requirement from a comparison alone, so release automation
+must set this verifier option explicitly. When a report is present, confounded
+and prerequisites-unmet states fail closed as invalid with exit `2`.
+`--allow-sensitivity-non-verdict` is the explicit advisory opt-in that restores
+an exit-`0` `not_evaluated` result; `--fail-on-not-evaluated` instead
+continues to make that state blocking.
 
 Strict verification of present efficacy requires a separate verifier-owned
 controls-mutation YAML through `--efficacy-policy`; it pins the installed
@@ -384,7 +484,10 @@ object for every completed `ci` or `ci gate` evaluation, including successful
 and nonblocking outcomes; it also emits an `invalid` decision when a named
 input exists but cannot be loaded or validated. Default `text` output retains
 the existing human-readable success behavior and the existing structured
-failure output from full `ci`. CLI syntax errors that occur before an artifact
+failure output from full `ci`. Human-readable decision messages are redacted,
+collapsed to one line, and stripped of Unicode control/format characters before
+terminal output. JSON decisions retain structured values and use JSON escaping
+for control characters. CLI syntax errors that occur before an artifact
 can be evaluated remain ordinary Typer usage errors. Outcomes are `pass`, `review`,
 `not_evaluated`, `fail`, or `invalid`; each outcome is validated against its
 exit code. `ci gate` remains available for post-hoc gating of an existing
@@ -405,11 +508,18 @@ When `ci gate` receives an evidence packet with a release manifest, it reopens
 the referenced evaluation and optional comparison summary beneath a trusted
 artifact root. The gate requires each exact file's raw SHA-256 to match both
 packet digest records and the release manifest, and requires the fully parsed
-summary to equal the nested packet summary. The CLI infers the root from the
-packet location and enclosing source checkout; use `--artifact-root` when a
-packet bundle was moved elsewhere. Manifest paths remain relative, normalized,
+summary to equal the nested packet summary. Without `--artifact-root`, the CLI
+fully validates both the packet directory (the current producer layout) and the
+enclosing source/Git root (the legacy repo-relative layout), deduplicates equal
+candidates, and accepts only a sole valid root. If both distinct trees satisfy
+every binding, the root is ambiguous and gating fails with exit `2`; if neither
+does, the binding failure is surfaced. An explicit `--artifact-root` is used
+exclusively and bypasses inference. Manifest paths remain relative, normalized,
 and confined. `--artifact-root` is not accepted for other gate artifacts or for
-a full `ci` run.
+a full `ci` run. A named root must exist and be a directory. Those checks occur
+inside `ci gate`, so `--format json` reports a missing or non-directory root as
+a structured `invalid` decision with exit `2` instead of a framework usage
+message.
 
 `live adapters` lists installed live adapter identifiers. `live run` consumes a
 compiled suite, live run configuration, and `live-protocol-record`. The command

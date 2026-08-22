@@ -7,12 +7,13 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
+from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
     STRICT_RFC3339_TIMESTAMP_PATTERN,
+    V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
     ExecutionMode,
     GateState,
@@ -50,7 +51,7 @@ _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
 )
-_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3"})
+_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"})
 _RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
@@ -384,7 +385,7 @@ class AgentRunRecord(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_evidence_item_content_identity(self) -> AgentRunRecord:
-        if self.schema_version != SCHEMA_VERSION:
+        if self.schema_version not in V063_CONTRACT_SCHEMA_VERSIONS:
             return self
         content_by_identity: dict[tuple[str, str], set[str]] = {}
         for item in self.evidence_items:
@@ -552,9 +553,9 @@ class RunSet(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_live_protocol_binding(self) -> RunSet:
-        if self.schema_version == SCHEMA_VERSION and not self.runset_id:
+        if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not self.runset_id:
             raise ValueError("current run sets require a non-empty runset_id")
-        if self.schema_version == SCHEMA_VERSION and not self.runs:
+        if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not self.runs:
             raise ValueError("run sets require at least one run record")
         validate_privacy_profile_binding(
             self.schema_version,

@@ -1,13 +1,15 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import (
+    V063_CONTRACT_SCHEMA_VERSIONS,
     ComparisonClassification,
+    DigestHex,
     GateState,
     coerce_enum,
     coerce_tuple,
@@ -28,11 +30,19 @@ from agent_assure.schema.usage import (
     validate_usage_field_paths_schema_version,
 )
 
+if TYPE_CHECKING:
+    from agent_assure.schema.evaluation import EvaluationSummary
+
 _COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (
     ("baseline_usage_summary",),
     ("candidate_usage_summary",),
     ("usage_delta",),
 )
+
+# v0.6.4 introduces authenticated identities for both compared RunSets. Keep
+# the governed versions explicit so advancing the current writer cannot
+# silently weaken the pinned v0.6.4 model contract.
+_COMPARISON_DIGEST_CONTRACT_SCHEMA_VERSIONS = ("0.6.4",)
 _COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_COMPARISON_SUMMARY_USAGE_FIELD_PATHS
 )
@@ -41,6 +51,21 @@ _COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].extend(
         "baseline_runset_id",
         "candidate_runset_id",
     )["allOf"]
+)
+_COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version"],
+            "properties": {"schema_version": {"const": SCHEMA_VERSION}},
+        },
+        "then": {
+            "required": ["baseline_runset_digest", "candidate_runset_digest"],
+            "properties": {
+                "baseline_runset_digest": {"type": "string"},
+                "candidate_runset_digest": {"type": "string"},
+            },
+        },
+    }
 )
 
 
@@ -52,6 +77,22 @@ class ComparisonSummary(PersistedArtifact):
     artifact_kind: Literal["comparison-summary"] = "comparison-summary"
     baseline_runset_id: str
     candidate_runset_id: str
+    baseline_runset_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Canonical digest of the baseline RunSet. Required by the v0.6.4 "
+            "comparison contract and omitted only when projecting compatible older summaries."
+        ),
+    )
+    candidate_runset_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Canonical digest of the candidate RunSet. Required by the v0.6.4 "
+            "comparison contract and omitted only when projecting compatible older summaries."
+        ),
+    )
     privacy_profile_id: PrivacyProfileId = Field(
         exclude_if=lambda value: value is None,
     )
@@ -100,11 +141,32 @@ class ComparisonSummary(PersistedArtifact):
 
     @model_validator(mode="after")
     def _require_current_runset_identities(self) -> ComparisonSummary:
-        if self.schema_version == SCHEMA_VERSION and (
+        if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and (
             not self.baseline_runset_id or not self.candidate_runset_id
         ):
             raise ValueError(
                 "current comparison summaries require non-empty baseline and candidate runset IDs"
+            )
+        has_baseline_digest = self.baseline_runset_digest is not None
+        has_candidate_digest = self.candidate_runset_digest is not None
+        if self.schema_version not in _COMPARISON_DIGEST_CONTRACT_SCHEMA_VERSIONS and (
+            has_baseline_digest or has_candidate_digest
+        ):
+            raise ValueError(
+                f"comparison summary schema version {self.schema_version!r} does not support "
+                "authenticated RunSet digests"
+            )
+        if has_baseline_digest != has_candidate_digest:
+            raise ValueError(
+                "comparison summary RunSet digests must either both be present or both be absent"
+            )
+        if (
+            self.schema_version in _COMPARISON_DIGEST_CONTRACT_SCHEMA_VERSIONS
+            and self.baseline_runset_digest is None
+        ):
+            raise ValueError(
+                f"comparison summaries at schema_version={self.schema_version} require "
+                "authenticated baseline and candidate RunSet digests"
             )
         return self
 
@@ -128,3 +190,36 @@ class ComparisonSummary(PersistedArtifact):
             field_paths=_COMPARISON_SUMMARY_USAGE_FIELD_PATHS,
         )
         return self
+
+
+def comparison_evaluation_binding_error(
+    comparison: ComparisonSummary,
+    evaluation: EvaluationSummary,
+    *,
+    role: Literal["baseline", "candidate"],
+) -> str | None:
+    """Return an error for contradictory comparison/evaluation RunSet identities.
+
+    RunSet digests remain optional on independently produced and legacy
+    evaluation summaries. Once a comparison carries an authenticated digest,
+    however, pairing it with an unbound evaluation would silently downgrade the
+    comparison identity to its human-readable ID. Such pairs are rejected.
+    """
+    comparison_runset_id = (
+        comparison.baseline_runset_id if role == "baseline" else comparison.candidate_runset_id
+    )
+    comparison_runset_digest = (
+        comparison.baseline_runset_digest
+        if role == "baseline"
+        else comparison.candidate_runset_digest
+    )
+    if comparison_runset_id != evaluation.runset_id:
+        return f"comparison {role}_runset_id must match evaluation runset_id"
+    if comparison_runset_digest is not None and evaluation.runset_digest is None:
+        return f"comparison {role}_runset_digest requires an authenticated evaluation runset_digest"
+    if (
+        comparison_runset_digest is not None
+        and comparison_runset_digest != evaluation.runset_digest
+    ):
+        return f"comparison {role}_runset_digest must match evaluation runset_digest"
+    return None

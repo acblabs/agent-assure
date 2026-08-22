@@ -22,6 +22,8 @@ from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE
 from agent_assure.reporting.environment import source_project_root
+from agent_assure.reporting.packet import packet_summary_files_binding_error
+from agent_assure.reporting.text_safety import sanitize_display_text
 from agent_assure.schema.packet import EvidencePacket
 
 
@@ -46,10 +48,6 @@ def ci(
         Path | None,
         typer.Option(
             "--artifact-root",
-            exists=True,
-            file_okay=False,
-            dir_okay=True,
-            readable=True,
             help=(
                 "Trusted root for evidence-packet release-manifest paths; "
                 "defaults to a root inferred from the packet location."
@@ -76,10 +74,6 @@ def ci(
         Path | None,
         typer.Option(
             "--efficacy-policy",
-            exists=True,
-            file_okay=True,
-            dir_okay=False,
-            readable=True,
             help=(
                 "Verifier-owned controls-mutation YAML used for strict efficacy, "
                 "or a gate-profile JSON for advisory policy override."
@@ -106,6 +100,36 @@ def ci(
             ),
         ),
     ] = False,
+    require_evidence_sensitivity: Annotated[
+        bool,
+        typer.Option(
+            "--require-evidence-sensitivity",
+            help=(
+                "Require an evidence packet to carry an evidence-sensitivity "
+                "report; this is a verifier-owned presence policy."
+            ),
+        ),
+    ] = False,
+    allow_sensitivity_non_verdict: Annotated[
+        bool,
+        typer.Option(
+            "--allow-sensitivity-non-verdict",
+            help=(
+                "Explicitly allow a sensitivity-bearing packet with a confounded "
+                "or prerequisites-unmet non-verdict result."
+            ),
+        ),
+    ] = False,
+    allow_legacy_unbound_comparison: Annotated[
+        bool,
+        typer.Option(
+            "--allow-legacy-unbound-comparison",
+            help=(
+                "Explicit compatibility opt-in for a legacy comparison-bearing "
+                "packet that lacks authenticated baseline and candidate RunSet digests."
+            ),
+        ),
+    ] = False,
     output_format: Annotated[
         str,
         typer.Option(
@@ -129,6 +153,9 @@ def ci(
             efficacy_policy=efficacy_policy,
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
+            require_evidence_sensitivity=require_evidence_sensitivity,
+            allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
+            allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
             output_format=output_format,
             artifact_root=artifact_root,
         )
@@ -139,6 +166,12 @@ def ci(
         raise typer.BadParameter("--efficacy-policy is only valid with ci gate")
     if require_efficacy:
         raise typer.BadParameter("--require-efficacy is only valid with ci gate")
+    if require_evidence_sensitivity:
+        raise typer.BadParameter("--require-evidence-sensitivity is only valid with ci gate")
+    if allow_sensitivity_non_verdict:
+        raise typer.BadParameter("--allow-sensitivity-non-verdict is only valid with ci gate")
+    if allow_legacy_unbound_comparison:
+        raise typer.BadParameter("--allow-legacy-unbound-comparison is only valid with ci gate")
     if len(argv) != 1 or suite is None or out_dir is None:
         raise typer.BadParameter("ci requires CANDIDATE_RUNSET, --suite, and --out-dir")
     candidate_runset = Path(argv[0])
@@ -148,7 +181,9 @@ def ci(
                 message=f"ci invalid: candidate runset does not exist: {candidate_runset}",
                 artifact_path=candidate_runset,
             )
-        raise typer.BadParameter(f"candidate runset does not exist: {candidate_runset}")
+        raise typer.BadParameter(
+            sanitize_display_text(f"candidate runset does not exist: {candidate_runset}")
+        )
     gate_profile = (
         DEFAULT_GATE_PROFILE
         if not fail_on_warn and not fail_on_not_evaluated
@@ -178,7 +213,7 @@ def ci(
                 message=f"ci invalid: {exc}",
                 artifact_path=candidate_runset,
             )
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(sanitize_display_text(exc)) from exc
     decision = replace(
         result.decision,
         artifact_kind=result.decision.artifact_kind or "evidence-packet",
@@ -202,7 +237,7 @@ def _emit_decision(
     if output_format == "json" or (legacy_json_on_failure and decision.exit_code):
         typer.echo(json.dumps(decision.model_dump(), sort_keys=True))
         return
-    typer.echo(decision.message)
+    typer.echo(sanitize_display_text(decision.message))
 
 
 def _exit_with_invalid_json(
@@ -241,6 +276,9 @@ def _gate_existing_artifact(
     efficacy_policy: Path | None,
     strict_efficacy: bool,
     require_efficacy: bool,
+    require_evidence_sensitivity: bool,
+    allow_sensitivity_non_verdict: bool,
+    allow_legacy_unbound_comparison: bool,
     output_format: str,
     artifact_root: Path | None,
 ) -> None:
@@ -255,8 +293,13 @@ def _gate_existing_artifact(
                 strict_efficacy=strict_efficacy,
                 require_efficacy=require_efficacy or efficacy_policy is not None,
             )
-        raise typer.BadParameter(f"artifact does not exist: {artifact}")
+        raise typer.BadParameter(sanitize_display_text(f"artifact does not exist: {artifact}"))
     try:
+        if artifact_root is not None:
+            if not artifact_root.exists():
+                raise ValueError(f"--artifact-root does not exist: {artifact_root}")
+            if not artifact_root.is_dir():
+                raise ValueError(f"--artifact-root must be a directory: {artifact_root}")
         verifier_policy = (
             load_control_efficacy_verifier_policy(efficacy_policy)
             if efficacy_policy is not None
@@ -267,8 +310,10 @@ def _gate_existing_artifact(
         if isinstance(loaded_artifact, EvidencePacket):
             if loaded_artifact.release_manifest is not None:
                 trusted_artifact_root = (
-                    artifact_root or source_project_root((artifact,), default_root=Path.cwd())
-                ).resolve()
+                    artifact_root.resolve()
+                    if artifact_root is not None
+                    else _infer_packet_artifact_root(loaded_artifact, artifact)
+                )
             elif artifact_root is not None:
                 trusted_artifact_root = artifact_root.resolve()
         elif artifact_root is not None:
@@ -281,6 +326,9 @@ def _gate_existing_artifact(
             verifier_efficacy_policy=verifier_policy,
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
+            require_evidence_sensitivity=require_evidence_sensitivity,
+            allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
+            allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
         )
     except (OSError, ValueError) as exc:
         if output_format == "json":
@@ -290,7 +338,7 @@ def _gate_existing_artifact(
                 strict_efficacy=strict_efficacy,
                 require_efficacy=require_efficacy or efficacy_policy is not None,
             )
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(sanitize_display_text(exc)) from exc
     decision = replace(
         decision,
         artifact_kind=decision.artifact_kind or loaded_artifact.artifact_kind,
@@ -299,3 +347,40 @@ def _gate_existing_artifact(
     _emit_decision(decision, output_format=output_format)
     if decision.exit_code:
         raise typer.Exit(decision.exit_code)
+
+
+def _infer_packet_artifact_root(packet: EvidencePacket, packet_path: Path) -> Path:
+    """Select one fully verified root across current and legacy packet layouts."""
+    packet_root = packet_path.resolve().parent
+    legacy_root = source_project_root((packet_path,), default_root=Path.cwd()).resolve()
+    candidates: list[tuple[str, Path]] = []
+    for label, candidate in (
+        ("packet directory", packet_root),
+        ("legacy source/Git root", legacy_root),
+    ):
+        if all(candidate != existing for _, existing in candidates):
+            candidates.append((label, candidate))
+
+    results = tuple(
+        (
+            label,
+            candidate,
+            packet_summary_files_binding_error(packet, artifact_root=candidate),
+        )
+        for label, candidate in candidates
+    )
+    valid = tuple((label, candidate) for label, candidate, error in results if error is None)
+    if len(valid) == 1:
+        return valid[0][1]
+    if len(valid) > 1:
+        labels = " and ".join(label for label, _ in valid)
+        raise ValueError(
+            "evidence packet artifact root is ambiguous: "
+            f"{labels} both satisfy every release-manifest binding; "
+            "pass --artifact-root to select the trusted root explicitly"
+        )
+    failures = "; ".join(f"{label}: {error}" for label, _, error in results)
+    raise ValueError(
+        "evidence packet release-manifest binding failed for every inferred "
+        f"artifact root: {failures}"
+    )

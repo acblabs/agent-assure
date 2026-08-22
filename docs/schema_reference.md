@@ -1,21 +1,23 @@
 # Schema Reference
 
-Current writer schema version: `0.6.3`.
-Current released schema snapshot: `schemas/v0.6.3/`.
+Current writer schema version: `0.6.4`.
+Current writer schema snapshot: `schemas/v0.6.4/`.
+Latest published release schema snapshot: `schemas/v0.6.4/`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
-models emit `schema_version: 0.6.3` and continue to accept legacy
+models emit `schema_version: 0.6.4` and continue to accept legacy
 `schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`,
 `schema_version: 0.5.0`, `schema_version: 0.6.0`, and
-`schema_version: 0.6.1` and `schema_version: 0.6.2` artifacts where their
+`schema_version: 0.6.1`, `schema_version: 0.6.2`, and `schema_version: 0.6.3`
+artifacts where their
 compatibility contracts permit those labels. Historical artifacts validate
 against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, and v0.6.3
 snapshots remain immutable; current v0.6 relational checks continue to apply
 after validated legacy projection, including each evidence-carrying root's
-self-digest. The v0.6.3 schemas are current writer contracts: every
+self-digest. The v0.6.4 schemas are current writer contracts: every
 root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
-operators, expected-detection contracts, and results use `0.6.3`, while the
+operators, expected-detection contracts, and results use `0.6.4`, while the
 independently versioned usage models continue to emit `0.4.3`. Compatibility
 projection of a frozen artifact does not widen the current wire schema.
 Importable models and their direct `model_json_schema()` output retain declared
@@ -37,7 +39,7 @@ admitted by the immutable v0.6.0 schema.
 A current `AgentRunRecord` also requires its evidence references, evidence
 items, claims, and claim-evidence links to carry the current schema version. A
 current `CompiledSuite` likewise requires current resolved expectations. These
-targeted coherence checks match the v0.6.3 writer schemas without applying
+targeted coherence checks match the v0.6.4 writer schemas without applying
 parent-version equality to independently versioned components such as usage
 records. Matching legacy parent/member projections remain supported through
 their frozen schemas.
@@ -72,7 +74,15 @@ does not create a digest cycle. Current first-party packet and CI producers emit
 the graph, privacy-filter its sources before projection, and verify the exact
 file plus a fresh semantic reconstruction before publishing the packet.
 
-At schema versions `0.6.0`, `0.6.1`, `0.6.2`, and `0.6.3`,
+A current packet may also carry one `evidence-sensitivity-report`. Its
+counterfactual RunSet ID and digest must equal the packet evaluation's
+authenticated subject; when comparison evidence is present, both report arm
+identities must equal the comparison pair. The nested report and exactly one
+raw `evidence-sensitivity-report` digest in both the packet and release manifest
+are all-or-none. First-party graph projection preserves the report's typed
+status and limitations without adding node or edge kinds.
+
+At schema versions `0.6.0`, `0.6.1`, `0.6.2`, `0.6.3`, and `0.6.4`,
 `evaluation-report` requires
 `runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
 schema-validated, current `RunSet` model JSON projection. The projection
@@ -86,7 +96,7 @@ cannot make stale report content admissible. Campaign source, nested mutation
 result, evidence subject, and source evaluator digests use this same
 projection; transformed-result and candidate evaluator digests do likewise.
 
-The v0.6.3 `evaluation-summary` writer also admits an optional `runset_digest`
+Since v0.6.3, the `evaluation-summary` writer admits an optional `runset_digest`
 with the same canonical projection. The built-in evaluator always copies its
 authenticated report digest into the summary, and a first-party packet graph
 uses that value as its primary subject digest. A present summary digest must
@@ -95,6 +105,23 @@ conflict with mutation or control-efficacy source digests fails closed. The
 field is optional for current independent producers, while frozen summary
 schemas through v0.6.2 omit it. Graph projection never infers the missing join
 for those summaries.
+
+The v0.6.4 `comparison-summary` writer similarly requires
+`baseline_runset_digest` and `candidate_runset_digest`, each computed from the
+same version-aware canonical RunSet projection. The import model keeps the pair
+optional so validated frozen summaries through v0.6.3 can be projected without
+inventing historical identities, but rejects a partial pair. First-party normal
+and invalid-comparison writers always emit both digests. Sensitivity packet and
+graph binding verifies them against the exact RunSets embedded in the detector
+report before comparing the remaining canonical comparison semantics.
+Comparison reports and evidence packets always require the comparison's
+candidate RunSet ID to match the corresponding evaluation; when both sides
+carry RunSet digests, those authenticated identities must also match. The same
+rule is rechecked by CI so an unvalidated in-memory copy cannot bypass it. A
+missing optional evaluation digest remains explicitly unbound rather than being
+inferred from the comparison. Comparison JSON publication validates the
+privacy-filtered report and summary against the active writer schemas before
+creating either output file.
 
 Every v0.6 live `agent-run-record` also requires
 `cost_budget_committed_usd`, `generated_token_budget_committed`, and
@@ -112,6 +139,7 @@ Exported roots:
 - `assurance-mutation-operator`
 - `assurance-mutation-result`
 - `agent-run-record`
+- `process-equivalence-reproduction-index`
 - `compiled-suite`
 - `comparison-report`
 - `comparison-summary`
@@ -122,6 +150,8 @@ Exported roots:
 - `emergency-process-record`
 - `environment-info`
 - `evidence-packet`
+- `evidence-sensitivity-protocol`
+- `evidence-sensitivity-report`
 - `expectation`
 - `expectation-change-record`
 - `expected-detection-contract`
@@ -133,6 +163,10 @@ Exported roots:
 - `live-trajectory-report`
 - `release-artifact-manifest`
 - `release-digest-replay`
+- `rag-sensitivity-corpus-manifest`
+- `rag-sensitivity-corpus-snapshot`
+- `rag-sensitivity-knowledge-contract`
+- `rag-sensitivity-synthetic-data-attestation`
 - `run-set`
 - `span-plan`
 - `stream-event-record`
@@ -152,11 +186,11 @@ the project does not publish a frozen JSON Schema or cross-version replay
 contract for it. The exact authored file may still be digest-bound under the
 packet role `control-efficacy-onboarding-config`.
 
-Current evidence-carrying release roots use persisted
-`schema_version: 0.6.3` and a separate semantic contract identity. Roots
+Current evidence-carrying writer roots use persisted
+`schema_version: 0.6.4` and a separate semantic contract identity. Roots
 introduced before v0.6.2 also accept their compatible frozen v0.6.0, v0.6.1,
-and v0.6.2 shapes, while roots introduced in v0.6.2 accept their frozen v0.6.2
-shapes:
+v0.6.2, and v0.6.3 shapes, while roots introduced in v0.6.2 accept their
+compatible frozen shapes:
 
 - `assurance-evidence-descriptor` is `AssuranceEvidenceDescriptor/v1` and has
   an `evidence_digest` computed without its own digest field;
@@ -207,6 +241,53 @@ One persisted root is introduced on the v0.6.3 writer surface:
   accounts for every legacy evidence-packet field and rejects an unsupported
   verdict-bearing projection. See
   [Minimal Assurance Evidence Graph](evidence_graph.md).
+
+Seven persisted roots are introduced on the v0.6.4 writer surface:
+
+- `rag-sensitivity-corpus-manifest` is
+  `RAGSensitivityCorpusManifest/v1`. Its semantic corpus digest covers its exact,
+  canonically ordered document descriptors, whose content digests bind the raw
+  committed document bytes.
+- `rag-sensitivity-corpus-snapshot` is `RAGSensitivityCorpusSnapshot/v1`. It
+  self-digests the exact raw manifest and document UTF-8 together with decoded
+  typed payloads, enforces aggregate byte limits, and makes the report's corpus
+  and privacy claims independently replayable.
+- `rag-sensitivity-knowledge-contract` is
+  `RAGSensitivityKnowledgeAuthority/v1`. It binds exactly two corpus digests to
+  one authority-scoped logical evidence/claim target, exact governing content
+  digests, and coherent expected recommendation/outcome tuples.
+- `rag-sensitivity-synthetic-data-attestation` is
+  `RAGSensitivitySyntheticDataAttestation/v1`. For custom inputs, its
+  `attestation_digest` binds the exact compiled-suite, fixture-manifest,
+  knowledge-contract, semantic corpus, and raw corpus-snapshot digests together
+  with the artifact author's synthetic-data and raw-persistence assertions.
+  It is an operator assertion, not independent semantic verification or a
+  signature.
+- `evidence-sensitivity-protocol` is `RAGSensitivityProtocol/v1`. It binds the
+  full controlled identity set and derives a closed difference manifest; only
+  corpus and governing-evidence digests may differ. It embeds the exact fixture
+  manifest plus manifest-bound raw request, subject, and tool snapshots, and
+  requires their role paths to derive from the selected fixture identity.
+- `evidence-sensitivity-report` is `RAGSensitivityReport/v1`. It recomputes the
+  observed relation, corpus controls, exact ranked retrieval, subject-mode
+  output, authority bindings, evidence links, prerequisite states, endpoint,
+  verdict role, gate effect, reasons, and decision-inertia finding from its
+  nested evidence. It embeds the exact compiled suite, both complete RunSets,
+  and both evaluation summaries, verifies their identities and projections,
+  and freshly re-evaluates each arm so packet and graph consumers retain the
+  complete authenticated execution chain.
+- `process-equivalence-reproduction-index` is
+  `ProcessEquivalenceReproductionIndex/v1`. Its
+  `reproduction_index_digest` binds a synthetic reproduction index that
+  requires both the `same_output_different_process` and
+  `evidence_insensitivity` strata and explicitly disallows leaderboard,
+  prevalence, and real-model claims. Source roots are canonical portable paths;
+  repository-specific stratum mappings remain updater policy rather than frozen
+  contract semantics.
+
+All seven roots use self-digested or exact source-artifact identities as
+applicable. The evidence-sensitivity contracts are documented in
+[Controlled RAG Evidence Sensitivity](evidence_sensitivity.md).
 
 An `ExactRate` persists `numerator`, `denominator`, and either `defined` or
 `undefined_zero_denominator`. The numerator cannot exceed the denominator, and

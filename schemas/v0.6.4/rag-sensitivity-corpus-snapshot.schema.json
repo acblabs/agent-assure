@@ -1,0 +1,316 @@
+{
+  "$defs": {
+    "RAGSensitivityCorpusDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "source_id",
+        "content_digest"
+      ],
+      "title": "RAGSensitivityCorpusDocument",
+      "type": "object"
+    },
+    "RAGSensitivityCorpusManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "rag-sensitivity-corpus-manifest",
+          "default": "rag-sensitivity-corpus-manifest",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "contract_id": {
+          "const": "RAGSensitivityCorpusManifest/v1",
+          "default": "RAGSensitivityCorpusManifest/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "corpus_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Corpus Digest",
+          "type": "string"
+        },
+        "corpus_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Corpus Id",
+          "type": "string"
+        },
+        "corpus_version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "title": "Corpus Version",
+          "type": "string"
+        },
+        "documents": {
+          "items": {
+            "$ref": "#/$defs/RAGSensitivityCorpusDocument"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Documents",
+          "type": "array"
+        },
+        "query_family_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Query Family Id",
+          "type": "string"
+        },
+        "retrieval_algorithm_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Retrieval Algorithm Id",
+          "type": "string"
+        },
+        "retrieval_algorithm_version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "title": "Retrieval Algorithm Version",
+          "type": "string"
+        },
+        "schema_name": {
+          "const": "rag-sensitivity-corpus-manifest",
+          "default": "rag-sensitivity-corpus-manifest",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.4",
+          "default": "0.6.4",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "top_k": {
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "corpus_digest",
+        "corpus_id",
+        "corpus_version",
+        "query_family_id",
+        "retrieval_algorithm_id",
+        "retrieval_algorithm_version",
+        "top_k",
+        "documents",
+        "artifact_kind",
+        "schema_version",
+        "schema_name",
+        "contract_id",
+        "contract_version"
+      ],
+      "title": "RAGSensitivityCorpusManifest",
+      "type": "object"
+    },
+    "RAGSensitivityCorpusSnapshotDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "content_utf8": {
+          "maxLength": 1048576,
+          "minLength": 2,
+          "title": "Content Utf8",
+          "type": "string"
+        },
+        "descriptor": {
+          "$ref": "#/$defs/RAGSensitivityCorpusDocument"
+        },
+        "payload": {
+          "$ref": "#/$defs/RAGSensitivityDocumentPayload"
+        }
+      },
+      "required": [
+        "descriptor",
+        "payload",
+        "content_utf8"
+      ],
+      "title": "RAGSensitivityCorpusSnapshotDocument",
+      "type": "object"
+    },
+    "RAGSensitivityDecision": {
+      "enum": [
+        "approve",
+        "deny",
+        "escalate"
+      ],
+      "title": "RAGSensitivityDecision",
+      "type": "string"
+    },
+    "RAGSensitivityDocumentPayload": {
+      "additionalProperties": false,
+      "properties": {
+        "governing_decision": {
+          "$ref": "#/$defs/RAGSensitivityDecision"
+        },
+        "governing_outcome": {
+          "$ref": "#/$defs/RAGSensitivityOutcome"
+        },
+        "ref_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Ref Id",
+          "type": "string"
+        },
+        "retrieval_terms": {
+          "items": {
+            "maxLength": 512,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Retrieval Terms",
+          "type": "array"
+        },
+        "safe_summary": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Safe Summary",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 512,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Source Id",
+          "type": "string"
+        },
+        "title": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_id",
+        "ref_id",
+        "title",
+        "safe_summary",
+        "retrieval_terms",
+        "governing_decision",
+        "governing_outcome"
+      ],
+      "title": "RAGSensitivityDocumentPayload",
+      "type": "object"
+    },
+    "RAGSensitivityOutcome": {
+      "enum": [
+        "approved",
+        "denied",
+        "escalated"
+      ],
+      "title": "RAGSensitivityOutcome",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.4/rag-sensitivity-corpus-snapshot.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "rag-sensitivity-corpus-snapshot",
+      "default": "rag-sensitivity-corpus-snapshot",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "RAGSensitivityCorpusSnapshot/v1",
+      "default": "RAGSensitivityCorpusSnapshot/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "corpus_manifest": {
+      "$ref": "#/$defs/RAGSensitivityCorpusManifest"
+    },
+    "corpus_manifest_file_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Corpus Manifest File Sha256",
+      "type": "string"
+    },
+    "corpus_manifest_utf8": {
+      "maxLength": 1048576,
+      "minLength": 2,
+      "title": "Corpus Manifest Utf8",
+      "type": "string"
+    },
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/RAGSensitivityCorpusSnapshotDocument"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Documents",
+      "type": "array"
+    },
+    "schema_name": {
+      "const": "rag-sensitivity-corpus-snapshot",
+      "default": "rag-sensitivity-corpus-snapshot",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.4",
+      "default": "0.6.4",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "snapshot_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Snapshot Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "snapshot_digest",
+    "corpus_manifest",
+    "corpus_manifest_file_sha256",
+    "corpus_manifest_utf8",
+    "documents",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RAGSensitivityCorpusSnapshot",
+  "type": "object"
+}

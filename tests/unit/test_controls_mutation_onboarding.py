@@ -40,6 +40,7 @@ from agent_assure.onboarding.controls_mutation import (
     require_confined_input_directory,
     scaffold_controls_mutation,
 )
+from agent_assure.onboarding.diagnostics import bounded_error, display_path
 
 _RUNNER = CliRunner()
 
@@ -77,8 +78,8 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
 
     expected_hashes = {
         "controls-mutation.yaml": (
-            747,
-            "f05fb4b174a12fa9c7f3e9b4748b8e5e9f30cb427c83d336bee38c53fd66f88b",
+            750,
+            "dcb3d4bf588ed02ce031c122acc57652bed3b9cd296a6c19aebaefb12da68768",
         ),
         "suite.yaml": (
             318,
@@ -86,7 +87,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
         ),
         "runset.json": (
             3610,
-            "7815904e875eebf4cc3cf2d1be775348b865b87d35d110c66d113409a182e547",
+            "35b03519d986019e8432cc2b713e2fefdbb7c40766334498fbf9818da0a7c7d8",
         ),
         "threat-applicability.yaml": (
             685,
@@ -778,6 +779,12 @@ def test_diagnostic_sanitizer_is_shared_and_filters_terminal_controls() -> None:
     assert "\x1b" not in controls_summary
     assert "\x07" not in controls_summary
     assert len(controls_summary) <= 512
+
+    # Removing a Unicode format character must not reassemble a value after
+    # the only privacy-detector pass.
+    reconstructed_secret = "123-\u202e45-6789"
+    assert bounded_error(ValueError(f"bad {reconstructed_secret}")) == "bad [REDACTED]"
+    assert display_path(Path(reconstructed_secret)) == "[REDACTED]"
 
 
 def test_doctor_duplicate_diagnostic_codes_fail_closed(tmp_path: Path) -> None:

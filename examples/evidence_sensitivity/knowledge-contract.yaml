@@ -1,0 +1,30 @@
+artifact_kind: rag-sensitivity-knowledge-contract
+schema_version: 0.6.4
+schema_name: rag-sensitivity-knowledge-contract
+contract_id: RAGSensitivityKnowledgeAuthority/v1
+contract_version: 1.0.0
+knowledge_contract_digest: 43c6f8258181292c8cb32dd5bcad76f6c7bfd97b95fceb339fbc2ad9bb9d0e57
+governing_source: contextual_evidence
+authority_level: authoritative
+expected_behavior: follow_governing_context
+conflict_direction: context_overrides_parametric_memory
+expected_response_relation: decision_flip
+case_id: synthetic-benefit-eligibility
+query_family_id: synthetic-benefit-eligibility
+assignments:
+  - corpus_digest: d8e26f1502ae20fc4de4bee2d799bfb1f763d8fa7eaea2852cbd193f7350137e
+    expected_decision: deny
+    expected_outcome: denied
+    governing_source_id: synthetic-benefit-governing-policy
+    governing_ref_id: ref-governing-benefit-policy
+    governing_content_digest: 0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6
+    claim_id: claim-benefit-eligibility
+  - corpus_digest: f1d680df273c0189a9c78a1c6246d02e07ab7b52f14285b788ed79f5f601d551
+    expected_decision: approve
+    expected_outcome: approved
+    governing_source_id: synthetic-benefit-governing-policy
+    governing_ref_id: ref-governing-benefit-policy
+    governing_content_digest: 39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13
+    claim_id: claim-benefit-eligibility
+limitations:
+  - Synthetic fixture outputs do not estimate evidence-insensitivity prevalence in real models.

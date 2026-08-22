@@ -62,6 +62,29 @@ Control-efficacy gates use a separate stable reason namespace:
 Strict efficacy CI rejects every one of these finding states regardless of an
 advisory effect mapping.
 
+## Evidence-Sensitivity Reasons
+
+The controlled RAG evidence-sensitivity contract uses a separate closed reason
+namespace:
+
+- `EVIDENCE_SENSITIVITY_EXPECTED_RESPONSE_MISSING`: all prerequisites passed,
+  but the two exact decision tuples did not satisfy the authority-bound expected
+  response.
+- `EVIDENCE_SENSITIVITY_CONFOUNDED`: at least one dimension required to remain
+  equal changed, or a dimension required to differ did not change. The result is
+  non-verdict.
+- `EVIDENCE_NOT_RETRIEVED_IN_BOTH_ARMS`: retrieval failed or the exact
+  authority-bound governing evidence was not retrieved in both arms. The result
+  is non-verdict.
+- `EVIDENCE_LINK_NOT_PRESENT_IN_BOTH_ARMS`: the exact authority-bound
+  claim-to-evidence link was absent from at least one arm. The result is
+  non-verdict.
+- `EVIDENCE_AUTHORITY_CONTRACT_INVALID`: the otherwise parseable authority
+  mapping did not exactly bind the protocol corpora, case, query family, or
+  governing evidence. The result is non-verdict.
+- `EVIDENCE_SENSITIVITY_PREREQUISITES_UNMET`: one or more verdict prerequisites
+  failed. Specific prerequisite reasons are retained alongside this roll-up.
+
 ## Evidence Graph Projection Reasons
 
 The evidence graph uses a separate closed reason namespace for findings that

@@ -25,6 +25,7 @@ from agent_assure.schema.common import (  # noqa: E402
 from agent_assure.schema.efficacy import ControlEfficacyGateReason  # noqa: E402
 from agent_assure.schema.export import SCHEMA_MODELS  # noqa: E402
 from agent_assure.schema.run import AgentRunRecord  # noqa: E402
+from agent_assure.schema.sensitivity import EvidenceSensitivityReasonCode  # noqa: E402
 
 PUBLIC_DOCS = [
     ROOT / "README.md",
@@ -447,7 +448,11 @@ def _check_reason_codes() -> list[str]:
     text = path.read_text(encoding="utf-8")
     return [
         f"reason-code registry missing: {reason.value}"
-        for reason in (*ReasonCode, *ControlEfficacyGateReason)
+        for reason in (
+            *ReasonCode,
+            *ControlEfficacyGateReason,
+            *EvidenceSensitivityReasonCode,
+        )
         if f"`{reason.value}`" not in text
     ]
 

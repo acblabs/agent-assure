@@ -1,0 +1,403 @@
+{
+  "artifact_kind": "process-equivalence-reproduction-index",
+  "cases": [
+    {
+      "case_id": "evidence-insensitivity-authority-flip",
+      "replay": {
+        "clean": true,
+        "command": "demo",
+        "demo": "evidence-sensitivity",
+        "expected_exit_code": 0,
+        "expected_observation": "evidence_insensitivity_blocked",
+        "output_format": "json",
+        "program": "agent-assure"
+      },
+      "source_artifacts": [
+        {
+          "path": "examples/evidence_sensitivity/corpora/policy_a/corpus-manifest.json",
+          "sha256": "b0726a38f7b4652abff365b7c2f28674c6ee11f3de755ad2063294d60d2a6958"
+        },
+        {
+          "path": "examples/evidence_sensitivity/corpora/policy_b/corpus-manifest.json",
+          "sha256": "b7facc1fb2cdb09a0b13516833802ae84e50e94cc5075eb5641561244bdc9fdb"
+        },
+        {
+          "path": "examples/evidence_sensitivity/evidence_inertial_suite.yaml",
+          "sha256": "df9c265c73f27d398957da40f6ed1232992af8c559045430d99e9757d8aa87c5"
+        },
+        {
+          "path": "examples/evidence_sensitivity/knowledge-contract.yaml",
+          "sha256": "5d5ae326f6d0c5f0b20ae556006dcdcb2e4fa4e5f404b76548d19e26751560d0"
+        }
+      ],
+      "source_closure": {
+        "closure_digest": "913f221e4326afefbf69925fe9b29ecb61d4049becb3866e92238950515c7807",
+        "entries": [
+          {
+            "path": "README.md",
+            "sha256": "f8ba142366d8dd871d98ce2577c292d948354acb1685fe849c732fc669561665"
+          },
+          {
+            "path": "corpora/policy_a/corpus-manifest.json",
+            "sha256": "b0726a38f7b4652abff365b7c2f28674c6ee11f3de755ad2063294d60d2a6958"
+          },
+          {
+            "path": "corpora/policy_a/governing-policy.json",
+            "sha256": "39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13"
+          },
+          {
+            "path": "corpora/policy_b/corpus-manifest.json",
+            "sha256": "b7facc1fb2cdb09a0b13516833802ae84e50e94cc5075eb5641561244bdc9fdb"
+          },
+          {
+            "path": "corpora/policy_b/governing-policy.json",
+            "sha256": "0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6"
+          },
+          {
+            "path": "evidence_inertial_suite.yaml",
+            "sha256": "df9c265c73f27d398957da40f6ed1232992af8c559045430d99e9757d8aa87c5"
+          },
+          {
+            "path": "evidence_reversed_suite.yaml",
+            "sha256": "5c40aaf312b7b661e3596082d2b647e2d7af7ceae52323053e267ca1976d6f47"
+          },
+          {
+            "path": "fixtures/evidence_inertial/model_outputs/synthetic-benefit-eligibility.json",
+            "sha256": "acbcfbdb48ab3d6f021ca2868f262d343e2333f455b3e338c8acff3e2831d0ad"
+          },
+          {
+            "path": "fixtures/evidence_inertial/requests/synthetic-benefit-eligibility.json",
+            "sha256": "cf12fc3f86977ffce41c35a4c177b8c09483a97c93f66bc5992dab743d59a972"
+          },
+          {
+            "path": "fixtures/evidence_inertial/tool_outputs/synthetic-benefit-eligibility.json",
+            "sha256": "b30d6005d31d6c7f225566c5308a48cba5ac5cc8b0f391acef1b10536b84f170"
+          },
+          {
+            "path": "fixtures/evidence_reversed/model_outputs/synthetic-benefit-eligibility.json",
+            "sha256": "52d84b7900922267cf0ed11ffb179138cadc01c31b7acfe544d33580b28b9f70"
+          },
+          {
+            "path": "fixtures/evidence_reversed/requests/synthetic-benefit-eligibility.json",
+            "sha256": "cf12fc3f86977ffce41c35a4c177b8c09483a97c93f66bc5992dab743d59a972"
+          },
+          {
+            "path": "fixtures/evidence_reversed/tool_outputs/synthetic-benefit-eligibility.json",
+            "sha256": "b30d6005d31d6c7f225566c5308a48cba5ac5cc8b0f391acef1b10536b84f170"
+          },
+          {
+            "path": "fixtures/responsive/model_outputs/synthetic-benefit-eligibility.json",
+            "sha256": "6f370d772c16b27cf1e2b7648c7a927ce46296607fc5db7f03159a0ed8a6bb06"
+          },
+          {
+            "path": "fixtures/responsive/requests/synthetic-benefit-eligibility.json",
+            "sha256": "cf12fc3f86977ffce41c35a4c177b8c09483a97c93f66bc5992dab743d59a972"
+          },
+          {
+            "path": "fixtures/responsive/tool_outputs/synthetic-benefit-eligibility.json",
+            "sha256": "b30d6005d31d6c7f225566c5308a48cba5ac5cc8b0f391acef1b10536b84f170"
+          },
+          {
+            "path": "knowledge-contract.yaml",
+            "sha256": "5d5ae326f6d0c5f0b20ae556006dcdcb2e4fa4e5f404b76548d19e26751560d0"
+          },
+          {
+            "path": "responsive_suite.yaml",
+            "sha256": "f4a95d07750dbb59ce80b1423c5c6793d7fc73d1b8b366d6c1aa2388524c8030"
+          }
+        ],
+        "inventory_policy": "recursive_regular_files_no_runtime_cache_v1",
+        "source_root": "examples/evidence_sensitivity"
+      },
+      "stratum": "evidence_insensitivity",
+      "subject_designation": "synthetic_detector_contract_test"
+    },
+    {
+      "case_id": "same-output-missing-evidence-link",
+      "replay": {
+        "clean": true,
+        "command": "demo",
+        "demo": "flagship",
+        "expected_exit_code": 0,
+        "expected_observation": "same_output_different_process_detected",
+        "output_format": "json",
+        "program": "agent-assure"
+      },
+      "source_artifacts": [
+        {
+          "path": "examples/prior_auth_synthetic/rag_suite.yaml",
+          "sha256": "d922010e93da5ce354c40d6aae5476bff580069a4c2aad0929c3a0f918714950"
+        },
+        {
+          "path": "examples/prior_auth_synthetic/variants/candidate_rag_reranker_regression.yaml",
+          "sha256": "a7398cea19bb5d7ba66dac79e463f184b126885a7feed16d020c85e1d2063279"
+        },
+        {
+          "path": "examples/prior_auth_synthetic/variants/rag_baseline.yaml",
+          "sha256": "890f4178578327dcf4bdf87eecbeec1214934f43d1a1f5b3fef7623590d112ea"
+        }
+      ],
+      "source_closure": {
+        "closure_digest": "2c7d7961256e22c19c8d23682800e137ae7d991689d73c990a5bfa74a6f9620d",
+        "entries": [
+          {
+            "path": "README.md",
+            "sha256": "142906be1550be4b2ab54ea69dff6ddbc291eba8306935e0f40a90a00dbabeb7"
+          },
+          {
+            "path": "app/__init__.py",
+            "sha256": "b611318609c6408eb4ea043be722527ac610760b9c7d2582a63af874f861d589"
+          },
+          {
+            "path": "app/output_schema.py",
+            "sha256": "484a4b14f4478d36a5b8d494a5b782bd5f6b245feab58b4ee0c0d0b63fcfb58a"
+          },
+          {
+            "path": "fixtures/rag/cached_vectors.json",
+            "sha256": "6e389aae1abe5c97e9eb99b0dca6a0c1ba0dcaf4c0e61daaa1da4cec91c13948"
+          },
+          {
+            "path": "fixtures/rag/corpus_manifest.json",
+            "sha256": "e901fb0cf4c7fb78149a735cea2480b56c1480ef16c7ff39aad30d69e8f80f96"
+          },
+          {
+            "path": "fixtures/rag/corpus_manifest_skewed.json",
+            "sha256": "0a37de8d5d6e86dd588500802c29579e98e3be824bfee9f0c785ab4ae5008ceb"
+          },
+          {
+            "path": "fixtures/rag/counterfactual_query_families.json",
+            "sha256": "bb26f10dd8907c14087d6e5cc798a06f49bf4dbd94c7ceee259030aeeb1fc861"
+          },
+          {
+            "path": "fixtures/rag/model_outputs/rag-pt-duration.json",
+            "sha256": "5b1b579fafcab487918ad472f857b364589e0e881bef571637f0c4eb4f9295cc"
+          },
+          {
+            "path": "fixtures/rag/policy_corpus/current/documentation.json",
+            "sha256": "09ccbb07b9ff1e01f89b17b68e0e461963c10597c95d77ccbf5d7b766829de03"
+          },
+          {
+            "path": "fixtures/rag/policy_corpus/current/duration_limit.json",
+            "sha256": "75cc1cc3fc7bb6a113bca193ebb29604cae407f1cf19ceb271dc8b99d9f87112"
+          },
+          {
+            "path": "fixtures/rag/policy_corpus/current/exclusions.json",
+            "sha256": "46a20bc8f6cf51d401c9e9f233f5fe415aef351857f579687be15adac6a662c7"
+          },
+          {
+            "path": "fixtures/rag/policy_corpus/current/medical_necessity.json",
+            "sha256": "c2c3453c32141c35f92b97926f3673af6d9f14db6485ba8438783382c3b298a9"
+          },
+          {
+            "path": "fixtures/rag/policy_corpus/current/provider_network.json",
+            "sha256": "d512593f9fdb89265a8e4fd8069a9316b27ed2b4c584f66133c2701b4af8d472"
+          },
+          {
+            "path": "fixtures/rag/requests/rag-pt-duration.json",
+            "sha256": "bd210d0710c5f5919da79a96a0528f5ee62fbc297741a3a1fa25f52ef3b95a1f"
+          },
+          {
+            "path": "fixtures/rag/retrieval_outputs/rag-baseline.json",
+            "sha256": "0b90c6885ed9f9269c8327e07c44fd90921584af72e9e7cd2594b16d9321b296"
+          },
+          {
+            "path": "fixtures/rag/retrieval_outputs/rag-corpus-version-skew.json",
+            "sha256": "6b54b98d519a3bb4716946f7d5ee564006cbcebeb56a18fad6c0abdc488dc8fe"
+          },
+          {
+            "path": "fixtures/rag/retrieval_outputs/rag-reranker-drops-secondary-claim-source.json",
+            "sha256": "62c720c15d62ddf7012bf1f769471627f564f9d7f5ef443b0e6d0d4523fabc32"
+          },
+          {
+            "path": "fixtures/rag/tool_outputs/rag-pt-duration.json",
+            "sha256": "f877fab887164e07d6009629cfe41705bfa28b498be3ab87de3abb0993780a1e"
+          },
+          {
+            "path": "fixtures/rag/vector_manifest.json",
+            "sha256": "51942d99a2114e3c9f28acf455e67fcb360b1a844a83d1168fde6fe5ede5e200"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/ambiguous-case.json",
+            "sha256": "ac2fe41ce9e6c9dedab4b961ee5058e75abe0dd3e29f33e2a7a321517951fe4d"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/conflicting-evidence.json",
+            "sha256": "ac2fe41ce9e6c9dedab4b961ee5058e75abe0dd3e29f33e2a7a321517951fe4d"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/fake-phi-redaction.json",
+            "sha256": "21bed4c9b0c18dd1fcecc00e764a027ae8ddb706fd4777054a3a01c88967e62a"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/forbidden-provider.json",
+            "sha256": "f9ffc2cf84ddd485f4d5b7a4c6d76a22bdc523188cb3786aa5dee2dbb2fbfddb"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/missing-documentation.json",
+            "sha256": "d6ae5da2c5796102ad7237bf46b7cbc9224806dffb67c1c5e32b6dd5d604f4f3"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/prompt-injection-note.json",
+            "sha256": "7cb873a91d606daff47bc74288c36c519ae5edcb3e3a32746748e6a8e7a30d57"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/shared-source-multi-claim.json",
+            "sha256": "21bed4c9b0c18dd1fcecc00e764a027ae8ddb706fd4777054a3a01c88967e62a"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/straightforward-approval.json",
+            "sha256": "21bed4c9b0c18dd1fcecc00e764a027ae8ddb706fd4777054a3a01c88967e62a"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/straightforward-denial.json",
+            "sha256": "eaa1f6595384bcb270e9bfaa97aab6b5a92fdbacffd43efedbe4240632212172"
+          },
+          {
+            "path": "fixtures/shared/model_outputs/tool-failure.json",
+            "sha256": "ac2fe41ce9e6c9dedab4b961ee5058e75abe0dd3e29f33e2a7a321517951fe4d"
+          },
+          {
+            "path": "fixtures/shared/requests/ambiguous-case.json",
+            "sha256": "6f8a989c9c320ef1ddfa5a391f74ed956fe2b3e44291e3a92c564eda3379d527"
+          },
+          {
+            "path": "fixtures/shared/requests/conflicting-evidence.json",
+            "sha256": "636ddde13f54b2ba81b71dbae133f1a890f05745d5a1e16979ec1c4bc5b6dd02"
+          },
+          {
+            "path": "fixtures/shared/requests/fake-phi-redaction.json",
+            "sha256": "2831929085f92bad696b54f143098b82cad3fa8709314cb195ca3195cbe1a0da"
+          },
+          {
+            "path": "fixtures/shared/requests/forbidden-provider.json",
+            "sha256": "c0f42189a2ae6ec3cac0d37aa7e36d54239d452ac98dfaaf2216841e16c77e02"
+          },
+          {
+            "path": "fixtures/shared/requests/missing-documentation.json",
+            "sha256": "74e1c890dbc440df963fb873c6835f7c9ed81d717c901a43f56624add58de186"
+          },
+          {
+            "path": "fixtures/shared/requests/prompt-injection-note.json",
+            "sha256": "cd3561405261f03521a24f1b8a5cefce3235e4f81ed09eba7739686b35c4f3a2"
+          },
+          {
+            "path": "fixtures/shared/requests/shared-source-multi-claim.json",
+            "sha256": "2b92cf3b0558350ecd6e64de2cbc4c05ad1acbca4d0756c53df5aa044d07ddf5"
+          },
+          {
+            "path": "fixtures/shared/requests/straightforward-approval.json",
+            "sha256": "5717d3ed1cd42ddb03547d26b4f22ebca68cf27621c50145bd325be786499d09"
+          },
+          {
+            "path": "fixtures/shared/requests/straightforward-denial.json",
+            "sha256": "7d64c07a896ba1c4e48a41bdfb6f9eba9530e86d1a4ef98d28acadb86a04f255"
+          },
+          {
+            "path": "fixtures/shared/requests/tool-failure.json",
+            "sha256": "920e32c1abd0d81b3ea9396e81bec236f8dfa94d6267b2e622a66d2e996753a4"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/ambiguous-case.json",
+            "sha256": "d30e73a670b7f74c68b6658d7175e6ef0fdf10ff2f464618c97f1448ca34601b"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/conflicting-evidence.json",
+            "sha256": "6742f31d906ef50713b740256992a53c9e97faaef8ee4756b9066bf96b85f5eb"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/fake-phi-redaction.json",
+            "sha256": "d5cff5d945b99f223bac4402e99358585631c3a96ffcd61358143165ee8d87bb"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/forbidden-provider.json",
+            "sha256": "a7bce9ba1900ee2d17e4ef603192d281e9fb3362bfbbef312f8b19b938043319"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/missing-documentation.json",
+            "sha256": "b957fd87ee03b3e90b25a7c7607d834a7f8370398b4b34146fe11980698ad345"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/prompt-injection-note.json",
+            "sha256": "94b3e58a8c4502c4d1234720202e861f264e246c28c0f3bf6a55330032202f96"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/shared-source-multi-claim.json",
+            "sha256": "465172cb2bde51ba2202dd9e430c4040a86f99506f00548d38a08b6ba5eda5d7"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/straightforward-approval.json",
+            "sha256": "e57365441d698ce76b28220213a6e3e57c1b4330ef21a2a210af63cace4aeb92"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/straightforward-denial.json",
+            "sha256": "42332a04331abbb0ba76521fb82dc8ec8db369f4ba8307b93219be7fa882ea7f"
+          },
+          {
+            "path": "fixtures/shared/tool_outputs/tool-failure.json",
+            "sha256": "9c73b0720b1541010c1f691666307717179fdd5b698ec9f9068dd077623b2235"
+          },
+          {
+            "path": "rag_suite.yaml",
+            "sha256": "d922010e93da5ce354c40d6aae5476bff580069a4c2aad0929c3a0f918714950"
+          },
+          {
+            "path": "runner.py",
+            "sha256": "6cd167d058479dd69832a05713086233f52a2db2b97daf20e1befb84e8d17227"
+          },
+          {
+            "path": "suite.yaml",
+            "sha256": "fe57f70d09541258f844ca5be50493ed0d98d5df4380f099523eddb7cb114903"
+          },
+          {
+            "path": "variants/baseline.yaml",
+            "sha256": "e3718314aa7929188a3d02d09f54cb1a4826ec1cde8aeab5941bc5459c3c7959"
+          },
+          {
+            "path": "variants/candidate_evidence_normalization.yaml",
+            "sha256": "5184d9c34042b963327fe6dfaa52e8f5743578c2a32ad456984f84dfb3e54446"
+          },
+          {
+            "path": "variants/candidate_provider_policy.yaml",
+            "sha256": "43dd2be54e5be398c8d4adcf7e322dd79b1286d147c3c2d6f2213ccb378f69bc"
+          },
+          {
+            "path": "variants/candidate_rag_corpus_version_skew.yaml",
+            "sha256": "07b001dc0605a511555f3046f21211190f328b6d738e19a1988b3f3ca4d096b8"
+          },
+          {
+            "path": "variants/candidate_rag_reranker_regression.yaml",
+            "sha256": "a7398cea19bb5d7ba66dac79e463f184b126885a7feed16d020c85e1d2063279"
+          },
+          {
+            "path": "variants/candidate_smoke_fail.yaml",
+            "sha256": "5b9a4844c99c2472bfdc51f08c8fdc3a8193043c82896ef35ab2d3daa56c6b3d"
+          },
+          {
+            "path": "variants/rag_baseline.yaml",
+            "sha256": "890f4178578327dcf4bdf87eecbeec1214934f43d1a1f5b3fef7623590d112ea"
+          }
+        ],
+        "inventory_policy": "recursive_regular_files_no_runtime_cache_v1",
+        "source_root": "examples/prior_auth_synthetic"
+      },
+      "stratum": "same_output_different_process",
+      "subject_designation": "synthetic_detector_contract_test"
+    }
+  ],
+  "contract_id": "ProcessEquivalenceReproductionIndex/v1",
+  "contract_version": "1.0.0",
+  "leaderboard_supported": false,
+  "limitations": [
+    "Cases are curated deterministic synthetic detector contracts, not sampled model behavior.",
+    "The reproduction index does not support leaderboard, prevalence, or real-model performance claims.",
+    "Reproduction commands exercise installed-package demos and their bound fixture identities.",
+    "Source closures bind declared demo resource roots, not interpreter, dependency, operating-system, or other runtime bytes."
+  ],
+  "prevalence_claim_supported": false,
+  "real_model_measurement": false,
+  "reproduction_index_digest": "74e7fadc143461128e82094234bcfa248f66b1aa6f1fec6577ef70875c972fa0",
+  "reproduction_index_id": "process-equivalence-reproduction-index",
+  "reproduction_index_version": "0.1.0",
+  "schema_name": "process-equivalence-reproduction-index",
+  "schema_version": "0.6.4"
+}

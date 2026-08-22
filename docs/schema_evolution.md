@@ -1,10 +1,11 @@
 # Schema Evolution
 
-Current released schema snapshot: `schemas/v0.6.3/`. It is immutable because
-the matching `v0.6.3` tag exists.
+Current released schema snapshot: `schemas/v0.6.4/`. It is immutable because
+the matching `v0.6.4` tag exists.
 
-Current released persisted artifact `schema_version`: `0.6.3`. Current models
-and evidence-carrying roots emit `0.6.3`.
+Current released persisted artifact `schema_version`: `0.6.4`. Current models
+and evidence-carrying roots emit `0.6.4` from the v0.6.4 release-candidate
+surface.
 
 An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
@@ -24,6 +25,7 @@ Use these directories as the release lifecycle:
 - `schemas/v0.6.1/` contains the released v0.6.1 snapshot and is immutable.
 - `schemas/v0.6.2/` contains the released v0.6.2 snapshot and is immutable.
 - `schemas/v0.6.3/` contains the released v0.6.3 snapshot and is immutable.
+- `schemas/v0.6.4/` contains the released v0.6.4 snapshot and is immutable.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
 Before a matching release tag exists, an active versioned directory is a
@@ -37,7 +39,7 @@ snapshot stabilized, as its immutable baseline.
 Automation has complementary checks:
 
 - frozen schema parity exports the current schema surface to
-  `schemas/v0.6.3/` and fails if those committed files drift;
+  `schemas/v0.6.4/` and fails if those committed files drift;
 - tagged-schema immutability compares every released snapshot with its local
   full-history Git tag baseline; its dedicated CI job requires release tags
   rather than silently skipping when history is unavailable;
@@ -85,17 +87,17 @@ when the legacy RunSet was originally persisted.
 
 ## Privacy Detector Producer Contract
 
-Current contract ID: `agent-assure/privacy-detectors/v1`.
+Current contract ID: `agent-assure/privacy-detectors/v2`.
 
 Current producers persist the profile ID and the SHA-256 digest of the RFC 8785
 canonical detector manifest. The manifest binds ordered pattern IDs,
-expressions and flags, detection and redaction algorithms, and replacement
-text. A pattern, flag, ordering, algorithm, or replacement change must update
-the canonical digest. Any behaviorally incompatible detector change must also
-version the profile ID and document whether cross-profile comparison is
-supported. The current comparator supports only identical profiles implemented
-by the running package; it fails closed rather than treating cross-profile
-results as equivalent.
+expressions and flags, Unicode scan-view normalization, detection and redaction
+algorithms, and replacement text. A pattern, flag, ordering, normalization,
+algorithm, or replacement change must update the canonical digest. Any
+behaviorally incompatible detector change must also version the profile ID and
+document whether cross-profile comparison is supported. The current comparator
+supports only identical profiles implemented by the running package; it fails
+closed rather than treating cross-profile results as equivalent.
 
 The release tag validator expects package and schema versions to match unless
 the package version is listed in its explicit release-to-schema mapping. The
@@ -119,8 +121,9 @@ For the current package line, the CLI keeps replay and validation support for
 the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
 `schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
 `schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`,
-`schemas/v0.6.2/`, and `schemas/v0.6.3/`. Current-release replay remains bounded
-to tagged snapshots; current-schema checks target `schemas/v0.6.3/`.
+`schemas/v0.6.2/`, `schemas/v0.6.3/`, and `schemas/v0.6.4/`. v0.6.4 is the
+current writer surface, while historical replay remains bounded to tagged
+snapshots; current-schema checks target `schemas/v0.6.4/`.
 
 Persisted inputs are checked against their frozen schema before typed runtime
 projection. The v0.1 `release-digest-replay` contract is shape-identical to
@@ -141,20 +144,29 @@ version-exact at every nested persisted-model boundary; frozen-schema replay is
 a separate read path and does not make historical labels valid current wire
 output.
 
-Evidence packets apply that split recursively. Current, v0.6.2, and v0.6.1
-packets enforce the nested persisted-artifact versions required by their
-writer or frozen schemas, with separately versioned usage artifacts as the
-explicit exception. The writer validates the complete post-redaction payload
-under the schema selected by the packet root version before persistence.
+Evidence packets apply that split recursively. Current v0.6.4 and frozen
+v0.6.3, v0.6.2, and v0.6.1 packets enforce the nested persisted-artifact
+versions required by their writer or frozen schemas, with separately versioned
+usage artifacts as the explicit exception. The writer validates the complete
+post-redaction payload under the schema selected by the packet root version
+before persistence.
 
 The authored `controls-mutation-onboarding-config` is outside this replay
 window. It is package-bound input for the onboarding workflow, not an exported
 evidence root, and therefore has no frozen JSON Schema compatibility promise.
 
 The golden check follows the same split: unversioned flagship compiled-suite
-and fixture-manifest goldens track the current v0.6.3 producer, while explicitly
-named `*.v0.5.0.*.json` goldens are byte-pinned and replayed through the frozen
-v0.5.0 JSON Schemas. `--update-golden` never rewrites those legacy fixtures.
+and fixture-manifest goldens track the current v0.6.4 producer, while explicitly
+named `*.v0.5.0.*.json` and `*.v0.6.3.*.json` goldens are byte-pinned and
+replayed through their corresponding frozen JSON Schemas. `--update-golden`
+never rewrites those legacy fixtures.
+
+The evidence-sensitivity report goldens instead track the exact current writer,
+including `producer_version` and all derived self-digests. A TestPyPI RC ref
+must therefore intentionally regenerate and commit RC-version goldens; the
+final-version ref must intentionally regenerate and commit the stable-version
+goldens before tagging. The ordered procedure is pinned in
+[PyPI Release Runbook](release_pypi.md#testpypi-candidate).
 
 Future minor releases should keep at least the two previous minor release
 schema snapshots available for local replay unless release notes explicitly
@@ -180,8 +192,8 @@ Any new persisted artifact root must include:
 
 The evidence descriptor, mutation operator, expected-detection contract, and
 mutation result were introduced as persisted roots in the v0.6.0 schema
-surface. Current producers emit their additive v0.6.3 representation while
-retaining frozen v0.6.0, v0.6.1, and v0.6.2 validation and replay. The mutation
+surface. Current producers emit their additive v0.6.4 representation while
+retaining frozen v0.6.0, v0.6.1, v0.6.2, and v0.6.3 validation and replay. The mutation
 catalog and campaign are new persisted roots in v0.6.1. All six separately carry a stable
 `/v1` contract ID and `contract_version: 1.0.0`. This separation allows a
 future additive JSON shape change to follow the ordinary schema lifecycle
@@ -192,13 +204,20 @@ contract revision to be identified without relabeling historical JSON.
 projects evaluation, comparison, mutation, control-efficacy, gate,
 and limitation evidence into a closed four-node/five-edge vocabulary. Its
 canonical `graph_digest` excludes only itself, and every typed node payload has
-its own canonical digest. The graph contract has no historical wire form;
-legacy packet fields are instead accounted for by its exhaustive compatibility
+its own canonical digest. Its first frozen historical wire form is v0.6.3;
+older packet fields are instead accounted for by its exhaustive compatibility
 manifest. Graph validation is structural and does not replace the existing
 typed gate decision or change CI behavior.
 
-Every raw persisted v0.6.0, v0.6.1, v0.6.2, or v0.6.3 artifact must explicitly
-carry
+The v0.6.4 comparison writer adds canonical baseline and candidate RunSet
+digests. Current persisted comparison summaries require both; frozen schemas
+through v0.6.3 remain unchanged and project without synthesized digests. The
+pair closes authenticated comparison-to-RunSet binding while allowing
+producer-local environment metadata to remain outside the controlled
+sensitivity semantic projection.
+
+Every raw persisted v0.6.0, v0.6.1, v0.6.2, v0.6.3, or v0.6.4 artifact must
+explicitly carry
 `artifact_kind` and `schema_version`; model defaults are construction
 conveniences, not permission to omit wire discriminators. Evidence descriptors,
 mutation operators, expected-detection contracts, mutation results, catalogs,

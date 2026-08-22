@@ -39,7 +39,10 @@ from agent_assure.schema.common import (
     coerce_enum,
     coerce_tuple,
 )
-from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.comparison import (
+    ComparisonSummary,
+    comparison_evaluation_binding_error,
+)
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import (
     EvaluationSummary,
@@ -148,6 +151,25 @@ class ComparisonReport(PersistedArtifact):
         )
         return self
 
+    @model_validator(mode="after")
+    def _validate_runset_identity_bindings(self) -> ComparisonReport:
+        bindings: tuple[
+            tuple[Literal["baseline", "candidate"], EvaluationSummary],
+            ...,
+        ] = (
+            ("baseline", self.baseline_vs_expectations),
+            ("candidate", self.candidate_vs_expectations),
+        )
+        for role, evaluation in bindings:
+            error = comparison_evaluation_binding_error(
+                self.comparison_summary,
+                evaluation,
+                role=role,
+            )
+            if error is not None:
+                raise ValueError(f"comparison report {error}")
+        return self
+
 
 def compare_runsets(
     suite: CompiledSuite,
@@ -220,6 +242,8 @@ def compare_runsets(
         artifact_kind="comparison-summary",
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=baseline.privacy_profile_id,
         privacy_profile_digest=baseline.privacy_profile_digest,
         classification=classification,
@@ -408,6 +432,8 @@ def _invalid_comparison_report(
         artifact_kind="comparison-summary",
         baseline_runset_id=baseline.runset_id,
         candidate_runset_id=candidate.runset_id,
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=privacy_profile_id,
         privacy_profile_digest=privacy_profile_digest,
         classification=ComparisonClassification.invalid_comparison,

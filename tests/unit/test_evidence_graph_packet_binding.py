@@ -10,6 +10,7 @@ from pydantic import ValidationError
 
 import agent_assure.reporting.packet as packet_reporting
 from agent_assure.graph.builder import build_evidence_graph
+from agent_assure.io_limits import read_file_bounded
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_packet_payload
 from agent_assure.reporting.graph import write_evidence_graph
@@ -186,6 +187,26 @@ def test_graph_binding_verifies_manifest_bytes_and_semantic_digest(
             expected_graph=graph,
         )
         is None
+    )
+    evaluation_snapshot = read_file_bounded(
+        evaluation_path,
+        max_bytes=1024 * 1024,
+        label="test evaluation",
+    )
+    assert packet_summary_files_binding_error_for_trusted_publication(
+        packet,
+        artifact_root=tmp_path,
+        expected_graph=graph,
+        captured_snapshots_by_path={evaluation_path.name: evaluation_snapshot},
+    ) == ("evidence packet evaluation-summary cannot use a producer-captured source snapshot")
+    assert (
+        packet_summary_files_binding_error_for_trusted_publication(
+            packet,
+            artifact_root=tmp_path,
+            expected_graph=graph,
+            captured_snapshots_by_path=[],  # type: ignore[arg-type]
+        )
+        == "evidence packet artifact snapshots have an invalid mapping type"
     )
 
     legacy_missing_manifest_role = packet.model_copy(

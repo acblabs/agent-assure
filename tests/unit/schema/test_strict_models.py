@@ -227,7 +227,7 @@ def test_frozen_v060_runset_retains_legacy_unbounded_evidence_identifiers() -> N
     assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
 def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="cost_budget_committed_usd"):
         _record(
@@ -241,7 +241,7 @@ def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
 def test_v06_live_observations_require_pairing_identity(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="prompt, schedule, and randomization identity"):
         LiveObservationResult(
@@ -258,7 +258,7 @@ def test_v06_live_observations_require_pairing_identity(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
 def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="configuration_digest"):
         DriftWindowSummary(
@@ -275,7 +275,7 @@ def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3"))
+@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
 def test_v06_drift_comparability_requires_configuration_match(
     schema_version: str,
 ) -> None:

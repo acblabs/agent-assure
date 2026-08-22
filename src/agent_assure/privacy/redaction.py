@@ -1,14 +1,21 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Iterator, Mapping
 from typing import Any
 
+from agent_assure.io_limits import load_json_bytes_bounded
 from agent_assure.privacy.detectors import (
     MAX_PRIVACY_SCAN_CHARS,
     PRIVACY_REDACTION_TEXT,
     contains_sensitive_value,
+    privacy_scan_views,
     sensitive_patterns_for,
+)
+from agent_assure.sensitivity_contract import (
+    MAX_SENSITIVITY_CORPUS_BYTES,
+    MAX_SENSITIVITY_FIXTURE_BYTES,
 )
 
 REDACTION = PRIVACY_REDACTION_TEXT
@@ -84,14 +91,103 @@ FAIL_CLOSED_STREAM_KEYS = FAIL_CLOSED_RUNSET_KEYS | frozenset(
 def redact_text(value: str) -> str:
     if len(value) > MAX_PRIVACY_SCAN_CHARS:
         return REDACTION
+    if _deobfuscated_view_contains_sensitive(value):
+        return REDACTION
     redacted = value
     for pattern in sensitive_patterns_for(value):
         redacted = pattern.sub(REDACTION, redacted)
     return redacted
 
 
+def _is_authenticated_sensitivity_raw_json_mirror(
+    owner: Mapping[Any, Any],
+    key: object,
+    item: object,
+) -> bool:
+    if not isinstance(key, str) or not isinstance(item, str):
+        return False
+    if key == "corpus_manifest_utf8":
+        if owner.get("artifact_kind") != "rag-sensitivity-corpus-snapshot":
+            return False
+        decoded_sibling = owner.get("corpus_manifest")
+        expected_digest = owner.get("corpus_manifest_file_sha256")
+        expected_size = None
+        max_bytes = MAX_SENSITIVITY_CORPUS_BYTES
+    elif key == "content_utf8":
+        descriptor = owner.get("descriptor")
+        if isinstance(descriptor, Mapping) and "payload" in owner:
+            decoded_sibling = owner.get("payload")
+            expected_digest = descriptor.get("content_digest")
+            expected_size = None
+            max_bytes = MAX_SENSITIVITY_CORPUS_BYTES
+        elif owner.get("role") in {
+            "request",
+            "subject_configuration",
+            "tool_configuration",
+        } and isinstance(owner.get("path"), str):
+            decoded_sibling = None
+            expected_digest = owner.get("sha256")
+            expected_size = owner.get("size_bytes")
+            max_bytes = MAX_SENSITIVITY_FIXTURE_BYTES
+        else:
+            return False
+    else:
+        return False
+    return _raw_json_mirror_matches(
+        item,
+        decoded_sibling,
+        expected_digest,
+        expected_size=expected_size,
+        max_bytes=max_bytes,
+    )
+
+
+def _raw_json_mirror_matches(
+    raw_json: str,
+    decoded_sibling: object | None,
+    expected_digest: object,
+    *,
+    expected_size: object,
+    max_bytes: int,
+) -> bool:
+    if decoded_sibling is not None and not isinstance(decoded_sibling, Mapping):
+        return False
+    if not isinstance(expected_digest, str):
+        return False
+    if len(raw_json) > max_bytes:
+        return False
+    encoded = raw_json.encode("utf-8")
+    if len(encoded) > max_bytes:
+        return False
+    if expected_size is not None and (
+        not isinstance(expected_size, int)
+        or isinstance(expected_size, bool)
+        or expected_size != len(encoded)
+    ):
+        return False
+    if hashlib.sha256(encoded).hexdigest() != expected_digest:
+        return False
+    try:
+        decoded = load_json_bytes_bounded(
+            encoded,
+            max_bytes=max_bytes,
+            label="sensitivity raw JSON mirror",
+        )
+    except (TypeError, ValueError):
+        return False
+    if not isinstance(decoded, Mapping):
+        return False
+    if decoded_sibling is not None and decoded != decoded_sibling:
+        return False
+    # The exact UTF-8 mirror may exceed the scalar scan cap, but its decoded
+    # values must independently survive the normal packet privacy traversal.
+    return bool(redact_packet_payload(decoded) == decoded)
+
+
 def mask_sensitive_text_preserving_length(value: str) -> str:
     if len(value) > MAX_PRIVACY_SCAN_CHARS:
+        return REDACTION_MASK_CHARACTER * len(value)
+    if _deobfuscated_view_contains_sensitive(value):
         return REDACTION_MASK_CHARACTER * len(value)
     masked = value
     for pattern in sensitive_patterns_for(value):
@@ -100,6 +196,17 @@ def mask_sensitive_text_preserving_length(value: str) -> str:
             masked,
         )
     return masked
+
+
+def _deobfuscated_view_contains_sensitive(value: str) -> bool:
+    for scan_view in privacy_scan_views(value)[1:]:
+        if len(scan_view) > MAX_PRIVACY_SCAN_CHARS:
+            return True
+        if any(
+            pattern.search(scan_view) is not None for pattern in sensitive_patterns_for(scan_view)
+        ):
+            return True
+    return False
 
 
 def redact_run_record_payload(payload: Mapping[str, Any]) -> dict[str, Any]:
@@ -121,9 +228,7 @@ def assert_runset_payload_safe_for_persistence(payload: Mapping[str, Any]) -> No
             continue
         if _contains_sensitive_value(value):
             field_kind = "preserved field" if key in FAIL_CLOSED_RUNSET_KEYS else "field"
-            raise ValueError(
-                f"runset {field_kind} contains sensitive-looking content: {path}"
-            )
+            raise ValueError(f"runset {field_kind} contains sensitive-looking content: {path}")
 
 
 def assert_stream_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
@@ -263,21 +368,33 @@ def redact_artifact_payload(
     value: Any,
     *,
     preserve_keys: frozenset[str] = frozenset(),
+    sensitive_preserve_keys: frozenset[str] = frozenset(),
     parent_key: str | None = None,
 ) -> Any:
     if isinstance(value, str):
+        if (
+            isinstance(parent_key, str)
+            and parent_key in sensitive_preserve_keys
+            and (_contains_sensitive_value(value) or _contains_control_character(value))
+        ):
+            return REDACTION
         if _is_invalid_digest_scalar(parent_key, value):
             return REDACTION
         if _preserves_scalar_value(parent_key, value, preserve_keys=preserve_keys):
             return value
         return redact_text(value)
     if isinstance(value, Mapping):
-        return _redact_mapping(value, preserve_keys=preserve_keys)
+        return _redact_mapping(
+            value,
+            preserve_keys=preserve_keys,
+            sensitive_preserve_keys=sensitive_preserve_keys,
+        )
     if isinstance(value, tuple):
         return tuple(
             redact_artifact_payload(
                 item,
                 preserve_keys=preserve_keys,
+                sensitive_preserve_keys=sensitive_preserve_keys,
                 parent_key=parent_key,
             )
             for item in value
@@ -287,6 +404,7 @@ def redact_artifact_payload(
             redact_artifact_payload(
                 item,
                 preserve_keys=preserve_keys,
+                sensitive_preserve_keys=sensitive_preserve_keys,
                 parent_key=parent_key,
             )
             for item in value
@@ -295,7 +413,11 @@ def redact_artifact_payload(
 
 
 def redact_packet_payload(value: Any) -> Any:
-    return redact_artifact_payload(value, preserve_keys=PRESERVE_PACKET_KEYS)
+    return redact_artifact_payload(
+        value,
+        preserve_keys=PRESERVE_PACKET_KEYS,
+        sensitive_preserve_keys=PRESERVE_PACKET_KEYS,
+    )
 
 
 def _preserves_scalar_value(
@@ -319,10 +441,12 @@ def _redact_mapping_item(
     item: Any,
     *,
     preserve_keys: frozenset[str],
+    sensitive_preserve_keys: frozenset[str],
 ) -> Any:
     return redact_artifact_payload(
         item,
         preserve_keys=preserve_keys,
+        sensitive_preserve_keys=sensitive_preserve_keys,
         parent_key=key if isinstance(key, str) else None,
     )
 
@@ -331,17 +455,25 @@ def _redact_mapping(
     value: Mapping[Any, Any],
     *,
     preserve_keys: frozenset[str],
+    sensitive_preserve_keys: frozenset[str],
 ) -> dict[Any, Any]:
     redacted: dict[Any, Any] = {}
     for key, item in value.items():
         redacted_key = _redact_mapping_key(key)
         if redacted_key in redacted:
             raise ValueError("redaction would create duplicate mapping keys")
-        redacted[redacted_key] = _redact_mapping_item(
-            key,
-            item,
-            preserve_keys=preserve_keys,
-        )
+        if _is_authenticated_sensitivity_raw_json_mirror(value, key, item):
+            # Sensitivity snapshots carry exact source bytes next to their strict
+            # decoded model. Preserve only a byte/digest/model-bound raw mirror;
+            # its decoded sibling is still traversed and privacy scanned.
+            redacted[redacted_key] = item
+        else:
+            redacted[redacted_key] = _redact_mapping_item(
+                key,
+                item,
+                preserve_keys=preserve_keys,
+                sensitive_preserve_keys=sensitive_preserve_keys,
+            )
     return redacted
 
 
@@ -386,10 +518,9 @@ def _contains_control_character(value: str) -> bool:
 
 
 def _is_valid_structural_digest(key: str, value: str) -> bool:
-    return (
-        (key.endswith("_digest") or key.endswith("_digests"))
-        and _DIGEST_HEX_PATTERN.fullmatch(value) is not None
-    )
+    return (key.endswith("_digest") or key.endswith("_digests")) and _DIGEST_HEX_PATTERN.fullmatch(
+        value
+    ) is not None
 
 
 def _iter_string_fields(value: Any, path: str = "$") -> Iterator[tuple[str, str, str]]:

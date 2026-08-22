@@ -2,18 +2,20 @@ from __future__ import annotations
 
 import hashlib
 import re
+import unicodedata
 from dataclasses import dataclass
 from typing import Any
 
 import rfc8785
 
-PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v1"
+PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v2"
 PRIVACY_REDACTION_TEXT = "[REDACTED]"
 # Privacy scanning is intentionally fail-closed above this per-scalar bound.  This
 # prevents a single JSON string from turning the backtracking regular-expression
 # engine into an unbounded CPU sink. Persisted model fields are normally much
 # smaller than this limit.
 MAX_PRIVACY_SCAN_CHARS = 16_384
+_PRIVACY_SCAN_SAFE_WHITESPACE_CONTROLS = frozenset({"\t", "\n", "\r"})
 
 
 @dataclass(frozen=True)
@@ -181,8 +183,14 @@ def privacy_profile_manifest() -> dict[str, Any]:
     return {
         "profile_id": PRIVACY_PROFILE_ID,
         "detector_engine": "python-re-unicode",
-        "detection_algorithm": "ordered-any-search",
-        "redaction_algorithm": "ordered-sequential-substitution",
+        "detection_algorithm": "raw-and-unicode-deobfuscated-ordered-any-search",
+        "redaction_algorithm": (
+            "whole-scalar-on-deobfuscated-match-else-ordered-sequential-substitution"
+        ),
+        "unicode_scan_normalization": "NFKC",
+        "unicode_category_c_action": (
+            "remove-with-tab-line-feed-carriage-return-normalized-to-space"
+        ),
         "redaction_text": PRIVACY_REDACTION_TEXT,
         "max_scalar_characters": MAX_PRIVACY_SCAN_CHARS,
         "over_limit_action": "treat-sensitive-and-redact-entire-scalar",
@@ -191,24 +199,56 @@ def privacy_profile_manifest() -> dict[str, Any]:
                 "pattern_id": definition.pattern_id,
                 "expression": definition.expression,
                 "flags": list(definition.flags),
-                "required_markers": list(
-                    _REQUIRED_MARKERS.get(definition.pattern_id, ())
-                ),
+                "required_markers": list(_REQUIRED_MARKERS.get(definition.pattern_id, ())),
             }
             for definition in PRIVACY_DETECTOR_DEFINITIONS
         ],
     }
 
 
-PRIVACY_PROFILE_DIGEST = hashlib.sha256(
-    rfc8785.dumps(privacy_profile_manifest())
-).hexdigest()
+PRIVACY_PROFILE_DIGEST = hashlib.sha256(rfc8785.dumps(privacy_profile_manifest())).hexdigest()
 
 
 def contains_sensitive_value(value: str) -> bool:
     if len(value) > MAX_PRIVACY_SCAN_CHARS:
         return True
-    return any(pattern.search(value) is not None for pattern in sensitive_patterns_for(value))
+    for scan_view in privacy_scan_views(value):
+        if len(scan_view) > MAX_PRIVACY_SCAN_CHARS:
+            return True
+        if any(
+            pattern.search(scan_view) is not None for pattern in sensitive_patterns_for(scan_view)
+        ):
+            return True
+    return False
+
+
+def privacy_scan_views(value: str) -> tuple[str, ...]:
+    """Return raw and bounded deobfuscated views used by privacy detectors.
+
+    Category-C characters can split a visually contiguous credential or
+    identifier without changing what an operator perceives. Ordinary text
+    whitespace controls become spaces; all other category-C code points are
+    removed, and the result is compatibility-normalized for a second scan.
+    The original value is never mutated for persistence.
+    """
+    if len(value) > MAX_PRIVACY_SCAN_CHARS:
+        return (value,)
+    normalized_characters: list[str] = []
+    changed = False
+    for character in value:
+        if character in _PRIVACY_SCAN_SAFE_WHITESPACE_CONTROLS:
+            normalized_characters.append(" ")
+            changed = True
+        elif unicodedata.category(character).startswith("C"):
+            changed = True
+        else:
+            normalized_characters.append(character)
+    deobfuscated = unicodedata.normalize("NFKC", "".join(normalized_characters))
+    if len(deobfuscated) > MAX_PRIVACY_SCAN_CHARS:
+        return (value, deobfuscated)
+    if not changed and deobfuscated == value:
+        return (value,)
+    return (value, deobfuscated)
 
 
 def sensitive_patterns_for(value: str) -> tuple[re.Pattern[str], ...]:

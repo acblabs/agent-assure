@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, model_validator
 from pydantic_core import CoreSchema
 
-SCHEMA_VERSION = "0.6.3"
+SCHEMA_VERSION = "0.6.4"
 SchemaVersion = Literal[
     "0.2.0",
     "0.3.1",
@@ -16,6 +16,7 @@ SchemaVersion = Literal[
     "0.6.1",
     "0.6.2",
     "0.6.3",
+    "0.6.4",
 ]
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
 RFC8785_SAFE_INTEGER_MIN = -RFC8785_SAFE_INTEGER_MAX
@@ -44,9 +45,7 @@ def validate_rfc8785_safe_integers(value: object, *, owner: str) -> None:
                 raise ValueError(f"{owner} value at {path} contains a cyclic reference")
             active_containers.add(container_id)
             pending.append((path, candidate, True))
-            pending.extend(
-                (f"{path}.{key}", nested, False) for key, nested in candidate.items()
-            )
+            pending.extend((f"{path}.{key}", nested, False) for key, nested in candidate.items())
             continue
         if isinstance(candidate, Sequence) and not isinstance(candidate, str | bytes | bytearray):
             container_id = id(candidate)
@@ -55,8 +54,7 @@ def validate_rfc8785_safe_integers(value: object, *, owner: str) -> None:
             active_containers.add(container_id)
             pending.append((path, candidate, True))
             pending.extend(
-                (f"{path}[{index}]", nested, False)
-                for index, nested in enumerate(candidate)
+                (f"{path}[{index}]", nested, False) for index, nested in enumerate(candidate)
             )
 
 
@@ -96,7 +94,7 @@ class PersistedArtifact(FrozenStrictModel):
         hide_input_in_errors=True,
     )
 
-    schema_version: SchemaVersion = "0.6.3"
+    schema_version: SchemaVersion = "0.6.4"
 
     @model_validator(mode="before")
     @classmethod

@@ -15,7 +15,7 @@ from agent_assure.schema.run import RunSet
 ROOT = Path(__file__).resolve().parents[3]
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.1", "0.6.2", "0.6.3"))
+@pytest.mark.parametrize("schema_version", ("0.6.1", "0.6.2", "0.6.3", "0.6.4"))
 def test_machine_id_era_artifact_schemas_require_privacy_profile_pair(
     schema_version: str,
 ) -> None:
@@ -50,6 +50,13 @@ def test_machine_id_era_artifact_schemas_require_privacy_profile_pair(
             "artifact_kind": model.model_fields["artifact_kind"].default,
             "schema_version": schema_version,
         }
+        if model is ComparisonSummary and schema_version == "0.6.4":
+            identified_payload.update(
+                {
+                    "baseline_runset_digest": "2" * 64,
+                    "candidate_runset_digest": "3" * 64,
+                }
+            )
         validator = Draft202012Validator(model.model_json_schema())
         with pytest.raises(JsonSchemaValidationError):
             validator.validate(identified_payload)

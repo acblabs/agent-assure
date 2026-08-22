@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from enum import StrEnum
 from pathlib import Path
 from typing import Literal
+
+from pydantic import ValidationError
 
 from agent_assure import __version__
 from agent_assure.artifact_io import (
@@ -61,7 +63,10 @@ from agent_assure.reporting.packet import (
 )
 from agent_assure.schema.campaign import AssuranceMutationCatalog
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
-from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.comparison import (
+    ComparisonSummary,
+    comparison_evaluation_binding_error,
+)
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateDecision,
     ControlEfficacyGateFinding,
@@ -84,6 +89,12 @@ from agent_assure.schema.packet import (
     packet_summary_digest_binding_error,
 )
 from agent_assure.schema.run import RunSet
+from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityGateEffect,
+    EvidenceSensitivityReasonCode,
+    EvidenceSensitivityState,
+    RAGSensitivityReport,
+)
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
     load_json,
@@ -91,6 +102,7 @@ from agent_assure.schema.validation import (
     project_validated_artifact_payload,
     validate_loaded_artifact_payload,
 )
+from agent_assure.sensitivity_comparison import sensitivity_comparison_binding_error
 
 GateArtifact = EvaluationSummary | ComparisonSummary | ControlEfficacyReport | EvidencePacket
 ReportMode = Literal["full", "fail-fast"]
@@ -156,7 +168,9 @@ class GateDecision:
     exit_code: int
     outcome: GateOutcome
     message: str
-    reason_code: ReasonCode | ControlEfficacyGateReason | None = None
+    reason_code: ReasonCode | ControlEfficacyGateReason | EvidenceSensitivityReasonCode | None = (
+        None
+    )
     artifact_kind: str = ""
     artifact_path: str = ""
     validator: str = "agent_assure.ci"
@@ -191,6 +205,17 @@ class GateDecision:
             "efficacy_verification": self.efficacy_verification.value,
             "efficacy_required": self.efficacy_required,
         }
+
+
+def _trusted_model_revalidation_message(subject: str, error: Exception) -> str:
+    prefix = f"ci gate invalid: {subject} failed trusted model revalidation"
+    if not isinstance(error, ValidationError):
+        return prefix
+    problems = error.errors(include_url=False, include_input=False)
+    if not problems:
+        return prefix
+    detail = problems[0].get("msg")
+    return f"{prefix}: {detail}" if isinstance(detail, str) and detail else prefix
 
 
 def _efficacy_mode(strict_efficacy: bool) -> EfficacyVerificationMode:
@@ -438,13 +463,25 @@ def gate_artifact(
     verifier_efficacy_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool = False,
+    require_evidence_sensitivity: bool = False,
+    allow_sensitivity_non_verdict: bool = False,
+    allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
     """Gate one artifact with strict efficacy verification as the library default.
 
-    ``strict_efficacy`` controls verification strength when efficacy evidence is
-    present. ``require_efficacy`` controls whether an evidence packet must carry
-    that evidence; supplying a verifier policy also implies the requirement.
+    Strict efficacy controls verification strength when efficacy evidence is
+    present. Presence requirements are verifier-owned: requiring efficacy or
+    evidence sensitivity prevents a producer from gaining a passing result by
+    removing the corresponding evidence. Sensitivity-bearing packets fail
+    closed on non-verdict evidence unless the verifier explicitly allows it.
     """
+    if not isinstance(artifact, EvidencePacket):
+        if artifact_root is not None:
+            return _unexpected_artifact_root_decision(artifact.artifact_kind)
+        if require_evidence_sensitivity or allow_sensitivity_non_verdict:
+            return _unexpected_sensitivity_options_decision(artifact.artifact_kind)
+        if allow_legacy_unbound_comparison and not isinstance(artifact, ComparisonSummary):
+            return _unexpected_legacy_comparison_option_decision(artifact.artifact_kind)
     if isinstance(artifact, EvaluationSummary):
         if verifier_efficacy_policy is not None or require_efficacy:
             return _unexpected_efficacy_options_decision(
@@ -466,6 +503,7 @@ def gate_artifact(
             artifact,
             fail_on_warn=fail_on_warn,
             fail_on_not_evaluated=fail_on_not_evaluated,
+            allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
         )
     if isinstance(artifact, ControlEfficacyReport):
         return gate_control_efficacy_report(
@@ -484,6 +522,9 @@ def gate_artifact(
         verifier_policy=verifier_efficacy_policy,
         strict_efficacy=strict_efficacy,
         require_efficacy=require_efficacy,
+        require_evidence_sensitivity=require_evidence_sensitivity,
+        allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
+        allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
     )
 
 
@@ -506,12 +547,102 @@ def _unexpected_efficacy_options_decision(
     )
 
 
+def _unexpected_sensitivity_options_decision(artifact_kind: str) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=("ci gate invalid: sensitivity verification options require an evidence packet"),
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _unexpected_artifact_root_decision(artifact_kind: str) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message="ci gate invalid: artifact_root is only valid for an evidence packet",
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _unexpected_legacy_comparison_option_decision(artifact_kind: str) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=(
+            "ci gate invalid: the legacy unbound-comparison compatibility option "
+            "requires a standalone comparison or comparison-bearing evidence packet"
+        ),
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _unused_legacy_comparison_option_decision(
+    *,
+    artifact_kind: str,
+    subject: str,
+) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=(
+            "ci gate invalid: allow_legacy_unbound_comparison was supplied but "
+            f"{subject} has no legacy unbound comparison; remove the unused "
+            "compatibility override"
+        ),
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _unbound_legacy_comparison_decision(
+    *,
+    artifact_kind: str,
+    subject: str,
+) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=(
+            f"ci gate invalid: {subject} carries a legacy comparison without authenticated "
+            "baseline and candidate RunSet digests; ID-only comparison binding is "
+            "rejected by default; explicitly allow it with "
+            "allow_legacy_unbound_comparison=True or "
+            "--allow-legacy-unbound-comparison"
+        ),
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _with_legacy_comparison_compatibility_notice(decision: GateDecision) -> GateDecision:
+    marker = "legacy_unbound_comparison=allowed"
+    if marker in decision.message:
+        return decision
+    return replace(decision, message=f"{decision.message}; {marker}")
+
+
 def gate_evaluation_summary(
     summary: EvaluationSummary,
     *,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
 ) -> GateDecision:
+    try:
+        summary = EvaluationSummary.model_validate(
+            summary.model_dump(mode="json", warnings="error")
+        )
+    except (TypeError, ValueError) as error:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=_trusted_model_revalidation_message("evaluation-summary", error),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind="evaluation-summary",
+        )
     coherence_error = evaluation_summary_coherence_error(
         state=summary.state,
         findings=summary.findings,
@@ -548,12 +679,39 @@ def gate_comparison_summary(
     *,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
+    allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
+    try:
+        summary = ComparisonSummary.model_validate(
+            summary.model_dump(mode="json", warnings="error")
+        )
+    except (TypeError, ValueError) as error:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=_trusted_model_revalidation_message("comparison-summary", error),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind="comparison-summary",
+        )
+    subject = f"comparison-summary {summary.baseline_runset_id}->{summary.candidate_runset_id}"
+    legacy_unbound_comparison = (
+        summary.baseline_runset_digest is None or summary.candidate_runset_digest is None
+    )
+    if allow_legacy_unbound_comparison and not legacy_unbound_comparison:
+        return _unused_legacy_comparison_option_decision(
+            artifact_kind=summary.artifact_kind,
+            subject=subject,
+        )
+    if legacy_unbound_comparison and not allow_legacy_unbound_comparison:
+        return _unbound_legacy_comparison_decision(
+            artifact_kind=summary.artifact_kind,
+            subject=subject,
+        )
     if (
         summary.classification is ComparisonClassification.invalid_comparison
         or summary.fixture_equivalence_state is GateState.fail
     ):
-        return GateDecision(
+        decision = GateDecision(
             exit_code=2,
             outcome=GateOutcome.invalid,
             message=(
@@ -564,6 +722,11 @@ def gate_comparison_summary(
             reason_code=ReasonCode.FIXTURE_EQUIVALENCE_FAILED,
             artifact_kind=summary.artifact_kind,
         )
+        return (
+            _with_legacy_comparison_compatibility_notice(decision)
+            if legacy_unbound_comparison
+            else decision
+        )
     if (
         summary.classification
         in {
@@ -572,7 +735,7 @@ def gate_comparison_summary(
         }
         and summary.candidate_state is not GateState.warn
     ):
-        return GateDecision(
+        decision = GateDecision(
             exit_code=1,
             outcome=GateOutcome.fail,
             message=(
@@ -583,11 +746,21 @@ def gate_comparison_summary(
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind=summary.artifact_kind,
         )
-    return _decision_for_state(
+        return (
+            _with_legacy_comparison_compatibility_notice(decision)
+            if legacy_unbound_comparison
+            else decision
+        )
+    decision = _decision_for_state(
         summary.candidate_state,
-        subject=(f"comparison-summary {summary.baseline_runset_id}->{summary.candidate_runset_id}"),
+        subject=subject,
         fail_on_warn=fail_on_warn,
         fail_on_not_evaluated=fail_on_not_evaluated,
+    )
+    return (
+        _with_legacy_comparison_compatibility_notice(decision)
+        if legacy_unbound_comparison
+        else decision
     )
 
 
@@ -600,28 +773,112 @@ def gate_evidence_packet(
     verifier_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool = False,
+    require_evidence_sensitivity: bool = False,
+    allow_sensitivity_non_verdict: bool = False,
+    allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
-    summary_digest_error = packet_summary_digest_binding_error(packet)
-    if summary_digest_error is not None:
+    """Gate a packet, rejecting legacy ID-only comparison binding by default.
+
+    ``allow_legacy_unbound_comparison`` is a compatibility escape hatch for
+    already validated legacy packets; it does not bypass model revalidation or
+    any exact-file, manifest, graph, efficacy, or sensitivity binding check.
+    """
+    try:
+        packet = EvidencePacket.model_validate(packet.model_dump(mode="json", warnings="error"))
+    except (TypeError, ValueError) as error:
         return GateDecision(
             exit_code=2,
             outcome=GateOutcome.invalid,
-            message=f"ci gate invalid: {summary_digest_error}",
+            message=_trusted_model_revalidation_message("evidence-packet", error),
             reason_code=ReasonCode.POLICY_FAILED,
-            artifact_kind=packet.artifact_kind,
+            artifact_kind="evidence-packet",
         )
+    legacy_unbound_comparison = packet.comparison is not None and (
+        packet.comparison.baseline_runset_digest is None
+        or packet.comparison.candidate_runset_digest is None
+    )
+    if allow_legacy_unbound_comparison and not legacy_unbound_comparison:
+        return _unused_legacy_comparison_option_decision(
+            artifact_kind=packet.artifact_kind,
+            subject=f"evidence-packet {packet.packet_id}",
+        )
+    if legacy_unbound_comparison and not allow_legacy_unbound_comparison:
+        return _unbound_legacy_comparison_decision(
+            artifact_kind=packet.artifact_kind,
+            subject=f"evidence-packet {packet.packet_id}",
+        )
+
+    def finish(decision: GateDecision) -> GateDecision:
+        return (
+            _with_legacy_comparison_compatibility_notice(decision)
+            if legacy_unbound_comparison
+            else decision
+        )
+
+    if require_evidence_sensitivity and packet.evidence_sensitivity is None:
+        return finish(_missing_packet_sensitivity_decision(packet))
+    summary_digest_error = packet_summary_digest_binding_error(packet)
+    if summary_digest_error is not None:
+        return finish(
+            GateDecision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=f"ci gate invalid: {summary_digest_error}",
+                reason_code=ReasonCode.POLICY_FAILED,
+                artifact_kind=packet.artifact_kind,
+            )
+        )
+    if packet.comparison is not None:
+        comparison_evaluation_error = comparison_evaluation_binding_error(
+            packet.comparison,
+            packet.evaluation,
+            role="candidate",
+        )
+        if comparison_evaluation_error is not None:
+            return finish(
+                GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=f"ci gate invalid: {comparison_evaluation_error}",
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    artifact_kind=packet.artifact_kind,
+                )
+            )
+    if packet.comparison is not None and packet.evidence_sensitivity is not None:
+        try:
+            comparison_binding_error = sensitivity_comparison_binding_error(
+                packet.comparison,
+                packet.evidence_sensitivity,
+            )
+        except (TypeError, ValueError):
+            comparison_binding_error = (
+                "comparison and evidence sensitivity report must be valid before "
+                "their canonical binding can be verified"
+            )
+        if comparison_binding_error is not None:
+            return finish(
+                GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=f"ci gate invalid: {comparison_binding_error}",
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    artifact_kind=packet.artifact_kind,
+                )
+            )
     if artifact_root is not None:
         summary_file_error = packet_summary_files_binding_error(
             packet,
             artifact_root=artifact_root,
         )
         if summary_file_error is not None:
-            return GateDecision(
-                exit_code=2,
-                outcome=GateOutcome.invalid,
-                message=f"ci gate invalid: {summary_file_error}",
-                reason_code=ReasonCode.POLICY_FAILED,
-                artifact_kind=packet.artifact_kind,
+            return finish(
+                GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=f"ci gate invalid: {summary_file_error}",
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    artifact_kind=packet.artifact_kind,
+                )
             )
     efficacy_required = require_efficacy or verifier_policy is not None
     efficacy_decision: GateDecision | None = None
@@ -638,21 +895,50 @@ def gate_evidence_packet(
                 packet.comparison,
                 fail_on_warn=fail_on_warn,
                 fail_on_not_evaluated=fail_on_not_evaluated,
+                allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
             )
         )
-    if packet.control_efficacy is not None:
-        if packet.control_efficacy_gate is None or packet.control_efficacy_gate_profile is None:
-            return _efficacy_gate_decision(
+    if packet.evidence_sensitivity is not None:
+        sensitivity_decision = gate_evidence_sensitivity_report(
+            packet.evidence_sensitivity,
+            fail_on_not_evaluated=fail_on_not_evaluated,
+        )
+        if (
+            sensitivity_decision.outcome is GateOutcome.not_evaluated
+            and not allow_sensitivity_non_verdict
+        ):
+            sensitivity_decision = GateDecision(
                 exit_code=2,
                 outcome=GateOutcome.invalid,
                 message=(
-                    "ci gate invalid: evidence-packet "
-                    f"{packet.packet_id} is missing its control-efficacy gate profile or decision"
+                    "ci gate invalid: sensitivity-bearing evidence packet has a "
+                    "non-verdict sensitivity result "
+                    f"state={packet.evidence_sensitivity.state.value} "
+                    f"gate_effect={packet.evidence_sensitivity.gate_effect.value}; "
+                    "explicitly allow it with "
+                    "allow_sensitivity_non_verdict=True or "
+                    "--allow-sensitivity-non-verdict"
                 ),
-                evidence=EfficacyEvidenceState.present,
-                verification=_efficacy_mode(strict_efficacy),
-                required=efficacy_required,
+                reason_code=sensitivity_decision.reason_code,
                 artifact_kind=packet.artifact_kind,
+            )
+        decisions.append(sensitivity_decision)
+    if packet.control_efficacy is not None:
+        if packet.control_efficacy_gate is None or packet.control_efficacy_gate_profile is None:
+            return finish(
+                _efficacy_gate_decision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=(
+                        "ci gate invalid: evidence-packet "
+                        f"{packet.packet_id} is missing its control-efficacy gate profile or "
+                        "decision"
+                    ),
+                    evidence=EfficacyEvidenceState.present,
+                    verification=_efficacy_mode(strict_efficacy),
+                    required=efficacy_required,
+                    artifact_kind=packet.artifact_kind,
+                )
             )
         embedded_check = gate_control_efficacy_decision(
             packet.control_efficacy,
@@ -663,12 +949,14 @@ def gate_evidence_packet(
             efficacy_required=efficacy_required,
         )
         if embedded_check.outcome is GateOutcome.invalid:
-            return embedded_check
+            return finish(embedded_check)
         if verifier_policy is None:
             if strict_efficacy:
-                return _missing_verifier_policy_decision(
-                    packet.artifact_kind,
-                    required=efficacy_required,
+                return finish(
+                    _missing_verifier_policy_decision(
+                        packet.artifact_kind,
+                        required=efficacy_required,
+                    )
                 )
             efficacy_decision = gate_control_efficacy_decision(
                 packet.control_efficacy,
@@ -684,9 +972,11 @@ def gate_evidence_packet(
                 verifier_policy.expected_catalog is None
                 or verifier_policy.expected_threat_scope is None
             ):
-                return _missing_verifier_threat_scope_decision(
-                    packet.artifact_kind,
-                    required=efficacy_required,
+                return finish(
+                    _missing_verifier_threat_scope_decision(
+                        packet.artifact_kind,
+                        required=efficacy_required,
+                    )
                 )
             binding_error = _verifier_policy_binding_decision(
                 packet.control_efficacy,
@@ -696,7 +986,7 @@ def gate_evidence_packet(
                 required=efficacy_required,
             )
             if binding_error is not None:
-                return binding_error
+                return finish(binding_error)
             verifier_gate = evaluate_control_efficacy_gate(
                 packet.control_efficacy,
                 verifier_policy.profile,
@@ -712,9 +1002,11 @@ def gate_evidence_packet(
             )
         decisions.append(efficacy_decision)
     elif efficacy_required:
-        return _missing_packet_efficacy_decision(
-            packet,
-            strict_efficacy=strict_efficacy,
+        return finish(
+            _missing_packet_efficacy_decision(
+                packet,
+                strict_efficacy=strict_efficacy,
+            )
         )
     controlling_decision = next(
         candidate
@@ -723,7 +1015,7 @@ def gate_evidence_packet(
         if candidate.outcome is outcome
     )
     if controlling_decision.outcome is not GateOutcome.pass_:
-        return GateDecision(
+        decision = GateDecision(
             exit_code=controlling_decision.exit_code,
             outcome=controlling_decision.outcome,
             message=_packet_gate_message(
@@ -747,9 +1039,10 @@ def gate_evidence_packet(
             ),
             efficacy_required=efficacy_required,
         )
+        return finish(decision)
     if efficacy_decision is not None:
         policy_suffix = _verifier_policy_message(verifier_policy)
-        return GateDecision(
+        decision = GateDecision(
             exit_code=0,
             outcome=GateOutcome.pass_,
             message=(
@@ -761,7 +1054,8 @@ def gate_evidence_packet(
             efficacy_verification=efficacy_decision.efficacy_verification,
             efficacy_required=efficacy_required,
         )
-    return _efficacy_gate_decision(
+        return finish(decision)
+    decision = _efficacy_gate_decision(
         exit_code=0,
         outcome=GateOutcome.pass_,
         message=f"ci gate pass: evidence-packet {packet.packet_id}",
@@ -770,6 +1064,113 @@ def gate_evidence_packet(
         required=False,
         artifact_kind=packet.artifact_kind,
     )
+    return finish(decision)
+
+
+def gate_evidence_sensitivity_report(
+    report: RAGSensitivityReport,
+    *,
+    fail_on_not_evaluated: bool = False,
+) -> GateDecision:
+    """Map the report's typed gate role into the common CI outcome vocabulary."""
+    try:
+        report = RAGSensitivityReport.model_validate(
+            report.model_dump(mode="json", warnings="error")
+        )
+    except (TypeError, ValueError) as error:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=_trusted_model_revalidation_message(
+                "evidence-sensitivity-report",
+                error,
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind="evidence-sensitivity-report",
+        )
+    expected_role = {
+        EvidenceSensitivityState.responsive: (
+            EvidenceSensitivityGateEffect.pass_,
+            True,
+        ),
+        EvidenceSensitivityState.evidence_insensitive: (
+            EvidenceSensitivityGateEffect.block,
+            True,
+        ),
+        EvidenceSensitivityState.confounded: (
+            EvidenceSensitivityGateEffect.non_verdict,
+            False,
+        ),
+        EvidenceSensitivityState.prerequisites_unmet: (
+            EvidenceSensitivityGateEffect.non_verdict,
+            False,
+        ),
+    }[report.state]
+    if (report.gate_effect, report.verdict_bearing) != expected_role:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=(
+                "ci gate invalid: evidence-sensitivity-report "
+                f"{report.report_id} has an incoherent state/gate role"
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=report.artifact_kind,
+        )
+    subject = (
+        f"evidence-sensitivity-report {report.report_id} "
+        f"state={report.state.value} gate_effect={report.gate_effect.value}"
+    )
+    if report.gate_effect is EvidenceSensitivityGateEffect.pass_:
+        return GateDecision(
+            exit_code=0,
+            outcome=GateOutcome.pass_,
+            message=f"ci gate pass: {subject}",
+            artifact_kind=report.artifact_kind,
+        )
+    reason_code = _evidence_sensitivity_reason_code(report)
+    if report.gate_effect is EvidenceSensitivityGateEffect.block:
+        return GateDecision(
+            exit_code=1,
+            outcome=GateOutcome.fail,
+            message=f"ci gate fail: {subject}",
+            reason_code=reason_code,
+            artifact_kind=report.artifact_kind,
+        )
+    if fail_on_not_evaluated:
+        return GateDecision(
+            exit_code=1,
+            outcome=GateOutcome.fail,
+            message=f"ci gate fail: {subject}",
+            reason_code=reason_code,
+            artifact_kind=report.artifact_kind,
+        )
+    return GateDecision(
+        exit_code=0,
+        outcome=GateOutcome.not_evaluated,
+        message=f"ci gate not-evaluated: {subject}",
+        reason_code=reason_code,
+        artifact_kind=report.artifact_kind,
+    )
+
+
+def _evidence_sensitivity_reason_code(
+    report: RAGSensitivityReport,
+) -> EvidenceSensitivityReasonCode:
+    preferred = {
+        EvidenceSensitivityState.evidence_insensitive: (
+            EvidenceSensitivityReasonCode.expected_response_missing
+        ),
+        EvidenceSensitivityState.confounded: EvidenceSensitivityReasonCode.confounded,
+        EvidenceSensitivityState.prerequisites_unmet: (
+            EvidenceSensitivityReasonCode.prerequisites_unmet
+        ),
+    }.get(report.state)
+    if preferred is not None and preferred in report.reason_codes:
+        return preferred
+    if report.reason_codes:
+        return report.reason_codes[0]
+    raise ValueError("non-passing sensitivity report requires a reason code")
 
 
 def _packet_gate_message(
@@ -829,6 +1230,20 @@ def _missing_packet_efficacy_decision(
         evidence=EfficacyEvidenceState.absent,
         verification=_efficacy_mode(strict_efficacy),
         required=True,
+        artifact_kind=packet.artifact_kind,
+    )
+
+
+def _missing_packet_sensitivity_decision(packet: EvidencePacket) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=(
+            "ci gate invalid: evidence-packet "
+            f"{packet.packet_id} has no evidence-sensitivity report; it is required "
+            "by verifier policy or --require-evidence-sensitivity"
+        ),
+        reason_code=ReasonCode.POLICY_FAILED,
         artifact_kind=packet.artifact_kind,
     )
 
@@ -1062,6 +1477,23 @@ def gate_control_efficacy_report(
 ) -> GateDecision:
     """Gate a report using verifier-owned policy when strict verification is requested."""
     efficacy_required = require_efficacy or verifier_policy is not None
+    try:
+        report = ControlEfficacyReport.model_validate(
+            report.model_dump(mode="json", warnings="error")
+        )
+    except (TypeError, ValueError) as error:
+        return _efficacy_gate_decision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=_trusted_model_revalidation_message(
+                "control-efficacy-report",
+                error,
+            ),
+            evidence=EfficacyEvidenceState.present,
+            verification=_efficacy_mode(strict_efficacy),
+            required=efficacy_required,
+            artifact_kind="control-efficacy-report",
+        )
     if verifier_policy is None and strict_efficacy:
         return _missing_verifier_policy_decision(
             report.artifact_kind,

@@ -1,11 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TypeAlias, assert_never
+from typing import TypeAlias, TypeVar, assert_never
+
+from pydantic import BaseModel
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.schema.common import ComparisonClassification, GateState
-from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.comparison import (
+    ComparisonSummary,
+    comparison_evaluation_binding_error,
+)
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateDecision,
     ControlEfficacyGateProfile,
@@ -37,6 +42,7 @@ from agent_assure.schema.graph import (
     EvidenceGraphReferenceRole,
     EvidenceGraphRequirementPayload,
     EvidenceGraphRequirementType,
+    EvidenceGraphSensitivityProjection,
     EvidenceGraphSubjectPayload,
 )
 from agent_assure.schema.mutation import (
@@ -46,9 +52,16 @@ from agent_assure.schema.mutation import (
     GateEffect,
     MutationResultState,
 )
+from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityState,
+    RAGSensitivityReport,
+)
+from agent_assure.sensitivity_comparison import sensitivity_comparison_binding_error
 
 EvaluationInput: TypeAlias = EvaluationSummary
 ComparisonInput: TypeAlias = ComparisonSummary
+SensitivityInput: TypeAlias = RAGSensitivityReport
+GraphSourceT = TypeVar("GraphSourceT", bound=BaseModel)
 
 DEFAULT_GRAPH_LIMITATIONS = (
     "The graph is a deterministic projection of the supplied privacy-filtered artifacts; "
@@ -63,6 +76,7 @@ def build_evidence_graph(
     subject: EvidenceGraphSubjectPayload,
     evaluation: EvaluationInput | None = None,
     comparison: ComparisonInput | None = None,
+    evidence_sensitivity: SensitivityInput | None = None,
     mutation_results: tuple[AssuranceMutationResult, ...] = (),
     control_efficacy: ControlEfficacyReport | None = None,
     gate_profile: ControlEfficacyGateProfile | None = None,
@@ -74,13 +88,63 @@ def build_evidence_graph(
     Source semantic states are retained in graph payloads. Edges summarize those
     states but never rewrite them through a gate profile.
     """
-    if evaluation is not None and not isinstance(evaluation, EvaluationSummary):
-        raise TypeError("graph evaluation input must be an EvaluationSummary")
-    if comparison is not None and not isinstance(comparison, ComparisonSummary):
-        raise TypeError("graph comparison input must be a ComparisonSummary")
+    # Pydantic's model_copy(update=...) intentionally skips validation. Reparse
+    # every typed input at this public trust boundary before consuming identity,
+    # semantic-state, policy, or digest fields.
+    subject = _revalidate_graph_source(
+        subject,
+        EvidenceGraphSubjectPayload,
+        label="subject",
+    )
+    if evaluation is not None:
+        evaluation = _revalidate_graph_source(
+            evaluation,
+            EvaluationSummary,
+            label="evaluation",
+        )
+    if comparison is not None:
+        comparison = _revalidate_graph_source(
+            comparison,
+            ComparisonSummary,
+            label="comparison",
+        )
+    if evidence_sensitivity is not None:
+        evidence_sensitivity = _revalidate_graph_source(
+            evidence_sensitivity,
+            RAGSensitivityReport,
+            label="evidence-sensitivity",
+        )
+    mutation_results = tuple(
+        _revalidate_graph_source(
+            result,
+            AssuranceMutationResult,
+            label=f"mutation result {index}",
+        )
+        for index, result in enumerate(mutation_results)
+    )
+    if control_efficacy is not None:
+        control_efficacy = _revalidate_graph_source(
+            control_efficacy,
+            ControlEfficacyReport,
+            label="control-efficacy",
+        )
+    if gate_profile is not None:
+        gate_profile = _revalidate_graph_source(
+            gate_profile,
+            ControlEfficacyGateProfile,
+            label="gate-profile",
+        )
+    if gate_decision is not None:
+        gate_decision = _revalidate_graph_source(
+            gate_decision,
+            ControlEfficacyGateDecision,
+            label="gate-decision",
+        )
     _validate_subject_digest_coherence(
         subject,
         evaluation=evaluation,
+        comparison=comparison,
+        evidence_sensitivity=evidence_sensitivity,
         mutation_results=mutation_results,
         control_efficacy=control_efficacy,
     )
@@ -88,6 +152,7 @@ def build_evidence_graph(
         subject,
         evaluation=evaluation,
         comparison=comparison,
+        evidence_sensitivity=evidence_sensitivity,
         mutation_results=mutation_results,
         control_efficacy=control_efficacy,
         gate_profile=gate_profile,
@@ -103,7 +168,13 @@ def build_evidence_graph(
     if evaluation is not None:
         _project_evaluation(graph, primary_subject_id, evaluation)
     if comparison is not None:
-        _project_comparison(graph, primary_subject_id, comparison)
+        _project_comparison(graph, comparison)
+    if evidence_sensitivity is not None:
+        _project_evidence_sensitivity(
+            graph,
+            primary_subject_id,
+            evidence_sensitivity,
+        )
     for result in mutation_results:
         mutation_subject_id = _source_evidence_subject_id(
             graph,
@@ -234,6 +305,17 @@ def legacy_packet_compatibility_manifest() -> EvidenceGraphCompatibilityManifest
         ),
     )
     return EvidenceGraphCompatibilityManifest(fields=fields)
+
+
+def _revalidate_graph_source(
+    value: object,
+    model: type[GraphSourceT],
+    *,
+    label: str,
+) -> GraphSourceT:
+    if not isinstance(value, model):
+        raise TypeError(f"graph {label} input must be a {model.__name__}")
+    return model.model_validate(value.model_dump(mode="json", warnings="error"))
 
 
 @dataclass
@@ -386,14 +468,21 @@ def _project_evaluation_finding(
 
 def _project_comparison(
     graph: _GraphAccumulator,
-    subject_id: str,
     value: ComparisonInput,
 ) -> None:
     summary = value
+    candidate_subject_id = graph.add_node(
+        EvidenceGraphNodeKind.subject,
+        EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=summary.candidate_runset_id,
+            subject_digest=summary.candidate_runset_digest,
+        ),
+    )
     baseline_payload = EvidenceGraphSubjectPayload(
         subject_type="run_set",
         subject_id=summary.baseline_runset_id,
-        subject_digest=None,
+        subject_digest=summary.baseline_runset_digest,
     )
     graph.add_node(
         EvidenceGraphNodeKind.subject,
@@ -423,15 +512,15 @@ def _project_comparison(
                 ("candidate_subject", summary.candidate_runset_id),
             ),
         ),
-        subject_node_id=subject_id,
+        subject_node_id=candidate_subject_id,
     )
     requirement_id = _add_requirement(
         graph,
-        subject_id,
+        candidate_subject_id,
         EvidenceGraphRequirementType.comparison,
         "candidate-comparison-acceptability",
     )
-    graph.add_edge(EvidenceGraphEdgeKind.scoped_to, evidence_id, subject_id)
+    graph.add_edge(EvidenceGraphEdgeKind.scoped_to, evidence_id, candidate_subject_id)
     _add_semantic_edge(graph, state, evidence_id, requirement_id)
     for index, message in enumerate(summary.verdict_findings):
         finding_id = graph.add_node(
@@ -450,10 +539,17 @@ def _project_comparison(
                 ),
                 messages=(message,),
             ),
-            subject_node_id=subject_id,
+            subject_node_id=candidate_subject_id,
             parent_evidence_node_id=evidence_id,
         )
-        _link_finding(graph, finding_id, evidence_id, requirement_id, subject_id, state)
+        _link_finding(
+            graph,
+            finding_id,
+            evidence_id,
+            requirement_id,
+            candidate_subject_id,
+            state,
+        )
     for index, message in enumerate(summary.provenance_changes):
         finding_id = graph.add_node(
             EvidenceGraphNodeKind.finding,
@@ -466,11 +562,124 @@ def _project_comparison(
                 verdict_bearing=False,
                 messages=(message,),
             ),
-            subject_node_id=subject_id,
+            subject_node_id=candidate_subject_id,
             parent_evidence_node_id=evidence_id,
         )
         graph.add_edge(EvidenceGraphEdgeKind.derived_from, finding_id, evidence_id)
-        graph.add_edge(EvidenceGraphEdgeKind.scoped_to, finding_id, subject_id)
+        graph.add_edge(EvidenceGraphEdgeKind.scoped_to, finding_id, candidate_subject_id)
+
+
+def _project_evidence_sensitivity(
+    graph: _GraphAccumulator,
+    subject_id: str,
+    report: SensitivityInput,
+) -> None:
+    baseline = report.baseline_arm
+    counterfactual = report.counterfactual_arm
+    graph.add_node(
+        EvidenceGraphNodeKind.subject,
+        EvidenceGraphSubjectPayload(
+            subject_type="run_set",
+            subject_id=baseline.runset_id,
+            subject_digest=baseline.runset_digest,
+        ),
+    )
+    state = _evidence_sensitivity_state(report.state)
+    evidence_id = graph.add_node(
+        EvidenceGraphNodeKind.evidence,
+        EvidenceGraphEvidencePayload(
+            evidence_type=EvidenceGraphEvidenceType.evidence_sensitivity,
+            source_artifact_kind=report.artifact_kind,
+            source_id=report.report_id,
+            source_digest=report.report_digest,
+            state=state,
+            verdict_bearing=report.verdict_bearing,
+            evidence_sensitivity_projection=EvidenceGraphSensitivityProjection(
+                state=report.state,
+                gate_effect=report.gate_effect,
+                endpoint=report.endpoint,
+                endpoint_value=report.endpoint_value,
+                expected_relation=report.expected_relation,
+                observed_relation=report.observed_relation,
+                outcome_classification=report.outcome_classification,
+                baseline_expected_decision=baseline.expected_decision,
+                counterfactual_expected_decision=counterfactual.expected_decision,
+                baseline_observed_decision=baseline.decision,
+                counterfactual_observed_decision=counterfactual.decision,
+                deterministic=report.deterministic,
+                detector_test_status=report.detector_test_status,
+                subject_execution_scope=report.subject_execution_scope,
+                provenance_binding=report.provenance_binding,
+                synthetic_data_provenance=report.synthetic_data_provenance,
+                synthetic_data_attestation_digest=(
+                    report.protocol.synthetic_data_attestation_digest
+                ),
+                raw_content_persistence=report.raw_content_persistence,
+                claim_scope=report.claim_scope,
+                population_claim=report.population_claim,
+                protocol_digest=report.protocol.protocol_digest,
+                knowledge_contract_digest=(report.authority_contract.knowledge_contract_digest),
+                baseline_runset_id=baseline.runset_id,
+                baseline_runset_digest=baseline.runset_digest,
+                counterfactual_runset_id=counterfactual.runset_id,
+                counterfactual_runset_digest=counterfactual.runset_digest,
+                decision_inertia_detected=report.decision_inertia_finding.detected,
+                reason_codes=report.reason_codes,
+            ),
+            references=_references(
+                ("baseline_subject", baseline.runset_id),
+                ("candidate_subject", counterfactual.runset_id),
+            ),
+            limitations=report.limitations,
+        ),
+        subject_node_id=subject_id,
+    )
+    requirement_id = _add_requirement(
+        graph,
+        subject_id,
+        EvidenceGraphRequirementType.expected_decision_response,
+        (f"expected-decision-response:{report.authority_contract.knowledge_contract_digest}"),
+        references=_references(
+            ("baseline_subject", baseline.runset_id),
+            ("candidate_subject", counterfactual.runset_id),
+        ),
+    )
+    graph.add_edge(EvidenceGraphEdgeKind.scoped_to, evidence_id, subject_id)
+    _add_semantic_edge(graph, state, evidence_id, requirement_id)
+    outcome_id = graph.add_node(
+        EvidenceGraphNodeKind.finding,
+        EvidenceGraphFindingPayload(
+            finding_type=EvidenceGraphFindingType.evidence_sensitivity_outcome,
+            source_artifact_kind=report.artifact_kind,
+            source_id=f"{report.report_id}:outcome",
+            source_path="/outcome_classification",
+            state=state,
+            verdict_bearing=report.verdict_bearing,
+            reason_codes=tuple(item.value for item in report.reason_codes),
+            references=_references(
+                ("baseline_subject", baseline.runset_id),
+                ("candidate_subject", counterfactual.runset_id),
+            ),
+            messages=(report.outcome_message,),
+        ),
+        subject_node_id=subject_id,
+        parent_evidence_node_id=evidence_id,
+    )
+    _link_finding(
+        graph,
+        outcome_id,
+        evidence_id,
+        requirement_id,
+        subject_id,
+        state,
+    )
+    _project_limitations(
+        graph,
+        subject_id,
+        evidence_id,
+        source_artifact_kind=report.artifact_kind,
+        limitations=report.limitations,
+    )
 
 
 def _project_mutation_result(
@@ -997,16 +1206,44 @@ def _validate_subject_digest_coherence(
     subject: EvidenceGraphSubjectPayload,
     *,
     evaluation: EvaluationInput | None,
+    comparison: ComparisonInput | None,
+    evidence_sensitivity: SensitivityInput | None,
     mutation_results: tuple[AssuranceMutationResult, ...],
     control_efficacy: ControlEfficacyReport | None,
 ) -> None:
     evaluation_digest = evaluation.runset_digest if evaluation is not None else None
     if evaluation_digest is not None and subject.subject_digest != evaluation_digest:
         raise ValueError("graph subject digest does not match evaluation runset digest")
+    comparison_digest = comparison.candidate_runset_digest if comparison is not None else None
+    if (
+        comparison_digest is not None
+        and evaluation_digest is not None
+        and comparison_digest != evaluation_digest
+    ):
+        raise ValueError(
+            "comparison candidate_runset_digest does not match evaluation runset digest"
+        )
+    if (
+        comparison_digest is not None
+        and subject.subject_digest is not None
+        and comparison_digest != subject.subject_digest
+    ):
+        raise ValueError("comparison candidate_runset_digest does not match graph subject digest")
+    sensitivity_digest = (
+        evidence_sensitivity.counterfactual_arm.runset_digest
+        if evidence_sensitivity is not None
+        else None
+    )
+    if sensitivity_digest is not None and subject.subject_digest != sensitivity_digest:
+        raise ValueError(
+            "graph subject digest does not match sensitivity counterfactual runset digest"
+        )
     digests = {
         digest
         for digest in (
             evaluation_digest,
+            comparison_digest,
+            sensitivity_digest,
             *(result.source_digest for result in mutation_results),
             *((control_efficacy.source_digest,) if control_efficacy is not None else ()),
         )
@@ -1050,6 +1287,7 @@ def _validate_source_coherence(
     *,
     evaluation: EvaluationInput | None,
     comparison: ComparisonInput | None,
+    evidence_sensitivity: SensitivityInput | None,
     mutation_results: tuple[AssuranceMutationResult, ...],
     control_efficacy: ControlEfficacyReport | None,
     gate_profile: ControlEfficacyGateProfile | None,
@@ -1061,6 +1299,7 @@ def _validate_source_coherence(
             (
                 evaluation is not None,
                 comparison is not None,
+                evidence_sensitivity is not None,
                 bool(mutation_results),
                 control_efficacy is not None,
                 gate_profile is not None,
@@ -1085,6 +1324,51 @@ def _validate_source_coherence(
             raise ValueError("graph comparison candidate_runset_id must be non-empty")
         if comparison.candidate_runset_id != subject.subject_id:
             raise ValueError("comparison candidate_runset_id does not match the graph subject")
+    if evidence_sensitivity is not None:
+        baseline = evidence_sensitivity.baseline_arm
+        counterfactual = evidence_sensitivity.counterfactual_arm
+        if counterfactual.runset_id != subject.subject_id:
+            raise ValueError(
+                "sensitivity counterfactual runset_id does not match the graph subject"
+            )
+        if (
+            baseline.runset_id,
+            baseline.runset_digest,
+        ) == (
+            counterfactual.runset_id,
+            counterfactual.runset_digest,
+        ):
+            raise ValueError("sensitivity graph arms must have distinct run-set identities")
+        if comparison is not None and (
+            comparison.baseline_runset_id,
+            comparison.candidate_runset_id,
+        ) != (
+            baseline.runset_id,
+            counterfactual.runset_id,
+        ):
+            raise ValueError("sensitivity graph arms must match the comparison run-set identities")
+        if comparison is not None:
+            comparison_error = sensitivity_comparison_binding_error(
+                comparison,
+                evidence_sensitivity,
+            )
+            if comparison_error is not None:
+                raise ValueError(comparison_error)
+        if evaluation is not None and _model_digest(evaluation) != (
+            counterfactual.evaluation_summary_digest
+        ):
+            raise ValueError(
+                "graph evaluation canonical digest does not match the sensitivity "
+                "counterfactual evaluation digest"
+            )
+    if evaluation is not None and comparison is not None:
+        comparison_evaluation_error = comparison_evaluation_binding_error(
+            comparison,
+            evaluation,
+            role="candidate",
+        )
+        if comparison_evaluation_error is not None:
+            raise ValueError(comparison_evaluation_error)
     mutation_identities = tuple(_mutation_identity(result) for result in mutation_results)
     mutation_identity_keys = tuple(tuple(identity.items()) for identity in mutation_identities)
     if len(set(mutation_identity_keys)) != len(mutation_identity_keys):
@@ -1256,6 +1540,22 @@ def _comparison_state(summary: ComparisonSummary) -> EvidenceState:
             | ComparisonClassification.provenance_only_change
         ):
             return _gate_state(summary.candidate_state)
+        case _ as unreachable:
+            assert_never(unreachable)
+
+
+def _evidence_sensitivity_state(
+    state: EvidenceSensitivityState,
+) -> EvidenceState:
+    match state:
+        case EvidenceSensitivityState.responsive:
+            return EvidenceState.supported
+        case EvidenceSensitivityState.evidence_insensitive:
+            return EvidenceState.violated
+        case EvidenceSensitivityState.confounded:
+            return EvidenceState.inconclusive
+        case EvidenceSensitivityState.prerequisites_unmet:
+            return EvidenceState.prerequisites_unmet
         case _ as unreachable:
             assert_never(unreachable)
 

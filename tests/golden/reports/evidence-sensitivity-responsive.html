@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Controlled Evidence Sensitivity</title>
+  <style>
+    :root { --ink:#172033; --muted:#5c667a; --line:#d9deea; --panel:#f7f8fb;
+      --pass:#16784a; --fail:#b42318; --invalid:#805400; }
+    body { margin:0; color:var(--ink); font:15px/1.55 system-ui,sans-serif; }
+    main { max-width:1120px; margin:auto; padding:36px 24px 64px; }
+    h1 { margin:0 0 8px; font-size:32px; } h2 { margin-top:34px; }
+    .lede { color:var(--muted); max-width:850px; }
+    .status { border-left:6px solid currentColor; background:var(--panel); padding:18px 20px;
+      margin:24px 0; } .status.pass { color:var(--pass); }
+    .status.fail { color:var(--fail); } .status.invalid { color:var(--invalid); }
+    .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px; }
+    .card { border:1px solid var(--line); border-radius:10px; padding:16px; }
+    table { width:100%; border-collapse:collapse; display:block; overflow-x:auto; }
+    th,td { border-bottom:1px solid var(--line); padding:9px 10px; text-align:left; }
+    code { overflow-wrap:anywhere; }
+  </style>
+</head>
+<body><main>
+  <h1>Controlled Evidence Sensitivity</h1>
+  <p class="lede">Synthetic detector contract test. This report measures a declared controlled
+  evidence-response relation. It is not a causal guarantee and does not estimate real-model
+  failure prevalence.</p>
+  <p class="lede"><strong>Scope limit:</strong> Synthetic declarative fixture harness/oracle only; this result does not show that a model used contextual evidence instead of parametric memory.</p>
+  <section class="status pass">
+    <strong>responsive</strong> · gate pass · endpoint
+    true<br>
+    <strong>expected_response_observed</strong>:
+    Expected decisions (baseline -&gt; counterfactual): approve -&gt; deny; observed decisions: approve -&gt; deny. The expected governing-evidence response was observed in both arms.<br>
+    Relation category: expected decision_flip; observed
+    decision_flip.
+  </section>
+  <div class="grid">
+    <section class="card"><h2>Baseline</h2><p>Observed: <strong>approve/approved</strong><br>Expected: <strong>approve/approved</strong><br>Expected match: true</p><p>Retrieved: true<br>Governing support: true<br>Evidence link: true</p><p><code>f1d680df273c0189a9c78a1c6246d02e07ab7b52f14285b788ed79f5f601d551</code></p></section>
+    <section class="card"><h2>Counterfactual</h2><p>Observed: <strong>deny/denied</strong><br>Expected: <strong>deny/denied</strong><br>Expected match: true</p><p>Retrieved: true<br>Governing support: true<br>Evidence link: true</p><p><code>d8e26f1502ae20fc4de4bee2d799bfb1f763d8fa7eaea2852cbd193f7350137e</code></p></section>
+  </div>
+  <h2>Detector contract</h2>
+  <ul>
+    <li>Endpoint: <code>expected_decision_response</code></li>
+    <li>Detector status: <code>synthetic_detector_contract_test</code></li>
+    <li>Subject execution scope:
+      <code>declarative_fixture_harness_not_model_evidence_use</code></li>
+    <li>Provenance binding: <code>fixture_declared_unverified_digests</code></li>
+    <li>Synthetic data provenance:
+      <code>bundled_digest_verified</code></li>
+    <li>Synthetic data attestation digest:
+      <code>not_applicable</code></li>
+    <li>Raw content persistence:
+      <code>exact_corpus_and_fixture_utf8_embedded</code></li>
+    <li>Deterministic: <code>true</code></li>
+    <li>Decision inertia detected:
+      <code>false</code></li>
+    <li>Reason codes: <code>none</code></li>
+    <li>Protocol digest: <code>21ef0f65fafa82a6fbd6f5f20449fdcb54373556f16d74c3d278987dbc710e07</code></li>
+    <li>Authority contract:
+      <code>43c6f8258181292c8cb32dd5bcad76f6c7bfd97b95fceb339fbc2ad9bb9d0e57</code></li>
+  </ul>
+  <h2>Controlled-difference manifest</h2>
+  <p><code>protocol_fixed</code> rows are structural protocol controls.
+  <code>arm_observed</code> rows are independently derived from each corpus arm and carry
+  the discriminating evidence.</p>
+  <table><thead><tr><th>Dimension</th><th>Basis</th><th>Baseline</th><th>Counterfactual</th>
+    <th>Contract</th><th>State</th></tr></thead><tbody><tr><td><code>agent_implementation_digest</code></td><td><code>protocol_fixed</code></td><td><code>3678ca2dc87bd9ed4306af91b4c7e22e12d8f63044a4544bff10d817fe65965c</code></td><td><code>3678ca2dc87bd9ed4306af91b4c7e22e12d8f63044a4544bff10d817fe65965c</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>corpus_digest</code></td><td><code>arm_observed</code></td><td><code>f1d680df273c0189a9c78a1c6246d02e07ab7b52f14285b788ed79f5f601d551</code></td><td><code>d8e26f1502ae20fc4de4bee2d799bfb1f763d8fa7eaea2852cbd193f7350137e</code></td><td>different</td><td>expected_difference</td></tr><tr><td><code>corpus_document_catalog_digest</code></td><td><code>arm_observed</code></td><td><code>df06ee8bf96869705e857b27659df0029f6e5d6d9984960ff3ca93f134854bcb</code></td><td><code>df06ee8bf96869705e857b27659df0029f6e5d6d9984960ff3ca93f134854bcb</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>deterministic_subject</code></td><td><code>protocol_fixed</code></td><td><code>true</code></td><td><code>true</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>fixture_manifest_digest</code></td><td><code>protocol_fixed</code></td><td><code>f11528e38cc17afc6e9d726666d324fb8baca4311369c57cd0737caaafc2ba4a</code></td><td><code>f11528e38cc17afc6e9d726666d324fb8baca4311369c57cd0737caaafc2ba4a</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>governing_evidence_digest</code></td><td><code>arm_observed</code></td><td><code>39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13</code></td><td><code>0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6</code></td><td>different</td><td>expected_difference</td></tr><tr><td><code>governing_retrieval_identity_digest</code></td><td><code>arm_observed</code></td><td><code>dafa54ea76f884dabf884e1ac39f76763168404201103a0f7b050d3d7d3c22e3</code></td><td><code>dafa54ea76f884dabf884e1ac39f76763168404201103a0f7b050d3d7d3c22e3</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>knowledge_contract_digest</code></td><td><code>protocol_fixed</code></td><td><code>43c6f8258181292c8cb32dd5bcad76f6c7bfd97b95fceb339fbc2ad9bb9d0e57</code></td><td><code>43c6f8258181292c8cb32dd5bcad76f6c7bfd97b95fceb339fbc2ad9bb9d0e57</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>model_digest</code></td><td><code>protocol_fixed</code></td><td><code>bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c</code></td><td><code>bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>non_governing_evidence_digest</code></td><td><code>arm_observed</code></td><td><code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code></td><td><code>4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>prompt_template_digest</code></td><td><code>protocol_fixed</code></td><td><code>fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9</code></td><td><code>fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>producer_version</code></td><td><code>protocol_fixed</code></td><td><code>0.6.4rc1</code></td><td><code>0.6.4rc1</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>query_digest</code></td><td><code>protocol_fixed</code></td><td><code>81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d</code></td><td><code>81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>query_family_id</code></td><td><code>arm_observed</code></td><td><code>synthetic-benefit-eligibility</code></td><td><code>synthetic-benefit-eligibility</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>request_digest</code></td><td><code>protocol_fixed</code></td><td><code>8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e</code></td><td><code>8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>retrieval_algorithm</code></td><td><code>arm_observed</code></td><td><code>deterministic-term-overlap@1.0.0</code></td><td><code>deterministic-term-overlap@1.0.0</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>retrieval_top_k</code></td><td><code>arm_observed</code></td><td><code>1</code></td><td><code>1</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>subject_configuration_digest</code></td><td><code>protocol_fixed</code></td><td><code>3d006eed7d9755fde1d5ef469d910a1df4b4ca0fcaebeddae035802fb3339835</code></td><td><code>3d006eed7d9755fde1d5ef469d910a1df4b4ca0fcaebeddae035802fb3339835</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>suite_digest</code></td><td><code>protocol_fixed</code></td><td><code>b882eb5ac21179312b40e6e438b9e1aedeecef0ffac2d3d942b88a053c5ee20a</code></td><td><code>b882eb5ac21179312b40e6e438b9e1aedeecef0ffac2d3d942b88a053c5ee20a</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>tool_configuration_digest</code></td><td><code>protocol_fixed</code></td><td><code>e58a15c3e6d3b530e0149b393001ba9536a068d70aeade5dacdb868ca5c38d07</code></td><td><code>e58a15c3e6d3b530e0149b393001ba9536a068d70aeade5dacdb868ca5c38d07</code></td><td>equal</td><td>controlled</td></tr><tr><td><code>tool_schema_digest</code></td><td><code>protocol_fixed</code></td><td><code>ab72f2449da6de27489c10fe35c6bc5e6431d3cede8f13eff0e769dfe52dc498</code></td><td><code>ab72f2449da6de27489c10fe35c6bc5e6431d3cede8f13eff0e769dfe52dc498</code></td><td>equal</td><td>controlled</td></tr></tbody></table>
+  <h2>Prerequisites</h2>
+  <table><thead><tr><th>Check</th><th>State</th><th>Reason</th></tr></thead>
+    <tbody><tr><td><code>arm-evaluations-pass</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>authority-contract-valid</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>comparable-decision-output</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>controlled-differences-only</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>deterministic-subject</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>evidence-links-present-both-arms</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>fixture-identity-bound</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>governing-evidence-supported-both-arms</code></td><td>satisfied</td><td>none</td></tr><tr><td><code>retrieval-succeeded-both-arms</code></td><td>satisfied</td><td>none</td></tr></tbody></table>
+  <h2>Assumptions</h2><ul><li>The knowledge-authority contract correctly declares which contextual evidence governs the synthetic task.</li><li>The committed fixture subject and lexical retriever are deterministic contract-test components, not measurements of a hosted model.</li></ul>
+  <h2>Limitations</h2><ul><li>This deterministic synthetic detector contract test does not estimate real-model prevalence.</li><li>Controlled evidence sensitivity is an observed response relation under declared conditions, not a causal guarantee.</li><li>Synthetic declarative fixture harness/oracle only; this result does not show that a model used contextual evidence instead of parametric memory.</li><li>Agent implementation, prompt, model, and tool-schema digests are fixture-declared identifiers; this protocol does not verify them against implementation, prompt, model, or tool-schema bytes.</li><li>Exact raw corpus and fixture UTF-8 is embedded verbatim in reports and packets; bundled synthetic status is digest-verified, while custom synthetic status is operator-attested and not semantically verified.</li><li>Synthetic fixture outputs do not estimate evidence-insensitivity prevalence in real models.</li></ul>
+</main></body></html>

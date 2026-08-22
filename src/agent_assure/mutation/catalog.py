@@ -154,6 +154,7 @@ _FROZEN_RUNSET_SCHEMA_PATHS = tuple(
         "0.6.0",
         "0.6.1",
         "0.6.2",
+        "0.6.3",
     )
 )
 
@@ -297,7 +298,14 @@ def _registered_operator(
     descriptor = AssuranceMutationOperator.build(
         operator_id=operator_id,
         operator_version=operator_version,
-        compatible_schema_versions=("0.5.0", "0.6.0", "0.6.1", "0.6.2", "0.6.3"),
+        compatible_schema_versions=(
+            "0.5.0",
+            "0.6.0",
+            "0.6.1",
+            "0.6.2",
+            "0.6.3",
+            "0.6.4",
+        ),
         preconditions=preconditions,
         permitted_changed_paths=tuple(sorted(permitted_changed_paths)),
         privacy_classification=privacy_classification,

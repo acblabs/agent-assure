@@ -1,0 +1,6 @@
+{
+  "claim_id": "claim-benefit-eligibility",
+  "query": "Should this synthetic benefit request be approved or denied under the governing policy?",
+  "query_family_id": "synthetic-benefit-eligibility",
+  "request_id": "request-synthetic-benefit-001"
+}

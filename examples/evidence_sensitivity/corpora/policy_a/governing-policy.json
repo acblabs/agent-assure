@@ -1,0 +1,14 @@
+{
+  "governing_decision": "approve",
+  "governing_outcome": "approved",
+  "ref_id": "ref-governing-benefit-policy",
+  "retrieval_terms": [
+    "benefit",
+    "governing",
+    "policy",
+    "synthetic"
+  ],
+  "safe_summary": "Synthetic Policy A authoritatively requires approval for this query family.",
+  "source_id": "synthetic-benefit-governing-policy",
+  "title": "Synthetic Benefit Policy A"
+}

@@ -16,6 +16,7 @@ from agent_assure.cli import (
     live_cmd,
     otel_cmd,
     packet_cmd,
+    rag_cmd,
     release_cmd,
     schema_cmd,
     stream_cmd,
@@ -38,6 +39,7 @@ app.command("ci")(ci_cmd.ci)
 app.add_typer(controls_cmd.app, name="controls")
 app.add_typer(live_cmd.app, name="live")
 app.add_typer(packet_cmd.app, name="packet")
+app.add_typer(rag_cmd.app, name="rag")
 app.add_typer(release_cmd.app, name="release")
 app.add_typer(otel_cmd.app, name="otel")
 app.add_typer(stream_cmd.app, name="stream")

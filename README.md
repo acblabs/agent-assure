@@ -61,7 +61,11 @@ release expectation regresses:
 
 - **Evidence and RAG support:** a required source or material claim-to-evidence
   link disappears, or declared corpus and retrieval identity changes. Example:
-  `MATERIAL_CLAIM_MISSING_EVIDENCE → new_failure`.
+  `MATERIAL_CLAIM_MISSING_EVIDENCE → new_failure`. The development surface
+  also includes an authority-scoped, deterministic
+  [controlled evidence-sensitivity contract](docs/evidence_sensitivity.md).
+  Its v1 producer is a declarative synthetic fixture harness, not evidence that
+  a model used contextual evidence instead of parametric memory.
 - **Human review:** a required route or performed-review record is missing.
 - **Provider, tool, and privacy boundaries:** a forbidden provider or tool
   appears, or declared route, redaction state, or detector identity changes.
@@ -325,7 +329,7 @@ links for the material claims they intend to satisfy.
 <summary><strong>GitHub Actions example using the bundled fixture</strong></summary>
 
 Pin both the package and composite action in release workflows. The example
-uses the latest published tag, v0.6.3; move both pins together only after a
+uses the latest published tag, v0.6.4; move both pins together only after a
 newer tag is published. Replace the example suite and variant paths with your
 own controlled materials.
 
@@ -341,8 +345,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.6.3
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.3
+      - run: python -m pip install agent-assure==0.6.4
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.4
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -363,7 +367,7 @@ days.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.3`).**
+**Current maturity: Release Candidate (RC, `v0.6.4`).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.

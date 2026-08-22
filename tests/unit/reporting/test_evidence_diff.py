@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from agent_assure.evaluation.evaluator import runset_digest
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting.evidence_diff_html import render_evidence_diff_html
 from agent_assure.schema.common import ComparisonClassification, GateState
@@ -25,12 +26,14 @@ def test_evidence_diff_marks_missing_candidate_case_as_changed() -> None:
         candidate=candidate,
         baseline_summary=EvaluationSummary(
             runset_id="baseline",
+            runset_digest=runset_digest(baseline),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
         ),
         candidate_summary=EvaluationSummary(
             runset_id="candidate",
+            runset_digest=runset_digest(candidate),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -38,6 +41,8 @@ def test_evidence_diff_marks_missing_candidate_case_as_changed() -> None:
         comparison_summary=ComparisonSummary(
             baseline_runset_id="baseline",
             candidate_runset_id="candidate",
+            baseline_runset_digest=runset_digest(baseline),
+            candidate_runset_digest=runset_digest(candidate),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             classification=ComparisonClassification.not_evaluated,

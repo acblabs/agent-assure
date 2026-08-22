@@ -179,7 +179,7 @@ def build_release_manifest(
     }
     return ReleaseArtifactManifest(
         artifact_kind="release-artifact-manifest",
-        manifest_id=manifest_id or f"manifest-{sha256_hexdigest(payload)[:16]}",
+        manifest_id=manifest_id or f"manifest-h{sha256_hexdigest(payload)[:16]}",
         artifacts=artifacts,
         environment=environment,
     )

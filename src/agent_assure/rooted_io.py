@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import errno
 import hashlib
 import importlib
 import os
@@ -22,10 +23,32 @@ _WINDOWS_FILE_ATTRIBUTE_DIRECTORY = 0x0010
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 _WINDOWS_GENERIC_READ = 0x80000000
 _WINDOWS_FILE_SHARE_READ = 0x00000001
+_WINDOWS_FILE_SHARE_WRITE = 0x00000002
 _WINDOWS_OPEN_EXISTING = 3
 _WINDOWS_FILE_FLAG_OPEN_REPARSE_POINT = 0x00200000
 _WINDOWS_FILE_FLAG_BACKUP_SEMANTICS = 0x02000000
 _WINDOWS_FILE_FLAG_SEQUENTIAL_SCAN = 0x08000000
+_WINDOWS_DELETE = 0x00010000
+_WINDOWS_SYNCHRONIZE = 0x00100000
+_WINDOWS_FILE_READ_DATA = 0x00000001
+_WINDOWS_FILE_LIST_DIRECTORY = 0x00000001
+_WINDOWS_FILE_WRITE_DATA = 0x00000002
+_WINDOWS_FILE_ADD_FILE = 0x00000002
+_WINDOWS_FILE_ADD_SUBDIRECTORY = 0x00000004
+_WINDOWS_FILE_READ_ATTRIBUTES = 0x00000080
+_WINDOWS_FILE_WRITE_ATTRIBUTES = 0x00000100
+_WINDOWS_FILE_ATTRIBUTE_NORMAL = 0x00000080
+_WINDOWS_FILE_CREATE = 2
+_WINDOWS_FILE_OPEN = 1
+_WINDOWS_FILE_OPENED = 1
+_WINDOWS_FILE_CREATED = 2
+_WINDOWS_FILE_DIRECTORY_FILE = 0x00000001
+_WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT = 0x00000020
+_WINDOWS_FILE_NON_DIRECTORY_FILE = 0x00000040
+_WINDOWS_FILE_OPEN_REPARSE_POINT = 0x00200000
+_WINDOWS_OBJ_CASE_INSENSITIVE = 0x00000040
+_WINDOWS_FILE_DISPOSITION_INFORMATION = 4
+_WINDOWS_STATUS_OBJECT_NAME_COLLISION = 0xC0000035
 _WINDOWS_RESERVED_BASENAMES = frozenset(
     {
         "aux",
@@ -58,6 +81,38 @@ class _WindowsByHandleFileInformation(ctypes.Structure):
         ("file_index_high", wintypes.DWORD),
         ("file_index_low", wintypes.DWORD),
     )
+
+
+class _WindowsUnicodeString(ctypes.Structure):
+    _fields_ = (
+        ("length", wintypes.USHORT),
+        ("maximum_length", wintypes.USHORT),
+        ("buffer", wintypes.LPWSTR),
+    )
+
+
+class _WindowsObjectAttributes(ctypes.Structure):
+    _fields_ = (
+        ("length", wintypes.ULONG),
+        ("root_directory", wintypes.HANDLE),
+        ("object_name", ctypes.POINTER(_WindowsUnicodeString)),
+        ("attributes", wintypes.ULONG),
+        ("security_descriptor", wintypes.LPVOID),
+        ("security_quality_of_service", wintypes.LPVOID),
+    )
+
+
+class _WindowsIoStatusValue(ctypes.Union):
+    _fields_ = (("status", wintypes.LONG), ("pointer", wintypes.LPVOID))
+
+
+class _WindowsIoStatusBlock(ctypes.Structure):
+    _anonymous_ = ("value",)
+    _fields_ = (("value", _WindowsIoStatusValue), ("information", ctypes.c_size_t))
+
+
+class _WindowsFileDispositionInformation(ctypes.Structure):
+    _fields_ = (("delete_file", wintypes.BOOLEAN),)
 
 
 @dataclass(frozen=True)
@@ -183,6 +238,302 @@ class RootedDirectoryDescriptor:
                 _windows_close_handle(handle)
 
 
+class RootedDirectoryClaim:
+    """Exclusively created child directory pinned independently of its parent lease.
+
+    The claim owns duplicate parent and child pins. It never closes the parent
+    RootedDirectoryDescriptor, and file descriptors returned by
+    open_regular_file_exclusive belong to the caller.
+    """
+
+    def __init__(
+        self,
+        *,
+        path: Path,
+        name: str,
+        device: int,
+        inode: int,
+        descriptor: int | None = None,
+        parent_descriptor: int | None = None,
+        windows_handle: int | None = None,
+        windows_parent_handle: int | None = None,
+    ) -> None:
+        self.path = path
+        self.name = name
+        self.device = device
+        self.inode = inode
+        self._descriptor = descriptor
+        self._parent_descriptor = parent_descriptor
+        self._windows_handle = windows_handle
+        self._windows_parent_handle = windows_parent_handle
+        self._closed = False
+        self._removed = False
+
+    def __enter__(self) -> Self:
+        self._require_open()
+        return self
+
+    def __exit__(self, *_exc_info: object) -> None:
+        self.close()
+
+    @property
+    def closed(self) -> bool:
+        return self._closed
+
+    @property
+    def removed(self) -> bool:
+        return self._removed
+
+    def open_regular_file_exclusive(
+        self,
+        name: str | Path,
+        *,
+        mode: int = 0o600,
+    ) -> int:
+        """Create one regular file relative to the pinned claim and return O_RDWR fd."""
+        component = _portable_single_component(name, label="rooted output filename")
+        _validate_creation_mode(mode)
+        self._require_open()
+        if os.name == "nt":
+            return self._open_windows_regular_file_exclusive(component)
+        return self._open_posix_regular_file_exclusive(component, mode=mode)
+
+    def stat_entry_no_follow(self, name: str | Path) -> os.stat_result:
+        """Stat one entry relative to the pinned claim without following links."""
+        component = _portable_single_component(name, label="rooted output filename")
+        self._require_open()
+        if os.name == "nt":
+            handle = _windows_open_relative_handle(
+                self._require_windows_handle(),
+                component,
+                desired_access=_WINDOWS_FILE_READ_ATTRIBUTES | _WINDOWS_SYNCHRONIZE,
+                share_access=_WINDOWS_FILE_SHARE_READ | _WINDOWS_FILE_SHARE_WRITE,
+                create_disposition=_WINDOWS_FILE_OPEN,
+                create_options=(
+                    _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT | _WINDOWS_FILE_OPEN_REPARSE_POINT
+                ),
+                file_attributes=0,
+            )
+            try:
+                identity = _windows_handle_identity(handle)
+                _windows_require_not_reparse(identity, path=self.path / component)
+                return _windows_fstat_handle(handle)
+            finally:
+                _windows_close_handle(handle)
+        descriptor = self._require_posix_descriptor()
+        metadata = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+        _require_not_link(metadata, path=self.path / component)
+        return metadata
+
+    def unlink_entry_no_follow(
+        self,
+        name: str | Path,
+        *,
+        expected_device: int | None = None,
+        expected_inode: int | None = None,
+    ) -> None:
+        """Unlink one regular entry, optionally requiring its pinned identity."""
+        component = _portable_single_component(name, label="rooted output filename")
+        _validate_expected_identity(expected_device, expected_inode)
+        self._require_open()
+        path = self.path / component
+        if os.name == "nt":
+            handle = _windows_open_relative_handle(
+                self._require_windows_handle(),
+                component,
+                desired_access=(
+                    _WINDOWS_DELETE | _WINDOWS_FILE_READ_ATTRIBUTES | _WINDOWS_SYNCHRONIZE
+                ),
+                share_access=_WINDOWS_FILE_SHARE_READ | _WINDOWS_FILE_SHARE_WRITE,
+                create_disposition=_WINDOWS_FILE_OPEN,
+                create_options=(
+                    _WINDOWS_FILE_NON_DIRECTORY_FILE
+                    | _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT
+                    | _WINDOWS_FILE_OPEN_REPARSE_POINT
+                ),
+                file_attributes=0,
+            )
+            try:
+                identity = _windows_handle_identity(handle)
+                _windows_require_regular_file(identity, path=path, label="rooted output")
+                metadata = _windows_fstat_handle(handle)
+                _require_unlinked_regular_file(metadata, path=path)
+                _require_expected_entry_identity(
+                    metadata,
+                    expected_device=expected_device,
+                    expected_inode=expected_inode,
+                    path=path,
+                )
+                _windows_set_delete_disposition(handle, expected_identity=identity)
+            finally:
+                _windows_close_handle(handle)
+            return
+
+        descriptor = self._require_posix_descriptor()
+        metadata = os.stat(component, dir_fd=descriptor, follow_symlinks=False)
+        _require_unlinked_regular_file(metadata, path=path)
+        _require_expected_entry_identity(
+            metadata,
+            expected_device=expected_device,
+            expected_inode=expected_inode,
+            path=path,
+        )
+        os.unlink(component, dir_fd=descriptor)
+
+    def remove_empty(self) -> None:
+        """Remove the claimed directory and release the claim on success.
+
+        Failure is non-terminal: pins stay open so callers can inspect or retry
+        without silently losing the identity guarantee.
+        """
+        self._require_open()
+        if os.name == "nt":
+            handle = self._require_windows_handle()
+            identity = _windows_handle_identity(handle)
+            _windows_require_directory(identity, path=self.path, label="claimed directory")
+            if identity.file_index != self.inode:
+                raise OSError("claimed directory identity changed")
+            _windows_set_delete_disposition(handle, expected_identity=identity)
+        else:
+            descriptor = self._require_posix_descriptor()
+            parent_descriptor = self._require_posix_parent_descriptor()
+            opened = os.fstat(descriptor)
+            _require_directory(opened, path=self.path, label="claimed directory")
+            _require_claim_identity(
+                opened,
+                device=self.device,
+                inode=self.inode,
+                path=self.path,
+            )
+            current = os.stat(
+                self.name,
+                dir_fd=parent_descriptor,
+                follow_symlinks=False,
+            )
+            _require_directory(current, path=self.path, label="claimed directory")
+            _require_claim_identity(
+                current,
+                device=self.device,
+                inode=self.inode,
+                path=self.path,
+            )
+            os.rmdir(self.name, dir_fd=parent_descriptor)
+        self._removed = True
+        self.close()
+
+    def close(self) -> None:
+        if self._closed:
+            return
+        self._closed = True
+        try:
+            _close_descriptor(self._descriptor)
+            self._descriptor = None
+        finally:
+            try:
+                _close_descriptor(self._parent_descriptor)
+                self._parent_descriptor = None
+            finally:
+                try:
+                    _windows_close_handle(self._windows_handle)
+                    self._windows_handle = None
+                finally:
+                    _windows_close_handle(self._windows_parent_handle)
+                    self._windows_parent_handle = None
+
+    def _open_posix_regular_file_exclusive(self, name: str, *, mode: int) -> int:
+        descriptor = self._require_posix_descriptor()
+        flags = os.O_RDWR | os.O_CREAT | os.O_EXCL
+        flags |= getattr(os, "O_BINARY", 0)
+        flags |= getattr(os, "O_CLOEXEC", 0)
+        flags |= cast(int, vars(os)["O_NOFOLLOW"])
+        created_descriptor: int | None = None
+        try:
+            created_descriptor = os.open(name, flags, mode, dir_fd=descriptor)
+            metadata = os.fstat(created_descriptor)
+            _require_unlinked_regular_file(metadata, path=self.path / name)
+            result = created_descriptor
+            created_descriptor = None
+            return result
+        finally:
+            _close_descriptor(created_descriptor)
+
+    def _open_windows_regular_file_exclusive(self, name: str) -> int:
+        handle: int | None = None
+        descriptor: int | None = None
+        try:
+            handle = _windows_open_relative_handle(
+                self._require_windows_handle(),
+                name,
+                desired_access=(
+                    _WINDOWS_FILE_READ_DATA
+                    | _WINDOWS_FILE_WRITE_DATA
+                    | _WINDOWS_FILE_READ_ATTRIBUTES
+                    | _WINDOWS_FILE_WRITE_ATTRIBUTES
+                    | _WINDOWS_DELETE
+                    | _WINDOWS_SYNCHRONIZE
+                ),
+                share_access=_WINDOWS_FILE_SHARE_READ,
+                create_disposition=_WINDOWS_FILE_CREATE,
+                create_options=(
+                    _WINDOWS_FILE_NON_DIRECTORY_FILE
+                    | _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT
+                    | _WINDOWS_FILE_OPEN_REPARSE_POINT
+                ),
+                file_attributes=_WINDOWS_FILE_ATTRIBUTE_NORMAL,
+                require_created=True,
+            )
+            identity = _windows_handle_identity(handle)
+            _windows_require_regular_file(
+                identity,
+                path=self.path / name,
+                label="rooted output",
+            )
+            descriptor = _windows_handle_to_descriptor(
+                handle,
+                flags=os.O_RDWR | getattr(os, "O_BINARY", 0),
+            )
+            handle = None
+            metadata = os.fstat(descriptor)
+            _require_unlinked_regular_file(metadata, path=self.path / name)
+            result = descriptor
+            descriptor = None
+            return result
+        except BaseException:
+            if descriptor is not None:
+                try:
+                    _windows_set_descriptor_delete_disposition(descriptor)
+                except OSError:
+                    pass
+            elif handle is not None:
+                try:
+                    _windows_set_delete_disposition(handle)
+                except OSError:
+                    pass
+            raise
+        finally:
+            _close_descriptor(descriptor)
+            _windows_close_handle(handle)
+
+    def _require_open(self) -> None:
+        if self._closed:
+            raise ValueError("rooted directory claim is closed")
+
+    def _require_posix_descriptor(self) -> int:
+        if self._descriptor is None:
+            raise OSError("POSIX rooted directory claim descriptor is unavailable")
+        return self._descriptor
+
+    def _require_posix_parent_descriptor(self) -> int:
+        if self._parent_descriptor is None:
+            raise OSError("POSIX rooted directory parent descriptor is unavailable")
+        return self._parent_descriptor
+
+    def _require_windows_handle(self) -> int:
+        if self._windows_handle is None:
+            raise OSError("Windows rooted directory claim handle is unavailable")
+        return self._windows_handle
+
+
 def open_rooted_bounded_file(
     root: Path,
     relative_path: str | Path,
@@ -209,6 +560,184 @@ def open_rooted_directory(
     if os.name == "nt":
         return _open_windows_rooted_directory(root, parts, label=label)
     return _open_posix_rooted_directory(root, parts, label=label)
+
+
+def claim_rooted_directory(
+    parent: RootedDirectoryDescriptor,
+    name: str | Path,
+    *,
+    label: str,
+    mode: int = 0o700,
+) -> RootedDirectoryClaim:
+    """Atomically create and pin one child directory below a pinned parent."""
+    component = _portable_single_component(name, label=f"{label} name")
+    _validate_creation_mode(mode)
+    if parent.closed:
+        raise ValueError(f"{label} parent directory lease is closed")
+    if os.name == "nt":
+        return _claim_windows_rooted_directory(parent, component, label=label)
+    return _claim_posix_rooted_directory(parent, component, label=label, mode=mode)
+
+
+def _claim_posix_rooted_directory(
+    parent: RootedDirectoryDescriptor,
+    name: str,
+    *,
+    label: str,
+    mode: int,
+) -> RootedDirectoryClaim:
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise OSError("race-resistant rooted directory claims are unavailable on this platform")
+    if parent.descriptor is None:
+        raise OSError(f"{label} parent POSIX descriptor is unavailable")
+    parent_descriptor: int | None = None
+    child_descriptor: int | None = None
+    created_identity: os.stat_result | None = None
+    created = False
+    try:
+        parent_descriptor = os.dup(parent.descriptor)
+        parent_metadata = os.fstat(parent_descriptor)
+        _require_directory(parent_metadata, path=parent.path, label=f"{label} parent")
+        _require_claim_identity(
+            parent_metadata,
+            device=parent.device,
+            inode=parent.inode,
+            path=parent.path,
+        )
+        os.mkdir(name, mode=mode, dir_fd=parent_descriptor)
+        created = True
+        created_identity = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        _require_directory(created_identity, path=parent.path / name, label=label)
+        directory_flags = os.O_RDONLY | os.O_DIRECTORY
+        directory_flags |= cast(int, vars(os)["O_NOFOLLOW"])
+        directory_flags |= getattr(os, "O_CLOEXEC", 0)
+        directory_flags |= getattr(os, "O_NONBLOCK", 0)
+        child_descriptor = os.open(name, directory_flags, dir_fd=parent_descriptor)
+        opened = os.fstat(child_descriptor)
+        _require_directory(opened, path=parent.path / name, label=label)
+        _require_same_object(
+            created_identity,
+            opened,
+            path=parent.path / name,
+            label=label,
+        )
+        current = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+        _require_directory(current, path=parent.path / name, label=label)
+        _require_same_object(created_identity, current, path=parent.path / name, label=label)
+        result = RootedDirectoryClaim(
+            path=parent.path / name,
+            name=name,
+            device=opened.st_dev,
+            inode=opened.st_ino,
+            descriptor=child_descriptor,
+            parent_descriptor=parent_descriptor,
+        )
+        child_descriptor = None
+        parent_descriptor = None
+        return result
+    except BaseException as exc:
+        cleanup_error: OSError | None = None
+        if created and parent_descriptor is not None and created_identity is not None:
+            try:
+                current = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+                _require_directory(current, path=parent.path / name, label=label)
+                _require_same_object(
+                    created_identity,
+                    current,
+                    path=parent.path / name,
+                    label=label,
+                )
+                os.rmdir(name, dir_fd=parent_descriptor)
+            except OSError as cleanup_exc:
+                cleanup_error = cleanup_exc
+            except ValueError as cleanup_exc:
+                cleanup_error = OSError(str(cleanup_exc))
+        if cleanup_error is not None:
+            raise OSError(f"{label} claim failed and cleanup was incomplete") from exc
+        raise
+    finally:
+        _close_descriptor(child_descriptor)
+        _close_descriptor(parent_descriptor)
+
+
+def _claim_windows_rooted_directory(
+    parent: RootedDirectoryDescriptor,
+    name: str,
+    *,
+    label: str,
+) -> RootedDirectoryClaim:
+    if not parent._windows_directory_handles:
+        raise OSError(f"{label} parent Windows handle is unavailable")
+    source_handle = parent._windows_directory_handles[-1]
+    parent_handle: int | None = None
+    child_handle: int | None = None
+    created = False
+    try:
+        source_identity = _windows_handle_identity(source_handle)
+        _windows_require_directory(source_identity, path=parent.path, label=f"{label} parent")
+        if source_identity.file_index != parent.inode:
+            raise OSError(f"{label} parent identity changed")
+        parent_handle = _windows_reopen_directory_for_mutation(source_handle)
+        reopened_identity = _windows_handle_identity(parent_handle)
+        _windows_require_directory(reopened_identity, path=parent.path, label=f"{label} parent")
+        _windows_require_same_identity(
+            source_identity,
+            reopened_identity,
+            path=parent.path,
+            label=f"{label} parent",
+        )
+        child_handle = _windows_open_relative_handle(
+            parent_handle,
+            name,
+            desired_access=(
+                _WINDOWS_FILE_LIST_DIRECTORY
+                | _WINDOWS_FILE_ADD_FILE
+                | _WINDOWS_FILE_READ_ATTRIBUTES
+                | _WINDOWS_FILE_WRITE_ATTRIBUTES
+                | _WINDOWS_DELETE
+                | _WINDOWS_SYNCHRONIZE
+            ),
+            share_access=_WINDOWS_FILE_SHARE_READ | _WINDOWS_FILE_SHARE_WRITE,
+            create_disposition=_WINDOWS_FILE_CREATE,
+            create_options=(
+                _WINDOWS_FILE_DIRECTORY_FILE
+                | _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT
+                | _WINDOWS_FILE_OPEN_REPARSE_POINT
+            ),
+            file_attributes=_WINDOWS_FILE_ATTRIBUTE_DIRECTORY,
+            require_created=True,
+        )
+        created = True
+        identity = _windows_handle_identity(child_handle)
+        _windows_require_directory(identity, path=parent.path / name, label=label)
+        metadata = _windows_fstat_handle(child_handle)
+        _require_directory(metadata, path=parent.path / name, label=label)
+        if metadata.st_ino != identity.file_index:
+            raise OSError(f"{label} native and descriptor identities differ")
+        result = RootedDirectoryClaim(
+            path=parent.path / name,
+            name=name,
+            device=metadata.st_dev,
+            inode=metadata.st_ino,
+            windows_handle=child_handle,
+            windows_parent_handle=parent_handle,
+        )
+        child_handle = None
+        parent_handle = None
+        return result
+    except BaseException as exc:
+        cleanup_error: OSError | None = None
+        if created and child_handle is not None:
+            try:
+                _windows_set_delete_disposition(child_handle)
+            except OSError as cleanup_exc:
+                cleanup_error = cleanup_exc
+        if cleanup_error is not None:
+            raise OSError(f"{label} claim failed and cleanup was incomplete") from exc
+        raise
+    finally:
+        _windows_close_handle(child_handle)
+        _windows_close_handle(parent_handle)
 
 
 def _open_posix_rooted_directory(
@@ -708,6 +1237,16 @@ def portable_relative_path_parts(relative_path: str | Path) -> tuple[str, ...]:
     return tuple(raw_parts)
 
 
+def _portable_single_component(name: str | Path, *, label: str) -> str:
+    try:
+        parts = portable_relative_path_parts(name)
+    except ValueError as exc:
+        raise ValueError(f"{label} must be one portable path component") from exc
+    if len(parts) != 1:
+        raise ValueError(f"{label} must be one portable path component")
+    return parts[0]
+
+
 def _require_portable_windows_segment(segment: str) -> None:
     if segment.endswith((" ", ".")) or any(
         character in _WINDOWS_FORBIDDEN_NAME_CHARACTERS or ord(character) < 32
@@ -733,6 +1272,24 @@ def _validate_max_bytes(max_bytes: int) -> None:
         raise ValueError("maximum file size must be a non-negative integer")
 
 
+def _validate_creation_mode(mode: int) -> None:
+    if isinstance(mode, bool) or not isinstance(mode, int) or not 0 <= mode <= 0o777:
+        raise ValueError("creation mode must contain only portable permission bits")
+
+
+def _validate_expected_identity(
+    expected_device: int | None,
+    expected_inode: int | None,
+) -> None:
+    if (expected_device is None) != (expected_inode is None):
+        raise ValueError("expected entry device and inode must be supplied together")
+    for value in (expected_device, expected_inode):
+        if value is not None and (
+            isinstance(value, bool) or not isinstance(value, int) or value < 0
+        ):
+            raise ValueError("expected entry identity must contain non-negative integers")
+
+
 def _require_directory(metadata: os.stat_result, *, path: Path, label: str) -> None:
     attributes = getattr(metadata, "st_file_attributes", 0)
     if (
@@ -741,6 +1298,42 @@ def _require_directory(metadata: os.stat_result, *, path: Path, label: str) -> N
         or attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
     ):
         raise ValueError(f"{label} must be a directory without links: {path}")
+
+
+def _require_not_link(metadata: os.stat_result, *, path: Path) -> None:
+    attributes = getattr(metadata, "st_file_attributes", 0)
+    if stat.S_ISLNK(metadata.st_mode) or attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT:
+        raise ValueError(f"rooted output entry must not be a link or reparse point: {path}")
+
+
+def _require_unlinked_regular_file(metadata: os.stat_result, *, path: Path) -> None:
+    _require_not_link(metadata, path=path)
+    if not stat.S_ISREG(metadata.st_mode) or metadata.st_nlink != 1:
+        raise ValueError(f"rooted output entry must be a single-link regular file: {path}")
+
+
+def _require_expected_entry_identity(
+    metadata: os.stat_result,
+    *,
+    expected_device: int | None,
+    expected_inode: int | None,
+    path: Path,
+) -> None:
+    if expected_device is None or expected_inode is None:
+        return
+    if (metadata.st_dev, metadata.st_ino) != (expected_device, expected_inode):
+        raise OSError(f"rooted output entry identity changed: {path}")
+
+
+def _require_claim_identity(
+    metadata: os.stat_result,
+    *,
+    device: int,
+    inode: int,
+    path: Path,
+) -> None:
+    if (metadata.st_dev, metadata.st_ino) != (device, inode):
+        raise OSError(f"claimed directory identity changed: {path}")
 
 
 def _require_same_object(
@@ -759,6 +1352,200 @@ def _windows_kernel32() -> Any:
     if win_dll is None:
         raise OSError("Win32 handle APIs are unavailable")
     return win_dll("kernel32", use_last_error=True)
+
+
+def _windows_ntdll() -> Any:
+    win_dll = getattr(ctypes, "WinDLL", None)
+    if win_dll is None:
+        raise OSError("Windows native handle APIs are unavailable")
+    return win_dll("ntdll")
+
+
+def _windows_ntstatus_error(status: int) -> OSError:
+    unsigned_status = status & 0xFFFFFFFF
+    if unsigned_status == _WINDOWS_STATUS_OBJECT_NAME_COLLISION:
+        return FileExistsError(errno.EEXIST, "rooted entry already exists")
+    try:
+        ntdll = _windows_ntdll()
+        to_dos_error = getattr(ntdll, "RtlNtStatusToDosError", None)
+        if to_dos_error is None:
+            raise OSError("RtlNtStatusToDosError is unavailable")
+        to_dos_error.argtypes = (wintypes.LONG,)
+        to_dos_error.restype = wintypes.ULONG
+        error_code = int(to_dos_error(wintypes.LONG(status)))
+        if error_code in {0, 317}:  # ERROR_SUCCESS / ERROR_MR_MID_NOT_FOUND
+            raise OSError("NTSTATUS could not be mapped to a Win32 error")
+        win_error = cast(Callable[[int], OSError], vars(ctypes)["WinError"])
+        return win_error(error_code)
+    except (AttributeError, KeyError, OSError):
+        return OSError(
+            f"Windows native file operation failed with NTSTATUS 0x{unsigned_status:08x}"
+        )
+
+
+def _windows_reopen_directory_for_mutation(handle: int) -> int:
+    """Open mutation access while the source handle prevents path replacement."""
+    kernel32 = _windows_kernel32()
+    create_file = getattr(kernel32, "CreateFileW", None)
+    if create_file is None:
+        raise OSError("race-resistant Windows directory claims are unavailable")
+    create_file.argtypes = (
+        wintypes.LPCWSTR,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+        wintypes.DWORD,
+        wintypes.HANDLE,
+    )
+    create_file.restype = wintypes.HANDLE
+    source_identity = _windows_handle_identity(handle)
+    source_final_path = _windows_final_path(handle)
+    raw_handle = create_file(
+        source_final_path,
+        _WINDOWS_FILE_LIST_DIRECTORY
+        | _WINDOWS_FILE_ADD_SUBDIRECTORY
+        | _WINDOWS_FILE_READ_ATTRIBUTES
+        | _WINDOWS_SYNCHRONIZE,
+        _WINDOWS_FILE_SHARE_READ | _WINDOWS_FILE_SHARE_WRITE,
+        None,
+        _WINDOWS_OPEN_EXISTING,
+        _WINDOWS_FILE_FLAG_OPEN_REPARSE_POINT | _WINDOWS_FILE_FLAG_BACKUP_SEMANTICS,
+        None,
+    )
+    invalid_handle = ctypes.c_void_p(-1).value
+    if raw_handle is None or raw_handle == invalid_handle:
+        raise _windows_last_error()
+    reopened_handle = int(raw_handle)
+    try:
+        reopened_identity = _windows_handle_identity(reopened_handle)
+        _windows_require_same_identity(
+            source_identity,
+            reopened_identity,
+            path=Path(source_final_path),
+            label="rooted directory parent",
+        )
+        if _windows_normalize_final_path(_windows_final_path(reopened_handle)) != (
+            _windows_normalize_final_path(source_final_path)
+        ):
+            raise OSError("rooted directory parent final path changed while reopening")
+        return reopened_handle
+    except BaseException:
+        _windows_close_handle(reopened_handle)
+        raise
+
+
+def _windows_open_relative_handle(
+    root_handle: int,
+    name: str,
+    *,
+    desired_access: int,
+    share_access: int,
+    create_disposition: int,
+    create_options: int,
+    file_attributes: int,
+    require_created: bool = False,
+) -> int:
+    ntdll = _windows_ntdll()
+    nt_create_file = getattr(ntdll, "NtCreateFile", None)
+    if nt_create_file is None:
+        raise OSError("race-resistant Windows relative file APIs are unavailable")
+    nt_create_file.argtypes = (
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.DWORD,
+        ctypes.POINTER(_WindowsObjectAttributes),
+        ctypes.POINTER(_WindowsIoStatusBlock),
+        ctypes.POINTER(ctypes.c_longlong),
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.ULONG,
+        wintypes.LPVOID,
+        wintypes.ULONG,
+    )
+    nt_create_file.restype = wintypes.LONG
+
+    name_length = len(name.encode("utf-16-le"))
+    if name_length > 0xFFFC:
+        raise ValueError("rooted entry name exceeds the Windows native name limit")
+    name_buffer = ctypes.create_unicode_buffer(name)
+    unicode_name = _WindowsUnicodeString(
+        length=name_length,
+        maximum_length=name_length + 2,
+        buffer=ctypes.cast(name_buffer, wintypes.LPWSTR),
+    )
+    object_attributes = _WindowsObjectAttributes(
+        length=ctypes.sizeof(_WindowsObjectAttributes),
+        root_directory=wintypes.HANDLE(root_handle),
+        object_name=ctypes.pointer(unicode_name),
+        attributes=_WINDOWS_OBJ_CASE_INSENSITIVE,
+        security_descriptor=None,
+        security_quality_of_service=None,
+    )
+    io_status = _WindowsIoStatusBlock()
+    result_handle = wintypes.HANDLE()
+    status = int(
+        nt_create_file(
+            ctypes.byref(result_handle),
+            desired_access,
+            ctypes.byref(object_attributes),
+            ctypes.byref(io_status),
+            None,
+            file_attributes,
+            share_access,
+            create_disposition,
+            create_options,
+            None,
+            0,
+        )
+    )
+    handle = int(result_handle.value) if result_handle.value is not None else None
+    if status != 0:
+        cleanup_error: OSError | None = None
+        if (
+            handle is not None
+            and create_disposition == _WINDOWS_FILE_CREATE
+            and int(io_status.information) == _WINDOWS_FILE_CREATED
+        ):
+            try:
+                _windows_set_delete_disposition(handle)
+            except OSError as exc:
+                cleanup_error = exc
+        _windows_close_handle(handle)
+        if cleanup_error is not None:
+            raise OSError(
+                "Windows native file operation returned an anomalous status and cleanup "
+                "was incomplete"
+            ) from cleanup_error
+        if status < 0:
+            raise _windows_ntstatus_error(status)
+        raise OSError(f"Windows native file operation returned unexpected NTSTATUS 0x{status:08x}")
+    if handle is None:
+        raise OSError("Windows native file operation returned no handle")
+
+    information = int(io_status.information)
+    expected_information = (
+        _WINDOWS_FILE_CREATED
+        if create_disposition == _WINDOWS_FILE_CREATE
+        else _WINDOWS_FILE_OPENED
+    )
+    if information != expected_information or (
+        require_created and information != _WINDOWS_FILE_CREATED
+    ):
+        cleanup_error = None
+        if create_disposition == _WINDOWS_FILE_CREATE and information == _WINDOWS_FILE_CREATED:
+            try:
+                _windows_set_delete_disposition(handle)
+            except OSError as exc:
+                cleanup_error = exc
+        _windows_close_handle(handle)
+        if cleanup_error is not None:
+            raise OSError(
+                "Windows native file operation returned an unexpected disposition and "
+                "cleanup was incomplete"
+            ) from cleanup_error
+        raise OSError("Windows native file operation returned an unexpected I/O disposition")
+    return handle
 
 
 def _windows_last_error() -> OSError:
@@ -783,6 +1570,8 @@ def _windows_open_handle(path: Path, *, directory: bool) -> int:
     create_file.restype = wintypes.HANDLE
     desired_access = _WINDOWS_GENERIC_READ
     share_mode = _WINDOWS_FILE_SHARE_READ
+    if directory:
+        share_mode |= _WINDOWS_FILE_SHARE_WRITE
     flags = _WINDOWS_FILE_FLAG_OPEN_REPARSE_POINT
     flags |= (
         _WINDOWS_FILE_FLAG_BACKUP_SEMANTICS if directory else _WINDOWS_FILE_FLAG_SEQUENTIAL_SCAN
@@ -820,6 +1609,55 @@ def _windows_handle_identity(handle: int) -> _WindowsHandleIdentity:
     )
 
 
+def _windows_duplicate_handle(handle: int) -> int:
+    kernel32 = _windows_kernel32()
+    get_current_process = cast(Any, kernel32.GetCurrentProcess)
+    get_current_process.argtypes = ()
+    get_current_process.restype = wintypes.HANDLE
+    duplicate_handle = cast(Any, kernel32.DuplicateHandle)
+    duplicate_handle.argtypes = (
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        wintypes.HANDLE,
+        ctypes.POINTER(wintypes.HANDLE),
+        wintypes.DWORD,
+        wintypes.BOOL,
+        wintypes.DWORD,
+    )
+    duplicate_handle.restype = wintypes.BOOL
+    process = get_current_process()
+    duplicated = wintypes.HANDLE()
+    if not duplicate_handle(
+        process,
+        wintypes.HANDLE(handle),
+        process,
+        ctypes.byref(duplicated),
+        0,
+        False,
+        0x00000002,  # DUPLICATE_SAME_ACCESS
+    ):
+        raise _windows_last_error()
+    if duplicated.value is None:
+        raise OSError("Windows handle duplication returned no handle")
+    return int(duplicated.value)
+
+
+def _windows_fstat_handle(handle: int) -> os.stat_result:
+    duplicated_handle: int | None = _windows_duplicate_handle(handle)
+    descriptor: int | None = None
+    try:
+        assert duplicated_handle is not None
+        descriptor = _windows_handle_to_descriptor(
+            duplicated_handle,
+            flags=os.O_RDONLY | getattr(os, "O_BINARY", 0),
+        )
+        duplicated_handle = None
+        return os.fstat(descriptor)
+    finally:
+        _close_descriptor(descriptor)
+        _windows_close_handle(duplicated_handle)
+
+
 def _windows_final_path(handle: int) -> str:
     kernel32 = _windows_kernel32()
     get_final_path = cast(Any, kernel32.GetFinalPathNameByHandleW)
@@ -835,10 +1673,55 @@ def _windows_final_path(handle: int) -> str:
     return buffer.value
 
 
-def _windows_handle_to_descriptor(handle: int) -> int:
+def _windows_handle_to_descriptor(handle: int, *, flags: int | None = None) -> int:
     msvcrt = importlib.import_module("msvcrt")
     open_osfhandle = cast(Callable[[int, int], int], msvcrt.open_osfhandle)
-    return open_osfhandle(handle, os.O_RDONLY | getattr(os, "O_BINARY", 0))
+    descriptor_flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) if flags is None else flags
+    return open_osfhandle(handle, descriptor_flags)
+
+
+def _windows_set_delete_disposition(
+    handle: int,
+    *,
+    expected_identity: _WindowsHandleIdentity | None = None,
+) -> None:
+    if expected_identity is not None:
+        observed_identity = _windows_handle_identity(handle)
+        _windows_require_same_identity(
+            expected_identity,
+            observed_identity,
+            path=Path("<native-handle>"),
+            label="rooted output",
+        )
+    kernel32 = _windows_kernel32()
+    set_information = getattr(kernel32, "SetFileInformationByHandle", None)
+    if set_information is None:
+        raise OSError("Windows handle-anchored deletion is unavailable")
+    set_information.argtypes = (
+        wintypes.HANDLE,
+        ctypes.c_int,
+        wintypes.LPVOID,
+        wintypes.DWORD,
+    )
+    set_information.restype = wintypes.BOOL
+    disposition = _WindowsFileDispositionInformation(delete_file=True)
+    if not set_information(
+        wintypes.HANDLE(handle),
+        _WINDOWS_FILE_DISPOSITION_INFORMATION,
+        ctypes.byref(disposition),
+        ctypes.sizeof(disposition),
+    ):
+        raise _windows_last_error()
+
+
+def _windows_set_descriptor_delete_disposition(descriptor: int) -> None:
+    msvcrt = importlib.import_module("msvcrt")
+    get_osfhandle = cast(Callable[[int], int], msvcrt.get_osfhandle)
+    handle = get_osfhandle(descriptor)
+    if handle == -1:
+        raise OSError("Windows descriptor has no native handle")
+    identity = _windows_handle_identity(handle)
+    _windows_set_delete_disposition(handle, expected_identity=identity)
 
 
 def _windows_close_handle(handle: int | None) -> None:
@@ -876,6 +1759,15 @@ def _windows_require_regular_file(
         _WINDOWS_FILE_ATTRIBUTE_DIRECTORY | _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
     ):
         raise ValueError(f"{label} must be a regular file: {path}")
+
+
+def _windows_require_not_reparse(
+    identity: _WindowsHandleIdentity,
+    *,
+    path: Path,
+) -> None:
+    if identity.attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT:
+        raise ValueError(f"rooted output entry must not be a reparse point: {path}")
 
 
 def _windows_require_same_identity(

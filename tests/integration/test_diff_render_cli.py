@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from typer.testing import CliRunner
 
 from agent_assure.cli.main import app
+from agent_assure.evaluation.evaluator import runset_digest
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
@@ -131,6 +132,8 @@ def _artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, EvidencePacket]:
         ),
     )
     candidate = _runset("candidate", _run("shared-source-multi-claim", evidence_refs=()))
+    baseline_digest = runset_digest(baseline)
+    candidate_digest = runset_digest(candidate)
     finding = Finding(
         finding_id="finding-duration",
         case_id="shared-source-multi-claim",
@@ -142,6 +145,7 @@ def _artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, EvidencePacket]:
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
+        runset_digest=candidate_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -150,6 +154,8 @@ def _artifacts() -> tuple[RunSet, RunSet, ComparisonSummary, EvidencePacket]:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest=baseline_digest,
+        candidate_runset_digest=candidate_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,

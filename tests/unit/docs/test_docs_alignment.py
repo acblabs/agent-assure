@@ -48,8 +48,7 @@ def test_deprecated_report_terminology_checker_rejects_current_docs(
     failures = docs_alignment._check_deprecated_report_terminology()
 
     assert failures == [
-        "deprecated report terminology in docs/evidence_diff.md: "
-        "\\bfinal[- ]output equivalence\\b"
+        "deprecated report terminology in docs/evidence_diff.md: \\bfinal[- ]output equivalence\\b"
     ]
 
 
@@ -61,6 +60,90 @@ def test_release_metadata_checkers_accept_current_files() -> None:
     assert docs_alignment._check_changelog() == []
     assert docs_alignment._check_citation_version() == []
     assert docs_alignment._check_readme_release_pins() == []
+
+
+def test_testpypi_runbook_pins_rc_and_stable_golden_regeneration_order() -> None:
+    runbook = (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8")
+    candidate_start = runbook.index("## TestPyPI Candidate")
+    rc_version = runbook.index('project.version = "0.6.4rc1"', candidate_start)
+    rc_regeneration = runbook.index(
+        "python scripts/update_golden.py --update-golden",
+        rc_version,
+    )
+    rc_commit = runbook.index("commit\n   the regenerated RC goldens", rc_regeneration)
+    rc_release_check = runbook.index("make release-check", rc_commit)
+    stable_restore = runbook.index("restore the final package\nversion to `0.6.4`")
+    stable_regeneration = runbook.index(
+        "python scripts/update_golden.py --update-golden",
+        stable_restore,
+    )
+    stable_commit = runbook.index(
+        "commit the stable-version golden regeneration",
+        stable_regeneration,
+    )
+    stable_release_check = runbook.index("make release-check", stable_commit)
+
+    assert rc_version < rc_regeneration < rc_commit < rc_release_check
+    assert stable_restore < stable_regeneration < stable_commit < stable_release_check
+    assert "RC-generated sensitivity goldens must\nnot remain on the final tag" in runbook
+    schema_evolution = (ROOT / "docs" / "schema_evolution.md").read_text(encoding="utf-8")
+    assert "`*.v0.6.3.*.json` goldens are byte-pinned" in schema_evolution
+    assert "including `producer_version` and all derived self-digests" in schema_evolution
+    assert "intentionally regenerate and commit RC-version goldens" in schema_evolution
+    assert "intentionally regenerate and commit the stable-version" in schema_evolution
+
+
+def test_reason_code_registry_covers_every_closed_namespace() -> None:
+    assert docs_alignment._check_reason_codes() == []
+
+
+def test_reason_code_registry_checker_includes_evidence_sensitivity(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    source = ROOT / "docs" / "reason_code_registry.md"
+    registry = tmp_path / "docs" / "reason_code_registry.md"
+    registry.parent.mkdir(parents=True)
+    registry.write_text(
+        source.read_text(encoding="utf-8").replace(
+            "`EVIDENCE_SENSITIVITY_EXPECTED_RESPONSE_MISSING`",
+            "`REMOVED_SENSITIVITY_REASON`",
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    assert docs_alignment._check_reason_codes() == [
+        "reason-code registry missing: EVIDENCE_SENSITIVITY_EXPECTED_RESPONSE_MISSING"
+    ]
+
+
+def test_evidence_sensitivity_docs_pin_declarative_harness_claim_boundary() -> None:
+    sensitivity = (ROOT / "docs" / "evidence_sensitivity.md").read_text(encoding="utf-8")
+    cli_contract = (ROOT / "docs" / "cli_contract.md").read_text(encoding="utf-8")
+    api_surface = (ROOT / "docs" / "api_surface.md").read_text(encoding="utf-8")
+    normalized_sensitivity = " ".join(sensitivity.split())
+    normalized_cli_contract = " ".join(cli_contract.split())
+
+    for mode in ("`responsive`", "`evidence_reversed`", "`evidence_inertial`"):
+        assert mode in sensitivity
+        assert mode in cli_contract
+    assert "declarative fixture harness/oracle" in normalized_sensitivity
+    assert "It is not evidence that a model used contextual evidence" in normalized_sensitivity
+    assert "fixture-declared, unverified 64-hex provenance labels" in normalized_sensitivity
+    assert (
+        "v1 does not hash an implementation, prompt, model, or tool schema"
+        in normalized_sensitivity
+    )
+    assert "Thirteen `protocol_fixed`" in sensitivity
+    assert "Eight `arm_observed`" in normalized_sensitivity
+    assert "`decision_inertia_finding.detected=false`" in sensitivity
+    assert (
+        "does not show that a model used contextual evidence instead of parametric memory"
+        in normalized_cli_contract
+    )
+    assert "Each arm starts from an independent setup path" in sensitivity
+    assert "`RAGSensitivityCorpusSnapshot/v1`" in api_surface
 
 
 def test_readme_local_image_asset_checker_rejects_missing_asset(
@@ -154,8 +237,7 @@ def test_release_metadata_checkers_reject_version_drift(
     assert docs_alignment._check_changelog() == []
     assert docs_alignment._check_citation_version() == [
         "CITATION.cff version '1.2.3' does not match latest released version '1.2.2'",
-        "CITATION.cff date-released '2026-01-02' does not match latest release date "
-        "'2026-01-01'",
+        "CITATION.cff date-released '2026-01-02' does not match latest release date '2026-01-01'",
     ]
     assert docs_alignment._check_readme_release_pins() == [
         "README.md package pin '1.2.3' does not match latest released version '1.2.2'",
@@ -250,8 +332,7 @@ def test_flagship_readme_diagram_checker_rejects_stale_flagship_fact(
     failures = docs_alignment._check_flagship_readme_diagram()
 
     assert (
-        "README.md flagship diagram missing expected fact: "
-        "MATERIAL_CLAIM_MISSING_EVIDENCE"
+        "README.md flagship diagram missing expected fact: MATERIAL_CLAIM_MISSING_EVIDENCE"
     ) in failures
 
 
@@ -274,9 +355,7 @@ def test_flagship_readme_diagram_checker_rejects_missing_mermaid_block(
 ) -> None:
     readme = tmp_path / "README.md"
     readme.write_text(
-        "# Agent Assure\n\n"
-        "### Flagship regression at a glance\n\n"
-        "The diagram belongs here.\n",
+        "# Agent Assure\n\n### Flagship regression at a glance\n\nThe diagram belongs here.\n",
         encoding="utf-8",
     )
     monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
@@ -315,8 +394,7 @@ def test_flagship_readme_diagram_checker_allows_equivocate_node_name(
     readme = tmp_path / "README.md"
     readme.write_text(
         _readme_with_flagship_diagram(
-            _valid_flagship_diagram()
-            + '    Compare --> Equivocate["Unrelated explanatory node"]\n'
+            _valid_flagship_diagram() + '    Compare --> Equivocate["Unrelated explanatory node"]\n'
         ),
         encoding="utf-8",
     )

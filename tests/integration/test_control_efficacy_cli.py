@@ -13,7 +13,7 @@ from typer.testing import CliRunner, Result
 
 from agent_assure.artifact_io import file_sha256
 from agent_assure.authoring.compiler import compile_suite
-from agent_assure.cli import controls_cmd
+from agent_assure.cli import controls_cmd, packet_cmd
 from agent_assure.cli.main import app
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.io_limits import load_json_bounded
@@ -406,6 +406,146 @@ def test_packet_cli_hashes_and_manifests_the_exact_efficacy_snapshots(
         if item["role"] in expected_digests
     }
     assert manifest_digests == expected_digests
+
+
+def test_packet_cli_does_not_rebind_captured_report_path_after_symlink_swap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = tmp_path / "snapshot-path-workflow"
+    scaffold_controls_mutation(workflow)
+    _write_weakened_campaign(workflow)
+    report_dir = workflow / "efficacy"
+    efficacy = _invoke_efficacy(workflow, report_dir)
+    assert efficacy.exit_code == 1, efficacy.output
+
+    evaluation_path = workflow / "evaluation-summary.json"
+    _write_json(
+        evaluation_path,
+        EvaluationSummary(
+            runset_id="snapshot-path-efficacy-candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        ).model_dump(mode="json"),
+    )
+    report_path = report_dir / "control-efficacy-report.json"
+    config_path = workflow / "controls-mutation.yaml"
+    packet_path = workflow / "packet" / "evidence-packet.json"
+    peer_path = report_dir / "peer-report.json"
+    peer_path.write_bytes(b"peer bytes must never select the manifest path\n")
+    probe_path = report_dir / "symlink-capability-probe"
+    try:
+        probe_path.symlink_to(peer_path.name)
+    except OSError as exc:
+        pytest.skip(f"file symlinks unavailable: {exc}")
+    finally:
+        probe_path.unlink(missing_ok=True)
+
+    original_report_bytes = report_path.read_bytes()
+    preserved_path = report_dir / "captured-original-report.json"
+    original_manifest_digest = packet_cmd._configured_threat_manifest_digest
+
+    def swap_after_source_snapshots(*args: Any, **kwargs: Any) -> str:
+        digest = original_manifest_digest(*args, **kwargs)
+        report_path.replace(preserved_path)
+        report_path.symlink_to(peer_path.name)
+        return digest
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "_configured_threat_manifest_digest",
+        swap_after_source_snapshots,
+    )
+
+    result = _invoke_packet_build(
+        evaluation_path,
+        report_path,
+        config_path,
+        packet_path,
+    )
+
+    assert result.exit_code == 0, result.output
+    assert report_path.is_symlink()
+    packet = _json(packet_path)
+    manifest = cast(dict[str, Any], packet["release_manifest"])
+    artifacts = {item["role"]: item for item in cast(list[dict[str, Any]], manifest["artifacts"])}
+    report_artifact = artifacts["control-efficacy-report"]
+    assert report_artifact["path"] == "efficacy/control-efficacy-report.json"
+    assert report_artifact["path"] != "efficacy/peer-report.json"
+    assert report_artifact["sha256"] == hashlib.sha256(original_report_bytes).hexdigest()
+
+
+def test_packet_cli_never_resolves_efficacy_path_after_snapshot(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    workflow = tmp_path / "snapshot-resolve-workflow"
+    scaffold_controls_mutation(workflow)
+    _write_weakened_campaign(workflow)
+    report_dir = workflow / "efficacy"
+    efficacy = _invoke_efficacy(workflow, report_dir)
+    assert efficacy.exit_code == 1, efficacy.output
+
+    evaluation_path = workflow / "evaluation-summary.json"
+    _write_json(
+        evaluation_path,
+        EvaluationSummary(
+            runset_id="snapshot-resolve-efficacy-candidate",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        ).model_dump(mode="json"),
+    )
+    report_path = report_dir / "control-efficacy-report.json"
+    config_path = workflow / "controls-mutation.yaml"
+    packet_path = workflow / "packet" / "evidence-packet.json"
+    peer_path = report_dir / "resolve-peer-report.json"
+    peer_path.write_bytes(b"peer bytes must never select the manifest path\n")
+
+    armed = False
+    original_manifest_digest = packet_cmd._configured_threat_manifest_digest
+    path_type = type(report_path)
+    original_resolve = path_type.resolve
+    report_identity = os.path.normcase(os.path.abspath(report_path))
+    peer_absolute = Path(os.path.abspath(peer_path))
+
+    def arm_after_source_snapshots(*args: Any, **kwargs: Any) -> str:
+        nonlocal armed
+        digest = original_manifest_digest(*args, **kwargs)
+        armed = True
+        return digest
+
+    def resolve_with_post_snapshot_rebind(
+        path: Path,
+        *,
+        strict: bool = False,
+    ) -> Path:
+        if armed and os.path.normcase(os.path.abspath(path)) == report_identity:
+            return peer_absolute
+        return original_resolve(path, strict=strict)
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "_configured_threat_manifest_digest",
+        arm_after_source_snapshots,
+    )
+    monkeypatch.setattr(path_type, "resolve", resolve_with_post_snapshot_rebind)
+
+    result = _invoke_packet_build(
+        evaluation_path,
+        report_path,
+        config_path,
+        packet_path,
+    )
+
+    assert result.exit_code == 0, result.output
+    packet = _json(packet_path)
+    manifest = cast(dict[str, Any], packet["release_manifest"])
+    artifacts = {item["role"]: item for item in cast(list[dict[str, Any]], manifest["artifacts"])}
+    report_artifact = artifacts["control-efficacy-report"]
+    assert report_artifact["path"] == "efficacy/control-efficacy-report.json"
+    assert report_artifact["path"] != "efficacy/resolve-peer-report.json"
 
 
 def test_packet_cli_rejects_config_with_stale_threat_manifest_before_outputs(

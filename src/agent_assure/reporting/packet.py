@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Generic, TypeVar
@@ -25,6 +28,7 @@ from agent_assure.reporting.markdown_safety import (
     markdown_text,
 )
 from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
+from agent_assure.rooted_io import portable_relative_path_parts
 from agent_assure.schema.common import DigestHex
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.efficacy import (
@@ -47,12 +51,14 @@ from agent_assure.schema.packet import (
     packet_summary_digest_binding_error,
 )
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
+from agent_assure.schema.sensitivity import RAGSensitivityReport
 from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
     project_validated_artifact_payload,
     validate_loaded_artifact_payload,
 )
+from agent_assure.sensitivity_contract import SENSITIVITY_HARNESS_NOTICE
 from agent_assure.usage.aggregation import format_usage_delta
 
 DEFAULT_PACKET_LIMITATIONS = (
@@ -76,11 +82,20 @@ DEFAULT_INTERPRETATION = (
     "scope; it remains separate from candidate evidence closure.",
 )
 _MAX_RENDERED_IDENTIFIER_ITEMS = 20
+_MAX_RELEASE_MANIFEST_ARTIFACTS = 256
+_MAX_RELEASE_MANIFEST_TOTAL_BYTES = 256 * 1024 * 1024
+_TRUSTED_CAPTURED_SOURCE_ROLES = frozenset(
+    {
+        "control-efficacy-report",
+        "control-efficacy-onboarding-config",
+    }
+)
 SummaryT = TypeVar(
     "SummaryT",
     EvaluationSummary,
     ComparisonSummary,
     AssuranceEvidenceGraph,
+    RAGSensitivityReport,
 )
 GraphSourceT = TypeVar("GraphSourceT", bound=BaseModel)
 
@@ -92,10 +107,19 @@ class PacketSummaryFileSnapshot(Generic[SummaryT]):
     relative_path: str
 
 
+@dataclass(frozen=True)
+class PacketSourceFileSnapshot:
+    """One descriptor snapshot bound to its pre-read lexical artifact path."""
+
+    contents: BoundedFileContents
+    relative_path: str
+
+
 def build_privacy_filtered_evidence_graph(
     evaluation: EvaluationSummary,
     *,
     comparison: ComparisonSummary | None = None,
+    evidence_sensitivity: RAGSensitivityReport | None = None,
     mutation_results: tuple[AssuranceMutationResult, ...] = (),
     control_efficacy: ControlEfficacyReport | None = None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None = None,
@@ -107,6 +131,10 @@ def build_privacy_filtered_evidence_graph(
     graph_comparison = _privacy_filtered_optional_graph_source(
         comparison,
         ComparisonSummary,
+    )
+    graph_sensitivity = _privacy_filtered_optional_graph_source(
+        evidence_sensitivity,
+        RAGSensitivityReport,
     )
     graph_mutation_results = tuple(
         _privacy_filtered_graph_source(result, AssuranceMutationResult)
@@ -132,6 +160,7 @@ def build_privacy_filtered_evidence_graph(
         ),
         evaluation=graph_evaluation,
         comparison=graph_comparison,
+        evidence_sensitivity=graph_sensitivity,
         mutation_results=graph_mutation_results,
         control_efficacy=graph_efficacy,
         gate_profile=graph_profile,
@@ -153,6 +182,14 @@ def load_comparison_summary(path: Path) -> ComparisonSummary:
         load_validated_artifact_payload(path, "comparison-summary"),
         ComparisonSummary,
         kind="comparison-summary",
+    )
+
+
+def load_evidence_sensitivity_report(path: Path) -> RAGSensitivityReport:
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "evidence-sensitivity-report"),
+        RAGSensitivityReport,
+        kind="evidence-sensitivity-report",
     )
 
 
@@ -186,6 +223,21 @@ def load_comparison_summary_snapshot(
     )
 
 
+def load_evidence_sensitivity_report_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+) -> PacketSummaryFileSnapshot[RAGSensitivityReport]:
+    return _load_packet_summary_snapshot(
+        path,
+        root=root,
+        artifact_root=artifact_root,
+        kind="evidence-sensitivity-report",
+        model=RAGSensitivityReport,
+    )
+
+
 def load_evidence_graph_snapshot(
     path: Path,
     *,
@@ -199,6 +251,58 @@ def load_evidence_graph_snapshot(
         kind="assurance-evidence-graph",
         model=AssuranceEvidenceGraph,
     )
+
+
+def load_packet_source_file_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+    max_bytes: int,
+    label: str,
+) -> PacketSourceFileSnapshot:
+    """Capture source bytes and their immutable, confined manifest path once.
+
+    The manifest path is derived lexically before opening the source and never
+    from a later live-path resolution. The bounded read independently enforces
+    the normal rooted, no-link identity policy. A rename or link swap after the
+    descriptor snapshot therefore cannot rebind the captured bytes to a
+    different release-manifest path.
+    """
+    relative_path = _lexical_artifact_relative_path(
+        path,
+        artifact_root=artifact_root,
+        label=label,
+    )
+    contents = read_confined_file_snapshot(
+        path,
+        root=root,
+        max_bytes=max_bytes,
+        label=label,
+    )
+    return PacketSourceFileSnapshot(
+        contents=contents,
+        relative_path=relative_path,
+    )
+
+
+def _lexical_artifact_relative_path(
+    path: Path,
+    *,
+    artifact_root: Path,
+    label: str,
+) -> str:
+    """Return a portable relative path without resolving live filesystem links."""
+    absolute_path = Path(os.path.abspath(path))
+    absolute_artifact_root = Path(os.path.abspath(artifact_root))
+    try:
+        relative_path = absolute_path.relative_to(absolute_artifact_root)
+        canonical_path = "/".join(portable_relative_path_parts(relative_path))
+    except ValueError as exc:
+        raise ValueError(f"{label} escapes its artifact root") from exc
+    if canonical_path != relative_path.as_posix():
+        raise ValueError(f"{label} path is not normalized and confined")
+    return canonical_path
 
 
 def _load_packet_summary_snapshot(
@@ -241,7 +345,8 @@ def packet_artifact_digest_from_snapshot(
     role: PacketArtifactRole,
     snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
     | PacketSummaryFileSnapshot[ComparisonSummary]
-    | PacketSummaryFileSnapshot[AssuranceEvidenceGraph],
+    | PacketSummaryFileSnapshot[AssuranceEvidenceGraph]
+    | PacketSummaryFileSnapshot[RAGSensitivityReport],
 ) -> PacketArtifactDigest:
     return PacketArtifactDigest(role=role, sha256=snapshot.contents.sha256)
 
@@ -250,7 +355,19 @@ def release_artifact_from_summary_snapshot(
     role: PacketArtifactRole,
     snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
     | PacketSummaryFileSnapshot[ComparisonSummary]
-    | PacketSummaryFileSnapshot[AssuranceEvidenceGraph],
+    | PacketSummaryFileSnapshot[AssuranceEvidenceGraph]
+    | PacketSummaryFileSnapshot[RAGSensitivityReport],
+) -> ReleaseArtifact:
+    return ReleaseArtifact(
+        role=role,
+        path=snapshot.relative_path,
+        sha256=snapshot.contents.sha256,
+    )
+
+
+def release_artifact_from_source_snapshot(
+    role: str,
+    snapshot: PacketSourceFileSnapshot,
 ) -> ReleaseArtifact:
     return ReleaseArtifact(
         role=role,
@@ -265,9 +382,31 @@ def packet_summary_files_binding_error(
     artifact_root: Path,
 ) -> str | None:
     """Independently verify bound artifact models and bytes from packet evidence."""
-    return _packet_summary_files_binding_error(
+    return _packet_summary_files_binding_error_from_paths(
         packet,
         artifact_root=artifact_root,
+        trusted_expected_graph=None,
+    )
+
+
+def packet_summary_snapshots_binding_error(
+    packet: EvidencePacket,
+    *,
+    snapshots_by_path: Mapping[str, BoundedFileContents],
+) -> str | None:
+    """Verify packet bindings from exact, already-captured artifact snapshots.
+
+    Keys must be the canonical portable POSIX-relative paths recorded by the
+    release manifest. The supplied mapping must contain exactly one snapshot
+    for every manifest artifact and no unmanifested snapshots.
+    """
+    validated_packet, validation_error = _prepare_packet_binding_verification(packet)
+    if validation_error is not None:
+        return validation_error
+    assert validated_packet is not None
+    return _packet_summary_snapshots_binding_error(
+        validated_packet,
+        snapshots_by_path=snapshots_by_path,
         trusted_expected_graph=None,
     )
 
@@ -277,6 +416,7 @@ def packet_summary_files_binding_error_for_trusted_publication(
     *,
     artifact_root: Path,
     expected_graph: AssuranceEvidenceGraph,
+    captured_snapshots_by_path: Mapping[str, BoundedFileContents] | None = None,
 ) -> str | None:
     """Verify an in-process publication using its already-built graph projection.
 
@@ -285,30 +425,191 @@ def packet_summary_files_binding_error_for_trusted_publication(
     ``expected_graph`` must be the exact projection built from the same nested evidence
     passed to ``build_evidence_packet`` in that transaction. External or persisted
     packets must use ``packet_summary_files_binding_error`` so the projection is
-    reconstructed independently.
+    reconstructed independently. The captured snapshot mapping is a bounded
+    producer-only subset for source artifacts whose typed parsing and digest were
+    already derived from one descriptor snapshot; those paths are not reopened.
+    Every other manifest path is independently reopened and identity-verified.
     """
     if not isinstance(expected_graph, AssuranceEvidenceGraph):
         return "expected assurance-evidence-graph projection has an invalid type"
-    return _packet_summary_files_binding_error(
+    return _packet_summary_files_binding_error_from_paths(
         packet,
         artifact_root=artifact_root,
         trusted_expected_graph=expected_graph,
+        captured_snapshots_by_path=captured_snapshots_by_path,
     )
 
 
-def _packet_summary_files_binding_error(
+def _packet_summary_files_binding_error_from_paths(
     packet: EvidencePacket,
     *,
     artifact_root: Path,
     trusted_expected_graph: AssuranceEvidenceGraph | None,
+    captured_snapshots_by_path: Mapping[str, BoundedFileContents] | None = None,
 ) -> str | None:
+    validated_packet, validation_error = _prepare_packet_binding_verification(packet)
+    if validation_error is not None:
+        return validation_error
+    assert validated_packet is not None
+    assert validated_packet.release_manifest is not None
+    captured_snapshots, snapshot_error = _materialize_manifest_snapshots(
+        {} if captured_snapshots_by_path is None else captured_snapshots_by_path,
+        manifest=validated_packet.release_manifest,
+        require_complete=False,
+    )
+    if snapshot_error is not None:
+        return snapshot_error
+    assert captured_snapshots is not None
+    manifest_by_path = {
+        artifact.path: artifact for artifact in validated_packet.release_manifest.artifacts
+    }
+    for captured_path in captured_snapshots:
+        captured_role = manifest_by_path[captured_path].role
+        if captured_role not in _TRUSTED_CAPTURED_SOURCE_ROLES:
+            return f"evidence packet {captured_role} cannot use a producer-captured source snapshot"
+    manifest_snapshots: dict[str, BoundedFileContents] = {}
+    aggregate_bytes = 0
+    for release_artifact in validated_packet.release_manifest.artifacts:
+        contents = captured_snapshots.get(release_artifact.path)
+        if contents is None:
+            source_path = artifact_root.absolute() / Path(release_artifact.path)
+            try:
+                contents = read_confined_file_snapshot(
+                    source_path,
+                    root=artifact_root,
+                    max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                    label=f"release manifest {release_artifact.role} artifact",
+                )
+                relative_path = confined_snapshot_relative_path(
+                    source_path,
+                    contents,
+                    root=artifact_root,
+                    path_root=artifact_root,
+                    label=f"release manifest {release_artifact.role} artifact",
+                )
+            except (OSError, UnicodeError, ValueError):
+                return (
+                    f"evidence packet {release_artifact.role} source file could not be "
+                    "safely verified"
+                )
+            if relative_path != release_artifact.path:
+                return (
+                    f"evidence packet {release_artifact.role} manifest path is not "
+                    "normalized and confined"
+                )
+        snapshot_error, aggregate_bytes = _manifest_snapshot_binding_error(
+            release_artifact,
+            contents,
+            aggregate_bytes=aggregate_bytes,
+        )
+        if snapshot_error is not None:
+            return snapshot_error
+        manifest_snapshots[release_artifact.path] = contents
+    return _packet_summary_snapshots_binding_error(
+        validated_packet,
+        snapshots_by_path=manifest_snapshots,
+        trusted_expected_graph=trusted_expected_graph,
+    )
+
+
+def _prepare_packet_binding_verification(
+    packet: EvidencePacket,
+) -> tuple[EvidencePacket | None, str | None]:
+    try:
+        packet_payload = packet.model_dump(mode="json", warnings="error")
+    except (TypeError, ValueError):
+        return None, "evidence packet failed trusted model revalidation"
+    try:
+        packet = EvidencePacket.model_validate(packet_payload)
+    except (TypeError, ValueError):
+        # A model_copy(update=...) object is untrusted and never proceeds past
+        # this branch. When its JSON-shaped projection still has a structurally
+        # readable manifest, retain the more actionable missing-role diagnostic
+        # that the verifier historically exposed. This changes only the error
+        # selected for a rejected packet; it does not bypass strict revalidation.
+        missing_role_error = _untrusted_packet_missing_manifest_role_error(packet_payload)
+        return (
+            None,
+            missing_role_error or "evidence packet failed trusted model revalidation",
+        )
     binding_error = packet_summary_digest_binding_error(packet)
     if binding_error is not None:
-        return binding_error
+        return None, binding_error
     if packet.release_manifest is None:
-        return "summary-file verification requires a release manifest"
+        return None, "summary-file verification requires a release manifest"
+    if len(packet.release_manifest.artifacts) > _MAX_RELEASE_MANIFEST_ARTIFACTS:
+        return (
+            None,
+            "evidence packet release manifest exceeds the artifact verification limit",
+        )
+    return packet, None
+
+
+def _untrusted_packet_missing_manifest_role_error(
+    packet_payload: object,
+) -> str | None:
+    """Select a bounded missing-role diagnostic from rejected JSON-shaped data."""
+    if not isinstance(packet_payload, Mapping):
+        return None
+    manifest = packet_payload.get("release_manifest")
+    if not isinstance(manifest, Mapping):
+        return None
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, list) or len(artifacts) > _MAX_RELEASE_MANIFEST_ARTIFACTS:
+        return None
+    observed_roles: set[str] = set()
+    for artifact in artifacts:
+        if not isinstance(artifact, Mapping):
+            return None
+        role = artifact.get("role")
+        if not isinstance(role, str):
+            return None
+        observed_roles.add(role)
+    required_roles = ["evaluation-summary"]
+    if isinstance(packet_payload.get("comparison"), Mapping):
+        required_roles.append("comparison-summary")
+    if isinstance(packet_payload.get("evidence_sensitivity"), Mapping):
+        required_roles.append("evidence-sensitivity-report")
+    if isinstance(packet_payload.get("evidence_graph_digest"), str):
+        required_roles.append("assurance-evidence-graph")
+    for role in required_roles:
+        if role not in observed_roles:
+            return f"evidence packet {role} is missing from release manifest"
+    return None
+
+
+def _packet_summary_snapshots_binding_error(
+    packet: EvidencePacket,
+    *,
+    snapshots_by_path: Mapping[str, BoundedFileContents],
+    trusted_expected_graph: AssuranceEvidenceGraph | None,
+) -> str | None:
+    assert packet.release_manifest is not None
+    manifest_path_error = _manifest_paths_binding_error(packet.release_manifest)
+    if manifest_path_error is not None:
+        return manifest_path_error
+    snapshot_map, snapshot_map_error = _materialize_manifest_snapshots(
+        snapshots_by_path,
+        manifest=packet.release_manifest,
+    )
+    if snapshot_map_error is not None:
+        return snapshot_map_error
+    assert snapshot_map is not None
+    aggregate_bytes = 0
+    for release_artifact in packet.release_manifest.artifacts:
+        contents = snapshot_map[release_artifact.path]
+        snapshot_error, aggregate_bytes = _manifest_snapshot_binding_error(
+            release_artifact,
+            contents,
+            aggregate_bytes=aggregate_bytes,
+        )
+        if snapshot_error is not None:
+            return snapshot_error
     summaries: tuple[
-        tuple[PacketArtifactRole, EvaluationSummary | ComparisonSummary],
+        tuple[
+            PacketArtifactRole,
+            EvaluationSummary | ComparisonSummary | RAGSensitivityReport,
+        ],
         ...,
     ] = (("evaluation-summary", packet.evaluation),)
     if packet.comparison is not None:
@@ -316,61 +617,56 @@ def _packet_summary_files_binding_error(
             *summaries,
             ("comparison-summary", packet.comparison),
         )
+    if packet.evidence_sensitivity is not None:
+        summaries = (
+            *summaries,
+            ("evidence-sensitivity-report", packet.evidence_sensitivity),
+        )
     manifest_by_role = {item.role: item for item in packet.release_manifest.artifacts}
     for role, nested_summary in summaries:
         manifest_artifact = manifest_by_role.get(role)
         if manifest_artifact is None:
             return f"evidence packet {role} is missing from release manifest"
-        source_path = artifact_root.absolute() / Path(manifest_artifact.path)
         try:
-            snapshot = (
-                load_evaluation_summary_snapshot(
-                    source_path,
-                    root=artifact_root,
-                    artifact_root=artifact_root,
+            summary: object
+            if role == "evaluation-summary":
+                summary = _project_manifest_json_snapshot(
+                    snapshot_map[manifest_artifact.path],
+                    artifact_kind=role,
+                    model=EvaluationSummary,
                 )
-                if role == "evaluation-summary"
-                else load_comparison_summary_snapshot(
-                    source_path,
-                    root=artifact_root,
-                    artifact_root=artifact_root,
+            elif role == "comparison-summary":
+                summary = _project_manifest_json_snapshot(
+                    snapshot_map[manifest_artifact.path],
+                    artifact_kind=role,
+                    model=ComparisonSummary,
                 )
-            )
+            else:
+                summary = _project_manifest_json_snapshot(
+                    snapshot_map[manifest_artifact.path],
+                    artifact_kind=role,
+                    model=RAGSensitivityReport,
+                )
         except (OSError, UnicodeError, ValueError):
             return f"evidence packet {role} source file could not be safely verified"
-        if snapshot.relative_path != manifest_artifact.path:
-            return f"evidence packet {role} manifest path is not normalized and confined"
-        if snapshot.contents.sha256 != manifest_artifact.sha256:
-            return f"evidence packet {role} source file digest does not match release manifest"
-        if snapshot.summary != nested_summary:
+        if summary != nested_summary:
             return f"evidence packet {role} source file does not match nested summary"
     if packet.evidence_graph_digest is not None:
         graph_role: PacketArtifactRole = "assurance-evidence-graph"
         manifest_artifact = manifest_by_role.get(graph_role)
         if manifest_artifact is None:
             return "evidence packet assurance-evidence-graph is missing from release manifest"
-        source_path = artifact_root.absolute() / Path(manifest_artifact.path)
         try:
-            graph_snapshot = load_evidence_graph_snapshot(
-                source_path,
-                root=artifact_root,
-                artifact_root=artifact_root,
+            persisted_graph = _project_manifest_json_snapshot(
+                snapshot_map[manifest_artifact.path],
+                artifact_kind=graph_role,
+                model=AssuranceEvidenceGraph,
             )
         except (OSError, UnicodeError, ValueError):
             return (
                 "evidence packet assurance-evidence-graph source file could not be safely verified"
             )
-        if graph_snapshot.relative_path != manifest_artifact.path:
-            return (
-                "evidence packet assurance-evidence-graph manifest path is not normalized "
-                "and confined"
-            )
-        if graph_snapshot.contents.sha256 != manifest_artifact.sha256:
-            return (
-                "evidence packet assurance-evidence-graph source file digest does not "
-                "match release manifest"
-            )
-        if graph_snapshot.summary.graph_digest != packet.evidence_graph_digest:
+        if persisted_graph.graph_digest != packet.evidence_graph_digest:
             return (
                 "evidence packet assurance-evidence-graph semantic digest does not match "
                 "evidence_graph_digest"
@@ -380,6 +676,7 @@ def _packet_summary_files_binding_error(
                 trusted_expected_graph = build_privacy_filtered_evidence_graph(
                     packet.evaluation,
                     comparison=packet.comparison,
+                    evidence_sensitivity=packet.evidence_sensitivity,
                     control_efficacy=packet.control_efficacy,
                     control_efficacy_gate_profile=packet.control_efficacy_gate_profile,
                     control_efficacy_gate=packet.control_efficacy_gate,
@@ -390,7 +687,7 @@ def _packet_summary_files_binding_error(
                     "evidence packet assurance-evidence-graph projection could not be "
                     "safely reconstructed"
                 )
-        if trusted_expected_graph != graph_snapshot.summary:
+        if trusted_expected_graph != persisted_graph:
             return (
                 "evidence packet assurance-evidence-graph does not correspond to "
                 "nested packet evidence"
@@ -398,10 +695,125 @@ def _packet_summary_files_binding_error(
     return None
 
 
+def _manifest_paths_binding_error(manifest: ReleaseArtifactManifest) -> str | None:
+    portable_paths: dict[str, str] = {}
+    for artifact in manifest.artifacts:
+        try:
+            canonical_path = "/".join(portable_relative_path_parts(artifact.path))
+        except ValueError:
+            return f"evidence packet {artifact.role} manifest path is not normalized and confined"
+        if canonical_path != artifact.path:
+            return f"evidence packet {artifact.role} manifest path is not normalized and confined"
+        portable_identity = os.path.normcase(canonical_path)
+        previous = portable_paths.get(portable_identity)
+        if previous is not None and previous != canonical_path:
+            return "evidence packet release manifest contains ambiguous artifact paths"
+        portable_paths[portable_identity] = canonical_path
+    return None
+
+
+def _materialize_manifest_snapshots(
+    snapshots_by_path: Mapping[str, BoundedFileContents],
+    *,
+    manifest: ReleaseArtifactManifest,
+    require_complete: bool = True,
+) -> tuple[dict[str, BoundedFileContents] | None, str | None]:
+    if not isinstance(snapshots_by_path, Mapping):
+        return None, "evidence packet artifact snapshots have an invalid mapping type"
+    materialized: dict[str, BoundedFileContents] = {}
+    portable_paths: dict[str, str] = {}
+    try:
+        for index, (path, contents) in enumerate(snapshots_by_path.items()):
+            if index >= _MAX_RELEASE_MANIFEST_ARTIFACTS:
+                return None, "evidence packet artifact snapshots contain unmanifested paths"
+            if not isinstance(path, str):
+                return None, "evidence packet artifact snapshot path is not normalized"
+            try:
+                canonical_path = "/".join(portable_relative_path_parts(path))
+            except ValueError:
+                return None, "evidence packet artifact snapshot path is not normalized"
+            if canonical_path != path:
+                return None, "evidence packet artifact snapshot path is not normalized"
+            portable_identity = os.path.normcase(canonical_path)
+            previous = portable_paths.get(portable_identity)
+            if previous is not None:
+                return None, "evidence packet artifact snapshots contain ambiguous paths"
+            if not isinstance(contents, BoundedFileContents):
+                return None, "evidence packet artifact snapshot has an invalid type"
+            portable_paths[portable_identity] = canonical_path
+            materialized[canonical_path] = contents
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return None, "evidence packet artifact snapshots could not be safely enumerated"
+
+    expected_by_path = {artifact.path: artifact for artifact in manifest.artifacts}
+    if any(path not in expected_by_path for path in materialized):
+        return None, "evidence packet artifact snapshots contain unmanifested paths"
+    if require_complete:
+        for path, artifact in expected_by_path.items():
+            if path not in materialized:
+                return None, f"evidence packet {artifact.role} source snapshot is missing"
+    return materialized, None
+
+
+def _manifest_snapshot_binding_error(
+    artifact: ReleaseArtifact,
+    contents: BoundedFileContents,
+    *,
+    aggregate_bytes: int,
+) -> tuple[str | None, int]:
+    if not isinstance(contents.data, bytes):
+        return f"evidence packet {artifact.role} source snapshot has invalid bytes", aggregate_bytes
+    actual_size = len(contents.data)
+    if actual_size > MAX_ARTIFACT_JSON_BYTES:
+        return (
+            f"evidence packet {artifact.role} source file exceeds the verification limit",
+            aggregate_bytes,
+        )
+    actual_sha256 = hashlib.sha256(contents.data).hexdigest()
+    if (
+        isinstance(contents.size, bool)
+        or not isinstance(contents.size, int)
+        or contents.size != actual_size
+        or contents.sha256 != actual_sha256
+    ):
+        return (
+            f"evidence packet {artifact.role} source snapshot metadata does not match exact bytes",
+            aggregate_bytes,
+        )
+    if actual_sha256 != artifact.sha256:
+        return (
+            f"evidence packet {artifact.role} source file digest does not match release manifest",
+            aggregate_bytes,
+        )
+    aggregate_bytes += actual_size
+    if aggregate_bytes > _MAX_RELEASE_MANIFEST_TOTAL_BYTES:
+        return (
+            "evidence packet release manifest exceeds the aggregate verification limit",
+            aggregate_bytes,
+        )
+    return None, aggregate_bytes
+
+
+def _project_manifest_json_snapshot(
+    contents: BoundedFileContents,
+    *,
+    artifact_kind: PacketArtifactRole,
+    model: type[SummaryT],
+) -> SummaryT:
+    payload = load_json_bytes_bounded(
+        contents.data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=artifact_kind.replace("-", " "),
+    )
+    validate_loaded_artifact_payload(payload, artifact_kind)
+    return project_validated_artifact_payload(payload, model, kind=artifact_kind)
+
+
 def build_evidence_packet(
     evaluation: EvaluationSummary,
     *,
     comparison: ComparisonSummary | None = None,
+    evidence_sensitivity: RAGSensitivityReport | None = None,
     control_efficacy: ControlEfficacyReport | None = None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None = None,
     control_efficacy_gate: ControlEfficacyGateDecision | None = None,
@@ -417,6 +829,7 @@ def build_evidence_packet(
     resolved_packet_id = packet_id or _packet_id(
         evaluation,
         comparison=comparison,
+        evidence_sensitivity=evidence_sensitivity,
         control_efficacy=control_efficacy,
         control_efficacy_gate_profile=control_efficacy_gate_profile,
         control_efficacy_gate=control_efficacy_gate,
@@ -430,6 +843,7 @@ def build_evidence_packet(
         interpretation=interpretation,
         evaluation=evaluation,
         comparison=comparison,
+        evidence_sensitivity=evidence_sensitivity,
         control_efficacy=control_efficacy,
         control_efficacy_gate_profile=control_efficacy_gate_profile,
         control_efficacy_gate=control_efficacy_gate,
@@ -476,6 +890,12 @@ def load_evidence_packet(path: Path) -> EvidencePacket:
 
 
 def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
+    packet = EvidencePacket.model_validate(packet.model_dump(mode="json", warnings="error"))
+    payload = redact_packet_payload(packet.model_dump(mode="json", warnings="error"))
+    packet = EvidencePacket.model_validate(payload)
+    safe_payload = packet.model_dump(mode="json", warnings="error")
+    if redact_packet_payload(safe_payload) != safe_payload:
+        raise ValueError("evidence packet Markdown payload could not be made privacy-safe")
     lines = [
         "# Evidence Packet",
         "",
@@ -507,6 +927,55 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
                 f"{markdown_code_span(packet.comparison.fixture_equivalence_state.value)}",
             ]
         )
+    if packet.evidence_sensitivity is not None:
+        sensitivity = packet.evidence_sensitivity
+        reason_codes = (
+            ", ".join(markdown_code_span(item.value) for item in sensitivity.reason_codes) or "none"
+        )
+        endpoint_value = (
+            "not_evaluated"
+            if sensitivity.endpoint_value is None
+            else str(sensitivity.endpoint_value).lower()
+        )
+        lines.extend(
+            [
+                "",
+                "## Controlled Evidence Sensitivity",
+                "",
+                f"- Harness notice: {markdown_text(SENSITIVITY_HARNESS_NOTICE)}",
+                "- Boundary: synthetic detector contract test; this is controlled "
+                "evidence sensitivity, not a causal guarantee or real-model "
+                "prevalence estimate.",
+                f"- State: {markdown_code_span(sensitivity.state.value)}",
+                f"- Gate effect: {markdown_code_span(sensitivity.gate_effect.value)}",
+                "- Verdict-bearing: "
+                f"{markdown_code_span(str(sensitivity.verdict_bearing).lower())}",
+                f"- Endpoint: {markdown_code_span(sensitivity.endpoint)}",
+                f"- Endpoint value: {markdown_code_span(endpoint_value)}",
+                f"- Expected relation: {markdown_code_span(sensitivity.expected_relation.value)}",
+                f"- Observed relation: {markdown_code_span(sensitivity.observed_relation.value)}",
+                "- Outcome classification: "
+                f"{markdown_code_span(sensitivity.outcome_classification.value)}",
+                f"- Outcome: {markdown_text(sensitivity.outcome_message)}",
+                "- Detector-test status: "
+                f"{markdown_code_span(sensitivity.detector_test_status.value)}",
+                f"- Deterministic: {markdown_code_span(str(sensitivity.deterministic).lower())}",
+                "- Decision inertia detected: "
+                f"{markdown_code_span(str(sensitivity.decision_inertia_finding.detected).lower())}",
+                f"- Reason codes: {reason_codes}",
+                "- Baseline run set: "
+                f"{markdown_code_span(sensitivity.baseline_arm.runset_id)} "
+                f"{markdown_code_span(sensitivity.baseline_arm.runset_digest)}",
+                "- Counterfactual run set: "
+                f"{markdown_code_span(sensitivity.counterfactual_arm.runset_id)} "
+                f"{markdown_code_span(sensitivity.counterfactual_arm.runset_digest)}",
+                f"- Report digest: {markdown_code_span(sensitivity.report_digest)}",
+                "",
+                "### Sensitivity Limitations",
+                "",
+            ]
+        )
+        lines.extend(f"- {markdown_text(limitation)}" for limitation in sensitivity.limitations)
     if packet.control_efficacy is not None:
         efficacy = packet.control_efficacy
         profile = packet.control_efficacy_gate_profile
@@ -681,6 +1150,7 @@ def _packet_id(
     evaluation: EvaluationSummary,
     *,
     comparison: ComparisonSummary | None,
+    evidence_sensitivity: RAGSensitivityReport | None,
     control_efficacy: ControlEfficacyReport | None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None,
     control_efficacy_gate: ControlEfficacyGateDecision | None,
@@ -709,11 +1179,13 @@ def _packet_id(
     }
     if evidence_graph_digest is not None:
         payload["evidence_graph_digest"] = evidence_graph_digest
+    if evidence_sensitivity is not None:
+        payload["evidence_sensitivity"] = _summary_for_packet_id(evidence_sensitivity)
     return f"packet-{sha256_hexdigest(redact_packet_payload(payload))[:16]}"
 
 
 def _summary_for_packet_id(
-    summary: EvaluationSummary | ComparisonSummary | ControlEfficacyReport,
+    summary: (EvaluationSummary | ComparisonSummary | ControlEfficacyReport | RAGSensitivityReport),
 ) -> dict[str, object]:
     return summary.model_dump(mode="json", exclude={"environment"})
 

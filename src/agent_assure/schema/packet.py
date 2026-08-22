@@ -6,9 +6,12 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
-from agent_assure.schema.common import DigestHex, coerce_tuple
-from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.common import V063_CONTRACT_SCHEMA_VERSIONS, DigestHex, coerce_tuple
+from agent_assure.schema.comparison import (
+    ComparisonSummary,
+    comparison_evaluation_binding_error,
+)
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateDecision,
     ControlEfficacyGateProfile,
@@ -18,6 +21,7 @@ from agent_assure.schema.efficacy import (
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.release import ReleaseArtifactManifest
+from agent_assure.schema.sensitivity import RAGSensitivityReport
 from agent_assure.schema.usage import (
     UsageSummary,
     UsageSummaryDelta,
@@ -32,6 +36,7 @@ PacketArtifactRole = Literal[
     "control-efficacy-onboarding-config",
     "control-efficacy-gate-profile",
     "control-efficacy-report",
+    "evidence-sensitivity-report",
 ]
 _EVIDENCE_PACKET_USAGE_FIELD_PATHS = (
     ("usage_summary",),
@@ -54,8 +59,17 @@ _CONTROL_EFFICACY_DIGEST_ROLES = (
     *_CONTROL_EFFICACY_CONFIG_DIGEST_ROLES,
 )
 _EVIDENCE_GRAPH_ARTIFACT_ROLE: PacketArtifactRole = "assurance-evidence-graph"
-_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2", "0.6.3"})
+_EVIDENCE_SENSITIVITY_ARTIFACT_ROLE: PacketArtifactRole = "evidence-sensitivity-report"
+_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2", "0.6.3", "0.6.4"})
 _USAGE_ARTIFACT_SCHEMA_VERSION = "0.4.3"
+
+
+def _canonical_model_digest(model: BaseModel) -> str:
+    # Import lazily so schema package initialization cannot cycle through the
+    # canonical layer while that layer is importing schema.common.
+    from agent_assure.canonical.digests import sha256_hexdigest
+
+    return sha256_hexdigest(model.model_dump(mode="json"))
 
 
 def _evidence_packet_json_schema_extra() -> dict[str, Any]:
@@ -187,6 +201,68 @@ def _evidence_packet_json_schema_extra() -> dict[str, Any]:
             },
         }
     )
+    sensitivity_present = {
+        "required": ["evidence_sensitivity"],
+        "properties": {"evidence_sensitivity": {"not": {"type": "null"}}},
+    }
+    exact_sensitivity_digest_constraint = {
+        "contains": {
+            "type": "object",
+            "required": ["role"],
+            "properties": {"role": {"const": _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE}},
+        },
+        "minContains": 1,
+        "maxContains": 1,
+    }
+    no_sensitivity_digest_constraint = {
+        "not": {
+            "contains": {
+                "type": "object",
+                "required": ["role"],
+                "properties": {"role": {"const": _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE}},
+            }
+        }
+    }
+    schema["allOf"].append(
+        {
+            "if": sensitivity_present,
+            "then": {
+                "required": ["artifact_digests"],
+                "properties": {
+                    "artifact_digests": exact_sensitivity_digest_constraint,
+                    "release_manifest": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "required": ["artifacts"],
+                                "properties": {
+                                    "artifacts": exact_sensitivity_digest_constraint,
+                                },
+                            },
+                        ]
+                    },
+                },
+            },
+            "else": {
+                "properties": {
+                    "artifact_digests": no_sensitivity_digest_constraint,
+                    "release_manifest": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "required": ["artifacts"],
+                                "properties": {
+                                    "artifacts": no_sensitivity_digest_constraint,
+                                },
+                            },
+                        ]
+                    },
+                }
+            },
+        }
+    )
     return schema
 
 
@@ -204,6 +280,10 @@ class EvidencePacket(PersistedArtifact):
     interpretation: tuple[str, ...]
     evaluation: EvaluationSummary
     comparison: ComparisonSummary | None = None
+    evidence_sensitivity: RAGSensitivityReport | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     control_efficacy: ControlEfficacyReport | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
@@ -265,6 +345,53 @@ class EvidencePacket(PersistedArtifact):
         return self
 
     @model_validator(mode="after")
+    def _validate_evidence_sensitivity_subject(self) -> EvidencePacket:
+        report = self.evidence_sensitivity
+        if report is None:
+            return self
+        report = RAGSensitivityReport.model_validate(report.model_dump(mode="json"))
+        counterfactual = report.counterfactual_arm
+        if self.evaluation.runset_digest is None:
+            raise ValueError(
+                "evidence sensitivity requires an authenticated evaluation runset digest"
+            )
+        if (
+            self.evaluation.runset_id,
+            self.evaluation.runset_digest,
+        ) != (
+            counterfactual.runset_id,
+            counterfactual.runset_digest,
+        ):
+            raise ValueError(
+                "evidence sensitivity counterfactual arm must match the packet evaluation"
+            )
+        if _canonical_model_digest(self.evaluation) != (counterfactual.evaluation_summary_digest):
+            raise ValueError(
+                "evidence sensitivity counterfactual evaluation digest must match the "
+                "packet evaluation"
+            )
+        if self.comparison is not None and (
+            self.comparison.baseline_runset_id,
+            self.comparison.candidate_runset_id,
+        ) != (
+            report.baseline_arm.runset_id,
+            counterfactual.runset_id,
+        ):
+            raise ValueError("evidence sensitivity arms must match the packet comparison run sets")
+        if self.comparison is not None:
+            from agent_assure.sensitivity_comparison import (
+                sensitivity_comparison_binding_error,
+            )
+
+            comparison_error = sensitivity_comparison_binding_error(
+                self.comparison,
+                report,
+            )
+            if comparison_error is not None:
+                raise ValueError(comparison_error)
+        return self
+
+    @model_validator(mode="after")
     def _validate_usage_schema_version(self) -> EvidencePacket:
         validate_usage_field_paths_schema_version(
             self.schema_version,
@@ -273,10 +400,13 @@ class EvidencePacket(PersistedArtifact):
             field_paths=_EVIDENCE_PACKET_USAGE_FIELD_PATHS,
         )
         if self.comparison is not None:
-            if self.evaluation.runset_id != self.comparison.candidate_runset_id:
-                raise ValueError(
-                    "packet.evaluation.runset_id must match packet.comparison.candidate_runset_id"
-                )
+            binding_error = comparison_evaluation_binding_error(
+                self.comparison,
+                self.evaluation,
+                role="candidate",
+            )
+            if binding_error is not None:
+                raise ValueError(f"evidence packet {binding_error}")
             evaluation_profile = (
                 self.evaluation.privacy_profile_id,
                 self.evaluation.privacy_profile_digest,
@@ -342,17 +472,19 @@ class EvidencePacket(PersistedArtifact):
 
 
 def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
-    """Return an exact-file summary-digest binding error for current packets."""
-    if packet.schema_version != SCHEMA_VERSION:
+    """Return an exact-file summary-digest binding error for governed packets."""
+    if packet.schema_version not in V063_CONTRACT_SCHEMA_VERSIONS:
         return None
     expected_comparison_count = int(packet.comparison is not None)
     expected_graph_count = int(packet.evidence_graph_digest is not None)
+    expected_sensitivity_count = int(packet.evidence_sensitivity is not None)
     packet_by_role = {
         role: tuple(item for item in packet.artifact_digests if item.role == role)
         for role in (
             "evaluation-summary",
             "comparison-summary",
             _EVIDENCE_GRAPH_ARTIFACT_ROLE,
+            _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE,
         )
     }
     if len(packet_by_role["evaluation-summary"]) != 1:
@@ -364,6 +496,11 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "current evidence packet assurance-evidence-graph digest must match "
             "evidence_graph_digest presence"
         )
+    if len(packet_by_role[_EVIDENCE_SENSITIVITY_ARTIFACT_ROLE]) != expected_sensitivity_count:
+        return (
+            "current evidence packet evidence-sensitivity-report digest must match "
+            "nested evidence sensitivity"
+        )
     if packet.release_manifest is None:
         return None
     manifest_by_role = {
@@ -372,6 +509,7 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "evaluation-summary",
             "comparison-summary",
             _EVIDENCE_GRAPH_ARTIFACT_ROLE,
+            _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE,
         )
     }
     if len(manifest_by_role["evaluation-summary"]) != 1:
@@ -389,10 +527,16 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "current evidence packet release manifest assurance-evidence-graph artifact "
             "must match evidence_graph_digest presence"
         )
+    if len(manifest_by_role[_EVIDENCE_SENSITIVITY_ARTIFACT_ROLE]) != expected_sensitivity_count:
+        return (
+            "current evidence packet release manifest evidence-sensitivity-report "
+            "artifact must match nested evidence sensitivity"
+        )
     for role in (
         "evaluation-summary",
         "comparison-summary",
         _EVIDENCE_GRAPH_ARTIFACT_ROLE,
+        _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE,
     ):
         if not packet_by_role[role]:
             continue

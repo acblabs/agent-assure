@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+import agent_assure.fixtures.manifest as fixture_manifest_module
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.fixtures.loader import (
     load_compiled_suite,
@@ -137,6 +138,30 @@ def test_fixture_manifest_rejects_symlinked_files(tmp_path) -> None:  # type: ig
         pytest.skip("symlink creation is not available in this environment")
 
     with pytest.raises(ValueError, match="refuses symlinked path"):
+        build_fixture_manifest(compile_suite(suite), tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("limit_name", "limit", "message"),
+    (
+        ("MAX_FIXTURE_MANIFEST_ENTRIES", 2, "entry limit"),
+        ("MAX_FIXTURE_MANIFEST_DIRECTORIES", 3, "directory limit"),
+        ("MAX_FIXTURE_MANIFEST_DEPTH", 0, "directory depth limit"),
+        ("MAX_FIXTURE_MANIFEST_AGGREGATE_BYTES", 1, "aggregate byte limit"),
+    ),
+)
+def test_fixture_manifest_inventory_is_resource_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    limit_name: str,
+    limit: int,
+    message: str,
+) -> None:
+    suite = _write_minimal_suite(tmp_path, ("fixtures/root-a",))
+    _write_prior_auth_fixture_triplet(tmp_path, "fixtures/root-a", "case-fixture")
+    monkeypatch.setattr(fixture_manifest_module, limit_name, limit)
+
+    with pytest.raises(ValueError, match=message):
         build_fixture_manifest(compile_suite(suite), tmp_path)
 
 

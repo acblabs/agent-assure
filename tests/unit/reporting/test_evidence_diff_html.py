@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from agent_assure.evaluation.evaluator import runset_digest
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.reporting.evidence_diff_html import (
     THESIS_TITLE,
@@ -236,6 +237,7 @@ def test_evidence_diff_html_rejects_summary_state_contradicting_comparison() -> 
     baseline, candidate, comparison, packet = _artifacts()
     baseline_summary = EvaluationSummary(
         runset_id="baseline",
+        runset_digest=runset_digest(baseline),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -271,6 +273,13 @@ def test_evidence_diff_html_rejects_duplicate_case_ids_before_rendering() -> Non
             duplicate_run,
         ),
     )
+    comparison = comparison.model_copy(
+        update={
+            "baseline_runset_digest": runset_digest(baseline),
+            "candidate_runset_digest": runset_digest(candidate),
+        }
+    )
+    packet = packet.model_copy(update={"comparison": comparison})
 
     with pytest.raises(ValueError, match="duplicate case_id"):
         render_evidence_diff_html(
@@ -314,6 +323,14 @@ def test_evidence_diff_html_ignores_display_only_evidence_ref_claim_ids() -> Non
         link_claims=False,
     )
     candidate = candidate.model_copy(update={"runs": (candidate_run,)})
+    candidate_digest = runset_digest(candidate)
+    comparison = comparison.model_copy(update={"candidate_runset_digest": candidate_digest})
+    packet = packet.model_copy(
+        update={
+            "evaluation": packet.evaluation.model_copy(update={"runset_digest": candidate_digest}),
+            "comparison": comparison,
+        }
+    )
 
     html = render_evidence_diff_html(
         baseline=baseline,
@@ -346,6 +363,7 @@ def test_evidence_diff_html_handles_unscoped_findings_without_zero_case_claim() 
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
+        runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -354,6 +372,8 @@ def test_evidence_diff_html_handles_unscoped_findings_without_zero_case_claim() 
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,
@@ -391,6 +411,8 @@ def test_evidence_diff_html_surfaces_non_claim_process_changed_fields() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.provenance_only_change,
@@ -458,6 +480,8 @@ def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.allowed_behavioral_change,
@@ -507,6 +531,8 @@ def test_evidence_diff_html_surfaces_source_id_only_process_change() -> None:
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.provenance_only_change,
@@ -547,6 +573,12 @@ def test_evidence_diff_html_surfaces_changed_retrieval_corpus_digest() -> None:
     )
     baseline = baseline.model_copy(update={"runs": (baseline_run,)})
     candidate = candidate.model_copy(update={"runs": (candidate_run,)})
+    comparison = comparison.model_copy(
+        update={
+            "baseline_runset_digest": runset_digest(baseline),
+            "candidate_runset_digest": runset_digest(candidate),
+        }
+    )
 
     html = render_evidence_diff_html(
         baseline=baseline,
@@ -593,6 +625,7 @@ def _artifacts(
     )
     candidate_summary = EvaluationSummary(
         runset_id="candidate",
+        runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -601,6 +634,8 @@ def _artifacts(
     comparison = ComparisonSummary(
         baseline_runset_id="baseline",
         candidate_runset_id="candidate",
+        baseline_runset_digest=runset_digest(baseline),
+        candidate_runset_digest=runset_digest(candidate),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         classification=ComparisonClassification.new_failure,

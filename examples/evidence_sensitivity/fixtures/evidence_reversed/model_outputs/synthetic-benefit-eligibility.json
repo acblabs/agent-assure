@@ -1,0 +1,14 @@
+{
+  "agent_implementation_digest": "c868544c210bdfa1e9c0ea5654f273eee04c8016e703b8330d3d246d92d9cfc7",
+  "agent_implementation_id": "synthetic-evidence-reversed-agent-v1",
+  "deterministic": true,
+  "emit_evidence_links": true,
+  "fixed_decision": null,
+  "fixed_outcome": null,
+  "mode": "evidence_reversed",
+  "model_digest": "bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c",
+  "model_id": "deterministic-fixture-model-v1",
+  "prompt_template_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
+  "prompt_template_id": "sensitivity-prompt-v1",
+  "subject_id": "evidence-reversed-policy-subject"
+}
