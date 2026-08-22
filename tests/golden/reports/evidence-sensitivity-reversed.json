@@ -60,7 +60,7 @@
     "corpus_snapshot_digest": "4adf3567d1497aae2c44ce8d6b506cf73b4c59a8aa02e3d3e1d1a5c0bab62905",
     "decision": "deny",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "fea14b4deb2e98901096012bde186ad2f543ba634826d99da91b5d1261794bca",
+    "evaluation_summary_digest": "e7b424587178a987eb64af18ec896413d7fc878e72f6b482fe11876f93d2b607",
     "evidence_link_present": true,
     "evidence_set_digest": "5e029cb06c362ab94f1d8d89e57037aa827fc2dfe4df1c94d6e7b5e4751774e6",
     "expected_decision": "approve",
@@ -92,8 +92,8 @@
     ],
     "retrieved_evidence_digest": "0a4a0d857f018386405242bab1f863a373c1dee9aa7b0db48343edfad9a498c5",
     "role": "baseline",
-    "runset_digest": "bec0b7ba97744e9e6d496c73e8b90bbcde8bf5ff30f7d263f3833f9f17c70f7d",
-    "runset_id": "sensitivity-runset-baseline-f29302c49e9dbf28a776dcc4"
+    "runset_digest": "a1104d62f61af93bd18def40420f9e8e980f314281f73ba343d5518b16b79b45",
+    "runset_id": "sensitivity-runset-baseline-9b854c25e643f21c353264f5"
   },
   "baseline_corpus_snapshot": {
     "artifact_kind": "rag-sensitivity-corpus-snapshot",
@@ -156,8 +156,8 @@
     "findings": [],
     "privacy_profile_digest": "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
     "privacy_profile_id": "agent-assure/privacy-detectors/v2",
-    "runset_digest": "bec0b7ba97744e9e6d496c73e8b90bbcde8bf5ff30f7d263f3833f9f17c70f7d",
-    "runset_id": "sensitivity-runset-baseline-f29302c49e9dbf28a776dcc4",
+    "runset_digest": "a1104d62f61af93bd18def40420f9e8e980f314281f73ba343d5518b16b79b45",
+    "runset_id": "sensitivity-runset-baseline-9b854c25e643f21c353264f5",
     "schema_version": "0.6.4",
     "state": "pass"
   },
@@ -168,7 +168,7 @@
     "fixture_manifest_digest": "edd4e04d290fec432d8d4f896895e8ce8410f92843c8431040baf0934b85f73f",
     "privacy_profile_digest": "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
     "privacy_profile_id": "agent-assure/privacy-detectors/v2",
-    "protocol_digest": "d37947d8d978654f91cd6946bd98656097b5b1e8afa3a81cf9a5f1e6052ff983",
+    "protocol_digest": "e59861c5ed60af2f9eb883eed6d5fa66849f56043402304a07928b9b5943e049",
     "protocol_id": "rag-sensitivity-202955f5b10755423029f2e8",
     "runs": [
       {
@@ -253,7 +253,7 @@
         "repetition_index": null,
         "resolved_model": "deterministic-fixture-model-v1",
         "retry_count": null,
-        "run_id": "sensitivity-run-baseline-f29302c49e9dbf28a776dcc4",
+        "run_id": "sensitivity-run-baseline-9b854c25e643f21c353264f5",
         "schedule_index": null,
         "schema_version": "0.6.4",
         "source_group_id": null,
@@ -266,7 +266,7 @@
         "tracestate": null
       }
     ],
-    "runset_id": "sensitivity-runset-baseline-f29302c49e9dbf28a776dcc4",
+    "runset_id": "sensitivity-runset-baseline-9b854c25e643f21c353264f5",
     "schema_version": "0.6.4",
     "stop_reasons": [],
     "suite_digest": "f78b7a363b77e227170ac704c5b691a30661828842f7fddfb3cd3f7544f1ee7a",
@@ -354,7 +354,7 @@
     "corpus_snapshot_digest": "8215d2db9cbc817d8e825528024dffcf2bc9b9ee5ff597d1380d1d16c1a70a7a",
     "decision": "approve",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "3804adba2699497b8577c6f24963252026d8abc1f8f20dd7ba8d42830eae8b19",
+    "evaluation_summary_digest": "0be691370be1b0dbf6bcb67a0735963757dccf423b20bf82d642e567c9085743",
     "evidence_link_present": true,
     "evidence_set_digest": "da73ac2f21ea72c33e81971bc0541d3a15abc3ed11b715d05c085c22daeda0fc",
     "expected_decision": "deny",
@@ -386,8 +386,8 @@
     ],
     "retrieved_evidence_digest": "d82df4e654a5ecb3a05faf0ea0d7cb45a6b7bf473cd7d8a3c0327ca6ff2cb9a6",
     "role": "counterfactual",
-    "runset_digest": "5489dc3e85ab52fb925949da803710abb2d5c3b8356e1ee151070716e3493fe1",
-    "runset_id": "sensitivity-runset-counterfactual-f07df47a56211d7402bf45bc"
+    "runset_digest": "be842495dc4b63ab56309a6f4006f655715b4e6dcad93e0b709b0996d352fd45",
+    "runset_id": "sensitivity-runset-counterfactual-c9a5b274de144b365c0302a6"
   },
   "counterfactual_corpus_snapshot": {
     "artifact_kind": "rag-sensitivity-corpus-snapshot",
@@ -450,8 +450,8 @@
     "findings": [],
     "privacy_profile_digest": "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
     "privacy_profile_id": "agent-assure/privacy-detectors/v2",
-    "runset_digest": "5489dc3e85ab52fb925949da803710abb2d5c3b8356e1ee151070716e3493fe1",
-    "runset_id": "sensitivity-runset-counterfactual-f07df47a56211d7402bf45bc",
+    "runset_digest": "be842495dc4b63ab56309a6f4006f655715b4e6dcad93e0b709b0996d352fd45",
+    "runset_id": "sensitivity-runset-counterfactual-c9a5b274de144b365c0302a6",
     "schema_version": "0.6.4",
     "state": "pass"
   },
@@ -462,7 +462,7 @@
     "fixture_manifest_digest": "edd4e04d290fec432d8d4f896895e8ce8410f92843c8431040baf0934b85f73f",
     "privacy_profile_digest": "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
     "privacy_profile_id": "agent-assure/privacy-detectors/v2",
-    "protocol_digest": "d37947d8d978654f91cd6946bd98656097b5b1e8afa3a81cf9a5f1e6052ff983",
+    "protocol_digest": "e59861c5ed60af2f9eb883eed6d5fa66849f56043402304a07928b9b5943e049",
     "protocol_id": "rag-sensitivity-202955f5b10755423029f2e8",
     "runs": [
       {
@@ -547,7 +547,7 @@
         "repetition_index": null,
         "resolved_model": "deterministic-fixture-model-v1",
         "retry_count": null,
-        "run_id": "sensitivity-run-counterfactual-f07df47a56211d7402bf45bc",
+        "run_id": "sensitivity-run-counterfactual-c9a5b274de144b365c0302a6",
         "schedule_index": null,
         "schema_version": "0.6.4",
         "source_group_id": null,
@@ -560,7 +560,7 @@
         "tracestate": null
       }
     ],
-    "runset_id": "sensitivity-runset-counterfactual-f07df47a56211d7402bf45bc",
+    "runset_id": "sensitivity-runset-counterfactual-c9a5b274de144b365c0302a6",
     "schema_version": "0.6.4",
     "stop_reasons": [],
     "suite_digest": "f78b7a363b77e227170ac704c5b691a30661828842f7fddfb3cd3f7544f1ee7a",
@@ -752,9 +752,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "0.6.4",
+          "baseline_value": "0.6.4rc1",
           "basis": "protocol_fixed",
-          "counterfactual_value": "0.6.4",
+          "counterfactual_value": "0.6.4rc1",
           "dimension": "producer_version",
           "expected_equal": true,
           "state": "controlled"
@@ -919,9 +919,9 @@
     ],
     "model_digest": "bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c",
     "model_id": "deterministic-fixture-model-v1",
-    "producer_version": "0.6.4",
+    "producer_version": "0.6.4rc1",
     "prompt_template_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
-    "protocol_digest": "d37947d8d978654f91cd6946bd98656097b5b1e8afa3a81cf9a5f1e6052ff983",
+    "protocol_digest": "e59861c5ed60af2f9eb883eed6d5fa66849f56043402304a07928b9b5943e049",
     "protocol_id": "rag-sensitivity-202955f5b10755423029f2e8",
     "provenance_binding": "fixture_declared_unverified_digests",
     "provider": "synthetic-fixture",
@@ -977,8 +977,8 @@
   "reason_codes": [
     "EVIDENCE_SENSITIVITY_EXPECTED_RESPONSE_MISSING"
   ],
-  "report_digest": "382153a089641c682808341836cf4d54a0c249a9e722b1e84e6344db0706b405",
-  "report_id": "evidence-sensitivity-d37947d8d978654f91cd6946",
+  "report_digest": "c27199b41fd42596ed56a09f224f18cf34ae473106f5a8bcb356df0d7c0c6dcd",
+  "report_id": "evidence-sensitivity-e59861c5ed60af2f9eb883ee",
   "schema_name": "evidence-sensitivity-report",
   "schema_version": "0.6.4",
   "state": "evidence_insensitive",

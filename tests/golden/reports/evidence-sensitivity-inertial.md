@@ -24,7 +24,7 @@ This report is a **synthetic detector contract test**. It measures a declared co
 - Raw content persistence: `exact_corpus_and_fixture_utf8_embedded`
 - Claim scope: `controlled_evidence_sensitivity_not_causal_guarantee`
 - Population claim: `none_bundled_synthetic_fixture_only`
-- Protocol digest: `4c5d66b5cabd4cfb4cad66afed36f5f196a60899c817ea3eaa055096aa5a0a21`
+- Protocol digest: `c164d82771c7841707a780fb5c3c35004bc87d137c7ff59b4af95733edbf4982`
 - Authority contract digest: `43c6f8258181292c8cb32dd5bcad76f6c7bfd97b95fceb339fbc2ad9bb9d0e57`
 - Reason codes: `EVIDENCE_SENSITIVITY_EXPECTED_RESPONSE_MISSING`
 
@@ -58,7 +58,7 @@ This report is a **synthetic detector contract test**. It measures a declared co
 | `model_digest` | `protocol_fixed` | `bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c` | `bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c` | `equal` | `controlled` |
 | `non_governing_evidence_digest` | `arm_observed` | `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` | `4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945` | `equal` | `controlled` |
 | `prompt_template_digest` | `protocol_fixed` | `fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9` | `fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9` | `equal` | `controlled` |
-| `producer_version` | `protocol_fixed` | `0.6.4` | `0.6.4` | `equal` | `controlled` |
+| `producer_version` | `protocol_fixed` | `0.6.4rc1` | `0.6.4rc1` | `equal` | `controlled` |
 | `query_digest` | `protocol_fixed` | `81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d` | `81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d` | `equal` | `controlled` |
 | `query_family_id` | `arm_observed` | `synthetic-benefit-eligibility` | `synthetic-benefit-eligibility` | `equal` | `controlled` |
 | `request_digest` | `protocol_fixed` | `8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e` | `8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e` | `equal` | `controlled` |
