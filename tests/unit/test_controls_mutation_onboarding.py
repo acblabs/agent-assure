@@ -78,8 +78,8 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
 
     expected_hashes = {
         "controls-mutation.yaml": (
-            747,
-            "1ebdf28f1279bdd5c44d3074d042ac3392d03cc9b225b90a3131888f46909ca6",
+            750,
+            "e227ae889be573ce60ff99426acbee3cec78bfc6fd2b1e160ac8d77ba9b75906",
         ),
         "suite.yaml": (
             318,
