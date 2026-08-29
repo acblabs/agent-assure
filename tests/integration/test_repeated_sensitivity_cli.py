@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Literal
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from agent_assure.cli import rag_cmd as rag_cmd_module
@@ -488,9 +489,7 @@ def test_repeated_sensitivity_finalize_refuses_every_inline_environment_value(
                 update={
                     # Deliberately benign-looking: finalization rejects all raw
                     # values instead of pretending detectors can prove safety.
-                    "script_env": (
-                        LiveScriptEnvVar(name="CUSTOM_FLAG", value="enabled"),
-                    ),
+                    "script_env": (LiveScriptEnvVar(name="CUSTOM_FLAG", value="enabled"),),
                 }
             )
         }
@@ -1029,13 +1028,18 @@ def test_sensitivity_help_and_legacy_deterministic_dispatch_remain_compatible(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    help_result = RUNNER.invoke(app, ["rag", "sensitivity", "--help"])
+    help_result = RUNNER.invoke(
+        app,
+        ["rag", "sensitivity", "--help"],
+        terminal_width=240,
+    )
     assert help_result.exit_code == 0, help_result.output
-    assert "--suite" in help_result.output
-    assert "plan" in help_result.output
-    assert "finalize" in help_result.output
-    assert "analyze" in help_result.output
-    assert "run" in help_result.output
+    help_output = unstyle(help_result.output)
+    assert "--suite" in help_output
+    assert "plan" in help_output
+    assert "finalize" in help_output
+    assert "analyze" in help_output
+    assert "run" in help_output
 
     suite = tmp_path / "suite.yaml"
     knowledge = tmp_path / "knowledge.yaml"
