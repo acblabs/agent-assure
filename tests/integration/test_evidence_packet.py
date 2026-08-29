@@ -10,6 +10,7 @@ from typing import cast
 
 import pytest
 import yaml
+from click import unstyle
 from pydantic import ValidationError
 from typer.testing import CliRunner
 
@@ -830,10 +831,9 @@ def test_packet_build_rejects_stochastic_source_change_during_snapshot_binding(
         terminal_width=240,
     )
 
+    normalized_output = " ".join(unstyle(result.output).replace(chr(0x2502), " ").split())
     assert result.exit_code == 2
-    assert "changed path" in result.output
-    assert "identity" in result.output
-    assert "after it was read" in result.output
+    assert "changed path identity after it was read" in normalized_output
     assert target_reads == 1
     for owned_path in _packet_owned_output_paths(packet_path):
         assert not owned_path.exists()

@@ -118,9 +118,8 @@ def test_windows_sharing_retry_uses_numeric_cause_chain_only(
             sharing_error = PermissionError(
                 errno.EACCES,
                 "opaque transient access failure",
-                None,
-                32,
             )
+            sharing_error.winerror = 32
             raise ValueError("typed wrapper") from sharing_error
         return "verified"
 
