@@ -229,6 +229,9 @@ def test_packet_cli_binds_config_profile_and_ci_rejects_a_forged_embedded_pass(
         evaluation_path,
         EvaluationSummary(
             runset_id="packet-efficacy-candidate",
+            runset_digest=_control_efficacy_source_digest(
+                report_dir / "control-efficacy-report.json"
+            ),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -341,6 +344,9 @@ def test_packet_cli_hashes_and_manifests_the_exact_efficacy_snapshots(
         evaluation_path,
         EvaluationSummary(
             runset_id="snapshot-efficacy-candidate",
+            runset_digest=_control_efficacy_source_digest(
+                report_dir / "control-efficacy-report.json"
+            ),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -424,6 +430,9 @@ def test_packet_cli_does_not_rebind_captured_report_path_after_symlink_swap(
         evaluation_path,
         EvaluationSummary(
             runset_id="snapshot-path-efficacy-candidate",
+            runset_digest=_control_efficacy_source_digest(
+                report_dir / "control-efficacy-report.json"
+            ),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -492,6 +501,9 @@ def test_packet_cli_never_resolves_efficacy_path_after_snapshot(
         evaluation_path,
         EvaluationSummary(
             runset_id="snapshot-resolve-efficacy-candidate",
+            runset_digest=_control_efficacy_source_digest(
+                report_dir / "control-efficacy-report.json"
+            ),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -574,6 +586,9 @@ def test_packet_cli_rejects_config_with_stale_threat_manifest_before_outputs(
         evaluation_path,
         EvaluationSummary(
             runset_id="stale-manifest-candidate",
+            runset_digest=_control_efficacy_source_digest(
+                report_dir / "control-efficacy-report.json"
+            ),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -618,6 +633,7 @@ def test_packet_cli_rejects_hard_linked_control_efficacy_report(
         evaluation_path,
         EvaluationSummary(
             runset_id="hard-linked-report-candidate",
+            runset_digest=_control_efficacy_source_digest(report_path),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -643,6 +659,7 @@ def test_packet_cli_rejects_input_output_alias_before_any_write(tmp_path: Path) 
         evaluation_path,
         EvaluationSummary(
             runset_id="packet-alias-candidate",
+            runset_digest=_fixture_runset_digest("packet-alias-candidate"),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -757,6 +774,9 @@ def test_unsorted_multi_operator_config_runs_mutation_efficacy_and_packet(
         evaluation_path,
         EvaluationSummary(
             runset_id="multi-operator-candidate",
+            runset_digest=_control_efficacy_source_digest(
+                report_dir / "control-efficacy-report.json"
+            ),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -1220,6 +1240,14 @@ def _json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     assert isinstance(payload, dict)
     return payload
+
+
+def _fixture_runset_digest(runset_id: str) -> str:
+    return hashlib.sha256(f"synthetic-runset:{runset_id}".encode()).hexdigest()
+
+
+def _control_efficacy_source_digest(report_path: Path) -> str:
+    return cast(str, _json(report_path)["source_digest"])
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

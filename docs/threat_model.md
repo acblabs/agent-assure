@@ -36,6 +36,15 @@ a network-isolation boundary against hostile Python or native code.
   external-script working directories must resolve under the live config
   directory. Absolute paths and parent-directory traversal are rejected for those
   fields.
+- A caller-supplied `LiveExecutionSnapshot` is an authoritative in-process
+  executable-input capability. Validation proves bounded internal consistency,
+  exact content digests, and compatibility with configured semantic bindings;
+  it does not prove that detached bytes came from, or still match, the mutable
+  paths named by the config when those paths have no configured content digest.
+  Callers crossing a trust boundary must prepare snapshots themselves with
+  `prepare_live_execution_snapshot`; same-process library callers are trusted.
+  The supported repeated-study CLI prepares snapshots from rooted paths and
+  never accepts detached snapshots from its input files.
 - The external-script adapter runs without a shell and receives only declared
   environment variables plus runner-injected request and trace context. It is
   not a sandbox; the configured script still executes with the caller's host
@@ -64,8 +73,10 @@ a network-isolation boundary against hostile Python or native code.
   `--strict-endpoint-resolution` is retained for CLI compatibility only.
   Endpoint-bound network adapters always fail closed when endpoint hosts cannot
   be resolved for screening.
-  OpenAI-compatible requests repeat DNS screening immediately before dispatch,
-  but this is not TLS pinning or socket-level IP pinning.
+  OpenAI-compatible requests repeat DNS screening immediately before dispatch
+  and connect only to one of those screened addresses while retaining the
+  original hostname for TLS verification and the HTTP Host header. This is
+  per-request address pinning, not certificate/public-key pinning.
 - OTLP HTTP export is explicit operator-controlled network egress. OTLP export
   requires an explicit HTTPS endpoint and an explicit endpoint-host allowlist;
   SDK environment-default endpoints, headers, credential-provider sessions,
@@ -73,7 +84,10 @@ a network-isolation boundary against hostile Python or native code.
   HTTP session disables redirects and ambient Requests configuration. Localhost, private,
   link-local, reserved, multicast, and unspecified endpoint hosts are rejected
   by literal host inspection and by resolved A/AAAA records. OTLP endpoint DNS
-  screening fails closed when resolution is unavailable.
+  screening fails closed when resolution is unavailable. The upstream exporter
+  resolves again when connecting, so OTLP retains a documented DNS
+  validation-to-connect TOCTOU window and does not provide address-level
+  pinning.
 
 ## Privacy Boundary
 
@@ -93,7 +107,11 @@ a network-isolation boundary against hostile Python or native code.
   values above the bounded detector budget. It scans a second, profile-bound
   Unicode deobfuscation view so bidi, zero-width, private-use, surrogate, and
   other category-C code points cannot split an otherwise detectable email,
-  identifier, or credential. OpenTelemetry export repeats the recursive
+  identifier, or credential. Unicode dash equivalents are normalized for SSN
+  and card scans, and non-ASCII text bypasses literal-marker pruning. Every
+  non-empty value under a recognized structured sensitive label fails closed;
+  non-ASCII structured keys with non-empty scalar values also fail closed.
+  OpenTelemetry export repeats the recursive
   sensitive-content check at the final egress boundary and applies
   explicit span, event, attribute, key, and value limits. Its SDK resource,
   trace propagator, root context, sampler, span limits, and OTLP compression are
@@ -202,9 +220,11 @@ a network-isolation boundary against hostile Python or native code.
 
 - Host isolation for malicious local scripts or compromised CI jobs.
 - Attestation of arbitrary live adapters, network providers, or model responses.
-- TLS pinning, socket-level IP pinning, provider-side compromise detection, or
-  MITM detection beyond HTTPS, endpoint host allowlisting, and DNS safety
-  screening.
+- Certificate/SPKI pinning, provider-side compromise detection, or MITM
+  detection beyond HTTPS, endpoint host allowlisting, and DNS safety screening.
+  The OpenAI-compatible adapter does pin each request socket to a screened
+  address; OTLP does not and retains the documented validation-to-connect DNS
+  TOCTOU window.
 - Comprehensive secret discovery, PHI de-identification, malware detection, or
   supply-chain attestation beyond digest replay and optional cosign signing.
 - Isolation from a malicious installed package or compromised built-in

@@ -19,6 +19,12 @@ MAX_CONFIG_TEXT_BYTES = 1 * 1024 * 1024
 MAX_PROMPT_BYTES = 1 * 1024 * 1024
 MAX_STATIC_JSONL_BYTES = 16 * 1024 * 1024
 MAX_STATIC_JSONL_LINE_BYTES = 1 * 1024 * 1024
+# A RunSet is a single bounded JSON artifact, not a streaming container. Keep
+# planned record cardinality far below the 16 MiB byte ceiling so hostile plans
+# cannot allocate six-figure schedules or construct predictably unloadable
+# artifacts. Writers still enforce the exact byte limit because record payloads
+# vary in size.
+MAX_PERSISTED_OBSERVATIONS = 4_096
 _READ_CHUNK_BYTES = 1024 * 1024
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
 
@@ -110,6 +116,61 @@ def read_text_bounded_at(
         max_bytes=max_bytes,
         label=label,
     ).decode("utf-8")
+
+
+def open_file_bounded_from_filesystem_root(
+    path: Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> BoundedFileDescriptor:
+    """Open a file while pinning every directory from its filesystem root."""
+    root, relative_path = _filesystem_rooted_path(path)
+    return open_file_bounded_at(
+        root,
+        relative_path,
+        max_bytes=max_bytes,
+        label=label,
+    )
+
+
+def read_file_bounded_from_filesystem_root(
+    path: Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> BoundedFileContents:
+    """Read a file without following any intermediate or final path links."""
+    with open_file_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label=label,
+    ) as opened:
+        return opened.contents
+
+
+def read_text_bounded_from_filesystem_root(
+    path: Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> str:
+    return read_file_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label=label,
+    ).data.decode("utf-8")
+
+
+def _filesystem_rooted_path(path: Path) -> tuple[Path, Path]:
+    absolute = Path(os.path.abspath(path))
+    if not absolute.anchor:
+        raise ValueError("bounded file path must have a filesystem root")
+    root = Path(absolute.anchor)
+    relative_path = absolute.relative_to(root)
+    if not relative_path.parts:
+        raise ValueError("bounded file path must identify a file below its filesystem root")
+    return root, relative_path
 
 
 def read_text_bounded(path: Path, *, max_bytes: int, label: str) -> str:
@@ -241,6 +302,23 @@ def load_json_bounded(
     label: str = "artifact JSON",
 ) -> dict[str, Any]:
     text = read_text_bounded(path, max_bytes=max_bytes, label=label)
+    value = loads_json_bounded(text, label=label)
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} root must be an object")
+    return value
+
+
+def load_json_bounded_from_filesystem_root(
+    path: Path,
+    *,
+    max_bytes: int = MAX_ARTIFACT_JSON_BYTES,
+    label: str = "artifact JSON",
+) -> dict[str, Any]:
+    text = read_text_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label=label,
+    )
     value = loads_json_bounded(text, label=label)
     if not isinstance(value, dict):
         raise ValueError(f"{label} root must be an object")

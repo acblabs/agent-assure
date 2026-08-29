@@ -9,17 +9,22 @@ from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from agent_assure.schema.base import RFC8785_SAFE_INTEGER_MAX, FrozenStrictModel
 from agent_assure.schema.campaign import MutationApplicability
-from agent_assure.schema.common import DigestHex, GateState, coerce_enum, coerce_tuple
+from agent_assure.schema.common import (
+    DigestHex,
+    GateState,
+    MachineIdentifier,
+    coerce_enum,
+    coerce_tuple,
+)
 from agent_assure.schema.mutation import (
     BoundedSummary,
     GateEffect,
     IndependenceClass,
-    MachineIdentifier,
     MutationResultState,
     SelfDigestedArtifact,
 )
 
-EFFICACY_SCHEMA_VERSION: Literal["0.6.4"] = "0.6.4"
+EFFICACY_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
 MAX_EFFICACY_OPERATORS = 256
 MAX_THREAT_CATEGORIES = 4096
 MAX_CATALOG_THREAT_REFERENCES = MAX_EFFICACY_OPERATORS * 32
@@ -221,7 +226,7 @@ class ThreatApplicabilityManifest(SelfDigestedArtifact):
     _digest_field = "manifest_digest"
 
     artifact_kind: Literal["threat-applicability-manifest"] = "threat-applicability-manifest"
-    schema_version: Literal["0.6.2", "0.6.3", "0.6.4"] = EFFICACY_SCHEMA_VERSION
+    schema_version: Literal["0.6.2", "0.6.3", "0.6.4", "0.6.5"] = EFFICACY_SCHEMA_VERSION
     schema_name: Literal["threat-applicability-manifest"] = "threat-applicability-manifest"
     contract_id: Literal["ThreatApplicabilityManifest/v1"] = "ThreatApplicabilityManifest/v1"
     contract_version: Literal["1.0.0"] = "1.0.0"
@@ -432,7 +437,7 @@ class ControlEfficacyReport(SelfDigestedArtifact):
     _digest_field = "report_digest"
 
     artifact_kind: Literal["control-efficacy-report"] = "control-efficacy-report"
-    schema_version: Literal["0.6.2", "0.6.3", "0.6.4"] = EFFICACY_SCHEMA_VERSION
+    schema_version: Literal["0.6.2", "0.6.3", "0.6.4", "0.6.5"] = EFFICACY_SCHEMA_VERSION
     schema_name: Literal["control-efficacy-report"] = "control-efficacy-report"
     contract_id: Literal["ControlEfficacyReport/v1"] = "ControlEfficacyReport/v1"
     contract_version: Literal["1.0.0"] = "1.0.0"

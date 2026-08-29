@@ -110,13 +110,23 @@ def ci(
             ),
         ),
     ] = False,
+    require_stochastic_evidence_sensitivity: Annotated[
+        bool,
+        typer.Option(
+            "--require-stochastic-evidence-sensitivity",
+            help=(
+                "Require an evidence packet to carry a verdict-bearing passing "
+                "stochastic evidence-sensitivity report."
+            ),
+        ),
+    ] = False,
     allow_sensitivity_non_verdict: Annotated[
         bool,
         typer.Option(
             "--allow-sensitivity-non-verdict",
             help=(
-                "Explicitly allow a sensitivity-bearing packet with a confounded "
-                "or prerequisites-unmet non-verdict result."
+                "Explicitly allow a deterministic or stochastic sensitivity-bearing "
+                "packet with a non-verdict result."
             ),
         ),
     ] = False,
@@ -154,6 +164,7 @@ def ci(
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
             require_evidence_sensitivity=require_evidence_sensitivity,
+            require_stochastic_evidence_sensitivity=(require_stochastic_evidence_sensitivity),
             allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
             allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
             output_format=output_format,
@@ -168,6 +179,10 @@ def ci(
         raise typer.BadParameter("--require-efficacy is only valid with ci gate")
     if require_evidence_sensitivity:
         raise typer.BadParameter("--require-evidence-sensitivity is only valid with ci gate")
+    if require_stochastic_evidence_sensitivity:
+        raise typer.BadParameter(
+            "--require-stochastic-evidence-sensitivity is only valid with ci gate"
+        )
     if allow_sensitivity_non_verdict:
         raise typer.BadParameter("--allow-sensitivity-non-verdict is only valid with ci gate")
     if allow_legacy_unbound_comparison:
@@ -277,6 +292,7 @@ def _gate_existing_artifact(
     strict_efficacy: bool,
     require_efficacy: bool,
     require_evidence_sensitivity: bool,
+    require_stochastic_evidence_sensitivity: bool,
     allow_sensitivity_non_verdict: bool,
     allow_legacy_unbound_comparison: bool,
     output_format: str,
@@ -327,6 +343,7 @@ def _gate_existing_artifact(
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
             require_evidence_sensitivity=require_evidence_sensitivity,
+            require_stochastic_evidence_sensitivity=(require_stochastic_evidence_sensitivity),
             allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
             allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
         )

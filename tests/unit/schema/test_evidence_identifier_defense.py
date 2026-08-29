@@ -222,6 +222,18 @@ def test_frozen_v061_expectation_retains_machine_identifier_defense() -> None:
         validate_artifact_payload(payload, "expectation")
 
 
+def test_frozen_v064_machine_identifier_defense_is_independent_of_version_catalog() -> None:
+    model, payload = _evidence_ref_claim_payload(
+        "unsafe identifier with spaces",
+        "0.6.4",
+    )
+
+    with pytest.raises(PydanticValidationError):
+        model.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
 def test_frozen_expectation_artifact_retains_legacy_identifier_compatibility() -> None:
     _, payload = _expectation_required_payload("legacy\x1b[2Kref\u202e", "0.6.0")
 

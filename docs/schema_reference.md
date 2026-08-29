@@ -1,23 +1,24 @@
 # Schema Reference
 
-Current writer schema version: `0.6.4`.
-Current writer schema snapshot: `schemas/v0.6.4/`.
+Current writer schema version: `0.6.5`.
+Current writer schema snapshot: `schemas/v0.6.5/`.
 Latest published release schema snapshot: `schemas/v0.6.4/`.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
-models emit `schema_version: 0.6.4` and continue to accept legacy
+models emit `schema_version: 0.6.5` and continue to accept legacy
 `schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`,
 `schema_version: 0.5.0`, `schema_version: 0.6.0`, and
-`schema_version: 0.6.1`, `schema_version: 0.6.2`, and `schema_version: 0.6.3`
+`schema_version: 0.6.1`, `schema_version: 0.6.2`, `schema_version: 0.6.3`, and
+`schema_version: 0.6.4`
 artifacts where their
 compatibility contracts permit those labels. Historical artifacts validate
-against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, and v0.6.3
+against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, v0.6.3, and v0.6.4
 snapshots remain immutable; current v0.6 relational checks continue to apply
 after validated legacy projection, including each evidence-carrying root's
-self-digest. The v0.6.4 schemas are current writer contracts: every
+self-digest. The v0.6.5 schemas are current writer contracts: every
 root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
-operators, expected-detection contracts, and results use `0.6.4`, while the
+operators, expected-detection contracts, and results use `0.6.5`, while the
 independently versioned usage models continue to emit `0.4.3`. Compatibility
 projection of a frozen artifact does not widen the current wire schema.
 Importable models and their direct `model_json_schema()` output retain declared
@@ -39,7 +40,7 @@ admitted by the immutable v0.6.0 schema.
 A current `AgentRunRecord` also requires its evidence references, evidence
 items, claims, and claim-evidence links to carry the current schema version. A
 current `CompiledSuite` likewise requires current resolved expectations. These
-targeted coherence checks match the v0.6.4 writer schemas without applying
+targeted coherence checks match the v0.6.5 writer schemas without applying
 parent-version equality to independently versioned components such as usage
 records. Matching legacy parent/member projections remain supported through
 their frozen schemas.
@@ -82,7 +83,32 @@ raw `evidence-sensitivity-report` digest in both the packet and release manifest
 are all-or-none. First-party graph projection preserves the report's typed
 status and limitations without adding node or edge kinds.
 
-At schema versions `0.6.0`, `0.6.1`, `0.6.2`, `0.6.3`, and `0.6.4`,
+A packet may additionally carry the repeated-study
+`statistical-sufficiency-report` and
+`stochastic-evidence-sensitivity-report` together. A verdict-bearing pair
+requires the packet evaluation's RunSet ID and digest to equal the exact
+counterfactual source dependency and requires both source RunSet
+execution-configuration digests to equal their protocol-arm configurations. If
+comparison evidence is present, both its baseline and candidate RunSet IDs and
+digests must equal the exact source arms. The graph projection preserves the
+same candidate RunSet/configuration binding.
+
+Whenever either repeated-study field is present, packet artifact digests also
+require exactly one `stochastic-baseline-source-runset` and one
+`stochastic-counterfactual-source-runset` role; the pair is atomic. A release
+manifest, when present, requires the same two roles and exact digests. The
+RunSets remain separate files rather than nested statistical-report fields.
+Verification parses both files, recomputes their canonical RunSet and
+per-record digests into the two `source_runsets` dependency objects, requires
+exact equality, reruns the canonical paired observation assembler, and requires
+the entire ordered result to equal the persisted sufficiency observations.
+Recommendation, outcome, disposition, cluster, endpoint, and source-record
+semantics are therefore source-derived rather than merely membership-checked.
+The nested reports without the confined release-manifest artifact root or an
+explicit exact source-RunSet pair are insufficient for stochastic packet
+verification and make the packet invalid.
+
+At schema versions `0.6.0`, `0.6.1`, `0.6.2`, `0.6.3`, `0.6.4`, and `0.6.5`,
 `evaluation-report` requires
 `runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
 schema-validated, current `RunSet` model JSON projection. The projection
@@ -140,6 +166,7 @@ Exported roots:
 - `assurance-mutation-result`
 - `agent-run-record`
 - `process-equivalence-reproduction-index`
+- `repeated-evidence-sensitivity-protocol`
 - `compiled-suite`
 - `comparison-report`
 - `comparison-summary`
@@ -169,6 +196,8 @@ Exported roots:
 - `rag-sensitivity-synthetic-data-attestation`
 - `run-set`
 - `span-plan`
+- `statistical-sufficiency-report`
+- `stochastic-evidence-sensitivity-report`
 - `stream-event-record`
 - `stream-ingestion-diagnostics`
 - `stream-run`
@@ -187,7 +216,7 @@ contract for it. The exact authored file may still be digest-bound under the
 packet role `control-efficacy-onboarding-config`.
 
 Current evidence-carrying writer roots use persisted
-`schema_version: 0.6.4` and a separate semantic contract identity. Roots
+`schema_version: 0.6.5` and a separate semantic contract identity. Roots
 introduced before v0.6.2 also accept their compatible frozen v0.6.0, v0.6.1,
 v0.6.2, and v0.6.3 shapes, while roots introduced in v0.6.2 accept their
 compatible frozen shapes:
@@ -231,8 +260,10 @@ One persisted root is introduced on the v0.6.3 writer surface:
   `graph_digest` covers the RFC 8785 canonical artifact except that digest
   field, while each node separately binds its typed payload digest. The closed
   node vocabulary is `subject`, `requirement`, `evidence`, and `finding`; the
-  closed edge vocabulary is `supports`, `contradicts`, `targets`,
-  `derived_from`, and `scoped_to`. Validation rejects duplicate node IDs or
+  relationship edge vocabulary is `supports`, `contradicts`, `targets`,
+  `derived_from`, and `scoped_to`. The v0.6.5 shape additionally admits
+  `depends_on` only from stochastic sensitivity evidence to its exact
+  statistical-sufficiency evidence. Validation rejects duplicate node IDs or
   edges, node IDs that do not match their schema-owned typed projection,
   dangling or self edges, endpoint-kind mismatches, noncanonical ordering,
   invalid digests, incoherent evidence/finding states, invalid typed reference
@@ -288,6 +319,67 @@ Seven persisted roots are introduced on the v0.6.4 writer surface:
 All seven roots use self-digested or exact source-artifact identities as
 applicable. The evidence-sensitivity contracts are documented in
 [Controlled RAG Evidence Sensitivity](evidence_sensitivity.md).
+
+Three persisted roots are introduced on the v0.6.5 writer surface:
+
+- `repeated-evidence-sensitivity-protocol` is
+  `RepeatedEvidenceSensitivityProtocol/v1`. It prebinds the only supported
+  endpoint, `expected_decision_response`, to exact baseline and counterfactual
+  arm configurations, corpus and manifest digests, provider/model identities,
+  adapter, pipeline, tool schema, policy bundle, case/repetition pair manifest,
+  frozen case-to-cluster map, sequential arm order, cluster identities,
+  multiplicity family, exclusions, coupling descriptor, and exact binary
+  cluster power plan. The v1 plan requires balanced planned cluster composition
+  and exactly `planned_inferential_clusters` frozen cluster identities.
+  `null_response_rate`, `alternative_response_rate`, and the eventual estimate
+  all describe one fixed planned-frame composite endpoint. A non-analyzable
+  cluster is scored as zero for inference, while observed/analyzable counts are
+  retained separately. `maximum_exclusion_rate` is an audit cap, not
+  denominator or sample-size inflation. Fixed-N validation recomputes the
+  integer critical value, type-I error, and power at that exact N because
+  discrete exact-test feasibility is not monotone. Only the governing corpus is
+  an intentional arm difference; other differences reject the confirmatory
+  protocol. A separate design commitment is carried into both source RunSets
+  before execution.
+- `statistical-sufficiency-report` is `StatisticalSufficiencyReport/v1`. It
+  retains every planned pair with a typed included, missing, excluded, identity
+  mismatch, or undeclared-difference disposition; recomputes planned, actual,
+  included, complete-cluster, and exclusion counts; binds the exact baseline
+  and counterfactual source RunSets plus canonical record-membership
+  commitments without nesting the full RunSets; computes descriptive
+  complete/analyzable cluster counts
+  separately from the fixed planned inferential frame; and derives `satisfied`,
+  `prerequisites_unmet`, or `inconclusive` from canonical prerequisite checks.
+  Missing pairs, incomplete source execution, and exclusions above the audit cap
+  remain non-verdict conditions even though an all-planned-cluster analysis may
+  be retained with non-analyzable clusters scored as zero. Deterministic
+  fixtures bypass inference, and only a satisfied confirmatory stochastic
+  report permits a population statement.
+- `stochastic-evidence-sensitivity-report` is
+  `StochasticEvidenceSensitivityReport/v1`. It keeps observed response and
+  counterexample counts separate from the estimated response rate and derives
+  its state from the embedded sufficiency report. A verdict-bearing `pass` or
+  `block` requires an exact `depends_on` dependency on that satisfied report;
+  non-verdict states cannot manufacture the dependency.
+
+The coupling descriptor derives `fully_coupled`, `partially_coupled`,
+`nominally_paired`, `unpaired`, or `unknown` from disjoint declared dimensions.
+A requested provider seed alone cannot establish shared randomness, and
+sequential `baseline_then_counterfactual` execution cannot share temporal
+order. The inferential vector contains exactly one bit for every frozen planned
+cluster. It is one only when every planned pair in that cluster is present,
+included, and exhibits the expected response; otherwise it is zero. Planning,
+estimation, and gating therefore share the same fixed denominator and exact
+one-sided binomial upper-tail calculation over independent, exchangeable
+composite cluster endpoints. An optional SHA-256-seeded Monte Carlo estimate of
+that same null tail is diagnostic only and cannot alter the verdict. The
+analysis persists a compact lossless `exact_p_value_expression` and a separate
+six-place conservative upper bound for display. The gate does not consume the
+rounded bound: it recomputes the exact integer rejection decision from the
+frozen null probability, planned denominator, observed count, and critical
+threshold. See
+[Repeated Paired Evidence Sensitivity](repeated_evidence_sensitivity.md) for
+planning equations, execution and privacy boundaries, and limitations.
 
 An `ExactRate` persists `numerator`, `denominator`, and either `defined` or
 `undefined_zero_denominator`. The numerator cannot exceed the denominator, and

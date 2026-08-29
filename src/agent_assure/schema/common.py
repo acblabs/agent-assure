@@ -77,7 +77,15 @@ MAX_SUMMARY_CHARS = 8192
 MAX_LABEL_CHARS = 512
 MACHINE_IDENTIFIER_MAX_CHARS = 256
 MACHINE_IDENTIFIER_PATTERN = r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$"
-MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.4"
+MachineIdentifier = Annotated[
+    str,
+    Field(
+        min_length=1,
+        max_length=MACHINE_IDENTIFIER_MAX_CHARS,
+        pattern=MACHINE_IDENTIFIER_PATTERN,
+    ),
+]
+MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.5"
 # v0.6.1 introduced the bounded ASCII machine-identifier contract. Keep the
 # version set explicit so compatibility projection cannot silently weaken that
 # released contract when the current writer version advances.
@@ -85,6 +93,7 @@ MACHINE_IDENTIFIER_SCHEMA_VERSIONS = (
     "0.6.1",
     "0.6.2",
     "0.6.3",
+    "0.6.4",
     MACHINE_IDENTIFIER_SCHEMA_VERSION,
 )
 # These relational and non-empty identity requirements were introduced on the
@@ -93,6 +102,7 @@ MACHINE_IDENTIFIER_SCHEMA_VERSIONS = (
 V063_CONTRACT_SCHEMA_VERSIONS = (
     "0.6.3",
     "0.6.4",
+    "0.6.5",
 )
 _MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN = (
     MACHINE_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])"

@@ -1,0 +1,1072 @@
+{
+  "$defs": {
+    "DetectorTestStatus": {
+      "enum": [
+        "synthetic_detector_contract_test"
+      ],
+      "title": "DetectorTestStatus",
+      "type": "string"
+    },
+    "EvidenceSensitivityDifferenceCheck": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_value": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Baseline Value",
+          "type": "string"
+        },
+        "basis": {
+          "enum": [
+            "protocol_fixed",
+            "arm_observed"
+          ],
+          "title": "Basis",
+          "type": "string"
+        },
+        "counterfactual_value": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Counterfactual Value",
+          "type": "string"
+        },
+        "dimension": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Dimension",
+          "type": "string"
+        },
+        "expected_equal": {
+          "title": "Expected Equal",
+          "type": "boolean"
+        },
+        "state": {
+          "$ref": "#/$defs/EvidenceSensitivityDifferenceState"
+        }
+      },
+      "required": [
+        "dimension",
+        "baseline_value",
+        "counterfactual_value",
+        "expected_equal",
+        "basis",
+        "state"
+      ],
+      "title": "EvidenceSensitivityDifferenceCheck",
+      "type": "object"
+    },
+    "EvidenceSensitivityDifferenceManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "checks": {
+          "items": {
+            "$ref": "#/$defs/EvidenceSensitivityDifferenceCheck"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Checks",
+          "type": "array"
+        },
+        "confounding_dimensions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "title": "Confounding Dimensions",
+          "type": "array"
+        },
+        "only_declared_differences": {
+          "title": "Only Declared Differences",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "checks",
+        "only_declared_differences",
+        "confounding_dimensions"
+      ],
+      "title": "EvidenceSensitivityDifferenceManifest",
+      "type": "object"
+    },
+    "EvidenceSensitivityDifferenceState": {
+      "enum": [
+        "controlled",
+        "expected_difference",
+        "confounding"
+      ],
+      "title": "EvidenceSensitivityDifferenceState",
+      "type": "string"
+    },
+    "EvidenceSensitivityExpectedRelation": {
+      "enum": [
+        "decision_flip"
+      ],
+      "title": "EvidenceSensitivityExpectedRelation",
+      "type": "string"
+    },
+    "FixtureManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "fixture-manifest",
+          "default": "fixture-manifest",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/FixtureManifestEntry"
+          },
+          "title": "Entries",
+          "type": "array"
+        },
+        "fixture_roots": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Fixture Roots",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.6.5",
+          "default": "0.6.5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "suite_id": {
+          "minLength": 1,
+          "title": "Suite Id",
+          "type": "string"
+        },
+        "suite_version": {
+          "minLength": 1,
+          "title": "Suite Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "suite_id",
+        "suite_version",
+        "fixture_roots",
+        "entries",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "FixtureManifest",
+      "type": "object"
+    },
+    "FixtureManifestEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "fixture-manifest-entry",
+          "default": "fixture-manifest-entry",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "path": {
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.5",
+          "default": "0.6.5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "minimum": 0,
+          "title": "Size Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "path",
+        "sha256",
+        "size_bytes",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "FixtureManifestEntry",
+      "type": "object"
+    },
+    "RAGSensitivityDecision": {
+      "enum": [
+        "approve",
+        "deny",
+        "escalate"
+      ],
+      "title": "RAGSensitivityDecision",
+      "type": "string"
+    },
+    "RAGSensitivityFixtureFileSnapshot": {
+      "additionalProperties": false,
+      "properties": {
+        "content_utf8": {
+          "maxLength": 1048576,
+          "minLength": 2,
+          "title": "Content Utf8",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/RAGSensitivityFixtureRole"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        },
+        "size_bytes": {
+          "maximum": 1048576,
+          "minimum": 2,
+          "title": "Size Bytes",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "role",
+        "path",
+        "sha256",
+        "size_bytes",
+        "content_utf8"
+      ],
+      "title": "RAGSensitivityFixtureFileSnapshot",
+      "type": "object"
+    },
+    "RAGSensitivityFixtureRole": {
+      "enum": [
+        "request",
+        "subject_configuration",
+        "tool_configuration"
+      ],
+      "title": "RAGSensitivityFixtureRole",
+      "type": "string"
+    },
+    "RAGSensitivityOutcome": {
+      "enum": [
+        "approved",
+        "denied",
+        "escalated"
+      ],
+      "title": "RAGSensitivityOutcome",
+      "type": "string"
+    },
+    "RAGSensitivityRequest": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "query": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Query",
+          "type": "string"
+        },
+        "query_family_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Query Family Id",
+          "type": "string"
+        },
+        "request_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Request Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "request_id",
+        "query_family_id",
+        "query",
+        "claim_id"
+      ],
+      "title": "RAGSensitivityRequest",
+      "type": "object"
+    },
+    "RAGSensitivitySubjectConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "agent_implementation_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Agent Implementation Digest",
+          "type": "string"
+        },
+        "agent_implementation_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Agent Implementation Id",
+          "type": "string"
+        },
+        "deterministic": {
+          "const": true,
+          "default": true,
+          "title": "Deterministic",
+          "type": "boolean"
+        },
+        "emit_evidence_links": {
+          "default": true,
+          "title": "Emit Evidence Links",
+          "type": "boolean"
+        },
+        "fixed_decision": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RAGSensitivityDecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "fixed_outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RAGSensitivityOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "mode": {
+          "$ref": "#/$defs/RAGSensitivitySubjectMode"
+        },
+        "model_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Model Digest",
+          "type": "string"
+        },
+        "model_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_template_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompt Template Digest",
+          "type": "string"
+        },
+        "prompt_template_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Prompt Template Id",
+          "type": "string"
+        },
+        "subject_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Subject Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "subject_id",
+        "mode",
+        "agent_implementation_id",
+        "agent_implementation_digest",
+        "prompt_template_id",
+        "prompt_template_digest",
+        "model_id",
+        "model_digest"
+      ],
+      "title": "RAGSensitivitySubjectConfig",
+      "type": "object"
+    },
+    "RAGSensitivitySubjectMode": {
+      "enum": [
+        "responsive",
+        "evidence_reversed",
+        "evidence_inertial"
+      ],
+      "title": "RAGSensitivitySubjectMode",
+      "type": "string"
+    },
+    "RAGSensitivitySyntheticDataAttestation": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "rag-sensitivity-synthetic-data-attestation",
+          "default": "rag-sensitivity-synthetic-data-attestation",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "attestation_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Attestation Digest",
+          "type": "string"
+        },
+        "attestation_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Attestation Id",
+          "type": "string"
+        },
+        "attestation_scope": {
+          "const": "exact_digest_bound_inputs",
+          "default": "exact_digest_bound_inputs",
+          "title": "Attestation Scope",
+          "type": "string"
+        },
+        "attestor_role": {
+          "const": "artifact_author",
+          "default": "artifact_author",
+          "title": "Attestor Role",
+          "type": "string"
+        },
+        "contract_id": {
+          "const": "RAGSensitivitySyntheticDataAttestation/v1",
+          "default": "RAGSensitivitySyntheticDataAttestation/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "corpus_digests": {
+          "items": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Corpus Digests",
+          "type": "array"
+        },
+        "corpus_snapshot_digests": {
+          "items": {
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Corpus Snapshot Digests",
+          "type": "array"
+        },
+        "data_classification": {
+          "const": "synthetic",
+          "default": "synthetic",
+          "title": "Data Classification",
+          "type": "string"
+        },
+        "fixture_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Fixture Manifest Digest",
+          "type": "string"
+        },
+        "knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Knowledge Contract Digest",
+          "type": "string"
+        },
+        "no_real_personal_confidential_or_production_data_attested": {
+          "const": true,
+          "default": true,
+          "title": "No Real Personal Confidential Or Production Data Attested",
+          "type": "boolean"
+        },
+        "raw_content_persistence_acknowledged": {
+          "const": true,
+          "default": true,
+          "title": "Raw Content Persistence Acknowledged",
+          "type": "boolean"
+        },
+        "schema_name": {
+          "const": "rag-sensitivity-synthetic-data-attestation",
+          "default": "rag-sensitivity-synthetic-data-attestation",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.5",
+          "default": "0.6.5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "suite_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Suite Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attestation_digest",
+        "attestation_id",
+        "suite_digest",
+        "fixture_manifest_digest",
+        "knowledge_contract_digest",
+        "corpus_digests",
+        "corpus_snapshot_digests",
+        "artifact_kind",
+        "schema_version",
+        "schema_name",
+        "contract_id",
+        "contract_version"
+      ],
+      "title": "RAGSensitivitySyntheticDataAttestation",
+      "type": "object"
+    },
+    "RAGSensitivityToolConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "retrieval_algorithm_id": {
+          "const": "deterministic-term-overlap",
+          "default": "deterministic-term-overlap",
+          "title": "Retrieval Algorithm Id",
+          "type": "string"
+        },
+        "retrieval_algorithm_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Retrieval Algorithm Version",
+          "type": "string"
+        },
+        "tool_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Tool Id",
+          "type": "string"
+        },
+        "tool_schema_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Tool Schema Digest",
+          "type": "string"
+        },
+        "top_k": {
+          "maximum": 256,
+          "minimum": 1,
+          "title": "Top K",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "tool_id",
+        "tool_schema_digest",
+        "top_k"
+      ],
+      "title": "RAGSensitivityToolConfig",
+      "type": "object"
+    },
+    "SyntheticDataProvenance": {
+      "enum": [
+        "bundled_digest_verified",
+        "operator_attested"
+      ],
+      "title": "SyntheticDataProvenance",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.5/evidence-sensitivity-protocol.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "agent_implementation_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Agent Implementation Digest",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "const": "evidence-sensitivity-protocol",
+      "default": "evidence-sensitivity-protocol",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "assumptions": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Assumptions",
+      "type": "array"
+    },
+    "baseline_corpus_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Corpus Digest",
+      "type": "string"
+    },
+    "baseline_corpus_document_catalog_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Corpus Document Catalog Digest",
+      "type": "string"
+    },
+    "baseline_corpus_manifest_file_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Corpus Manifest File Sha256",
+      "type": "string"
+    },
+    "baseline_corpus_query_family_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Baseline Corpus Query Family Id",
+      "type": "string"
+    },
+    "baseline_corpus_snapshot_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Corpus Snapshot Digest",
+      "type": "string"
+    },
+    "baseline_evidence_set_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Evidence Set Digest",
+      "type": "string"
+    },
+    "baseline_governing_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Governing Evidence Digest",
+      "type": "string"
+    },
+    "baseline_governing_retrieval_identity_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Governing Retrieval Identity Digest",
+      "type": "string"
+    },
+    "baseline_non_governing_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Baseline Non Governing Evidence Digest",
+      "type": "string"
+    },
+    "baseline_retrieval_algorithm_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Baseline Retrieval Algorithm Id",
+      "type": "string"
+    },
+    "baseline_retrieval_algorithm_version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Baseline Retrieval Algorithm Version",
+      "type": "string"
+    },
+    "baseline_retrieval_top_k": {
+      "maximum": 256,
+      "minimum": 1,
+      "title": "Baseline Retrieval Top K",
+      "type": "integer"
+    },
+    "case_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Case Id",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "RAGSensitivityProtocol/v1",
+      "default": "RAGSensitivityProtocol/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "controlled_difference_manifest": {
+      "$ref": "#/$defs/EvidenceSensitivityDifferenceManifest"
+    },
+    "counterfactual_corpus_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Corpus Digest",
+      "type": "string"
+    },
+    "counterfactual_corpus_document_catalog_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Corpus Document Catalog Digest",
+      "type": "string"
+    },
+    "counterfactual_corpus_manifest_file_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Corpus Manifest File Sha256",
+      "type": "string"
+    },
+    "counterfactual_corpus_query_family_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Counterfactual Corpus Query Family Id",
+      "type": "string"
+    },
+    "counterfactual_corpus_snapshot_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Corpus Snapshot Digest",
+      "type": "string"
+    },
+    "counterfactual_evidence_set_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Evidence Set Digest",
+      "type": "string"
+    },
+    "counterfactual_governing_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Governing Evidence Digest",
+      "type": "string"
+    },
+    "counterfactual_governing_retrieval_identity_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Governing Retrieval Identity Digest",
+      "type": "string"
+    },
+    "counterfactual_non_governing_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Counterfactual Non Governing Evidence Digest",
+      "type": "string"
+    },
+    "counterfactual_retrieval_algorithm_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Counterfactual Retrieval Algorithm Id",
+      "type": "string"
+    },
+    "counterfactual_retrieval_algorithm_version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Counterfactual Retrieval Algorithm Version",
+      "type": "string"
+    },
+    "counterfactual_retrieval_top_k": {
+      "maximum": 256,
+      "minimum": 1,
+      "title": "Counterfactual Retrieval Top K",
+      "type": "integer"
+    },
+    "detector_test_status": {
+      "$ref": "#/$defs/DetectorTestStatus",
+      "default": "synthetic_detector_contract_test"
+    },
+    "deterministic": {
+      "const": true,
+      "default": true,
+      "title": "Deterministic",
+      "type": "boolean"
+    },
+    "endpoint": {
+      "const": "expected_decision_response",
+      "default": "expected_decision_response",
+      "title": "Endpoint",
+      "type": "string"
+    },
+    "expected_relation": {
+      "$ref": "#/$defs/EvidenceSensitivityExpectedRelation"
+    },
+    "fixture_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Fixture Id",
+      "type": "string"
+    },
+    "fixture_manifest": {
+      "$ref": "#/$defs/FixtureManifest"
+    },
+    "fixture_manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Fixture Manifest Digest",
+      "type": "string"
+    },
+    "fixture_snapshots": {
+      "items": {
+        "$ref": "#/$defs/RAGSensitivityFixtureFileSnapshot"
+      },
+      "maxItems": 3,
+      "minItems": 3,
+      "title": "Fixture Snapshots",
+      "type": "array"
+    },
+    "knowledge_contract_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Knowledge Contract Digest",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "model_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Model Digest",
+      "type": "string"
+    },
+    "model_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Model Id",
+      "type": "string"
+    },
+    "producer_version": {
+      "default": "0.6.5",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+      "title": "Producer Version",
+      "type": "string"
+    },
+    "prompt_template_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Prompt Template Digest",
+      "type": "string"
+    },
+    "protocol_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Protocol Digest",
+      "type": "string"
+    },
+    "protocol_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Protocol Id",
+      "type": "string"
+    },
+    "provenance_binding": {
+      "const": "fixture_declared_unverified_digests",
+      "default": "fixture_declared_unverified_digests",
+      "title": "Provenance Binding",
+      "type": "string"
+    },
+    "provider": {
+      "const": "synthetic-fixture",
+      "default": "synthetic-fixture",
+      "title": "Provider",
+      "type": "string"
+    },
+    "query_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Query Digest",
+      "type": "string"
+    },
+    "query_family_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Query Family Id",
+      "type": "string"
+    },
+    "request": {
+      "$ref": "#/$defs/RAGSensitivityRequest"
+    },
+    "request_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Request Digest",
+      "type": "string"
+    },
+    "retrieval_algorithm_id": {
+      "const": "deterministic-term-overlap",
+      "default": "deterministic-term-overlap",
+      "title": "Retrieval Algorithm Id",
+      "type": "string"
+    },
+    "retrieval_algorithm_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Retrieval Algorithm Version",
+      "type": "string"
+    },
+    "retrieval_top_k": {
+      "maximum": 256,
+      "minimum": 1,
+      "title": "Retrieval Top K",
+      "type": "integer"
+    },
+    "schema_name": {
+      "const": "evidence-sensitivity-protocol",
+      "default": "evidence-sensitivity-protocol",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.5",
+      "default": "0.6.5",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "subject_configuration": {
+      "$ref": "#/$defs/RAGSensitivitySubjectConfig"
+    },
+    "subject_configuration_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Subject Configuration Digest",
+      "type": "string"
+    },
+    "subject_execution_scope": {
+      "const": "declarative_fixture_harness_not_model_evidence_use",
+      "default": "declarative_fixture_harness_not_model_evidence_use",
+      "title": "Subject Execution Scope",
+      "type": "string"
+    },
+    "subject_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Subject Id",
+      "type": "string"
+    },
+    "suite_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Suite Digest",
+      "type": "string"
+    },
+    "suite_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Suite Id",
+      "type": "string"
+    },
+    "synthetic_data_attestation": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/RAGSensitivitySyntheticDataAttestation"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "synthetic_data_attestation_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Synthetic Data Attestation Digest"
+    },
+    "synthetic_data_provenance": {
+      "$ref": "#/$defs/SyntheticDataProvenance"
+    },
+    "tool_configuration": {
+      "$ref": "#/$defs/RAGSensitivityToolConfig"
+    },
+    "tool_configuration_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Tool Configuration Digest",
+      "type": "string"
+    },
+    "tool_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Tool Id",
+      "type": "string"
+    },
+    "tool_schema_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Tool Schema Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_digest",
+    "protocol_id",
+    "suite_id",
+    "suite_digest",
+    "fixture_manifest_digest",
+    "case_id",
+    "fixture_id",
+    "subject_id",
+    "model_id",
+    "tool_id",
+    "fixture_manifest",
+    "fixture_snapshots",
+    "request",
+    "subject_configuration",
+    "tool_configuration",
+    "request_digest",
+    "query_family_id",
+    "query_digest",
+    "subject_configuration_digest",
+    "agent_implementation_digest",
+    "prompt_template_digest",
+    "model_digest",
+    "tool_configuration_digest",
+    "tool_schema_digest",
+    "retrieval_top_k",
+    "synthetic_data_provenance",
+    "baseline_corpus_digest",
+    "counterfactual_corpus_digest",
+    "baseline_corpus_snapshot_digest",
+    "counterfactual_corpus_snapshot_digest",
+    "baseline_corpus_document_catalog_digest",
+    "counterfactual_corpus_document_catalog_digest",
+    "baseline_non_governing_evidence_digest",
+    "counterfactual_non_governing_evidence_digest",
+    "baseline_governing_retrieval_identity_digest",
+    "counterfactual_governing_retrieval_identity_digest",
+    "baseline_governing_evidence_digest",
+    "counterfactual_governing_evidence_digest",
+    "baseline_corpus_query_family_id",
+    "counterfactual_corpus_query_family_id",
+    "baseline_retrieval_algorithm_id",
+    "counterfactual_retrieval_algorithm_id",
+    "baseline_retrieval_algorithm_version",
+    "counterfactual_retrieval_algorithm_version",
+    "baseline_retrieval_top_k",
+    "counterfactual_retrieval_top_k",
+    "baseline_corpus_manifest_file_sha256",
+    "counterfactual_corpus_manifest_file_sha256",
+    "baseline_evidence_set_digest",
+    "counterfactual_evidence_set_digest",
+    "knowledge_contract_digest",
+    "expected_relation",
+    "controlled_difference_manifest",
+    "assumptions",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RAGSensitivityProtocol",
+  "type": "object"
+}

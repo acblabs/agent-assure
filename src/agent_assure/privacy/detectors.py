@@ -8,7 +8,7 @@ from typing import Any
 
 import rfc8785
 
-PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v2"
+PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v3"
 PRIVACY_REDACTION_TEXT = "[REDACTED]"
 # Privacy scanning is intentionally fail-closed above this per-scalar bound.  This
 # prevents a single JSON string from turning the backtracking regular-expression
@@ -129,6 +129,15 @@ SENSITIVE_PATTERNS: tuple[re.Pattern[str], ...] = tuple(
     _compile_detector(definition) for definition in PRIVACY_DETECTOR_DEFINITIONS
 )
 
+_SENSITIVE_MAPPING_KEY_DEFINITION = PrivacyDetectorDefinition(
+    "structured-sensitive-mapping-key",
+    r"^(?:patient|member|ssn|dob|mrn|patient[ ._-]*name|date[ ._-]*of[ ._-]*birth|"
+    r"authorization|(?:aws[ ._-]*)?secret[ ._-]*access[ ._-]*key|api[ ._-]*key|"
+    r"access[ ._-]*token|client[ ._-]*secret|private[ ._-]*key|secret|password|passwd)$",
+    ("IGNORECASE",),
+)
+_SENSITIVE_MAPPING_KEY_PATTERN = _compile_detector(_SENSITIVE_MAPPING_KEY_DEFINITION)
+
 # These are semantics-preserving guards: every corresponding expression requires
 # at least one listed marker. Avoiding a regex search when its required marker is
 # absent removes the worst common adversarial shape (for example, a long dotted
@@ -191,6 +200,21 @@ def privacy_profile_manifest() -> dict[str, Any]:
         "unicode_category_c_action": (
             "remove-with-tab-line-feed-carriage-return-normalized-to-space"
         ),
+        "unicode_dash_action": "map-category-pd-and-u+2212-to-ascii-hyphen",
+        "non_ascii_marker_policy": "run-all-detectors",
+        "structured_mapping_action": (
+            "treat-nonempty-value-under-sensitive-or-non-ascii-key-as-sensitive"
+        ),
+        "structured_mapping_key_expression": _SENSITIVE_MAPPING_KEY_DEFINITION.expression,
+        "structured_mapping_key_flags": list(_SENSITIVE_MAPPING_KEY_DEFINITION.flags),
+        "structured_mapping_key_normalization": "privacy-scan-views-then-ascii-fullmatch",
+        "structured_mapping_non_ascii_key_action": (
+            "treat-nonempty-non-redaction-sentinel-value-as-sensitive"
+        ),
+        "structured_mapping_value_exemptions": [
+            "",
+            PRIVACY_REDACTION_TEXT,
+        ],
         "redaction_text": PRIVACY_REDACTION_TEXT,
         "max_scalar_characters": MAX_PRIVACY_SCAN_CHARS,
         "over_limit_action": "treat-sensitive-and-redact-entire-scalar",
@@ -222,14 +246,37 @@ def contains_sensitive_value(value: str) -> bool:
     return False
 
 
+def contains_sensitive_mapping_entry(key: str, value: str) -> bool:
+    """Detect secrets split across a structured mapping key and scalar value.
+
+    Every non-empty value under a recognized ASCII sensitive label is treated
+    as sensitive, regardless of value length. Non-ASCII mapping keys fail
+    closed because partial confusable tables create bypasses. The exact
+    canonical redaction sentinel and empty values remain stable on a second
+    privacy pass.
+    """
+    if len(key) > MAX_PRIVACY_SCAN_CHARS:
+        return True
+    if value in {"", PRIVACY_REDACTION_TEXT}:
+        return False
+    if not key.isascii():
+        return True
+    return any(
+        _SENSITIVE_MAPPING_KEY_PATTERN.fullmatch(key_view.strip())
+        for key_view in privacy_scan_views(key)
+    )
+
+
 def privacy_scan_views(value: str) -> tuple[str, ...]:
     """Return raw and bounded deobfuscated views used by privacy detectors.
 
     Category-C characters can split a visually contiguous credential or
-    identifier without changing what an operator perceives. Ordinary text
-    whitespace controls become spaces; all other category-C code points are
-    removed, and the result is compatibility-normalized for a second scan.
-    The original value is never mutated for persistence.
+    identifier without changing what an operator perceives. Unicode dash
+    punctuation and the mathematical minus sign can likewise disguise SSNs
+    and card-like numbers. Ordinary text whitespace controls become spaces;
+    all other category-C code points are removed, dash equivalents become an
+    ASCII hyphen, and the result is compatibility-normalized for a second
+    scan. The original value is never mutated for persistence.
     """
     if len(value) > MAX_PRIVACY_SCAN_CHARS:
         return (value,)
@@ -240,6 +287,11 @@ def privacy_scan_views(value: str) -> tuple[str, ...]:
             normalized_characters.append(" ")
             changed = True
         elif unicodedata.category(character).startswith("C"):
+            changed = True
+        elif character != "-" and (
+            unicodedata.category(character) == "Pd" or character == "\u2212"
+        ):
+            normalized_characters.append("-")
             changed = True
         else:
             normalized_characters.append(character)
@@ -253,6 +305,13 @@ def privacy_scan_views(value: str) -> tuple[str, ...]:
 
 def sensitive_patterns_for(value: str) -> tuple[re.Pattern[str], ...]:
     """Return detectors whose mandatory literal marker is present in ``value``."""
+    # Python's Unicode IGNORECASE accepts a small set of non-ASCII characters
+    # as equivalents of ASCII letters (for example dotless-i), while lower()
+    # does not necessarily turn those characters into the ASCII spelling used
+    # by the marker table. Conservatively run every detector for non-ASCII
+    # scalars so the optimization can never change detection semantics.
+    if not value.isascii():
+        return SENSITIVE_PATTERNS
     lowered = value.lower()
     return tuple(
         pattern

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import platform
+from collections.abc import Callable
 from importlib import metadata
 from pathlib import Path
 
@@ -67,8 +69,10 @@ def write_dependency_inventory(environment: EnvironmentInfo, path: Path) -> str:
             for package in environment.installed_packages
         ],
     }
-    write_text_atomic(path, json.dumps(payload, indent=2, sort_keys=True) + "\n")
-    return file_sha256(path)
+    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    inventory_digest = hashlib.sha256(rendered.encode("utf-8")).hexdigest()
+    write_text_atomic(path, rendered)
+    return inventory_digest
 
 
 def environment_with_dependency_inventory(
@@ -76,10 +80,13 @@ def environment_with_dependency_inventory(
     out_dir: Path,
     *,
     artifact_root: Path | None = None,
+    on_inventory_written: Callable[[Path], None] | None = None,
 ) -> EnvironmentInfo:
     initial = collect_environment(project_root=project_root)
     inventory_path = out_dir / "dependency-inventory.json"
     inventory_digest = write_dependency_inventory(initial, inventory_path)
+    if on_inventory_written is not None:
+        on_inventory_written(inventory_path)
     return collect_environment(
         project_root=project_root,
         artifact_root=artifact_root,
@@ -139,9 +146,7 @@ def artifact_project_root(paths: tuple[Path, ...], *, default_root: Path) -> Pat
     try:
         common_root = Path(os.path.commonpath([str(path) for path in resolved_paths]))
     except ValueError as exc:
-        raise ValueError(
-            "release artifact paths must share a common filesystem root"
-        ) from exc
+        raise ValueError("release artifact paths must share a common filesystem root") from exc
     return common_root
 
 

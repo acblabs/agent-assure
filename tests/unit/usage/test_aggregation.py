@@ -699,6 +699,7 @@ def test_report_markdown_uses_measured_language_for_missing_usage() -> None:
     report = EvaluationReport(
         candidate_vs_expectations=EvaluationSummary(
             runset_id="runset-001",
+            runset_digest="a" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,

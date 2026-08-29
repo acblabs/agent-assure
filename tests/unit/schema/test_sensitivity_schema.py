@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from pathlib import Path
 from typing import Any, cast
 
@@ -8,7 +10,9 @@ from pydantic import ValidationError
 
 import agent_assure.schema.sensitivity as sensitivity_schema_module
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.evaluation.evaluator import RunSetCompatibilityError
 from agent_assure.rag.sensitivity import execute_sensitivity_experiment
+from agent_assure.schema.run import RunSet
 from agent_assure.schema.sensitivity import (
     REQUIRED_SENSITIVITY_LIMITATIONS,
     EvidenceSensitivityExpectedRelation,
@@ -27,9 +31,76 @@ from agent_assure.schema.sensitivity import (
     derive_sensitivity_outcome_message,
     validate_exact_sensitivity_arm_runset_projection,
 )
+from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import validate_artifact_payload
 
 ROOT = Path(__file__).resolve().parents[3]
 EXAMPLE = ROOT / "examples" / "evidence_sensitivity"
+
+
+def test_frozen_v064_report_replays_relational_semantics() -> None:
+    fixture_path = ROOT / "tests/golden/reports/evidence-sensitivity-responsive.v0.6.4.json"
+    fixture_bytes = fixture_path.read_bytes()
+    assert hashlib.sha256(fixture_bytes).hexdigest() == (
+        "cdebe5949ae2b90bac2a0f1a79e515368f096ce984daf2c1ba58b30c4cf2af89"
+    )
+    payload = json.loads(fixture_bytes)
+
+    assert validate_artifact_payload(payload, "evidence-sensitivity-report") == (
+        "frozen-jsonschema"
+    )
+
+    payload["report_digest"] = "0" * 64
+    with pytest.raises(ValueError, match="failed model validation"):
+        validate_artifact_payload(payload, "evidence-sensitivity-report")
+
+
+@pytest.mark.parametrize(
+    ("report_schema_version", "privacy_profile_id", "privacy_profile_digest"),
+    (
+        (
+            "0.6.4",
+            "agent-assure/privacy-detectors/v2",
+            "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae52",
+        ),
+        (
+            "0.6.4",
+            "agent-assure/privacy-detectors/unknown",
+            "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
+        ),
+        (
+            "0.6.5",
+            "agent-assure/privacy-detectors/v2",
+            "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
+        ),
+    ),
+)
+def test_v064_replay_rejects_unrecognized_privacy_profile_binding(
+    report_schema_version: str,
+    privacy_profile_id: str,
+    privacy_profile_digest: str,
+) -> None:
+    payload = json.loads(
+        (ROOT / "tests/golden/reports/evidence-sensitivity-responsive.v0.6.4.json").read_bytes()
+    )
+    compiled_suite = CompiledSuite.model_validate(payload["compiled_suite"])
+    runset = RunSet.model_validate(payload["baseline_runset"]).model_copy(
+        update={
+            "privacy_profile_id": privacy_profile_id,
+            "privacy_profile_digest": privacy_profile_digest,
+        }
+    )
+
+    with pytest.raises(
+        RunSetCompatibilityError,
+        match="privacy detector profile is incompatible",
+    ):
+        sensitivity_schema_module._recompute_sensitivity_evaluation(
+            compiled_suite,
+            runset,
+            report_schema_version=report_schema_version,
+            schema_version="0.6.4",
+        )
 
 
 @pytest.fixture(scope="module")
@@ -434,18 +505,18 @@ def test_protocol_accepts_release_candidate_producer_version(
         mode="json",
         exclude={"protocol_digest"},
     )
-    payload["producer_version"] = "0.6.4rc1"
+    payload["producer_version"] = "0.6.5rc1"
     difference_manifest = payload["controlled_difference_manifest"]
     assert isinstance(difference_manifest, dict)
     checks = difference_manifest["checks"]
     assert isinstance(checks, list)
     producer_check = next(item for item in checks if item["dimension"] == "producer_version")
-    producer_check["baseline_value"] = "0.6.4rc1"
-    producer_check["counterfactual_value"] = "0.6.4rc1"
+    producer_check["baseline_value"] = "0.6.5rc1"
+    producer_check["counterfactual_value"] = "0.6.5rc1"
 
     protocol = RAGSensitivityProtocol.build(**payload)
 
-    assert protocol.producer_version == "0.6.4rc1"
+    assert protocol.producer_version == "0.6.5rc1"
 
 
 def test_protocol_rejects_bundled_provenance_on_unreviewed_digests(
@@ -657,6 +728,29 @@ def test_authority_contract_requires_canonical_unambiguous_assignments(
     with pytest.raises(
         ValidationError,
         match="authority assignments must use canonical corpus-digest ordering",
+    ):
+        RAGSensitivityKnowledgeContract.build(**payload)
+
+
+def test_v064_authority_contract_rejects_case_authority_bindings(
+    responsive_report: RAGSensitivityReport,
+) -> None:
+    payload = responsive_report.authority_contract.model_dump(
+        mode="json",
+        exclude={"knowledge_contract_digest", "case_authority_bindings"},
+    )
+    payload["schema_version"] = "0.6.4"
+    payload["case_authority_bindings"] = [
+        {
+            "case_id": payload["case_id"],
+            "query_family_id": payload["query_family_id"],
+            "assignments": payload["assignments"],
+        }
+    ]
+
+    with pytest.raises(
+        ValidationError,
+        match="case_authority_bindings were introduced in schema version 0.6.5",
     ):
         RAGSensitivityKnowledgeContract.build(**payload)
 

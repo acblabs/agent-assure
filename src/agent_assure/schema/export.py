@@ -50,6 +50,11 @@ from agent_assure.schema.sensitivity import (
     RAGSensitivityReport,
     RAGSensitivitySyntheticDataAttestation,
 )
+from agent_assure.schema.stochastic_sensitivity import (
+    RepeatedEvidenceSensitivityProtocol,
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
+)
 from agent_assure.schema.stream import (
     StreamEventRecord,
     StreamIngestionDiagnostics,
@@ -85,6 +90,9 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
         "rag-sensitivity-corpus-snapshot",
         "rag-sensitivity-knowledge-contract",
         "rag-sensitivity-synthetic-data-attestation",
+        "repeated-evidence-sensitivity-protocol",
+        "statistical-sufficiency-report",
+        "stochastic-evidence-sensitivity-report",
         "threat-applicability-manifest",
     }
 )
@@ -125,8 +133,11 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "rag-sensitivity-corpus-snapshot": RAGSensitivityCorpusSnapshot,
     "rag-sensitivity-knowledge-contract": RAGSensitivityKnowledgeContract,
     "rag-sensitivity-synthetic-data-attestation": (RAGSensitivitySyntheticDataAttestation),
+    "repeated-evidence-sensitivity-protocol": RepeatedEvidenceSensitivityProtocol,
     "run-set": RunSet,
     "span-plan": SpanPlan,
+    "statistical-sufficiency-report": StatisticalSufficiencyReport,
+    "stochastic-evidence-sensitivity-report": StochasticEvidenceSensitivityReport,
     "stream-event-record": StreamEventRecord,
     "stream-ingestion-diagnostics": StreamIngestionDiagnostics,
     "stream-run": StreamRunRecord,

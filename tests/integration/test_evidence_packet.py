@@ -15,6 +15,7 @@ from typer.testing import CliRunner
 
 import agent_assure.cli.packet_cmd as packet_cmd
 import agent_assure.onboarding.path_safety as path_safety
+import agent_assure.reporting.environment as environment_reporting
 import agent_assure.reporting.packet as packet_reporting
 from agent_assure.ci import (
     GateOutcome,
@@ -63,6 +64,10 @@ from agent_assure.schema.sensitivity import (
 )
 from agent_assure.sensitivity_comparison import derive_sensitivity_comparison
 from tests.unit.controls.test_control_efficacy import _DROP_OPERATOR, _campaign
+from tests.unit.reporting.test_packet_stochastic import (
+    _evaluation as _stochastic_evaluation,
+)
+from tests.unit.reporting.test_packet_stochastic import _reports as _stochastic_reports
 
 RUNNER = CliRunner()
 
@@ -568,9 +573,7 @@ def test_packet_build_load_and_gate_reject_contradictory_candidate_runset_digest
     unbound_evaluation = evaluation.model_copy(update={"runset_digest": None})
     with pytest.raises(
         ValidationError,
-        match=(
-            "comparison candidate_runset_digest requires an authenticated evaluation runset_digest"
-        ),
+        match="current evaluation summaries require an authenticated runset_digest",
     ):
         build_evidence_packet(
             unbound_evaluation,
@@ -675,11 +678,223 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
     assert gate.exit_code == 1, gate.output
 
 
+def test_packet_build_cli_publishes_and_gates_stochastic_evidence_end_to_end(
+    tmp_path: Path,
+) -> None:
+    inputs = _write_stochastic_packet_inputs(tmp_path)
+    packet_path = tmp_path / "evidence-packet.json"
+    graph_path = tmp_path / "assurance-evidence-graph.json"
+
+    built = RUNNER.invoke(
+        app,
+        _stochastic_packet_build_args(inputs, packet_path),
+        terminal_width=240,
+    )
+
+    assert built.exit_code == 0, built.output
+    packet = load_evidence_packet(packet_path)
+    assert packet.statistical_sufficiency is not None
+    assert packet.stochastic_evidence_sensitivity is not None
+    assert packet.stochastic_evidence_sensitivity.state.value == "pass"
+    assert packet_summary_files_binding_error(packet, artifact_root=tmp_path) is None
+    assert packet.release_manifest is not None
+    assert {artifact.role for artifact in packet.release_manifest.artifacts} >= {
+        "statistical-sufficiency-report",
+        "stochastic-evidence-sensitivity-report",
+        "stochastic-baseline-source-runset",
+        "stochastic-counterfactual-source-runset",
+    }
+
+    projected_path = tmp_path / "projected-stochastic-graph.json"
+    projected = RUNNER.invoke(
+        app,
+        [
+            "packet",
+            "graph",
+            "--packet",
+            str(packet_path),
+            "--out",
+            str(projected_path),
+        ],
+    )
+    assert projected.exit_code == 0, projected.output
+    assert projected_path.read_bytes() == graph_path.read_bytes()
+
+    gated = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--artifact-root",
+            str(tmp_path),
+            "--require-stochastic-evidence-sensitivity",
+        ],
+    )
+    assert gated.exit_code == 0, gated.output
+    assert "stochastic_evidence_sensitivity=required state=pass" in gated.output
+
+
+@pytest.mark.parametrize(
+    "missing_option",
+    (
+        "--statistical-sufficiency",
+        "--stochastic-evidence-sensitivity",
+        "--stochastic-baseline-source-runset",
+        "--stochastic-counterfactual-source-runset",
+    ),
+)
+def test_packet_build_cli_rejects_partial_stochastic_inputs_before_publication(
+    tmp_path: Path,
+    missing_option: str,
+) -> None:
+    inputs = _write_stochastic_packet_inputs(tmp_path)
+    packet_path = tmp_path / "evidence-packet.json"
+    args = _stochastic_packet_build_args(inputs, packet_path)
+    option_index = args.index(missing_option)
+    del args[option_index : option_index + 2]
+
+    result = RUNNER.invoke(app, args, terminal_width=240)
+
+    assert result.exit_code == 2
+    assert "must be provided together" in result.output
+    assert not packet_path.exists()
+    assert not (tmp_path / "assurance-evidence-graph.json").exists()
+    assert not (tmp_path / "release-artifact-manifest.json").exists()
+
+
+def test_packet_build_cli_rejects_mismatched_stochastic_source_runsets(
+    tmp_path: Path,
+) -> None:
+    inputs = _write_stochastic_packet_inputs(tmp_path)
+    packet_path = tmp_path / "evidence-packet.json"
+    args = _stochastic_packet_build_args(inputs, packet_path)
+    baseline_index = args.index("--stochastic-baseline-source-runset") + 1
+    counterfactual_index = args.index("--stochastic-counterfactual-source-runset") + 1
+    args[baseline_index], args[counterfactual_index] = (
+        args[counterfactual_index],
+        args[baseline_index],
+    )
+
+    result = RUNNER.invoke(app, args, terminal_width=240)
+
+    assert result.exit_code == 2
+    assert "stochastic source RunSets" in result.output
+    assert not packet_path.exists()
+    assert not (tmp_path / "assurance-evidence-graph.json").exists()
+    assert not (tmp_path / "release-artifact-manifest.json").exists()
+
+
+@pytest.mark.parametrize(
+    ("source_key", "mutation_kind"),
+    (
+        ("baseline", "in_place"),
+        ("baseline", "replacement"),
+        ("counterfactual", "in_place"),
+        ("counterfactual", "replacement"),
+    ),
+)
+def test_packet_build_rejects_stochastic_source_change_during_snapshot_binding(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_key: str,
+    mutation_kind: str,
+) -> None:
+    inputs = _write_stochastic_packet_inputs(tmp_path)
+    target_path = inputs[source_key]
+    packet_path = tmp_path / "evidence-packet.json"
+    original_reader = path_safety.read_file_bounded_at
+    target_reads = 0
+
+    def mutate_after_descriptor_read(
+        root: Path,
+        relative_path: str | Path,
+        **kwargs: object,
+    ) -> BoundedFileContents:
+        nonlocal target_reads
+        contents = original_reader(root, relative_path, **kwargs)
+        if (root / relative_path).absolute() == target_path.absolute():
+            target_reads += 1
+            _mutate_stochastic_source(target_path, mutation_kind)
+        return contents
+
+    monkeypatch.setattr(
+        path_safety,
+        "read_file_bounded_at",
+        mutate_after_descriptor_read,
+    )
+
+    result = RUNNER.invoke(
+        app,
+        _stochastic_packet_build_args(inputs, packet_path),
+        terminal_width=240,
+    )
+
+    assert result.exit_code == 2
+    assert "changed path" in result.output
+    assert "identity" in result.output
+    assert "after it was read" in result.output
+    assert target_reads == 1
+    for owned_path in _packet_owned_output_paths(packet_path):
+        assert not owned_path.exists()
+
+
+@pytest.mark.parametrize(
+    ("source_key", "mutation_kind"),
+    (
+        ("baseline", "in_place"),
+        ("baseline", "replacement"),
+        ("counterfactual", "in_place"),
+        ("counterfactual", "replacement"),
+    ),
+)
+def test_packet_build_revalidates_stochastic_sources_at_publication_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    source_key: str,
+    mutation_kind: str,
+) -> None:
+    inputs = _write_stochastic_packet_inputs(tmp_path)
+    target_path = inputs[source_key]
+    packet_path = tmp_path / "evidence-packet.json"
+    args = _stochastic_packet_build_args(inputs, packet_path)
+    initial = RUNNER.invoke(app, args, terminal_width=240)
+    assert initial.exit_code == 0, initial.output
+    owned_paths = _packet_owned_output_paths(packet_path)
+    original_output_bytes = {path: path.read_bytes() for path in owned_paths}
+    original_environment_builder = packet_cmd.environment_with_dependency_inventory
+    mutated = False
+
+    def mutate_after_preflight(*builder_args: object, **builder_kwargs: object) -> object:
+        nonlocal mutated
+        environment = original_environment_builder(*builder_args, **builder_kwargs)
+        assert not mutated
+        _mutate_stochastic_source(target_path, mutation_kind)
+        mutated = True
+        return environment
+
+    monkeypatch.setattr(
+        packet_cmd,
+        "environment_with_dependency_inventory",
+        mutate_after_preflight,
+    )
+
+    failed = RUNNER.invoke(app, args, terminal_width=240)
+
+    assert failed.exit_code == 2
+    expected_change = "contents" if mutation_kind == "in_place" else "identity"
+    assert expected_change in failed.output
+    assert "changed after its producer snapshot" in failed.output
+    assert mutated
+    assert {path: path.read_bytes() for path in owned_paths} == original_output_bytes
+
+
 def test_packet_graph_cli_round_trips_bound_graph_and_rejects_mismatch_and_alias(
     tmp_path: Path,
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="round-trip-candidate",
+        runset_digest=_fixture_runset_digest("round-trip-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -887,6 +1102,7 @@ def test_packet_graph_cli_rejects_intact_custom_packet_markdown(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="custom-markdown-candidate",
+        runset_digest=_fixture_runset_digest("custom-markdown-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -936,6 +1152,7 @@ def test_packet_graph_cli_uses_most_specific_manifest_match_for_graph_recovery(
     nested.mkdir()
     evaluation = EvaluationSummary(
         runset_id="overlapping-graph-path-candidate",
+        runset_digest=_fixture_runset_digest("overlapping-graph-path-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -991,6 +1208,7 @@ def test_packet_graph_cli_uses_most_specific_non_graph_manifest_match(
     nested.mkdir()
     evaluation = EvaluationSummary(
         runset_id="overlapping-evaluation-path-candidate",
+        runset_digest=_fixture_runset_digest("overlapping-evaluation-path-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1046,8 +1264,10 @@ def test_packet_graph_cli_protects_original_artifacts_from_relocated_packets(
 ) -> None:
     original_root = tmp_path_factory.mktemp("packet-original")
     relocated_root = tmp_path_factory.mktemp("packet-relocated")
+    mutation_result = _campaign(operator_ids=(_DROP_OPERATOR,)).campaign.operator_results[0].result
     evaluation = EvaluationSummary(
         runset_id="relocated-packet-candidate",
+        runset_digest=mutation_result.source_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1123,7 +1343,6 @@ def test_packet_graph_cli_protects_original_artifacts_from_relocated_packets(
     assert recovered.exit_code == 0, recovered.output
     assert graph_path.read_bytes() == canonical_graph_bytes
 
-    mutation_result = _campaign(operator_ids=(_DROP_OPERATOR,)).campaign.operator_results[0].result
     _write_json(mutation_path, mutation_result.model_dump(mode="json"))
     graph_path.unlink()
     enriched_target = RUNNER.invoke(
@@ -1151,6 +1370,7 @@ def test_packet_graph_cli_does_not_clobber_markdown_through_packet_symlink(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="symlinked-packet-candidate",
+        runset_digest=_fixture_runset_digest("symlinked-packet-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1199,6 +1419,7 @@ def test_packet_graph_cli_rejects_unsafe_manifest_paths_before_writing(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id=f"unsafe-manifest-{path_kind}",
+        runset_digest=_fixture_runset_digest(f"unsafe-manifest-{path_kind}"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1258,6 +1479,7 @@ def test_packet_graph_cli_matches_manifest_paths_case_insensitively(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="case-variant-manifest-path",
+        runset_digest=_fixture_runset_digest("case-variant-manifest-path"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1302,6 +1524,7 @@ def test_packet_graph_cli_preserves_case_distinct_manifest_paths(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="case-distinct-manifest-path",
+        runset_digest=_fixture_runset_digest("case-distinct-manifest-path"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1364,6 +1587,7 @@ def test_packet_graph_cli_rejects_in_place_semantic_graph_with_unbound_rendering
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="alternate-rendering-candidate",
+        runset_digest=_fixture_runset_digest("alternate-rendering-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1439,13 +1663,14 @@ def test_packet_graph_cli_rejects_in_place_semantic_graph_with_unbound_rendering
 def test_packet_graph_cli_verifies_bound_base_before_mutation_enrichment(
     tmp_path: Path,
 ) -> None:
+    mutation_result = _campaign(operator_ids=(_DROP_OPERATOR,)).campaign.operator_results[0].result
     evaluation = EvaluationSummary(
         runset_id="enriched-graph-candidate",
+        runset_digest=mutation_result.source_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
     )
-    mutation_result = _campaign(operator_ids=(_DROP_OPERATOR,)).campaign.operator_results[0].result
     evaluation_path = tmp_path / "evaluation-summary.json"
     packet_path = tmp_path / "evidence-packet.json"
     base_graph_path = tmp_path / "base-graph.json"
@@ -1542,8 +1767,8 @@ def test_packet_graph_cli_verifies_bound_base_before_mutation_enrichment(
     mutation_subject = next(
         node for node in enriched_payload["nodes"] if node["node_id"] == mutation_subject_id
     )
-    assert mutation_subject_id != enriched_payload["primary_subject_node_id"]
-    assert mutation_subject["payload"]["subject_id"] == (f"sha256:{mutation_result.source_digest}")
+    assert mutation_subject_id == enriched_payload["primary_subject_node_id"]
+    assert mutation_subject["payload"]["subject_id"] == evaluation.runset_id
     assert mutation_subject["payload"]["subject_digest"] == (mutation_result.source_digest)
 
 
@@ -1553,6 +1778,7 @@ def test_packet_graph_cli_bounds_aggregate_mutation_input_bytes(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="bounded-enrichment-candidate",
+        runset_digest=_fixture_runset_digest("bounded-enrichment-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1601,6 +1827,7 @@ def test_summary_snapshot_drives_parse_digest_and_manifest_from_one_read(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="single-snapshot-candidate",
+        runset_digest=_fixture_runset_digest("single-snapshot-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1645,6 +1872,7 @@ def test_packet_build_rejects_summary_replacement_during_snapshot_binding(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="snapshot-race-candidate",
+        runset_digest=_fixture_runset_digest("snapshot-race-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1691,6 +1919,7 @@ def test_packet_build_rolls_back_every_owned_output_after_late_failure(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="rollback-candidate",
+        runset_digest=_fixture_runset_digest("rollback-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1734,12 +1963,70 @@ def test_packet_build_rolls_back_every_owned_output_after_late_failure(
     assert {path: path.read_bytes() for path in owned_paths} == original_bytes
 
 
+def test_packet_build_rolls_back_inventory_when_later_environment_collection_fails(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    evaluation = EvaluationSummary(
+        runset_id="inventory-rollback-candidate",
+        runset_digest=_fixture_runset_digest("inventory-rollback-candidate"),
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    packet_path = tmp_path / "evidence-packet.json"
+    owned_paths = _packet_owned_output_paths(packet_path)
+    inventory_path = tmp_path / "dependency-inventory.json"
+    _write_json(evaluation_path, evaluation.model_dump(mode="json"))
+    initial = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+    )
+    assert initial.exit_code == 0, initial.output
+    original_bytes = {path: path.read_bytes() for path in owned_paths}
+    _write_json(
+        evaluation_path,
+        evaluation.model_copy(update={"state": GateState.not_evaluated}).model_dump(mode="json"),
+    )
+    original_collector = environment_reporting.collect_environment
+    collection_calls = 0
+
+    def change_inventory_then_fail(*args: object, **kwargs: object) -> EnvironmentInfo:
+        nonlocal collection_calls
+        collection_calls += 1
+        if collection_calls == 1:
+            collected = original_collector(*args, **kwargs)
+            return collected.model_copy(update={"platform": f"{collected.platform}-rollback-probe"})
+        assert collection_calls == 2
+        assert inventory_path.read_bytes() != original_bytes[inventory_path]
+        raise OSError("injected post-inventory environment collection failure")
+
+    monkeypatch.setattr(
+        environment_reporting,
+        "collect_environment",
+        change_inventory_then_fail,
+    )
+
+    failed = RUNNER.invoke(
+        app,
+        ["packet", "build", str(evaluation_path), "--out", str(packet_path)],
+        terminal_width=240,
+    )
+
+    assert failed.exit_code == 2
+    assert "injected post-inventory environment collection failure" in failed.output
+    assert collection_calls == 2
+    assert {path: path.read_bytes() for path in owned_paths} == original_bytes
+
+
 def test_packet_build_rollback_refuses_to_clobber_concurrent_output(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="rollback-concurrency-candidate",
+        runset_digest=_fixture_runset_digest("rollback-concurrency-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1784,6 +2071,7 @@ def test_packet_build_rejects_custom_graph_output_outside_artifact_root(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="confined-output-candidate",
+        runset_digest=_fixture_runset_digest("confined-output-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1818,6 +2106,7 @@ def test_packet_build_rejects_nested_owned_outputs_before_writing(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="nested-output-candidate",
+        runset_digest=_fixture_runset_digest("nested-output-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1852,6 +2141,7 @@ def test_packet_build_and_trusted_gate_reject_summary_file_tampering(
 ) -> None:
     evaluation = EvaluationSummary(
         runset_id="trusted-source-candidate",
+        runset_digest=_fixture_runset_digest("trusted-source-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -1943,6 +2233,7 @@ def test_trusted_gate_rejects_nested_difference_that_redaction_would_mask(
     nested_sensitive_value = "nested-owner@example.com"
     source_summary = EvaluationSummary(
         runset_id="source-owner@example.com",
+        runset_digest=_fixture_runset_digest("source-owner@example.com"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -1998,12 +2289,14 @@ def test_trusted_gate_rejects_nested_difference_that_redaction_would_mask(
 def test_packet_build_rejects_legacy_summary_before_packet_write(tmp_path: Path) -> None:
     evaluation = EvaluationSummary(
         runset_id="legacy-candidate",
+        runset_digest=_fixture_runset_digest("legacy-candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
     )
     evaluation_payload = evaluation.model_dump(mode="json")
     evaluation_payload["schema_version"] = "0.6.1"
+    evaluation_payload.pop("runset_digest")
     evaluation_path = tmp_path / "legacy-evaluation-summary.json"
     packet_path = tmp_path / "evidence-packet.json"
     _write_json(evaluation_path, evaluation_payload)
@@ -2023,6 +2316,7 @@ def test_packet_id_excludes_local_environment_and_exact_file_digests() -> None:
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate",
+        runset_digest=_fixture_runset_digest("candidate"),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -2592,6 +2886,65 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
     assert "state=confounded gate_effect=non_verdict" in cli_allowed.output
 
 
+def _write_stochastic_packet_inputs(root: Path) -> dict[str, Path]:
+    sufficiency, stochastic, sources = _stochastic_reports()
+    evaluation = _stochastic_evaluation(sufficiency)
+    paths = {
+        "evaluation": root / "evaluation-summary.json",
+        "sufficiency": root / "statistical-sufficiency-report.json",
+        "stochastic": root / "stochastic-evidence-sensitivity.json",
+        "baseline": root / "baseline.source.runset.json",
+        "counterfactual": root / "counterfactual.source.runset.json",
+    }
+    _write_json(paths["evaluation"], evaluation.model_dump(mode="json"))
+    _write_json(paths["sufficiency"], sufficiency.model_dump(mode="json"))
+    _write_json(paths["stochastic"], stochastic.model_dump(mode="json"))
+    _write_json(paths["baseline"], sources[0].model_dump(mode="json"))
+    _write_json(paths["counterfactual"], sources[1].model_dump(mode="json"))
+    return paths
+
+
+def _stochastic_packet_build_args(inputs: dict[str, Path], out: Path) -> list[str]:
+    return [
+        "packet",
+        "build",
+        str(inputs["evaluation"]),
+        "--statistical-sufficiency",
+        str(inputs["sufficiency"]),
+        "--stochastic-evidence-sensitivity",
+        str(inputs["stochastic"]),
+        "--stochastic-baseline-source-runset",
+        str(inputs["baseline"]),
+        "--stochastic-counterfactual-source-runset",
+        str(inputs["counterfactual"]),
+        "--out",
+        str(out),
+    ]
+
+
+def _mutate_stochastic_source(path: Path, mutation_kind: str) -> None:
+    original_bytes = path.read_bytes()
+    if mutation_kind == "in_place":
+        path.write_bytes(original_bytes + b" ")
+        return
+    if mutation_kind == "replacement":
+        replacement = path.with_name(f"{path.name}.replacement")
+        replacement.write_bytes(original_bytes)
+        os.replace(replacement, path)
+        return
+    raise AssertionError(f"unsupported test mutation kind: {mutation_kind}")
+
+
+def _packet_owned_output_paths(packet_path: Path) -> tuple[Path, ...]:
+    return (
+        packet_path,
+        packet_path.with_suffix(".md"),
+        packet_path.parent / "release-artifact-manifest.json",
+        packet_path.parent / "assurance-evidence-graph.json",
+        packet_path.parent / "dependency-inventory.json",
+    )
+
+
 def _packet_with_release_manifest(
     root: Path,
     *,
@@ -2659,6 +3012,10 @@ def _manifest_file_snapshots(
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
+def _fixture_runset_digest(runset_id: str) -> str:
+    return hashlib.sha256(f"synthetic-runset:{runset_id}".encode()).hexdigest()
 
 
 def _file_sha256(path: Path) -> str:

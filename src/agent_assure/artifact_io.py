@@ -3,8 +3,9 @@ from __future__ import annotations
 import hashlib
 import os
 import re
+import secrets
+import stat
 import subprocess
-import tempfile
 from pathlib import Path
 
 _ALLOWED_GIT_COMMANDS = frozenset(
@@ -52,26 +53,88 @@ def write_bytes_atomic(path: Path, payload: bytes) -> Path:
     if not isinstance(payload, bytes):
         raise TypeError("atomic file payload must be bytes")
     ensure_unlinked_directory(path.parent)
-    parent = path.parent.resolve(strict=True)
-    destination = parent / path.name
-    if destination.exists() and destination.is_dir():
-        raise IsADirectoryError(destination)
-    descriptor, temporary_name = tempfile.mkstemp(
-        prefix=f".{path.name}.",
-        suffix=".tmp",
-        dir=parent,
-    )
-    temporary = Path(temporary_name)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temporary, destination)
-    except BaseException:
-        temporary.unlink(missing_ok=True)
-        raise
+    parent_root, parent_relative = _rooted_absolute_path(path.parent)
+    from agent_assure.rooted_io import open_rooted_directory
+
+    with open_rooted_directory(
+        parent_root,
+        parent_relative,
+        label="atomic output parent",
+    ) as parent:
+        _revalidate_atomic_parent(
+            parent_root,
+            parent_relative,
+            expected_device=parent.device,
+            expected_inode=parent.inode,
+        )
+        temporary_name = f".agent-assure-{secrets.token_hex(16)}.tmp"
+        descriptor, metadata = parent.open_regular_file_exclusive_with_metadata(
+            temporary_name,
+            mode=0o600,
+        )
+        committed = False
+        try:
+            with os.fdopen(descriptor, "wb", closefd=False) as handle:
+                handle.write(payload)
+                handle.flush()
+                os.fsync(handle.fileno())
+            _revalidate_atomic_parent(
+                parent_root,
+                parent_relative,
+                expected_device=parent.device,
+                expected_inode=parent.inode,
+            )
+            parent.replace_regular_file(
+                temporary_name,
+                path.name,
+                source_descriptor=descriptor,
+                expected_device=metadata.st_dev,
+                expected_inode=metadata.st_ino,
+            )
+            committed = True
+            _revalidate_atomic_parent(
+                parent_root,
+                parent_relative,
+                expected_device=parent.device,
+                expected_inode=parent.inode,
+            )
+        finally:
+            try:
+                os.close(descriptor)
+            finally:
+                if not committed:
+                    try:
+                        parent.unlink_entry_no_follow(
+                            temporary_name,
+                            expected_device=metadata.st_dev,
+                            expected_inode=metadata.st_ino,
+                        )
+                    except FileNotFoundError:
+                        pass
     return path
+
+
+def _rooted_absolute_path(path: Path) -> tuple[Path, Path]:
+    absolute = Path(os.path.abspath(path))
+    root = Path(absolute.anchor)
+    if not absolute.anchor:
+        raise ValueError("atomic output path must have a filesystem root")
+    relative = absolute.relative_to(root)
+    return root, relative if relative.parts else Path(".")
+
+
+def _revalidate_atomic_parent(
+    root: Path,
+    relative: Path,
+    *,
+    expected_device: int,
+    expected_inode: int,
+) -> None:
+    from agent_assure.rooted_io import open_rooted_directory
+
+    with open_rooted_directory(root, relative, label="atomic output parent") as current:
+        if (current.device, current.inode) != (expected_device, expected_inode):
+            raise OSError("atomic output parent identity changed during publication")
 
 
 def write_text_atomic(path: Path, text: str) -> Path:
@@ -81,13 +144,51 @@ def write_text_atomic(path: Path, text: str) -> Path:
 
 
 def unlink_file_if_exists(path: Path) -> None:
-    """Remove one file without following a linked parent directory."""
+    """Remove one file through a pinned parent without following path links."""
     _assert_no_linked_directory_components(path.parent)
-    parent = path.parent.resolve(strict=True)
-    destination = parent / path.name
-    if destination.exists() and destination.is_dir() and not destination.is_symlink():
-        raise IsADirectoryError(destination)
-    destination.unlink(missing_ok=True)
+    parent_root, parent_relative = _rooted_absolute_path(path.parent)
+    from agent_assure.rooted_io import open_rooted_directory
+
+    with open_rooted_directory(
+        parent_root,
+        parent_relative,
+        label="atomic output parent",
+    ) as parent:
+        _revalidate_atomic_parent(
+            parent_root,
+            parent_relative,
+            expected_device=parent.device,
+            expected_inode=parent.inode,
+        )
+        destination = parent.path / path.name
+        try:
+            if os.name == "nt":
+                metadata = os.lstat(destination)
+            else:
+                if parent.descriptor is None:
+                    raise OSError("atomic output parent descriptor is unavailable")
+                metadata = os.stat(
+                    path.name,
+                    dir_fd=parent.descriptor,
+                    follow_symlinks=False,
+                )
+        except FileNotFoundError:
+            return
+        attributes = getattr(metadata, "st_file_attributes", 0)
+        is_reparse = bool(attributes & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT)
+        if stat.S_ISDIR(metadata.st_mode) and not (stat.S_ISLNK(metadata.st_mode) or is_reparse):
+            raise IsADirectoryError(destination)
+        parent.unlink_file_or_link_no_follow(
+            path.name,
+            expected_device=metadata.st_dev,
+            expected_inode=metadata.st_ino,
+        )
+        _revalidate_atomic_parent(
+            parent_root,
+            parent_relative,
+            expected_device=parent.device,
+            expected_inode=parent.inode,
+        )
 
 
 def ensure_unlinked_directory(directory: Path) -> Path:

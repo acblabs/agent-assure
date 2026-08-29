@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -13,10 +14,12 @@ from agent_assure.artifact_io import file_sha256
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.ci import run_ci
 from agent_assure.cli.main import app
+from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
 from agent_assure.fixtures.loader import write_compiled_suite
+from agent_assure.policies.base import GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
-from agent_assure.schema.common import ComparisonClassification, GateState
+from agent_assure.schema.common import ComparisonClassification, GateState, Severity
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -51,6 +54,7 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="baseline",
+            runset_digest="a" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -61,6 +65,7 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            runset_digest="b" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.warn,
@@ -71,6 +76,7 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            runset_digest="c" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.fail,
@@ -87,6 +93,7 @@ def test_direct_evaluation_gate_revalidates_model_copy_tampering() -> None:
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate",
+        runset_digest="f" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -124,6 +131,7 @@ def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            runset_digest="d" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=state,
@@ -155,6 +163,7 @@ def test_ci_gate_json_output_exposes_every_nonblocking_outcome(
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="machine-reader",
+            runset_digest="e" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=state,
@@ -319,6 +328,7 @@ def test_ci_gate_json_structures_invalid_explicit_artifact_root(
         summary_path,
         EvaluationSummary(
             runset_id="artifact-root-candidate",
+            runset_digest="f" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -358,6 +368,7 @@ def test_ci_gate_rejects_artifact_root_for_non_packet(tmp_path: Path) -> None:
         summary_path,
         EvaluationSummary(
             runset_id="artifact-root-candidate",
+            runset_digest="f" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -382,6 +393,7 @@ def test_ci_gate_text_sanitizes_terminal_controls_but_json_preserves_values(
         interpretation=("terminal output safety regression",),
         evaluation=EvaluationSummary(
             runset_id="candidate",
+            runset_digest="f" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.pass_,
@@ -558,6 +570,7 @@ def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
             swapped = True
             replacement = EvaluationSummary(
                 runset_id="post-snapshot-replacement",
+                runset_digest="f" * 64,
                 privacy_profile_id=PRIVACY_PROFILE_ID,
                 privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
                 state=GateState.pass_,
@@ -638,6 +651,94 @@ def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Pa
     assert decision["artifact_kind"] == "evidence-packet"
     assert decision["artifact_path"] == str(out_dir / "evidence-packet.json")
     assert decision["reason_code"] is None
+
+
+def test_run_ci_publishes_exact_replay_context_for_active_waiver(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    compiled = compile_suite(SUITE)
+    candidate = run_suite(
+        compiled,
+        load_variant_config(EVIDENCE_CANDIDATE),
+        SUITE.parent,
+    )
+    finding = evaluate_runset(compiled, candidate).candidate_vs_expectations.findings[0]
+    today = date(2026, 8, 27)
+    waiver = Waiver(
+        waiver_id="ci-replay-waiver",
+        owner="private-owner-not-persisted",
+        rationale="private-rationale-not-persisted",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(candidate),
+        expires_on=today + timedelta(days=1),
+        reviewer="private-reviewer-not-persisted",
+    )
+    out_dir = tmp_path / "waiver-replay-ci"
+
+    result = run_ci(
+        candidate_path,
+        suite_path=compiled_path,
+        baseline_runset_path=baseline_path,
+        out_dir=out_dir,
+        waivers=(waiver,),
+        today=today,
+    )
+
+    assert result.decision.outcome.value != "invalid"
+    assert result.packet_path.exists()
+    packet = json.loads(result.packet_path.read_text(encoding="utf-8"))
+    context = packet["evaluation"]["replay_context"]
+    assert packet["evaluation"]["state"] == "warn"
+    assert context["evaluation_date"] == today.isoformat()
+    assert context["waivers"] == [
+        {
+            "artifact_digest": runset_digest(candidate),
+            "expires_on": waiver.expires_on.isoformat(),
+            "finding_id": waiver.finding_id,
+            "reason_code": waiver.reason_code.value,
+            "waiver_id": waiver.waiver_id,
+        }
+    ]
+    rendered = json.dumps(context)
+    assert waiver.owner not in rendered
+    assert waiver.rationale not in rendered
+    assert waiver.reviewer not in rendered
+
+
+def test_run_ci_publishes_exact_replay_context_for_custom_gate_profile(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    profile = GateProfile(
+        profile_id="blockers-only-ci-replay",
+        fail_severities=(Severity.blocker,),
+        fail_reason_codes=(),
+    )
+    out_dir = tmp_path / "custom-profile-replay-ci"
+
+    result = run_ci(
+        candidate_path,
+        suite_path=compiled_path,
+        baseline_runset_path=baseline_path,
+        out_dir=out_dir,
+        gate_profile=profile,
+        today=date(2026, 8, 27),
+    )
+
+    assert result.decision.outcome.value != "invalid"
+    assert result.packet_path.exists()
+    packet = json.loads(result.packet_path.read_text(encoding="utf-8"))
+    context = packet["evaluation"]["replay_context"]
+    assert packet["evaluation"]["state"] == "warn"
+    assert context["gate_profile"] == {
+        "fail_on_not_evaluated": False,
+        "fail_on_warn": False,
+        "fail_reason_codes": [],
+        "fail_severities": ["blocker"],
+        "profile_id": profile.profile_id,
+    }
 
 
 def test_ci_command_removes_outputs_that_are_stale_for_the_next_run(
@@ -831,6 +932,7 @@ def test_demo_markers_do_not_affect_core_commands(tmp_path: Path, env_var: str) 
         EvaluationSummary(
             artifact_kind="evaluation-summary",
             runset_id="candidate",
+            runset_digest="f" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
             state=GateState.fail,

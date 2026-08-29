@@ -7,8 +7,8 @@ from pydantic import Field, field_validator, model_validator
 
 from agent_assure.rooted_io import portable_relative_path_parts
 from agent_assure.schema.base import FrozenStrictModel
-from agent_assure.schema.common import DigestHex, coerce_enum, coerce_tuple
-from agent_assure.schema.mutation import BoundedSummary, MachineIdentifier, SelfDigestedArtifact
+from agent_assure.schema.common import DigestHex, MachineIdentifier, coerce_enum, coerce_tuple
+from agent_assure.schema.mutation import BoundedSummary, SelfDigestedArtifact
 
 MAX_REPRODUCTION_INDEX_SOURCE_CLOSURE_ENTRIES = 4_096
 REPRODUCTION_INDEX_SOURCE_INVENTORY_POLICY: Literal[
@@ -180,7 +180,7 @@ class ProcessEquivalenceReproductionIndex(SelfDigestedArtifact):
     artifact_kind: Literal["process-equivalence-reproduction-index"] = (
         "process-equivalence-reproduction-index"
     )
-    schema_version: Literal["0.6.4"] = "0.6.4"
+    schema_version: Literal["0.6.4", "0.6.5"] = "0.6.5"
     schema_name: Literal["process-equivalence-reproduction-index"] = (
         "process-equivalence-reproduction-index"
     )

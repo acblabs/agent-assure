@@ -51,7 +51,10 @@ _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_ledger",),
     ("usage_summary",),
 )
-_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"})
+_BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset(
+    {"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"}
+)
+_EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS = frozenset({"0.6.5"})
 _RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
@@ -520,6 +523,10 @@ class RunSet(PersistedArtifact):
     execution_mode: ExecutionMode = ExecutionMode.fixture
     protocol_id: str | None = None
     protocol_digest: DigestHex | None = None
+    evidence_sensitivity_design_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     completion_status: Literal["complete", "incomplete"] = "complete"
     stop_reasons: tuple[str, ...] = ()
     emergency_records: tuple[EmergencyProcessRecord, ...] = Field(
@@ -584,6 +591,20 @@ class RunSet(PersistedArtifact):
             )
         if self.execution_mode is not ExecutionMode.live:
             return self
+        if self.schema_version in _EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS:
+            mismatched_commitments = tuple(
+                run.run_id
+                for run in self.runs
+                if run.provenance.evidence_sensitivity_design_digest
+                != self.evidence_sensitivity_design_digest
+            )
+            if mismatched_commitments:
+                raise ValueError(
+                    "current live run sets require every run provenance "
+                    "evidence_sensitivity_design_digest to exactly match the RunSet "
+                    "commitment, including absence; mismatched runs: "
+                    + ", ".join(mismatched_commitments)
+                )
         missing = [
             field_name
             for field_name in ("protocol_id", "protocol_digest")

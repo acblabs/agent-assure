@@ -1,9 +1,11 @@
+import os
 from pathlib import Path
 
 import pytest
 
 from agent_assure.artifact_io import write_bytes_atomic
 from agent_assure.artifact_transaction import OutputPublicationRollback
+from agent_assure.rooted_io import RootedDirectoryDescriptor
 
 
 def test_publication_rollback_restores_prior_bytes(
@@ -73,9 +75,8 @@ def test_publication_rollback_does_not_restore_unmarked_output(
     assert untouched.read_bytes() == b"independent-writer\n"
 
 
-def test_publication_rollback_treats_identity_mismatch_as_concurrent_change(
+def test_publication_rollback_rejects_byte_identical_replacement_inode(
     tmp_path: Path,
-    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     first = tmp_path / "first.json"
     replaced = tmp_path / "replaced.json"
@@ -86,19 +87,95 @@ def test_publication_rollback_treats_identity_mismatch_as_concurrent_change(
     rollback.mark_written(first)
     write_bytes_atomic(replaced, b"replaced-published\n")
     rollback.mark_written(replaced)
-    original_path_identity = rollback._path_identity
+    published_inode = os.stat(replaced).st_ino
 
-    def changed_path_identity(path: Path, *, strict: bool) -> str:
-        identity = original_path_identity(path, strict=strict)
-        return f"{identity}-replacement" if path == replaced else identity
-
-    monkeypatch.setattr(rollback, "_path_identity", changed_path_identity)
+    write_bytes_atomic(replaced, b"replaced-published\n")
+    replacement_inode = os.stat(replaced).st_ino
+    assert replacement_inode != published_inode
 
     with pytest.raises(ValueError, match="test output changed concurrently"):
         rollback.restore()
 
     assert first.read_bytes() == b"first-published\n"
     assert replaced.read_bytes() == b"replaced-published\n"
+    assert os.stat(replaced).st_ino == replacement_inode
+
+
+def test_publication_rollback_preserves_replacement_after_preflight(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    path = tmp_path / "output.json"
+    path.write_bytes(b"original\n")
+    rollback = _capture((path,))
+    write_bytes_atomic(path, b"published\n")
+    rollback.mark_written(path)
+    published_inode = os.stat(path).st_ino
+    replacement = tmp_path / "replacement.tmp"
+    replacement.write_bytes(b"concurrent-writer\n")
+
+    original_move = RootedDirectoryDescriptor.move_regular_file_no_replace
+    replacement_inode: int | None = None
+    swap_error: BaseException | None = None
+    swapped = False
+
+    def move_after_swap(
+        parent: RootedDirectoryDescriptor,
+        source_name: str | Path,
+        target_name: str | Path,
+        *,
+        source_descriptor: int,
+        expected_device: int,
+        expected_inode: int,
+    ) -> None:
+        nonlocal replacement_inode, swap_error, swapped
+        if not swapped and str(source_name) == path.name:
+            swapped = True
+            try:
+                os.replace(replacement, path)
+            except BaseException as exc:
+                swap_error = exc
+                raise
+            replacement_inode = os.stat(path).st_ino
+        original_move(
+            parent,
+            source_name,
+            target_name,
+            source_descriptor=source_descriptor,
+            expected_device=expected_device,
+            expected_inode=expected_inode,
+        )
+
+    monkeypatch.setattr(
+        RootedDirectoryDescriptor,
+        "move_regular_file_no_replace",
+        move_after_swap,
+    )
+
+    with pytest.raises(ValueError, match="test output changed concurrently"):
+        rollback.restore()
+
+    assert swapped
+    if os.name == "nt":
+        # The pinned Windows handle denies rename/delete sharing, so the swap
+        # cannot occur at all and both files retain their original identities.
+        assert isinstance(swap_error, PermissionError)
+        assert replacement_inode is None
+        assert path.read_bytes() == b"published\n"
+        assert os.stat(path).st_ino == published_inode
+        assert replacement.read_bytes() == b"concurrent-writer\n"
+        assert {entry.name for entry in tmp_path.iterdir()} == {
+            "output.json",
+            "replacement.tmp",
+        }
+    else:
+        # POSIX permits a pathname swap while the old inode remains pinned.
+        # The conditional move detects it and leaves the replacement untouched.
+        assert swap_error is None
+        assert replacement_inode is not None
+        assert path.read_bytes() == b"concurrent-writer\n"
+        assert os.stat(path).st_ino == replacement_inode
+        assert {entry.name for entry in tmp_path.iterdir()} == {"output.json"}
 
 
 def test_publication_rollback_refuses_resolved_identity_change_before_any_restore(
@@ -135,7 +212,5 @@ def _capture(paths: tuple[Path, ...]) -> OutputPublicationRollback:
         max_bytes=1_024,
         label="test output",
         path_resolution_error="test output path cannot be safely resolved",
-        concurrent_change_error=(
-            "test output changed concurrently; refusing rollback overwrite"
-        ),
+        concurrent_change_error=("test output changed concurrently; refusing rollback overwrite"),
     )

@@ -1,12 +1,13 @@
 # Minimal Assurance Evidence Graph
 
-Status: development RFC for the v0.6.4 writer surface.
+Status: development RFC for the v0.6.5 writer surface.
 
 AssuranceEvidenceGraph/v1 is a deterministic, digest-bound projection of
 existing Agent Assure artifacts. It gives evaluation, comparison, mutation,
-control-efficacy, controlled evidence-sensitivity, gate, and limitation
-evidence one small machine-readable shape without claiming that the graph
-proves adequacy, authenticity, safety, or compliance.
+control-efficacy, controlled and repeated evidence-sensitivity, statistical
+sufficiency, gate, and limitation evidence one small machine-readable shape
+without claiming that the graph proves adequacy, authenticity, safety, or
+compliance.
 
 ## Vocabulary
 
@@ -15,13 +16,20 @@ The contract is intentionally closed:
 | Kind | Allowed values |
 | --- | --- |
 | Node | subject, requirement, evidence, finding |
-| Edge | supports, contradicts, targets, derived_from, scoped_to |
+| Edge | supports, contradicts, targets, derived_from, scoped_to, depends_on |
 
 An edge is valid only for its declared endpoint shape. For example, a finding
 may target a requirement and be derived from evidence; an evidence or finding
 node may support or contradict a requirement; and requirements, evidence, and
 findings may be scoped to a subject. Unknown kinds and invalid endpoint pairs
 are rejected.
+
+`depends_on` is narrower than the relationship edges above. Its only v1 shape
+is stochastic evidence-sensitivity evidence depending on the exact statistical
+sufficiency evidence for the same protocol. A verdict-bearing stochastic node
+requires that edge and a `satisfied` target; a non-verdict node cannot
+manufacture it. The edge does not introduce a general workflow or provenance
+dependency vocabulary.
 
 Adding a node or edge kind requires a concrete artifact that cannot be
 represented with this vocabulary and an explicit contract amendment. The graph
@@ -50,7 +58,7 @@ The identity projections are closed and schema-owned:
 | evidence | scoped subject node ID, evidence type, source artifact kind, source ID |
 | finding | scoped subject node ID, parent evidence node ID, finding type, source artifact kind, source ID, source path |
 
-Source IDs are non-empty. Current v0.6.4 run sets, evaluation summaries,
+Source IDs are non-empty. Current v0.6.5 run sets, evaluation summaries,
 comparison summaries, and evaluation findings reject empty identifiers before
 first-party graph projection. Older artifacts retain their historical parsing
 contract, but an older artifact with an empty projected identifier cannot be
@@ -121,11 +129,20 @@ model:
   flip. The outcome finding message must equal the
   canonical directional message for that typed projection; decision inertia
   remains a separate boolean subfinding and is not reused as the overall
-  outcome message; and
+  outcome message;
+- repeated stochastic evidence-sensitivity reports project the same narrow
+  binary endpoint together with a distinct statistical-sufficiency evidence
+  node. The estimate is the fixed planned-frame composite rate: every frozen
+  planned cluster is represented and a non-analyzable cluster is scored as zero,
+  while observed/analyzable cluster counts remain separate. `pass` and `block`
+  evidence is verdict-bearing only when it has the
+  exact `depends_on` edge to a `satisfied` sufficiency node; underpowered,
+  structurally invalid, exploratory, and deterministic-fixture results remain
+  inconclusive or prerequisite-unmet; and
 - every supplied limitation becomes a non-verdict-bearing finding as well as
   remaining attached to its source evidence.
 
-The current v0.6.4 `evaluation-summary` schema optionally carries the canonical
+The current v0.6.5 `evaluation-summary` schema optionally carries the canonical
 RunSet digest. The built-in evaluator always emits that digest, and the
 first-party packet projector preserves it as the primary run-set subject
 digest. When mutation or control-efficacy source digests match, their evidence,
@@ -134,7 +151,7 @@ primary subject without an inferred join. The builder rejects an authenticated
 evaluation digest that is omitted from or differs from the supplied primary
 subject, and it rejects conflicting source digests.
 
-Current v0.6.4 comparison summaries require authenticated baseline and
+Comparison summaries introduced in v0.6.4, including current v0.6.5 writers, require authenticated baseline and
 candidate RunSet digests. The graph uses those fields directly for the
 comparison subjects. When paired with an evaluation, the evaluation must carry
 an authenticated RunSet digest and it must equal the comparison candidate
@@ -157,8 +174,15 @@ When evaluation and evidence-sensitivity inputs are supplied together, the
 builder additionally hashes the complete canonical evaluation summary and
 requires it to equal the counterfactual arm's authenticated evaluation digest.
 Matching only RunSet ID and RunSet digest is insufficient. Sensitivity graph
-vocabulary is v0.6.4-only: direct model validation rejects a graph labeled
+vocabulary was introduced in v0.6.4: direct model validation rejects a graph labeled
 `0.6.3` when it carries a sensitivity projection, finding, or requirement.
+
+For verdict-bearing repeated stochastic sensitivity, the evaluation and graph
+subject must also equal the exact counterfactual source RunSet ID and digest,
+and the projected execution-configuration digest must equal the protocol's
+counterfactual-arm configuration. If a comparison is supplied, its baseline and
+candidate RunSet IDs and digests must equal the two exact source dependencies.
+The projection does not infer any of these identities from labels or prose.
 
 The resulting graph may therefore still contain multiple weakly disconnected
 components. `primary_subject_node_id` is the graph's primary identity anchor,

@@ -1,0 +1,309 @@
+# Authoring template only. Authors freeze the endpoint, frame, coupling,
+# multiplicity, powered design, limitations, uncommitted configs, and authority
+# contract. Arm identities/digests below are illustrative placeholders:
+# `agent-assure rag sensitivity finalize` derives and replaces them from the
+# exact compiled suite, configs, prompts, corpora, authority, and adapter bytes,
+# then emits the protocol plus both design-committed live configs without dispatch.
+artifact_kind: repeated-evidence-sensitivity-protocol
+schema_version: 0.6.5
+schema_name: repeated-evidence-sensitivity-protocol
+contract_id: RepeatedEvidenceSensitivityProtocol/v1
+contract_version: 1.0.0
+protocol_id: repeated-evidence-response-study-v1
+protocol_digest: "0000000000000000000000000000000000000000000000000000000000000000"
+design_commitment_digest: "0000000000000000000000000000000000000000000000000000000000000000"
+endpoint: expected_decision_response
+expected_relation: decision_flip
+inferential_unit: case_id
+pair_identity: case_id_repetition_index
+cluster_by: case_id
+arm_execution_order: baseline_then_counterfactual
+interpretation: confirmatory
+execution_mode: stochastic_live
+baseline_arm:
+  arm_id: baseline_evidence
+  configuration_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+  expected_recommendation: approve
+  expected_outcome: approved
+  prompt_manifest_digest: "3333333333333333333333333333333333333333333333333333333333333333"
+  case_manifest_digest: "4444444444444444444444444444444444444444444444444444444444444444"
+  knowledge_contract_digest: "5555555555555555555555555555555555555555555555555555555555555555"
+  provider: example-provider
+  requested_model: example-model
+  resolved_model: null
+  provider_api_version: null
+  provider_sdk: null
+  provider_region: null
+  adapter_id: openai-chat-completions
+  pipeline_id: evidence-response-pipeline
+  tool_schema_digest: "6666666666666666666666666666666666666666666666666666666666666666"
+  policy_bundle_digest: "7777777777777777777777777777777777777777777777777777777777777777"
+counterfactual_arm:
+  arm_id: counterfactual_evidence
+  configuration_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+  expected_recommendation: deny
+  expected_outcome: denied
+  prompt_manifest_digest: "3333333333333333333333333333333333333333333333333333333333333333"
+  case_manifest_digest: "4444444444444444444444444444444444444444444444444444444444444444"
+  knowledge_contract_digest: "5555555555555555555555555555555555555555555555555555555555555555"
+  provider: example-provider
+  requested_model: example-model
+  resolved_model: null
+  provider_api_version: null
+  provider_sdk: null
+  provider_region: null
+  adapter_id: openai-chat-completions
+  pipeline_id: evidence-response-pipeline
+  tool_schema_digest: "6666666666666666666666666666666666666666666666666666666666666666"
+  policy_bundle_digest: "7777777777777777777777777777777777777777777777777777777777777777"
+planned_case_ids:
+  - case-01
+  - case-02
+  - case-03
+  - case-04
+  - case-05
+  - case-06
+  - case-07
+  - case-08
+planned_cluster_ids:
+  - case-01
+  - case-02
+  - case-03
+  - case-04
+  - case-05
+  - case-06
+  - case-07
+  - case-08
+case_cluster_bindings:
+  - case_id: case-01
+    cluster_id: case-01
+  - case_id: case-02
+    cluster_id: case-02
+  - case_id: case-03
+    cluster_id: case-03
+  - case_id: case-04
+    cluster_id: case-04
+  - case_id: case-05
+    cluster_id: case-05
+  - case_id: case-06
+    cluster_id: case-06
+  - case_id: case-07
+    cluster_id: case-07
+  - case_id: case-08
+    cluster_id: case-08
+case_authority_bindings:
+  - case_id: case-01
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-01
+        governing_ref_id: ref-case-01
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-01
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-01
+        governing_ref_id: ref-case-01
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-01
+  - case_id: case-02
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-02
+        governing_ref_id: ref-case-02
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-02
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-02
+        governing_ref_id: ref-case-02
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-02
+  - case_id: case-03
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-03
+        governing_ref_id: ref-case-03
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-03
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-03
+        governing_ref_id: ref-case-03
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-03
+  - case_id: case-04
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-04
+        governing_ref_id: ref-case-04
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-04
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-04
+        governing_ref_id: ref-case-04
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-04
+  - case_id: case-05
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-05
+        governing_ref_id: ref-case-05
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-05
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-05
+        governing_ref_id: ref-case-05
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-05
+  - case_id: case-06
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-06
+        governing_ref_id: ref-case-06
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-06
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-06
+        governing_ref_id: ref-case-06
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-06
+  - case_id: case-07
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-07
+        governing_ref_id: ref-case-07
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-07
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-07
+        governing_ref_id: ref-case-07
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-07
+  - case_id: case-08
+    query_family_id: example-query-family
+    assignments:
+      - corpus_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+        expected_decision: approve
+        expected_outcome: approved
+        governing_source_id: source-case-08
+        governing_ref_id: ref-case-08
+        governing_content_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        claim_id: claim-case-08
+      - corpus_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+        expected_decision: deny
+        expected_outcome: denied
+        governing_source_id: source-case-08
+        governing_ref_id: ref-case-08
+        governing_content_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        claim_id: claim-case-08
+repetitions_per_arm: 1
+planned_pairs: 8
+multiplicity_family: expected-decision-response-primary
+multiplicity_method: single_endpoint
+multiplicity_family_size: 1
+coupling:
+  pairing_identity_verified: true
+  stochastic_dimensions:
+    - provider_sampling_randomness
+    - retrieval_randomness
+    - temporal_execution_order
+  shared:
+    - case_identity
+    - non_intervened_fixture_fields
+    - provider_configuration
+    - tool_schema_digest
+  intentionally_different:
+    - governing_corpus_digest
+  not_shared:
+    - provider_sampling_randomness
+    - retrieval_randomness
+    - temporal_execution_order
+  unknown: []
+  requested_provider_seed: false
+  provider_seed_sharing_evidence_digest: null
+  classification: nominally_paired
+  variance_reduction_claim_permitted: false
+design:
+  analysis_method: cluster_binary_exact
+  exchangeability_assumption: independent_exchangeable_binary_cluster_endpoints
+  cluster_endpoint_aggregation: all_planned_pairs_expected_response
+  confirmatory_cluster_frame: all_frozen_planned_clusters
+  non_analyzable_cluster_policy: score_zero
+  familywise_alpha: "0.050000"
+  adjusted_alpha: "0.050000"
+  desired_power: "0.800000"
+  null_response_rate: "0.500000"
+  alternative_response_rate: "0.900000"
+  minimum_detectable_difference: "0.400000"
+  maximum_exclusion_rate: "0.125000"
+  planned_inferential_clusters: 8
+  critical_cluster_responses: 7
+  achieved_type_i_error: "0.035157"
+  achieved_power: "0.813104"
+  monte_carlo_diagnostic_threshold_clusters: 20
+  monte_carlo_resamples: 1000
+allowed_exclusion_reasons:
+  - budget_accounting_unavailable
+  - budget_exhausted
+  - cost_accounting_unavailable
+  - cost_budget_exceeded_after_response
+  - cost_budget_exhausted_before_attempt
+  - generated_token_budget_exceeded_after_response
+  - generated_token_budget_exhausted
+  - generated_token_budget_exhausted_before_attempt
+  - rate_limit_budget_exhausted
+  - request_budget_exhausted
+  - runtime-failed
+  - terminal_policy_stop
+  - token_accounting_unavailable
+  - token_budget_exceeded_after_response
+  - token_budget_exhausted
+  - token_budget_exhausted_before_attempt
+limitations:
+  - Cluster independence and exchangeability are authored modeling assumptions, not empirically verified prerequisites.
+  - Digest commitments bind configuration identity but do not externally timestamp an execution or prevent selection among identical-commitment reruns.
+  - Exact inference assumes independent, exchangeable binary cluster endpoints with a common null response probability.
+  - Exact per-case authority bindings prove internal agreement with the loaded frozen corpus and compiled query scope; they do not prove real-world legal or domain authority or source authenticity.
+  - Population inference is conditional on the strict all-planned-pairs cluster endpoint and the frozen sampling frame.
+  - Repeated calls within a cluster are not independent inferential units.
+  - Results do not establish causal effects, general model quality, provider-wide behavior, safety, or compliance.
+  - Sequential arm execution does not establish shared provider randomness or temporal conditions.
+  - The declared null and alternative response rates and estimated response rate apply to the fixed planned-frame composite endpoint, not response conditional on analyzability.
+  - The maximum exclusion rate is an audit cap and does not inflate or reduce the fixed inferential frame.
+  - The protocol persists bounded structured decisions and digests, not credentials, prompts, completions, or raw tool payloads.
+  - Version 1 requires balanced planned cluster composition.
+  - With repetitions_per_arm greater than one, the all-pairs composite probability changes with the repetition count and repetitions do not increase inferential N.

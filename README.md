@@ -65,7 +65,16 @@ release expectation regresses:
   also includes an authority-scoped, deterministic
   [controlled evidence-sensitivity contract](docs/evidence_sensitivity.md).
   Its v1 producer is a declarative synthetic fixture harness, not evidence that
-  a model used contextual evidence instead of parametric memory.
+  a model used contextual evidence instead of parametric memory. A separate
+  [repeated paired protocol](docs/repeated_evidence_sensitivity.md) supports the
+  same narrow binary response relation for prebound stochastic live studies.
+  Its fixed planned-frame composite rate includes every frozen cluster,
+  pessimistically scores a non-analyzable cluster as zero, and reports
+  observed/analyzable counts separately. Verdict-bearing packets and graphs bind
+  the exact candidate RunSet, while both source execution configurations remain
+  anchored to their predeclared arms. Conclusions remain conditional on
+  statistical sufficiency, exact subject binding, and declared cluster
+  assumptions.
 - **Human review:** a required route or performed-review record is missing.
 - **Provider, tool, and privacy boundaries:** a forbidden provider or tool
   appears, or declared route, redaction state, or detector identity changes.
@@ -74,7 +83,9 @@ release expectation regresses:
 - **Streaming integrity:** events are replayed, duplicated, conflicting, or
   outside the declared sequence contract.
 - **Protocol-bound live behavior:** repeated observations drift outside a
-  declared protocol or comparison boundary.
+  declared protocol or comparison boundary, or a paired evidence-response
+  study is underpowered, structurally invalid, or inconsistent with its exact
+  pre-execution arm bindings.
 
 A surfaced difference may be blocking, review-only, or informational. Usage
 and reliability deltas block only when a suite or policy declares that
@@ -329,7 +340,7 @@ links for the material claims they intend to satisfy.
 <summary><strong>GitHub Actions example using the bundled fixture</strong></summary>
 
 Pin both the package and composite action in release workflows. The example
-uses the latest published tag, v0.6.4; move both pins together only after a
+uses the latest published tag, v0.6.5; move both pins together only after a
 newer tag is published. Replace the example suite and variant paths with your
 own controlled materials.
 
@@ -345,8 +356,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: python -m pip install agent-assure==0.6.4
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.4
+      - run: python -m pip install agent-assure==0.6.5
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.5
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
@@ -367,7 +378,7 @@ days.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.4`).**
+**Current maturity: Release Candidate (RC, `v0.6.5`).**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.
@@ -440,6 +451,8 @@ provider/model configuration, and execution window. Review the
 and [security guidance](SECURITY.md).
 
 ## Learn more
+
+- **Statistical methods:** [Repeated paired evidence sensitivity](docs/repeated_evidence_sensitivity.md) and [live calibration](docs/live_calibration.md)
 
 - **Start:** [Documentation](docs/index.md) · [For AI leaders](docs/for_ai_leaders.md) · [For architects](docs/architecture.md) · [For engineers](docs/for_engineers.md)
 - **Demos:** [Assure the assurance](docs/control_efficacy.md#one-command-demonstration) · [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)

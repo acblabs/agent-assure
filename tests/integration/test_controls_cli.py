@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 
 from typer.testing import CliRunner
@@ -56,6 +57,7 @@ def _packet() -> EvidencePacket:
     )
     summary = EvaluationSummary(
         runset_id="candidate-runset",
+        runset_digest=hashlib.sha256(b"synthetic-runset:candidate-runset").hexdigest(),
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -65,8 +67,6 @@ def _packet() -> EvidencePacket:
         packet_id="packet-cli-test",
         interpretation=("Review candidate findings before interpreting mappings.",),
         evaluation=summary,
-        artifact_digests=(
-            PacketArtifactDigest(role="evaluation-summary", sha256="1" * 64),
-        ),
+        artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="1" * 64),),
         limitations=("fixture evidence only",),
     )

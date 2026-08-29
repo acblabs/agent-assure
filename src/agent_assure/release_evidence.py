@@ -50,6 +50,7 @@ _CORE_RELEASE_ROLES_BY_SCHEMA_VERSION: dict[str, tuple[str, ...]] = {
     "0.6.2": LEGACY_CORE_RELEASE_ROLES,
     "0.6.3": CORE_RELEASE_ROLES,
     "0.6.4": CORE_RELEASE_ROLES,
+    "0.6.5": CORE_RELEASE_ROLES,
 }
 ManifestDigestMode = Literal["raw-sha256", "replay-stable-json-sha256", "not-replayed"]
 ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
@@ -73,6 +74,10 @@ ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {
     "evidence-packet": "replay-stable-json-sha256",
     "fixture-manifest": "raw-sha256",
     "release-artifact-manifest": "replay-stable-json-sha256",
+    "statistical-sufficiency-report": "replay-stable-json-sha256",
+    "stochastic-evidence-sensitivity-report": "replay-stable-json-sha256",
+    "stochastic-baseline-source-runset": "raw-sha256",
+    "stochastic-counterfactual-source-runset": "raw-sha256",
     "counterfactual-corpus-snapshot": "raw-sha256",
 }
 _STABLE_JSON_ROLE_ARTIFACT_KINDS = {
@@ -86,6 +91,8 @@ _STABLE_JSON_ROLE_ARTIFACT_KINDS = {
     "evidence-sensitivity-report": "evidence-sensitivity-report",
     "evidence-packet": "evidence-packet",
     "release-artifact-manifest": "release-artifact-manifest",
+    "statistical-sufficiency-report": "statistical-sufficiency-report",
+    "stochastic-evidence-sensitivity-report": ("stochastic-evidence-sensitivity-report"),
 }
 _RAW_FILE_ROLES = frozenset(
     {
@@ -103,6 +110,8 @@ _RAW_JSON_ROLE_ARTIFACT_KINDS = {
     "counterfactual-corpus-snapshot": "rag-sensitivity-corpus-snapshot",
     "evidence-sensitivity-protocol": "evidence-sensitivity-protocol",
     "fixture-manifest": "fixture-manifest",
+    "stochastic-baseline-source-runset": "run-set",
+    "stochastic-counterfactual-source-runset": "run-set",
 }
 NON_REPLAYED_ROLE_DIGEST_MODES: dict[str, Literal["not-replayed"]] = {
     "dependency-inventory": "not-replayed",
@@ -598,6 +607,11 @@ def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[s
         return _stable_comparison_report_projection(payload)
     if role == "evidence-sensitivity-report":
         return _stable_sensitivity_projection(payload)
+    if role in {
+        "statistical-sufficiency-report",
+        "stochastic-evidence-sensitivity-report",
+    }:
+        return _without_keys(payload, {"report_digest"})
     return payload
 
 

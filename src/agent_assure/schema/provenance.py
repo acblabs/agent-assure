@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import Literal
 
+from pydantic import Field
+
 from agent_assure.schema.base import PersistedArtifact
 from agent_assure.schema.common import DigestHex
 
@@ -16,3 +18,7 @@ class Provenance(PersistedArtifact):
     model_identifier: str | None = None
     fixture_manifest_digest: DigestHex | None = None
     retrieval_corpus_digest: DigestHex | None = None
+    evidence_sensitivity_design_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )

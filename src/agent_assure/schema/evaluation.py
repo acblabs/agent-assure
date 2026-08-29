@@ -7,13 +7,15 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import FrozenStrictModel, PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
     MAX_LABEL_CHARS,
+    MAX_SUMMARY_CHARS,
     V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
     GateState,
     ReasonCode,
+    Severity,
     coerce_enum,
     coerce_tuple,
     current_non_empty_fields_json_schema_extra,
@@ -39,6 +41,18 @@ _EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
 )
 _EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].extend(
     current_non_empty_fields_json_schema_extra("runset_id")["allOf"]
+)
+_EVALUATION_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version"],
+            "properties": {"schema_version": {"const": SCHEMA_VERSION}},
+        },
+        "then": {
+            "required": ["runset_digest"],
+            "properties": {"runset_digest": {"type": "string"}},
+        },
+    }
 )
 
 
@@ -79,6 +93,91 @@ class WaiverDisposition(FrozenStrictModel):
         raise ValueError("expires_on must be an ISO date")
 
 
+class EvaluationGateProfileContext(FrozenStrictModel):
+    """Complete scoring-relevant GateProfile projection for deterministic replay."""
+
+    profile_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    fail_severities: tuple[Severity, ...] = Field(max_length=len(Severity))
+    fail_reason_codes: tuple[ReasonCode, ...] = Field(max_length=len(ReasonCode))
+    fail_on_warn: bool
+    fail_on_not_evaluated: bool
+
+    @field_validator("fail_severities", mode="before")
+    @classmethod
+    def _coerce_severities(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            values = tuple(coerce_enum(Severity, item) for item in value)
+            return tuple(sorted(set(values), key=lambda item: item.value))
+        return coerce_tuple(value)
+
+    @field_validator("fail_reason_codes", mode="before")
+    @classmethod
+    def _coerce_reason_codes(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            values = tuple(coerce_enum(ReasonCode, item) for item in value)
+            return tuple(sorted(set(values), key=lambda item: item.value))
+        return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _require_fail_filter(self) -> EvaluationGateProfileContext:
+        if not self.fail_severities and not self.fail_reason_codes:
+            raise ValueError(
+                "evaluation replay gate profile requires at least one fail filter"
+            )
+        return self
+
+
+class EvaluationWaiverContext(FrozenStrictModel):
+    """Privacy-minimized waiver fields that can affect evaluation semantics."""
+
+    waiver_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    reason_code: ReasonCode
+    finding_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    artifact_digest: DigestHex
+    expires_on: date
+
+    @field_validator("reason_code", mode="before")
+    @classmethod
+    def _coerce_reason_code(cls, value: object) -> ReasonCode:
+        return coerce_enum(ReasonCode, value)
+
+    @field_validator("expires_on", mode="before")
+    @classmethod
+    def _coerce_expires_on(cls, value: object) -> date:
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            return date.fromisoformat(value)
+        raise ValueError("expires_on must be an ISO date")
+
+
+class EvaluationReplayContext(FrozenStrictModel):
+    """Authenticated, scoring-complete inputs for exact evaluation replay."""
+
+    suite_digest: DigestHex
+    gate_profile: EvaluationGateProfileContext
+    waivers: tuple[EvaluationWaiverContext, ...] = Field(
+        default=(),
+        max_length=MAX_WAIVER_DISPOSITIONS,
+    )
+    evaluation_date: date
+    report_mode: Literal["full", "fail-fast"] = "full"
+
+    @field_validator("waivers", mode="before")
+    @classmethod
+    def _coerce_waivers(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @field_validator("evaluation_date", mode="before")
+    @classmethod
+    def _coerce_evaluation_date(cls, value: object) -> date:
+        if isinstance(value, date):
+            return value
+        if isinstance(value, str):
+            return date.fromisoformat(value)
+        raise ValueError("evaluation_date must be an ISO date")
+
+
 class Finding(PersistedArtifact):
     model_config = ConfigDict(
         json_schema_extra=current_non_empty_fields_json_schema_extra("finding_id")
@@ -91,7 +190,7 @@ class Finding(PersistedArtifact):
     target: str = ""
     state: GateState
     reason_code: ReasonCode
-    message: str
+    message: str = Field(max_length=MAX_SUMMARY_CHARS)
 
     @field_validator("state", mode="before")
     @classmethod
@@ -163,6 +262,14 @@ class EvaluationSummary(PersistedArtifact):
     findings: tuple[Finding, ...] = ()
     environment: EnvironmentInfo | None = None
     usage_summary: UsageSummary | None = Field(default=None, exclude_if=lambda value: value is None)
+    replay_context: EvaluationReplayContext | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+        description=(
+            "Scoring-relevant suite, gate-profile, waiver, date, and report-mode "
+            "inputs emitted by the first-party evaluator for exact source replay."
+        ),
+    )
 
     @model_validator(mode="before")
     @classmethod
@@ -183,6 +290,10 @@ class EvaluationSummary(PersistedArtifact):
     def _require_current_runset_identity(self) -> EvaluationSummary:
         if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not self.runset_id:
             raise ValueError("current evaluation summaries require a non-empty runset_id")
+        if self.schema_version == SCHEMA_VERSION and self.runset_digest is None:
+            raise ValueError(
+                "current evaluation summaries require an authenticated runset_digest"
+            )
         return self
 
     @model_validator(mode="after")

@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from agent_assure.cli.dates import parse_cli_date
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.compare.runsets import (
     ComparisonReport,
@@ -71,6 +72,18 @@ def compare(
         )
     )
     try:
+        ensure_inputs_do_not_alias_outputs(
+            (suite, baseline_runset, candidate_runset, *(waiver or ())),
+            (
+                out_dir,
+                out_dir / "dependency-inventory.json",
+                out_dir / "comparison-report.json",
+                out_dir / "comparison-summary.json",
+                out_dir / "comparison-report.md",
+                out_dir / "release-artifact-manifest.json",
+            ),
+            owner="compare",
+        )
         source_root = source_project_root(
             (suite, baseline_runset, candidate_runset),
             default_root=Path.cwd(),

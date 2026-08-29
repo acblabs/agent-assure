@@ -68,6 +68,14 @@ requires assurance-evidence-graph. Unknown version policies fail closed;
 explicit `--require-role` options add requirements without replacing that
 versioned core set.
 
+Reviewer-oriented Markdown and HTML are deliberately not semantic core roles.
+They are deterministic projections where practical, but may include
+environment-bearing presentation details and are not inputs to the gate. The
+JSON packet, graph, suite, manifest, and source evidence remain authoritative.
+Published reviewer files are separately byte-digested/signed by the release
+workflow; omission from replay core must not be interpreted as authority over
+the machine-readable evidence.
+
 For an already generated artifact directory:
 
 ```bash
@@ -88,7 +96,7 @@ the broader release-manifest replay check runs.
 Release bundle scripts pin waiver-sensitive CI evaluation to `2026-07-03` and
 default subprocesses to `SOURCE_DATE_EPOCH=1783036800` unless the environment
 already sets a value. Those values were established for v0.6.0 replay,
-deliberately retained for v0.6.1, v0.6.2, v0.6.3, and v0.6.4. Keep them fixed
+deliberately retained for v0.6.1, v0.6.2, v0.6.3, v0.6.4, and v0.6.5. Keep them fixed
 when replaying these release lines.
 
 Replay artifact paths must be relative to `--artifact-root` and cannot include

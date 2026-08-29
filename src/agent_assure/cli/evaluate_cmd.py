@@ -8,6 +8,7 @@ import typer
 from rich.console import Console
 
 from agent_assure.cli.dates import parse_cli_date
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.cli.waivers import load_waivers
 from agent_assure.evaluation.evaluator import evaluate_runset, load_runset
 from agent_assure.fixtures.loader import load_compiled_suite
@@ -56,6 +57,18 @@ def evaluate(
     ] = None,
 ) -> None:
     try:
+        ensure_inputs_do_not_alias_outputs(
+            (runset_path, suite, *(waiver or ())),
+            (
+                out_dir,
+                out_dir / "dependency-inventory.json",
+                out_dir / "evaluation-report.json",
+                out_dir / "evaluation-summary.json",
+                out_dir / "evaluation-report.md",
+                out_dir / "release-artifact-manifest.json",
+            ),
+            owner="evaluate",
+        )
         compiled = load_compiled_suite(suite)
         runset = load_runset(runset_path)
         report = evaluate_runset(

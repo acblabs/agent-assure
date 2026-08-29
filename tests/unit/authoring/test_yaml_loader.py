@@ -4,10 +4,11 @@ import pytest
 import yaml
 from pydantic import ValidationError
 
-from agent_assure.authoring.compiler import compile_suite
+from agent_assure.authoring.compiler import compile_loaded_suite, compile_suite
 from agent_assure.authoring.yaml_lint import lint_yaml
 from agent_assure.authoring.yaml_nodes import (
     MAX_YAML_BYTES,
+    LoadedYaml,
     load_yaml_nodes,
     load_yaml_nodes_text,
     validate_yaml_nodes_text,
@@ -181,6 +182,23 @@ def test_compiler_rejects_unknown_suite_and_case_keys(
 
     with pytest.raises(ValueError, match=match):
         compile_suite(suite)
+
+
+def test_compiler_redacts_and_escapes_untrusted_unknown_key_diagnostics() -> None:
+    secret = "Bearer ABCDEFGHIJKLMNOPQRSTUVWXYZ123456"
+    unknown_key = f"unknown\nAuthorization: {secret}\x1b[31m"
+
+    with pytest.raises(ValueError) as exc_info:
+        compile_loaded_suite(
+            LoadedYaml(data={unknown_key: "rejected"}, warnings=()),
+            source_digest="a" * 64,
+        )
+
+    rendered = str(exc_info.value)
+    assert secret not in rendered
+    assert "[REDACTED]" in rendered
+    assert "\n" not in rendered
+    assert "\x1b" not in rendered
 
 
 def test_compiler_rejects_empty_campaign_and_numeric_identifiers(tmp_path) -> None:  # type: ignore[no-untyped-def]

@@ -19,6 +19,13 @@ def test_markdown_code_span_escapes_backticks_and_html() -> None:
     assert rendered == "`'breakout' &lt;script&gt;`"
 
 
+def test_markdown_code_span_cannot_break_out_of_a_table_cell() -> None:
+    rendered = markdown_code_span("left | right <unsafe>")
+
+    assert rendered == "<code>left &#124; right &lt;unsafe&gt;</code>"
+    assert "|" not in rendered
+
+
 def test_markdown_rendering_preserves_ordinary_escaping() -> None:
     assert markdown_text("ordinary *safe* text") == "ordinary \\*safe\\* text"
 

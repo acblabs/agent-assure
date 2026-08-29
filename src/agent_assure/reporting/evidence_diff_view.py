@@ -310,6 +310,7 @@ def _baseline_summary(
         return baseline_summary
     return EvaluationSummary(
         runset_id=comparison_summary.baseline_runset_id,
+        runset_digest=comparison_summary.baseline_runset_digest,
         privacy_profile_id=comparison_summary.privacy_profile_id,
         privacy_profile_digest=comparison_summary.privacy_profile_digest,
         state=comparison_summary.baseline_state,
@@ -330,6 +331,7 @@ def _candidate_summary(
         return packet.evaluation
     return EvaluationSummary(
         runset_id=comparison_summary.candidate_runset_id,
+        runset_digest=comparison_summary.candidate_runset_digest,
         privacy_profile_id=comparison_summary.privacy_profile_id,
         privacy_profile_digest=comparison_summary.privacy_profile_digest,
         state=comparison_summary.candidate_state,

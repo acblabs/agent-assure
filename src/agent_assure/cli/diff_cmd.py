@@ -6,6 +6,7 @@ from typing import Annotated
 import typer
 from rich.console import Console
 
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, write_evidence_diff_html
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -88,6 +89,18 @@ def render(
         candidate_path = _required_path(candidate, "--candidate")
         comparison_path = _required_path(comparison, "--comparison")
         out_path = _required_path(out, "--out")
+        ensure_inputs_do_not_alias_outputs(
+            (
+                baseline_path,
+                candidate_path,
+                comparison_path,
+                packet,
+                baseline_summary,
+                candidate_summary,
+            ),
+            (out_path,),
+            owner="evidence diff",
+        )
         packet_model = _load_packet(packet) if packet is not None else None
         baseline_summary_model = (
             _load_evaluation_summary(baseline_summary) if baseline_summary is not None else None

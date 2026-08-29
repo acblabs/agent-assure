@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from datetime import date
 from pathlib import Path
 
@@ -37,6 +39,22 @@ def test_load_waivers_accepts_json_and_yaml_list_roots(tmp_path: Path) -> None:
 
     assert load_waivers((json_path,))[0].waiver_id == "waiver-001"
     assert load_waivers((yaml_path,))[0].waiver_id == "waiver-001"
+
+
+@pytest.mark.parametrize("suffix", [".json", ".yaml"])
+def test_load_waivers_rejects_linked_ancestor(
+    tmp_path: Path,
+    suffix: str,
+) -> None:
+    real_directory = tmp_path / "real"
+    real_directory.mkdir()
+    path = real_directory / f"waivers{suffix}"
+    path.write_text(json.dumps([_waiver_payload()]), encoding="utf-8")
+    linked_directory = tmp_path / "linked"
+    _create_directory_link(linked_directory, real_directory)
+
+    with pytest.raises((OSError, ValueError), match="directory|link|reparse"):
+        load_waivers((linked_directory / path.name,))
 
 
 def test_load_waivers_rejects_duplicate_json_keys(tmp_path: Path) -> None:
@@ -97,3 +115,20 @@ def test_waiver_application_rejects_more_dispositions_than_the_report_bound() ->
             artifact_digest="a" * 64,
             today=date(2026, 7, 3),
         )
+
+
+def _create_directory_link(link: Path, target: Path) -> None:
+    try:
+        link.symlink_to(target, target_is_directory=True)
+        return
+    except OSError as exc:
+        if os.name != "nt":
+            pytest.skip(f"directory links unavailable: {exc}")
+    completed = subprocess.run(
+        ["cmd", "/c", "mklink", "/J", str(link), str(target)],
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+    if completed.returncode != 0:
+        pytest.skip(f"directory junctions unavailable: {completed.stderr}")

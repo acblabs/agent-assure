@@ -511,6 +511,7 @@ def test_packet_evaluation_review_precedes_efficacy_pass(tmp_path: Path) -> None
     warning_evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="control-efficacy-warning-runset",
+        runset_digest="d" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.warn,
@@ -976,6 +977,7 @@ def test_packet_preserves_not_evaluated_outcome() -> None:
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="control-efficacy-not-evaluated-runset",
+        runset_digest="d" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.not_evaluated,
@@ -1250,7 +1252,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
 
     with pytest.raises(
         ValidationError,
-        match="evaluation.schema_version '0.6.4'; received '0.6.1'",
+        match="evaluation.schema_version '0.6.5'; received '0.6.1'",
     ):
         _build_packet(legacy_evaluation)
 
@@ -1260,7 +1262,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
     output = tmp_path / "not-created" / "evidence-packet.json"
     with pytest.raises(
         ValidationError,
-        match="evaluation.schema_version '0.6.4'; received '0.6.1'",
+        match="evaluation.schema_version '0.6.5'; received '0.6.1'",
     ):
         write_evidence_packet(mixed_packet, output)
 
@@ -1282,6 +1284,7 @@ def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
     evaluation_payload = payload["evaluation"]
     assert isinstance(evaluation_payload, dict)
     evaluation_payload["schema_version"] = "0.6.1"
+    evaluation_payload.pop("runset_digest")
     source = tmp_path / "legacy-evidence-packet.json"
     source.write_text(json.dumps(payload), encoding="utf-8", newline="\n")
 
@@ -1303,7 +1306,10 @@ def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
 def test_v061_packet_writer_omits_only_efficacy_fields(tmp_path: Path) -> None:
     packet = _build_packet(_passing_evaluation())
     legacy_evaluation = packet.evaluation.model_copy(
-        update={"schema_version": "0.6.1"},
+        update={
+            "schema_version": "0.6.1",
+            "runset_digest": None,
+        },
     )
     legacy_packet = packet.model_copy(
         update={
@@ -1414,6 +1420,7 @@ def _passing_evaluation() -> EvaluationSummary:
     return EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="control-efficacy-ci-runset",
+        runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,

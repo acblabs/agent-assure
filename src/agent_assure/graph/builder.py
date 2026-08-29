@@ -43,6 +43,8 @@ from agent_assure.schema.graph import (
     EvidenceGraphRequirementPayload,
     EvidenceGraphRequirementType,
     EvidenceGraphSensitivityProjection,
+    EvidenceGraphStatisticalSufficiencyProjection,
+    EvidenceGraphStochasticSensitivityProjection,
     EvidenceGraphSubjectPayload,
 )
 from agent_assure.schema.mutation import (
@@ -56,17 +58,25 @@ from agent_assure.schema.sensitivity import (
     EvidenceSensitivityState,
     RAGSensitivityReport,
 )
+from agent_assure.schema.stochastic_sensitivity import (
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
+    StochasticSensitivityState,
+    SufficiencyState,
+)
 from agent_assure.sensitivity_comparison import sensitivity_comparison_binding_error
 
 EvaluationInput: TypeAlias = EvaluationSummary
 ComparisonInput: TypeAlias = ComparisonSummary
 SensitivityInput: TypeAlias = RAGSensitivityReport
+StatisticalSufficiencyInput: TypeAlias = StatisticalSufficiencyReport
+StochasticSensitivityInput: TypeAlias = StochasticEvidenceSensitivityReport
 GraphSourceT = TypeVar("GraphSourceT", bound=BaseModel)
 
 DEFAULT_GRAPH_LIMITATIONS = (
     "The graph is a deterministic projection of the supplied privacy-filtered artifacts; "
     "its digest establishes canonical identity, not authenticity or evidence adequacy.",
-    "The graph uses only the AssuranceEvidenceGraph/v1 four-node and five-edge vocabulary; "
+    "The graph uses only the AssuranceEvidenceGraph/v1 four-node and six-edge vocabulary; "
     "it is not an assurance case, broad ontology, inference engine, or graph database.",
 )
 
@@ -77,6 +87,8 @@ def build_evidence_graph(
     evaluation: EvaluationInput | None = None,
     comparison: ComparisonInput | None = None,
     evidence_sensitivity: SensitivityInput | None = None,
+    statistical_sufficiency: StatisticalSufficiencyInput | None = None,
+    stochastic_evidence_sensitivity: StochasticSensitivityInput | None = None,
     mutation_results: tuple[AssuranceMutationResult, ...] = (),
     control_efficacy: ControlEfficacyReport | None = None,
     gate_profile: ControlEfficacyGateProfile | None = None,
@@ -114,6 +126,25 @@ def build_evidence_graph(
             RAGSensitivityReport,
             label="evidence-sensitivity",
         )
+    if statistical_sufficiency is not None:
+        statistical_sufficiency = _revalidate_graph_source(
+            statistical_sufficiency,
+            StatisticalSufficiencyReport,
+            label="statistical-sufficiency",
+        )
+    if stochastic_evidence_sensitivity is not None:
+        stochastic_evidence_sensitivity = _revalidate_graph_source(
+            stochastic_evidence_sensitivity,
+            StochasticEvidenceSensitivityReport,
+            label="stochastic-evidence-sensitivity",
+        )
+        embedded_sufficiency = stochastic_evidence_sensitivity.sufficiency_report
+        if statistical_sufficiency is not None and statistical_sufficiency != embedded_sufficiency:
+            raise ValueError(
+                "supplied statistical sufficiency does not match the stochastic "
+                "report's exact embedded sufficiency artifact"
+            )
+        statistical_sufficiency = embedded_sufficiency
     mutation_results = tuple(
         _revalidate_graph_source(
             result,
@@ -145,6 +176,7 @@ def build_evidence_graph(
         evaluation=evaluation,
         comparison=comparison,
         evidence_sensitivity=evidence_sensitivity,
+        statistical_sufficiency=statistical_sufficiency,
         mutation_results=mutation_results,
         control_efficacy=control_efficacy,
     )
@@ -153,6 +185,8 @@ def build_evidence_graph(
         evaluation=evaluation,
         comparison=comparison,
         evidence_sensitivity=evidence_sensitivity,
+        statistical_sufficiency=statistical_sufficiency,
+        stochastic_evidence_sensitivity=stochastic_evidence_sensitivity,
         mutation_results=mutation_results,
         control_efficacy=control_efficacy,
         gate_profile=gate_profile,
@@ -174,6 +208,25 @@ def build_evidence_graph(
             graph,
             primary_subject_id,
             evidence_sensitivity,
+        )
+    sufficiency_evidence_id: str | None = None
+    if statistical_sufficiency is not None:
+        sufficiency_evidence_id = _project_statistical_sufficiency(
+            graph,
+            primary_subject_id,
+            statistical_sufficiency,
+        )
+    if stochastic_evidence_sensitivity is not None:
+        if sufficiency_evidence_id is None:
+            raise ValueError(
+                "stochastic evidence-sensitivity projection requires its embedded "
+                "sufficiency artifact"
+            )
+        _project_stochastic_evidence_sensitivity(
+            graph,
+            primary_subject_id,
+            stochastic_evidence_sensitivity,
+            sufficiency_evidence_id=sufficiency_evidence_id,
         )
     for result in mutation_results:
         mutation_subject_id = _source_evidence_subject_id(
@@ -680,6 +733,217 @@ def _project_evidence_sensitivity(
         source_artifact_kind=report.artifact_kind,
         limitations=report.limitations,
     )
+
+
+def _stochastic_source_bindings(
+    report: StatisticalSufficiencyInput,
+) -> tuple[tuple[str, str, str], tuple[str, str, str]] | None:
+    if not report.source_runsets:
+        return None
+    source_by_arm = {item.arm_id: item for item in report.source_runsets}
+    if set(source_by_arm) != {"baseline_evidence", "counterfactual_evidence"}:
+        raise ValueError(
+            "stochastic graph projection requires exact baseline and counterfactual "
+            "source RunSet dependencies"
+        )
+    baseline = source_by_arm["baseline_evidence"]
+    candidate = source_by_arm["counterfactual_evidence"]
+    protocol = report.protocol
+    if (
+        baseline.execution_configuration_digest != protocol.baseline_arm.configuration_digest
+        or candidate.execution_configuration_digest
+        != protocol.counterfactual_arm.configuration_digest
+    ):
+        raise ValueError(
+            "stochastic graph source configurations must match the exact protocol arms"
+        )
+    return (
+        (
+            baseline.runset_id,
+            baseline.runset_digest,
+            baseline.execution_configuration_digest,
+        ),
+        (
+            candidate.runset_id,
+            candidate.runset_digest,
+            candidate.execution_configuration_digest,
+        ),
+    )
+
+
+def _project_statistical_sufficiency(
+    graph: _GraphAccumulator,
+    subject_id: str,
+    report: StatisticalSufficiencyInput,
+) -> str:
+    state = {
+        SufficiencyState.satisfied: EvidenceState.supported,
+        SufficiencyState.prerequisites_unmet: EvidenceState.prerequisites_unmet,
+        SufficiencyState.inconclusive: EvidenceState.inconclusive,
+    }[report.state]
+    verdict_bearing = report.state is SufficiencyState.satisfied
+    analysis = report.analysis
+    source_bindings = _stochastic_source_bindings(report)
+    candidate_binding = source_bindings[1] if source_bindings is not None else None
+    evidence_id = graph.add_node(
+        EvidenceGraphNodeKind.evidence,
+        EvidenceGraphEvidencePayload(
+            evidence_type=EvidenceGraphEvidenceType.statistical_sufficiency,
+            source_artifact_kind=report.artifact_kind,
+            source_id=report.report_id,
+            source_digest=report.report_digest,
+            state=state,
+            verdict_bearing=verdict_bearing,
+            statistical_sufficiency_projection=(
+                EvidenceGraphStatisticalSufficiencyProjection(
+                    protocol_id=report.protocol.protocol_id,
+                    protocol_digest=report.protocol.protocol_digest,
+                    baseline_expected_recommendation=(
+                        report.protocol.baseline_arm.expected_recommendation
+                    ),
+                    baseline_expected_outcome=(report.protocol.baseline_arm.expected_outcome),
+                    counterfactual_expected_recommendation=(
+                        report.protocol.counterfactual_arm.expected_recommendation
+                    ),
+                    counterfactual_expected_outcome=(
+                        report.protocol.counterfactual_arm.expected_outcome
+                    ),
+                    candidate_runset_id=(
+                        candidate_binding[0] if candidate_binding is not None else None
+                    ),
+                    candidate_runset_digest=(
+                        candidate_binding[1] if candidate_binding is not None else None
+                    ),
+                    candidate_configuration_digest=(
+                        candidate_binding[2] if candidate_binding is not None else None
+                    ),
+                    state=report.state,
+                    verdict_bearing=verdict_bearing,
+                    population_claim_permitted=report.population_claim_permitted,
+                    planned_pairs=report.planned_pairs,
+                    actual_pairs=report.actual_pairs,
+                    included_pairs=report.included_pairs,
+                    missing_pairs=report.missing_pairs,
+                    excluded_pairs=report.excluded_pairs,
+                    planned_clusters=report.planned_clusters,
+                    actual_clusters=report.actual_clusters,
+                    analyzable_clusters=report.analyzable_clusters,
+                    analysis_method=analysis.method if analysis is not None else None,
+                    analysis_compared_clusters=(
+                        analysis.compared_clusters if analysis is not None else None
+                    ),
+                    analysis_responding_clusters=(
+                        analysis.responding_clusters if analysis is not None else None
+                    ),
+                    analysis_p_value_upper_bound=(
+                        analysis.p_value_upper_bound if analysis is not None else None
+                    ),
+                    analysis_adjusted_alpha=(
+                        analysis.adjusted_alpha if analysis is not None else None
+                    ),
+                )
+            ),
+            limitations=report.limitations,
+        ),
+        subject_node_id=subject_id,
+    )
+    graph.add_edge(EvidenceGraphEdgeKind.scoped_to, evidence_id, subject_id)
+    return evidence_id
+
+
+def _project_stochastic_evidence_sensitivity(
+    graph: _GraphAccumulator,
+    subject_id: str,
+    report: StochasticSensitivityInput,
+    *,
+    sufficiency_evidence_id: str,
+) -> str:
+    state = {
+        StochasticSensitivityState.pass_: EvidenceState.supported,
+        StochasticSensitivityState.block: EvidenceState.violated,
+        StochasticSensitivityState.prerequisites_unmet: (EvidenceState.prerequisites_unmet),
+        StochasticSensitivityState.inconclusive: EvidenceState.inconclusive,
+    }[report.state]
+    dependency = report.dependency
+    if report.verdict_bearing and dependency is None:
+        raise ValueError(
+            "verdict-bearing stochastic evidence-sensitivity requires its exact "
+            "sufficiency dependency"
+        )
+    sufficiency_report_id = (
+        dependency.target_artifact_id
+        if dependency is not None
+        else report.sufficiency_report.report_id
+    )
+    sufficiency_report_digest = (
+        dependency.target_digest
+        if dependency is not None
+        else report.sufficiency_report.report_digest
+    )
+    source_bindings = _stochastic_source_bindings(report.sufficiency_report)
+    candidate_binding = source_bindings[1] if source_bindings is not None else None
+    evidence_id = graph.add_node(
+        EvidenceGraphNodeKind.evidence,
+        EvidenceGraphEvidencePayload(
+            evidence_type=(EvidenceGraphEvidenceType.stochastic_evidence_sensitivity),
+            source_artifact_kind=report.artifact_kind,
+            source_id=report.report_id,
+            source_digest=report.report_digest,
+            state=state,
+            verdict_bearing=report.verdict_bearing,
+            stochastic_evidence_sensitivity_projection=(
+                EvidenceGraphStochasticSensitivityProjection(
+                    protocol_id=report.protocol_id,
+                    protocol_digest=report.protocol_digest,
+                    baseline_expected_recommendation=(
+                        report.sufficiency_report.protocol.baseline_arm.expected_recommendation
+                    ),
+                    baseline_expected_outcome=(
+                        report.sufficiency_report.protocol.baseline_arm.expected_outcome
+                    ),
+                    counterfactual_expected_recommendation=(
+                        report.sufficiency_report.protocol.counterfactual_arm.expected_recommendation
+                    ),
+                    counterfactual_expected_outcome=(
+                        report.sufficiency_report.protocol.counterfactual_arm.expected_outcome
+                    ),
+                    candidate_runset_id=(
+                        candidate_binding[0] if candidate_binding is not None else None
+                    ),
+                    candidate_runset_digest=(
+                        candidate_binding[1] if candidate_binding is not None else None
+                    ),
+                    candidate_configuration_digest=(
+                        candidate_binding[2] if candidate_binding is not None else None
+                    ),
+                    endpoint=report.endpoint,
+                    state=report.state,
+                    gate_effect=report.gate_effect,
+                    verdict_bearing=report.verdict_bearing,
+                    population_claim=report.population_claim,
+                    observed_pair_count=report.observed_pair_count,
+                    observed_response_count=report.observed_response_count,
+                    observed_counterexample_count=(report.observed_counterexample_count),
+                    observed_cluster_count=report.observed_cluster_count,
+                    observed_cluster_response_count=(report.observed_cluster_response_count),
+                    estimated_response_unit=report.estimated_response_unit,
+                    estimated_response_rate=report.estimated_response_rate,
+                    sufficiency_report_id=sufficiency_report_id,
+                    sufficiency_report_digest=sufficiency_report_digest,
+                )
+            ),
+            limitations=report.limitations,
+        ),
+        subject_node_id=subject_id,
+    )
+    graph.add_edge(EvidenceGraphEdgeKind.scoped_to, evidence_id, subject_id)
+    if report.verdict_bearing:
+        graph.add_edge(
+            EvidenceGraphEdgeKind.depends_on,
+            evidence_id,
+            sufficiency_evidence_id,
+        )
+    return evidence_id
 
 
 def _project_mutation_result(
@@ -1208,6 +1472,7 @@ def _validate_subject_digest_coherence(
     evaluation: EvaluationInput | None,
     comparison: ComparisonInput | None,
     evidence_sensitivity: SensitivityInput | None,
+    statistical_sufficiency: StatisticalSufficiencyInput | None,
     mutation_results: tuple[AssuranceMutationResult, ...],
     control_efficacy: ControlEfficacyReport | None,
 ) -> None:
@@ -1238,12 +1503,26 @@ def _validate_subject_digest_coherence(
         raise ValueError(
             "graph subject digest does not match sensitivity counterfactual runset digest"
         )
+    source_bindings = (
+        _stochastic_source_bindings(statistical_sufficiency)
+        if statistical_sufficiency is not None
+        else None
+    )
+    stochastic_candidate_digest = source_bindings[1][1] if source_bindings is not None else None
+    if (
+        stochastic_candidate_digest is not None
+        and subject.subject_digest != stochastic_candidate_digest
+    ):
+        raise ValueError(
+            "graph subject digest does not match stochastic counterfactual source RunSet digest"
+        )
     digests = {
         digest
         for digest in (
             evaluation_digest,
             comparison_digest,
             sensitivity_digest,
+            stochastic_candidate_digest,
             *(result.source_digest for result in mutation_results),
             *((control_efficacy.source_digest,) if control_efficacy is not None else ()),
         )
@@ -1288,6 +1567,8 @@ def _validate_source_coherence(
     evaluation: EvaluationInput | None,
     comparison: ComparisonInput | None,
     evidence_sensitivity: SensitivityInput | None,
+    statistical_sufficiency: StatisticalSufficiencyInput | None,
+    stochastic_evidence_sensitivity: StochasticSensitivityInput | None,
     mutation_results: tuple[AssuranceMutationResult, ...],
     control_efficacy: ControlEfficacyReport | None,
     gate_profile: ControlEfficacyGateProfile | None,
@@ -1300,6 +1581,8 @@ def _validate_source_coherence(
                 evaluation is not None,
                 comparison is not None,
                 evidence_sensitivity is not None,
+                statistical_sufficiency is not None,
+                stochastic_evidence_sensitivity is not None,
                 bool(mutation_results),
                 control_efficacy is not None,
                 gate_profile is not None,
@@ -1309,6 +1592,58 @@ def _validate_source_coherence(
         ):
             raise ValueError("agent_release graph projection is subject-only")
         return
+    if stochastic_evidence_sensitivity is not None:
+        if statistical_sufficiency is None:
+            raise ValueError(
+                "stochastic evidence-sensitivity requires its exact sufficiency report"
+            )
+        if stochastic_evidence_sensitivity.sufficiency_report != statistical_sufficiency:
+            raise ValueError(
+                "stochastic evidence-sensitivity does not bind the supplied "
+                "statistical sufficiency report"
+            )
+    stochastic_source_bindings = (
+        _stochastic_source_bindings(statistical_sufficiency)
+        if statistical_sufficiency is not None
+        else None
+    )
+    if stochastic_source_bindings is not None:
+        baseline_binding, candidate_binding = stochastic_source_bindings
+        if (
+            subject.subject_id,
+            subject.subject_digest,
+        ) != candidate_binding[:2]:
+            raise ValueError(
+                "stochastic counterfactual source RunSet id and digest do not match "
+                "the graph subject"
+            )
+        if (
+            evaluation is not None
+            and (
+                evaluation.runset_id,
+                evaluation.runset_digest,
+            )
+            != candidate_binding[:2]
+        ):
+            raise ValueError(
+                "stochastic counterfactual source RunSet id and digest do not match "
+                "the graph evaluation"
+            )
+        if comparison is not None and (
+            comparison.baseline_runset_id,
+            comparison.baseline_runset_digest,
+            comparison.candidate_runset_id,
+            comparison.candidate_runset_digest,
+        ) != (
+            baseline_binding[0],
+            baseline_binding[1],
+            candidate_binding[0],
+            candidate_binding[1],
+        ):
+            raise ValueError(
+                "stochastic source RunSets do not match the graph comparison baseline "
+                "and candidate identities"
+            )
     if evaluation is not None:
         if not evaluation.runset_id:
             raise ValueError("graph evaluation runset_id must be non-empty")

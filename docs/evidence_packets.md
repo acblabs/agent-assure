@@ -1,11 +1,13 @@
 # Evidence Packets
 
-Evidence packets summarize deterministic fixture-mode evidence for CI and
-release review. A packet contains an evaluation summary, an optional comparison
-summary, optional control-efficacy evidence with its exact gate profile and
-derived decision, an optional controlled evidence-sensitivity report, measured
-usage evidence when observed, a machine-readable
-interpretation section, local environment metadata, deterministic SHA-256
+Evidence packets summarize validated fixture-mode or protocol-bound stochastic
+evidence for CI and release review. A packet contains an evaluation summary, an
+optional comparison summary, optional control-efficacy evidence with its exact
+gate profile and derived decision, an optional controlled evidence-sensitivity
+report, optional paired statistical-sufficiency and stochastic
+evidence-sensitivity reports, measured usage evidence when observed, a
+machine-readable interpretation section, local environment metadata,
+deterministic SHA-256
 digests of the summary/report files used to build it, semantic and exact-file
 digest bindings to a separately persisted assurance evidence graph, a
 dependency-inventory digest, a release artifact manifest, and explicit
@@ -28,6 +30,12 @@ agent-assure ci gate .tmp/showcase/evidence-packet.json \
 `release-artifact-manifest.json` beside the JSON packet unless explicit output
 paths are provided. For a known failing candidate, the CI gate is expected to
 exit `1` after reading the packet.
+
+`evidence-packet.md` and sensitivity Markdown/HTML are reviewer projections,
+not independent verdict roots. Gate and release replay semantics derive from
+the validated JSON packet, graph, and bound source artifacts. Release workflows
+may sign the reviewer bytes separately, but their presence is not part of the
+versioned semantic core-role policy.
 
 The dependency inventory is a best-effort runtime package listing generated
 from the active Python environment. Release bundles additionally write an SBOM
@@ -104,6 +112,54 @@ packet and its release manifest each require exactly one raw digest role named
 Packet Markdown preserves the detector state, verdict role, gate effect,
 endpoint, expected and observed relations, arm identities, decision inertia,
 reason codes, synthetic status, and every limitation.
+
+Repeated stochastic sensitivity uses a stricter two-file source boundary. When
+the sufficiency/report pair is present, packet artifact digests require exactly
+one `stochastic-baseline-source-runset` and one
+`stochastic-counterfactual-source-runset` role. They are atomic: neither role
+is valid without the other. A release manifest, when present, requires the same
+roles and exact digests. The source RunSets remain separate files rather than
+being duplicated into either statistical report.
+
+Build that packet directly from an analyzer output bundle:
+
+```bash
+agent-assure packet build ANALYSIS/evaluation-summary.json \
+  --statistical-sufficiency ANALYSIS/statistical-sufficiency-report.json \
+  --stochastic-evidence-sensitivity ANALYSIS/stochastic-evidence-sensitivity.json \
+  --stochastic-baseline-source-runset ANALYSIS/baseline.source.runset.json \
+  --stochastic-counterfactual-source-runset ANALYSIS/counterfactual.source.runset.json \
+  --out ANALYSIS/evidence-packet.json
+```
+
+All four stochastic options are inseparable. The builder snapshots and strictly
+validates every input, verifies source dependencies and the reassembled paired
+observations, then reopens both source paths at the final publication boundary
+and requires their identity and bytes to remain exact. It rejects a partial,
+mismatched, or concurrently changed bundle and rolls back every owned output.
+This is a point-in-time publication guarantee: a later source change remains
+detectable by independent packet or `ci gate` verification.
+
+Packet verification parses both exact source RunSets, recomputes the canonical
+whole-RunSet and every record digest into the two sufficiency
+`source_runsets` dependencies, and requires exact equality. It then reruns the
+canonical paired observation assembler and requires its entire ordered result
+to equal `sufficiency.observations`. This closes recommendation, outcome,
+disposition, cluster, endpoint, and source-record semantics rather than checking
+record membership alone. CLI gating obtains the files through its confined
+release-manifest artifact root. The in-process
+`stochastic_source_runsets_binding_error(packet,
+source_runsets=(baseline, counterfactual))` helper accepts the explicit exact
+tuple, and
+`gate_evidence_packet(..., stochastic_source_runsets=(baseline,
+counterfactual))` supplies it to packet gating. Missing verifier-accessible
+sources make a stochastic packet invalid; nested statistical reports alone are
+not sufficient.
+
+Verdict-bearing packets additionally require the evaluation subject to equal
+the exact counterfactual source RunSet, both source configuration digests to
+match their predeclared protocol arms, and an optional comparison to equal both
+source-arm IDs and digests.
 
 The packet section leads with an explicit boundary: v1 is a synthetic
 declarative fixture harness/oracle, and its result is not evidence that a model

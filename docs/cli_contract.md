@@ -10,7 +10,7 @@ Current commands:
 - `agent-assure suite run COMPILED_SUITE_JSON --variant VARIANT_YAML --out RUNSET_JSON [--manifest PATH] [--suite-digest DIGEST] [--source SUITE_YAML] [--hmac-key-env ENV]`
 - `agent-assure evaluate RUNSET_JSON --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure compare BASELINE_RUNSET CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
-- `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--control-efficacy CONTROL_EFFICACY_REPORT_JSON --efficacy-config CONTROLS_MUTATION_YAML] [--evidence-sensitivity EVIDENCE_SENSITIVITY_REPORT_JSON] [--packet-id ID]`
+- `agent-assure packet build EVALUATION_SUMMARY_JSON --out EVIDENCE_PACKET_JSON [--comparison COMPARISON_SUMMARY_JSON] [--control-efficacy CONTROL_EFFICACY_REPORT_JSON --efficacy-config CONTROLS_MUTATION_YAML] [--evidence-sensitivity EVIDENCE_SENSITIVITY_REPORT_JSON] [--statistical-sufficiency STATISTICAL_SUFFICIENCY_REPORT_JSON --stochastic-evidence-sensitivity STOCHASTIC_EVIDENCE_SENSITIVITY_REPORT_JSON --stochastic-baseline-source-runset BASELINE_SOURCE_RUNSET_JSON --stochastic-counterfactual-source-runset COUNTERFACTUAL_SOURCE_RUNSET_JSON] [--packet-id ID]`
 - `agent-assure init controls-mutation [--out-dir DIR]`
 - `agent-assure doctor controls-mutate [--config CONTROLS_MUTATION_YAML]`
 - `agent-assure controls map EVIDENCE_PACKET_JSON --framework nist-ai-rmf|owasp-llm-top-10-2025|iso-iec-42001|mitre-atlas-2026-06 --out-dir REPORT_DIR`
@@ -18,10 +18,14 @@ Current commands:
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
-- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--require-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--require-evidence-sensitivity] [--require-stochastic-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
 - `agent-assure demo assure-the-assurance [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure demo evidence-sensitivity [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure rag sensitivity --suite SUITE_YAML --baseline-corpus DIR --counterfactual-corpus DIR --knowledge-contract CONTRACT_YAML --expected-relation decision_flip --out DIR [--synthetic-data-attestation ATTESTATION_JSON]`
+- `agent-assure rag sensitivity plan --protocol REPEATED_PROTOCOL_JSON_OR_YAML`
+- `agent-assure rag sensitivity finalize --template REPEATED_PROTOCOL_TEMPLATE_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_UNCOMMITTED_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_UNCOMMITTED_LIVE_CONFIG --out REPEATED_PROTOCOL_JSON --baseline-config-out BASELINE_FINAL_LIVE_CONFIG_JSON --counterfactual-config-out COUNTERFACTUAL_FINAL_LIVE_CONFIG_JSON`
+- `agent-assure rag sensitivity run --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config LIVE_CONFIG --counterfactual-config LIVE_CONFIG --live-protocol LIVE_PROTOCOL_JSON --out RUNSET_DIR --network-opt-in [--trust-config] [--ci] [--allow-external-script] [--allow-script-env]`
+- `agent-assure rag sensitivity analyze --protocol REPEATED_PROTOCOL_JSON_OR_YAML --runset RUNSET_DIR --out ANALYSIS_DIR`
 - `agent-assure live adapters`
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
@@ -61,11 +65,25 @@ input UTF-8 is copied into detector artifacts and downstream packets, so custom
 inputs must contain no real personal, confidential, or production data.
 
 The output directory must be disjoint from both corpora and every authenticated
-fixture root. If it already exists, it may contain only regular, non-link files
-whose names belong to the sensitivity artifact set. Every pre-existing owned
-file must exactly match the deterministic generation being published; a
-mismatched sidecar or packet, mixed namespace, link, or unrelated artifact is
-invalid input and is not replaced.
+fixture root. If it already exists, it must be the complete exact deterministic
+generation: all 17 single-link files, bytes, typed artifacts, and nested bindings
+are verified through the pinned parent before idempotent adoption. A
+partial generation, mismatched sidecar or packet, mixed namespace, link, or
+unrelated artifact is invalid input and is not replaced. A fresh generation is
+fully written and descriptor-validated in a random owner-only private sibling;
+artifact handles are flushed, and POSIX also syncs the staged directory. It is
+then committed with one atomic no-replace directory rename. The target is never
+rolled back after commit. Pre-commit interruption can retain a non-adoptable
+private stage. Later publication neither enumerates nor count-caps retained
+stages; they can accumulate and consume storage or inodes, but planted
+lookalikes cannot exhaust an application recovery limit. An exact committed
+target remains adoptable.
+
+The directory publisher makes a rooted advisory-lock attempt bounded at one
+millisecond. Unsafe, planted, or contended lock entries are bypassed. Integrity
+and writer convergence rely on private random staging, atomic no-replace
+directory installation, and exact concurrent-generation adoption rather than
+lock availability.
 
 The v1 command runs only the `responsive`, `evidence_reversed`, and
 `evidence_inertial` declarative fixture subject modes; it does not execute an
@@ -80,7 +98,7 @@ with the detector's fixed evaluation date, default gate profile, and no waivers.
 It carries both canonical RunSet digests and intentionally omits producer-local
 environment metadata. The producer's packet binds that comparison, the exact
 counterfactual evaluation, the sensitivity report, and the graph's raw and
-semantic identities in the same rollback-protected publication.
+semantic identities in the same staged, atomically committed publication.
 
 `demo evidence-sensitivity` stages the installed-package fixtures and verifies
 one responsive control plus one caught evidence-inertial regression. The
@@ -88,6 +106,86 @@ ordinary wrapper exits `0` when that detector contract behaves as declared;
 `--strict` propagates the expected blocking result as exit `1`. The demo is a
 synthetic detector contract test, not a real-model benchmark or prevalence
 measurement. See [Controlled RAG Evidence Sensitivity](evidence_sensitivity.md).
+
+The nested `rag sensitivity plan`, `finalize`, `run`, and `analyze` commands are the
+separate repeated stochastic workflow. `plan` verifies the self-digest and
+independently recomputes the frozen exact-binomial critical value, type-I error,
+and power at the declared `planned_inferential_clusters`, then prints its
+canonical summary. This exact-N recomputation is required because the discrete
+power-feasibility surface is not monotone.
+
+`finalize` is the no-dispatch bridge from an authoring template and two
+uncommitted live configs to an executable commitment. It snapshots the compiled
+case prompts, governing corpora, knowledge-authority contract, and any
+file-backed adapter resources; computes each arm's exact configuration, prompt,
+case, corpus, authority, adapter, policy, and tool identities; derives the
+closed expected recommendation/outcome assignments from the authority contract;
+builds and self-digests the repeated protocol; and injects that protocol's
+design commitment digest into both finalized configs. It then recomputes the arm
+facts and fails if adding the backlink changed either execution identity. The
+command never constructs an adapter, performs network I/O, or dispatches a model.
+
+Each finalized config must use a distinct `.json` filename in the same directory
+as its uncommitted input so relative resource paths preserve the exact bytes they
+identified. The protocol output must also be distinct. Publication is bounded,
+no-clobber, and serialized across overlapping finalize invocations. Before
+preflight, the command acquires persistent, rooted, single-link advisory lock
+files for every final output in canonical path order; invocations sharing even
+one output cannot adopt that output until its current writer has finished. These
+locks coordinate compliant Agent Assure writers and are not an authorization
+boundary against a process that ignores advisory locking.
+
+On POSIX and Windows, each acquisition uses nonblocking attempts governed by an
+explicit 60-second monotonic deadline. A timeout releases any locks already
+acquired by that invocation and fails before output preflight or creation.
+
+All existing outputs are then preflighted, an exact existing output is accepted,
+and any different content fails before an absent output is created. Absent
+outputs are exclusively created through pinned parent directories. The command
+never replaces or unlinks a final output name, including during handled failure,
+so one invocation cannot remove an output another invocation adopted. Completed
+invocations are convergent and idempotent. Before reporting success on POSIX,
+the command syncs every unique parent directory in which it created a final
+name. Windows has no directory-sync operation in this path; file handles are
+flushed, while final-name durability remains subject to Windows filesystem and
+host guarantees. A handled failure or abrupt process or host interruption during an in-place write can leave an exclusively created
+output complete or partially written. A retry accepts byte-exact completed
+outputs but fails closed on a partial or differing entry; an operator must
+inspect and remove that entry before retrying. The three-file operation is not a
+single cross-file filesystem transaction. Source configs must not already carry an
+`evidence_sensitivity_design_digest`.
+
+`run` rejects either arm before
+provider execution when its
+live configuration does not match the exact prebinding, creates a new atomic
+directory containing `baseline.runset.json` and
+`counterfactual.runset.json`, and never performs the statistical analysis
+implicitly. Every paired live invocation requires `--network-opt-in`; an
+actually network-backed adapter additionally requires its configuration opt-in.
+Risky configuration execution also follows the existing
+`--trust-config`/`--ci` acknowledgement boundary.
+
+`analyze` outer-joins both RunSets over the complete planned pair manifest and
+embeds those observations in `statistical-sufficiency-report.json`. It writes
+that artifact, the repeated protocol, exact unchanged privacy-safe baseline and
+counterfactual snapshots as separate `baseline.source.runset.json` and
+`counterfactual.source.runset.json` files, and the stochastic JSON/Markdown
+views through an atomic privacy-checked publication. It accepts `--runset DIR`
+or the mutually exclusive explicit
+`--baseline-runset` and `--counterfactual-runset` pair. Exit `0` means the
+derived stochastic state is `pass`; exit `1` covers `block`, `inconclusive`, or
+`prerequisites_unmet`; malformed, unbound, privacy-rejected, or conflicting
+input exits `2`. See
+[Repeated Paired Evidence Sensitivity](repeated_evidence_sensitivity.md).
+
+The analyzer always evaluates exactly the frozen
+`planned_inferential_clusters` frame. A complete analyzable cluster contributes
+its observed composite bit; a non-analyzable planned cluster contributes zero.
+Observed/analyzable counts remain separate audit fields.
+`maximum_exclusion_rate` is checked as an audit cap and never changes the
+denominator. Missing pairs, incomplete source execution, or excess exclusions
+therefore remain non-verdict even when a conservative exact analysis is
+available for inspection.
 
 OTLP authentication values are never accepted directly in command-line arguments. Use
 `--header-env` to read a value from an environment variable or `--header-file` to read it
@@ -195,6 +293,41 @@ Packet CI consumes the nested gate effect: `evidence_insensitive` exits `1`,
 explicit `not_evaluated` outcome that blocks under `--fail-on-not-evaluated`.
 Packet Markdown leads the sensitivity section with the same declarative-harness
 non-claim as the direct CLI.
+
+The public packet builder accepts a repeated study only as one atomic four-file
+bundle: `--statistical-sufficiency`,
+`--stochastic-evidence-sensitivity`,
+`--stochastic-baseline-source-runset`, and
+`--stochastic-counterfactual-source-runset`. It snapshots and schema-validates
+all four inputs before publication, then reassembles the canonical paired
+observations from the exact source RunSets. At the final publication boundary it
+reopens both source paths and requires their identity and bytes to equal the
+producer snapshots. A partial, mismatched, or concurrently changed bundle fails
+and rolls back every owned output. Success establishes consistency at that
+point in time; a later source change is detected by independent `ci gate`
+verification rather than prevented by the packet builder.
+
+When a packet carries the repeated-study sufficiency and stochastic reports, a
+verdict requires both together and an exact subject join: the packet evaluation
+RunSet ID and digest equal the counterfactual source dependency, and both source
+RunSet execution-configuration digests equal their predeclared protocol arms. A
+present comparison must equal both exact source-arm RunSet IDs and digests. The
+packet's graph projection carries and validates the candidate RunSet and
+configuration binding.
+
+Packet artifact digests additionally require the source snapshots atomically
+under `stochastic-baseline-source-runset` and
+`stochastic-counterfactual-source-runset`; a present release manifest requires
+the same roles. `ci gate` parses both files from its confined
+release-manifest artifact root, recomputes each RunSet and every record digest
+into the sufficiency dependencies, reruns the canonical paired observation
+assembler, and requires the complete reconstructed observation tuple to equal
+the sufficiency observations. Recommendation, outcome, disposition, cluster,
+endpoint, and source-record semantics therefore cannot be changed behind valid
+source digests. The in-process verifier may instead receive one explicit exact
+baseline/counterfactual RunSet tuple. Nested statistical reports alone cannot
+satisfy this verification; absent verifier-accessible sources make the packet
+invalid.
 
 `--control-efficacy` and `--efficacy-config` must be supplied together. The
 first loads a validated `control-efficacy-report`; the second loads the
@@ -543,8 +676,13 @@ path handles remain open while the child is created suspended, identities are
 revalidated, and a kill-on-close job is assigned before execution resumes.
 Other POSIX platforms fail closed because immutable descriptor-bound script
 execution is unavailable. Scripts do not inherit the full parent environment
-by default; only names in `script_env_allowlist`, explicit `script_env` entries,
-and runner-injected trace/request variables are passed. The configured
+by default; only names in `script_env_allowlist`, bounded non-sensitive
+`script_env` entries, and runner-injected trace/request variables are passed.
+Inline `script_env` values are bounded and screened as reconstructed
+`name=value` assignments for direct live execution. Repeated-sensitivity
+finalization refuses every inline value because its finalized configurations
+are published artifacts; runtime-only values must use `script_env_allowlist`.
+The configured
 interpreter or executable and runtime-loaded dependencies remain trusted host
 state. The live request payload includes the original prompt text. Subprocess
 spawn failures, timeouts, nonzero exits, invalid stdout, and stdout that fails
@@ -781,6 +919,9 @@ OTLP HTTP export requires an explicit HTTPS `--endpoint` and the endpoint host
 must be supplied through `--allowed-endpoint-host`; SDK environment-default
 endpoints are not used by `agent-assure`. OTLP endpoint DNS screening fails
 closed and is mandatory; an unresolved host is always rejected.
+The upstream OTLP exporter performs its own DNS resolution when connecting, so
+the screened addresses are not pinned and a DNS validation-to-connect TOCTOU
+window remains.
 The OTLP transport passes an explicit endpoint and non-empty validated header
 map to the SDK, uses a project-owned Requests session with `trust_env` disabled,
 does not follow redirects, pins no compression, and clears ambient SDK

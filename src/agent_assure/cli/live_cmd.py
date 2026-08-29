@@ -7,6 +7,7 @@ from urllib.parse import urlparse
 import typer
 from rich.console import Console
 
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.evaluation.evaluator import load_runset
 from agent_assure.fixtures.loader import compiled_suite_digest, load_compiled_suite
 from agent_assure.live.adapters import TrustedLiveExecution, adapter_ids
@@ -102,6 +103,11 @@ def run(
     # mandatory for endpoint-bound network adapters and cannot be disabled.
     del strict_endpoint_resolution
     try:
+        ensure_inputs_do_not_alias_outputs(
+            (compiled_suite, config, protocol),
+            (out,),
+            owner="live run",
+        )
         compiled = load_compiled_suite(compiled_suite)
         live_config = load_live_run_config(config)
         trust = _confirm_trusted_live_config(
@@ -255,6 +261,12 @@ def evaluate(
     ] = "0.950000",
 ) -> None:
     try:
+        _ensure_live_report_output_safe(
+            (runset_path, suite, protocol_path),
+            out_dir,
+            stem="live-evaluation-report",
+            owner="live evaluate",
+        )
         compiled = load_compiled_suite(suite)
         runset = load_runset(runset_path)
         protocol_record = _load_protocol(protocol_path)
@@ -290,6 +302,12 @@ def drift(
     out_dir: Annotated[Path, typer.Option("--out-dir", help="Report output directory.")],
 ) -> None:
     try:
+        _ensure_live_report_output_safe(
+            (*report_paths, protocol_path),
+            out_dir,
+            stem="live-drift-report",
+            owner="live drift",
+        )
         reports = tuple(load_live_evaluation_report(path) for path in report_paths)
         protocol_record = _load_protocol(protocol_path)
         report = build_live_drift_report(reports, protocol=protocol_record)
@@ -325,6 +343,12 @@ def trajectory(
     out_dir: Annotated[Path, typer.Option("--out-dir", help="Report output directory.")],
 ) -> None:
     try:
+        _ensure_live_report_output_safe(
+            (runset_path, report_path, protocol_path),
+            out_dir,
+            stem="live-trajectory-report",
+            owner="live trajectory",
+        )
         runset = load_runset(runset_path)
         evaluation_report = load_live_evaluation_report(report_path)
         protocol_record = _load_protocol(protocol_path)
@@ -357,6 +381,12 @@ def compare(
     out_dir: Annotated[Path, typer.Option("--out-dir", help="Report output directory.")],
 ) -> None:
     try:
+        _ensure_live_report_output_safe(
+            (baseline_report, candidate_report, protocol_path),
+            out_dir,
+            stem="live-comparison-report",
+            owner="live compare",
+        )
         baseline = load_live_evaluation_report(baseline_report)
         candidate = load_live_evaluation_report(candidate_report)
         protocol_record = _load_protocol(protocol_path)
@@ -376,6 +406,20 @@ def compare(
     )
     if report.state is GateState.fail:
         raise typer.Exit(1)
+
+
+def _ensure_live_report_output_safe(
+    inputs: tuple[Path, ...],
+    out_dir: Path,
+    *,
+    stem: str,
+    owner: str,
+) -> None:
+    ensure_inputs_do_not_alias_outputs(
+        inputs,
+        (out_dir, out_dir / f"{stem}.json", out_dir / f"{stem}.md"),
+        owner=owner,
+    )
 
 
 def _load_protocol(path: Path) -> LiveProtocolRecord:

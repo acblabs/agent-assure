@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import deque
 from collections.abc import Mapping
 from enum import StrEnum
 from typing import Annotated, Literal, Self, assert_never
@@ -13,6 +14,7 @@ from agent_assure.schema.common import (
     ComparisonClassification,
     DigestHex,
     GateState,
+    MachineIdentifier,
     coerce_enum,
     coerce_tuple,
 )
@@ -38,7 +40,6 @@ from agent_assure.schema.mutation import (
     EvidenceState,
     ExactJsonPointer,
     GateEffect,
-    MachineIdentifier,
     MutationResultState,
     SelfDigestedArtifact,
 )
@@ -51,9 +52,15 @@ from agent_assure.schema.sensitivity import (
     EvidenceSensitivityReasonCode,
     EvidenceSensitivityState,
     RAGSensitivityDecision,
+    RAGSensitivityOutcome,
     SyntheticDataProvenance,
     derive_sensitivity_directional_outcome_classification,
     derive_sensitivity_outcome_message,
+)
+from agent_assure.schema.stochastic_sensitivity import (
+    StochasticGateEffect,
+    StochasticSensitivityState,
+    SufficiencyState,
 )
 from agent_assure.sensitivity_contract import (
     SENSITIVITY_PROVENANCE_BINDING,
@@ -64,7 +71,7 @@ from agent_assure.sensitivity_contract import (
 
 GRAPH_CONTRACT_ID: Literal["AssuranceEvidenceGraph/v1"] = "AssuranceEvidenceGraph/v1"
 GRAPH_CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
-GRAPH_SCHEMA_VERSION: Literal["0.6.4"] = "0.6.4"
+GRAPH_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
 MAX_GRAPH_NODES = 131_072
 MAX_GRAPH_EDGES = 524_288
 MAX_GRAPH_REFERENCES = MAX_CATALOG_THREAT_REFERENCES + 1
@@ -85,6 +92,7 @@ class EvidenceGraphEdgeKind(StrEnum):
     contradicts = "contradicts"
     targets = "targets"
     derived_from = "derived_from"
+    depends_on = "depends_on"
     scoped_to = "scoped_to"
 
 
@@ -108,6 +116,8 @@ class EvidenceGraphEvidenceType(StrEnum):
     gate_decision = "gate_decision"
     packet_limitations = "packet_limitations"
     evidence_sensitivity = "evidence_sensitivity"
+    statistical_sufficiency = "statistical_sufficiency"
+    stochastic_evidence_sensitivity = "stochastic_evidence_sensitivity"
 
 
 class EvidenceGraphFindingType(StrEnum):
@@ -158,6 +168,14 @@ GraphReferenceValue = Annotated[
 GraphSourceId = Annotated[
     str,
     Field(min_length=1, max_length=(2 * MAX_ARTIFACT_JSON_BYTES) + 2),
+]
+GraphUnitDecimalString = Annotated[
+    str,
+    Field(pattern=r"^(0|1)\.[0-9]{6}$"),
+]
+GraphNonnegativeDecimalString = Annotated[
+    str,
+    Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$"),
 ]
 GraphMessage = Annotated[
     str,
@@ -527,6 +545,273 @@ class EvidenceGraphSensitivityProjection(FrozenStrictModel):
                 "sensitivity projection decision inertia contradicts state and relation"
             )
         return self
+
+
+class EvidenceGraphStatisticalSufficiencyProjection(FrozenStrictModel):
+    protocol_id: GraphSourceId
+    protocol_digest: DigestHex
+    baseline_expected_recommendation: RAGSensitivityDecision
+    baseline_expected_outcome: RAGSensitivityOutcome
+    counterfactual_expected_recommendation: RAGSensitivityDecision
+    counterfactual_expected_outcome: RAGSensitivityOutcome
+    candidate_runset_id: GraphSourceId | None = None
+    candidate_runset_digest: DigestHex | None = None
+    candidate_configuration_digest: DigestHex | None = None
+    state: SufficiencyState
+    verdict_bearing: bool
+    population_claim_permitted: bool
+    planned_pairs: int = Field(ge=1, le=MAX_GRAPH_NODES)
+    actual_pairs: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    included_pairs: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    missing_pairs: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    excluded_pairs: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    planned_clusters: int = Field(ge=1, le=MAX_GRAPH_NODES)
+    actual_clusters: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    analyzable_clusters: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    analysis_method: (
+        Literal[
+            "cluster_binomial_exact",
+            "cluster_binomial_exact_with_monte_carlo_diagnostic",
+        ]
+        | None
+    ) = None
+    analysis_compared_clusters: int | None = Field(default=None, ge=2, le=MAX_GRAPH_NODES)
+    analysis_responding_clusters: int | None = Field(
+        default=None,
+        ge=0,
+        le=MAX_GRAPH_NODES,
+    )
+    analysis_p_value_upper_bound: GraphUnitDecimalString | None = None
+    analysis_adjusted_alpha: GraphUnitDecimalString | None = None
+
+    @field_validator(
+        "baseline_expected_recommendation",
+        "counterfactual_expected_recommendation",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_expected_recommendation(
+        cls,
+        value: object,
+    ) -> RAGSensitivityDecision:
+        return coerce_enum(RAGSensitivityDecision, value)
+
+    @field_validator(
+        "baseline_expected_outcome",
+        "counterfactual_expected_outcome",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_expected_outcome(cls, value: object) -> RAGSensitivityOutcome:
+        return coerce_enum(RAGSensitivityOutcome, value)
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, value: object) -> SufficiencyState:
+        return coerce_enum(SufficiencyState, value)
+
+    @model_validator(mode="after")
+    def _validate_semantic_role(self) -> Self:
+        candidate_binding = (
+            self.candidate_runset_id,
+            self.candidate_runset_digest,
+            self.candidate_configuration_digest,
+        )
+        if any(value is None for value in candidate_binding) != all(
+            value is None for value in candidate_binding
+        ):
+            raise ValueError("statistical-sufficiency candidate binding must be complete or absent")
+        if self.verdict_bearing is not (self.state is SufficiencyState.satisfied):
+            raise ValueError(
+                "statistical-sufficiency projection verdict role contradicts its state"
+            )
+        if self.population_claim_permitted and not self.verdict_bearing:
+            raise ValueError(
+                "statistical-sufficiency population claims require a satisfied verdict"
+            )
+        if self.verdict_bearing and any(value is None for value in candidate_binding):
+            raise ValueError(
+                "verdict-bearing statistical sufficiency requires an authenticated "
+                "candidate RunSet and configuration binding"
+            )
+        if self.included_pairs > self.actual_pairs or self.actual_pairs > self.planned_pairs:
+            raise ValueError("statistical-sufficiency projection pair counts must be monotonic")
+        if self.missing_pairs > self.planned_pairs or self.excluded_pairs > self.planned_pairs:
+            raise ValueError(
+                "statistical-sufficiency missing and excluded counts exceed planned pairs"
+            )
+        if (
+            self.analyzable_clusters > self.actual_clusters
+            or self.actual_clusters > self.planned_clusters
+        ):
+            raise ValueError("statistical-sufficiency cluster counts must be monotonic")
+        analysis_fields = (
+            self.analysis_method,
+            self.analysis_compared_clusters,
+            self.analysis_responding_clusters,
+            self.analysis_p_value_upper_bound,
+            self.analysis_adjusted_alpha,
+        )
+        if any(value is None for value in analysis_fields) != all(
+            value is None for value in analysis_fields
+        ):
+            raise ValueError(
+                "statistical-sufficiency analysis projection must be complete or absent"
+            )
+        if self.state is SufficiencyState.satisfied and self.analysis_method is None:
+            raise ValueError(
+                "satisfied statistical-sufficiency projection requires analysis evidence"
+            )
+        if self.analysis_compared_clusters is not None and (
+            self.analysis_compared_clusters != self.planned_clusters
+            or self.analysis_responding_clusters is None
+            or self.analysis_responding_clusters > self.analysis_compared_clusters
+        ):
+            raise ValueError(
+                "statistical-sufficiency analysis counts must match the frozen "
+                "planned-cluster frame"
+            )
+        return self
+
+
+class EvidenceGraphStochasticSensitivityProjection(FrozenStrictModel):
+    protocol_id: GraphSourceId
+    protocol_digest: DigestHex
+    baseline_expected_recommendation: RAGSensitivityDecision
+    baseline_expected_outcome: RAGSensitivityOutcome
+    counterfactual_expected_recommendation: RAGSensitivityDecision
+    counterfactual_expected_outcome: RAGSensitivityOutcome
+    candidate_runset_id: GraphSourceId | None = None
+    candidate_runset_digest: DigestHex | None = None
+    candidate_configuration_digest: DigestHex | None = None
+    endpoint: Literal["expected_decision_response"] = "expected_decision_response"
+    state: StochasticSensitivityState
+    gate_effect: StochasticGateEffect
+    verdict_bearing: bool
+    population_claim: Literal[
+        "none",
+        "expected_decision_response_cluster_rate_above_null_supported",
+        "expected_decision_response_cluster_rate_above_null_not_supported",
+    ]
+    observed_pair_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    observed_response_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    observed_counterexample_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    observed_cluster_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    observed_cluster_response_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
+    estimated_response_unit: Literal["independent_cluster"] = "independent_cluster"
+    estimated_response_rate: GraphUnitDecimalString | None = None
+    sufficiency_report_id: GraphSourceId
+    sufficiency_report_digest: DigestHex
+
+    @field_validator(
+        "baseline_expected_recommendation",
+        "counterfactual_expected_recommendation",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_expected_recommendation(
+        cls,
+        value: object,
+    ) -> RAGSensitivityDecision:
+        return coerce_enum(RAGSensitivityDecision, value)
+
+    @field_validator(
+        "baseline_expected_outcome",
+        "counterfactual_expected_outcome",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_expected_outcome(cls, value: object) -> RAGSensitivityOutcome:
+        return coerce_enum(RAGSensitivityOutcome, value)
+
+    @field_validator("state", mode="before")
+    @classmethod
+    def _coerce_state(cls, value: object) -> StochasticSensitivityState:
+        return coerce_enum(StochasticSensitivityState, value)
+
+    @field_validator("gate_effect", mode="before")
+    @classmethod
+    def _coerce_gate_effect(cls, value: object) -> StochasticGateEffect:
+        return coerce_enum(StochasticGateEffect, value)
+
+    @model_validator(mode="after")
+    def _validate_semantic_role(self) -> Self:
+        candidate_binding = (
+            self.candidate_runset_id,
+            self.candidate_runset_digest,
+            self.candidate_configuration_digest,
+        )
+        if any(value is None for value in candidate_binding) != all(
+            value is None for value in candidate_binding
+        ):
+            raise ValueError("stochastic sensitivity candidate binding must be complete or absent")
+        expected_verdict = self.state in {
+            StochasticSensitivityState.pass_,
+            StochasticSensitivityState.block,
+        }
+        if self.verdict_bearing is not expected_verdict:
+            raise ValueError(
+                "stochastic sensitivity verdict role must match a pass or block report state"
+            )
+        if self.verdict_bearing and any(value is None for value in candidate_binding):
+            raise ValueError(
+                "verdict-bearing stochastic sensitivity requires an authenticated "
+                "candidate RunSet and configuration binding"
+            )
+        expected_gate_effect = {
+            StochasticSensitivityState.pass_: StochasticGateEffect.pass_,
+            StochasticSensitivityState.block: StochasticGateEffect.block,
+            StochasticSensitivityState.prerequisites_unmet: (StochasticGateEffect.non_verdict),
+            StochasticSensitivityState.inconclusive: StochasticGateEffect.non_verdict,
+        }[self.state]
+        expected_population_claim = {
+            StochasticSensitivityState.pass_: (
+                "expected_decision_response_cluster_rate_above_null_supported"
+            ),
+            StochasticSensitivityState.block: (
+                "expected_decision_response_cluster_rate_above_null_not_supported"
+            ),
+            StochasticSensitivityState.prerequisites_unmet: "none",
+            StochasticSensitivityState.inconclusive: "none",
+        }[self.state]
+        if (
+            self.gate_effect is not expected_gate_effect
+            or self.population_claim != expected_population_claim
+        ):
+            raise ValueError(
+                "stochastic sensitivity gate and population claim must match its state"
+            )
+        if (
+            self.observed_response_count + self.observed_counterexample_count
+            != self.observed_pair_count
+        ):
+            raise ValueError(
+                "stochastic sensitivity observed endpoint counts must sum to pair count"
+            )
+        if self.observed_cluster_response_count > self.observed_cluster_count:
+            raise ValueError("stochastic sensitivity cluster responses exceed complete clusters")
+        return self
+
+
+def _stochastic_candidate_binding(
+    projection: (
+        EvidenceGraphStatisticalSufficiencyProjection | EvidenceGraphStochasticSensitivityProjection
+    ),
+) -> tuple[str, str, str] | None:
+    values = (
+        projection.candidate_runset_id,
+        projection.candidate_runset_digest,
+        projection.candidate_configuration_digest,
+    )
+    if all(value is None for value in values):
+        return None
+    if any(value is None for value in values):
+        raise ValueError("stochastic graph candidate binding must be complete or absent")
+    runset_id, runset_digest, configuration_digest = values
+    assert runset_id is not None
+    assert runset_digest is not None
+    assert configuration_digest is not None
+    return runset_id, runset_digest, configuration_digest
 
 
 class EvidenceGraphControlEfficacyProjection(FrozenStrictModel):
@@ -934,6 +1219,18 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
         default=None,
         exclude_if=lambda value: value is None,
     )
+    statistical_sufficiency_projection: EvidenceGraphStatisticalSufficiencyProjection | None = (
+        Field(
+            default=None,
+            exclude_if=lambda value: value is None,
+        )
+    )
+    stochastic_evidence_sensitivity_projection: (
+        EvidenceGraphStochasticSensitivityProjection | None
+    ) = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     references: tuple[EvidenceGraphReference, ...] = Field(
         default=(),
         max_length=MAX_GRAPH_REFERENCES,
@@ -1000,6 +1297,19 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
             raise ValueError(
                 "evidence-sensitivity evidence requires exactly one sensitivity projection"
             )
+        if (self.statistical_sufficiency_projection is not None) != (
+            self.evidence_type is EvidenceGraphEvidenceType.statistical_sufficiency
+        ):
+            raise ValueError(
+                "statistical-sufficiency evidence requires exactly one sufficiency projection"
+            )
+        if (self.stochastic_evidence_sensitivity_projection is not None) != (
+            self.evidence_type is EvidenceGraphEvidenceType.stochastic_evidence_sensitivity
+        ):
+            raise ValueError(
+                "stochastic evidence-sensitivity evidence requires exactly one "
+                "stochastic sensitivity projection"
+            )
         if self.comparison_projection is not None:
             expected_state = _comparison_evidence_state(self.comparison_projection)
             if self.state is not expected_state:
@@ -1036,6 +1346,55 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
                 )
             if not self.limitations:
                 raise ValueError("sensitivity evidence must preserve report limitations")
+        if self.statistical_sufficiency_projection is not None:
+            sufficiency_projection = self.statistical_sufficiency_projection
+            expected_state = {
+                SufficiencyState.satisfied: EvidenceState.supported,
+                SufficiencyState.prerequisites_unmet: EvidenceState.prerequisites_unmet,
+                SufficiencyState.inconclusive: EvidenceState.inconclusive,
+            }[sufficiency_projection.state]
+            if (
+                self.state,
+                self.verdict_bearing,
+            ) != (
+                expected_state,
+                sufficiency_projection.verdict_bearing,
+            ):
+                raise ValueError("statistical-sufficiency evidence role contradicts its projection")
+            if self.source_artifact_kind != "statistical-sufficiency-report":
+                raise ValueError(
+                    "statistical-sufficiency evidence requires the "
+                    "statistical-sufficiency-report source kind"
+                )
+            if self.source_id != (f"{sufficiency_projection.protocol_id}/sufficiency"):
+                raise ValueError(
+                    "statistical-sufficiency evidence identity must derive from its protocol"
+                )
+        if self.stochastic_evidence_sensitivity_projection is not None:
+            stochastic_projection = self.stochastic_evidence_sensitivity_projection
+            expected_state = {
+                StochasticSensitivityState.pass_: EvidenceState.supported,
+                StochasticSensitivityState.block: EvidenceState.violated,
+                StochasticSensitivityState.prerequisites_unmet: (EvidenceState.prerequisites_unmet),
+                StochasticSensitivityState.inconclusive: EvidenceState.inconclusive,
+            }[stochastic_projection.state]
+            if (
+                self.state,
+                self.verdict_bearing,
+            ) != (
+                expected_state,
+                stochastic_projection.verdict_bearing,
+            ):
+                raise ValueError("stochastic evidence-sensitivity role contradicts its projection")
+            if self.source_artifact_kind != "stochastic-evidence-sensitivity-report":
+                raise ValueError(
+                    "stochastic evidence-sensitivity requires the "
+                    "stochastic-evidence-sensitivity-report source kind"
+                )
+            if self.source_id != (f"{stochastic_projection.protocol_id}/stochastic-result"):
+                raise ValueError(
+                    "stochastic evidence-sensitivity identity must derive from its protocol"
+                )
         exact_state_roles = {
             EvidenceGraphEvidenceType.gate_profile: (
                 EvidenceState.inconclusive,
@@ -1684,6 +2043,10 @@ _EDGE_SHAPES: dict[
         frozenset({EvidenceGraphNodeKind.finding}),
         frozenset({EvidenceGraphNodeKind.evidence}),
     ),
+    EvidenceGraphEdgeKind.depends_on: (
+        frozenset({EvidenceGraphNodeKind.evidence}),
+        frozenset({EvidenceGraphNodeKind.evidence}),
+    ),
     EvidenceGraphEdgeKind.scoped_to: (
         frozenset(
             {
@@ -1701,7 +2064,7 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
     _digest_field = "graph_digest"
 
     artifact_kind: Literal["assurance-evidence-graph"] = "assurance-evidence-graph"
-    schema_version: Literal["0.6.3", "0.6.4"] = GRAPH_SCHEMA_VERSION
+    schema_version: Literal["0.6.3", "0.6.4", "0.6.5"] = GRAPH_SCHEMA_VERSION
     schema_name: Literal["assurance-evidence-graph"] = "assurance-evidence-graph"
     contract_id: Literal["AssuranceEvidenceGraph/v1"] = GRAPH_CONTRACT_ID
     contract_version: Literal["1.0.0"] = GRAPH_CONTRACT_VERSION
@@ -1728,7 +2091,7 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_graph(self) -> Self:
-        if self.schema_version != GRAPH_SCHEMA_VERSION and any(
+        if self.schema_version == "0.6.3" and any(
             (
                 isinstance(node.payload, EvidenceGraphEvidencePayload)
                 and (
@@ -1749,7 +2112,26 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
             for node in self.nodes
         ):
             raise ValueError(
-                "evidence-sensitivity graph content requires schema_version "
+                "evidence-sensitivity graph content requires schema_version '0.6.4' or later"
+            )
+        if self.schema_version != GRAPH_SCHEMA_VERSION and (
+            any(edge.kind is EvidenceGraphEdgeKind.depends_on for edge in self.edges)
+            or any(
+                isinstance(node.payload, EvidenceGraphEvidencePayload)
+                and (
+                    node.payload.evidence_type
+                    in {
+                        EvidenceGraphEvidenceType.statistical_sufficiency,
+                        EvidenceGraphEvidenceType.stochastic_evidence_sensitivity,
+                    }
+                    or node.payload.statistical_sufficiency_projection is not None
+                    or node.payload.stochastic_evidence_sensitivity_projection is not None
+                )
+                for node in self.nodes
+            )
+        ):
+            raise ValueError(
+                "stochastic sensitivity graph content requires schema_version "
                 f"{GRAPH_SCHEMA_VERSION!r}"
             )
         expected_nodes = tuple(sorted(self.nodes, key=evidence_graph_node_sort_key))
@@ -1814,16 +2196,202 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
                 raise ValueError("non-subject node cannot carry subject identity")
             if node.identity.subject_node_id != node_scopes[node.node_id][0]:
                 raise ValueError("graph identity subject must match its scoped-to relationship")
+        for node in self.nodes:
+            payload = node.payload
+            if not isinstance(payload, EvidenceGraphEvidencePayload):
+                continue
+            candidate_projection = (
+                payload.statistical_sufficiency_projection
+                or payload.stochastic_evidence_sensitivity_projection
+            )
+            if candidate_projection is None:
+                continue
+            candidate_binding = _stochastic_candidate_binding(candidate_projection)
+            if candidate_binding is None:
+                continue
+            subject_node = nodes_by_id[node_scopes[node.node_id][0]]
+            subject_payload = subject_node.payload
+            if (
+                not isinstance(subject_payload, EvidenceGraphSubjectPayload)
+                or subject_payload.subject_type != "run_set"
+            ):
+                raise ValueError("stochastic candidate binding requires a run-set graph subject")
+            candidate_runset_id, candidate_runset_digest, _ = candidate_binding
+            if (
+                subject_payload.subject_id,
+                subject_payload.subject_digest,
+            ) != (
+                candidate_runset_id,
+                candidate_runset_digest,
+            ):
+                raise ValueError(
+                    "stochastic candidate RunSet id and digest must match its graph subject"
+                )
         for edge in self.edges:
             if edge.kind not in {
                 EvidenceGraphEdgeKind.supports,
                 EvidenceGraphEdgeKind.contradicts,
                 EvidenceGraphEdgeKind.targets,
                 EvidenceGraphEdgeKind.derived_from,
+                EvidenceGraphEdgeKind.depends_on,
             }:
                 continue
             if node_scopes[edge.source_node_id][0] != node_scopes[edge.target_node_id][0]:
                 raise ValueError("graph relationship edges cannot cross subject scopes")
+        dependency_adjacency: dict[str, list[str]] = {}
+        dependency_indegree: dict[str, int] = {}
+        for edge in self.edges:
+            if edge.kind is not EvidenceGraphEdgeKind.depends_on:
+                continue
+            dependency_adjacency.setdefault(edge.source_node_id, []).append(edge.target_node_id)
+            dependency_indegree.setdefault(edge.source_node_id, 0)
+            dependency_indegree[edge.target_node_id] = (
+                dependency_indegree.get(edge.target_node_id, 0) + 1
+            )
+        pending = deque(
+            node_id for node_id, indegree in dependency_indegree.items() if indegree == 0
+        )
+        visited_dependency_nodes = 0
+        while pending:
+            source_node_id = pending.popleft()
+            visited_dependency_nodes += 1
+            for target_node_id in dependency_adjacency.get(source_node_id, ()):
+                dependency_indegree[target_node_id] -= 1
+                if dependency_indegree[target_node_id] == 0:
+                    pending.append(target_node_id)
+        if visited_dependency_nodes != len(dependency_indegree):
+            raise ValueError("graph dependency edges must be acyclic")
+        for node in self.nodes:
+            payload = node.payload
+            if not isinstance(payload, EvidenceGraphEvidencePayload):
+                continue
+            dependency_targets = dependency_adjacency.get(node.node_id, ())
+            if (
+                payload.evidence_type
+                is not EvidenceGraphEvidenceType.stochastic_evidence_sensitivity
+            ):
+                if dependency_targets:
+                    raise ValueError("depends_on is reserved for stochastic sensitivity evidence")
+                continue
+            stochastic_projection = payload.stochastic_evidence_sensitivity_projection
+            if stochastic_projection is None:
+                raise ValueError("stochastic sensitivity dependency requires its typed projection")
+            sufficiency_node: EvidenceGraphNode
+            if not payload.verdict_bearing:
+                if dependency_targets:
+                    raise ValueError(
+                        "non-verdict stochastic sensitivity evidence cannot fabricate "
+                        "a dependency edge"
+                    )
+                matching_sufficiency_nodes = tuple(
+                    candidate
+                    for candidate in self.nodes
+                    if isinstance(candidate.payload, EvidenceGraphEvidencePayload)
+                    and candidate.payload.evidence_type
+                    is EvidenceGraphEvidenceType.statistical_sufficiency
+                    and (
+                        candidate.payload.source_id,
+                        candidate.payload.source_digest,
+                    )
+                    == (
+                        stochastic_projection.sufficiency_report_id,
+                        stochastic_projection.sufficiency_report_digest,
+                    )
+                )
+                if len(matching_sufficiency_nodes) != 1:
+                    raise ValueError(
+                        "non-verdict stochastic sensitivity evidence requires exactly "
+                        "one typed statistical-sufficiency node matching its declared "
+                        "identity and digest"
+                    )
+                sufficiency_node = matching_sufficiency_nodes[0]
+                if node_scopes[sufficiency_node.node_id][0] != node_scopes[node.node_id][0]:
+                    raise ValueError(
+                        "non-verdict stochastic sensitivity and its declared sufficiency "
+                        "node must share one subject scope"
+                    )
+            else:
+                if len(dependency_targets) != 1:
+                    raise ValueError(
+                        "verdict-bearing stochastic sensitivity evidence requires exactly "
+                        "one sufficiency dependency"
+                    )
+                sufficiency_node = nodes_by_id[dependency_targets[0]]
+            sufficiency_payload = sufficiency_node.payload
+            if (
+                not isinstance(sufficiency_payload, EvidenceGraphEvidencePayload)
+                or sufficiency_payload.evidence_type
+                is not EvidenceGraphEvidenceType.statistical_sufficiency
+                or sufficiency_payload.statistical_sufficiency_projection is None
+            ):
+                raise ValueError(
+                    "stochastic sensitivity dependency must target typed "
+                    "statistical-sufficiency evidence"
+                )
+            if (
+                sufficiency_payload.source_id,
+                sufficiency_payload.source_digest,
+            ) != (
+                stochastic_projection.sufficiency_report_id,
+                stochastic_projection.sufficiency_report_digest,
+            ):
+                raise ValueError(
+                    "stochastic sensitivity dependency target does not match its "
+                    "declared sufficiency identity and digest"
+                )
+            sufficiency_projection = sufficiency_payload.statistical_sufficiency_projection
+            if (
+                stochastic_projection.protocol_id,
+                stochastic_projection.protocol_digest,
+            ) != (
+                sufficiency_projection.protocol_id,
+                sufficiency_projection.protocol_digest,
+            ):
+                raise ValueError(
+                    "stochastic sensitivity dependency must bind sufficiency "
+                    "from the exact same protocol"
+                )
+            if (
+                stochastic_projection.baseline_expected_recommendation,
+                stochastic_projection.baseline_expected_outcome,
+                stochastic_projection.counterfactual_expected_recommendation,
+                stochastic_projection.counterfactual_expected_outcome,
+            ) != (
+                sufficiency_projection.baseline_expected_recommendation,
+                sufficiency_projection.baseline_expected_outcome,
+                sufficiency_projection.counterfactual_expected_recommendation,
+                sufficiency_projection.counterfactual_expected_outcome,
+            ):
+                raise ValueError(
+                    "stochastic sensitivity dependency must preserve the exact "
+                    "predeclared expected arm assignments"
+                )
+            if _stochastic_candidate_binding(
+                stochastic_projection
+            ) != _stochastic_candidate_binding(sufficiency_projection):
+                raise ValueError(
+                    "stochastic sensitivity dependency must preserve the sufficiency "
+                    "candidate RunSet and configuration binding"
+                )
+            if not payload.verdict_bearing:
+                continue
+            if (
+                sufficiency_projection.state is not SufficiencyState.satisfied
+                or not sufficiency_payload.verdict_bearing
+                or not sufficiency_projection.verdict_bearing
+            ):
+                raise ValueError(
+                    "verdict-bearing stochastic sensitivity evidence requires "
+                    "satisfied sufficiency evidence"
+                )
+            if (
+                stochastic_projection.population_claim != "none"
+                and not sufficiency_projection.population_claim_permitted
+            ):
+                raise ValueError(
+                    "stochastic sensitivity population claims require sufficiency "
+                    "that permits a population claim"
+                )
         derived_targets: dict[str, list[EvidenceGraphNode]] = {}
         derived_children: dict[str, list[EvidenceGraphNode]] = {}
         for edge in self.edges:

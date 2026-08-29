@@ -58,11 +58,17 @@ from agent_assure.reporting.packet import (
     packet_summary_files_binding_error,
     packet_summary_files_binding_error_for_trusted_publication,
     release_artifact_from_summary_snapshot,
+    stochastic_source_runsets_binding_error,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
 from agent_assure.schema.campaign import AssuranceMutationCatalog
-from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
+from agent_assure.schema.common import (
+    V063_CONTRACT_SCHEMA_VERSIONS,
+    ComparisonClassification,
+    GateState,
+    ReasonCode,
+)
 from agent_assure.schema.comparison import (
     ComparisonSummary,
     comparison_evaluation_binding_error,
@@ -87,6 +93,7 @@ from agent_assure.schema.mutation import GateEffect
 from agent_assure.schema.packet import (
     EvidencePacket,
     packet_summary_digest_binding_error,
+    stochastic_packet_subject_binding_error,
 )
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.sensitivity import (
@@ -94,6 +101,11 @@ from agent_assure.schema.sensitivity import (
     EvidenceSensitivityReasonCode,
     EvidenceSensitivityState,
     RAGSensitivityReport,
+)
+from agent_assure.schema.stochastic_sensitivity import (
+    StochasticEvidenceSensitivityReport,
+    StochasticGateEffect,
+    StochasticSensitivityState,
 )
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
@@ -458,12 +470,14 @@ def gate_artifact(
     artifact: GateArtifact,
     *,
     artifact_root: Path | None = None,
+    stochastic_source_runsets: tuple[RunSet, RunSet] | None = None,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
     verifier_efficacy_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool = False,
     require_evidence_sensitivity: bool = False,
+    require_stochastic_evidence_sensitivity: bool = False,
     allow_sensitivity_non_verdict: bool = False,
     allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
@@ -472,13 +486,21 @@ def gate_artifact(
     Strict efficacy controls verification strength when efficacy evidence is
     present. Presence requirements are verifier-owned: requiring efficacy or
     evidence sensitivity prevents a producer from gaining a passing result by
-    removing the corresponding evidence. Sensitivity-bearing packets fail
-    closed on non-verdict evidence unless the verifier explicitly allows it.
+    removing the corresponding evidence. Controlled sensitivity retains its
+    explicit non-verdict override. Present stochastic evidence also fails
+    closed on non-verdict results unless that same override is explicit;
+    requiring it additionally turns non-verdict states into policy failures.
     """
     if not isinstance(artifact, EvidencePacket):
         if artifact_root is not None:
             return _unexpected_artifact_root_decision(artifact.artifact_kind)
-        if require_evidence_sensitivity or allow_sensitivity_non_verdict:
+        if stochastic_source_runsets is not None:
+            return _unexpected_stochastic_sources_decision(artifact.artifact_kind)
+        if (
+            require_evidence_sensitivity
+            or require_stochastic_evidence_sensitivity
+            or allow_sensitivity_non_verdict
+        ):
             return _unexpected_sensitivity_options_decision(artifact.artifact_kind)
         if allow_legacy_unbound_comparison and not isinstance(artifact, ComparisonSummary):
             return _unexpected_legacy_comparison_option_decision(artifact.artifact_kind)
@@ -517,12 +539,14 @@ def gate_artifact(
     return gate_evidence_packet(
         artifact,
         artifact_root=artifact_root,
+        stochastic_source_runsets=stochastic_source_runsets,
         fail_on_warn=fail_on_warn,
         fail_on_not_evaluated=fail_on_not_evaluated,
         verifier_policy=verifier_efficacy_policy,
         strict_efficacy=strict_efficacy,
         require_efficacy=require_efficacy,
         require_evidence_sensitivity=require_evidence_sensitivity,
+        require_stochastic_evidence_sensitivity=(require_stochastic_evidence_sensitivity),
         allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
         allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
     )
@@ -562,6 +586,16 @@ def _unexpected_artifact_root_decision(artifact_kind: str) -> GateDecision:
         exit_code=2,
         outcome=GateOutcome.invalid,
         message="ci gate invalid: artifact_root is only valid for an evidence packet",
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _unexpected_stochastic_sources_decision(artifact_kind: str) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=("ci gate invalid: stochastic_source_runsets is only valid for an evidence packet"),
         reason_code=ReasonCode.POLICY_FAILED,
         artifact_kind=artifact_kind,
     )
@@ -642,6 +676,20 @@ def gate_evaluation_summary(
             message=_trusted_model_revalidation_message("evaluation-summary", error),
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind="evaluation-summary",
+        )
+    if (
+        summary.schema_version in V063_CONTRACT_SCHEMA_VERSIONS
+        and summary.runset_digest is None
+    ):
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=(
+                "ci gate invalid: current evaluation-summary "
+                f"{summary.runset_id} requires an authenticated runset_digest"
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=summary.artifact_kind,
         )
     coherence_error = evaluation_summary_coherence_error(
         state=summary.state,
@@ -768,12 +816,14 @@ def gate_evidence_packet(
     packet: EvidencePacket,
     *,
     artifact_root: Path | None = None,
+    stochastic_source_runsets: tuple[RunSet, RunSet] | None = None,
     fail_on_warn: bool = False,
     fail_on_not_evaluated: bool = False,
     verifier_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool = False,
     require_evidence_sensitivity: bool = False,
+    require_stochastic_evidence_sensitivity: bool = False,
     allow_sensitivity_non_verdict: bool = False,
     allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
@@ -793,6 +843,17 @@ def gate_evidence_packet(
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind="evidence-packet",
         )
+    if packet.release_manifest is not None and artifact_root is None:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=(
+                "ci gate invalid: a release-manifest-bearing evidence packet requires "
+                "artifact_root so every advertised file and nested binding can be verified"
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=packet.artifact_kind,
+        )
     legacy_unbound_comparison = packet.comparison is not None and (
         packet.comparison.baseline_runset_digest is None
         or packet.comparison.candidate_runset_digest is None
@@ -808,6 +869,58 @@ def gate_evidence_packet(
             subject=f"evidence-packet {packet.packet_id}",
         )
 
+    stochastic_subject_error = stochastic_packet_subject_binding_error(
+        packet.evaluation,
+        packet.stochastic_evidence_sensitivity,
+        comparison=packet.comparison,
+    )
+    if stochastic_subject_error is not None:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=f"ci gate invalid: {stochastic_subject_error}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=packet.artifact_kind,
+        )
+    if packet.stochastic_evidence_sensitivity is None:
+        if stochastic_source_runsets is not None:
+            return GateDecision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=(
+                    "ci gate invalid: stochastic source RunSets were supplied for a "
+                    "packet without stochastic evidence"
+                ),
+                reason_code=ReasonCode.POLICY_FAILED,
+                artifact_kind=packet.artifact_kind,
+            )
+    else:
+        if artifact_root is None and stochastic_source_runsets is None:
+            return GateDecision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=(
+                    "ci gate invalid: stochastic evidence requires either a confined "
+                    "release-manifest artifact root or exact baseline and "
+                    "counterfactual source RunSets"
+                ),
+                reason_code=ReasonCode.POLICY_FAILED,
+                artifact_kind=packet.artifact_kind,
+            )
+        if stochastic_source_runsets is not None:
+            source_binding_error = stochastic_source_runsets_binding_error(
+                packet,
+                source_runsets=stochastic_source_runsets,
+            )
+            if source_binding_error is not None:
+                return GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=f"ci gate invalid: {source_binding_error}",
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    artifact_kind=packet.artifact_kind,
+                )
+
     def finish(decision: GateDecision) -> GateDecision:
         return (
             _with_legacy_comparison_compatibility_notice(decision)
@@ -817,6 +930,8 @@ def gate_evidence_packet(
 
     if require_evidence_sensitivity and packet.evidence_sensitivity is None:
         return finish(_missing_packet_sensitivity_decision(packet))
+    if require_stochastic_evidence_sensitivity and packet.stochastic_evidence_sensitivity is None:
+        return finish(_missing_packet_stochastic_sensitivity_decision(packet))
     summary_digest_error = packet_summary_digest_binding_error(packet)
     if summary_digest_error is not None:
         return finish(
@@ -923,6 +1038,31 @@ def gate_evidence_packet(
                 artifact_kind=packet.artifact_kind,
             )
         decisions.append(sensitivity_decision)
+    if packet.stochastic_evidence_sensitivity is not None:
+        stochastic_decision = _gate_stochastic_sensitivity_report(
+            packet.stochastic_evidence_sensitivity,
+            required=require_stochastic_evidence_sensitivity,
+            fail_on_not_evaluated=fail_on_not_evaluated,
+        )
+        if (
+            stochastic_decision.outcome is GateOutcome.not_evaluated
+            and not allow_sensitivity_non_verdict
+        ):
+            stochastic_decision = GateDecision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=(
+                    "ci gate invalid: stochastic-sensitivity-bearing evidence packet "
+                    "has a non-verdict stochastic result "
+                    f"state={packet.stochastic_evidence_sensitivity.state.value} "
+                    f"gate_effect={packet.stochastic_evidence_sensitivity.gate_effect.value}; "
+                    "explicitly allow it with allow_sensitivity_non_verdict=True or "
+                    "--allow-sensitivity-non-verdict"
+                ),
+                reason_code=stochastic_decision.reason_code,
+                artifact_kind=packet.artifact_kind,
+            )
+        decisions.append(stochastic_decision)
     if packet.control_efficacy is not None:
         if packet.control_efficacy_gate is None or packet.control_efficacy_gate_profile is None:
             return finish(
@@ -1014,6 +1154,16 @@ def gate_evidence_packet(
         for candidate in decisions
         if candidate.outcome is outcome
     )
+    stochastic_requirement_suffix = ""
+    if (
+        require_stochastic_evidence_sensitivity
+        and packet.stochastic_evidence_sensitivity is not None
+    ):
+        stochastic_requirement_suffix = (
+            "; stochastic_evidence_sensitivity=required "
+            f"state={packet.stochastic_evidence_sensitivity.state.value} "
+            f"gate_effect={packet.stochastic_evidence_sensitivity.gate_effect.value}"
+        )
     if controlling_decision.outcome is not GateOutcome.pass_:
         decision = GateDecision(
             exit_code=controlling_decision.exit_code,
@@ -1046,7 +1196,8 @@ def gate_evidence_packet(
             exit_code=0,
             outcome=GateOutcome.pass_,
             message=(
-                f"{efficacy_decision.message}{policy_suffix}; evidence-packet={packet.packet_id}"
+                f"{efficacy_decision.message}{policy_suffix}; "
+                f"evidence-packet={packet.packet_id}{stochastic_requirement_suffix}"
             ),
             reason_code=efficacy_decision.reason_code,
             artifact_kind=packet.artifact_kind,
@@ -1058,13 +1209,104 @@ def gate_evidence_packet(
     decision = _efficacy_gate_decision(
         exit_code=0,
         outcome=GateOutcome.pass_,
-        message=f"ci gate pass: evidence-packet {packet.packet_id}",
+        message=(
+            f"ci gate pass: evidence-packet {packet.packet_id}{stochastic_requirement_suffix}"
+        ),
         evidence=EfficacyEvidenceState.absent,
         verification=EfficacyVerificationMode.not_requested,
         required=False,
         artifact_kind=packet.artifact_kind,
     )
     return finish(decision)
+
+
+def _gate_stochastic_sensitivity_report(
+    report: StochasticEvidenceSensitivityReport,
+    *,
+    required: bool,
+    fail_on_not_evaluated: bool,
+) -> GateDecision:
+    """Map a coherent stochastic result into packet CI gate semantics."""
+    try:
+        report = StochasticEvidenceSensitivityReport.model_validate(
+            report.model_dump(mode="json", warnings="error")
+        )
+    except (TypeError, ValueError) as error:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=_trusted_model_revalidation_message(
+                "stochastic-evidence-sensitivity-report",
+                error,
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind="stochastic-evidence-sensitivity-report",
+        )
+    expected_role = {
+        StochasticSensitivityState.pass_: (StochasticGateEffect.pass_, True),
+        StochasticSensitivityState.block: (StochasticGateEffect.block, True),
+        StochasticSensitivityState.prerequisites_unmet: (
+            StochasticGateEffect.non_verdict,
+            False,
+        ),
+        StochasticSensitivityState.inconclusive: (
+            StochasticGateEffect.non_verdict,
+            False,
+        ),
+    }[report.state]
+    if (report.gate_effect, report.verdict_bearing) != expected_role:
+        return GateDecision(
+            exit_code=2,
+            outcome=GateOutcome.invalid,
+            message=(
+                "ci gate invalid: stochastic-evidence-sensitivity-report "
+                f"{report.report_id} has an incoherent state/gate role"
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=report.artifact_kind,
+        )
+    subject = (
+        f"stochastic-evidence-sensitivity-report {report.report_id} "
+        f"state={report.state.value} gate_effect={report.gate_effect.value} "
+        f"verdict_bearing={str(report.verdict_bearing).lower()}"
+    )
+    if report.gate_effect is StochasticGateEffect.pass_:
+        return GateDecision(
+            exit_code=0,
+            outcome=GateOutcome.pass_,
+            message=f"ci gate pass: {'required ' if required else ''}{subject}",
+            artifact_kind=report.artifact_kind,
+        )
+    if report.gate_effect is StochasticGateEffect.block:
+        return GateDecision(
+            exit_code=1,
+            outcome=GateOutcome.fail,
+            message=f"ci gate fail: {'required ' if required else ''}{subject}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=report.artifact_kind,
+        )
+    if not required and not fail_on_not_evaluated:
+        return GateDecision(
+            exit_code=0,
+            outcome=GateOutcome.not_evaluated,
+            message=f"ci gate not-evaluated: {subject}",
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=report.artifact_kind,
+        )
+    return GateDecision(
+        exit_code=1,
+        outcome=GateOutcome.fail,
+        message=(
+            f"ci gate fail: {'required ' if required else ''}{subject} is non-verdict; "
+            + (
+                "--require-stochastic-evidence-sensitivity accepts only a verdict-bearing pass"
+                if required
+                else "fail_on_not_evaluated rejects non-verdict evidence"
+            )
+        ),
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=report.artifact_kind,
+    )
 
 
 def gate_evidence_sensitivity_report(
@@ -1242,6 +1484,22 @@ def _missing_packet_sensitivity_decision(packet: EvidencePacket) -> GateDecision
             "ci gate invalid: evidence-packet "
             f"{packet.packet_id} has no evidence-sensitivity report; it is required "
             "by verifier policy or --require-evidence-sensitivity"
+        ),
+        reason_code=ReasonCode.POLICY_FAILED,
+        artifact_kind=packet.artifact_kind,
+    )
+
+
+def _missing_packet_stochastic_sensitivity_decision(
+    packet: EvidencePacket,
+) -> GateDecision:
+    return GateDecision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=(
+            "ci gate invalid: evidence-packet "
+            f"{packet.packet_id} has no stochastic-evidence-sensitivity report; "
+            "it is required by --require-stochastic-evidence-sensitivity"
         ),
         reason_code=ReasonCode.POLICY_FAILED,
         artifact_kind=packet.artifact_kind,
@@ -2060,10 +2318,19 @@ def _compare_for_ci(
 def _fail_fast_evaluation_report(
     report: EvaluationReport,
 ) -> EvaluationReport:
+    summary = report.candidate_vs_expectations
+    if summary.replay_context is not None:
+        summary = summary.model_copy(
+            update={
+                "replay_context": summary.replay_context.model_copy(
+                    update={"report_mode": "fail-fast"}
+                )
+            }
+        )
     first = next((finding for finding in report.failed_controls), None)
     if first is None:
-        return report
-    summary = report.candidate_vs_expectations.model_copy(update={"findings": (first,)})
+        return report.model_copy(update={"candidate_vs_expectations": summary})
+    summary = summary.model_copy(update={"findings": (first,)})
     return report.model_copy(
         update={
             "candidate_vs_expectations": summary,
@@ -2175,7 +2442,7 @@ def _write_ci_packet(
                 graph_snapshot,
             ),
         ]
-        if baseline_runset_path is not None:
+        if baseline_runset_path is not None and comparison_snapshot is not None:
             artifact_paths.append(
                 release_artifact(
                     "baseline-runset",

@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import shutil
+import threading
 from dataclasses import replace
 from pathlib import Path
 from typing import Any, cast
@@ -972,7 +973,7 @@ def test_bundle_publisher_rejects_swapped_sidecars_before_publication(
     assert not out.exists()
 
 
-def test_bundle_publisher_rolls_back_late_packet_generation_failure(
+def test_bundle_publisher_retains_failed_private_stage_and_recovers_without_deleting_it(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -983,17 +984,17 @@ def test_bundle_publisher_rolls_back_late_packet_generation_failure(
         knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
         expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
     )
-    out = tmp_path / "rollback-output"
+    out = tmp_path / "retained-stage-output"
     original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
 
     def fail_on_manifest(
-        claimed_directory: object,
+        claim: object,
         name: str,
         payload: bytes,
     ) -> object:
         if name == "release-artifact-manifest.json":
             raise OSError("injected publication failure")
-        return original_write(claimed_directory, name, payload)  # type: ignore[arg-type]
+        return original_write(claim, name, payload)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         sensitivity_reporting_module,
@@ -1001,13 +1002,39 @@ def test_bundle_publisher_rolls_back_late_packet_generation_failure(
         fail_on_manifest,
     )
 
-    with pytest.raises(OSError, match="injected publication failure"):
+    with pytest.raises(OSError, match="private staging retained at") as raised:
         write_sensitivity_execution_artifacts(artifacts, out)
 
     assert not out.exists()
+    assert isinstance(raised.value.__cause__, OSError)
+    assert "injected publication failure" in str(raised.value.__cause__)
+    abandoned = tuple(tmp_path.glob(".agent-assure-sensitivity-*.tmp"))
+    assert len(abandoned) == 1
+    abandoned_identity = os.lstat(abandoned[0])
+    abandoned_names = tuple(sorted(item.name for item in abandoned[0].iterdir()))
+    assert abandoned_names
+    if os.name != "nt":
+        assert abandoned_identity.st_mode & 0o777 == 0o700
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module,
+        "_write_sensitivity_output_exclusive",
+        original_write,
+    )
+    published = write_sensitivity_execution_artifacts(artifacts, out)
+
+    assert tuple(published) == sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    assert {item.name for item in out.iterdir()} == set(
+        sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    )
+    assert (os.lstat(abandoned[0]).st_dev, os.lstat(abandoned[0]).st_ino) == (
+        abandoned_identity.st_dev,
+        abandoned_identity.st_ino,
+    )
+    assert tuple(sorted(item.name for item in abandoned[0].iterdir())) == abandoned_names
 
 
-def test_bundle_publisher_rolls_back_keyboard_interrupt(
+def test_bundle_publisher_interrupt_leaves_only_a_nonadoptable_private_stage(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1019,24 +1046,39 @@ def test_bundle_publisher_rolls_back_keyboard_interrupt(
         expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
     )
     out = tmp_path / "interrupt-output"
+    original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
+    calls = 0
 
-    def interrupt_during_first_file_flush(_descriptor: int) -> None:
-        raise KeyboardInterrupt
+    def interrupt_during_second_write(
+        claim: object,
+        name: str,
+        payload: bytes,
+    ) -> object:
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise KeyboardInterrupt
+        return original_write(claim, name, payload)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
-        sensitivity_reporting_module.os,
-        "fsync",
-        interrupt_during_first_file_flush,
+        sensitivity_reporting_module,
+        "_write_sensitivity_output_exclusive",
+        interrupt_during_second_write,
     )
 
     with pytest.raises(KeyboardInterrupt):
         write_sensitivity_execution_artifacts(artifacts, out)
 
     assert not out.exists()
+    abandoned = tuple(tmp_path.glob(".agent-assure-sensitivity-*.tmp"))
+    assert len(abandoned) == 1
+    assert {item.name for item in abandoned[0].iterdir()} == {
+        sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES[0]
+    }
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX file-entry swap regression")
-def test_bundle_publisher_rollback_rejects_symlink_swap_and_releases_claim(
+def test_bundle_publisher_rejects_staged_symlink_swap_without_touching_foreign_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1060,27 +1102,26 @@ def test_bundle_publisher_rollback_rejects_symlink_swap_and_releases_claim(
 
     original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
     first_created: Any | None = None
-    captured_claimed: Any | None = None
+    captured_claim: Any | None = None
 
     def swap_first_output_before_second_write(
-        claimed_directory: object,
+        claim: object,
         name: str,
         payload: bytes,
     ) -> object:
-        nonlocal first_created, captured_claimed
+        nonlocal first_created, captured_claim
         if first_created is None:
             first_created = original_write(  # type: ignore[arg-type]
-                claimed_directory,
+                claim,
                 name,
                 payload,
             )
-            captured_claimed = claimed_directory
+            captured_claim = claim
             return first_created
         if name == "fixture-manifest.json":
             first_created.path.unlink()
             first_created.path.symlink_to(foreign)
-            raise OSError("injected failure after symlink substitution")
-        return original_write(claimed_directory, name, payload)  # type: ignore[arg-type]
+        return original_write(claim, name, payload)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         sensitivity_reporting_module,
@@ -1088,19 +1129,18 @@ def test_bundle_publisher_rollback_rejects_symlink_swap_and_releases_claim(
         swap_first_output_before_second_write,
     )
 
-    with pytest.raises(OSError, match="rollback was incomplete"):
+    with pytest.raises(OSError, match="private staging retained at"):
         write_sensitivity_execution_artifacts(artifacts, out)
 
     assert first_created is not None
-    assert captured_claimed is not None
+    assert captured_claim is not None
     assert first_created.pin_descriptor is None
-    assert captured_claimed.claim.closed
-    assert captured_claimed.parent_lease.closed
+    assert captured_claim.closed
     assert first_created.path.is_symlink()
     assert foreign.read_bytes() == foreign_bytes
 
 
-def test_bundle_publisher_normalizes_link_guard_value_error_during_rollback(
+def test_bundle_publisher_ignores_planted_stage_and_lock_entries_without_parent_scan(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1111,59 +1151,138 @@ def test_bundle_publisher_normalizes_link_guard_value_error_during_rollback(
         knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
         expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
     )
-    out = tmp_path / "rollback-link-guard-output"
-    original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
-    original_stat = sensitivity_reporting_module.RootedDirectoryClaim.stat_entry_no_follow
-    rollback_started = False
-    first_created: Any | None = None
-    captured_claimed: Any | None = None
+    out = tmp_path / "retained-stage-cap-output"
+    target_digest = hashlib.sha256(os.path.normcase(out.name).encode("utf-8")).hexdigest()[:16]
+    retained_paths = tuple(
+        tmp_path / f".agent-assure-sensitivity-{target_digest}-{index:032x}.tmp"
+        for index in range(8)
+    )
+    for path in retained_paths:
+        path.mkdir()
+    planted_identities = tuple(
+        (os.lstat(path).st_dev, os.lstat(path).st_ino) for path in retained_paths
+    )
+    lock_digest = hashlib.sha256(os.path.normcase(out.name).encode("utf-8")).hexdigest()[:32]
+    planted_lock = tmp_path / f".agent-assure-sensitivity-lock-{lock_digest}.lock"
+    planted_lock.mkdir()
 
-    def fail_before_second_write(
-        claimed_directory: object,
-        name: str,
-        payload: bytes,
-    ) -> object:
-        nonlocal rollback_started, first_created, captured_claimed
-        if name == "fixture-manifest.json":
-            rollback_started = True
-            raise OSError("injected publication failure")
-        created = original_write(claimed_directory, name, payload)  # type: ignore[arg-type]
-        first_created = created
-        captured_claimed = claimed_directory
-        return created
+    real_entry_names = sensitivity_reporting_module.RootedDirectoryDescriptor.entry_names
 
-    def reject_entry_as_link(
-        claim: object,
-        name: str | Path,
-    ) -> os.stat_result:
-        if rollback_started:
-            raise ValueError("rooted output entry must not be a link or reparse point")
-        return original_stat(claim, name)  # type: ignore[arg-type]
+    def reject_parent_inventory_scan(
+        lease: object,
+        *,
+        max_entries: int,
+        label: str,
+    ) -> tuple[str, ...]:
+        if getattr(lease, "path", None) == tmp_path:
+            pytest.fail("publication must not enumerate the shared output parent")
+        return real_entry_names(lease, max_entries=max_entries, label=label)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module.RootedDirectoryDescriptor,
+        "entry_names",
+        reject_parent_inventory_scan,
+    )
+
+    write_sensitivity_execution_artifacts(artifacts, out)
+    adopted = write_sensitivity_execution_artifacts(artifacts, out)
+
+    assert tuple(adopted) == sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    assert len(tuple(tmp_path.glob(".agent-assure-sensitivity-*.tmp"))) == 8
+    assert (
+        tuple((os.lstat(path).st_dev, os.lstat(path).st_ino) for path in retained_paths)
+        == planted_identities
+    )
+    assert planted_lock.is_dir()
+
+
+def test_bundle_publisher_reopens_every_child_after_fsync_before_commit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = execute_sensitivity_experiment(
+        suite_path=EXAMPLE / "responsive_suite.yaml",
+        baseline_corpus_dir=EXAMPLE / "corpora" / "policy_a",
+        counterfactual_corpus_dir=EXAMPLE / "corpora" / "policy_b",
+        knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    out = tmp_path / "final-child-pin-output"
+    foreign = tmp_path / "foreign.json"
+    foreign_bytes = b'{"foreign":"must-not-commit"}\n'
+    foreign.write_bytes(foreign_bytes)
+    real_fsync = sensitivity_reporting_module._fsync_staged_sensitivity_generation
+    planted: list[Path] = []
+
+    def plant_hardlink_after_original_pins_close(
+        claim: sensitivity_reporting_module.RootedDirectoryClaim,
+    ) -> None:
+        real_fsync(claim)
+        victim = claim.path / "protocol.json"
+        victim.unlink()
+        os.link(foreign, victim)
+        planted.append(victim)
 
     monkeypatch.setattr(
         sensitivity_reporting_module,
-        "_write_sensitivity_output_exclusive",
-        fail_before_second_write,
+        "_fsync_staged_sensitivity_generation",
+        plant_hardlink_after_original_pins_close,
     )
+
+    with pytest.raises(OSError, match="private staging retained at"):
+        write_sensitivity_execution_artifacts(artifacts, out)
+
+    assert not out.exists()
+    assert len(planted) == 1
+    assert planted[0].samefile(foreign)
+    assert foreign.read_bytes() == foreign_bytes
+
+
+def test_bundle_publisher_detects_child_swap_after_final_validation_before_install(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = execute_sensitivity_experiment(
+        suite_path=EXAMPLE / "responsive_suite.yaml",
+        baseline_corpus_dir=EXAMPLE / "corpora" / "policy_a",
+        counterfactual_corpus_dir=EXAMPLE / "corpora" / "policy_b",
+        knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    out = tmp_path / "post-validation-child-swap-output"
+    foreign_bytes = b'{"foreign":"swapped-after-final-validation"}\n'
+    original_install = sensitivity_reporting_module.RootedDirectoryClaim.install_no_replace
+    attempted: list[Path] = []
+
+    def swap_child_then_install(
+        claim: sensitivity_reporting_module.RootedDirectoryClaim,
+        name: str | Path,
+    ) -> None:
+        victim = claim.path / "protocol.json"
+        victim.unlink()
+        victim.write_bytes(foreign_bytes)
+        attempted.append(victim)
+        original_install(claim, name)
+
     monkeypatch.setattr(
         sensitivity_reporting_module.RootedDirectoryClaim,
-        "stat_entry_no_follow",
-        reject_entry_as_link,
+        "install_no_replace",
+        swap_child_then_install,
     )
 
-    with pytest.raises(OSError, match="rollback was incomplete"):
+    with pytest.raises(
+        OSError,
+        match="generation committed; target retained despite post-commit validation failure",
+    ):
         write_sensitivity_execution_artifacts(artifacts, out)
 
-    assert first_created is not None
-    assert captured_claimed is not None
-    assert first_created.pin_descriptor is None
-    assert captured_claimed.claim.closed
-    assert captured_claimed.parent_lease.closed
-    first_created.path.unlink()
-    out.rmdir()
+    assert len(attempted) == 1
+    assert out.is_dir()
+    assert (out / "protocol.json").read_bytes() == foreign_bytes
 
 
-def test_bundle_publisher_closes_claim_when_rollback_identity_check_raises(
+@pytest.mark.skipif(os.name == "nt", reason="POSIX permits renaming an installed open target")
+def test_bundle_publisher_rejects_postcommit_target_name_swap(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1174,60 +1293,133 @@ def test_bundle_publisher_closes_claim_when_rollback_identity_check_raises(
         knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
         expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
     )
-    out = tmp_path / "rollback-check-error-output"
-    original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
-    original_matches = sensitivity_reporting_module._created_output_matches
-    rollback_started = False
-    first_created: Any | None = None
-    captured_claimed: Any | None = None
+    out = tmp_path / "postcommit-target-swap-output"
+    committed_aside = tmp_path / "committed-generation-aside"
+    original_after_commit = sensitivity_reporting_module._after_sensitivity_generation_commit
+    committed_identity: tuple[int, int] | None = None
+    decoy_snapshot: dict[str, bytes] = {}
 
-    def fail_before_second_write(
-        claimed_directory: object,
-        name: str,
-        payload: bytes,
-    ) -> object:
-        nonlocal rollback_started, first_created, captured_claimed
-        if name == "fixture-manifest.json":
-            rollback_started = True
-            raise OSError("injected publication failure")
-        created = original_write(claimed_directory, name, payload)  # type: ignore[arg-type]
-        first_created = created
-        captured_claimed = claimed_directory
-        return created
-
-    def fail_rollback_identity_check(
-        claimed_directory: object,
-        created: object,
-    ) -> bool:
-        if rollback_started:
-            raise RuntimeError("injected rollback identity failure")
-        return original_matches(claimed_directory, created)  # type: ignore[arg-type]
+    def swap_exact_decoy_after_durability(parent: object) -> None:
+        nonlocal committed_identity
+        original_after_commit(parent)  # type: ignore[arg-type]
+        metadata = os.lstat(out)
+        committed_identity = (metadata.st_dev, metadata.st_ino)
+        out.rename(committed_aside)
+        out.mkdir()
+        for source in committed_aside.iterdir():
+            data = source.read_bytes()
+            (out / source.name).write_bytes(data)
+            decoy_snapshot[source.name] = data
 
     monkeypatch.setattr(
         sensitivity_reporting_module,
-        "_write_sensitivity_output_exclusive",
-        fail_before_second_write,
-    )
-    monkeypatch.setattr(
-        sensitivity_reporting_module,
-        "_created_output_matches",
-        fail_rollback_identity_check,
+        "_after_sensitivity_generation_commit",
+        swap_exact_decoy_after_durability,
     )
 
-    with pytest.raises(RuntimeError, match="injected rollback identity failure"):
+    with pytest.raises(
+        OSError,
+        match="post-commit durability or exact-generation validation failure",
+    ):
         write_sensitivity_execution_artifacts(artifacts, out)
 
-    assert first_created is not None
-    assert captured_claimed is not None
-    assert first_created.pin_descriptor is None
-    assert captured_claimed.claim.closed
-    assert captured_claimed.parent_lease.closed
-    first_created.path.unlink()
-    out.rmdir()
+    assert committed_identity is not None
+    assert (os.lstat(committed_aside).st_dev, os.lstat(committed_aside).st_ino) == (
+        committed_identity
+    )
+    assert (os.lstat(out).st_dev, os.lstat(out).st_ino) != committed_identity
+    assert {path.name: path.read_bytes() for path in out.iterdir()} == decoy_snapshot
+    assert set(decoy_snapshot) == set(sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES)
+    assert {path.name for path in committed_aside.iterdir()} == set(
+        sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    )
+
+
+@pytest.mark.parametrize(
+    "detail",
+    ("must be a regular file", "opaque rooted reader failure"),
+)
+def test_existing_bundle_error_classification_does_not_parse_exception_text(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    detail: str,
+) -> None:
+    out = tmp_path / "existing-bundle"
+    out.mkdir()
+    for name in sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES:
+        (out / name).write_text("{}\n", encoding="utf-8")
+
+    def fail_open(*_args: object, **_kwargs: object) -> object:
+        raise ValueError(detail)
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module.RootedDirectoryDescriptor,
+        "open_file_bounded",
+        fail_open,
+    )
+    with sensitivity_reporting_module.open_rooted_directory(
+        tmp_path,
+        ".",
+        label="sensitivity output parent",
+    ) as parent:
+        with pytest.raises(
+            sensitivity_reporting_module.SensitivityOutputConflictError,
+            match="^existing sensitivity output cannot be safely verified$",
+        ) as exc_info:
+            sensitivity_reporting_module._open_existing_sensitivity_generation(parent, out)
+
+    assert isinstance(exc_info.value.__cause__, ValueError)
+
+
+def test_bundle_publisher_classifies_postrename_failure_as_committed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = execute_sensitivity_experiment(
+        suite_path=EXAMPLE / "responsive_suite.yaml",
+        baseline_corpus_dir=EXAMPLE / "corpora" / "policy_a",
+        counterfactual_corpus_dir=EXAMPLE / "corpora" / "policy_b",
+        knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    out = tmp_path / "postrename-failure-output"
+    original_install = sensitivity_reporting_module.RootedDirectoryClaim.install_no_replace
+
+    def fail_after_commit(
+        claim: object,
+        name: str | Path,
+    ) -> None:
+        original_install(claim, name)  # type: ignore[arg-type]
+        raise OSError("injected post-commit identity failure")
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module.RootedDirectoryClaim,
+        "install_no_replace",
+        fail_after_commit,
+    )
+
+    with pytest.raises(OSError, match="generation committed") as raised:
+        write_sensitivity_execution_artifacts(artifacts, out)
+
+    assert "private staging retained" not in str(raised.value)
+    assert isinstance(raised.value.__cause__, OSError)
+    assert "injected post-commit identity failure" in str(raised.value.__cause__)
+    assert {item.name for item in out.iterdir()} == set(
+        sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    )
+    assert not tuple(tmp_path.glob(".agent-assure-sensitivity-*.tmp"))
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module.RootedDirectoryClaim,
+        "install_no_replace",
+        original_install,
+    )
+    adopted = write_sensitivity_execution_artifacts(artifacts, out)
+    assert tuple(adopted) == sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
 
 
 @pytest.mark.skipif(os.name != "nt", reason="Windows reparse swap regression")
-def test_bundle_publisher_windows_reparse_swap_is_blocked_or_rejected(
+def test_bundle_publisher_windows_staged_reparse_swap_is_blocked_or_rejected(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1240,7 +1432,7 @@ def test_bundle_publisher_windows_reparse_swap_is_blocked_or_rejected(
     )
     out = tmp_path / "windows-reparse-swap-output"
     foreign = tmp_path / "windows-foreign-target.txt"
-    foreign_bytes = b"foreign bytes must survive rollback\n"
+    foreign_bytes = b"foreign bytes must survive staged validation\n"
     foreign.write_bytes(foreign_bytes)
     probe = tmp_path / "windows-symlink-probe"
     try:
@@ -1251,24 +1443,24 @@ def test_bundle_publisher_windows_reparse_swap_is_blocked_or_rejected(
 
     original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
     first_created: Any | None = None
-    captured_claimed: Any | None = None
+    captured_claim: Any | None = None
     replacement_succeeded = False
     replacement_was_blocked = False
 
     def attempt_reparse_swap_before_second_write(
-        claimed_directory: object,
+        claim: object,
         name: str,
         payload: bytes,
     ) -> object:
-        nonlocal first_created, captured_claimed
+        nonlocal first_created, captured_claim
         nonlocal replacement_succeeded, replacement_was_blocked
         if first_created is None:
             first_created = original_write(  # type: ignore[arg-type]
-                claimed_directory,
+                claim,
                 name,
                 payload,
             )
-            captured_claimed = claimed_directory
+            captured_claim = claim
             return first_created
         if name == "fixture-manifest.json":
             try:
@@ -1278,8 +1470,9 @@ def test_bundle_publisher_windows_reparse_swap_is_blocked_or_rejected(
             else:
                 first_created.path.symlink_to(foreign)
                 replacement_succeeded = True
-            raise OSError("injected failure after Windows replacement attempt")
-        return original_write(claimed_directory, name, payload)  # type: ignore[arg-type]
+            if replacement_was_blocked:
+                raise OSError("injected failure after Windows replacement attempt")
+        return original_write(claim, name, payload)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
         sensitivity_reporting_module,
@@ -1287,21 +1480,20 @@ def test_bundle_publisher_windows_reparse_swap_is_blocked_or_rejected(
         attempt_reparse_swap_before_second_write,
     )
 
-    with pytest.raises(OSError) as raised:
+    with pytest.raises(OSError, match="private staging retained at") as raised:
         write_sensitivity_execution_artifacts(artifacts, out)
 
     assert first_created is not None
-    assert captured_claimed is not None
+    assert captured_claim is not None
     assert first_created.pin_descriptor is None
-    assert captured_claimed.claim.closed
-    assert captured_claimed.parent_lease.closed
+    assert captured_claim.closed
     assert foreign.read_bytes() == foreign_bytes
+    assert not out.exists()
     if replacement_was_blocked:
-        assert "injected failure after Windows replacement attempt" in str(raised.value)
-        assert not out.exists()
+        assert isinstance(raised.value.__cause__, OSError)
+        assert "injected failure after Windows replacement attempt" in str(raised.value.__cause__)
     else:
         assert replacement_succeeded
-        assert "rollback was incomplete" in str(raised.value)
         assert first_created.path.is_symlink()
 
 
@@ -1317,32 +1509,29 @@ def test_bundle_publisher_never_clobbers_a_concurrently_created_output(
         expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
     )
     out = tmp_path / "race-output"
-    original_write = sensitivity_reporting_module._write_sensitivity_output_exclusive
+    original_install = sensitivity_reporting_module.RootedDirectoryClaim.install_no_replace
     foreign = b"concurrent writer owns these bytes\n"
 
-    def race_on_protocol(
-        claimed_directory: object,
-        name: str,
-        payload: bytes,
-    ) -> object:
-        if name == "protocol.json":
-            (out / name).write_bytes(foreign)
-        return original_write(claimed_directory, name, payload)  # type: ignore[arg-type]
+    def race_at_commit(claim: object, name: str | Path) -> None:
+        out.mkdir()
+        (out / "protocol.json").write_bytes(foreign)
+        original_install(claim, name)  # type: ignore[arg-type]
 
     monkeypatch.setattr(
-        sensitivity_reporting_module,
-        "_write_sensitivity_output_exclusive",
-        race_on_protocol,
+        sensitivity_reporting_module.RootedDirectoryClaim,
+        "install_no_replace",
+        race_at_commit,
     )
 
-    with pytest.raises(OSError, match="rollback was incomplete"):
+    with pytest.raises(OSError, match="private staging retained at"):
         write_sensitivity_execution_artifacts(artifacts, out)
 
     assert (out / "protocol.json").read_bytes() == foreign
     assert {path.name for path in out.iterdir()} == {"protocol.json"}
+    assert len(tuple(tmp_path.glob(".agent-assure-sensitivity-*.tmp"))) == 1
 
 
-def test_bundle_publisher_anchors_writes_across_output_directory_swap(
+def test_bundle_publisher_adopts_exact_generation_that_wins_commit_race(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -1353,53 +1542,108 @@ def test_bundle_publisher_anchors_writes_across_output_directory_swap(
         knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
         expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
     )
-    out = tmp_path / "directory-swap-output"
-    claimed_aside = tmp_path / "claimed-aside"
-    diverted = tmp_path / "diverted"
-    attempted = False
-    rename_was_blocked = False
-    original_open = sensitivity_reporting_module.RootedDirectoryClaim.open_regular_file_exclusive
+    out = tmp_path / "exact-race-output"
+    original_install = sensitivity_reporting_module.RootedDirectoryClaim.install_no_replace
 
-    def swapping_open(
-        claim: object,
+    def commit_exact_generation_first(
+        claim: sensitivity_reporting_module.RootedDirectoryClaim,
         name: str | Path,
-        *,
-        mode: int = 0o600,
-    ) -> int:
-        nonlocal attempted, rename_was_blocked
-        if not attempted:
-            attempted = True
-            try:
-                out.rename(claimed_aside)
-            except OSError:
-                rename_was_blocked = True
-            else:
-                out.mkdir()
-                descriptor = original_open(claim, name, mode=mode)  # type: ignore[arg-type]
-                out.rename(diverted)
-                claimed_aside.rename(out)
-                return descriptor
-        return original_open(claim, name, mode=mode)  # type: ignore[arg-type]
+    ) -> None:
+        out.mkdir()
+        for source in claim.path.iterdir():
+            (out / source.name).write_bytes(source.read_bytes())
+        original_install(claim, name)
 
     monkeypatch.setattr(
         sensitivity_reporting_module.RootedDirectoryClaim,
-        "open_regular_file_exclusive",
-        swapping_open,
+        "install_no_replace",
+        commit_exact_generation_first,
     )
 
-    published = write_sensitivity_execution_artifacts(artifacts, out)
+    adopted = write_sensitivity_execution_artifacts(artifacts, out)
 
-    assert attempted
-    assert set(published) == set(sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES)
+    assert tuple(adopted) == sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
     assert {path.name for path in out.iterdir()} == set(
         sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
     )
-    if rename_was_blocked:
-        assert not claimed_aside.exists()
-        assert not diverted.exists()
-    else:
-        assert diverted.is_dir()
-        assert tuple(diverted.iterdir()) == ()
+    assert len(tuple(tmp_path.glob(".agent-assure-sensitivity-*.tmp"))) == 1
+
+
+def test_bundle_publisher_late_failure_does_not_block_exact_generation_adoption(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = execute_sensitivity_experiment(
+        suite_path=EXAMPLE / "responsive_suite.yaml",
+        baseline_corpus_dir=EXAMPLE / "corpora" / "policy_a",
+        counterfactual_corpus_dir=EXAMPLE / "corpora" / "policy_b",
+        knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    out = tmp_path / "late-failure-output"
+    committed = threading.Event()
+    release_late_failure = threading.Event()
+    second_started = threading.Event()
+    second_finished = threading.Event()
+    first_errors: list[BaseException] = []
+    second_errors: list[BaseException] = []
+    second_result: list[dict[str, Path]] = []
+    original_after_commit = sensitivity_reporting_module._after_sensitivity_generation_commit
+
+    def fail_first_after_commit(parent: object) -> None:
+        if not committed.is_set():
+            committed.set()
+            if not release_late_failure.wait(timeout=10):
+                raise TimeoutError("test did not release injected late failure")
+            raise OSError("injected post-commit failure")
+        original_after_commit(parent)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module,
+        "_after_sensitivity_generation_commit",
+        fail_first_after_commit,
+    )
+
+    def publish_first() -> None:
+        try:
+            write_sensitivity_execution_artifacts(artifacts, out)
+        except BaseException as exc:
+            first_errors.append(exc)
+
+    def publish_second() -> None:
+        second_started.set()
+        try:
+            second_result.append(write_sensitivity_execution_artifacts(artifacts, out))
+        except BaseException as exc:
+            second_errors.append(exc)
+        finally:
+            second_finished.set()
+
+    first_thread = threading.Thread(target=publish_first)
+    first_thread.start()
+    assert committed.wait(timeout=10)
+    assert out.is_dir()
+
+    second_thread = threading.Thread(target=publish_second)
+    second_thread.start()
+    assert second_started.wait(timeout=10)
+    assert second_finished.wait(timeout=10)
+
+    release_late_failure.set()
+    first_thread.join(timeout=10)
+    second_thread.join(timeout=10)
+
+    assert not first_thread.is_alive()
+    assert not second_thread.is_alive()
+    assert len(first_errors) == 1
+    assert isinstance(first_errors[0], OSError)
+    assert "post-commit" in str(first_errors[0])
+    assert not second_errors
+    assert len(second_result) == 1
+    assert tuple(second_result[0]) == sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    assert {path.name for path in out.iterdir()} == set(
+        sensitivity_reporting_module.SENSITIVITY_OUTPUT_FILENAMES
+    )
 
 
 def test_packet_gate_rejects_corruption_of_any_manifest_bound_sidecar(

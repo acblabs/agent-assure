@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from agent_assure.authoring.yaml_nodes import LoadedYaml, load_yaml_nodes
+from agent_assure.authoring.yaml_nodes import (
+    LoadedYaml,
+    load_yaml_nodes,
+    safe_yaml_diagnostic,
+)
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
@@ -132,7 +136,8 @@ def _reject_unknown_keys(
 ) -> None:
     unknown = sorted(set(value) - set(allowed))
     if unknown:
-        raise ValueError(f"{owner} contains unknown keys: {', '.join(unknown)}")
+        rendered = ", ".join(safe_yaml_diagnostic(str(key)) for key in unknown)
+        raise ValueError(f"{owner} contains unknown keys: {rendered}")
 
 
 def _validate_provider_boundary(expectation: Expectation) -> None:

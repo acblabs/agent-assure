@@ -22,6 +22,14 @@ from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.release import ReleaseArtifactManifest
 from agent_assure.schema.sensitivity import RAGSensitivityReport
+from agent_assure.schema.stochastic_sensitivity import (
+    ArtifactDependency,
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
+    StochasticGateEffect,
+    StochasticSensitivityState,
+    SufficiencyState,
+)
 from agent_assure.schema.usage import (
     UsageSummary,
     UsageSummaryDelta,
@@ -37,6 +45,10 @@ PacketArtifactRole = Literal[
     "control-efficacy-gate-profile",
     "control-efficacy-report",
     "evidence-sensitivity-report",
+    "statistical-sufficiency-report",
+    "stochastic-evidence-sensitivity-report",
+    "stochastic-baseline-source-runset",
+    "stochastic-counterfactual-source-runset",
 ]
 _EVIDENCE_PACKET_USAGE_FIELD_PATHS = (
     ("usage_summary",),
@@ -60,7 +72,19 @@ _CONTROL_EFFICACY_DIGEST_ROLES = (
 )
 _EVIDENCE_GRAPH_ARTIFACT_ROLE: PacketArtifactRole = "assurance-evidence-graph"
 _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE: PacketArtifactRole = "evidence-sensitivity-report"
-_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2", "0.6.3", "0.6.4"})
+_STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE: PacketArtifactRole = "statistical-sufficiency-report"
+_STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE: PacketArtifactRole = "stochastic-evidence-sensitivity-report"
+_STOCHASTIC_PACKET_FIELDS = (
+    "statistical_sufficiency",
+    "stochastic_evidence_sensitivity",
+)
+_STOCHASTIC_PACKET_ARTIFACT_ROLES = (
+    _STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE,
+    _STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE,
+    "stochastic-baseline-source-runset",
+    "stochastic-counterfactual-source-runset",
+)
+_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"})
 _USAGE_ARTIFACT_SCHEMA_VERSION = "0.4.3"
 
 
@@ -70,6 +94,72 @@ def _canonical_model_digest(model: BaseModel) -> str:
     from agent_assure.canonical.digests import sha256_hexdigest
 
     return sha256_hexdigest(model.model_dump(mode="json"))
+
+
+def stochastic_packet_subject_binding_error(
+    evaluation: EvaluationSummary,
+    stochastic: StochasticEvidenceSensitivityReport | None,
+    *,
+    comparison: ComparisonSummary | None = None,
+) -> str | None:
+    """Return a fail-closed packet subject/configuration binding error.
+
+    A stochastic result's dependency on its sufficiency report is necessary but
+    not sufficient for packet use. The exact counterfactual source RunSet must
+    also be the packet's authenticated evaluation subject, and an optional
+    comparison must name both exact source RunSets. Configuration identities
+    remain anchored by the predeclared protocol arm bindings.
+    """
+    if stochastic is None:
+        return None
+    sufficiency = stochastic.sufficiency_report
+    source_by_arm = {item.arm_id: item for item in sufficiency.source_runsets}
+    if set(source_by_arm) != {"baseline_evidence", "counterfactual_evidence"}:
+        return (
+            "packet-bound stochastic evidence sensitivity requires exact baseline "
+            "and counterfactual source RunSet dependencies"
+        )
+    baseline = source_by_arm["baseline_evidence"]
+    candidate = source_by_arm["counterfactual_evidence"]
+    protocol = sufficiency.protocol
+    if (
+        baseline.execution_configuration_digest != protocol.baseline_arm.configuration_digest
+        or candidate.execution_configuration_digest
+        != protocol.counterfactual_arm.configuration_digest
+    ):
+        return (
+            "stochastic source RunSet execution configurations must match the "
+            "exact predeclared protocol arm configurations"
+        )
+    if evaluation.runset_digest is None:
+        return (
+            "packet-bound stochastic evidence sensitivity requires an authenticated "
+            "evaluation RunSet digest"
+        )
+    if (evaluation.runset_id, evaluation.runset_digest) != (
+        candidate.runset_id,
+        candidate.runset_digest,
+    ):
+        return (
+            "stochastic counterfactual source RunSet id and digest must match the "
+            "packet evaluation subject"
+        )
+    if comparison is not None and (
+        comparison.baseline_runset_id,
+        comparison.baseline_runset_digest,
+        comparison.candidate_runset_id,
+        comparison.candidate_runset_digest,
+    ) != (
+        baseline.runset_id,
+        baseline.runset_digest,
+        candidate.runset_id,
+        candidate.runset_digest,
+    ):
+        return (
+            "stochastic source RunSet identities and digests must match the packet "
+            "comparison baseline and candidate subjects"
+        )
+    return None
 
 
 def _evidence_packet_json_schema_extra() -> dict[str, Any]:
@@ -263,6 +353,84 @@ def _evidence_packet_json_schema_extra() -> dict[str, Any]:
             },
         }
     )
+    stochastic_present = {
+        "anyOf": [
+            {
+                "required": [field_name],
+                "properties": {field_name: {"not": {"type": "null"}}},
+            }
+            for field_name in _STOCHASTIC_PACKET_FIELDS
+        ]
+    }
+    exact_stochastic_digest_constraints = [
+        {
+            "contains": {
+                "type": "object",
+                "required": ["role"],
+                "properties": {"role": {"const": role}},
+            },
+            "minContains": 1,
+            "maxContains": 1,
+        }
+        for role in _STOCHASTIC_PACKET_ARTIFACT_ROLES
+    ]
+    no_stochastic_digest_constraint = {
+        "not": {
+            "contains": {
+                "type": "object",
+                "required": ["role"],
+                "properties": {"role": {"enum": list(_STOCHASTIC_PACKET_ARTIFACT_ROLES)}},
+            }
+        }
+    }
+    schema["allOf"].append(
+        {
+            "if": stochastic_present,
+            "then": {
+                "required": [*_STOCHASTIC_PACKET_FIELDS, "artifact_digests"],
+                "properties": {
+                    **{
+                        field_name: {"not": {"type": "null"}}
+                        for field_name in _STOCHASTIC_PACKET_FIELDS
+                    },
+                    "artifact_digests": {
+                        "allOf": exact_stochastic_digest_constraints,
+                    },
+                    "release_manifest": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "required": ["artifacts"],
+                                "properties": {
+                                    "artifacts": {
+                                        "allOf": exact_stochastic_digest_constraints,
+                                    }
+                                },
+                            },
+                        ]
+                    },
+                },
+            },
+            "else": {
+                "properties": {
+                    "artifact_digests": no_stochastic_digest_constraint,
+                    "release_manifest": {
+                        "anyOf": [
+                            {"type": "null"},
+                            {
+                                "type": "object",
+                                "required": ["artifacts"],
+                                "properties": {
+                                    "artifacts": no_stochastic_digest_constraint,
+                                },
+                            },
+                        ]
+                    },
+                }
+            },
+        }
+    )
     return schema
 
 
@@ -281,6 +449,14 @@ class EvidencePacket(PersistedArtifact):
     evaluation: EvaluationSummary
     comparison: ComparisonSummary | None = None
     evidence_sensitivity: RAGSensitivityReport | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    statistical_sufficiency: StatisticalSufficiencyReport | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    stochastic_evidence_sensitivity: StochasticEvidenceSensitivityReport | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
     )
@@ -335,6 +511,82 @@ class EvidencePacket(PersistedArtifact):
                     f"{path}.schema_version {expected_version!r}; received "
                     f"{artifact.schema_version!r}"
                 )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_stochastic_sensitivity_dependency(self) -> EvidencePacket:
+        sufficiency = self.statistical_sufficiency
+        stochastic = self.stochastic_evidence_sensitivity
+        if (sufficiency is None) != (stochastic is None):
+            raise ValueError(
+                "statistical sufficiency and stochastic evidence sensitivity "
+                "must be present together"
+            )
+        if sufficiency is None or stochastic is None:
+            return self
+        subject_binding_error = stochastic_packet_subject_binding_error(
+            self.evaluation,
+            stochastic,
+            comparison=self.comparison,
+        )
+        if subject_binding_error is not None:
+            raise ValueError(subject_binding_error)
+        sufficiency = StatisticalSufficiencyReport.model_validate(
+            sufficiency.model_dump(mode="json")
+        )
+        stochastic = StochasticEvidenceSensitivityReport.model_validate(
+            stochastic.model_dump(mode="json")
+        )
+        if stochastic.sufficiency_report != sufficiency:
+            raise ValueError(
+                "stochastic evidence sensitivity must embed the exact packet "
+                "statistical sufficiency report"
+            )
+        protocol = sufficiency.protocol
+        if (stochastic.protocol_id, stochastic.protocol_digest) != (
+            protocol.protocol_id,
+            protocol.protocol_digest,
+        ):
+            raise ValueError(
+                "stochastic evidence sensitivity must bind the exact sufficiency protocol"
+            )
+        expected_dependency = ArtifactDependency(
+            target_artifact_id=sufficiency.report_id,
+            target_digest=sufficiency.report_digest,
+        )
+        if stochastic.verdict_bearing:
+            if sufficiency.state is not SufficiencyState.satisfied:
+                raise ValueError(
+                    "verdict-bearing stochastic evidence requires satisfied sufficiency"
+                )
+            if stochastic.dependency != expected_dependency:
+                raise ValueError(
+                    "verdict-bearing stochastic evidence requires the exact packet "
+                    "sufficiency dependency"
+                )
+            if stochastic.state not in {
+                StochasticSensitivityState.pass_,
+                StochasticSensitivityState.block,
+            } or stochastic.gate_effect not in {
+                StochasticGateEffect.pass_,
+                StochasticGateEffect.block,
+            }:
+                raise ValueError(
+                    "verdict-bearing stochastic evidence has an incoherent verdict state"
+                )
+        elif (
+            sufficiency.state is SufficiencyState.satisfied
+            or stochastic.dependency is not None
+            or stochastic.state
+            not in {
+                StochasticSensitivityState.prerequisites_unmet,
+                StochasticSensitivityState.inconclusive,
+            }
+            or stochastic.gate_effect is not StochasticGateEffect.non_verdict
+        ):
+            raise ValueError(
+                "underpowered or otherwise non-verdict stochastic evidence must remain non-verdict"
+            )
         return self
 
     @model_validator(mode="after")
@@ -478,6 +730,13 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
     expected_comparison_count = int(packet.comparison is not None)
     expected_graph_count = int(packet.evidence_graph_digest is not None)
     expected_sensitivity_count = int(packet.evidence_sensitivity is not None)
+    expected_statistical_count = int(packet.statistical_sufficiency is not None)
+    expected_stochastic_count = int(packet.stochastic_evidence_sensitivity is not None)
+    expected_stochastic_source_count = expected_stochastic_count
+    stochastic_source_roles: tuple[PacketArtifactRole, PacketArtifactRole] = (
+        "stochastic-baseline-source-runset",
+        "stochastic-counterfactual-source-runset",
+    )
     packet_by_role = {
         role: tuple(item for item in packet.artifact_digests if item.role == role)
         for role in (
@@ -485,6 +744,10 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "comparison-summary",
             _EVIDENCE_GRAPH_ARTIFACT_ROLE,
             _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE,
+            _STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE,
+            _STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE,
+            "stochastic-baseline-source-runset",
+            "stochastic-counterfactual-source-runset",
         )
     }
     if len(packet_by_role["evaluation-summary"]) != 1:
@@ -501,6 +764,22 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "current evidence packet evidence-sensitivity-report digest must match "
             "nested evidence sensitivity"
         )
+    if len(packet_by_role[_STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE]) != expected_statistical_count:
+        return (
+            "current evidence packet statistical-sufficiency-report digest must match "
+            "nested statistical sufficiency"
+        )
+    if len(packet_by_role[_STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE]) != expected_stochastic_count:
+        return (
+            "current evidence packet stochastic-evidence-sensitivity-report digest "
+            "must match nested stochastic evidence sensitivity"
+        )
+    for role in stochastic_source_roles:
+        if len(packet_by_role[role]) != expected_stochastic_source_count:
+            return (
+                f"current evidence packet {role} digest must match nested "
+                "stochastic evidence sensitivity"
+            )
     if packet.release_manifest is None:
         return None
     manifest_by_role = {
@@ -510,6 +789,10 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "comparison-summary",
             _EVIDENCE_GRAPH_ARTIFACT_ROLE,
             _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE,
+            _STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE,
+            _STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE,
+            "stochastic-baseline-source-runset",
+            "stochastic-counterfactual-source-runset",
         )
     }
     if len(manifest_by_role["evaluation-summary"]) != 1:
@@ -532,11 +815,32 @@ def packet_summary_digest_binding_error(packet: EvidencePacket) -> str | None:
             "current evidence packet release manifest evidence-sensitivity-report "
             "artifact must match nested evidence sensitivity"
         )
+    if len(manifest_by_role[_STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE]) != expected_statistical_count:
+        return (
+            "current evidence packet release manifest statistical-sufficiency-report "
+            "artifact must match nested statistical sufficiency"
+        )
+    if len(manifest_by_role[_STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE]) != expected_stochastic_count:
+        return (
+            "current evidence packet release manifest "
+            "stochastic-evidence-sensitivity-report artifact must match nested "
+            "stochastic evidence sensitivity"
+        )
+    for role in stochastic_source_roles:
+        if len(manifest_by_role[role]) != expected_stochastic_source_count:
+            return (
+                f"current evidence packet release manifest {role} artifact must "
+                "match nested stochastic evidence sensitivity"
+            )
     for role in (
         "evaluation-summary",
         "comparison-summary",
         _EVIDENCE_GRAPH_ARTIFACT_ROLE,
         _EVIDENCE_SENSITIVITY_ARTIFACT_ROLE,
+        _STATISTICAL_SUFFICIENCY_ARTIFACT_ROLE,
+        _STOCHASTIC_SENSITIVITY_ARTIFACT_ROLE,
+        "stochastic-baseline-source-runset",
+        "stochastic-counterfactual-source-runset",
     ):
         if not packet_by_role[role]:
             continue

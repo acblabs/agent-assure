@@ -1,0 +1,251 @@
+{
+  "$defs": {
+    "EvidenceSensitivityExpectedRelation": {
+      "enum": [
+        "decision_flip"
+      ],
+      "title": "EvidenceSensitivityExpectedRelation",
+      "type": "string"
+    },
+    "RAGSensitivityAuthorityAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "corpus_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Corpus Digest",
+          "type": "string"
+        },
+        "expected_decision": {
+          "$ref": "#/$defs/RAGSensitivityDecision"
+        },
+        "expected_outcome": {
+          "$ref": "#/$defs/RAGSensitivityOutcome"
+        },
+        "governing_content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Governing Content Digest",
+          "type": "string"
+        },
+        "governing_ref_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Governing Ref Id",
+          "type": "string"
+        },
+        "governing_source_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Governing Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "corpus_digest",
+        "expected_decision",
+        "expected_outcome",
+        "governing_source_id",
+        "governing_ref_id",
+        "governing_content_digest",
+        "claim_id"
+      ],
+      "title": "RAGSensitivityAuthorityAssignment",
+      "type": "object"
+    },
+    "RAGSensitivityCaseAuthorityBinding": {
+      "additionalProperties": false,
+      "description": "Exact authority assignment pair for one explicitly covered case.",
+      "properties": {
+        "assignments": {
+          "items": {
+            "$ref": "#/$defs/RAGSensitivityAuthorityAssignment"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Assignments",
+          "type": "array"
+        },
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "query_family_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Query Family Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "query_family_id",
+        "assignments"
+      ],
+      "title": "RAGSensitivityCaseAuthorityBinding",
+      "type": "object"
+    },
+    "RAGSensitivityDecision": {
+      "enum": [
+        "approve",
+        "deny",
+        "escalate"
+      ],
+      "title": "RAGSensitivityDecision",
+      "type": "string"
+    },
+    "RAGSensitivityOutcome": {
+      "enum": [
+        "approved",
+        "denied",
+        "escalated"
+      ],
+      "title": "RAGSensitivityOutcome",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.5/rag-sensitivity-knowledge-contract.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "rag-sensitivity-knowledge-contract",
+      "default": "rag-sensitivity-knowledge-contract",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "assignments": {
+      "items": {
+        "$ref": "#/$defs/RAGSensitivityAuthorityAssignment"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Assignments",
+      "type": "array"
+    },
+    "authority_level": {
+      "const": "authoritative",
+      "default": "authoritative",
+      "title": "Authority Level",
+      "type": "string"
+    },
+    "case_authority_bindings": {
+      "anyOf": [
+        {
+          "items": {
+            "$ref": "#/$defs/RAGSensitivityCaseAuthorityBinding"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Case Authority Bindings"
+    },
+    "case_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Case Id",
+      "type": "string"
+    },
+    "conflict_direction": {
+      "const": "context_overrides_parametric_memory",
+      "default": "context_overrides_parametric_memory",
+      "title": "Conflict Direction",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "RAGSensitivityKnowledgeAuthority/v1",
+      "default": "RAGSensitivityKnowledgeAuthority/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "expected_behavior": {
+      "const": "follow_governing_context",
+      "default": "follow_governing_context",
+      "title": "Expected Behavior",
+      "type": "string"
+    },
+    "expected_response_relation": {
+      "$ref": "#/$defs/EvidenceSensitivityExpectedRelation"
+    },
+    "governing_source": {
+      "const": "contextual_evidence",
+      "default": "contextual_evidence",
+      "title": "Governing Source",
+      "type": "string"
+    },
+    "knowledge_contract_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Knowledge Contract Digest",
+      "type": "string"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "query_family_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Query Family Id",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "rag-sensitivity-knowledge-contract",
+      "default": "rag-sensitivity-knowledge-contract",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.5",
+      "default": "0.6.5",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "knowledge_contract_digest",
+    "expected_response_relation",
+    "case_id",
+    "query_family_id",
+    "assignments",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RAGSensitivityKnowledgeContract",
+  "type": "object"
+}

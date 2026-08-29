@@ -89,7 +89,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     compiled, runset = _runset(BASELINE)
     report = evaluate_runset(compiled, runset)
 
-    assert report.schema_version == "0.6.4"
+    assert report.schema_version == "0.6.5"
     assert report.runset_digest == runset_digest(runset)
     assert report.candidate_vs_expectations.runset_digest == runset_digest(runset)
     payload = report.model_dump(mode="json")
@@ -105,7 +105,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
         condition
         for condition in report_schema["allOf"]
         if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("enum")
-        == ["0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"]
+        == ["0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"]
     )
     assert set(current_schema_condition["then"]["required"]) == {
         "runset_digest",
@@ -937,7 +937,15 @@ def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None
         today=today,
     )
 
-    assert report.candidate_vs_expectations == initial_report.candidate_vs_expectations
+    assert report.candidate_vs_expectations.model_dump(
+        mode="json", exclude={"replay_context"}
+    ) == initial_report.candidate_vs_expectations.model_dump(
+        mode="json", exclude={"replay_context"}
+    )
+    assert report.candidate_vs_expectations.replay_context is not None
+    assert tuple(
+        waiver.waiver_id for waiver in report.candidate_vs_expectations.replay_context.waivers
+    ) == tuple(waiver.waiver_id for waiver in waivers)
     assert report.metrics == initial_report.metrics
     assert report.failed_controls == initial_report.failed_controls
     assert report.warning_controls == initial_report.warning_controls

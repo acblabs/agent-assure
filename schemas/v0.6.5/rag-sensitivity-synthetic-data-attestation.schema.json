@@ -1,0 +1,130 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.5/rag-sensitivity-synthetic-data-attestation.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "rag-sensitivity-synthetic-data-attestation",
+      "default": "rag-sensitivity-synthetic-data-attestation",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "attestation_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Attestation Digest",
+      "type": "string"
+    },
+    "attestation_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Attestation Id",
+      "type": "string"
+    },
+    "attestation_scope": {
+      "const": "exact_digest_bound_inputs",
+      "default": "exact_digest_bound_inputs",
+      "title": "Attestation Scope",
+      "type": "string"
+    },
+    "attestor_role": {
+      "const": "artifact_author",
+      "default": "artifact_author",
+      "title": "Attestor Role",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "RAGSensitivitySyntheticDataAttestation/v1",
+      "default": "RAGSensitivitySyntheticDataAttestation/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "corpus_digests": {
+      "items": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Corpus Digests",
+      "type": "array"
+    },
+    "corpus_snapshot_digests": {
+      "items": {
+        "pattern": "^[a-f0-9]{64}$",
+        "type": "string"
+      },
+      "maxItems": 2,
+      "minItems": 2,
+      "title": "Corpus Snapshot Digests",
+      "type": "array"
+    },
+    "data_classification": {
+      "const": "synthetic",
+      "default": "synthetic",
+      "title": "Data Classification",
+      "type": "string"
+    },
+    "fixture_manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Fixture Manifest Digest",
+      "type": "string"
+    },
+    "knowledge_contract_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Knowledge Contract Digest",
+      "type": "string"
+    },
+    "no_real_personal_confidential_or_production_data_attested": {
+      "const": true,
+      "default": true,
+      "title": "No Real Personal Confidential Or Production Data Attested",
+      "type": "boolean"
+    },
+    "raw_content_persistence_acknowledged": {
+      "const": true,
+      "default": true,
+      "title": "Raw Content Persistence Acknowledged",
+      "type": "boolean"
+    },
+    "schema_name": {
+      "const": "rag-sensitivity-synthetic-data-attestation",
+      "default": "rag-sensitivity-synthetic-data-attestation",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.5",
+      "default": "0.6.5",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "suite_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Suite Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "attestation_digest",
+    "attestation_id",
+    "suite_digest",
+    "fixture_manifest_digest",
+    "knowledge_contract_digest",
+    "corpus_digests",
+    "corpus_snapshot_digests",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RAGSensitivitySyntheticDataAttestation",
+  "type": "object"
+}

@@ -20,6 +20,7 @@ nav:
   - Flagship demo: demo_flagship.md
   - RAG demo: demo_rag.md
   - Controlled RAG evidence sensitivity: evidence_sensitivity.md
+  - Repeated paired evidence sensitivity: repeated_evidence_sensitivity.md
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md
@@ -35,6 +36,7 @@ nav:
   - Google ADK integration: integrations/google_adk.md
   - PyPI release: release_pypi.md
   - Release notes:
+      - v0.6.5: release_notes/v0.6.5.md
       - v0.6.4: release_notes/v0.6.4.md
       - v0.6.3: release_notes/v0.6.3.md
       - v0.6.2: release_notes/v0.6.2.md

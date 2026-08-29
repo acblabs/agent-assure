@@ -27,11 +27,11 @@ from agent_assure.schema.campaign import CORE_MUTATION_CATALOG_ID
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_SCHEMA_VERSION,
     PACKAGE_RELEASE_VERSION_PATTERN,
+    MachineIdentifier,
 )
 from agent_assure.schema.efficacy import (
     ControlEfficacyGateProfile,
 )
-from agent_assure.schema.mutation import MachineIdentifier
 
 DEFAULT_SCAFFOLD_DIRECTORY = Path("agent-assure-controls-mutation")
 CONFIG_FILENAME = "controls-mutation.yaml"

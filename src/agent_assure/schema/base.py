@@ -6,7 +6,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, ConfigDict, Field, GetJsonSchemaHandler, model_validator
 from pydantic_core import CoreSchema
 
-SCHEMA_VERSION = "0.6.4"
+SCHEMA_VERSION = "0.6.5"  # type: Literal["0.6.5"]
 SchemaVersion = Literal[
     "0.2.0",
     "0.3.1",
@@ -17,6 +17,7 @@ SchemaVersion = Literal[
     "0.6.2",
     "0.6.3",
     "0.6.4",
+    "0.6.5",
 ]
 RFC8785_SAFE_INTEGER_MAX = (1 << 53) - 1
 RFC8785_SAFE_INTEGER_MIN = -RFC8785_SAFE_INTEGER_MAX
@@ -94,7 +95,7 @@ class PersistedArtifact(FrozenStrictModel):
         hide_input_in_errors=True,
     )
 
-    schema_version: SchemaVersion = "0.6.4"
+    schema_version: SchemaVersion = "0.6.5"
 
     @model_validator(mode="before")
     @classmethod

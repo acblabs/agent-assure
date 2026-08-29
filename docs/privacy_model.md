@@ -28,16 +28,19 @@ encoding before rendering parsed report fields in terminals, logs, or review UIs
 
 The detector semantics have an explicit compatibility identity. Current
 `RunSet`, `EvaluationSummary`, and `ComparisonSummary` artifacts require
-`privacy_profile_id: agent-assure/privacy-detectors/v2` and a
+`privacy_profile_id: agent-assure/privacy-detectors/v3` and a
 `privacy_profile_digest`. The digest is SHA-256 over an RFC 8785 canonical
 manifest containing the ordered detector IDs, regular expressions and flags,
 their mandatory literal guards, Unicode scan-view normalization, the search and
-substitution algorithms, and the redaction replacement text. The v2 scanner
+substitution algorithms, structured mapping policy, and the redaction
+replacement text. The v3 scanner
 checks both the exact scalar and an NFKC compatibility view that converts
 tab/line-break controls to spaces and removes other Unicode category-C code
-points. If that view reconstructs a sensitive-looking value, the exact original
-scalar is redacted in full; accepted values are never silently normalized before
-persistence.
+points. It also maps Unicode dash punctuation and U+2212 MINUS SIGN to the ASCII
+hyphen so SSN- and card-like values cannot evade detection with visual dash
+substitutions. If that view reconstructs a sensitive-looking value, the exact
+original scalar is redacted in full; accepted values are never silently
+normalized before persistence.
 Changing any manifest entry changes the digest; changing detector behavior
 also requires an intentional profile-ID version decision. The digest is a
 reproducibility and compatibility anchor, not a signature or attestation.
@@ -45,10 +48,17 @@ reproducibility and compatibility anchor, not a signature or attestation.
 Each scalar privacy scan is capped at 16,384 characters. A longer scalar is
 treated as sensitive and redacted in full instead of being evaluated by the
 backtracking regular-expression engine. Semantics-preserving literal guards
-also skip detectors whose mandatory marker is absent. Mapping keys are scanned
-as well as values; sensitive-looking or control-character-bearing keys fail
-closed at persistence and telemetry boundaries rather than becoming attribute
-names.
+skip detectors whose mandatory marker is absent for ASCII scalars. Non-ASCII
+scalars conservatively run every detector, avoiding mismatches between Unicode
+case-insensitive regex semantics and ASCII marker lookup. Mapping keys are
+scanned as well as values. Every non-empty scalar under a recognized ASCII
+sensitive label is sensitive regardless of its length; labels accept repeated
+space, period, underscore, and hyphen separators. Non-ASCII mapping keys with
+non-empty scalar values fail closed because a partial visual-confusable table
+would create bypasses. Only the empty string and the exact canonical
+`[REDACTED]` sentinel are exempt. These structured-key semantics, including the
+exact label expression, flags, non-ASCII policy, and exemptions, are bound into
+the privacy-profile digest.
 
 Evidence-sensitivity has one bounded exception for exact JSON source mirrors
 that may legitimately cross the scalar cap. A mirror is preserved only when
@@ -145,6 +155,41 @@ sampling, span limits, and OTLP compression are project-pinned rather than
 inherited from the process environment. Plans without an explicit trace carrier
 start from an empty root context, and export, flush, or shutdown failures prevent
 a successful result.
+
+## Repeated Evidence-Sensitivity Boundary
+
+The repeated protocol and statistical reports persist exact digests and
+bounded provider/model, pair, cluster, disposition, structured decision, and
+analysis metadata. `PairedSensitivityObservation` deliberately persists the
+bounded baseline/counterfactual `recommendation` and `outcome` tokens extracted
+from validated provider records; these are decision fields, not raw completion
+bodies. The schemas have no fields for raw prompts, raw provider response
+bodies, tool arguments, tool results, unrestricted provider payloads, or
+credential values. Network adapters obtain a credential from a configured
+environment variable only after explicit network consent; the protocol records
+neither the secret nor its value-derived digest.
+
+These omissions do not make the remaining metadata anonymous. Case IDs,
+provider response IDs retained in underlying live RunSets, model revisions,
+cluster labels, timestamps, and stable digests can be linkable. Producers must
+use privacy-safe identifiers and apply the existing bounded read, recursive
+redaction, and publication controls to RunSets before assembling the paired
+reports. The statistical artifact summarizes privacy-filtered structured
+records; it is not a substitute for source-system access controls or DLP.
+
+Repeated analysis publication also retains the exact privacy-filtered baseline
+and counterfactual RunSets as separate `baseline.source.runset.json` and
+`counterfactual.source.runset.json` files. They are not nested into the
+statistical roots, but a stochastic packet binds both atomically through the
+`stochastic-baseline-source-runset` and
+`stochastic-counterfactual-source-runset` artifact-digest roles and the same
+release-manifest roles when a manifest is present. Packet CI reparses both files
+and recomputes whole-RunSet and per-record digests, then reconstructs the
+canonical paired observations before accepting their structured decision,
+disposition, cluster, endpoint, or source-record semantics. The packet's
+publication and retention boundary therefore includes those exact source
+snapshots; replay establishes consistency, not anonymity, confidentiality,
+authenticity, or permission to retain them.
 
 ## Assurance Mutation Boundary
 

@@ -10,7 +10,11 @@ from pydantic import BaseModel
 from pydantic import ValidationError as PydanticValidationError
 from referencing import Registry
 
-from agent_assure.io_limits import load_json_bounded, loads_json_bounded
+from agent_assure.io_limits import (
+    load_json_bounded,
+    load_json_bounded_from_filesystem_root,
+    loads_json_bounded,
+)
 from agent_assure.schema.base import SCHEMA_VERSION, validate_rfc8785_safe_integers
 from agent_assure.source_layout import source_checkout_component
 
@@ -26,6 +30,7 @@ FROZEN_SCHEMA_VERSIONS = frozenset(
         "0.6.1",
         "0.6.2",
         "0.6.3",
+        "0.6.4",
     }
 )
 _DRAFT_2020_12_URI = "https://json-schema.org/draft/2020-12/schema"
@@ -50,16 +55,26 @@ _V062_SEMANTIC_ARTIFACT_KINDS = _V061_SEMANTIC_ARTIFACT_KINDS | {
 _V063_SEMANTIC_ARTIFACT_KINDS = _V062_SEMANTIC_ARTIFACT_KINDS | {
     "assurance-evidence-graph",
 }
+_V064_SEMANTIC_ARTIFACT_KINDS = _V063_SEMANTIC_ARTIFACT_KINDS | {
+    "evidence-sensitivity-protocol",
+    "evidence-sensitivity-report",
+    "process-equivalence-reproduction-index",
+    "rag-sensitivity-corpus-manifest",
+    "rag-sensitivity-corpus-snapshot",
+    "rag-sensitivity-knowledge-contract",
+    "rag-sensitivity-synthetic-data-attestation",
+}
 _LEGACY_SEMANTIC_ARTIFACT_KINDS = {
     "0.6.0": _V060_SEMANTIC_ARTIFACT_KINDS,
     "0.6.1": _V061_SEMANTIC_ARTIFACT_KINDS,
     "0.6.2": _V062_SEMANTIC_ARTIFACT_KINDS,
     "0.6.3": _V063_SEMANTIC_ARTIFACT_KINDS,
+    "0.6.4": _V064_SEMANTIC_ARTIFACT_KINDS,
 }
 
 
 def load_json(path: Path) -> dict[str, Any]:
-    return load_json_bounded(path)
+    return load_json_bounded_from_filesystem_root(path)
 
 
 def validate_artifact(path: Path, kind: str) -> str:
@@ -80,7 +95,7 @@ def load_validated_artifact_payload(
         load_kwargs["max_bytes"] = max_bytes
     if label is not None:
         load_kwargs["label"] = label
-    payload = load_json_bounded(path, **load_kwargs)
+    payload = load_json_bounded_from_filesystem_root(path, **load_kwargs)
     validate_loaded_artifact_payload(payload, kind)
     return payload
 
@@ -141,7 +156,7 @@ def _validate_legacy_semantics(
 ) -> None:
     """Apply compatible v0.6 semantic checks after immutable shape validation.
 
-    Evidence-carrying roots introduced from v0.6.0 through v0.6.3 are
+    Evidence-carrying roots introduced from v0.6.0 through v0.6.4 are
     shape-compatible with their current projection for values admitted by the
     corresponding frozen schema. Projecting only after frozen validation
     retains each historical vocabulary while restoring self-digest and

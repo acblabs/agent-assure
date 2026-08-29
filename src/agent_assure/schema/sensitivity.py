@@ -10,21 +10,18 @@ from pydantic import Field, field_validator, model_validator
 from agent_assure.io_limits import loads_json_bounded
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.rooted_io import portable_relative_path_parts
-from agent_assure.schema.base import FrozenStrictModel
+from agent_assure.schema.base import FrozenStrictModel, SchemaVersion
 from agent_assure.schema.common import (
     PACKAGE_RELEASE_VERSION_PATTERN,
     DigestHex,
     ExecutionMode,
     GateState,
+    MachineIdentifier,
     coerce_enum,
     coerce_tuple,
 )
 from agent_assure.schema.evaluation import EvaluationSummary
-from agent_assure.schema.mutation import (
-    BoundedSummary,
-    MachineIdentifier,
-    SelfDigestedArtifact,
-)
+from agent_assure.schema.mutation import BoundedSummary, SelfDigestedArtifact
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import (
     AgentRunRecord,
@@ -36,9 +33,6 @@ from agent_assure.schema.run import (
 )
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.sensitivity_contract import (
-    BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES,
-    BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST,
-    BUNDLED_SENSITIVITY_SUITE_IDENTITIES,
     MAX_SENSITIVITY_CORPUS_BYTES,
     MAX_SENSITIVITY_FIXTURE_BYTES,
     SENSITIVITY_EVALUATION_DATE,
@@ -47,14 +41,20 @@ from agent_assure.sensitivity_contract import (
     SENSITIVITY_SUBJECT_EXECUTION_SCOPE,
     SensitivityProvenanceBinding,
     SensitivitySubjectExecutionScope,
+    bundled_sensitivity_identity_set,
 )
 
-SENSITIVITY_SCHEMA_VERSION: Literal["0.6.4"] = "0.6.4"
+SENSITIVITY_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
 SENSITIVITY_CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
+_V064_PRIVACY_PROFILE_BINDING = (
+    "agent-assure/privacy-detectors/v2",
+    "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53",
+)
 MAX_SENSITIVITY_DOCUMENTS = 256
 MAX_SENSITIVITY_RETRIEVED_DOCUMENTS = 256
 MAX_SENSITIVITY_CHECKS = 64
 MAX_SENSITIVITY_LIMITATIONS = 256
+MAX_SENSITIVITY_CASE_AUTHORITY_BINDINGS = 10_000
 _SENSITIVITY_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 REQUIRED_SENSITIVITY_LIMITATIONS: tuple[BoundedSummary, ...] = (
     "This deterministic synthetic detector contract test does not estimate real-model prevalence.",
@@ -176,7 +176,7 @@ class RAGSensitivitySyntheticDataAttestation(SelfDigestedArtifact):
     artifact_kind: Literal["rag-sensitivity-synthetic-data-attestation"] = (
         "rag-sensitivity-synthetic-data-attestation"
     )
-    schema_version: Literal["0.6.4"] = SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.4", "0.6.5"] = SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["rag-sensitivity-synthetic-data-attestation"] = (
         "rag-sensitivity-synthetic-data-attestation"
     )
@@ -414,7 +414,7 @@ class RAGSensitivityCorpusManifest(SelfDigestedArtifact):
     _digest_field = "corpus_digest"
 
     artifact_kind: Literal["rag-sensitivity-corpus-manifest"] = "rag-sensitivity-corpus-manifest"
-    schema_version: Literal["0.6.4"] = SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.4", "0.6.5"] = SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["rag-sensitivity-corpus-manifest"] = "rag-sensitivity-corpus-manifest"
     contract_id: Literal["RAGSensitivityCorpusManifest/v1"] = "RAGSensitivityCorpusManifest/v1"
     contract_version: Literal["1.0.0"] = SENSITIVITY_CONTRACT_VERSION
@@ -475,13 +475,53 @@ class RAGSensitivityAuthorityAssignment(FrozenStrictModel):
         return self
 
 
+class RAGSensitivityCaseAuthorityBinding(FrozenStrictModel):
+    """Exact authority assignment pair for one explicitly covered case."""
+
+    case_id: MachineIdentifier
+    query_family_id: MachineIdentifier
+    assignments: tuple[RAGSensitivityAuthorityAssignment, ...] = Field(
+        min_length=2,
+        max_length=2,
+    )
+
+    @field_validator("assignments", mode="before")
+    @classmethod
+    def _coerce_assignments(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @model_validator(mode="after")
+    def _validate_authority_mapping(self) -> Self:
+        expected = tuple(sorted(self.assignments, key=lambda item: item.corpus_digest))
+        if self.assignments != expected:
+            raise ValueError("authority assignments must use canonical corpus-digest ordering")
+        if len({item.corpus_digest for item in self.assignments}) != 2:
+            raise ValueError("authority assignments must bind two distinct corpus digests")
+        decisions = {item.expected_decision for item in self.assignments}
+        if len(decisions) != 2 or RAGSensitivityDecision.escalate in decisions:
+            raise ValueError(
+                "decision_flip authority assignments require distinct approve and deny decisions"
+            )
+        if (
+            len({item.governing_source_id for item in self.assignments}) != 1
+            or len({item.governing_ref_id for item in self.assignments}) != 1
+            or len({item.claim_id for item in self.assignments}) != 1
+        ):
+            raise ValueError(
+                "authority assignments must preserve the logical evidence and claim target"
+            )
+        if len({item.governing_content_digest for item in self.assignments}) != 2:
+            raise ValueError("authority assignments require different governing evidence content")
+        return self
+
+
 class RAGSensitivityKnowledgeContract(SelfDigestedArtifact):
     _digest_field = "knowledge_contract_digest"
 
     artifact_kind: Literal["rag-sensitivity-knowledge-contract"] = (
         "rag-sensitivity-knowledge-contract"
     )
-    schema_version: Literal["0.6.4"] = SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.4", "0.6.5"] = SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["rag-sensitivity-knowledge-contract"] = (
         "rag-sensitivity-knowledge-contract"
     )
@@ -503,6 +543,12 @@ class RAGSensitivityKnowledgeContract(SelfDigestedArtifact):
         min_length=2,
         max_length=2,
     )
+    case_authority_bindings: tuple[RAGSensitivityCaseAuthorityBinding, ...] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_SENSITIVITY_CASE_AUTHORITY_BINDINGS,
+        exclude_if=lambda value: value is None,
+    )
     limitations: tuple[BoundedSummary, ...] = Field(
         min_length=1,
         max_length=MAX_SENSITIVITY_LIMITATIONS,
@@ -513,36 +559,62 @@ class RAGSensitivityKnowledgeContract(SelfDigestedArtifact):
     def _coerce_relation(cls, value: object) -> EvidenceSensitivityExpectedRelation:
         return coerce_enum(EvidenceSensitivityExpectedRelation, value)
 
-    @field_validator("assignments", "limitations", mode="before")
+    @field_validator(
+        "assignments",
+        "case_authority_bindings",
+        "limitations",
+        mode="before",
+    )
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
 
     @model_validator(mode="after")
     def _validate_authority_mapping(self) -> Self:
-        expected = tuple(sorted(self.assignments, key=lambda item: item.corpus_digest))
-        if self.assignments != expected:
-            raise ValueError("authority assignments must use canonical corpus-digest ordering")
-        if len({item.corpus_digest for item in self.assignments}) != len(self.assignments):
-            raise ValueError("authority assignments must bind two distinct corpus digests")
-        if self.expected_response_relation is EvidenceSensitivityExpectedRelation.decision_flip:
-            decisions = {item.expected_decision for item in self.assignments}
-            if len(decisions) != 2 or RAGSensitivityDecision.escalate in decisions:
-                raise ValueError(
-                    "decision_flip authority assignments require distinct approve and deny "
-                    "decisions"
-                )
-        if (
-            len({item.governing_source_id for item in self.assignments}) != 1
-            or len({item.governing_ref_id for item in self.assignments}) != 1
-            or len({item.claim_id for item in self.assignments}) != 1
-        ):
-            raise ValueError(
-                "authority assignments must preserve the logical evidence and claim target"
+        if self.schema_version == "0.6.4" and self.case_authority_bindings is not None:
+            raise ValueError("case_authority_bindings were introduced in schema version 0.6.5")
+        legacy_binding = RAGSensitivityCaseAuthorityBinding(
+            case_id=self.case_id,
+            query_family_id=self.query_family_id,
+            assignments=self.assignments,
+        )
+        if self.case_authority_bindings is not None:
+            expected = tuple(sorted(self.case_authority_bindings, key=lambda item: item.case_id))
+            if self.case_authority_bindings != expected:
+                raise ValueError("case authority bindings must use canonical case-ID ordering")
+            if len({item.case_id for item in self.case_authority_bindings}) != len(
+                self.case_authority_bindings
+            ):
+                raise ValueError("case authority bindings must use unique case IDs")
+            matching_legacy = tuple(
+                item for item in self.case_authority_bindings if item.case_id == self.case_id
             )
-        if len({item.governing_content_digest for item in self.assignments}) != 2:
-            raise ValueError("authority assignments require different governing evidence content")
+            if matching_legacy != (legacy_binding,):
+                raise ValueError(
+                    "legacy case/query/assignment fields must exactly mirror their "
+                    "case authority binding"
+                )
+            if {item.query_family_id for item in self.case_authority_bindings} != {
+                self.query_family_id
+            }:
+                raise ValueError("v1 case authority bindings must share the contract query family")
         return self
+
+
+def knowledge_contract_case_authority_bindings(
+    contract: RAGSensitivityKnowledgeContract,
+) -> tuple[RAGSensitivityCaseAuthorityBinding, ...]:
+    """Return explicit bindings, or the safe one-case legacy projection."""
+
+    if contract.case_authority_bindings is not None:
+        return contract.case_authority_bindings
+    return (
+        RAGSensitivityCaseAuthorityBinding(
+            case_id=contract.case_id,
+            query_family_id=contract.query_family_id,
+            assignments=contract.assignments,
+        ),
+    )
 
 
 class RAGSensitivitySubjectConfig(FrozenStrictModel):
@@ -704,7 +776,7 @@ class RAGSensitivityCorpusSnapshot(SelfDigestedArtifact):
     _digest_field = "snapshot_digest"
 
     artifact_kind: Literal["rag-sensitivity-corpus-snapshot"] = "rag-sensitivity-corpus-snapshot"
-    schema_version: Literal["0.6.4"] = SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.4", "0.6.5"] = SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["rag-sensitivity-corpus-snapshot"] = "rag-sensitivity-corpus-snapshot"
     contract_id: Literal["RAGSensitivityCorpusSnapshot/v1"] = "RAGSensitivityCorpusSnapshot/v1"
     contract_version: Literal["1.0.0"] = SENSITIVITY_CONTRACT_VERSION
@@ -884,7 +956,7 @@ class RAGSensitivityProtocol(SelfDigestedArtifact):
     _digest_field = "protocol_digest"
 
     artifact_kind: Literal["evidence-sensitivity-protocol"] = "evidence-sensitivity-protocol"
-    schema_version: Literal["0.6.4"] = SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.4", "0.6.5"] = SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["evidence-sensitivity-protocol"] = "evidence-sensitivity-protocol"
     contract_id: Literal["RAGSensitivityProtocol/v1"] = "RAGSensitivityProtocol/v1"
     contract_version: Literal["1.0.0"] = SENSITIVITY_CONTRACT_VERSION
@@ -1266,10 +1338,12 @@ class RAGSensitivityProtocol(SelfDigestedArtifact):
                     "controlled-difference values must be derived from protocol identities"
                 )
         if self.synthetic_data_provenance is SyntheticDataProvenance.bundled_digest_verified:
+            reviewed_identity = bundled_sensitivity_identity_set(self.schema_version)
             bundled_identity = (
-                (self.suite_digest, self.fixture_manifest_digest)
-                in BUNDLED_SENSITIVITY_SUITE_IDENTITIES
-                and self.knowledge_contract_digest == BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST
+                reviewed_identity is not None
+                and (self.suite_digest, self.fixture_manifest_digest)
+                in reviewed_identity.suite_identities
+                and self.knowledge_contract_digest == reviewed_identity.knowledge_contract_digest
                 and frozenset(
                     {
                         (
@@ -1282,7 +1356,7 @@ class RAGSensitivityProtocol(SelfDigestedArtifact):
                         ),
                     }
                 )
-                == BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES
+                == reviewed_identity.corpus_snapshot_identities
             )
             if not bundled_identity:
                 raise ValueError(
@@ -1856,7 +1930,7 @@ class RAGSensitivityReport(SelfDigestedArtifact):
     _digest_field = "report_digest"
 
     artifact_kind: Literal["evidence-sensitivity-report"] = "evidence-sensitivity-report"
-    schema_version: Literal["0.6.4"] = SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.4", "0.6.5"] = SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["evidence-sensitivity-report"] = "evidence-sensitivity-report"
     contract_id: Literal["RAGSensitivityReport/v1"] = "RAGSensitivityReport/v1"
     contract_version: Literal["1.0.0"] = SENSITIVITY_CONTRACT_VERSION
@@ -2186,6 +2260,8 @@ class RAGSensitivityReport(SelfDigestedArtifact):
             recomputed_evaluation = _recompute_sensitivity_evaluation(
                 self.compiled_suite,
                 runset,
+                report_schema_version=self.schema_version,
+                schema_version=evaluation.schema_version,
             )
             if evaluation != recomputed_evaluation:
                 raise ValueError(
@@ -2410,20 +2486,64 @@ def _canonical_sha256(value: object) -> str:
     return sha256_hexdigest(value)
 
 
+def _sensitivity_privacy_profile_binding(
+    schema_version: SchemaVersion,
+) -> tuple[str, str]:
+    if schema_version == "0.6.4":
+        return _V064_PRIVACY_PROFILE_BINDING
+    return PRIVACY_PROFILE_ID, PRIVACY_PROFILE_DIGEST
+
+
 def _recompute_sensitivity_evaluation(
     compiled_suite: CompiledSuite,
     runset: RunSet,
+    *,
+    report_schema_version: SchemaVersion,
+    schema_version: SchemaVersion,
 ) -> EvaluationSummary:
     # Import lazily so the evaluator can import schema models without a module
     # initialization cycle. The fixed date is part of the deterministic v1
     # detector method used by the first-party producer.
     from agent_assure.evaluation.evaluator import evaluate_runset
 
-    return evaluate_runset(
+    historical_v064_profile = (
+        report_schema_version == "0.6.4"
+        and schema_version == "0.6.4"
+        and compiled_suite.schema_version == "0.6.4"
+        and runset.schema_version == "0.6.4"
+        and (runset.privacy_profile_id, runset.privacy_profile_digest)
+        == _sensitivity_privacy_profile_binding(schema_version)
+    )
+    replay_runset = (
+        runset.model_copy(
+            update={
+                "privacy_profile_id": PRIVACY_PROFILE_ID,
+                "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+            }
+        )
+        if historical_v064_profile
+        else runset
+    )
+    current = evaluate_runset(
         compiled_suite,
-        runset,
+        replay_runset,
         today=SENSITIVITY_EVALUATION_DATE,
     ).candidate_vs_expectations
+    if current.schema_version == schema_version:
+        return current
+    payload = current.model_dump(mode="json")
+    payload["schema_version"] = schema_version
+    payload["runset_id"] = runset.runset_id
+    payload["runset_digest"] = _canonical_sha256(runset.model_dump(mode="json"))
+    payload["privacy_profile_id"] = runset.privacy_profile_id
+    payload["privacy_profile_digest"] = runset.privacy_profile_digest
+    payload.pop("replay_context", None)
+    findings = payload.get("findings")
+    if isinstance(findings, list):
+        for finding in findings:
+            if isinstance(finding, dict):
+                finding["schema_version"] = schema_version
+    return EvaluationSummary.model_validate(payload)
 
 
 def _expected_sensitivity_runset(
@@ -2431,6 +2551,9 @@ def _expected_sensitivity_runset(
     arm: RAGSensitivityArmResult,
     protocol: RAGSensitivityProtocol,
 ) -> RunSet:
+    privacy_profile_id, privacy_profile_digest = _sensitivity_privacy_profile_binding(
+        protocol.schema_version
+    )
     execution_binding = _canonical_sha256(
         {
             "protocol_digest": protocol.protocol_digest,
@@ -2440,6 +2563,7 @@ def _expected_sensitivity_runset(
         }
     )[:24]
     run = AgentRunRecord(
+        schema_version=protocol.schema_version,
         run_id=f"sensitivity-run-{arm.role.value}-{execution_binding}",
         case_id=protocol.case_id,
         execution_mode=ExecutionMode.fixture,
@@ -2458,6 +2582,7 @@ def _expected_sensitivity_runset(
         tools=(protocol.tool_id,),
         evidence_refs=tuple(
             EvidenceRef(
+                schema_version=protocol.schema_version,
                 ref_id=item.ref_id,
                 source_id=item.source_id,
                 claim_ids=(protocol.request.claim_id,),
@@ -2466,21 +2591,29 @@ def _expected_sensitivity_runset(
         ),
         evidence_items=tuple(
             EvidenceItem(
+                schema_version=protocol.schema_version,
                 ref_id=item.ref_id,
                 source_id=item.source_id,
                 content_digest=item.content_digest,
             )
             for item in arm.retrieved_evidence
         ),
-        claims=(ClaimRecord(claim_id=protocol.request.claim_id),),
+        claims=(
+            ClaimRecord(
+                schema_version=protocol.schema_version,
+                claim_id=protocol.request.claim_id,
+            ),
+        ),
         claim_evidence_links=tuple(
             ClaimEvidenceLink(
+                schema_version=protocol.schema_version,
                 claim_id=item.claim_id,
                 evidence_ref_id=item.ref_id,
             )
             for item in arm.linked_evidence
         ),
         provenance=Provenance(
+            schema_version=protocol.schema_version,
             prompt_digest=protocol.prompt_template_digest,
             code_digest=protocol.agent_implementation_digest,
             policy_bundle_digest=arm.corpus_digest,
@@ -2492,9 +2625,10 @@ def _expected_sensitivity_runset(
         ),
     )
     return RunSet(
+        schema_version=protocol.schema_version,
         runset_id=f"sensitivity-runset-{arm.role.value}-{execution_binding}",
-        privacy_profile_id=PRIVACY_PROFILE_ID,
-        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        privacy_profile_id=privacy_profile_id,
+        privacy_profile_digest=privacy_profile_digest,
         suite_id=protocol.suite_id,
         suite_version=protocol.fixture_manifest.suite_version,
         suite_digest=protocol.suite_digest,

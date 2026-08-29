@@ -2,6 +2,96 @@
 
 ## Unreleased
 
+## 0.6.5 - 2026-08-29
+
+- Introduced privacy detector profile v3. It normalizes Unicode dash
+  equivalents, prevents non-ASCII case-folding from bypassing detector-marker
+  pruning, treats every non-empty value under a sensitive label as sensitive,
+  fails closed on non-ASCII structured keys, rejects
+  inline persisted live-script credentials, and bounds/redacts untrusted YAML
+  diagnostics.
+- Made deterministic and stochastic directory-publication locks best-effort
+  one-millisecond coordination only; planted or held predictable lock entries
+  can no longer block publication. Atomic no-replace installation plus exact
+  generation adoption is the integrity boundary. Multi-file finalization keeps
+  its explicit 60-second rooted-lock deadline.
+- Made concurrent Windows generation adoption tolerate only the short-lived,
+  numeric WinError 32/33 sharing state created by an honest winner's rename pin.
+  Reconciliation is capped at 250 milliseconds and repeats complete rooted
+  identity and exact-generation verification on every attempt; unrelated access
+  failures and exhaustion remain fail-closed.
+- Hoisted POSIX atomic-rename bindings to module scope, added modern FreeBSD
+  `renameat2` support and an ABI-width-guarded Linux
+  `renameat2` syscall path
+  for libc implementations without the wrapper, while preserving fail-closed
+  behavior on unsupported kernels, filesystems, and ABIs. Exact-statistics
+  caches now retain sufficient statistics instead of endpoint tuples and
+  expose an explicit quiescent-lifecycle clear operation for embedded services.
+- Made deterministic and stochastic evidence-sensitivity publication
+  crash-atomic at the target-directory boundary without enumerating the shared
+  parent or counting retained stages. Writers validate a complete owner-only,
+  randomly named sibling stage immediately before one atomic no-replace rename;
+  POSIX retains child pins through commit and Windows performs a fresh exact
+  pinned verification after commit. Exact concurrent generations are adopted
+  idempotently, while committed targets are never rolled back.
+- Bound manifest-advertised candidate evaluations to the exact candidate
+  RunSet and compiled suite by independently reproducing the deterministic
+  evaluation from captured snapshots. Current evaluation gates require an
+  authenticated RunSet digest, manifest-bearing library packet gates require an
+  artifact root, and present stochastic non-verdict evidence is invalid unless
+  explicitly allowed.
+- Routed atomic file replacement, rollback unlink, and authored suite,
+  knowledge-contract, protocol, and live-config reads through pinned rooted
+  directory handles. Added fail-closed input/output alias checks, bounded
+  RunSet cardinality and artifact size, bounded finding messages, safe Markdown
+  table cells, and redacted bounded YAML diagnostics.
+- Hardened evidence delivery and content binding across release replay, exact
+  prompt/corpus/authority/adapter resources, requested-versus-resolved model
+  identity, and closed directional endpoint assignments. Planning, estimation,
+  and gating now share the fixed planned-cluster denominator and exact rejection
+  rule; included runtime-invalid pairs fail closed, and `rag sensitivity
+  finalize` creates the no-dispatch protocol/config design commitment.
+- Added self-digested repeated paired evidence-sensitivity, statistical
+  sufficiency, and stochastic-result contracts for the narrow binary
+  `expected_decision_response` endpoint. Verdict-bearing stochastic evidence
+  now depends on the exact satisfied sufficiency artifact; underpowered,
+  incomplete, or structurally invalid studies remain non-verdict.
+- Added immutable two-arm live prebinding and explicit pair-manifest assembly.
+  Provider/model/tool/policy or undeclared arm differences fail closed, while
+  missing and excluded cells remain reason-coded instead of disappearing from
+  the denominator audit.
+- Bound every analyzed pair to canonical record membership in the exact
+  content-addressed source RunSets and included the unchanged privacy-safe
+  source snapshots as separate files in the durable analysis bundle. Stochastic
+  packets now bind those files atomically under the mandatory
+  `stochastic-baseline-source-runset` and
+  `stochastic-counterfactual-source-runset` roles. CI reparses both snapshots,
+  recomputes whole-RunSet and per-record digests, reruns the canonical paired
+  observation assembler, and requires exact equality with the sufficiency
+  observations, including recommendation, outcome, disposition, cluster, and
+  endpoint semantics.
+- Added exact one-sided cluster-binomial planning and analysis under a declared
+  independent-exchangeable-cluster assumption. The planner targets the same
+  fixed planned-frame composite endpoint used by the gate: `p0`, `p1`, and the
+  estimated response rate all include every frozen planned cluster, with a
+  non-analyzable cluster scored as zero while observed/analyzable counts remain
+  separate. Version 1 requires balanced cluster composition. The fixed-N
+  planner recomputes the integer critical value and exact power at every
+  candidate N because the discrete feasibility surface is not monotone;
+  `maximum_exclusion_rate` is an audit cap, not sample-size inflation. Analytic
+  exact p-values remain authoritative; a domain-separated, SHA-256-derived
+  Monte Carlo path is a reproducibility diagnostic only.
+- Bound verdict-bearing stochastic packet and graph projections to the exact
+  counterfactual evaluation RunSet ID and digest, with both source RunSet
+  execution-configuration digests anchored to their predeclared protocol arms.
+  When a comparison is present, both baseline and candidate IDs and digests
+  must match the exact source arms.
+- Added a rigorous methods guide and authoring template covering the five
+  coupling classes, explicit network consent, deterministic-fixture bypass,
+  privacy boundaries, and the separation between observed counterexamples and
+  estimated response rates. Independent statistical review is invited and has
+  not yet occurred.
+
 ## 0.6.4 - 2026-08-22
 
 - Added a deterministic, authority-scoped RAG evidence-sensitivity protocol

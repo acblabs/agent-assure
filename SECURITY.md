@@ -40,9 +40,12 @@ controls.
   defense-in-depth for trusted bundled code, not a sandbox or network-isolation
   boundary. Demo subprocess environments are minimized, but hostile code can
   bypass Python-level monkeypatches.
-- HTTPS, endpoint allowlisting, and DNS safety screening reduce SSRF risk but do
-  not provide TLS pinning, socket-level IP pinning, or protection from a fully
-  compromised resolver.
+- HTTPS, endpoint allowlisting, and DNS safety screening reduce SSRF risk. The
+  OpenAI-compatible adapter repeats screening per request and pins the socket to
+  a screened address while preserving hostname verification; this is address
+  pinning, not certificate/SPKI pinning or protection from a resolver already
+  compromised at screening time. The upstream OTLP exporter re-resolves at
+  connect time and therefore retains a documented DNS TOCTOU window.
 
 ## Operator Guidance
 

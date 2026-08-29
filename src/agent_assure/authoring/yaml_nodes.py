@@ -7,7 +7,7 @@ from typing import Any
 
 import yaml
 
-from agent_assure.io_limits import read_text_bounded
+from agent_assure.io_limits import read_text_bounded_from_filesystem_root
 from agent_assure.privacy.redaction import redact_text
 
 MAX_YAML_BYTES = 1_048_576
@@ -45,7 +45,11 @@ AMBIGUOUS_TAGS = {
 
 
 def load_yaml_nodes(path: Path, *, label: str = "suite YAML") -> LoadedYaml:
-    text = read_text_bounded(path, max_bytes=MAX_YAML_BYTES, label=label)
+    text = read_text_bounded_from_filesystem_root(
+        path,
+        max_bytes=MAX_YAML_BYTES,
+        label=label,
+    )
     return load_yaml_nodes_text(text, label=label)
 
 
@@ -172,7 +176,7 @@ def _convert_node(
                 YamlWarning(
                     path=_safe_yaml_path(path),
                     message=(
-                        f"ambiguous scalar preserved as string: {_safe_yaml_diagnostic(node.value)}"
+                        f"ambiguous scalar preserved as string: {safe_yaml_diagnostic(node.value)}"
                     ),
                     line=node.start_mark.line + 1,
                     column=node.start_mark.column + 1,
@@ -218,7 +222,8 @@ def _safe_yaml_path(path: str) -> str:
     return escaped[:MAX_YAML_DIAGNOSTIC_CHARS]
 
 
-def _safe_yaml_diagnostic(value: str) -> str:
+def safe_yaml_diagnostic(value: str) -> str:
+    """Return a bounded, redacted, terminal-safe rendering of YAML-owned text."""
     compact = " ".join(value.split())
     escaped = ascii(redact_text(compact))
     return escaped[:MAX_YAML_DIAGNOSTIC_CHARS]

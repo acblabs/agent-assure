@@ -391,6 +391,7 @@ def _green_packet(*, include_artifact_digest: bool = True) -> EvidencePacket:
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate-runset",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,
@@ -431,6 +432,7 @@ def _packet_with_control_failure(
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate-runset",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -465,6 +467,7 @@ def _packet_with_material_evidence_failure() -> EvidencePacket:
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="candidate-runset",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,

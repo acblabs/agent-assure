@@ -2,7 +2,7 @@
   "artifact_kind": "rag-sensitivity-corpus-manifest",
   "contract_id": "RAGSensitivityCorpusManifest/v1",
   "contract_version": "1.0.0",
-  "corpus_digest": "f1d680df273c0189a9c78a1c6246d02e07ab7b52f14285b788ed79f5f601d551",
+  "corpus_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
   "corpus_id": "synthetic-policy-a",
   "corpus_version": "1.0.0",
   "documents": [
@@ -16,6 +16,6 @@
   "retrieval_algorithm_id": "deterministic-term-overlap",
   "retrieval_algorithm_version": "1.0.0",
   "schema_name": "rag-sensitivity-corpus-manifest",
-  "schema_version": "0.6.4",
+  "schema_version": "0.6.5",
   "top_k": 1
 }

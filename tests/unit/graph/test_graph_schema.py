@@ -54,6 +54,7 @@ from agent_assure.schema.mutation import EvidenceState, GateEffect, MutationResu
 def _failing_evaluation(*, message: str = "Material evidence is missing.") -> EvaluationSummary:
     return EvaluationSummary(
         runset_id="graph-schema-candidate",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -216,7 +217,7 @@ def _graph_with_edge(
     )
 
 
-def test_contract_exposes_only_the_closed_four_node_and_five_edge_vocabularies() -> None:
+def test_contract_exposes_only_the_closed_four_node_and_six_edge_vocabularies() -> None:
     assert GRAPH_CONTRACT_ID == "AssuranceEvidenceGraph/v1"
     assert tuple(kind.value for kind in EvidenceGraphNodeKind) == (
         "subject",
@@ -229,6 +230,7 @@ def test_contract_exposes_only_the_closed_four_node_and_five_edge_vocabularies()
         "contradicts",
         "targets",
         "derived_from",
+        "depends_on",
         "scoped_to",
     )
 
@@ -454,6 +456,8 @@ def test_edge_endpoint_matrix_accepts_only_declared_shapes(
         (EvidenceGraphEdgeKind.contradicts, "requirement", "evidence"),
         (EvidenceGraphEdgeKind.targets, "evidence", "requirement"),
         (EvidenceGraphEdgeKind.derived_from, "evidence", "finding"),
+        (EvidenceGraphEdgeKind.depends_on, "finding", "evidence"),
+        (EvidenceGraphEdgeKind.depends_on, "evidence", "requirement"),
         (EvidenceGraphEdgeKind.scoped_to, "requirement", "evidence"),
     ),
 )

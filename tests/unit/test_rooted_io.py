@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+import errno
 import hashlib
+import importlib
 import os
 import subprocess
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +20,611 @@ from agent_assure.io_limits import (
     read_file_bounded_at,
     read_text_bounded_at,
 )
+
+
+def test_windows_publication_lock_uses_explicit_nonblocking_retries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    attempts: list[tuple[int, int, int]] = []
+    sleeps: list[float] = []
+    clock = iter((0.0, 0.0, 0.05, 0.05, 0.10))
+
+    def locking(fd: int, mode: int, size: int) -> None:
+        attempts.append((fd, mode, size))
+        if len(attempts) < 3:
+            raise PermissionError(errno.EACCES, "synthetic lock contention")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", True)
+    monkeypatch.setattr(
+        rooted_io,
+        "_windows_locking_api",
+        lambda: (locking, 101, 202),
+    )
+    monkeypatch.setattr(rooted_io, "_publication_lock_monotonic", lambda: next(clock))
+    monkeypatch.setattr(rooted_io, "_publication_lock_sleep", sleeps.append)
+    try:
+        rooted_io.acquire_publication_lock(
+            descriptor,
+            label="unit publication",
+            timeout_seconds=0.2,
+        )
+        rooted_io.release_publication_lock(descriptor)
+    finally:
+        os.close(descriptor)
+
+    assert attempts == [
+        (descriptor, 101, 1),
+        (descriptor, 101, 1),
+        (descriptor, 101, 1),
+        (descriptor, 202, 1),
+    ]
+    assert sleeps == [0.05, 0.05]
+
+
+def test_windows_publication_lock_timeout_is_precise_and_monotonic(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    attempts: list[int] = []
+    sleeps: list[float] = []
+    clock = iter((10.0, 10.0, 10.05, 10.10, 10.12))
+
+    def always_contended(_fd: int, mode: int, _size: int) -> None:
+        attempts.append(mode)
+        raise BlockingIOError(errno.EAGAIN, "synthetic lock contention")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", True)
+    monkeypatch.setattr(
+        rooted_io,
+        "_windows_locking_api",
+        lambda: (always_contended, 303, 404),
+    )
+    monkeypatch.setattr(rooted_io, "_publication_lock_monotonic", lambda: next(clock))
+    monkeypatch.setattr(rooted_io, "_publication_lock_sleep", sleeps.append)
+    try:
+        with pytest.raises(
+            TimeoutError,
+            match=r"unit publication lock acquisition timed out after 0\.12 seconds",
+        ) as exc_info:
+            rooted_io.acquire_publication_lock(
+                descriptor,
+                label="unit publication",
+                timeout_seconds=0.12,
+            )
+    finally:
+        os.close(descriptor)
+
+    assert exc_info.value.errno == errno.ETIMEDOUT
+    assert isinstance(exc_info.value.__cause__, BlockingIOError)
+    assert attempts == [303, 303]
+    assert sleeps == pytest.approx([0.05, 0.02])
+
+
+def test_windows_sharing_retry_uses_numeric_cause_chain_only(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+    sleeps: list[float] = []
+
+    def operation() -> str:
+        nonlocal attempts
+        attempts += 1
+        if attempts < 3:
+            sharing_error = PermissionError(
+                errno.EACCES,
+                "opaque transient access failure",
+                None,
+                32,
+            )
+            raise ValueError("typed wrapper") from sharing_error
+        return "verified"
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", True)
+    monkeypatch.setattr(rooted_io, "_publication_lock_sleep", sleeps.append)
+
+    assert rooted_io.retry_windows_sharing_violation(operation, timeout_seconds=1.0) == "verified"
+    assert attempts == 3
+    assert sleeps == [0.001, 0.002]
+
+
+def test_windows_sharing_retry_does_not_treat_broad_access_denial_as_transient(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    attempts = 0
+
+    def operation() -> None:
+        nonlocal attempts
+        attempts += 1
+        raise PermissionError(errno.EACCES, "sharing violation text is not authority")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", True)
+
+    with pytest.raises(PermissionError, match="text is not authority"):
+        rooted_io.retry_windows_sharing_violation(operation, timeout_seconds=1.0)
+    assert attempts == 1
+
+
+def test_windows_publication_lock_propagates_noncontention_error_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    attempts: list[int] = []
+
+    def invalid_descriptor(_fd: int, mode: int, _size: int) -> None:
+        attempts.append(mode)
+        raise OSError(errno.EBADF, "synthetic invalid descriptor")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", True)
+    monkeypatch.setattr(
+        rooted_io,
+        "_windows_locking_api",
+        lambda: (invalid_descriptor, 505, 606),
+    )
+    monkeypatch.setattr(rooted_io, "_publication_lock_monotonic", lambda: 0.0)
+    monkeypatch.setattr(
+        rooted_io,
+        "_publication_lock_sleep",
+        lambda _seconds: pytest.fail("non-contention errors must not be retried"),
+    )
+    try:
+        with pytest.raises(OSError, match="synthetic invalid descriptor") as exc_info:
+            rooted_io.acquire_publication_lock(
+                descriptor,
+                label="unit publication",
+                timeout_seconds=0.2,
+            )
+    finally:
+        os.close(descriptor)
+
+    assert exc_info.value.errno == errno.EBADF
+    assert attempts == [505]
+
+
+def test_posix_publication_lock_uses_explicit_nonblocking_retries(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    attempts: list[tuple[int, int]] = []
+    sleeps: list[float] = []
+    clock = iter((0.0, 0.0, 0.05, 0.05, 0.10))
+
+    def flock(fd: int, mode: int) -> None:
+        attempts.append((fd, mode))
+        if len(attempts) < 3:
+            raise PermissionError(errno.EACCES, "synthetic lock contention")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", False)
+    monkeypatch.setattr(rooted_io, "_posix_locking_api", lambda: (flock, 701, 702))
+    monkeypatch.setattr(rooted_io, "_publication_lock_monotonic", lambda: next(clock))
+    monkeypatch.setattr(rooted_io, "_publication_lock_sleep", sleeps.append)
+    try:
+        rooted_io.acquire_publication_lock(
+            descriptor,
+            label="unit publication",
+            timeout_seconds=0.2,
+        )
+        rooted_io.release_publication_lock(descriptor)
+    finally:
+        os.close(descriptor)
+
+    assert attempts == [
+        (descriptor, 701),
+        (descriptor, 701),
+        (descriptor, 701),
+        (descriptor, 702),
+    ]
+    assert sleeps == [0.05, 0.05]
+
+
+def test_posix_publication_lock_timeout_is_precise_and_monotonic(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    attempts: list[int] = []
+    sleeps: list[float] = []
+    clock = iter((10.0, 10.0, 10.05, 10.10, 10.12))
+
+    def always_contended(_fd: int, mode: int) -> None:
+        attempts.append(mode)
+        raise BlockingIOError(errno.EAGAIN, "synthetic lock contention")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", False)
+    monkeypatch.setattr(
+        rooted_io,
+        "_posix_locking_api",
+        lambda: (always_contended, 703, 704),
+    )
+    monkeypatch.setattr(rooted_io, "_publication_lock_monotonic", lambda: next(clock))
+    monkeypatch.setattr(rooted_io, "_publication_lock_sleep", sleeps.append)
+    try:
+        with pytest.raises(
+            TimeoutError,
+            match=r"unit publication lock acquisition timed out after 0.12 seconds",
+        ) as exc_info:
+            rooted_io.acquire_publication_lock(
+                descriptor,
+                label="unit publication",
+                timeout_seconds=0.12,
+            )
+    finally:
+        os.close(descriptor)
+
+    assert exc_info.value.errno == errno.ETIMEDOUT
+    assert isinstance(exc_info.value.__cause__, BlockingIOError)
+    assert attempts == [703, 703]
+    assert sleeps == pytest.approx([0.05, 0.02])
+
+
+def test_posix_publication_lock_propagates_noncontention_error_immediately(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+
+    def unsupported(_fd: int, _mode: int) -> None:
+        raise OSError(errno.ENOLCK, "synthetic lock service unavailable")
+
+    monkeypatch.setattr(rooted_io, "_IS_WINDOWS", False)
+    monkeypatch.setattr(rooted_io, "_posix_locking_api", lambda: (unsupported, 705, 706))
+    monkeypatch.setattr(rooted_io, "_publication_lock_monotonic", lambda: 0.0)
+    monkeypatch.setattr(
+        rooted_io,
+        "_publication_lock_sleep",
+        lambda _seconds: pytest.fail("non-contention errors must not be retried"),
+    )
+    try:
+        with pytest.raises(OSError, match="synthetic lock service unavailable") as exc_info:
+            rooted_io.acquire_publication_lock(
+                descriptor,
+                label="unit publication",
+                timeout_seconds=0.2,
+            )
+    finally:
+        os.close(descriptor)
+
+    assert exc_info.value.errno == errno.ENOLCK
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX flock contention regression")
+def test_posix_publication_lock_real_contention_has_outer_hang_guard(
+    tmp_path: Path,
+) -> None:
+    import fcntl
+
+    lock_path = tmp_path / "publication.lock"
+    descriptor = os.open(lock_path, os.O_RDWR | os.O_CREAT, 0o600)
+    fcntl.flock(descriptor, fcntl.LOCK_EX)
+    contender = """
+import errno
+import os
+import sys
+from agent_assure.rooted_io import acquire_publication_lock
+
+descriptor = os.open(sys.argv[1], os.O_RDWR)
+try:
+    acquire_publication_lock(descriptor, label="subprocess publication", timeout_seconds=0.1)
+except TimeoutError as exc:
+    raise SystemExit(0 if exc.errno == errno.ETIMEDOUT else 2)
+finally:
+    os.close(descriptor)
+raise SystemExit(3)
+"""
+    try:
+        completed = subprocess.run(
+            [sys.executable, "-c", contender, str(lock_path)],
+            check=False,
+            capture_output=True,
+            text=True,
+            timeout=2.0,
+        )
+    finally:
+        fcntl.flock(descriptor, fcntl.LOCK_UN)
+        os.close(descriptor)
+
+    assert completed.returncode == 0, completed.stderr
+
+
+@pytest.mark.parametrize(
+    ("machine", "pointer_bits", "expected"),
+    (
+        ("x86_64", 64, 316),
+        ("AMD64", 64, 316),
+        ("i686", 32, 353),
+        ("armv7l", 32, 382),
+        ("aarch64", 64, 276),
+        ("riscv64", 64, 276),
+        ("ppc64le", 64, 357),
+        ("s390x", 64, 347),
+        ("x86_64", 32, None),
+        ("aarch64", 32, None),
+        ("unknown", 64, None),
+    ),
+)
+def test_linux_renameat2_syscall_number_is_abi_specific(
+    machine: str,
+    pointer_bits: int,
+    expected: int | None,
+) -> None:
+    assert rooted_io._linux_renameat2_syscall_number(machine, pointer_bits) == expected
+
+
+def _select_posix_rename_platform(
+    monkeypatch: pytest.MonkeyPatch,
+    *,
+    linux: bool = False,
+    darwin: bool = False,
+    freebsd: bool = False,
+) -> None:
+    monkeypatch.setattr(rooted_io, "_IS_LINUX", linux)
+    monkeypatch.setattr(rooted_io, "_IS_DARWIN", darwin)
+    monkeypatch.setattr(rooted_io, "_IS_FREEBSD", freebsd)
+
+
+def test_posix_rename_prefers_module_scoped_linux_libc_wrapper(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[int, bytes, int, bytes, int]] = []
+
+    def renameat2(
+        source_fd: int,
+        source: bytes,
+        target_fd: int,
+        target: bytes,
+        flags: int,
+    ) -> int:
+        calls.append((source_fd, source, target_fd, target, flags))
+        return 0
+
+    _select_posix_rename_platform(monkeypatch, linux=True)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2", renameat2)
+    monkeypatch.setattr(
+        rooted_io,
+        "_POSIX_RENAMEAT2_SYSCALL",
+        lambda *_args: pytest.fail("libc renameat2 must be preferred"),
+    )
+    monkeypatch.setattr(
+        rooted_io.ctypes,
+        "CDLL",
+        lambda *_args, **_kwargs: pytest.fail("libc must not be reconstructed per rename"),
+    )
+
+    rooted_io._posix_renameat_no_replace(41, "private-stage", "generation")
+
+    assert calls == [(41, b"private-stage", 41, b"generation", 1)]
+
+
+def test_posix_rename_uses_typed_linux_syscall_when_wrapper_is_absent(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    calls: list[tuple[Any, ...]] = []
+
+    def syscall(*args: Any) -> int:
+        calls.append(args)
+        return 0
+
+    _select_posix_rename_platform(monkeypatch, linux=True)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2", None)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2_SYSCALL", syscall)
+    monkeypatch.setattr(rooted_io, "_LINUX_RENAMEAT2_SYSCALL_NUMBER", 316)
+
+    rooted_io._posix_renameat_no_replace(43, "private-stage", "generation")
+
+    assert len(calls) == 1
+    number, source_fd, source, target_fd, target, flags = calls[0]
+    assert isinstance(number, rooted_io.ctypes.c_long)
+    assert isinstance(source_fd, rooted_io.ctypes.c_int)
+    assert isinstance(source, rooted_io.ctypes.c_char_p)
+    assert isinstance(target_fd, rooted_io.ctypes.c_int)
+    assert isinstance(target, rooted_io.ctypes.c_char_p)
+    assert isinstance(flags, rooted_io.ctypes.c_uint)
+    assert number.value == 316
+    assert source_fd.value == target_fd.value == 43
+    assert source.value == b"private-stage"
+    assert target.value == b"generation"
+    assert flags.value == 1
+
+
+@pytest.mark.parametrize(
+    ("platform_name", "expected_flag"),
+    (("freebsd", 1), ("darwin", 4)),
+)
+def test_posix_rename_dispatches_supported_non_linux_native_primitive(
+    monkeypatch: pytest.MonkeyPatch,
+    platform_name: str,
+    expected_flag: int,
+) -> None:
+    calls: list[tuple[int, bytes, int, bytes, int]] = []
+
+    def native_rename(
+        source_fd: int,
+        source: bytes,
+        target_fd: int,
+        target: bytes,
+        flags: int,
+    ) -> int:
+        calls.append((source_fd, source, target_fd, target, flags))
+        return 0
+
+    _select_posix_rename_platform(
+        monkeypatch,
+        darwin=platform_name == "darwin",
+        freebsd=platform_name == "freebsd",
+    )
+    monkeypatch.setattr(
+        rooted_io,
+        "_POSIX_RENAMEAT2",
+        native_rename if platform_name == "freebsd" else None,
+    )
+    monkeypatch.setattr(
+        rooted_io,
+        "_POSIX_RENAMEATX_NP",
+        native_rename if platform_name == "darwin" else None,
+    )
+
+    rooted_io._posix_renameat_no_replace(47, "private-stage", "generation")
+
+    assert calls == [(47, b"private-stage", 47, b"generation", expected_flag)]
+
+
+@pytest.mark.parametrize(
+    ("native_errno", "expected_exception"),
+    ((errno.EEXIST, FileExistsError), (errno.ENOTEMPTY, FileExistsError)),
+)
+def test_posix_rename_collision_remains_file_exists(
+    monkeypatch: pytest.MonkeyPatch,
+    native_errno: int,
+    expected_exception: type[OSError],
+) -> None:
+    def collides(*_args: Any) -> int:
+        rooted_io.ctypes.set_errno(native_errno)
+        return -1
+
+    _select_posix_rename_platform(monkeypatch, linux=True)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2", collides)
+
+    with pytest.raises(expected_exception) as exc_info:
+        rooted_io._posix_renameat_no_replace(53, "private-stage", "generation")
+
+    assert exc_info.value.errno == native_errno
+
+
+def test_posix_rename_syscall_enosys_is_terminal(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def unavailable(*_args: Any) -> int:
+        rooted_io.ctypes.set_errno(errno.ENOSYS)
+        return -1
+
+    _select_posix_rename_platform(monkeypatch, linux=True)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2", None)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2_SYSCALL", unavailable)
+    monkeypatch.setattr(rooted_io, "_LINUX_RENAMEAT2_SYSCALL_NUMBER", 316)
+
+    with pytest.raises(OSError, match="unavailable on this kernel") as exc_info:
+        rooted_io._posix_renameat_no_replace(59, "private-stage", "generation")
+
+    assert exc_info.value.errno == errno.ENOSYS
+
+
+def test_posix_rename_unknown_linux_abi_fails_before_syscall(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _select_posix_rename_platform(monkeypatch, linux=True)
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2", None)
+    monkeypatch.setattr(
+        rooted_io,
+        "_POSIX_RENAMEAT2_SYSCALL",
+        lambda *_args: pytest.fail("unknown ABI must not invoke syscall"),
+    )
+    monkeypatch.setattr(rooted_io, "_LINUX_RENAMEAT2_SYSCALL_NUMBER", None)
+
+    with pytest.raises(OSError, match="supported Linux renameat2 syscall ABI") as exc_info:
+        rooted_io._posix_renameat_no_replace(61, "private-stage", "generation")
+
+    assert exc_info.value.errno == errno.ENOSYS
+
+
+@pytest.mark.skipif(
+    not rooted_io._IS_LINUX
+    or rooted_io._POSIX_RENAMEAT2_SYSCALL is None
+    or rooted_io._LINUX_RENAMEAT2_SYSCALL_NUMBER is None,
+    reason="supported native Linux renameat2 syscall ABI required",
+)
+def test_linux_syscall_fallback_installs_without_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "root"
+    parent.mkdir()
+    monkeypatch.setattr(rooted_io, "_POSIX_RENAMEAT2", None)
+
+    with rooted_io.open_rooted_directory(parent, ".", label="publication parent") as lease:
+        first = rooted_io.claim_rooted_directory(lease, "first-stage", label="first stage")
+        try:
+            descriptor = first.open_regular_file_exclusive("artifact.json")
+            try:
+                os.write(descriptor, b"first")
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+            first.install_no_replace("generation")
+        finally:
+            first.close()
+
+        second = rooted_io.claim_rooted_directory(lease, "second-stage", label="second stage")
+        try:
+            with pytest.raises(FileExistsError):
+                second.install_no_replace("generation")
+            assert second.path == parent / "second-stage"
+        finally:
+            second.close()
+
+    assert (parent / "generation" / "artifact.json").read_bytes() == b"first"
+
+
+@pytest.mark.parametrize(
+    ("module_name", "wrapper_name", "expected_label", "expected_timeout", "expected_result"),
+    (
+        (
+            "agent_assure.reporting.stochastic_sensitivity",
+            "_lock_descriptor",
+            "repeated sensitivity publication",
+            0.001,
+            True,
+        ),
+        (
+            "agent_assure.reporting.sensitivity",
+            "_lock_sensitivity_descriptor",
+            "evidence sensitivity publication",
+            0.001,
+            True,
+        ),
+        (
+            "agent_assure.cli.rag_cmd",
+            "_lock_finalize_descriptor",
+            "sensitivity finalize publication",
+            None,
+            None,
+        ),
+    ),
+)
+def test_publication_writers_use_shared_bounded_lock_primitive(
+    monkeypatch: pytest.MonkeyPatch,
+    module_name: str,
+    wrapper_name: str,
+    expected_label: str,
+    expected_timeout: float | None,
+    expected_result: bool | None,
+) -> None:
+    module = importlib.import_module(module_name)
+    observed: list[tuple[int, str, float | None]] = []
+
+    def fake_acquire(
+        descriptor: int,
+        *,
+        label: str,
+        timeout_seconds: float | None = None,
+    ) -> None:
+        observed.append((descriptor, label, timeout_seconds))
+
+    monkeypatch.setattr(module, "acquire_publication_lock", fake_acquire)
+
+    result = getattr(module, wrapper_name)(123)
+
+    assert observed == [(123, expected_label, expected_timeout)]
+    assert result is expected_result
 
 
 def test_rooted_read_pins_nested_file_and_preserves_bounded_metadata(tmp_path: Path) -> None:
@@ -322,6 +930,258 @@ def test_rooted_directory_lease_blocks_lexical_rename_until_close(tmp_path: Path
     saved_parent.rename(parent)
 
 
+def test_rooted_directory_lease_reads_bounded_single_link_children(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    generation = root / "generation"
+    generation.mkdir(parents=True)
+    payload = b'{"result":"pinned"}'
+    artifact = generation / "artifact.json"
+    artifact.write_bytes(payload)
+
+    with rooted_io.open_rooted_directory(
+        root,
+        "generation",
+        label="existing publication",
+    ) as lease:
+        assert lease.entry_names(max_entries=1, label="existing publication") == ("artifact.json",)
+        contents = lease.read_file_bounded(
+            "artifact.json",
+            max_bytes=len(payload),
+            label="existing publication artifact",
+            require_single_link=True,
+        )
+        assert contents.data == payload
+        with pytest.raises(ValueError, match="maximum supported size"):
+            lease.read_file_bounded(
+                "artifact.json",
+                max_bytes=len(payload) - 1,
+                label="existing publication artifact",
+                require_single_link=True,
+            )
+
+        alias = generation / "artifact-alias.json"
+        try:
+            os.link(artifact, alias)
+        except OSError:
+            pytest.skip("hard links are unavailable on this platform")
+        with pytest.raises(ValueError, match="single-link regular file"):
+            lease.read_file_bounded(
+                "artifact.json",
+                max_bytes=len(payload),
+                label="existing publication artifact",
+                require_single_link=True,
+            )
+        with pytest.raises(ValueError, match="too many entries"):
+            lease.entry_names(max_entries=1, label="existing publication")
+
+    with pytest.raises(ValueError, match="lease is closed"):
+        lease.entry_names(max_entries=2, label="existing publication")
+
+
+def test_rooted_directory_lease_exclusive_create_and_identity_checked_unlink(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    with rooted_io.open_rooted_directory(root, ".", label="publication") as lease:
+        descriptor, created = lease.open_regular_file_exclusive_with_metadata("artifact.json")
+        try:
+            assert os.write(descriptor, b"owned") == 5
+            os.fsync(descriptor)
+            assert os.path.samestat(created, os.fstat(descriptor))
+            observed = lease.stat_entry_no_follow("artifact.json")
+            assert os.path.samestat(created, observed)
+            with pytest.raises(FileExistsError):
+                lease.open_regular_file_exclusive("artifact.json")
+        finally:
+            os.close(descriptor)
+
+        with pytest.raises(OSError, match="identity changed"):
+            lease.unlink_entry_no_follow(
+                "artifact.json",
+                expected_device=created.st_dev,
+                expected_inode=created.st_ino + 1,
+            )
+        assert (root / "artifact.json").read_bytes() == b"owned"
+        lease.unlink_entry_no_follow(
+            "artifact.json",
+            expected_device=created.st_dev,
+            expected_inode=created.st_ino,
+        )
+    assert not (root / "artifact.json").exists()
+
+
+def test_rooted_directory_lease_lock_file_is_persistent_and_single_link(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    lock_path = root / ".publication.lock"
+    with rooted_io.open_rooted_directory(root, ".", label="publication") as lease:
+        first_descriptor, first = lease.open_regular_lock_file(lock_path.name)
+        try:
+            os.write(first_descriptor, b"\0")
+            os.fsync(first_descriptor)
+        finally:
+            os.close(first_descriptor)
+        second_descriptor, second = lease.open_regular_lock_file(lock_path.name)
+        try:
+            assert os.path.samestat(first, second)
+            assert os.path.samestat(second, os.fstat(second_descriptor))
+        finally:
+            os.close(second_descriptor)
+
+        alias = root / ".publication-alias.lock"
+        try:
+            os.link(lock_path, alias)
+        except OSError:
+            pytest.skip("hard links are unavailable on this platform")
+        with pytest.raises(ValueError, match="single-link regular file"):
+            lease.open_regular_lock_file(lock_path.name)
+
+
+def test_rooted_directory_claim_reopens_bounded_single_link_child(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    root.mkdir()
+    payload = b'{"result":"final-precommit-pin"}'
+    with rooted_io.open_rooted_directory(root, ".", label="publication parent") as parent:
+        claim = rooted_io.claim_rooted_directory(parent, "stage", label="publication stage")
+        try:
+            descriptor = claim.open_regular_file_exclusive("artifact.json")
+            try:
+                assert os.write(descriptor, payload) == len(payload)
+                os.fsync(descriptor)
+            finally:
+                os.close(descriptor)
+
+            with claim.open_file_bounded(
+                "artifact.json",
+                max_bytes=len(payload),
+                label="final staged child",
+                require_single_link=True,
+            ) as opened:
+                assert opened.contents.data == payload
+                opened.revalidate()
+
+            alias = claim.path / "artifact-alias.json"
+            try:
+                os.link(claim.path / "artifact.json", alias)
+            except OSError:
+                pytest.skip("hard links are unavailable on this platform")
+            with pytest.raises(ValueError, match="single-link regular file"):
+                claim.open_file_bounded(
+                    "artifact.json",
+                    max_bytes=len(payload),
+                    label="final staged child",
+                    require_single_link=True,
+                )
+        finally:
+            claim.close()
+
+
+def test_windows_directory_object_identity_ignores_mutable_inventory_metadata() -> None:
+    expected = rooted_io._WindowsHandleIdentity(
+        attributes=rooted_io._WINDOWS_FILE_ATTRIBUTE_DIRECTORY,
+        volume_serial_number=17,
+        file_index=23,
+        number_of_links=1,
+        size=0,
+        last_write_time=100,
+    )
+    inventory_changed = rooted_io._WindowsHandleIdentity(
+        attributes=rooted_io._WINDOWS_FILE_ATTRIBUTE_DIRECTORY,
+        volume_serial_number=17,
+        file_index=23,
+        number_of_links=7,
+        size=4096,
+        last_write_time=200,
+    )
+
+    rooted_io._windows_require_same_directory_object(
+        expected,
+        inventory_changed,
+        path=Path("directory"),
+        label="rooted directory",
+    )
+
+    replaced = rooted_io._WindowsHandleIdentity(
+        attributes=rooted_io._WINDOWS_FILE_ATTRIBUTE_DIRECTORY,
+        volume_serial_number=17,
+        file_index=24,
+        number_of_links=7,
+        size=4096,
+        last_write_time=200,
+    )
+    with pytest.raises(ValueError, match="changed while it was being read"):
+        rooted_io._windows_require_same_directory_object(
+            expected,
+            replaced,
+            path=Path("directory"),
+            label="rooted directory",
+        )
+
+
+def test_rooted_directory_lease_read_rejects_link_child(tmp_path: Path) -> None:
+    root = tmp_path / "root"
+    generation = root / "generation"
+    generation.mkdir(parents=True)
+    outside = tmp_path / "outside.json"
+    outside.write_bytes(b"outside")
+    link = generation / "artifact.json"
+    try:
+        link.symlink_to(outside)
+    except OSError:
+        pytest.skip("file symlinks are unavailable on this platform")
+
+    with rooted_io.open_rooted_directory(
+        root,
+        "generation",
+        label="existing publication",
+    ) as lease:
+        with pytest.raises((OSError, ValueError)):
+            lease.read_file_bounded(
+                "artifact.json",
+                max_bytes=16,
+                label="existing publication artifact",
+                require_single_link=True,
+            )
+    assert outside.read_bytes() == b"outside"
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX descriptor-relative read regression")
+def test_rooted_directory_lease_read_stays_anchored_after_lexical_swap(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "root"
+    generation = root / "generation"
+    saved = root / "saved-generation"
+    outside = tmp_path / "outside"
+    generation.mkdir(parents=True)
+    outside.mkdir()
+    (generation / "artifact.json").write_bytes(b"pinned")
+    (outside / "artifact.json").write_bytes(b"outside")
+
+    with rooted_io.open_rooted_directory(
+        root,
+        "generation",
+        label="existing publication",
+    ) as lease:
+        generation.rename(saved)
+        generation.symlink_to(outside, target_is_directory=True)
+        assert lease.entry_names(max_entries=1, label="existing publication") == ("artifact.json",)
+        assert (
+            lease.read_file_bounded(
+                "artifact.json",
+                max_bytes=16,
+                label="existing publication artifact",
+                require_single_link=True,
+            ).data
+            == b"pinned"
+        )
+
+
 def test_rooted_directory_claim_owns_independent_pins_and_writer_operations(
     tmp_path: Path,
 ) -> None:
@@ -340,16 +1200,17 @@ def test_rooted_directory_claim_owns_independent_pins_and_writer_operations(
     claim_windows_parent_handle = claim._windows_parent_handle
     parent.close()
 
-    descriptor = claim.open_regular_file_exclusive("artifact.json")
+    descriptor, created = claim.open_regular_file_exclusive_with_metadata("artifact.json")
     try:
         payload = b'{"result":"pinned"}'
         assert os.write(descriptor, payload) == len(payload)
         os.fsync(descriptor)
         os.lseek(descriptor, 0, os.SEEK_SET)
         assert os.read(descriptor, len(payload)) == payload
-        created = os.fstat(descriptor)
+        assert os.path.samestat(created, os.fstat(descriptor))
         observed = claim.stat_entry_no_follow("artifact.json")
         assert os.path.samestat(created, observed)
+        assert claim.entry_names(max_entries=1, label="publication") == ("artifact.json",)
         with pytest.raises(FileExistsError):
             claim.open_regular_file_exclusive("artifact.json")
     finally:
@@ -388,6 +1249,8 @@ def test_rooted_directory_claim_owns_independent_pins_and_writer_operations(
             os.fstat(claim_parent_descriptor)
     with pytest.raises(ValueError, match="claim is closed"):
         claim.stat_entry_no_follow("artifact.json")
+    with pytest.raises(ValueError, match="claim is closed"):
+        claim.entry_names(max_entries=1, label="publication")
 
 
 def test_rooted_directory_claim_collision_is_exclusive(tmp_path: Path) -> None:
@@ -399,6 +1262,94 @@ def test_rooted_directory_claim_collision_is_exclusive(tmp_path: Path) -> None:
             rooted_io.claim_rooted_directory(parent, "generation", label="publication")
 
     assert (root / "generation").is_dir()
+
+
+def test_rooted_directory_claim_installs_atomically_without_replacement(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "root"
+    parent.mkdir()
+    with rooted_io.open_rooted_directory(parent, ".", label="publication parent") as lease:
+        claim = rooted_io.claim_rooted_directory(
+            lease,
+            "private-stage",
+            label="publication staging",
+        )
+        descriptor = claim.open_regular_file_exclusive("artifact.json")
+        try:
+            os.write(descriptor, b"owned")
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        claim.install_no_replace("generation")
+        assert claim.name == "generation"
+        assert claim.path == parent / "generation"
+        claim.close()
+
+        assert (parent / "generation" / "artifact.json").read_bytes() == b"owned"
+        competing = rooted_io.claim_rooted_directory(
+            lease,
+            "second-private-stage",
+            label="competing publication staging",
+        )
+        try:
+            with pytest.raises(FileExistsError):
+                competing.install_no_replace("generation")
+            assert competing.path == parent / "second-private-stage"
+            assert (parent / "generation" / "artifact.json").read_bytes() == b"owned"
+        finally:
+            competing.close()
+
+
+def test_rooted_directory_claim_records_commit_before_post_install_validation(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "root"
+    parent.mkdir()
+    with rooted_io.open_rooted_directory(parent, ".", label="publication parent") as lease:
+        claim = rooted_io.claim_rooted_directory(
+            lease,
+            "private-stage",
+            label="publication staging",
+        )
+
+        def fail_post_install_validation(_claim: rooted_io.RootedDirectoryClaim) -> None:
+            raise OSError("injected post-install validation failure")
+
+        monkeypatch.setattr(
+            rooted_io,
+            "_require_installed_claim_identity",
+            fail_post_install_validation,
+        )
+        try:
+            with pytest.raises(OSError, match="post-install validation"):
+                claim.install_no_replace("generation")
+            assert claim.name == "generation"
+            assert claim.path == parent / "generation"
+            assert (parent / "generation").is_dir()
+            assert not (parent / "private-stage").exists()
+        finally:
+            claim.close()
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows owner-only ACL regression")
+def test_windows_rooted_directory_claim_has_verified_owner_only_dacl(
+    tmp_path: Path,
+) -> None:
+    parent = tmp_path / "root"
+    parent.mkdir()
+    with rooted_io.open_rooted_directory(parent, ".", label="publication parent") as lease:
+        claim = rooted_io.claim_rooted_directory(
+            lease,
+            "private-stage",
+            label="private staging",
+            mode=0o700,
+        )
+        try:
+            rooted_io._windows_require_owner_only_dacl(claim._require_windows_handle())
+        finally:
+            claim.close()
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX descriptor-relative claim regression")

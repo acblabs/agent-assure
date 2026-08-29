@@ -44,6 +44,8 @@ def test_sensitivity_bundle_manifest_roles_have_explicit_replay_contracts() -> N
         "evidence-sensitivity-markdown": "raw-sha256",
         "evidence-sensitivity-html": "raw-sha256",
         "assurance-evidence-graph": "replay-stable-json-sha256",
+        "statistical-sufficiency-report": "replay-stable-json-sha256",
+        "stochastic-evidence-sensitivity-report": "replay-stable-json-sha256",
     }
 
     assert {
@@ -206,7 +208,7 @@ def test_core_release_roles_preserve_historical_replay_contract(
     assert core_release_roles_for_schema_version(schema_version) == LEGACY_CORE_RELEASE_ROLES
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.3", "0.6.4"))
+@pytest.mark.parametrize("schema_version", ("0.6.3", "0.6.4", "0.6.5"))
 def test_core_release_roles_require_graph_for_graph_era_schemas(schema_version: str) -> None:
     assert core_release_roles_for_schema_version(schema_version) == CORE_RELEASE_ROLES
 
@@ -219,7 +221,7 @@ def test_core_release_role_policy_covers_every_schema_version() -> None:
 
 def test_core_release_roles_fail_closed_for_unmapped_schema() -> None:
     with pytest.raises(ValueError, match="no core release-role policy"):
-        core_release_roles_for_schema_version("0.6.5")
+        core_release_roles_for_schema_version("0.6.6")
 
 
 def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:

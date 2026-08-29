@@ -9,6 +9,7 @@ import typer
 from rich.console import Console
 
 from agent_assure.artifact_io import write_text_atomic
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     load_json_bounded,
@@ -47,6 +48,12 @@ def preview(
     ] = None,
 ) -> None:
     try:
+        if out is not None:
+            ensure_inputs_do_not_alias_outputs(
+                (path,),
+                (out,),
+                owner="OTel preview",
+            )
         record = project_validated_artifact_payload(
             load_validated_artifact_payload(
                 path,

@@ -106,6 +106,7 @@ def test_shared_graph_projection_applies_mandatory_packet_privacy_filter() -> No
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=filtered_evaluation.runset_id,
+            subject_digest=filtered_evaluation.runset_digest,
         ),
         evaluation=filtered_evaluation,
         limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -114,6 +115,7 @@ def test_shared_graph_projection_applies_mandatory_packet_privacy_filter() -> No
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=evaluation.runset_id,
+            subject_digest=evaluation.runset_digest,
         ),
         evaluation=evaluation,
         limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -132,6 +134,7 @@ def test_graph_binding_verifies_manifest_bytes_and_semantic_digest(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=evaluation.runset_id,
+            subject_digest=evaluation.runset_digest,
         ),
         evaluation=evaluation,
         limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -253,6 +256,7 @@ def test_public_graph_binding_reconstructs_and_rejects_unrelated_valid_graph(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=unrelated.runset_id,
+            subject_digest=unrelated.runset_digest,
         ),
         evaluation=unrelated,
         limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -368,6 +372,7 @@ def test_graph_release_manifest_role_and_raw_digest_are_exact() -> None:
 def _evaluation() -> EvaluationSummary:
     return EvaluationSummary(
         runset_id="packet-graph-candidate",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,

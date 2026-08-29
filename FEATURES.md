@@ -133,6 +133,38 @@
 - Publishable measurement, executive, technical-report, standards, and
   reproducibility documents with traceability to deterministic fixture evidence
   and explicit limitation boundaries.
+- Self-digested repeated evidence-sensitivity protocol, statistical-sufficiency,
+  and stochastic-result contracts for the binary
+  `expected_decision_response` endpoint. The protocol prebinds exact paired
+  arms, case/repetition identities, a case-to-cluster map, and sequential arm
+  order. Sufficiency binds exact source RunSet dependencies, record-membership
+  commitments, and privacy-safe source snapshots. The contract distinguishes
+  five stochastic-coupling classes and uses one exact cluster-binomial test for
+  planning and gating. The fixed planned-frame composite endpoint gives `p0`,
+  `p1`, and the estimated response rate the same denominator: every frozen
+  planned cluster, with non-analyzable clusters scored as zero and descriptive
+  observed/analyzable counts retained separately. Version 1 requires balanced
+  cluster composition. Fixed-N planning recomputes the integer critical value
+  and exact power at each candidate N because feasibility is not monotone, and
+  the maximum exclusion rate remains an audit cap rather than denominator or
+  sample-size inflation. Deterministic SHA-256 Monte Carlo is diagnostic only.
+  Verdict-bearing packet and graph projections bind the exact counterfactual
+  RunSet ID and digest, anchor both source execution-configuration digests to
+  their predeclared arms, and require an optional comparison to bind both exact
+  source arms. The contracts prevent
+  underpowered, incomplete, structurally invalid, exploratory, or deterministic
+  fixture studies from producing passing population claims.
+  Analysis bundles keep the source RunSets as separate files. Stochastic packets
+  atomically bind both under the mandatory
+  `stochastic-baseline-source-runset` and
+  `stochastic-counterfactual-source-runset` roles; CI reparses them and
+  recomputes whole-artifact and per-record digests, then requires the canonical
+  paired observations reassembled from those sources to equal sufficiency
+  exactly. The public packet builder consumes the two reports and two source
+  RunSets as one atomic, descriptor-bound snapshot bundle, revalidates both
+  source paths at the final point-in-time publication boundary, and rejects
+  partial, mismatched, or concurrently changed inputs; its graph projection
+  round-trips into the strict stochastic CI gate.
 - Statistical protocol for live stochastic evaluation, covering
   baseline handling modes, hypotheses, sample-size planning, confidence
   intervals, interim-look rules, retry/exclusion rules, provider-version

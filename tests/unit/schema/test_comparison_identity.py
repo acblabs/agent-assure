@@ -116,6 +116,7 @@ def test_comparison_rejects_a_partial_runset_digest_identity() -> None:
 def test_authenticated_comparison_rejects_unbound_evaluation_identity() -> None:
     comparison = _comparison()
     evaluation = EvaluationSummary(
+        schema_version="0.6.4",
         runset_id=comparison.candidate_runset_id,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
@@ -136,6 +137,7 @@ def test_digestless_legacy_comparison_preserves_legacy_evaluation_compatibility(
     payload.pop("candidate_runset_digest")
     comparison = ComparisonSummary.model_validate(payload)
     evaluation = EvaluationSummary(
+        schema_version="0.6.3",
         runset_id=comparison.candidate_runset_id,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,

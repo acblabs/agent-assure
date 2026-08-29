@@ -26,6 +26,7 @@ from agent_assure.io_limits import (
     loads_json_bounded,
     read_file_bounded,
     read_file_bounded_at,
+    read_file_bounded_from_filesystem_root,
 )
 from agent_assure.onboarding.path_safety import (
     metadata_is_regular_directory,
@@ -382,7 +383,7 @@ def execute_sensitivity_experiment(
 
 def load_knowledge_contract(path: Path) -> RAGSensitivityKnowledgeContract:
     try:
-        snapshot = read_file_bounded(
+        snapshot = read_file_bounded_from_filesystem_root(
             path,
             max_bytes=MAX_CONFIG_TEXT_BYTES,
             label="knowledge-authority contract",

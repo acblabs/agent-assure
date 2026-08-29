@@ -9,6 +9,7 @@ from agent_assure.io_limits import load_json_bytes_bounded
 from agent_assure.privacy.detectors import (
     MAX_PRIVACY_SCAN_CHARS,
     PRIVACY_REDACTION_TEXT,
+    contains_sensitive_mapping_entry,
     contains_sensitive_value,
     privacy_scan_views,
     sensitive_patterns_for,
@@ -462,7 +463,17 @@ def _redact_mapping(
         redacted_key = _redact_mapping_key(key)
         if redacted_key in redacted:
             raise ValueError("redaction would create duplicate mapping keys")
-        if _is_authenticated_sensitivity_raw_json_mirror(value, key, item):
+        if (
+            isinstance(key, str)
+            and isinstance(item, str)
+            and contains_sensitive_mapping_entry(key, item)
+        ):
+            # A benign-looking key and value can become a credential only when
+            # reconstructed as a structured assignment (for example,
+            # ``api_key`` plus its value). Scan the pair before any preserve-key
+            # exemption is considered.
+            redacted[redacted_key] = REDACTION
+        elif _is_authenticated_sensitivity_raw_json_mirror(value, key, item):
             # Sensitivity snapshots carry exact source bytes next to their strict
             # decoded model. Preserve only a byte/digest/model-bound raw mirror;
             # its decoded sibling is still traversed and privacy scanned.
@@ -506,6 +517,14 @@ def _assert_mapping_keys_safe(value: Any, *, owner: str, path: str = "$") -> Non
                 _contains_control_character(key) or contains_sensitive_value(key)
             ):
                 raise ValueError(f"{owner} mapping key contains unsafe content: {key_path}")
+            if (
+                isinstance(key, str)
+                and isinstance(item, str)
+                and contains_sensitive_mapping_entry(key, item)
+            ):
+                raise ValueError(
+                    f"{owner} mapping entry contains sensitive-looking content: {key_path}"
+                )
             _assert_mapping_keys_safe(item, owner=owner, path=f"{path}.{key}")
         return
     if isinstance(value, tuple | list):

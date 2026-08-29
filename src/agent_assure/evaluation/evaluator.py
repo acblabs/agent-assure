@@ -22,7 +22,7 @@ from agent_assure.policies.base import (
 )
 from agent_assure.policies.catalog import DEFAULT_NOT_EVALUATED_CAPABILITIES, CapabilityStatus
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, SchemaVersion, StrictModel
 from agent_assure.schema.common import (
     V063_CONTRACT_SCHEMA_VERSIONS,
     DigestHex,
@@ -35,7 +35,10 @@ from agent_assure.schema.common import (
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import (
     MAX_WAIVER_DISPOSITIONS,
+    EvaluationGateProfileContext,
+    EvaluationReplayContext,
     EvaluationSummary,
+    EvaluationWaiverContext,
     Finding,
     WaiverDisposition,
 )
@@ -55,7 +58,7 @@ _EVALUATION_REPORT_USAGE_FIELD_PATHS = (
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_EVALUATION_REPORT_USAGE_FIELD_PATHS
 )
-_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"})
+_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"})
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
@@ -199,6 +202,7 @@ def evaluate_runset(
     validate_runset_compatibility(suite, runset)
     resolver = ExpectationResolver(suite)
     artifact_digest = runset_digest(runset)
+    evaluation_date = today or date.today()
     raw_results = evaluate_runset_controls(
         resolver,
         runset,
@@ -209,7 +213,7 @@ def evaluate_runset(
         raw_results,
         waivers=waivers,
         artifact_digest=artifact_digest,
-        today=today or date.today(),
+        today=evaluation_date,
     )
     adjusted_results = waiver_application.results
     capabilities = _capabilities(
@@ -220,10 +224,13 @@ def evaluate_runset(
     rollup_results = adjusted_results
     if gate_profile.fail_on_not_evaluated:
         rollup_results = adjusted_results + capability_results
-    report_findings = tuple(_finding_from_result(result) for result in rollup_results)
+    report_findings = tuple(
+        _finding_from_result(result, schema_version=SCHEMA_VERSION) for result in rollup_results
+    )
     summary_findings = tuple(
         _finding_from_result(
             result,
+            schema_version=SCHEMA_VERSION,
             state=(
                 GateState.fail
                 if gate_profile.is_blocking(result)
@@ -238,6 +245,7 @@ def evaluate_runset(
     usage_summary = usage_summary_for_runset(runset)
     summary = EvaluationSummary(
         artifact_kind="evaluation-summary",
+        schema_version=SCHEMA_VERSION,
         runset_id=runset.runset_id,
         runset_digest=artifact_digest,
         privacy_profile_id=runset.privacy_profile_id or PRIVACY_PROFILE_ID,
@@ -245,6 +253,27 @@ def evaluate_runset(
         state=state,
         findings=summary_findings,
         usage_summary=usage_summary,
+        replay_context=EvaluationReplayContext(
+            suite_digest=compiled_suite_digest(suite),
+            gate_profile=EvaluationGateProfileContext(
+                profile_id=gate_profile.profile_id,
+                fail_severities=gate_profile.fail_severities,
+                fail_reason_codes=gate_profile.fail_reason_codes,
+                fail_on_warn=gate_profile.fail_on_warn,
+                fail_on_not_evaluated=gate_profile.fail_on_not_evaluated,
+            ),
+            waivers=tuple(
+                EvaluationWaiverContext(
+                    waiver_id=waiver.waiver_id,
+                    reason_code=waiver.reason_code,
+                    finding_id=waiver.finding_id,
+                    artifact_digest=waiver.artifact_digest,
+                    expires_on=waiver.expires_on,
+                )
+                for waiver in waivers
+            ),
+            evaluation_date=evaluation_date,
+        ),
     )
     failed_controls = tuple(
         finding
@@ -257,6 +286,7 @@ def evaluate_runset(
         if _is_warning_control(result, gate_profile)
     )
     return EvaluationReport(
+        schema_version=SCHEMA_VERSION,
         candidate_vs_expectations=summary,
         runset_id=runset.runset_id,
         runset_digest=artifact_digest,
@@ -313,10 +343,12 @@ def validate_runset_compatibility(suite: CompiledSuite, runset: RunSet) -> None:
 def _finding_from_result(
     result: ControlResult,
     *,
+    schema_version: SchemaVersion,
     state: GateState | None = None,
 ) -> Finding:
     return Finding(
         artifact_kind="finding",
+        schema_version=schema_version,
         finding_id=result.finding_id,
         case_id=result.case_id,
         control_id=result.control_id,

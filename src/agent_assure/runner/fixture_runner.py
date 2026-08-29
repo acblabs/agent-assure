@@ -27,7 +27,7 @@ from agent_assure.io_limits import (
     MAX_CONFIG_TEXT_BYTES,
     loads_json_bounded,
     read_bytes_bounded_at,
-    read_text_bounded,
+    read_text_bounded_from_filesystem_root,
 )
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import (
@@ -66,25 +66,25 @@ _BUNDLED_SYNTHETIC_SUITE_IDENTITIES = {
     # mutable package resources at runtime. Updating a bundled example requires
     # an explicit review and update of its identity here.
     "expense-approval-minimal": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="c60f27910409f5220bb48e3486b74b4d3bad20c0b2208d7ed16127bd8a3b583a",
-        fixture_manifest_digest="72ee766442382f3309abd67be7fcc7bb14dd825767bfe2d75c7cacdb4d5da32a",
+        compiled_suite_digest="abf14ad162abf7245eab606505af2bf16cdae7e8a2cdf9986dffe6c86f839249",
+        fixture_manifest_digest="52aed8c2f82e73b9e9324c33cf063dc534972666ffda6898a4f0206c48514875",
         allowed_runner_ids=frozenset({"expense_approval.minimal"}),
     ),
     "prior-auth-synthetic": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="c131a82bcd7a6391ae5de696ebad3463aa5c9788fec6c436801db1951f00baee",
-        fixture_manifest_digest="f356ce02b84f62ea897ae78bbff6d4f0a361663f1592e2dd68687642d98ae6d3",
+        compiled_suite_digest="05a2bf3992729276e80bf2667aba9bfdc3b0e2983a75607ccbef7cd80f88626c",
+        fixture_manifest_digest="eac97c3e9923495048e49d3a13a8cd874c61ca1e5d6e7137b591ef4856c7e6c4",
         allowed_runner_ids=frozenset(
             {"prior_auth.synthetic", "prior_auth.synthetic_evidence_refactor"}
         ),
     ),
     "prior-auth-synthetic-rag": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="b0c1e3d4faf70d0cb915fba74111f7de12fc0d24cc6102e76738ed07c45f49a5",
-        fixture_manifest_digest="32720af706540f36000b05a7a10f1698d7841df7d016b867fb0c6f1ab5363f4b",
+        compiled_suite_digest="a2175a89dcbfb344bb829ba6e088e7de332acb3604658004bb111e4f96a7cbb1",
+        fixture_manifest_digest="740b788f2e75dcd8ce65c1e31046789cae18d6fb9afb8eacdf69dff1f6d15a2f",
         allowed_runner_ids=frozenset({"prior_auth.synthetic_rag"}),
     ),
     "process-measurement-cases": _BundledSyntheticSuiteIdentity(
-        compiled_suite_digest="613dd05542e702104351e42aa5afe8dc000325c18d2e4140c4c0773c04b355ac",
-        fixture_manifest_digest="4716fab6648a28f8e6d86d52223573ad8e65367a5f829920cf9647f12cda7830",
+        compiled_suite_digest="d40321f3fe5b12a1413bf395f5cdef85d2ae90baba689f1c7279452b50c1f7b2",
+        fixture_manifest_digest="e2b95db55c819b88ce858c4cc0c7804350a1c5e967efcd74deda52c7073657b5",
         allowed_runner_ids=frozenset({"process_measurement.synthetic"}),
     ),
 }
@@ -184,7 +184,11 @@ class RunnerContext:
 
 
 def load_variant_config(path: Path) -> VariantConfig:
-    text = read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="variant YAML")
+    text = read_text_bounded_from_filesystem_root(
+        path,
+        max_bytes=MAX_CONFIG_TEXT_BYTES,
+        label="variant YAML",
+    )
     loaded = safe_load_yaml_text(text, label="variant YAML")
     if not isinstance(loaded, dict):
         raise TypeError("variant must be a mapping")
@@ -317,10 +321,12 @@ def write_runset(runset: RunSet, path: Path) -> None:
     payload = redact_runset_payload(runset.model_dump(mode="json"))
     assert_runset_payload_safe_for_persistence(payload)
     RunSet.model_validate(payload)
-    write_text_atomic(
-        path,
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-    )
+    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    if len(rendered.encode("utf-8")) > MAX_ARTIFACT_JSON_BYTES:
+        raise ValueError(
+            f"run set exceeds the {MAX_ARTIFACT_JSON_BYTES}-byte artifact loader limit"
+        )
+    write_text_atomic(path, rendered)
 
 
 def _error_record(

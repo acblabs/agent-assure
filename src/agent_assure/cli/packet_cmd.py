@@ -39,6 +39,8 @@ from agent_assure.reporting.environment import (
 from agent_assure.reporting.graph import evidence_graph_json_text, write_evidence_graph
 from agent_assure.reporting.packet import (
     DEFAULT_PACKET_LIMITATIONS,
+    PacketSourceFileSnapshot,
+    PacketSummaryFileSnapshot,
     build_evidence_packet,
     build_privacy_filtered_evidence_graph,
     load_comparison_summary_snapshot,
@@ -46,12 +48,16 @@ from agent_assure.reporting.packet import (
     load_evidence_graph_snapshot,
     load_evidence_packet,
     load_evidence_sensitivity_report_snapshot,
+    load_identity_bound_packet_source_file_snapshot,
     load_packet_source_file_snapshot,
+    load_statistical_sufficiency_report_snapshot,
+    load_stochastic_evidence_sensitivity_report_snapshot,
     packet_artifact_digest_from_snapshot,
     packet_summary_files_binding_error_for_trusted_publication,
     release_artifact_from_source_snapshot,
     release_artifact_from_summary_snapshot,
     render_evidence_packet_markdown,
+    stochastic_source_runsets_binding_error,
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
@@ -61,7 +67,12 @@ from agent_assure.schema.efficacy import (
     ControlEfficacyReport,
 )
 from agent_assure.schema.mutation import AssuranceMutationResult
-from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
+from agent_assure.schema.run import RunSet
+from agent_assure.schema.stochastic_sensitivity import (
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
+)
 from agent_assure.schema.validation import (
     project_validated_artifact_payload,
     validate_loaded_artifact_payload,
@@ -72,6 +83,11 @@ _MAX_PACKET_ROLLBACK_BYTES = 4 * MAX_ARTIFACT_JSON_BYTES
 _MAX_PACKET_MUTATION_RESULTS = 4_096
 _MAX_PACKET_MUTATION_RESULTS_TOTAL_BYTES = MAX_ARTIFACT_JSON_BYTES
 _BACKSLASH = "\\"
+_STOCHASTIC_PACKET_LIMITATIONS = (
+    "evidence packets summarize protocol-bound evaluation artifacts, including repeated "
+    "live evidence when supplied; they are not signatures, attestations, safety "
+    "certifications, compliance certifications, or independent model-quality attestations",
+)
 
 
 @app.callback()
@@ -97,6 +113,54 @@ def build(
             exists=True,
             readable=True,
             help="Deterministic evidence-sensitivity report JSON.",
+        ),
+    ] = None,
+    statistical_sufficiency: Annotated[
+        Path | None,
+        typer.Option(
+            "--statistical-sufficiency",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Statistical-sufficiency report JSON for a repeated sensitivity study.",
+        ),
+    ] = None,
+    stochastic_evidence_sensitivity: Annotated[
+        Path | None,
+        typer.Option(
+            "--stochastic-evidence-sensitivity",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Stochastic evidence-sensitivity report JSON.",
+        ),
+    ] = None,
+    stochastic_baseline_source_runset: Annotated[
+        Path | None,
+        typer.Option(
+            "--stochastic-baseline-source-runset",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact privacy-safe baseline source RunSet used by statistical sufficiency.",
+        ),
+    ] = None,
+    stochastic_counterfactual_source_runset: Annotated[
+        Path | None,
+        typer.Option(
+            "--stochastic-counterfactual-source-runset",
+            "--stochastic-candidate-source-runset",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help=(
+                "Exact privacy-safe counterfactual/candidate source RunSet used by "
+                "statistical sufficiency."
+            ),
         ),
     ] = None,
     control_efficacy: Annotated[
@@ -142,9 +206,26 @@ def build(
     try:
         if (control_efficacy is None) is not (efficacy_config is None):
             raise ValueError("--control-efficacy and --efficacy-config must be provided together")
+        stochastic_inputs = tuple(
+            path
+            for path in (
+                statistical_sufficiency,
+                stochastic_evidence_sensitivity,
+                stochastic_baseline_source_runset,
+                stochastic_counterfactual_source_runset,
+            )
+            if path is not None
+        )
+        if stochastic_inputs and len(stochastic_inputs) != 4:
+            raise ValueError(
+                "--statistical-sufficiency, --stochastic-evidence-sensitivity, "
+                "--stochastic-baseline-source-runset, and "
+                "--stochastic-counterfactual-source-runset must be provided together"
+            )
         optional_sources = (
             *(() if comparison is None else (comparison,)),
             *(() if evidence_sensitivity is None else (evidence_sensitivity,)),
+            *stochastic_inputs,
             *(() if control_efficacy is None else (control_efficacy, efficacy_config)),
         )
         source_candidates = (evaluation, *optional_sources)
@@ -211,6 +292,105 @@ def build(
         sensitivity_report = (
             sensitivity_snapshot.summary if sensitivity_snapshot is not None else None
         )
+        sufficiency_snapshot: PacketSummaryFileSnapshot[StatisticalSufficiencyReport] | None = None
+        stochastic_snapshot: (
+            PacketSummaryFileSnapshot[StochasticEvidenceSensitivityReport] | None
+        ) = None
+        stochastic_baseline_snapshot: PacketSourceFileSnapshot | None = None
+        stochastic_counterfactual_snapshot: PacketSourceFileSnapshot | None = None
+        sufficiency_report: StatisticalSufficiencyReport | None = None
+        stochastic_report: StochasticEvidenceSensitivityReport | None = None
+        stochastic_source_runsets: tuple[RunSet, RunSet] | None = None
+        if stochastic_inputs:
+            (
+                sufficiency_path,
+                stochastic_path,
+                stochastic_baseline_path,
+                stochastic_counterfactual_path,
+            ) = stochastic_inputs
+            sufficiency_snapshot = load_statistical_sufficiency_report_snapshot(
+                sufficiency_path,
+                root=source_root,
+                artifact_root=artifact_root,
+            )
+            stochastic_snapshot = load_stochastic_evidence_sensitivity_report_snapshot(
+                stochastic_path,
+                root=source_root,
+                artifact_root=artifact_root,
+            )
+            stochastic_baseline_snapshot = load_identity_bound_packet_source_file_snapshot(
+                stochastic_baseline_path,
+                root=source_root,
+                artifact_root=artifact_root,
+                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                label="stochastic baseline source RunSet",
+            )
+            stochastic_counterfactual_snapshot = load_identity_bound_packet_source_file_snapshot(
+                stochastic_counterfactual_path,
+                root=source_root,
+                artifact_root=artifact_root,
+                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                label="stochastic counterfactual source RunSet",
+            )
+            sufficiency_report = sufficiency_snapshot.summary
+            stochastic_report = stochastic_snapshot.summary
+            stochastic_source_runsets = (
+                _project_stochastic_source_runset(
+                    stochastic_baseline_snapshot,
+                    role="stochastic-baseline-source-runset",
+                ),
+                _project_stochastic_source_runset(
+                    stochastic_counterfactual_snapshot,
+                    role="stochastic-counterfactual-source-runset",
+                ),
+            )
+            preflight_digests = [
+                packet_artifact_digest_from_snapshot(
+                    "evaluation-summary",
+                    evaluation_snapshot,
+                )
+            ]
+            if comparison_snapshot is not None:
+                preflight_digests.append(
+                    packet_artifact_digest_from_snapshot(
+                        "comparison-summary",
+                        comparison_snapshot,
+                    )
+                )
+            preflight_digests.extend(
+                (
+                    packet_artifact_digest_from_snapshot(
+                        "statistical-sufficiency-report",
+                        sufficiency_snapshot,
+                    ),
+                    packet_artifact_digest_from_snapshot(
+                        "stochastic-evidence-sensitivity-report",
+                        stochastic_snapshot,
+                    ),
+                    packet_artifact_digest_from_snapshot(
+                        "stochastic-baseline-source-runset",
+                        stochastic_baseline_snapshot,
+                    ),
+                    packet_artifact_digest_from_snapshot(
+                        "stochastic-counterfactual-source-runset",
+                        stochastic_counterfactual_snapshot,
+                    ),
+                )
+            )
+            preflight_packet = build_evidence_packet(
+                evaluation_summary,
+                comparison=comparison_summary,
+                statistical_sufficiency=sufficiency_report,
+                stochastic_evidence_sensitivity=stochastic_report,
+                artifact_digests=tuple(preflight_digests),
+                limitations=_STOCHASTIC_PACKET_LIMITATIONS,
+            )
+            source_binding_error = stochastic_source_runsets_binding_error(
+                preflight_packet,
+                source_runsets=stochastic_source_runsets,
+            )
+            if source_binding_error is not None:
+                raise ValueError(source_binding_error)
         efficacy_report = None
         efficacy_report_snapshot = None
         efficacy_config_snapshot = None
@@ -259,11 +439,17 @@ def build(
                 efficacy_report,
                 efficacy_profile,
             )
-        packet_limitations = DEFAULT_PACKET_LIMITATIONS
+        packet_limitations = (
+            _STOCHASTIC_PACKET_LIMITATIONS
+            if stochastic_report is not None
+            else DEFAULT_PACKET_LIMITATIONS
+        )
         evidence_graph = build_privacy_filtered_evidence_graph(
             evaluation_summary,
             comparison=comparison_summary,
             evidence_sensitivity=sensitivity_report,
+            statistical_sufficiency=sufficiency_report,
+            stochastic_evidence_sensitivity=stochastic_report,
             control_efficacy=efficacy_report,
             control_efficacy_gate_profile=efficacy_profile,
             control_efficacy_gate=efficacy_decision,
@@ -289,8 +475,8 @@ def build(
             source_root,
             out.parent,
             artifact_root=artifact_root,
+            on_inventory_written=rollback.mark_written,
         )
-        rollback.mark_written(out.parent / "dependency-inventory.json")
         digests = [
             packet_artifact_digest_from_snapshot(
                 "evaluation-summary",
@@ -316,7 +502,7 @@ def build(
                 project_root=artifact_root,
             ),
         ]
-        captured_efficacy_snapshots: dict[str, BoundedFileContents] = {}
+        captured_source_snapshots: dict[str, BoundedFileContents] = {}
         if comparison_snapshot is not None:
             digests.append(
                 packet_artifact_digest_from_snapshot(
@@ -341,6 +527,62 @@ def build(
                 sensitivity_snapshot,
             )
             artifacts.append(sensitivity_artifact)
+        if (
+            sufficiency_snapshot is not None
+            and stochastic_snapshot is not None
+            and stochastic_baseline_snapshot is not None
+            and stochastic_counterfactual_snapshot is not None
+        ):
+            digests.extend(
+                (
+                    packet_artifact_digest_from_snapshot(
+                        "statistical-sufficiency-report",
+                        sufficiency_snapshot,
+                    ),
+                    packet_artifact_digest_from_snapshot(
+                        "stochastic-evidence-sensitivity-report",
+                        stochastic_snapshot,
+                    ),
+                    packet_artifact_digest_from_snapshot(
+                        "stochastic-baseline-source-runset",
+                        stochastic_baseline_snapshot,
+                    ),
+                    packet_artifact_digest_from_snapshot(
+                        "stochastic-counterfactual-source-runset",
+                        stochastic_counterfactual_snapshot,
+                    ),
+                )
+            )
+            artifacts.extend(
+                (
+                    release_artifact_from_summary_snapshot(
+                        "statistical-sufficiency-report",
+                        sufficiency_snapshot,
+                    ),
+                    release_artifact_from_summary_snapshot(
+                        "stochastic-evidence-sensitivity-report",
+                        stochastic_snapshot,
+                    ),
+                    release_artifact_from_source_snapshot(
+                        "stochastic-baseline-source-runset",
+                        stochastic_baseline_snapshot,
+                    ),
+                    release_artifact_from_source_snapshot(
+                        "stochastic-counterfactual-source-runset",
+                        stochastic_counterfactual_snapshot,
+                    ),
+                )
+            )
+            captured_source_snapshots.update(
+                {
+                    stochastic_baseline_snapshot.relative_path: (
+                        stochastic_baseline_snapshot.contents
+                    ),
+                    stochastic_counterfactual_snapshot.relative_path: (
+                        stochastic_counterfactual_snapshot.contents
+                    ),
+                }
+            )
         if control_efficacy is not None:
             if efficacy_report_snapshot is None:
                 raise ValueError("control-efficacy report snapshot is unavailable")
@@ -356,7 +598,7 @@ def build(
                 efficacy_report_snapshot,
             )
             artifacts.append(efficacy_report_artifact)
-            captured_efficacy_snapshots[efficacy_report_artifact.path] = (
+            captured_source_snapshots[efficacy_report_artifact.path] = (
                 efficacy_report_snapshot.contents
             )
             if efficacy_config is None or efficacy_config_snapshot is None:
@@ -373,7 +615,7 @@ def build(
                 efficacy_config_snapshot,
             )
             artifacts.append(efficacy_config_artifact)
-            captured_efficacy_snapshots[efficacy_config_artifact.path] = (
+            captured_source_snapshots[efficacy_config_artifact.path] = (
                 efficacy_config_snapshot.contents
             )
         manifest = build_release_manifest(
@@ -384,6 +626,8 @@ def build(
             evaluation_summary,
             comparison=comparison_summary,
             evidence_sensitivity=sensitivity_report,
+            statistical_sufficiency=sufficiency_report,
+            stochastic_evidence_sensitivity=stochastic_report,
             control_efficacy=efficacy_report,
             control_efficacy_gate_profile=efficacy_profile,
             control_efficacy_gate=efficacy_decision,
@@ -398,7 +642,7 @@ def build(
             packet,
             artifact_root=artifact_root,
             expected_graph=evidence_graph,
-            captured_snapshots_by_path=captured_efficacy_snapshots,
+            captured_snapshots_by_path=captured_source_snapshots,
         )
         if summary_file_error is not None:
             raise ValueError(summary_file_error)
@@ -459,6 +703,8 @@ def graph(
             loaded_packet.evaluation,
             comparison=loaded_packet.comparison,
             evidence_sensitivity=loaded_packet.evidence_sensitivity,
+            statistical_sufficiency=loaded_packet.statistical_sufficiency,
+            stochastic_evidence_sensitivity=loaded_packet.stochastic_evidence_sensitivity,
             control_efficacy=loaded_packet.control_efficacy,
             control_efficacy_gate_profile=loaded_packet.control_efficacy_gate_profile,
             control_efficacy_gate=loaded_packet.control_efficacy_gate,
@@ -476,6 +722,8 @@ def graph(
                 loaded_packet.evaluation,
                 comparison=loaded_packet.comparison,
                 evidence_sensitivity=loaded_packet.evidence_sensitivity,
+                statistical_sufficiency=loaded_packet.statistical_sufficiency,
+                stochastic_evidence_sensitivity=loaded_packet.stochastic_evidence_sensitivity,
                 mutation_results=loaded_results,
                 control_efficacy=loaded_packet.control_efficacy,
                 control_efficacy_gate_profile=loaded_packet.control_efficacy_gate_profile,
@@ -535,6 +783,20 @@ def _load_mutation_results(
             )
         )
     return tuple(results)
+
+
+def _project_stochastic_source_runset(
+    snapshot: PacketSourceFileSnapshot,
+    *,
+    role: PacketArtifactRole,
+) -> RunSet:
+    payload = load_json_bytes_bounded(
+        snapshot.contents.data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=role.replace("-", " "),
+    )
+    validate_loaded_artifact_payload(payload, "run-set")
+    return project_validated_artifact_payload(payload, RunSet, kind="run-set")
 
 
 def _require_graph_output_not_packet_bound(

@@ -58,6 +58,33 @@ def test_suite_yaml_commands_normalize_parser_errors(command, tmp_path) -> None:
             command(suite, out=tmp_path / "compiled.json", manifest=None)
 
 
+def test_suite_compile_refuses_to_overwrite_its_source_input(tmp_path: Path) -> None:
+    suite = tmp_path / "suite.yaml"
+    original = SUITE.read_bytes()
+    suite.write_bytes(original)
+
+    with pytest.raises(typer.BadParameter, match="input aliases an owned output"):
+        compile_cmd(suite, out=suite, manifest=None)
+
+    assert suite.read_bytes() == original
+
+
+def test_suite_compile_rejects_hard_link_input_output_alias(tmp_path: Path) -> None:
+    suite = tmp_path / "suite.yaml"
+    output = tmp_path / "compiled.json"
+    suite.write_bytes(SUITE.read_bytes())
+    try:
+        output.hardlink_to(suite)
+    except OSError:
+        pytest.skip("hard links unavailable")
+    original = suite.read_bytes()
+
+    with pytest.raises(typer.BadParameter, match="input aliases an owned output"):
+        compile_cmd(suite, out=output, manifest=None)
+
+    assert suite.read_bytes() == original
+
+
 def test_suite_run_normalizes_unknown_runner_error(
     tmp_path, monkeypatch: pytest.MonkeyPatch
 ) -> None:  # type: ignore[no-untyped-def]

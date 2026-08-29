@@ -1,0 +1,179 @@
+{
+  "$defs": {
+    "SpanAttribute": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "span-attribute",
+          "default": "span-attribute",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "key": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Key",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.5",
+          "default": "0.6.5",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "value": {
+          "anyOf": [
+            {
+              "maxLength": 8192,
+              "type": "string"
+            },
+            {
+              "type": "integer"
+            },
+            {
+              "type": "boolean"
+            }
+          ],
+          "title": "Value"
+        }
+      },
+      "required": [
+        "key",
+        "value",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "SpanAttribute",
+      "type": "object"
+    },
+    "SpanEvent": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "span-event",
+          "default": "span-event",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "attributes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/SpanAttribute"
+          },
+          "maxItems": 64,
+          "title": "Attributes",
+          "type": "array"
+        },
+        "name": {
+          "maxLength": 255,
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+          "title": "Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.5",
+          "default": "0.6.5",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "SpanEvent",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.5/span-plan.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "span-plan",
+      "default": "span-plan",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "attributes": {
+      "items": {
+        "$ref": "#/$defs/SpanAttribute"
+      },
+      "maxItems": 128,
+      "title": "Attributes",
+      "type": "array"
+    },
+    "events": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/SpanEvent"
+      },
+      "maxItems": 128,
+      "title": "Events",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "0.6.5",
+      "default": "0.6.5",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "semconv_checksum": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Semconv Checksum",
+      "type": "string"
+    },
+    "semconv_commit": {
+      "maxLength": 128,
+      "minLength": 1,
+      "title": "Semconv Commit",
+      "type": "string"
+    },
+    "span_name": {
+      "maxLength": 255,
+      "minLength": 1,
+      "pattern": "^[A-Za-z][A-Za-z0-9_.-]*$",
+      "title": "Span Name",
+      "type": "string"
+    },
+    "traceparent": {
+      "anyOf": [
+        {
+          "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Traceparent"
+    },
+    "tracestate": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Tracestate"
+    }
+  },
+  "required": [
+    "span_name",
+    "attributes",
+    "semconv_commit",
+    "semconv_checksum",
+    "artifact_kind",
+    "schema_version"
+  ],
+  "title": "SpanPlan",
+  "type": "object"
+}

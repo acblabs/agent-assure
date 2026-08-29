@@ -352,6 +352,38 @@ def test_write_runset_redacts_sensitive_summaries_before_persistence(tmp_path) -
     assert loaded.runs[0].traceparent == traceparent
 
 
+def test_write_runset_refuses_an_artifact_the_loader_cannot_reopen(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    record = AgentRunRecord(
+        run_id="run-001",
+        case_id="case-001",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="plain",
+        output_summary="plain",
+    )
+    runset = RunSet(
+        runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(record,),
+    )
+    destination = tmp_path / "runset.json"
+    monkeypatch.setattr(fixture_runner_module, "MAX_ARTIFACT_JSON_BYTES", 1)
+
+    with pytest.raises(ValueError, match="artifact loader limit"):
+        write_runset(runset, destination)
+
+    assert not destination.exists()
+
+
 def test_write_runset_rejects_sensitive_preserved_decision_fields(tmp_path) -> None:  # type: ignore[no-untyped-def]
     record = AgentRunRecord(
         artifact_kind="agent-run-record",

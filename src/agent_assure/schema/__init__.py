@@ -32,7 +32,13 @@ from agent_assure.schema.efficacy import (
     ThreatApplicabilityManifest,
 )
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
-from agent_assure.schema.evaluation import EvaluationSummary, Finding
+from agent_assure.schema.evaluation import (
+    EvaluationGateProfileContext,
+    EvaluationReplayContext,
+    EvaluationSummary,
+    EvaluationWaiverContext,
+    Finding,
+)
 from agent_assure.schema.expectation import Expectation, ExpectationChangeRecord
 from agent_assure.schema.graph import AssuranceEvidenceGraph
 from agent_assure.schema.live import (
@@ -140,7 +146,10 @@ __all__ = [
     "DigestHex",
     "DetectorTestStatus",
     "EmergencyProcessRecord",
+    "EvaluationGateProfileContext",
+    "EvaluationReplayContext",
     "EvaluationSummary",
+    "EvaluationWaiverContext",
     "EnvironmentInfo",
     "EvidenceItem",
     "EvidencePacket",

@@ -65,14 +65,14 @@ def test_release_metadata_checkers_accept_current_files() -> None:
 def test_testpypi_runbook_pins_rc_and_stable_golden_regeneration_order() -> None:
     runbook = (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8")
     candidate_start = runbook.index("## TestPyPI Candidate")
-    rc_version = runbook.index('project.version = "0.6.4rc1"', candidate_start)
+    rc_version = runbook.index('project.version = "0.6.5rc1"', candidate_start)
     rc_regeneration = runbook.index(
         "python scripts/update_golden.py --update-golden",
         rc_version,
     )
     rc_commit = runbook.index("commit\n   the regenerated RC goldens", rc_regeneration)
     rc_release_check = runbook.index("make release-check", rc_commit)
-    stable_restore = runbook.index("restore the final package\nversion to `0.6.4`")
+    stable_restore = runbook.index("restore the final package\nversion to `0.6.5`")
     stable_regeneration = runbook.index(
         "python scripts/update_golden.py --update-golden",
         stable_restore,
@@ -144,6 +144,57 @@ def test_evidence_sensitivity_docs_pin_declarative_harness_claim_boundary() -> N
     )
     assert "Each arm starts from an independent setup path" in sensitivity
     assert "`RAGSensitivityCorpusSnapshot/v1`" in api_surface
+
+
+def test_finalize_docs_fail_closed_on_abrupt_partial_outputs() -> None:
+    cli_contract = (ROOT / "docs" / "cli_contract.md").read_text(encoding="utf-8")
+    normalized = " ".join(cli_contract.split())
+
+    assert "safe to retry after interruption" not in normalized
+    assert "A handled failure or abrupt process or host interruption" in normalized
+    assert "fails closed on a partial or differing entry" in normalized
+    assert "operator must inspect and remove that entry before retrying" in normalized
+    assert "persistent, rooted, single-link advisory lock files" in normalized
+    assert "never replaces or unlinks a final output name" in normalized
+
+
+def test_publication_docs_state_cross_platform_deadline_and_host_boundary() -> None:
+    limitations = (ROOT / "docs" / "limitations.md").read_text(encoding="utf-8")
+    sensitivity = (ROOT / "docs" / "evidence_sensitivity.md").read_text(encoding="utf-8")
+    repeated = (ROOT / "docs" / "repeated_evidence_sensitivity.md").read_text(encoding="utf-8")
+    cli_contract = (ROOT / "docs" / "cli_contract.md").read_text(encoding="utf-8")
+    normalized_limitations = " ".join(limitations.split())
+
+    assert "POSIX whole-file `flock`" in normalized_limitations
+    assert "renameat2(RENAME_NOREPLACE)" in normalized_limitations
+    assert "renameatx_np(RENAME_EXCL)" in normalized_limitations
+    assert "There is no check-then-rename fallback." in normalized_limitations
+    assert "clear_cluster_binomial_caches()" in normalized_limitations
+    normalized_sensitivity = " ".join(sensitivity.split())
+    normalized_repeated = " ".join(repeated.split())
+    normalized_cli_contract = " ".join(cli_contract.split())
+    normalized_documents = (
+        normalized_limitations,
+        normalized_sensitivity,
+        normalized_repeated,
+        normalized_cli_contract,
+    )
+    for document in normalized_documents:
+        assert "POSIX" in document
+    for document in (
+        normalized_limitations,
+        normalized_sensitivity,
+        normalized_repeated,
+        normalized_cli_contract,
+    ):
+        assert "one millisecond" in document
+    for document in (
+        normalized_limitations,
+        normalized_repeated,
+        normalized_cli_contract,
+    ):
+        assert "60-second monotonic deadline" in document
+    assert "60-second monotonic deadline" not in normalized_sensitivity
 
 
 def test_readme_local_image_asset_checker_rejects_missing_asset(

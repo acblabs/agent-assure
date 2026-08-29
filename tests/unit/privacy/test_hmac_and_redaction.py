@@ -9,6 +9,7 @@ import pytest
 import rfc8785
 
 import agent_assure.privacy.detectors as privacy_detectors
+from agent_assure.adapters.base import validate_privacy_filtered_mapping
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.policies.privacy import evaluate_redaction
 from agent_assure.privacy.detectors import (
@@ -20,6 +21,7 @@ from agent_assure.privacy.detectors import (
 )
 from agent_assure.privacy.redaction import (
     assert_runset_payload_safe_for_persistence,
+    assert_stream_payload_safe_for_persistence,
     redact_artifact_payload,
     redact_packet_payload,
     redact_runset_payload,
@@ -45,10 +47,19 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     assert manifest["profile_id"] == PRIVACY_PROFILE_ID
     assert PRIVACY_PROFILE_DIGEST == hashlib.sha256(rfc8785.dumps(manifest)).hexdigest()
     assert PRIVACY_PROFILE_DIGEST == (
-        "3213eeb63ecbb2ad0bf9681f83eb987c2638abff079955e75988af6b34b3ae53"
+        "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843"
     )
     assert manifest["unicode_scan_normalization"] == "NFKC"
     assert manifest["unicode_category_c_action"].startswith("remove-with-")
+    assert manifest["unicode_dash_action"] == "map-category-pd-and-u+2212-to-ascii-hyphen"
+    assert manifest["non_ascii_marker_policy"] == "run-all-detectors"
+    assert manifest["structured_mapping_action"] == (
+        "treat-nonempty-value-under-sensitive-or-non-ascii-key-as-sensitive"
+    )
+    assert manifest["structured_mapping_key_flags"] == ["IGNORECASE"]
+    assert "api[ ._-]*key" in manifest["structured_mapping_key_expression"]
+    assert manifest["structured_mapping_non_ascii_key_action"].startswith("treat-nonempty-")
+    assert manifest["structured_mapping_value_exemptions"] == ["", "[REDACTED]"]
     assert [item["pattern_id"] for item in manifest["detectors"]] == [
         "us-ssn",
         "email-address",
@@ -89,6 +100,25 @@ def test_privacy_profile_manifest_identity_changes_with_required_markers(
         privacy_detectors._REQUIRED_MARKERS,
         "email-address",
         ("@", "mailto:"),
+    )
+
+    after = hashlib.sha256(rfc8785.dumps(privacy_profile_manifest())).hexdigest()
+
+    assert after != before
+
+
+def test_privacy_profile_manifest_identity_changes_with_structured_key_expression(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    before = hashlib.sha256(rfc8785.dumps(privacy_profile_manifest())).hexdigest()
+    monkeypatch.setattr(
+        privacy_detectors,
+        "_SENSITIVE_MAPPING_KEY_DEFINITION",
+        privacy_detectors.PrivacyDetectorDefinition(
+            "structured-sensitive-mapping-key",
+            r"^(?:secret|password)$",
+            ("IGNORECASE",),
+        ),
     )
 
     after = hashlib.sha256(rfc8785.dumps(privacy_profile_manifest())).hexdigest()
@@ -176,6 +206,29 @@ def test_redaction_removes_sensitive_values() -> None:
 def test_privacy_scan_reconstructs_unicode_format_obfuscated_values(raw: str) -> None:
     assert contains_sensitive_value(raw)
     assert redact_text(raw) == "[REDACTED]"
+
+
+@pytest.mark.parametrize(
+    "raw",
+    (
+        "ap\u0131_key=abcdefgh1234",
+        "pat\u0131ent: Jane Example",
+    ),
+)
+def test_privacy_scan_does_not_optimize_away_unicode_ignorecase_matches(raw: str) -> None:
+    assert contains_sensitive_value(raw)
+    assert redact_text(raw) == "[REDACTED]"
+
+
+@pytest.mark.parametrize("dash", ("\u2010", "\u2011", "\u2012", "\u2013", "\u2014", "\u2212"))
+def test_privacy_scan_reconstructs_unicode_dash_identifiers(dash: str) -> None:
+    ssn = dash.join(("123", "45", "6789"))
+    card = dash.join(("4111", "1111", "1111", "1111"))
+
+    assert contains_sensitive_value(ssn)
+    assert contains_sensitive_value(card)
+    assert redact_text(ssn) == "[REDACTED]"
+    assert redact_text(card) == "[REDACTED]"
 
 
 @pytest.mark.parametrize("ensure_ascii", (False, True))
@@ -329,6 +382,42 @@ def test_redaction_scans_mapping_keys_without_silent_collision() -> None:
         )
 
 
+@pytest.mark.parametrize(
+    "label",
+    (
+        "api_key",
+        "api key",
+        "api  key",
+        "api.key",
+        "access token",
+        "private key",
+        "api_k\u0435y",
+        "c\u04cfient secret",
+    ),
+)
+def test_structured_key_value_pairs_are_scanned_as_assignments(label: str) -> None:
+    payload = {label: "abc123"}
+
+    assert redact_artifact_payload(payload) == {label: "[REDACTED]"}
+    with pytest.raises(ValueError, match="mapping entry"):
+        assert_runset_payload_safe_for_persistence(payload)
+    with pytest.raises(ValueError, match="mapping entry"):
+        assert_stream_payload_safe_for_persistence(payload)
+    with pytest.raises(ValueError, match="mapping keys|compact filtered token"):
+        validate_privacy_filtered_mapping(payload, owner="attributes")
+
+
+def test_sensitive_mapping_labels_redact_short_values_and_preserve_only_sentinels() -> None:
+    assert redact_packet_payload({"password": "hunter2"}) == {"password": "[REDACTED]"}
+    assert redact_packet_payload({"api key": "x"}) == {"api key": "[REDACTED]"}
+    assert redact_packet_payload({"password": ""}) == {"password": ""}
+    assert redact_packet_payload({"password": "[REDACTED]"}) == {"password": "[REDACTED]"}
+
+
+def test_non_ascii_mapping_keys_fail_closed_for_nonempty_values() -> None:
+    assert redact_packet_payload({"caf\u00e9": "menu"}) == {"caf\u00e9": "[REDACTED]"}
+
+
 def test_runset_persistence_rejects_sensitive_and_control_mapping_keys() -> None:
     with pytest.raises(ValueError, match="mapping key"):
         assert_runset_payload_safe_for_persistence({"jane@example.com": "safe"})
@@ -337,15 +426,20 @@ def test_runset_persistence_rejects_sensitive_and_control_mapping_keys() -> None
 
 
 def test_runset_redaction_recurses_persisted_record_fields() -> None:
+    design_digest = "b" * 64
     payload = {
         "artifact_kind": "run-set",
+        "evidence_sensitivity_design_digest": design_digest,
         "runs": [
             {
                 "input_summary": "plain",
                 "output_summary": "plain",
                 "traceparent": "00-11111111111111111111111111111111-2222222222222222-01",
                 "claims": [{"claim_id": "c1", "text": "api_key=abcdef1234567890"}],
-                "provenance": {"configuration_digest": "a" * 64},
+                "provenance": {
+                    "configuration_digest": "a" * 64,
+                    "evidence_sensitivity_design_digest": design_digest,
+                },
             }
         ],
     }
@@ -353,11 +447,28 @@ def test_runset_redaction_recurses_persisted_record_fields() -> None:
     redacted = redact_runset_payload(payload)
 
     assert "abcdef1234567890" not in str(redacted)
+    assert redacted["evidence_sensitivity_design_digest"] == design_digest
     assert redacted["runs"][0]["provenance"]["configuration_digest"] == "a" * 64
+    assert redacted["runs"][0]["provenance"]["evidence_sensitivity_design_digest"] == design_digest
     assert (
         redacted["runs"][0]["traceparent"]
         == "00-11111111111111111111111111111111-2222222222222222-01"
     )
+    assert_runset_payload_safe_for_persistence(redacted)
+
+
+def test_runset_design_commitment_digest_fails_closed_on_raw_secret() -> None:
+    payload = {
+        "artifact_kind": "run-set",
+        "evidence_sensitivity_design_digest": "api_key=abcdef1234567890",
+        "runs": [],
+    }
+
+    redacted = redact_runset_payload(payload)
+
+    assert redacted["evidence_sensitivity_design_digest"] == "[REDACTED]"
+    with pytest.raises(ValueError, match="evidence_sensitivity_design_digest"):
+        assert_runset_payload_safe_for_persistence(payload)
 
 
 def test_redaction_recurses_nested_values_under_preserved_keys() -> None:

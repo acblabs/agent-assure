@@ -5,8 +5,9 @@ import json
 import os
 from collections.abc import Mapping
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
-from typing import Generic, TypeVar
+from typing import TYPE_CHECKING, Generic, TypeVar
 
 from pydantic import BaseModel
 
@@ -22,7 +23,11 @@ from agent_assure.onboarding.path_safety import (
     confined_snapshot_relative_path,
     read_confined_file_snapshot,
 )
-from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.privacy.redaction import (
+    assert_runset_payload_safe_for_persistence,
+    redact_packet_payload,
+    redact_runset_payload,
+)
 from agent_assure.reporting.markdown_safety import (
     markdown_code_span,
     markdown_text,
@@ -38,7 +43,7 @@ from agent_assure.schema.efficacy import (
     ExactRate,
 )
 from agent_assure.schema.environment import EnvironmentInfo
-from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.evaluation import EvaluationReplayContext, EvaluationSummary
 from agent_assure.schema.graph import (
     AssuranceEvidenceGraph,
     EvidenceGraphSubjectPayload,
@@ -51,7 +56,13 @@ from agent_assure.schema.packet import (
     packet_summary_digest_binding_error,
 )
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
+from agent_assure.schema.run import RunSet
 from agent_assure.schema.sensitivity import RAGSensitivityReport
+from agent_assure.schema.stochastic_sensitivity import (
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
+)
+from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.usage import UsageSummary
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
@@ -60,6 +71,10 @@ from agent_assure.schema.validation import (
 )
 from agent_assure.sensitivity_contract import SENSITIVITY_HARNESS_NOTICE
 from agent_assure.usage.aggregation import format_usage_delta
+
+if TYPE_CHECKING:
+    from agent_assure.evaluation.evaluator import EvaluationReport
+    from agent_assure.policies.base import GateProfile, Waiver
 
 DEFAULT_PACKET_LIMITATIONS = (
     "evidence packets summarize deterministic fixture-mode results; they are not "
@@ -88,6 +103,14 @@ _TRUSTED_CAPTURED_SOURCE_ROLES = frozenset(
     {
         "control-efficacy-report",
         "control-efficacy-onboarding-config",
+        "stochastic-baseline-source-runset",
+        "stochastic-counterfactual-source-runset",
+    }
+)
+_REVALIDATED_CAPTURED_SOURCE_ROLES = frozenset(
+    {
+        "stochastic-baseline-source-runset",
+        "stochastic-counterfactual-source-runset",
     }
 )
 SummaryT = TypeVar(
@@ -96,6 +119,8 @@ SummaryT = TypeVar(
     ComparisonSummary,
     AssuranceEvidenceGraph,
     RAGSensitivityReport,
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
 )
 GraphSourceT = TypeVar("GraphSourceT", bound=BaseModel)
 
@@ -109,10 +134,75 @@ class PacketSummaryFileSnapshot(Generic[SummaryT]):
 
 @dataclass(frozen=True)
 class PacketSourceFileSnapshot:
-    """One descriptor snapshot bound to its pre-read lexical artifact path."""
+    """One bounded descriptor snapshot with its confined manifest path."""
 
     contents: BoundedFileContents
     relative_path: str
+
+
+def stochastic_source_runsets_binding_error(
+    packet: EvidencePacket,
+    *,
+    source_runsets: tuple[RunSet, RunSet],
+) -> str | None:
+    """Recompute stochastic dependencies from two exact, privacy-safe RunSets.
+
+    The tuple order is baseline then counterfactual. Whole-RunSet and every
+    member-record digest are recomputed by the paired dependency builder and
+    must exactly equal the dependency objects embedded in statistical
+    sufficiency. The sufficiency model has already checked that its observation
+    manifest names exactly those dependency records.
+    """
+
+    if not isinstance(source_runsets, tuple) or len(source_runsets) != 2:
+        return "stochastic evidence requires exact baseline and counterfactual RunSets"
+    try:
+        packet = EvidencePacket.model_validate(packet.model_dump(mode="json", warnings="error"))
+        if packet.stochastic_evidence_sensitivity is None:
+            return "stochastic source RunSets require nested stochastic evidence"
+        sufficiency = packet.statistical_sufficiency
+        if sufficiency is None:
+            return "stochastic evidence requires nested statistical sufficiency"
+        baseline = _unchanged_privacy_safe_runset(source_runsets[0])
+        counterfactual = _unchanged_privacy_safe_runset(source_runsets[1])
+        from agent_assure.rag.repeated_sensitivity import (
+            assemble_paired_observations,
+            build_paired_runset_dependencies,
+        )
+
+        expected_dependencies = build_paired_runset_dependencies(
+            sufficiency.protocol,
+            baseline,
+            counterfactual,
+        )
+        expected_observations = assemble_paired_observations(
+            sufficiency.protocol,
+            baseline,
+            counterfactual,
+        )
+    except (AttributeError, RuntimeError, TypeError, ValueError):
+        return "stochastic source RunSets could not be safely revalidated"
+    if expected_dependencies != sufficiency.source_runsets:
+        return (
+            "stochastic source RunSet and record digests do not exactly match "
+            "statistical sufficiency dependencies"
+        )
+    if expected_observations != sufficiency.observations:
+        return "stochastic observations do not exactly reassemble from the source RunSets"
+    return None
+
+
+def _unchanged_privacy_safe_runset(runset: RunSet) -> RunSet:
+    runset = RunSet.model_validate(runset.model_dump(mode="json", warnings="error"))
+    payload = runset.model_dump(mode="json", warnings="error")
+    filtered = redact_runset_payload(payload)
+    assert_runset_payload_safe_for_persistence(filtered)
+    if filtered != payload:
+        raise ValueError(
+            "stochastic source RunSets must already be privacy-filtered because "
+            "redaction would invalidate their cryptographic dependencies"
+        )
+    return runset
 
 
 def build_privacy_filtered_evidence_graph(
@@ -120,6 +210,8 @@ def build_privacy_filtered_evidence_graph(
     *,
     comparison: ComparisonSummary | None = None,
     evidence_sensitivity: RAGSensitivityReport | None = None,
+    statistical_sufficiency: StatisticalSufficiencyReport | None = None,
+    stochastic_evidence_sensitivity: StochasticEvidenceSensitivityReport | None = None,
     mutation_results: tuple[AssuranceMutationResult, ...] = (),
     control_efficacy: ControlEfficacyReport | None = None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None = None,
@@ -135,6 +227,14 @@ def build_privacy_filtered_evidence_graph(
     graph_sensitivity = _privacy_filtered_optional_graph_source(
         evidence_sensitivity,
         RAGSensitivityReport,
+    )
+    graph_statistical_sufficiency = _privacy_filtered_optional_graph_source(
+        statistical_sufficiency,
+        StatisticalSufficiencyReport,
+    )
+    graph_stochastic_sensitivity = _privacy_filtered_optional_graph_source(
+        stochastic_evidence_sensitivity,
+        StochasticEvidenceSensitivityReport,
     )
     graph_mutation_results = tuple(
         _privacy_filtered_graph_source(result, AssuranceMutationResult)
@@ -161,6 +261,8 @@ def build_privacy_filtered_evidence_graph(
         evaluation=graph_evaluation,
         comparison=graph_comparison,
         evidence_sensitivity=graph_sensitivity,
+        statistical_sufficiency=graph_statistical_sufficiency,
+        stochastic_evidence_sensitivity=graph_stochastic_sensitivity,
         mutation_results=graph_mutation_results,
         control_efficacy=graph_efficacy,
         gate_profile=graph_profile,
@@ -190,6 +292,27 @@ def load_evidence_sensitivity_report(path: Path) -> RAGSensitivityReport:
         load_validated_artifact_payload(path, "evidence-sensitivity-report"),
         RAGSensitivityReport,
         kind="evidence-sensitivity-report",
+    )
+
+
+def load_statistical_sufficiency_report(path: Path) -> StatisticalSufficiencyReport:
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(path, "statistical-sufficiency-report"),
+        StatisticalSufficiencyReport,
+        kind="statistical-sufficiency-report",
+    )
+
+
+def load_stochastic_evidence_sensitivity_report(
+    path: Path,
+) -> StochasticEvidenceSensitivityReport:
+    return project_validated_artifact_payload(
+        load_validated_artifact_payload(
+            path,
+            "stochastic-evidence-sensitivity-report",
+        ),
+        StochasticEvidenceSensitivityReport,
+        kind="stochastic-evidence-sensitivity-report",
     )
 
 
@@ -238,6 +361,36 @@ def load_evidence_sensitivity_report_snapshot(
     )
 
 
+def load_statistical_sufficiency_report_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+) -> PacketSummaryFileSnapshot[StatisticalSufficiencyReport]:
+    return _load_packet_summary_snapshot(
+        path,
+        root=root,
+        artifact_root=artifact_root,
+        kind="statistical-sufficiency-report",
+        model=StatisticalSufficiencyReport,
+    )
+
+
+def load_stochastic_evidence_sensitivity_report_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+) -> PacketSummaryFileSnapshot[StochasticEvidenceSensitivityReport]:
+    return _load_packet_summary_snapshot(
+        path,
+        root=root,
+        artifact_root=artifact_root,
+        kind="stochastic-evidence-sensitivity-report",
+        model=StochasticEvidenceSensitivityReport,
+    )
+
+
 def load_evidence_graph_snapshot(
     path: Path,
     *,
@@ -261,13 +414,12 @@ def load_packet_source_file_snapshot(
     max_bytes: int,
     label: str,
 ) -> PacketSourceFileSnapshot:
-    """Capture source bytes and their immutable, confined manifest path once.
+    """Capture source bytes under the established producer-snapshot contract.
 
     The manifest path is derived lexically before opening the source and never
     from a later live-path resolution. The bounded read independently enforces
-    the normal rooted, no-link identity policy. A rename or link swap after the
-    descriptor snapshot therefore cannot rebind the captured bytes to a
-    different release-manifest path.
+    the normal rooted, no-link policy. Existing control-efficacy publication
+    intentionally consumes the captured descriptor bytes under this contract.
     """
     relative_path = _lexical_artifact_relative_path(
         path,
@@ -278,6 +430,34 @@ def load_packet_source_file_snapshot(
         path,
         root=root,
         max_bytes=max_bytes,
+        label=label,
+    )
+    return PacketSourceFileSnapshot(
+        contents=contents,
+        relative_path=relative_path,
+    )
+
+
+def load_identity_bound_packet_source_file_snapshot(
+    path: Path,
+    *,
+    root: Path,
+    artifact_root: Path,
+    max_bytes: int,
+    label: str,
+) -> PacketSourceFileSnapshot:
+    """Capture bytes only while the source retains its descriptor path identity."""
+    contents = read_confined_file_snapshot(
+        path,
+        root=root,
+        max_bytes=max_bytes,
+        label=label,
+    )
+    relative_path = confined_snapshot_relative_path(
+        path,
+        contents,
+        root=root,
+        path_root=artifact_root,
         label=label,
     )
     return PacketSourceFileSnapshot(
@@ -346,7 +526,10 @@ def packet_artifact_digest_from_snapshot(
     snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
     | PacketSummaryFileSnapshot[ComparisonSummary]
     | PacketSummaryFileSnapshot[AssuranceEvidenceGraph]
-    | PacketSummaryFileSnapshot[RAGSensitivityReport],
+    | PacketSummaryFileSnapshot[RAGSensitivityReport]
+    | PacketSummaryFileSnapshot[StatisticalSufficiencyReport]
+    | PacketSummaryFileSnapshot[StochasticEvidenceSensitivityReport]
+    | PacketSourceFileSnapshot,
 ) -> PacketArtifactDigest:
     return PacketArtifactDigest(role=role, sha256=snapshot.contents.sha256)
 
@@ -356,7 +539,9 @@ def release_artifact_from_summary_snapshot(
     snapshot: PacketSummaryFileSnapshot[EvaluationSummary]
     | PacketSummaryFileSnapshot[ComparisonSummary]
     | PacketSummaryFileSnapshot[AssuranceEvidenceGraph]
-    | PacketSummaryFileSnapshot[RAGSensitivityReport],
+    | PacketSummaryFileSnapshot[RAGSensitivityReport]
+    | PacketSummaryFileSnapshot[StatisticalSufficiencyReport]
+    | PacketSummaryFileSnapshot[StochasticEvidenceSensitivityReport],
 ) -> ReleaseArtifact:
     return ReleaseArtifact(
         role=role,
@@ -427,8 +612,11 @@ def packet_summary_files_binding_error_for_trusted_publication(
     packets must use ``packet_summary_files_binding_error`` so the projection is
     reconstructed independently. The captured snapshot mapping is a bounded
     producer-only subset for source artifacts whose typed parsing and digest were
-    already derived from one descriptor snapshot; those paths are not reopened.
-    Every other manifest path is independently reopened and identity-verified.
+    already derived from one descriptor snapshot. Stochastic source RunSets are
+    independently reopened at this final publication boundary and must retain
+    both their captured identity and exact bytes. Other manifest paths are
+    independently reopened unless their established producer contract explicitly
+    permits the captured descriptor snapshot.
     """
     if not isinstance(expected_graph, AssuranceEvidenceGraph):
         return "expected assurance-evidence-graph projection has an invalid type"
@@ -470,11 +658,12 @@ def _packet_summary_files_binding_error_from_paths(
     manifest_snapshots: dict[str, BoundedFileContents] = {}
     aggregate_bytes = 0
     for release_artifact in validated_packet.release_manifest.artifacts:
-        contents = captured_snapshots.get(release_artifact.path)
-        if contents is None:
+        captured_contents = captured_snapshots.get(release_artifact.path)
+        contents = captured_contents
+        if contents is None or release_artifact.role in _REVALIDATED_CAPTURED_SOURCE_ROLES:
             source_path = artifact_root.absolute() / Path(release_artifact.path)
             try:
-                contents = read_confined_file_snapshot(
+                live_contents = read_confined_file_snapshot(
                     source_path,
                     root=artifact_root,
                     max_bytes=MAX_ARTIFACT_JSON_BYTES,
@@ -482,7 +671,7 @@ def _packet_summary_files_binding_error_from_paths(
                 )
                 relative_path = confined_snapshot_relative_path(
                     source_path,
-                    contents,
+                    live_contents,
                     root=artifact_root,
                     path_root=artifact_root,
                     label=f"release manifest {release_artifact.role} artifact",
@@ -497,6 +686,16 @@ def _packet_summary_files_binding_error_from_paths(
                     f"evidence packet {release_artifact.role} manifest path is not "
                     "normalized and confined"
                 )
+            if captured_contents is not None:
+                captured_change_error = _captured_source_change_error(
+                    release_artifact.role,
+                    captured=captured_contents,
+                    live=live_contents,
+                )
+                if captured_change_error is not None:
+                    return captured_change_error
+            contents = live_contents
+        assert contents is not None
         snapshot_error, aggregate_bytes = _manifest_snapshot_binding_error(
             release_artifact,
             contents,
@@ -510,6 +709,31 @@ def _packet_summary_files_binding_error_from_paths(
         snapshots_by_path=manifest_snapshots,
         trusted_expected_graph=trusted_expected_graph,
     )
+
+
+def _captured_source_change_error(
+    role: str,
+    *,
+    captured: BoundedFileContents,
+    live: BoundedFileContents,
+) -> str | None:
+    if live.data != captured.data or live.sha256 != captured.sha256 or live.size != captured.size:
+        return f"evidence packet {role} contents changed after its producer snapshot"
+    captured_identity = (
+        captured.device,
+        captured.inode,
+        captured.modified_ns,
+        captured.changed_ns,
+    )
+    live_identity = (
+        live.device,
+        live.inode,
+        live.modified_ns,
+        live.changed_ns,
+    )
+    if live_identity != captured_identity:
+        return f"evidence packet {role} path identity changed after its producer snapshot"
+    return None
 
 
 def _prepare_packet_binding_verification(
@@ -570,6 +794,16 @@ def _untrusted_packet_missing_manifest_role_error(
         required_roles.append("comparison-summary")
     if isinstance(packet_payload.get("evidence_sensitivity"), Mapping):
         required_roles.append("evidence-sensitivity-report")
+    if isinstance(packet_payload.get("statistical_sufficiency"), Mapping):
+        required_roles.append("statistical-sufficiency-report")
+    if isinstance(packet_payload.get("stochastic_evidence_sensitivity"), Mapping):
+        required_roles.append("stochastic-evidence-sensitivity-report")
+        required_roles.extend(
+            (
+                "stochastic-baseline-source-runset",
+                "stochastic-counterfactual-source-runset",
+            )
+        )
     if isinstance(packet_payload.get("evidence_graph_digest"), str):
         required_roles.append("assurance-evidence-graph")
     for role in required_roles:
@@ -608,7 +842,11 @@ def _packet_summary_snapshots_binding_error(
     summaries: tuple[
         tuple[
             PacketArtifactRole,
-            EvaluationSummary | ComparisonSummary | RAGSensitivityReport,
+            EvaluationSummary
+            | ComparisonSummary
+            | RAGSensitivityReport
+            | StatisticalSufficiencyReport
+            | StochasticEvidenceSensitivityReport,
         ],
         ...,
     ] = (("evaluation-summary", packet.evaluation),)
@@ -621,6 +859,19 @@ def _packet_summary_snapshots_binding_error(
         summaries = (
             *summaries,
             ("evidence-sensitivity-report", packet.evidence_sensitivity),
+        )
+    if packet.statistical_sufficiency is not None:
+        summaries = (
+            *summaries,
+            ("statistical-sufficiency-report", packet.statistical_sufficiency),
+        )
+    if packet.stochastic_evidence_sensitivity is not None:
+        summaries = (
+            *summaries,
+            (
+                "stochastic-evidence-sensitivity-report",
+                packet.stochastic_evidence_sensitivity,
+            ),
         )
     manifest_by_role = {item.role: item for item in packet.release_manifest.artifacts}
     for role, nested_summary in summaries:
@@ -641,16 +892,59 @@ def _packet_summary_snapshots_binding_error(
                     artifact_kind=role,
                     model=ComparisonSummary,
                 )
-            else:
+            elif role == "evidence-sensitivity-report":
                 summary = _project_manifest_json_snapshot(
                     snapshot_map[manifest_artifact.path],
                     artifact_kind=role,
                     model=RAGSensitivityReport,
                 )
+            elif role == "statistical-sufficiency-report":
+                summary = _project_manifest_json_snapshot(
+                    snapshot_map[manifest_artifact.path],
+                    artifact_kind=role,
+                    model=StatisticalSufficiencyReport,
+                )
+            else:
+                summary = _project_manifest_json_snapshot(
+                    snapshot_map[manifest_artifact.path],
+                    artifact_kind=role,
+                    model=StochasticEvidenceSensitivityReport,
+                )
         except (OSError, UnicodeError, ValueError):
             return f"evidence packet {role} source file could not be safely verified"
         if summary != nested_summary:
             return f"evidence packet {role} source file does not match nested summary"
+    evaluation_source_error = _evaluation_source_binding_error(
+        packet,
+        manifest_by_role=manifest_by_role,
+        snapshots_by_path=snapshot_map,
+    )
+    if evaluation_source_error is not None:
+        return evaluation_source_error
+    if packet.stochastic_evidence_sensitivity is not None:
+        baseline_role: PacketArtifactRole = "stochastic-baseline-source-runset"
+        counterfactual_role: PacketArtifactRole = "stochastic-counterfactual-source-runset"
+        baseline_artifact = manifest_by_role.get(baseline_role)
+        counterfactual_artifact = manifest_by_role.get(counterfactual_role)
+        if baseline_artifact is None or counterfactual_artifact is None:
+            return "evidence packet stochastic source RunSets are missing from the release manifest"
+        try:
+            baseline_source = _project_runset_snapshot(
+                snapshot_map[baseline_artifact.path],
+                role=baseline_role,
+            )
+            counterfactual_source = _project_runset_snapshot(
+                snapshot_map[counterfactual_artifact.path],
+                role=counterfactual_role,
+            )
+        except (OSError, RuntimeError, TypeError, UnicodeError, ValueError):
+            return "evidence packet stochastic source RunSets could not be safely verified"
+        source_binding_error = stochastic_source_runsets_binding_error(
+            packet,
+            source_runsets=(baseline_source, counterfactual_source),
+        )
+        if source_binding_error is not None:
+            return source_binding_error
     if packet.evidence_graph_digest is not None:
         graph_role: PacketArtifactRole = "assurance-evidence-graph"
         manifest_artifact = manifest_by_role.get(graph_role)
@@ -677,6 +971,8 @@ def _packet_summary_snapshots_binding_error(
                     packet.evaluation,
                     comparison=packet.comparison,
                     evidence_sensitivity=packet.evidence_sensitivity,
+                    statistical_sufficiency=packet.statistical_sufficiency,
+                    stochastic_evidence_sensitivity=(packet.stochastic_evidence_sensitivity),
                     control_efficacy=packet.control_efficacy,
                     control_efficacy_gate_profile=packet.control_efficacy_gate_profile,
                     control_efficacy_gate=packet.control_efficacy_gate,
@@ -693,6 +989,265 @@ def _packet_summary_snapshots_binding_error(
                 "nested packet evidence"
             )
     return None
+
+
+def _evaluation_source_binding_error(
+    packet: EvidencePacket,
+    *,
+    manifest_by_role: Mapping[str, ReleaseArtifact],
+    snapshots_by_path: Mapping[str, BoundedFileContents],
+) -> str | None:
+    """Bind packet decisions to exact sources without assuming missing policy inputs."""
+
+    candidate_artifact = manifest_by_role.get("candidate-runset")
+    suite_artifact = manifest_by_role.get("compiled-suite")
+    baseline_artifact = manifest_by_role.get("baseline-runset")
+    comparison = packet.comparison
+    if baseline_artifact is not None and comparison is None:
+        return "evidence packet baseline-runset requires a nested comparison summary"
+    if (
+        comparison is not None
+        and (candidate_artifact is not None or suite_artifact is not None)
+        and baseline_artifact is None
+    ):
+        return (
+            "evidence packet comparison with candidate evaluation sources requires "
+            "a baseline-runset"
+        )
+    if candidate_artifact is None and suite_artifact is None and baseline_artifact is None:
+        return None
+    if candidate_artifact is None:
+        if suite_artifact is None:
+            assert baseline_artifact is not None
+            assert comparison is not None
+            try:
+                standalone_baseline = _project_runset_snapshot(
+                    snapshots_by_path[baseline_artifact.path],
+                    role="baseline-runset",
+                )
+            except (KeyError, OSError, RuntimeError, TypeError, UnicodeError, ValueError):
+                return "evidence packet baseline-runset could not be safely verified"
+            return _comparison_runset_identity_binding_error(
+                comparison,
+                baseline=standalone_baseline,
+            )
+        return (
+            "evidence packet compiled-suite requires a candidate-runset for "
+            "independent source verification"
+        )
+    if suite_artifact is None:
+        return (
+            "evidence packet candidate-runset requires a compiled-suite for "
+            "independent source verification"
+        )
+    if packet.evaluation.runset_digest is None:
+        return (
+            "evidence packet evaluation is missing runset_digest required to bind "
+            "the manifest candidate-runset"
+        )
+    replay_context = packet.evaluation.replay_context
+    if replay_context is None:
+        return (
+            "evidence packet evaluation is missing authenticated replay_context "
+            "required for manifest source verification"
+        )
+    try:
+        candidate = _project_runset_snapshot(
+            snapshots_by_path[candidate_artifact.path],
+            role="candidate-runset",
+        )
+        suite = _project_compiled_suite_snapshot(
+            snapshots_by_path[suite_artifact.path],
+        )
+        baseline = (
+            _project_runset_snapshot(
+                snapshots_by_path[baseline_artifact.path],
+                role="baseline-runset",
+            )
+            if baseline_artifact is not None
+            else None
+        )
+        from agent_assure.evaluation.evaluator import (
+            evaluate_runset,
+            validate_runset_compatibility,
+        )
+        from agent_assure.fixtures.loader import compiled_suite_digest
+        from agent_assure.policies.base import GateProfile, Waiver
+
+        if replay_context.suite_digest != compiled_suite_digest(suite):
+            return (
+                "evidence packet evaluation replay_context suite_digest does not match "
+                "manifest compiled-suite"
+            )
+        gate_profile = GateProfile.model_validate(
+            replay_context.gate_profile.model_dump(mode="python")
+        )
+        waivers = tuple(
+            Waiver(
+                waiver_id=waiver.waiver_id,
+                owner="authenticated-replay-context",
+                rationale="authenticated scoring-semantic replay projection",
+                reason_code=waiver.reason_code,
+                finding_id=waiver.finding_id,
+                artifact_digest=waiver.artifact_digest,
+                expires_on=waiver.expires_on,
+                reviewer="authenticated-replay-context",
+            )
+            for waiver in replay_context.waivers
+        )
+        validate_runset_compatibility(suite, candidate)
+        candidate_report = evaluate_runset(
+            suite,
+            candidate,
+            gate_profile=gate_profile,
+            waivers=waivers,
+            today=replay_context.evaluation_date,
+        )
+    except (KeyError, OSError, RuntimeError, TypeError, UnicodeError, ValueError):
+        return (
+            "evidence packet manifest RunSets could not be safely verified against "
+            "compiled-suite"
+        )
+    reproduced_evaluation = _replayed_evaluation_summary(
+        candidate_report,
+        replay_context=replay_context,
+    )
+    if _summary_without_environment(packet.evaluation) != _summary_without_environment(
+        reproduced_evaluation
+    ):
+        return (
+            "evidence packet evaluation does not match independent evaluation of the "
+            "manifest candidate-runset, compiled-suite, and authenticated replay_context"
+        )
+    if comparison is None:
+        return None
+    assert baseline is not None
+    identity_error = _comparison_runset_identity_binding_error(
+        comparison,
+        baseline=baseline,
+        candidate=candidate,
+    )
+    if identity_error is not None:
+        return identity_error
+    try:
+        validate_runset_compatibility(suite, baseline)
+        reproduced_comparison = _replayed_comparison_summary(
+            suite,
+            baseline=baseline,
+            candidate=candidate,
+            gate_profile=gate_profile,
+            waivers=waivers,
+            evaluation_date=replay_context.evaluation_date,
+        )
+    except (OSError, RuntimeError, TypeError, UnicodeError, ValueError):
+        return "evidence packet comparison sources could not be safely replayed"
+    if _summary_without_environment(comparison) != _summary_without_environment(
+        reproduced_comparison
+    ):
+        return (
+            "evidence packet comparison does not match independent comparison of the "
+            "manifest baseline-runset, candidate-runset, compiled-suite, and "
+            "authenticated replay_context"
+        )
+    return None
+
+
+def _replayed_evaluation_summary(
+    report: EvaluationReport,
+    *,
+    replay_context: EvaluationReplayContext,
+) -> EvaluationSummary:
+    summary = report.candidate_vs_expectations.model_copy(
+        update={"replay_context": replay_context}
+    )
+    if replay_context.report_mode == "fail-fast":
+        first = next((finding for finding in report.failed_controls), None)
+        if first is not None:
+            summary = summary.model_copy(update={"findings": (first,)})
+    return summary
+
+
+def _summary_without_environment(summary: BaseModel) -> dict[str, object]:
+    return summary.model_dump(
+        mode="json",
+        warnings="error",
+        exclude={"environment"},
+    )
+
+
+def _comparison_runset_identity_binding_error(
+    comparison: ComparisonSummary,
+    *,
+    baseline: RunSet,
+    candidate: RunSet | None = None,
+) -> str | None:
+    from agent_assure.evaluation.evaluator import runset_digest
+
+    if (
+        comparison.baseline_runset_id,
+        comparison.baseline_runset_digest,
+    ) != (baseline.runset_id, runset_digest(baseline)):
+        return (
+            "evidence packet comparison baseline identity does not match manifest "
+            "baseline-runset"
+        )
+    if (
+        comparison.privacy_profile_id,
+        comparison.privacy_profile_digest,
+    ) != (baseline.privacy_profile_id, baseline.privacy_profile_digest):
+        return (
+            "evidence packet comparison privacy profile does not match manifest "
+            "baseline-runset"
+        )
+    if candidate is None:
+        return None
+    if (
+        comparison.candidate_runset_id,
+        comparison.candidate_runset_digest,
+    ) != (candidate.runset_id, runset_digest(candidate)):
+        return (
+            "evidence packet comparison candidate identity does not match manifest "
+            "candidate-runset"
+        )
+    if (
+        comparison.privacy_profile_id,
+        comparison.privacy_profile_digest,
+    ) != (candidate.privacy_profile_id, candidate.privacy_profile_digest):
+        return (
+            "evidence packet comparison privacy profile does not match manifest "
+            "candidate-runset"
+        )
+    return None
+
+
+def _replayed_comparison_summary(
+    suite: CompiledSuite,
+    *,
+    baseline: RunSet,
+    candidate: RunSet,
+    gate_profile: GateProfile,
+    waivers: tuple[Waiver, ...],
+    evaluation_date: date,
+) -> ComparisonSummary:
+    from agent_assure.compare.runsets import (
+        InvalidComparisonError,
+        compare_runsets,
+    )
+
+    try:
+        report = compare_runsets(
+            suite,
+            baseline,
+            candidate,
+            gate_profile=gate_profile,
+            waivers=waivers,
+            today=evaluation_date,
+        )
+    except InvalidComparisonError as exc:
+        if exc.report is None:
+            raise
+        report = exc.report
+    return report.comparison_summary
 
 
 def _manifest_paths_binding_error(manifest: ReleaseArtifactManifest) -> str | None:
@@ -809,11 +1364,42 @@ def _project_manifest_json_snapshot(
     return project_validated_artifact_payload(payload, model, kind=artifact_kind)
 
 
+def _project_runset_snapshot(
+    contents: BoundedFileContents,
+    *,
+    role: str,
+) -> RunSet:
+    payload = load_json_bytes_bounded(
+        contents.data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=role.replace("-", " "),
+    )
+    validate_loaded_artifact_payload(payload, "run-set")
+    runset = project_validated_artifact_payload(payload, RunSet, kind="run-set")
+    return _unchanged_privacy_safe_runset(runset)
+
+
+def _project_compiled_suite_snapshot(contents: BoundedFileContents) -> CompiledSuite:
+    payload = load_json_bytes_bounded(
+        contents.data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label="compiled suite",
+    )
+    validate_loaded_artifact_payload(payload, "compiled-suite")
+    return project_validated_artifact_payload(
+        payload,
+        CompiledSuite,
+        kind="compiled-suite",
+    )
+
+
 def build_evidence_packet(
     evaluation: EvaluationSummary,
     *,
     comparison: ComparisonSummary | None = None,
     evidence_sensitivity: RAGSensitivityReport | None = None,
+    statistical_sufficiency: StatisticalSufficiencyReport | None = None,
+    stochastic_evidence_sensitivity: StochasticEvidenceSensitivityReport | None = None,
     control_efficacy: ControlEfficacyReport | None = None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None = None,
     control_efficacy_gate: ControlEfficacyGateDecision | None = None,
@@ -830,6 +1416,8 @@ def build_evidence_packet(
         evaluation,
         comparison=comparison,
         evidence_sensitivity=evidence_sensitivity,
+        statistical_sufficiency=statistical_sufficiency,
+        stochastic_evidence_sensitivity=stochastic_evidence_sensitivity,
         control_efficacy=control_efficacy,
         control_efficacy_gate_profile=control_efficacy_gate_profile,
         control_efficacy_gate=control_efficacy_gate,
@@ -844,6 +1432,8 @@ def build_evidence_packet(
         evaluation=evaluation,
         comparison=comparison,
         evidence_sensitivity=evidence_sensitivity,
+        statistical_sufficiency=statistical_sufficiency,
+        stochastic_evidence_sensitivity=stochastic_evidence_sensitivity,
         control_efficacy=control_efficacy,
         control_efficacy_gate_profile=control_efficacy_gate_profile,
         control_efficacy_gate=control_efficacy_gate,
@@ -976,6 +1566,64 @@ def render_evidence_packet_markdown(packet: EvidencePacket) -> str:
             ]
         )
         lines.extend(f"- {markdown_text(limitation)}" for limitation in sensitivity.limitations)
+    if packet.statistical_sufficiency is not None:
+        sufficiency = packet.statistical_sufficiency
+        stochastic = packet.stochastic_evidence_sensitivity
+        if stochastic is None:
+            raise ValueError(
+                "statistical sufficiency packet rendering requires stochastic evidence"
+            )
+        dependency = stochastic.dependency
+        estimated_rate = stochastic.estimated_response_rate or "not_estimated"
+        lines.extend(
+            [
+                "",
+                "## Stochastic Evidence Sensitivity",
+                "",
+                "- Boundary: observed pair counterexamples are sample facts; the "
+                "estimated independent-cluster response rate is a separate inferential "
+                "summary, not a causal or externally generalizable claim.",
+                f"- Protocol: {markdown_code_span(stochastic.protocol_id)} "
+                f"{markdown_code_span(stochastic.protocol_digest)}",
+                f"- Sufficiency state: {markdown_code_span(sufficiency.state.value)}",
+                "- Pair accounting: "
+                f"planned={sufficiency.planned_pairs}, actual={sufficiency.actual_pairs}, "
+                f"included={sufficiency.included_pairs}, missing={sufficiency.missing_pairs}, "
+                f"excluded={sufficiency.excluded_pairs}",
+                "- Independent clusters: "
+                f"planned={sufficiency.planned_clusters}, "
+                f"actual={sufficiency.actual_clusters}, "
+                f"analyzable={sufficiency.analyzable_clusters}",
+                "- Population claim permitted: "
+                f"{markdown_code_span(str(sufficiency.population_claim_permitted).lower())}",
+                f"- State: {markdown_code_span(stochastic.state.value)}",
+                f"- Gate effect: {markdown_code_span(stochastic.gate_effect.value)}",
+                f"- Verdict-bearing: {markdown_code_span(str(stochastic.verdict_bearing).lower())}",
+                "- Observed endpoint counts: "
+                f"pairs={stochastic.observed_pair_count}, "
+                f"responses={stochastic.observed_response_count}, "
+                f"counterexamples={stochastic.observed_counterexample_count}",
+                "- Observed cluster counts: "
+                f"complete={stochastic.observed_cluster_count}, "
+                f"responses={stochastic.observed_cluster_response_count}",
+                "- Estimated independent-cluster response rate: "
+                f"{markdown_code_span(estimated_rate)}",
+                f"- Population claim: {markdown_code_span(stochastic.population_claim)}",
+                "- Coupling classification: "
+                f"{markdown_code_span(sufficiency.protocol.coupling.classification.value)}",
+                "- Variance-reduction claim permitted: "
+                f"{markdown_code_span(str(sufficiency.protocol.coupling.variance_reduction_claim_permitted).lower())}",
+                "- Sufficiency dependency: "
+                + (
+                    f"{markdown_code_span(dependency.target_artifact_id)} "
+                    f"{markdown_code_span(dependency.target_digest)}"
+                    if dependency is not None
+                    else markdown_code_span("none")
+                ),
+                f"- Sufficiency report digest: {markdown_code_span(sufficiency.report_digest)}",
+                f"- Stochastic report digest: {markdown_code_span(stochastic.report_digest)}",
+            ]
+        )
     if packet.control_efficacy is not None:
         efficacy = packet.control_efficacy
         profile = packet.control_efficacy_gate_profile
@@ -1151,6 +1799,8 @@ def _packet_id(
     *,
     comparison: ComparisonSummary | None,
     evidence_sensitivity: RAGSensitivityReport | None,
+    statistical_sufficiency: StatisticalSufficiencyReport | None,
+    stochastic_evidence_sensitivity: StochasticEvidenceSensitivityReport | None,
     control_efficacy: ControlEfficacyReport | None,
     control_efficacy_gate_profile: ControlEfficacyGateProfile | None,
     control_efficacy_gate: ControlEfficacyGateDecision | None,
@@ -1181,11 +1831,24 @@ def _packet_id(
         payload["evidence_graph_digest"] = evidence_graph_digest
     if evidence_sensitivity is not None:
         payload["evidence_sensitivity"] = _summary_for_packet_id(evidence_sensitivity)
+    if statistical_sufficiency is not None:
+        payload["statistical_sufficiency"] = _summary_for_packet_id(statistical_sufficiency)
+    if stochastic_evidence_sensitivity is not None:
+        payload["stochastic_evidence_sensitivity"] = _summary_for_packet_id(
+            stochastic_evidence_sensitivity
+        )
     return f"packet-{sha256_hexdigest(redact_packet_payload(payload))[:16]}"
 
 
 def _summary_for_packet_id(
-    summary: (EvaluationSummary | ComparisonSummary | ControlEfficacyReport | RAGSensitivityReport),
+    summary: (
+        EvaluationSummary
+        | ComparisonSummary
+        | ControlEfficacyReport
+        | RAGSensitivityReport
+        | StatisticalSufficiencyReport
+        | StochasticEvidenceSensitivityReport
+    ),
 ) -> dict[str, object]:
     return summary.model_dump(mode="json", exclude={"environment"})
 

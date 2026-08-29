@@ -13,18 +13,36 @@ from agent_assure.privacy.redaction import redact_run_record_payload
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_MAX_CHARS,
     MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    MAX_SUMMARY_CHARS,
     ExecutionMode,
 )
+from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.export import writer_json_schema
 from agent_assure.schema.live import (
     DriftComparabilityResult,
     DriftWindowSummary,
     LiveObservationResult,
 )
+from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, EvidenceItem, EvidenceRef, RunSet
 from agent_assure.schema.validation import validate_artifact_payload
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_finding_message_is_bounded_in_model_and_writer_schema() -> None:
+    payload = {
+        "finding_id": "finding-001",
+        "case_id": "case-001",
+        "state": "fail",
+        "reason_code": "POLICY_FAILED",
+        "message": "x" * (MAX_SUMMARY_CHARS + 1),
+    }
+
+    with pytest.raises(ValidationError, match="at most"):
+        Finding.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(writer_json_schema(Finding)).validate(payload)
 
 
 def _record(**overrides: object) -> AgentRunRecord:
@@ -41,6 +59,28 @@ def _record(**overrides: object) -> AgentRunRecord:
     }
     payload.update(overrides)
     return AgentRunRecord.model_validate(payload)
+
+
+def _live_record(
+    *,
+    evidence_sensitivity_design_digest: str | None = None,
+    run_id: str = "run-001",
+) -> AgentRunRecord:
+    return _record(
+        run_id=run_id,
+        execution_mode="live",
+        observation_id=f"obs-{run_id}",
+        repetition_index=0,
+        schedule_index=0,
+        cluster_id="case-001",
+        adapter_id="static-jsonl",
+        cost_budget_committed_usd="0.000000",
+        generated_token_budget_committed=0,
+        total_token_budget_committed=0,
+        provenance=Provenance(
+            evidence_sensitivity_design_digest=evidence_sensitivity_design_digest
+        ),
+    )
 
 
 def test_persisted_artifact_is_immutable() -> None:
@@ -227,7 +267,10 @@ def test_frozen_v060_runset_retains_legacy_unbounded_evidence_identifiers() -> N
     assert validate_artifact_payload(payload, "run-set") == "frozen-jsonschema"
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
+@pytest.mark.parametrize(
+    "schema_version",
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+)
 def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="cost_budget_committed_usd"):
         _record(
@@ -241,7 +284,10 @@ def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
+@pytest.mark.parametrize(
+    "schema_version",
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+)
 def test_v06_live_observations_require_pairing_identity(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="prompt, schedule, and randomization identity"):
         LiveObservationResult(
@@ -258,7 +304,10 @@ def test_v06_live_observations_require_pairing_identity(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
+@pytest.mark.parametrize(
+    "schema_version",
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+)
 def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="configuration_digest"):
         DriftWindowSummary(
@@ -275,7 +324,10 @@ def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> 
         )
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4"))
+@pytest.mark.parametrize(
+    "schema_version",
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+)
 def test_v06_drift_comparability_requires_configuration_match(
     schema_version: str,
 ) -> None:
@@ -467,6 +519,82 @@ def test_live_runset_rejects_fixture_run_records() -> None:
         )
 
 
+def test_current_live_runset_accepts_atomic_design_commitment() -> None:
+    design_digest = "d" * 64
+    runset = RunSet(
+        runset_id="runset-committed",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        execution_mode="live",
+        protocol_id="protocol-001",
+        protocol_digest="2" * 64,
+        evidence_sensitivity_design_digest=design_digest,
+        runs=(_live_record(evidence_sensitivity_design_digest=design_digest),),
+    )
+
+    payload = runset.model_dump(mode="json")
+    assert payload["evidence_sensitivity_design_digest"] == design_digest
+    assert payload["runs"][0]["provenance"]["evidence_sensitivity_design_digest"] == design_digest
+    Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_current_live_runset_omits_absent_design_commitment_atomically() -> None:
+    runset = RunSet(
+        runset_id="runset-uncommitted",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        execution_mode="live",
+        protocol_id="protocol-001",
+        protocol_digest="2" * 64,
+        runs=(_live_record(),),
+    )
+
+    payload = runset.model_dump(mode="json")
+    assert "evidence_sensitivity_design_digest" not in payload
+    assert "evidence_sensitivity_design_digest" not in payload["runs"][0]["provenance"]
+    Draft202012Validator(RunSet.model_json_schema(mode="validation")).validate(payload)
+
+
+@pytest.mark.parametrize(
+    ("runset_digest", "record_digest"),
+    (
+        pytest.param("d" * 64, None, id="record-missing"),
+        pytest.param(None, "d" * 64, id="runset-missing"),
+        pytest.param("d" * 64, "e" * 64, id="digest-mismatch"),
+    ),
+)
+def test_current_live_runset_rejects_non_atomic_design_commitment(
+    runset_digest: str | None,
+    record_digest: str | None,
+) -> None:
+    with pytest.raises(
+        ValidationError,
+        match="evidence_sensitivity_design_digest to exactly match",
+    ):
+        RunSet(
+            runset_id="runset-inconsistent",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            suite_id="suite-001",
+            suite_version="0.1.0",
+            suite_digest="0" * 64,
+            fixture_manifest_digest="1" * 64,
+            execution_mode="live",
+            protocol_id="protocol-001",
+            protocol_digest="2" * 64,
+            evidence_sensitivity_design_digest=runset_digest,
+            runs=(_live_record(evidence_sensitivity_design_digest=record_digest),),
+        )
+
+
 @pytest.mark.parametrize("identity_field", ("artifact_kind", "schema_version"))
 def test_raw_runset_requires_explicit_persisted_identity(identity_field: str) -> None:
     payload = RunSet.model_construct(
@@ -515,6 +643,7 @@ def test_legacy_runset_dump_remains_valid_against_frozen_schema() -> None:
     dumped = runset.model_dump(mode="json")
     assert "privacy_profile_id" not in dumped
     assert "privacy_profile_digest" not in dumped
+    assert "evidence_sensitivity_design_digest" not in dumped
     schema = json.loads(
         (ROOT / "schemas" / "v0.4.3" / "run-set.schema.json").read_text(encoding="utf-8")
     )

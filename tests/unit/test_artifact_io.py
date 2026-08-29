@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from agent_assure import artifact_io
+from agent_assure import artifact_io, rooted_io
 from agent_assure.artifact_io import (
     git_file_bytes,
     unlink_file_if_exists,
@@ -74,6 +74,33 @@ def test_atomic_writer_refuses_linked_parent_before_creating_nested_child(
     assert not nested_child.exists()
 
 
+def test_atomic_writer_rejects_parent_swapped_after_initial_validation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intended_parent = tmp_path / "intended"
+    moved_parent = tmp_path / "moved"
+    outside_parent = tmp_path / "outside"
+    intended_parent.mkdir()
+    outside_parent.mkdir()
+    original_ensure = artifact_io.ensure_unlinked_directory
+
+    def swap_after_validation(directory: Path) -> Path:
+        result = original_ensure(directory)
+        intended_parent.rename(moved_parent)
+        _create_directory_link(intended_parent, outside_parent)
+        return result
+
+    monkeypatch.setattr(artifact_io, "ensure_unlinked_directory", swap_after_validation)
+
+    with pytest.raises((OSError, ValueError)):
+        write_text_atomic(intended_parent / "report.json", "replacement")
+
+    assert not (outside_parent / "report.json").exists()
+    assert not tuple(outside_parent.glob(".agent-assure-*.tmp"))
+    assert not (moved_parent / "report.json").exists()
+
+
 def test_unlink_file_removes_a_destination_symlink_without_touching_its_target(
     tmp_path: Path,
 ) -> None:
@@ -103,6 +130,48 @@ def test_unlink_file_refuses_a_linked_parent_directory(tmp_path: Path) -> None:
         unlink_file_if_exists(linked_parent / stale_report.name)
 
     assert stale_report.read_text(encoding="utf-8") == "keep"
+
+
+@pytest.mark.skipif(os.name != "nt", reason="Windows handle-relative regression")
+def test_windows_unlink_stays_on_pinned_parent_when_swapped_after_metadata(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    intended_parent = tmp_path / "intended"
+    moved_parent = tmp_path / "moved"
+    outside_parent = tmp_path / "outside"
+    intended_parent.mkdir()
+    outside_parent.mkdir()
+    destination = intended_parent / "stale-report.json"
+    outside_destination = outside_parent / destination.name
+    destination.write_text("owned", encoding="utf-8")
+    outside_destination.write_text("foreign", encoding="utf-8")
+
+    monkeypatch.setattr(
+        rooted_io,
+        "_WINDOWS_FILE_SHARE_WRITE",
+        rooted_io._WINDOWS_FILE_SHARE_WRITE | rooted_io._WINDOWS_FILE_SHARE_DELETE,
+    )
+    real_lstat = artifact_io.os.lstat
+    swapped = False
+
+    def swap_after_metadata(path: object) -> os.stat_result:
+        nonlocal swapped
+        metadata = real_lstat(path)
+        if Path(path) == destination and not swapped:
+            intended_parent.rename(moved_parent)
+            _create_directory_link(intended_parent, outside_parent)
+            swapped = True
+        return metadata
+
+    monkeypatch.setattr(artifact_io.os, "lstat", swap_after_metadata)
+
+    with pytest.raises((OSError, ValueError)):
+        unlink_file_if_exists(destination)
+
+    assert swapped
+    assert outside_destination.read_text(encoding="utf-8") == "foreign"
+    assert not (moved_parent / destination.name).exists()
 
 
 def test_git_file_bytes_uses_hardened_noninteractive_git(

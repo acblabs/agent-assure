@@ -40,6 +40,7 @@ def test_graph_writer_and_bounded_loader_round_trip_exact_bytes(tmp_path: Path) 
 def test_graph_persistence_rejects_unfiltered_sensitive_payloads() -> None:
     evaluation = EvaluationSummary(
         runset_id="graph-reporting-runset",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -58,6 +59,7 @@ def test_graph_persistence_rejects_unfiltered_sensitive_payloads() -> None:
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=evaluation.runset_id,
+            subject_digest=evaluation.runset_digest,
         ),
         evaluation=evaluation,
     )

@@ -29,12 +29,30 @@ def _assert_current_model_and_writer_schema_reject(
 def test_current_evaluation_summary_rejects_empty_graph_source_identity(
     schema_version: str,
 ) -> None:
+    payload = {
+        "artifact_kind": "evaluation-summary",
+        "schema_version": schema_version,
+        "runset_id": "",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "state": "pass",
+        "findings": [],
+    }
+    if schema_version == SCHEMA_VERSION:
+        payload["runset_digest"] = "a" * 64
+    _assert_current_model_and_writer_schema_reject(
+        EvaluationSummary,
+        payload,
+    )
+
+
+def test_current_evaluation_summary_requires_authenticated_runset_digest() -> None:
     _assert_current_model_and_writer_schema_reject(
         EvaluationSummary,
         {
             "artifact_kind": "evaluation-summary",
-            "schema_version": schema_version,
-            "runset_id": "",
+            "schema_version": SCHEMA_VERSION,
+            "runset_id": "candidate",
             "privacy_profile_id": PRIVACY_PROFILE_ID,
             "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
             "state": "pass",

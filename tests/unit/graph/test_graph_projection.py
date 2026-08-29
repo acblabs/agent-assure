@@ -99,6 +99,7 @@ def representative_sources() -> _RepresentativeSources:
     decision = evaluate_control_efficacy_gate(efficacy, profile)
     evaluation = _evaluation(
         runset_id="control-efficacy-test-runset",
+        runset_digest=efficacy.source_digest,
         message="The material claim lost its evidence link.",
     )
     comparison = ComparisonSummary(
@@ -154,9 +155,10 @@ def sensitivity_reports() -> tuple[
     return responsive.report, inertial.report, reversed_response.report
 
 
-def _evaluation(*, runset_id: str, message: str) -> EvaluationSummary:
+def _evaluation(*, runset_id: str, runset_digest: str, message: str) -> EvaluationSummary:
     return EvaluationSummary(
         runset_id=runset_id,
+        runset_digest=runset_digest,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -172,6 +174,13 @@ def _evaluation(*, runset_id: str, message: str) -> EvaluationSummary:
             ),
         ),
     )
+
+
+def _legacy_digestless_evaluation(summary: EvaluationSummary) -> EvaluationSummary:
+    payload = summary.model_dump(mode="json")
+    payload["schema_version"] = "0.6.4"
+    payload.pop("runset_digest", None)
+    return EvaluationSummary.model_validate(payload)
 
 
 def _complete_graph(sources: _RepresentativeSources) -> AssuranceEvidenceGraph:
@@ -234,7 +243,7 @@ def _mutation_with_evaluation_basis(
     return AssuranceMutationResult.build(**payload)
 
 
-def test_representative_projection_exercises_the_complete_closed_vocabulary(
+def test_representative_projection_exercises_the_nonstochastic_closed_vocabulary(
     representative_sources: _RepresentativeSources,
     sensitivity_reports: tuple[RAGSensitivityReport, RAGSensitivityReport],
 ) -> None:
@@ -244,7 +253,9 @@ def test_representative_projection_exercises_the_complete_closed_vocabulary(
     )
 
     assert {node.kind for graph in graphs for node in graph.nodes} == set(EvidenceGraphNodeKind)
-    assert {edge.kind for graph in graphs for edge in graph.edges} == set(EvidenceGraphEdgeKind)
+    assert {edge.kind for graph in graphs for edge in graph.edges} == (
+        set(EvidenceGraphEdgeKind) - {EvidenceGraphEdgeKind.depends_on}
+    )
     assert {
         node.payload.requirement_type
         for graph in graphs
@@ -256,7 +267,13 @@ def test_representative_projection_exercises_the_complete_closed_vocabulary(
         for graph in graphs
         for node in graph.nodes
         if isinstance(node.payload, EvidenceGraphEvidencePayload)
-    } == set(EvidenceGraphEvidenceType)
+    } == (
+        set(EvidenceGraphEvidenceType)
+        - {
+            EvidenceGraphEvidenceType.statistical_sufficiency,
+            EvidenceGraphEvidenceType.stochastic_evidence_sensitivity,
+        }
+    )
     assert {
         node.payload.finding_type
         for graph in graphs
@@ -1200,10 +1217,12 @@ def test_contradictions_and_every_supplied_limitation_remain_visible(
 def test_wording_only_changes_do_not_change_stable_node_ids() -> None:
     first_evaluation = _evaluation(
         runset_id="wording-stability-runset",
+        runset_digest="d" * 64,
         message="Original reviewer wording.",
     )
     second_evaluation = _evaluation(
         runset_id="wording-stability-runset",
+        runset_digest="d" * 64,
         message="Revised reviewer wording with identical semantics.",
     )
     subject = EvidenceGraphSubjectPayload(
@@ -1429,7 +1448,7 @@ def test_agent_release_is_supported_only_as_a_subject_only_graph(
     subject = EvidenceGraphSubjectPayload(
         subject_type="agent_release",
         subject_id="agent-assure-0.6.3",
-        subject_digest="a" * 64,
+        subject_digest=representative_sources.evaluation.runset_digest,
     )
 
     graph = build_evidence_graph(subject=subject)
@@ -1477,6 +1496,7 @@ def test_distinct_mutation_execution_identities_do_not_collide(
 def test_digest_only_mutation_evidence_is_not_joined_to_textual_runset_id(
     representative_sources: _RepresentativeSources,
 ) -> None:
+    evaluation = _legacy_digestless_evaluation(representative_sources.evaluation)
     result = representative_sources.mutation_result
     replacement_digest = "f" * 64
     if replacement_digest == result.mutated_digest:
@@ -1486,12 +1506,12 @@ def test_digest_only_mutation_evidence_is_not_joined_to_textual_runset_id(
     foreign_result = AssuranceMutationResult.build(**values)
     subject = EvidenceGraphSubjectPayload(
         subject_type="run_set",
-        subject_id=representative_sources.evaluation.runset_id,
+        subject_id=evaluation.runset_id,
     )
 
     graph = build_evidence_graph(
         subject=subject,
-        evaluation=representative_sources.evaluation,
+        evaluation=evaluation,
         mutation_results=(foreign_result,),
     )
     primary = next(node for node in graph.nodes if node.node_id == graph.primary_subject_node_id)
@@ -1527,9 +1547,7 @@ def test_digest_only_mutation_evidence_is_not_joined_to_textual_runset_id(
     )
 
     evaluation_controls = {
-        finding.control_id
-        for finding in representative_sources.evaluation.findings
-        if finding.control_id is not None
+        finding.control_id for finding in evaluation.findings if finding.control_id is not None
     }
     mutation_controls = {
         target.control_id for target in foreign_result.provenance.target_controls
@@ -1655,12 +1673,13 @@ def test_primary_subject_is_an_identity_anchor_not_a_complete_traversal_root(
     representative_sources: _RepresentativeSources,
 ) -> None:
     sources = representative_sources
+    evaluation = _legacy_digestless_evaluation(sources.evaluation)
     graph = build_evidence_graph(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
-            subject_id=sources.evaluation.runset_id,
+            subject_id=evaluation.runset_id,
         ),
-        evaluation=sources.evaluation,
+        evaluation=evaluation,
         control_efficacy=sources.efficacy,
         gate_profile=sources.gate_profile,
         gate_decision=sources.gate_decision,
@@ -1782,6 +1801,7 @@ def test_unscoped_evaluation_finding_projects_without_case_reference() -> None:
     )
     summary = EvaluationSummary(
         runset_id="unscoped-runset",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -1792,6 +1812,7 @@ def test_unscoped_evaluation_finding_projects_without_case_reference() -> None:
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=summary.runset_id,
+            subject_digest=summary.runset_digest,
         ),
         evaluation=summary,
     )
@@ -1811,6 +1832,7 @@ def test_evaluation_requirement_identity_distinguishes_control_from_reason_code(
     reason_code = ReasonCode.RUNTIME_FAILED
     summary = EvaluationSummary(
         runset_id="requirement-origin-runset",
+        runset_digest="a" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.fail,
@@ -1837,6 +1859,7 @@ def test_evaluation_requirement_identity_distinguishes_control_from_reason_code(
         subject=EvidenceGraphSubjectPayload(
             subject_type="run_set",
             subject_id=summary.runset_id,
+            subject_digest=summary.runset_digest,
         ),
         evaluation=summary,
     )

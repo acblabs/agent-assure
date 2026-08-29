@@ -14,11 +14,22 @@ from pydantic.functional_validators import field_validator, model_validator
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.io_limits import (
     MAX_CONFIG_TEXT_BYTES,
+    MAX_PERSISTED_OBSERVATIONS,
     loads_json_bounded,
-    read_text_bounded,
+    read_text_bounded_from_filesystem_root,
+)
+from agent_assure.privacy.detectors import (
+    MAX_PRIVACY_SCAN_CHARS,
+    contains_sensitive_mapping_entry,
+    contains_sensitive_value,
 )
 from agent_assure.schema.base import StrictModel
-from agent_assure.schema.common import MAX_SUMMARY_CHARS, DigestHex, coerce_tuple
+from agent_assure.schema.common import (
+    MAX_SUMMARY_CHARS,
+    DigestHex,
+    MachineIdentifier,
+    coerce_tuple,
+)
 
 USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
@@ -31,9 +42,9 @@ DISALLOWED_ENDPOINT_HOSTNAMES = frozenset(
     }
 )
 DISALLOWED_ENDPOINT_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"),)
-MAX_LIVE_CASES = 10_000
-MAX_LIVE_REPETITIONS = 100_000
-MAX_LIVE_REQUESTS = 100_000
+MAX_LIVE_CASES = MAX_PERSISTED_OBSERVATIONS
+MAX_LIVE_REPETITIONS = MAX_PERSISTED_OBSERVATIONS
+MAX_LIVE_REQUESTS = MAX_PERSISTED_OBSERVATIONS
 MAX_LIVE_RETRIES = 10
 MAX_LIVE_RETRY_BACKOFF_SECONDS = Decimal("300.000000")
 
@@ -51,8 +62,23 @@ class EndpointResolutionStatus:
 
 
 class LiveScriptEnvVar(StrictModel):
-    name: str = Field(min_length=1, pattern=ENV_VAR_NAME_PATTERN)
-    value: str
+    name: str = Field(min_length=1, max_length=128, pattern=ENV_VAR_NAME_PATTERN)
+    value: str = Field(max_length=MAX_PRIVACY_SCAN_CHARS)
+
+    @model_validator(mode="after")
+    def _reject_persisted_secrets(self) -> Self:
+        # Finalized live/repeated configs are durable evidence. Reconstruct the
+        # assignment so split key/value credentials cannot evade scalar scans.
+        # Secret values must instead enter at execution time through the
+        # explicitly acknowledged host-environment allowlist.
+        if contains_sensitive_value(
+            f"{self.name}={self.value}"
+        ) or contains_sensitive_mapping_entry(self.name, self.value):
+            raise ValueError(
+                "script_env must contain only non-sensitive configuration; "
+                "use script_env_allowlist for secret host environment variables"
+            )
+        return self
 
 
 class LiveAdapterConfig(StrictModel):
@@ -63,7 +89,15 @@ class LiveAdapterConfig(StrictModel):
     api_key_env: str | None = None
     allowed_endpoint_hosts: tuple[str, ...] = ()
     response_jsonl_path: str | None = None
+    response_jsonl_sha256: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     script_path: str | None = None
+    script_sha256: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     script_executable: str | None = None
     script_args: tuple[str, ...] = ()
     script_cwd: str | None = None
@@ -76,8 +110,8 @@ class LiveAdapterConfig(StrictModel):
     cost_per_1k_prompt_tokens_usd: str | None = Field(default=None, pattern=USD_PATTERN)
     cost_per_1k_completion_tokens_usd: str | None = Field(default=None, pattern=USD_PATTERN)
     api_version: str | None = None
-    sdk_name: str | None = None
-    sdk_version: str | None = None
+    sdk_name: MachineIdentifier | None = None
+    sdk_version: MachineIdentifier | None = None
     region: str | None = None
 
     @field_validator("temperature")
@@ -119,18 +153,21 @@ class LiveAdapterConfig(StrictModel):
 
     @model_validator(mode="after")
     def _validate_adapter_capabilities(self) -> Self:
-        if self.adapter_id != "static-jsonl":
-            return self
-        unsupported: list[str] = []
-        if self.allow_network:
-            unsupported.append("allow_network")
-        if self.script_env_allowlist:
-            unsupported.append("script_env_allowlist")
-        if unsupported:
-            raise ValueError(
-                "static-jsonl adapter does not support capability fields: "
-                + ", ".join(unsupported)
-            )
+        if self.response_jsonl_sha256 is not None and self.response_jsonl_path is None:
+            raise ValueError("response_jsonl_sha256 requires response_jsonl_path")
+        if self.script_sha256 is not None and self.script_path is None:
+            raise ValueError("script_sha256 requires script_path")
+        if self.adapter_id == "static-jsonl":
+            unsupported: list[str] = []
+            if self.allow_network:
+                unsupported.append("allow_network")
+            if self.script_env_allowlist:
+                unsupported.append("script_env_allowlist")
+            if unsupported:
+                raise ValueError(
+                    "static-jsonl adapter does not support capability fields: "
+                    + ", ".join(unsupported)
+                )
         return self
 
     @model_validator(mode="after")
@@ -140,9 +177,7 @@ class LiveAdapterConfig(StrictModel):
             self.cost_per_1k_completion_tokens_usd,
         )
         if sum(rate is not None for rate in rates) == 1:
-            raise ValueError(
-                "prompt and completion pricing rates must be configured together"
-            )
+            raise ValueError("prompt and completion pricing rates must be configured together")
         return self
 
 
@@ -153,11 +188,43 @@ class LivePromptCase(StrictModel):
     source_group_id: str | None = None
 
 
+def live_sdk_identifier(config: LiveAdapterConfig) -> str | None:
+    """Return the canonical persisted SDK identity for a live adapter."""
+
+    if config.sdk_name is None and config.sdk_version is None:
+        return None
+    if config.sdk_name is None:
+        return config.sdk_version
+    if config.sdk_version is None:
+        return config.sdk_name
+    return f"{config.sdk_name}/{config.sdk_version}"
+
+
 class LiveRunConfig(StrictModel):
     variant_id: str = Field(min_length=1)
     pipeline_id: str = Field(min_length=1)
     tool_schema_digest: DigestHex
     policy_bundle_digest: DigestHex
+    retrieval_corpus_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    retrieval_corpus_dir: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    knowledge_contract_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    knowledge_contract_path: str | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    evidence_sensitivity_design_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     adapter: LiveAdapterConfig
     cases: tuple[LivePromptCase, ...] = Field(min_length=1, max_length=MAX_LIVE_CASES)
     repetitions: int = Field(default=1, ge=1, le=MAX_LIVE_REPETITIONS)
@@ -184,6 +251,10 @@ class LiveRunConfig(StrictModel):
 
     @model_validator(mode="after")
     def _validate_planned_request_bounds(self) -> Self:
+        if self.retrieval_corpus_dir is not None and self.retrieval_corpus_digest is None:
+            raise ValueError("retrieval_corpus_dir requires retrieval_corpus_digest")
+        if self.knowledge_contract_path is not None and self.knowledge_contract_digest is None:
+            raise ValueError("knowledge_contract_path requires knowledge_contract_digest")
         planned_observations = len(self.cases) * self.repetitions
         if planned_observations > MAX_LIVE_REQUESTS:
             raise ValueError(
@@ -210,7 +281,11 @@ class LiveRunConfig(StrictModel):
 
 
 def load_live_run_config(path: Path) -> LiveRunConfig:
-    text = read_text_bounded(path, max_bytes=MAX_CONFIG_TEXT_BYTES, label="live run config")
+    text = read_text_bounded_from_filesystem_root(
+        path,
+        max_bytes=MAX_CONFIG_TEXT_BYTES,
+        label="live run config",
+    )
     if path.suffix.lower() == ".json":
         loaded = loads_json_bounded(text, label="live run config JSON")
     else:

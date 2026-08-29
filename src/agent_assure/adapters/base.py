@@ -8,7 +8,10 @@ from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.privacy.detectors import contains_sensitive_value
+from agent_assure.privacy.detectors import (
+    contains_sensitive_mapping_entry,
+    contains_sensitive_value,
+)
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import MAX_SUMMARY_CHARS, DigestHex, ExecutionMode
 from agent_assure.schema.provenance import Provenance
@@ -328,6 +331,7 @@ def validate_privacy_filtered_mapping(payload: Mapping[str, str], *, owner: str)
             len(value) > MAX_SUMMARY_CHARS
             or _looks_like_raw_payload_value(value)
             or contains_sensitive_value(value)
+            or contains_sensitive_mapping_entry(key, value)
         ):
             raise ValueError(
                 f"{owner} value for {key!r} must be a compact filtered token, "

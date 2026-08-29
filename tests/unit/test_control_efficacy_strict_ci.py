@@ -738,6 +738,7 @@ def _passing_evaluation() -> EvaluationSummary:
     return EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="strict-efficacy-test-runset",
+        runset_digest="c" * 64,
         privacy_profile_id=PRIVACY_PROFILE_ID,
         privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
         state=GateState.pass_,

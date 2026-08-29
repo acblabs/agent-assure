@@ -5,10 +5,13 @@ import html
 import json
 import os
 import platform
+import secrets
 import stat
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel
 
@@ -21,7 +24,6 @@ from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     BoundedFileContents,
     load_json_bytes_bounded,
-    read_file_bounded,
 )
 from agent_assure.onboarding.path_safety import (
     metadata_is_regular_file,
@@ -35,16 +37,19 @@ from agent_assure.reporting.packet import (
     DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
     build_privacy_filtered_evidence_graph,
-    packet_summary_files_binding_error,
     packet_summary_snapshots_binding_error,
     render_evidence_packet_markdown,
 )
 from agent_assure.reporting.text_safety import sanitize_display_text
 from agent_assure.rooted_io import (
+    PinnedDirectoryFile,
     RootedDirectoryClaim,
     RootedDirectoryDescriptor,
+    acquire_publication_lock,
     claim_rooted_directory,
     open_rooted_directory,
+    release_publication_lock,
+    retry_windows_sharing_violation,
 )
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
@@ -91,6 +96,10 @@ SENSITIVITY_OUTPUT_FILENAMES = (
 )
 _SENSITIVITY_OUTPUT_SCAN_LIMIT = 4_096
 _SENSITIVITY_OUTPUT_READ_CHUNK_BYTES = 1024 * 1024
+_STAGING_NAME_PREFIX = ".agent-assure-sensitivity-"
+_PUBLICATION_LOCK_PREFIX = ".agent-assure-sensitivity-lock-"
+_BEST_EFFORT_LOCK_TIMEOUT_SECONDS = 0.001
+_CONCURRENT_GENERATION_RETRY_TIMEOUT_SECONDS = 0.25
 _SENSITIVITY_MANIFEST_BOUND_FILES = (
     ("compiled-suite", "compiled-suite.json"),
     ("fixture-manifest", "fixture-manifest.json"),
@@ -123,6 +132,10 @@ class SensitivityOutputConflictError(ValueError):
     """Raised when an owned output belongs to a different artifact generation."""
 
 
+class _ExistingSensitivityForeignEntryError(ValueError):
+    """Internal typed classification for a statically foreign output entry."""
+
+
 @dataclass
 class _CreatedSensitivityOutput:
     path: Path
@@ -133,13 +146,38 @@ class _CreatedSensitivityOutput:
     pin_descriptor: int | None
 
 
-@dataclass(frozen=True)
-class _ClaimedSensitivityDirectory:
-    path: Path
-    device: int
-    inode: int
-    parent_lease: RootedDirectoryDescriptor
-    claim: RootedDirectoryClaim
+@dataclass
+class _PinnedExistingSensitivityGeneration:
+    lease: RootedDirectoryDescriptor
+    files: list[PinnedDirectoryFile]
+    snapshots: dict[str, BoundedFileContents]
+
+    def revalidate(self) -> None:
+        names = self.lease.entry_names(
+            max_entries=_SENSITIVITY_OUTPUT_SCAN_LIMIT,
+            label="existing evidence sensitivity output",
+        )
+        if len(names) != len(SENSITIVITY_OUTPUT_FILENAMES) or set(names) != set(
+            SENSITIVITY_OUTPUT_FILENAMES
+        ):
+            raise SensitivityOutputConflictError(
+                "sensitivity output directory changed during verification"
+            )
+        for opened in self.files:
+            opened.revalidate()
+        _require_directory_identity(
+            self.lease.path,
+            device=self.lease.device,
+            inode=self.lease.inode,
+            label="existing evidence sensitivity output",
+        )
+
+    def close(self) -> None:
+        try:
+            for opened in reversed(self.files):
+                opened.close()
+        finally:
+            self.lease.close()
 
 
 def ensure_sensitivity_output_namespace(out_dir: Path) -> None:
@@ -169,7 +207,6 @@ def write_sensitivity_execution_artifacts(
     artifacts: SensitivityExecutionArtifacts,
     out_dir: Path,
 ) -> dict[str, Path]:
-    ensure_sensitivity_output_namespace(out_dir)
     comparison = derive_sensitivity_comparison(artifacts.report)
     _validate_execution_artifacts(artifacts, comparison)
     texts = {
@@ -240,58 +277,13 @@ def write_sensitivity_execution_artifacts(
     )
     if set(texts) != set(SENSITIVITY_OUTPUT_FILENAMES):
         raise ValueError("sensitivity publication output inventory is inconsistent")
-    if _complete_existing_generation_matches(out_dir, texts):
-        _validate_finished_publication(
-            out_dir,
-            expected_texts=texts,
-            expected_graph=graph,
-            expected_manifest=manifest,
-            expected_packet=packet,
-        )
-        return {name: out_dir / name for name in SENSITIVITY_OUTPUT_FILENAMES}
-
-    claimed_directory = _claim_sensitivity_output_directory(out_dir)
-    created_outputs: list[_CreatedSensitivityOutput] = []
-    try:
-        for name in SENSITIVITY_OUTPUT_FILENAMES:
-            created_outputs.append(
-                _write_sensitivity_output_exclusive(
-                    claimed_directory,
-                    name,
-                    texts[name].encode("utf-8"),
-                )
-            )
-        observed_snapshots = {
-            created.path.name: _read_created_output_snapshot(
-                claimed_directory,
-                created,
-            )
-            for created in created_outputs
-        }
-        _require_claimed_directory_identity(claimed_directory)
-        _validate_finished_publication(
-            out_dir,
-            expected_texts=texts,
-            expected_graph=graph,
-            expected_manifest=manifest,
-            expected_packet=packet,
-            observed_snapshots=observed_snapshots,
-        )
-        _require_claimed_directory_identity(claimed_directory)
-    except BaseException as exc:
-        rollback_errors = _rollback_sensitivity_publication(
-            claimed_directory,
-            tuple(created_outputs),
-        )
-        if rollback_errors:
-            raise OSError(
-                "evidence sensitivity publication failed and rollback was incomplete: "
-                + "; ".join(rollback_errors)
-            ) from exc
-        raise
-    _close_output_pins(tuple(created_outputs))
-    _close_claimed_directory(claimed_directory)
-    return {name: out_dir / name for name in SENSITIVITY_OUTPUT_FILENAMES}
+    return _publish_sensitivity_generation(
+        out_dir,
+        texts=texts,
+        expected_graph=graph,
+        expected_manifest=manifest,
+        expected_packet=packet,
+    )
 
 
 def _text_sha256(text: str) -> str:
@@ -309,86 +301,506 @@ def _evidence_packet_json_text(packet: EvidencePacket) -> str:
     return _bounded_json_text(payload, label="evidence sensitivity packet")
 
 
-def _complete_existing_generation_matches(
+def _publish_sensitivity_generation(
     out_dir: Path,
+    *,
     texts: dict[str, str],
-) -> bool:
-    try:
-        os.lstat(out_dir)
-    except FileNotFoundError:
-        return False
-    ensure_sensitivity_output_namespace(out_dir)
-    with os.scandir(out_dir) as entries:
-        observed_names = {entry.name for entry in entries}
-    if observed_names != set(SENSITIVITY_OUTPUT_FILENAMES):
-        raise SensitivityOutputConflictError(
-            "sensitivity output directory contains a partial artifact generation"
-        )
-    for name in SENSITIVITY_OUTPUT_FILENAMES:
-        path = out_dir / name
-        expected = texts[name].encode("utf-8")
-        try:
-            current = read_file_bounded(
-                path,
-                max_bytes=MAX_ARTIFACT_JSON_BYTES,
-                label="owned sensitivity output",
-            ).data
-        except (OSError, ValueError) as exc:
-            raise SensitivityOutputConflictError(
-                "owned sensitivity output cannot be safely verified: " + name
-            ) from exc
-        if current != expected:
-            raise SensitivityOutputConflictError(
-                "owned sensitivity output does not match this deterministic generation: " + name
-            )
-    return True
+    expected_graph: AssuranceEvidenceGraph,
+    expected_manifest: ReleaseArtifactManifest,
+    expected_packet: EvidencePacket,
+) -> dict[str, Path]:
+    target = _validate_sensitivity_output_target(out_dir)
+    if len({os.path.normcase(name) for name in SENSITIVITY_OUTPUT_FILENAMES}) != len(
+        SENSITIVITY_OUTPUT_FILENAMES
+    ):
+        raise ValueError("sensitivity output filenames alias on this filesystem")
+    payloads = {name: text.encode("utf-8") for name, text in texts.items()}
+    if any(len(payload) > MAX_ARTIFACT_JSON_BYTES for payload in payloads.values()):
+        raise ValueError("evidence sensitivity artifact exceeds maximum supported size")
 
-
-def _claim_sensitivity_output_directory(out_dir: Path) -> _ClaimedSensitivityDirectory:
-    ensure_unlinked_directory(out_dir.parent)
-    parent_metadata = os.lstat(out_dir.parent)
-    parent_lease = open_rooted_directory(
-        out_dir.parent,
+    parent = ensure_unlinked_directory(target.parent)
+    parent_metadata = os.lstat(parent)
+    with open_rooted_directory(
+        parent,
         ".",
         label="sensitivity output parent",
-    )
-    claim: RootedDirectoryClaim | None = None
-    try:
+    ) as parent_lease:
         if (parent_lease.device, parent_lease.inode) != (
             parent_metadata.st_dev,
             parent_metadata.st_ino,
         ):
-            raise OSError("sensitivity output parent changed while it was being claimed")
-        try:
-            claim = claim_rooted_directory(
+            raise OSError("sensitivity output parent changed while opening")
+        with _best_effort_sensitivity_publication_lock(parent_lease, target.name):
+            _require_directory_identity(
+                parent_lease.path,
+                device=parent_lease.device,
+                inode=parent_lease.inode,
+                label="sensitivity output parent",
+            )
+            existing = _open_existing_sensitivity_generation_with_transient_share_retry(
                 parent_lease,
-                out_dir.name,
-                label="sensitivity output directory",
+                target,
+            )
+            if existing is not None:
+                try:
+                    _validate_existing_sensitivity_generation(
+                        existing,
+                        texts=texts,
+                        expected_graph=expected_graph,
+                        expected_manifest=expected_manifest,
+                        expected_packet=expected_packet,
+                    )
+                    existing.revalidate()
+                finally:
+                    existing.close()
+                return {name: target / name for name in SENSITIVITY_OUTPUT_FILENAMES}
+
+            claim = _claim_private_sensitivity_staging_directory(
+                parent_lease,
+                target.name,
+            )
+            private_stage_name = claim.name
+            created_outputs: list[_CreatedSensitivityOutput] = []
+            final_child_pins: tuple[PinnedDirectoryFile, ...] = ()
+            committed = False
+            try:
+                for name in SENSITIVITY_OUTPUT_FILENAMES:
+                    created_outputs.append(
+                        _write_sensitivity_output_exclusive(
+                            claim,
+                            name,
+                            payloads[name],
+                        )
+                    )
+                snapshots = {
+                    created.path.name: _read_created_output_snapshot(claim, created)
+                    for created in created_outputs
+                }
+                _require_exact_staged_inventory(claim)
+                _validate_finished_publication(
+                    expected_texts=texts,
+                    expected_graph=expected_graph,
+                    expected_manifest=expected_manifest,
+                    expected_packet=expected_packet,
+                    observed_snapshots=snapshots,
+                )
+                for created in created_outputs:
+                    observed = _read_created_output_snapshot(claim, created)
+                    if observed.data != payloads[created.path.name]:
+                        raise OSError(
+                            "staged evidence sensitivity output changed during validation: "
+                            + created.path.name
+                        )
+                _require_exact_staged_inventory(claim)
+                close_errors = _close_output_pins(tuple(created_outputs))
+                if close_errors:
+                    raise OSError(
+                        "could not close staged sensitivity output descriptors: "
+                        + "; ".join(close_errors)
+                    )
+                _fsync_staged_sensitivity_generation(claim)
+                final_child_pins = (
+                    _validate_staged_sensitivity_generation_immediately_before_commit(
+                        claim,
+                        payloads,
+                    )
+                )
+                if os.name == "nt":
+                    close_errors = _close_final_sensitivity_child_pins(final_child_pins)
+                    final_child_pins = ()
+                    if close_errors:
+                        raise OSError(
+                            "could not close final staged sensitivity output pins: "
+                            + "; ".join(close_errors)
+                        )
+                try:
+                    claim.install_no_replace(target.name)
+                except FileExistsError as commit_error:
+                    close_errors = _close_final_sensitivity_child_pins(final_child_pins)
+                    final_child_pins = ()
+                    if close_errors:
+                        raise OSError(
+                            "could not close final staged sensitivity output pins: "
+                            + "; ".join(close_errors)
+                        ) from commit_error
+                    try:
+                        _after_sensitivity_generation_commit(parent_lease)
+                        existing = _open_existing_sensitivity_generation_with_transient_share_retry(
+                            parent_lease,
+                            target,
+                        )
+                        if existing is None:
+                            raise SensitivityOutputConflictError(
+                                "concurrent sensitivity output disappeared before validation"
+                            )
+                        try:
+                            _validate_existing_sensitivity_generation(
+                                existing,
+                                texts=texts,
+                                expected_graph=expected_graph,
+                                expected_manifest=expected_manifest,
+                                expected_packet=expected_packet,
+                            )
+                            existing.revalidate()
+                        finally:
+                            existing.close()
+                    except (OSError, UnicodeError, ValueError) as verification_error:
+                        raise SensitivityOutputConflictError(
+                            "sensitivity output was committed concurrently but does not form "
+                            "the exact expected generation"
+                        ) from verification_error
+                    return {name: target / name for name in SENSITIVITY_OUTPUT_FILENAMES}
+                except BaseException:
+                    committed = claim.name == target.name
+                    raise
+                else:
+                    committed = True
+                    if os.name == "nt":
+                        # The claim owns DELETE access, so a separately pinned
+                        # installed-generation lease cannot coexist with it on
+                        # Windows. Release the committed claim, then verify the
+                        # target through fresh no-follow directory and child pins.
+                        claim.close()
+                        installed = (
+                            _open_existing_sensitivity_generation_with_transient_share_retry(
+                                parent_lease,
+                                target,
+                            )
+                        )
+                        if installed is None:
+                            raise OSError(
+                                "committed evidence sensitivity output disappeared before "
+                                "post-commit verification"
+                            )
+                        try:
+                            _validate_existing_sensitivity_generation(
+                                installed,
+                                texts=texts,
+                                expected_graph=expected_graph,
+                                expected_manifest=expected_manifest,
+                                expected_packet=expected_packet,
+                            )
+                            installed.revalidate()
+                        finally:
+                            installed.close()
+                    else:
+                        _revalidate_installed_sensitivity_generation_pins(
+                            claim,
+                            payloads,
+                            final_child_pins,
+                        )
+                    close_errors = _close_final_sensitivity_child_pins(final_child_pins)
+                    final_child_pins = ()
+                    if close_errors:
+                        raise OSError(
+                            "could not close installed sensitivity output pins: "
+                            + "; ".join(close_errors)
+                        )
+            except Exception as exc:
+                final_pin_close_errors = _close_final_sensitivity_child_pins(final_child_pins)
+                final_child_pins = ()
+                close_errors = _close_output_pins(tuple(created_outputs))
+                if final_pin_close_errors or close_errors:
+                    raise OSError(
+                        "sensitivity staging failed and descriptor cleanup was incomplete: "
+                        + "; ".join(final_pin_close_errors + close_errors)
+                    ) from exc
+                if committed or claim.name == target.name:
+                    raise OSError(
+                        "evidence sensitivity generation committed; target retained despite "
+                        "post-commit validation failure"
+                    ) from exc
+                raise OSError(
+                    "evidence sensitivity publication failed before commit; "
+                    f"private staging retained at {claim.path}"
+                ) from exc
+            except BaseException as exc:
+                _close_final_sensitivity_child_pins(final_child_pins)
+                _close_output_pins(tuple(created_outputs))
+                if claim.name == target.name and hasattr(exc, "add_note"):
+                    exc.add_note("Evidence sensitivity generation committed; target retained.")
+                raise
+            finally:
+                _close_final_sensitivity_child_pins(final_child_pins)
+                _close_output_pins(tuple(created_outputs))
+                claim.close()
+
+            if not committed or claim.name != target.name:
+                raise OSError(
+                    "evidence sensitivity publication did not reach its commit point; "
+                    f"private staging retained at {target.parent / private_stage_name}"
+                )
+            try:
+                _after_sensitivity_generation_commit(parent_lease)
+                installed = _open_existing_sensitivity_generation_with_transient_share_retry(
+                    parent_lease,
+                    target,
+                )
+                if installed is None:
+                    raise OSError(
+                        "committed evidence sensitivity output disappeared before final "
+                        "post-commit verification"
+                    )
+                try:
+                    if (installed.lease.device, installed.lease.inode) != (
+                        claim.device,
+                        claim.inode,
+                    ):
+                        raise OSError(
+                            "committed evidence sensitivity target name no longer resolves "
+                            "to the installed generation"
+                        )
+                    _validate_existing_sensitivity_generation(
+                        installed,
+                        texts=texts,
+                        expected_graph=expected_graph,
+                        expected_manifest=expected_manifest,
+                        expected_packet=expected_packet,
+                    )
+                    installed.revalidate()
+                finally:
+                    installed.close()
+            except Exception as exc:
+                raise OSError(
+                    "evidence sensitivity generation committed; target retained despite "
+                    "post-commit durability or exact-generation validation failure"
+                ) from exc
+            except BaseException as exc:
+                if hasattr(exc, "add_note"):
+                    exc.add_note("Evidence sensitivity generation committed; target retained.")
+                raise
+    return {name: target / name for name in SENSITIVITY_OUTPUT_FILENAMES}
+
+
+def _validate_sensitivity_output_target(out_dir: Path) -> Path:
+    target = Path(os.path.abspath(out_dir))
+    if target == Path(target.anchor):
+        raise ValueError("sensitivity output must not be a filesystem root")
+    if not target.name:
+        raise ValueError("sensitivity output must name a directory")
+    return target
+
+
+def _open_existing_sensitivity_generation(
+    parent: RootedDirectoryDescriptor,
+    out_dir: Path,
+) -> _PinnedExistingSensitivityGeneration | None:
+    try:
+        lease = open_rooted_directory(
+            out_dir.parent,
+            out_dir.name,
+            label="existing evidence sensitivity output",
+        )
+    except FileNotFoundError:
+        return None
+    except (OSError, ValueError) as exc:
+        raise SensitivityOutputConflictError(
+            "sensitivity output destination is not an unlinked regular directory"
+        ) from exc
+
+    opened_files: list[PinnedDirectoryFile] = []
+    try:
+        if (lease.root_device, lease.root_inode) != (parent.device, parent.inode):
+            raise SensitivityOutputConflictError(
+                "sensitivity output parent changed during verification"
+            )
+        names = lease.entry_names(
+            max_entries=_SENSITIVITY_OUTPUT_SCAN_LIMIT,
+            label="existing evidence sensitivity output",
+        )
+        expected_by_normalized_name = {
+            os.path.normcase(name): name for name in SENSITIVITY_OUTPUT_FILENAMES
+        }
+        if any(expected_by_normalized_name.get(os.path.normcase(name)) != name for name in names):
+            raise SensitivityOutputConflictError(
+                "sensitivity output directory contains a foreign or non-regular artifact entry"
+            )
+        if len(names) != len(SENSITIVITY_OUTPUT_FILENAMES) or set(names) != set(
+            SENSITIVITY_OUTPUT_FILENAMES
+        ):
+            raise SensitivityOutputConflictError(
+                "sensitivity output directory contains a partial artifact generation"
+            )
+        snapshots: dict[str, BoundedFileContents] = {}
+        for name in SENSITIVITY_OUTPUT_FILENAMES:
+            try:
+                metadata = lease.stat_entry_no_follow(name)
+            except (OSError, ValueError) as exc:
+                raise _ExistingSensitivityForeignEntryError(name) from exc
+            if (
+                not metadata_is_regular_file(metadata)
+                or metadata_is_reparse(metadata)
+                or metadata.st_nlink != 1
+            ):
+                raise _ExistingSensitivityForeignEntryError(name)
+            opened = lease.open_file_bounded(
+                name,
+                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                label="existing evidence sensitivity output",
+                require_single_link=True,
+            )
+            opened_files.append(opened)
+            snapshots[name] = opened.contents
+        result = _PinnedExistingSensitivityGeneration(
+            lease=lease,
+            files=opened_files,
+            snapshots=snapshots,
+        )
+        result.revalidate()
+        return result
+    except SensitivityOutputConflictError:
+        for opened in reversed(opened_files):
+            opened.close()
+        lease.close()
+        raise
+    except _ExistingSensitivityForeignEntryError as exc:
+        for opened in reversed(opened_files):
+            opened.close()
+        lease.close()
+        raise SensitivityOutputConflictError(
+            "sensitivity output directory contains a foreign or non-regular artifact entry"
+        ) from exc
+    except (OSError, UnicodeError, ValueError) as exc:
+        for opened in reversed(opened_files):
+            opened.close()
+        lease.close()
+        raise SensitivityOutputConflictError(
+            "existing sensitivity output cannot be safely verified"
+        ) from exc
+
+
+def _open_existing_sensitivity_generation_with_transient_share_retry(
+    parent: RootedDirectoryDescriptor,
+    out_dir: Path,
+) -> _PinnedExistingSensitivityGeneration | None:
+    """Re-open exactly while an honest Windows winner releases its rename pin."""
+
+    return retry_windows_sharing_violation(
+        lambda: _open_existing_sensitivity_generation(parent, out_dir),
+        timeout_seconds=_CONCURRENT_GENERATION_RETRY_TIMEOUT_SECONDS,
+    )
+
+
+def _validate_existing_sensitivity_generation(
+    existing: _PinnedExistingSensitivityGeneration,
+    *,
+    texts: dict[str, str],
+    expected_graph: AssuranceEvidenceGraph,
+    expected_manifest: ReleaseArtifactManifest,
+    expected_packet: EvidencePacket,
+) -> None:
+    for name in SENSITIVITY_OUTPUT_FILENAMES:
+        if existing.snapshots[name].data != texts[name].encode("utf-8"):
+            raise SensitivityOutputConflictError(
+                "owned sensitivity output does not match this deterministic generation: " + name
+            )
+    try:
+        _validate_finished_publication(
+            expected_texts=texts,
+            expected_graph=expected_graph,
+            expected_manifest=expected_manifest,
+            expected_packet=expected_packet,
+            observed_snapshots=existing.snapshots,
+        )
+    except (OSError, UnicodeError, ValueError) as exc:
+        raise SensitivityOutputConflictError(
+            "existing sensitivity output does not form a valid deterministic generation"
+        ) from exc
+
+
+def _claim_private_sensitivity_staging_directory(
+    parent: RootedDirectoryDescriptor,
+    target_name: str,
+) -> RootedDirectoryClaim:
+    target_digest = hashlib.sha256(os.path.normcase(target_name).encode("utf-8")).hexdigest()[:16]
+    target_prefix = f"{_STAGING_NAME_PREFIX}{target_digest}-"
+    for _ in range(8):
+        name = f"{target_prefix}{secrets.token_hex(16)}.tmp"
+        try:
+            return claim_rooted_directory(
+                parent,
+                name,
+                label="private evidence sensitivity staging directory",
                 mode=0o700,
             )
-        except FileExistsError as exc:
-            raise SensitivityOutputConflictError(
-                "sensitivity output directory was created concurrently"
-            ) from exc
-        return _ClaimedSensitivityDirectory(
-            path=out_dir,
-            device=claim.device,
-            inode=claim.inode,
-            parent_lease=parent_lease,
-            claim=claim,
+        except FileExistsError:
+            continue
+    raise OSError("could not reserve a private sensitivity staging directory")
+
+
+@contextmanager
+def _best_effort_sensitivity_publication_lock(
+    parent: RootedDirectoryDescriptor,
+    target_name: str,
+) -> Iterator[None]:
+    """Coordinate opportunistically; no-replace installation is the integrity boundary.
+
+    A caller that can write the output parent can pre-create or hold the stable
+    lock name. Such an entry must not become an availability gate. A safe,
+    uncontended lock avoids duplicate staging; otherwise publication proceeds
+    to the atomic commit and exact-generation reconciliation path.
+    """
+    target_digest = hashlib.sha256(os.path.normcase(target_name).encode("utf-8")).hexdigest()[:32]
+    lock_name = f"{_PUBLICATION_LOCK_PREFIX}{target_digest}.lock"
+    descriptor: int | None = None
+    acquired = False
+    try:
+        try:
+            descriptor, metadata = parent.open_regular_lock_file(lock_name, mode=0o600)
+            if os.name == "nt":
+                _ensure_sensitivity_lock_byte(descriptor)
+            acquired = _lock_sensitivity_descriptor(descriptor)
+            if acquired:
+                if os.name != "nt":
+                    _ensure_sensitivity_lock_byte(descriptor)
+                current = parent.stat_entry_no_follow(lock_name)
+                _require_unlinked_regular_output(current, name=lock_name)
+                if (current.st_dev, current.st_ino) != (metadata.st_dev, metadata.st_ino):
+                    raise OSError("sensitivity publication lock identity changed")
+        except (OSError, ValueError):
+            if acquired and descriptor is not None:
+                _unlock_sensitivity_descriptor(descriptor)
+            acquired = False
+            if descriptor is not None:
+                os.close(descriptor)
+                descriptor = None
+        yield
+    finally:
+        try:
+            if acquired and descriptor is not None:
+                _unlock_sensitivity_descriptor(descriptor)
+        finally:
+            if descriptor is not None:
+                os.close(descriptor)
+
+
+def _ensure_sensitivity_lock_byte(descriptor: int) -> None:
+    if os.fstat(descriptor).st_size >= 1:
+        return
+    os.lseek(descriptor, 0, os.SEEK_SET)
+    if os.write(descriptor, b"\x00") != 1:
+        raise OSError("sensitivity publication lock initialization failed")
+    os.fsync(descriptor)
+
+
+def _lock_sensitivity_descriptor(descriptor: int) -> bool:
+    try:
+        acquire_publication_lock(
+            descriptor,
+            label="evidence sensitivity publication",
+            timeout_seconds=_BEST_EFFORT_LOCK_TIMEOUT_SECONDS,
         )
-    except BaseException:
-        if claim is not None:
-            try:
-                claim.remove_empty()
-            except OSError:
-                claim.close()
-        parent_lease.close()
-        raise
+    except TimeoutError:
+        return False
+    return True
+
+
+def _unlock_sensitivity_descriptor(descriptor: int) -> None:
+    release_publication_lock(descriptor)
 
 
 def _write_sensitivity_output_exclusive(
-    claimed_directory: _ClaimedSensitivityDirectory,
+    claim: RootedDirectoryClaim,
     name: str,
     payload: bytes,
 ) -> _CreatedSensitivityOutput:
@@ -396,121 +808,40 @@ def _write_sensitivity_output_exclusive(
         raise ValueError("invalid sensitivity output filename")
     if len(payload) > MAX_ARTIFACT_JSON_BYTES:
         raise ValueError("evidence sensitivity artifact exceeds maximum supported size")
-    _require_claimed_directory_identity(claimed_directory)
-    path = claimed_directory.path / name
     descriptor = -1
-    created_entry = False
-    created: _CreatedSensitivityOutput | None = None
     try:
-        try:
-            descriptor = claimed_directory.claim.open_regular_file_exclusive(
-                name,
-                mode=0o600,
-            )
-        except FileExistsError as exc:
-            raise SensitivityOutputConflictError(
-                "owned sensitivity output was created concurrently: " + name
-            ) from exc
-        created_entry = True
-        metadata = os.fstat(descriptor)
+        descriptor, metadata = claim.open_regular_file_exclusive_with_metadata(
+            name,
+            mode=0o600,
+        )
+        _require_unlinked_regular_output(metadata, name=name)
         created = _CreatedSensitivityOutput(
-            path=path,
+            path=claim.path / name,
             device=metadata.st_dev,
             inode=metadata.st_ino,
             size=len(payload),
             sha256=hashlib.sha256(payload).hexdigest(),
-            pin_descriptor=None,
+            pin_descriptor=descriptor,
         )
-        if (
-            not stat.S_ISREG(metadata.st_mode)
-            or metadata_is_reparse(metadata)
-            or metadata.st_nlink != 1
-        ):
-            raise OSError("new sensitivity output is not an unlinked regular file")
-        pin_descriptor = os.dup(descriptor)
-        created = _CreatedSensitivityOutput(
-            path=path,
-            device=created.device,
-            inode=created.inode,
-            size=created.size,
-            sha256=created.sha256,
-            pin_descriptor=pin_descriptor,
-        )
-        with os.fdopen(descriptor, "wb", closefd=True) as handle:
-            descriptor = -1
-            handle.write(payload)
-            handle.flush()
-            os.fsync(handle.fileno())
-            written = os.fstat(handle.fileno())
-            if (
-                (written.st_dev, written.st_ino) != (created.device, created.inode)
-                or written.st_size != created.size
-                or written.st_nlink != 1
-            ):
-                raise OSError("new sensitivity output changed while it was being written")
-        if not _created_output_matches(claimed_directory, created):
+        _write_descriptor_all(descriptor, payload)
+        os.fsync(descriptor)
+        if _read_created_output_snapshot(claim, created).data != payload:
             raise OSError("new sensitivity output changed after it was written")
-        _require_claimed_directory_identity(claimed_directory)
         return created
-    except BaseException as exc:
-        cleanup_error: str | None = None
-        if created is None and created_entry and descriptor >= 0:
-            try:
-                metadata = os.fstat(descriptor)
-                created = _CreatedSensitivityOutput(
-                    path=path,
-                    device=metadata.st_dev,
-                    inode=metadata.st_ino,
-                    size=len(payload),
-                    sha256=hashlib.sha256(payload).hexdigest(),
-                    pin_descriptor=None,
-                )
-            except OSError:
-                cleanup_error = "new output identity could not be recovered: " + name
+    except BaseException:
         if descriptor >= 0:
             os.close(descriptor)
-            descriptor = -1
-        if created is not None:
-            cleanup_error = _remove_created_output(
-                claimed_directory,
-                created,
-                require_expected_bytes=False,
-            )
-            _close_output_pins((created,))
-        if cleanup_error is not None:
-            raise OSError(
-                "evidence sensitivity publication failed and rollback was incomplete: "
-                + cleanup_error
-            ) from exc
         raise
-    finally:
-        if descriptor >= 0:
-            os.close(descriptor)
-
-
-def _require_claimed_directory_identity(
-    claimed_directory: _ClaimedSensitivityDirectory,
-) -> None:
-    try:
-        metadata = os.lstat(claimed_directory.path)
-    except OSError as exc:
-        raise OSError("sensitivity output directory changed during publication") from exc
-    if (
-        not stat.S_ISDIR(metadata.st_mode)
-        or metadata_is_reparse(metadata)
-        or (metadata.st_dev, metadata.st_ino) != (claimed_directory.device, claimed_directory.inode)
-    ):
-        raise OSError("sensitivity output directory changed during publication")
 
 
 def _read_created_output_snapshot(
-    claimed_directory: _ClaimedSensitivityDirectory,
+    claim: RootedDirectoryClaim,
     created: _CreatedSensitivityOutput,
 ) -> BoundedFileContents:
     if created.pin_descriptor is None:
         raise OSError("created sensitivity output is not pinned")
     try:
-        entry_before = claimed_directory.claim.stat_entry_no_follow(created.path.name)
+        entry_before = claim.stat_entry_no_follow(created.path.name)
         opened_before = os.fstat(created.pin_descriptor)
     except (OSError, ValueError) as exc:
         raise OSError("created sensitivity output could not be safely inspected") from exc
@@ -543,7 +874,7 @@ def _read_created_output_snapshot(
         digest.update(chunk)
     try:
         opened_after = os.fstat(created.pin_descriptor)
-        entry_after = claimed_directory.claim.stat_entry_no_follow(created.path.name)
+        entry_after = claim.stat_entry_no_follow(created.path.name)
     except (OSError, ValueError) as exc:
         raise OSError("created sensitivity output could not be safely inspected") from exc
     stable_fields = ("st_size", "st_mtime_ns", "st_ctime_ns", "st_nlink")
@@ -563,40 +894,17 @@ def _read_created_output_snapshot(
         raise OSError("created sensitivity output changed while it was being verified")
     if size != created.size:
         raise OSError("created sensitivity output size changed while it was being verified")
+    observed_sha256 = digest.hexdigest()
+    if observed_sha256 != created.sha256:
+        raise OSError("created sensitivity output bytes changed while being verified")
     return BoundedFileContents(
         data=b"".join(chunks),
-        sha256=digest.hexdigest(),
+        sha256=observed_sha256,
         device=opened_after.st_dev,
         inode=opened_after.st_ino,
         size=opened_after.st_size,
         modified_ns=opened_after.st_mtime_ns,
         changed_ns=opened_after.st_ctime_ns,
-    )
-
-
-def _created_output_matches(
-    claimed_directory: _ClaimedSensitivityDirectory,
-    created: _CreatedSensitivityOutput,
-) -> bool:
-    try:
-        contents = _read_created_output_snapshot(claimed_directory, created)
-        return contents.sha256 == created.sha256
-    except (OSError, ValueError):
-        return False
-
-
-def _created_output_identity_matches(
-    claimed_directory: _ClaimedSensitivityDirectory,
-    created: _CreatedSensitivityOutput,
-) -> bool:
-    try:
-        metadata = claimed_directory.claim.stat_entry_no_follow(created.path.name)
-    except (OSError, ValueError):
-        return False
-    return _created_output_metadata_matches(
-        metadata,
-        created,
-        require_expected_size=False,
     )
 
 
@@ -615,70 +923,10 @@ def _created_output_metadata_matches(
     )
 
 
-def _remove_created_output(
-    claimed_directory: _ClaimedSensitivityDirectory,
-    created: _CreatedSensitivityOutput,
-    *,
-    require_expected_bytes: bool = True,
-) -> str | None:
-    try:
-        matches = (
-            _created_output_matches(claimed_directory, created)
-            if require_expected_bytes
-            else _created_output_identity_matches(claimed_directory, created)
-        )
-    except (OSError, ValueError):
-        matches = False
-    if not matches:
-        return "created output changed concurrently: " + created.path.name
-    if created.pin_descriptor is not None:
-        pin_descriptor = created.pin_descriptor
-        created.pin_descriptor = None
-        try:
-            os.close(pin_descriptor)
-        except OSError as exc:
-            return f"could not release {created.path.name}: {type(exc).__name__}"
-    try:
-        claimed_directory.claim.unlink_entry_no_follow(
-            created.path.name,
-            expected_device=created.device,
-            expected_inode=created.inode,
-        )
-    except (OSError, ValueError) as exc:
-        return f"could not remove {created.path.name}: {type(exc).__name__}"
-    return None
-
-
-def _rollback_sensitivity_publication(
-    claimed_directory: _ClaimedSensitivityDirectory,
+def _close_output_pins(
     created_outputs: tuple[_CreatedSensitivityOutput, ...],
 ) -> tuple[str, ...]:
     errors: list[str] = []
-    output_cleanup_failed = False
-    try:
-        for created in reversed(created_outputs):
-            if not _created_output_matches(claimed_directory, created):
-                errors.append("created output changed concurrently: " + created.path.name)
-                output_cleanup_failed = True
-                continue
-            error = _remove_created_output(claimed_directory, created)
-            if error is not None:
-                errors.append(error)
-                output_cleanup_failed = True
-        if not output_cleanup_failed:
-            try:
-                claimed_directory.claim.remove_empty()
-            except (OSError, ValueError) as exc:
-                errors.append("could not remove claimed output directory: " + type(exc).__name__)
-    finally:
-        try:
-            _close_output_pins(created_outputs)
-        finally:
-            _close_claimed_directory(claimed_directory)
-    return tuple(errors)
-
-
-def _close_output_pins(created_outputs: tuple[_CreatedSensitivityOutput, ...]) -> None:
     for created in created_outputs:
         if created.pin_descriptor is None:
             continue
@@ -686,39 +934,177 @@ def _close_output_pins(created_outputs: tuple[_CreatedSensitivityOutput, ...]) -
         created.pin_descriptor = None
         try:
             os.close(pin_descriptor)
-        except OSError:
-            pass
+        except OSError as exc:
+            errors.append(f"could not close {created.path.name}: {type(exc).__name__}")
+    return tuple(errors)
 
 
-def _close_claimed_directory(
-    claimed_directory: _ClaimedSensitivityDirectory,
+def _validate_staged_sensitivity_generation_immediately_before_commit(
+    claim: RootedDirectoryClaim,
+    payloads: dict[str, bytes],
+    *,
+    label: str = "final staged sensitivity output",
+) -> tuple[PinnedDirectoryFile, ...]:
+    """Validate every child and return pins whose caller owns transactionally."""
+    _require_exact_staged_inventory(claim)
+    opened_files: list[PinnedDirectoryFile] = []
+    pending_error: BaseException | None = None
+    try:
+        for name in SENSITIVITY_OUTPUT_FILENAMES:
+            opened = claim.open_file_bounded(
+                name,
+                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                label=label,
+                require_single_link=True,
+            )
+            opened_files.append(opened)
+            if opened.contents.data != payloads[name]:
+                raise OSError(f"{label} bytes are not exact: {name}")
+        _require_exact_staged_inventory(claim)
+        for opened in opened_files:
+            opened.revalidate()
+        return tuple(opened_files)
+    except BaseException as exc:
+        pending_error = exc
+        raise
+    finally:
+        close_errors = (
+            _close_final_sensitivity_child_pins(tuple(opened_files))
+            if pending_error is not None
+            else ()
+        )
+        if pending_error is not None and close_errors:
+            error = OSError(f"could not close {label} pins: " + "; ".join(close_errors))
+            raise error from pending_error
+
+
+def _revalidate_installed_sensitivity_generation_pins(
+    claim: RootedDirectoryClaim,
+    payloads: dict[str, bytes],
+    opened_files: tuple[PinnedDirectoryFile, ...],
+) -> None:
+    """Bind POSIX pre-commit child pins to their installed names before close."""
+    if len(opened_files) != len(payloads):
+        raise OSError("installed sensitivity output pin inventory is incomplete")
+    _require_exact_staged_inventory(claim)
+    for opened in opened_files:
+        expected = payloads.get(opened.path.name)
+        if expected is None or opened.contents.data != expected:
+            raise OSError("installed sensitivity output pin is not expected: " + opened.path.name)
+        opened.revalidate()
+    _require_exact_staged_inventory(claim)
+
+
+def _close_final_sensitivity_child_pins(
+    opened_files: tuple[PinnedDirectoryFile, ...],
+) -> tuple[str, ...]:
+    errors: list[str] = []
+    for opened in reversed(opened_files):
+        try:
+            opened.close()
+        except OSError as exc:
+            errors.append(f"could not close {opened.path.name}: {type(exc).__name__}")
+    return tuple(errors)
+
+
+def _require_unlinked_regular_output(
+    metadata: os.stat_result,
+    *,
+    name: str,
+) -> None:
+    if (
+        not metadata_is_regular_file(metadata)
+        or metadata_is_reparse(metadata)
+        or metadata.st_nlink != 1
+    ):
+        raise OSError("sensitivity publication entry is not an unlinked regular file: " + name)
+
+
+def _write_descriptor_all(descriptor: int, payload: bytes) -> None:
+    remaining = memoryview(payload)
+    while remaining:
+        written = os.write(descriptor, remaining)
+        if written <= 0:
+            raise OSError("sensitivity output write made no progress")
+        remaining = remaining[written:]
+
+
+def _require_exact_staged_inventory(claim: RootedDirectoryClaim) -> None:
+    names = claim.entry_names(
+        max_entries=_SENSITIVITY_OUTPUT_SCAN_LIMIT,
+        label="staged evidence sensitivity output",
+    )
+    expected_by_normalized_name = {
+        os.path.normcase(name): name for name in SENSITIVITY_OUTPUT_FILENAMES
+    }
+    if (
+        len(names) != len(SENSITIVITY_OUTPUT_FILENAMES)
+        or {os.path.normcase(name): name for name in names} != expected_by_normalized_name
+    ):
+        raise OSError("staged sensitivity output contains an unexpected entry")
+
+
+def _fsync_staged_sensitivity_generation(claim: RootedDirectoryClaim) -> None:
+    if os.name == "nt":
+        return
+    flags = os.O_RDONLY | cast(int, vars(os)["O_DIRECTORY"])
+    flags |= cast(int, vars(os)["O_NOFOLLOW"])
+    flags |= getattr(os, "O_CLOEXEC", 0)
+    descriptor = os.open(claim.path, flags)
+    try:
+        metadata = os.fstat(descriptor)
+        if (metadata.st_dev, metadata.st_ino) != (claim.device, claim.inode):
+            raise OSError("private sensitivity staging identity changed")
+        os.fsync(descriptor)
+    finally:
+        os.close(descriptor)
+
+
+def _after_sensitivity_generation_commit(parent: RootedDirectoryDescriptor) -> None:
+    _require_directory_identity(
+        parent.path,
+        device=parent.device,
+        inode=parent.inode,
+        label="sensitivity output parent",
+    )
+    if os.name != "nt" and parent.descriptor is not None:
+        os.fsync(parent.descriptor)
+    _require_directory_identity(
+        parent.path,
+        device=parent.device,
+        inode=parent.inode,
+        label="sensitivity output parent",
+    )
+
+
+def _require_directory_identity(
+    path: Path,
+    *,
+    device: int,
+    inode: int,
+    label: str,
 ) -> None:
     try:
-        claimed_directory.claim.close()
-    finally:
-        claimed_directory.parent_lease.close()
+        metadata = os.lstat(path)
+    except OSError as exc:
+        raise OSError(f"{label} directory changed") from exc
+    if (
+        not stat.S_ISDIR(metadata.st_mode)
+        or metadata_is_reparse(metadata)
+        or (metadata.st_dev, metadata.st_ino) != (device, inode)
+    ):
+        raise OSError(f"{label} directory changed")
 
 
 def _validate_finished_publication(
-    out_dir: Path,
     *,
     expected_texts: dict[str, str],
     expected_graph: AssuranceEvidenceGraph,
     expected_manifest: ReleaseArtifactManifest,
     expected_packet: EvidencePacket,
-    observed_snapshots: dict[str, BoundedFileContents] | None = None,
+    observed_snapshots: dict[str, BoundedFileContents],
 ) -> None:
-    if observed_snapshots is None:
-        snapshots = {
-            name: read_file_bounded(
-                out_dir / name,
-                max_bytes=MAX_ARTIFACT_JSON_BYTES,
-                label="persisted evidence sensitivity artifact",
-            )
-            for name in SENSITIVITY_OUTPUT_FILENAMES
-        }
-    else:
-        snapshots = observed_snapshots
+    snapshots = observed_snapshots
     if set(snapshots) != set(SENSITIVITY_OUTPUT_FILENAMES):
         raise ValueError("persisted sensitivity artifact inventory changed during publication")
     observed: dict[str, bytes] = {}
@@ -765,18 +1151,12 @@ def _validate_finished_publication(
         persisted_packet
     ):
         raise ValueError("persisted evidence packet Markdown changed during publication")
-    if observed_snapshots is None:
-        binding_error = packet_summary_files_binding_error(
-            persisted_packet,
-            artifact_root=out_dir,
-        )
-    else:
-        binding_error = packet_summary_snapshots_binding_error(
-            persisted_packet,
-            snapshots_by_path={
-                artifact.path: snapshots[artifact.path] for artifact in persisted_manifest.artifacts
-            },
-        )
+    binding_error = packet_summary_snapshots_binding_error(
+        persisted_packet,
+        snapshots_by_path={
+            artifact.path: snapshots[artifact.path] for artifact in persisted_manifest.artifacts
+        },
+    )
     if binding_error is not None:
         raise ValueError(binding_error)
 

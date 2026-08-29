@@ -10,6 +10,11 @@ evidence-response relation for committed fixtures. It is not a causal
 guarantee, a measurement of real-model failure prevalence, or a general
 intervention framework.
 
+For repeated stochastic live observations of the same narrow binary relation,
+use the separate [Repeated Paired Evidence Sensitivity](repeated_evidence_sensitivity.md)
+protocol. Its conclusions require a satisfied statistical-sufficiency artifact;
+the deterministic contract described here does not produce population estimates.
+
 The v1 producer is a declarative fixture harness/oracle, not an adapter for an
 arbitrary agent or hosted model. It accepts only `responsive`,
 `evidence_reversed`, and `evidence_inertial` fixture subject modes. The
@@ -271,42 +276,52 @@ profile recursively.
 Decoded snapshot payloads are carried alongside raw JSON specifically so
 Unicode-escaped sensitive values cannot hide inside an opaque string. Any such
 value rejects the whole bundle without partial output.
-The output directory may contain only the detector's owned artifact names and
-must not overlap either corpus or any authenticated fixture root. Directories,
-links, reparse points, and unrelated files are rejected before publication. A
-fresh publication claims an absent output directory exclusively and creates
-it atomically beneath a pinned parent. The publisher retains independent parent
-and child directory leases, creates every file relative to that lease with
-exclusive, no-follow semantics, and verifies the exact bytes through retained
-file descriptors. Packet binding consumes those same bounded snapshots instead
-of reopening mutable paths. Directory renames are blocked by held handles on
-Windows and remain descriptor-anchored on POSIX; rollback removes owned entries
-through the original lease. A concurrent file is never overwritten. A
-Windows publisher derives its mutation-capable parent handle from the pinned
-handle while that no-delete-share lease prevents rename or replacement, then
-requires exact native identity and canonical-final-path equality. Child
-directories and files are created or opened with native handle-relative
-operations, and handle-anchored deletion rechecks identity before setting the
-delete disposition. Directory handles permit shared reads and writes needed by
-the publisher but never share delete access. Missing native APIs, unexpected
-native status or disposition values, identity drift, reparse points, and
-incomplete cleanup all fail closed.
+The output directory must not overlap either corpus or any authenticated fixture
+root. Publication pins its parent and serializes every cooperating writer for
+that target when a rooted advisory lock is immediately available. Directory
+publication treats that lock only as an optimization: acquisition is bounded at
+one millisecond, and an unsafe, planted, or contended lock is bypassed. Integrity
+and writer convergence instead rely on private random staging, atomic no-replace
+directory installation, and exact validation before concurrent-generation
+adoption. A fresh generation is built
+in a random private `.agent-assure-sensitivity-*.tmp` sibling: the directory is
+owner-only (`0700` on POSIX and a verified owner-only DACL on Windows), and each
+artifact is created with exclusive, no-follow, single-link semantics (`0600` on
+POSIX). The publisher retains every file descriptor while it rechecks the exact
+inventory and bytes, reparses the graph, manifest, and packet, and verifies all
+packet/manifest bindings from those same bounded snapshots. Every artifact
+handle is flushed before commit. POSIX also syncs the staged directory before
+rename and the parent afterward. On Windows, file flushing is requested, but
+directory-entry durability remains dependent on the filesystem and host.
 
-On POSIX, the publisher requests mode `0700` for the claimed directory and
-`0600` for each artifact file. Those numeric modes are not Windows access
-controls: the Windows native creation path does not translate them into an
-NTFS DACL. Its pinned handles and no-delete sharing protect containment and
-publication integrity, not authorization or confidentiality from principals
-already allowed by the parent directory's ACL. Windows operators must place
-the output under a suitably restricted ACL; the publisher deliberately does
-not rewrite inherited ACEs or ownership as part of artifact publication.
+The sole target commit is an atomic no-replace directory rename beneath the
+pinned parent. The target path is absent before that point and is never rolled
+back afterward, including when a later durability check reports an error. A
+concurrent or unrelated target is never replaced; platforms without a supported
+atomic no-replace directory operation fail closed. Native Windows creation and
+rename remain handle-relative, use no-delete-share leases while identities are
+validated, and reject reparse or ACL drift. POSIX operations remain
+descriptor-anchored and reject link or identity drift. Linux uses libc
+`renameat2` or a direct syscall on an explicit ABI allowlist, modern FreeBSD
+requires libc `renameat2`, and macOS requires `renameatx_np`; missing kernel,
+filesystem, ABI, or libc support fails closed without a racy fallback.
 
-A pre-existing directory is accepted only when all 17 files are
-already present, every byte equals the complete deterministic generation, and
-the graph, nested/external manifest, packet, packet Markdown, and all manifest
-bindings revalidate. That exact generation returns without rewriting any file;
-a partial or different generation is rejected. Interruption and ordinary
-failure use the same identity-checked rollback path.
+A pre-existing target is inspected through the pinned parent and is adopted only
+when all 17 single-link files are present, every byte equals the
+complete deterministic generation, and the graph, nested/external manifest,
+packet, packet Markdown, and all bindings revalidate. That exact generation
+returns without rewriting any file. Windows reconciliation retries only numeric
+WinError 32/33 for at most 250 milliseconds while an honest winner releases its
+rename-pinning claim; every attempt repeats complete rooted and exact-generation
+validation. Other errors, exhaustion, and any partial or different generation
+fail closed. A handled failure or process interruption before commit can leave its
+private sibling stage, but never a partial target. Such a stage is not adoptable
+and is not deleted automatically because interrupted ownership cannot be proved.
+A fresh publication neither enumerates nor count-caps retained stages, so
+attacker-planted lookalikes cannot exhaust an application recovery limit.
+Retained stages can still accumulate and consume storage or inodes. Operators
+may remove them only after confirming no publisher is active. A safely created
+persistent lock file is expected and should remain.
 
 The producer automatically emits a complete evidence packet. Its four typed
 packet digests bind the exact counterfactual evaluation, canonical

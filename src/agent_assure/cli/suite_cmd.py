@@ -10,12 +10,14 @@ from rich.console import Console
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.authoring.yaml_lint import lint_yaml
 from agent_assure.canonical.hmac_tokens import MIN_HMAC_KEY_BYTES
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
 from agent_assure.fixtures.loader import load_compiled_suite, write_compiled_suite
 from agent_assure.fixtures.manifest import (
     build_fixture_manifest,
     load_fixture_manifest,
     write_fixture_manifest,
 )
+from agent_assure.onboarding.diagnostics import bounded_error
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.common import ExecutionMode, coerce_enum
 
@@ -33,7 +35,7 @@ def lint(path: Annotated[Path, typer.Argument(exists=True, readable=True)]) -> N
             )
         compile_suite(path)
     except Exception as exc:
-        raise typer.BadParameter(f"suite lint failed: {exc}") from exc
+        raise typer.BadParameter(f"suite lint failed: {bounded_error(exc)}") from exc
     console.print(f"lint ok: {path} ({len(warnings)} warning(s))")
 
 
@@ -47,6 +49,11 @@ def compile_cmd(
     ] = None,
 ) -> None:
     try:
+        ensure_inputs_do_not_alias_outputs(
+            (path,),
+            (out, manifest),
+            owner="suite compile",
+        )
         compiled = compile_suite(path)
         if compiled.defaults.execution_mode is ExecutionMode.live:
             raise typer.BadParameter(
@@ -56,7 +63,7 @@ def compile_cmd(
             build_fixture_manifest(compiled, path.parent) if manifest is not None else None
         )
     except (OSError, TypeError, ValueError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     write_compiled_suite(compiled, out)
     console.print(f"compiled suite: {out}")
     if manifest is not None and fixture_manifest is not None:
@@ -95,6 +102,11 @@ def run_cmd(
     ] = None,
 ) -> None:
     try:
+        ensure_inputs_do_not_alias_outputs(
+            (compiled_suite, variant, source, manifest),
+            (out,),
+            owner="suite run",
+        )
         execution_mode = coerce_enum(ExecutionMode, mode)
         if execution_mode is ExecutionMode.live:
             raise typer.BadParameter(
@@ -116,7 +128,7 @@ def run_cmd(
             **({"hmac_key": hmac_key} if hmac_key is not None else {}),
         )
     except (KeyError, OSError, TypeError, ValueError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     write_runset(runset, out)
     console.print(f"run set: {out}")
 

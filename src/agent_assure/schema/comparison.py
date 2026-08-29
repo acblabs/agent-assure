@@ -42,7 +42,7 @@ _COMPARISON_SUMMARY_USAGE_FIELD_PATHS = (
 # v0.6.4 introduces authenticated identities for both compared RunSets. Keep
 # the governed versions explicit so advancing the current writer cannot
 # silently weaken the pinned v0.6.4 model contract.
-_COMPARISON_DIGEST_CONTRACT_SCHEMA_VERSIONS = ("0.6.4",)
+_COMPARISON_DIGEST_CONTRACT_SCHEMA_VERSIONS = ("0.6.4", "0.6.5")
 _COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_COMPARISON_SUMMARY_USAGE_FIELD_PATHS
 )
