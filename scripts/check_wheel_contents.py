@@ -65,7 +65,7 @@ SDIST_SENSITIVE_FIXTURE_SHA256 = {
         "0548fc9f0b5f2c6337a437400174c99dbd73a5e836a1e2b2f9c5b34b05526f5a"
     ),
     "tests/integration/test_external_pilot_cli.py": (
-        "b8c629291cce9a38446ec057e02f47dbc5ce6ebcb635104b290f36ec17caa530"
+        "516045453990d9bc9912e537670d7f3409254128ef2201408b0562cb67efa42c"
     ),
     "tests/integration/test_stream_cli.py": (
         "676ae69422330a62a867c20fa57bdc08887304f05bcb90ba9fe528ebc0d5f716"
