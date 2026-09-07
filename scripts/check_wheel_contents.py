@@ -86,7 +86,7 @@ SDIST_SENSITIVE_FIXTURE_SHA256 = {
         "00675c6263cd18e6e24f7969f755347426b0a022ef66a1b9a007dfce028d9b59"
     ),
     "tests/unit/mutation/test_execution.py": (
-        "14c5ceda011304a69e91884f54266cc8a5723212b32e6d991d450c815d6cb83e"
+        "2137d59e1ae1078455afad586edbb8fe5b17ee8dfc924c49b307a45f4491ce85"
     ),
     "tests/unit/privacy/test_hmac_and_redaction.py": (
         "0fab0e1372db920c0aa670cd6e8735526d07a264f081a602445bc950439182d4"
