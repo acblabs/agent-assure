@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
@@ -150,9 +151,10 @@ def test_pilot_finalize_requires_explicit_output_at_parse_time(
         ],
     )
 
+    normalized_output = unstyle(result.output)
     assert result.exit_code == 2
-    assert "Missing option '--out'" in result.output
-    assert "external pilot evidence finalization failed" not in result.output
+    assert "Missing option '--out'" in normalized_output
+    assert "external pilot evidence finalization failed" not in normalized_output
     assert not (working_directory / "external-pilot-evidence.json").exists()
     assert not any(path.name.startswith(".agent-assure-finalize-") for path in tmp_path.iterdir())
 
