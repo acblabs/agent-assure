@@ -1,24 +1,28 @@
 # Schema Reference
 
-Current writer schema version: `0.6.5`.
-Current writer schema snapshot: `schemas/v0.6.5/`.
-Latest published release schema snapshot: `schemas/v0.6.4/`.
+Current development writer schema version: `0.6.6`.
+Current development writer schema snapshot: `schemas/v0.6.6/`.
+Latest published release schema snapshot: `schemas/v0.6.5/`.
+
+The `0.6.6` writer is an untagged development surface, not a published
+release. The `schemas/v0.6.5/` snapshot remains immutable.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
-models emit `schema_version: 0.6.5` and continue to accept legacy
+models emit `schema_version: 0.6.6` and continue to accept legacy
 `schema_version: 0.2.0`, `schema_version: 0.3.1`, `schema_version: 0.4.3`,
-`schema_version: 0.5.0`, `schema_version: 0.6.0`, and
-`schema_version: 0.6.1`, `schema_version: 0.6.2`, `schema_version: 0.6.3`, and
-`schema_version: 0.6.4`
-artifacts where their
+`schema_version: 0.5.0`, `schema_version: 0.6.0`,
+`schema_version: 0.6.1`, `schema_version: 0.6.2`,
+`schema_version: 0.6.3`, `schema_version: 0.6.4`, and
+`schema_version: 0.6.5` artifacts where their
 compatibility contracts permit those labels. Historical artifacts validate
-against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, v0.6.3, and v0.6.4
-snapshots remain immutable; current v0.6 relational checks continue to apply
-after validated legacy projection, including each evidence-carrying root's
-self-digest. The v0.6.5 schemas are current writer contracts: every
+against their frozen schema snapshots. The v0.6.0, v0.6.1, v0.6.2, v0.6.3,
+v0.6.4, and v0.6.5 snapshots remain immutable; current v0.6 relational checks
+continue to apply after validated legacy projection, including each
+evidence-carrying root's
+self-digest. The v0.6.6 schemas are current development writer contracts: every
 root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
-operators, expected-detection contracts, and results use `0.6.5`, while the
+operators, expected-detection contracts, and results use `0.6.6`, while the
 independently versioned usage models continue to emit `0.4.3`. Compatibility
 projection of a frozen artifact does not widen the current wire schema.
 Importable models and their direct `model_json_schema()` output retain declared
@@ -40,7 +44,7 @@ admitted by the immutable v0.6.0 schema.
 A current `AgentRunRecord` also requires its evidence references, evidence
 items, claims, and claim-evidence links to carry the current schema version. A
 current `CompiledSuite` likewise requires current resolved expectations. These
-targeted coherence checks match the v0.6.5 writer schemas without applying
+targeted coherence checks match the v0.6.6 writer schemas without applying
 parent-version equality to independently versioned components such as usage
 records. Matching legacy parent/member projections remain supported through
 their frozen schemas.
@@ -108,7 +112,8 @@ The nested reports without the confined release-manifest artifact root or an
 explicit exact source-RunSet pair are insufficient for stochastic packet
 verification and make the packet invalid.
 
-At schema versions `0.6.0`, `0.6.1`, `0.6.2`, `0.6.3`, `0.6.4`, and `0.6.5`,
+At schema versions `0.6.0`, `0.6.1`, `0.6.2`, `0.6.3`, `0.6.4`,
+`0.6.5`, and `0.6.6`,
 `evaluation-report` requires
 `runset_digest`: SHA-256 over the RFC 8785 canonical bytes of the version-aware
 schema-validated, current `RunSet` model JSON projection. The projection
@@ -165,13 +170,22 @@ Exported roots:
 - `assurance-mutation-operator`
 - `assurance-mutation-result`
 - `agent-run-record`
+- `process-equivalence-benchmark`
 - `process-equivalence-reproduction-index`
+- `real-model-study-manifest`
+- `real-model-study-execution-review`
+- `real-model-study-registration-review`
+- `real-model-study-statistical-method-review`
+- `real-model-study-report`
 - `repeated-evidence-sensitivity-protocol`
 - `compiled-suite`
 - `comparison-report`
 - `comparison-summary`
 - `control-coverage-report`
 - `control-efficacy-report`
+- `external-pilot-evidence`
+- `external-pilot-input-manifest`
+- `external-pilot-independence-review`
 - `evaluation-report`
 - `evaluation-summary`
 - `emergency-process-record`
@@ -216,7 +230,7 @@ contract for it. The exact authored file may still be digest-bound under the
 packet role `control-efficacy-onboarding-config`.
 
 Current evidence-carrying writer roots use persisted
-`schema_version: 0.6.5` and a separate semantic contract identity. Roots
+`schema_version: 0.6.6` and a separate semantic contract identity. Roots
 introduced before v0.6.2 also accept their compatible frozen v0.6.0, v0.6.1,
 v0.6.2, and v0.6.3 shapes, while roots introduced in v0.6.2 accept their
 compatible frozen shapes:
@@ -381,6 +395,83 @@ threshold. See
 [Repeated Paired Evidence Sensitivity](repeated_evidence_sensitivity.md) for
 planning equations, execution and privacy boundaries, and limitations.
 
+Six persisted roots are introduced on the v0.6.6 development writer surface:
+
+- `process-equivalence-benchmark` is
+  `ProcessEquivalenceBenchmark/v1`. Its `benchmark_digest` binds the
+  canonically ordered Process-Equivalence Benchmark v0.2 case identities and
+  raw source/input digests. It contains no model outputs, observations, or
+  scores. Exact `input_digest` values must be globally unique to reject
+  byte-identical pseudo-replicates; this does not detect semantic duplicates or
+  prove independence.
+- `real-model-study-manifest` is `RealModelStudyManifest/v1`. Its
+  `manifest_digest` binds the declared external registration-record locator
+  and digest, execution window, benchmark, per-condition `execution_origin`, exact condition
+  protocols/configurations/model identities, authority contract, budget,
+  publication policy, and complete prespecified decision rule. The protocol-set
+  and decision-rule digests are independently derived within the manifest.
+  `execution_origin` is the enum `real_provider | synthetic_fixture` and
+  defaults to the fail-closed synthetic value. Real-provider readiness also
+  requires a derived provenance sidecar bound to both exact source RunSets and
+  complete dispatch metadata; this is not cryptographic provider
+  authentication.
+- `real-model-study-registration-review` is
+  `StudyRegistrationReviewReceipt/v1`. Its `review_receipt_digest` binds the
+  study/manifest, registration method/reference, exact record SHA-256,
+  registration/review timestamps, pseudonymous reviewer, and mandatory
+  reference-resolution, digest-match, immutability, coverage, and
+  pre-observation attestations. Reviewer identity authentication remains
+  explicitly out of band.
+- `real-model-study-execution-review` is
+  `StudyExecutionReviewReceipt/v1`. Its self-digest binds the exact study,
+  manifest/report logical and byte digests, every condition's source RunSet IDs
+  and byte digests, observed-provenance digest, provider-response-ID-set digest,
+  post-window review time, distinct reviewer rationale, and mandatory
+  provider-log/account checks. Those checks are human attestations; reviewer
+  and provider identities remain authenticated out of band.
+- `real-model-study-statistical-method-review` is
+  `StudyStatisticalMethodReviewReceipt/v1`. Its self-digest binds an approval
+  by a qualified reviewer independent of study design, execution, and analysis
+  to the exact manifest and benchmark bytes, registered protocol bytes and
+  design commitments, cluster counts and roles, preregistered provider-attempt
+  identities, multiplicity method, interval method, decision boundaries, and
+  negative-control design. Validation requires the review after registration
+  and before execution. Qualifications, independence, and review conclusions
+  remain human attestations authenticated out of band.
+- `real-model-study-report` is `RealModelStudyReport/v1`. Its
+  `report_digest` binds the frozen manifest, every condition result,
+  missing/excluded/invalid pair partitions, sufficiency and operational
+  summaries, direct same-decision inertia partitions, invariant-control
+  results, exact one-sided Clopper-Pearson intervals when applicable,
+  limitations, drift boundary, and hypothesis classification. Statistical
+  fields are omitted for `underpowered`, `invalidated`, and `not_executed`
+  conditions; `control_failed` retains its unexpected-change statistics but
+  blocks classification. A standalone report cannot authenticate separate
+  registration evidence and therefore keeps publication permission false.
+- `external-pilot-evidence` is `ExternalPilotEvidence/v1`. Its
+  `pilot_evidence_digest` binds pseudonymous subject, distribution,
+  environment-control classification and evidence, input origin, exact
+  commands, privacy-filtered artifacts, friction/remediation, consent, and
+  privacy boundaries. Only an external attempted/completed record with
+  independently controlled non-maintainer CI and non-bundled input qualifies
+  as an external attempt. Its pre-candidate learning classification makes every
+  later exact-candidate gate-eligibility field permanently false.
+- `external-pilot-input-manifest` is `PilotInputManifest/v1`. It binds each
+  input-bearing workflow option to an exact privacy-safe argument, concrete
+  bundled or non-bundled origin, content SHA-256, and output-bindable semantic
+  identity digest, then derives separate configuration and data set digests.
+- `external-pilot-independence-review` is
+  `ExternalPilotIndependenceReviewReceipt/v1`. Its
+  `review_receipt_digest` binds the exact pilot logical/raw evidence,
+  canonical full artifact manifest, environment-control artifact, expected
+  release line, distinct reviewer, completed human review checklist, and
+  review time. It is explicitly operator-attested with reviewer identity
+  authenticated out of band rather than by this JSON contract.
+
+The real-model study and external-pilot contracts are documented in
+[Preregistered Real-Model Study](real_model_study.md) and
+[External CI Pilot Evidence](external_pilot.md).
+
 An `ExactRate` persists `numerator`, `denominator`, and either `defined` or
 `undefined_zero_denominator`. The numerator cannot exceed the denominator, and
 the state must match whether the denominator is zero. Catalog and stratum kill
@@ -514,6 +605,14 @@ execution with stop reasons, and may include emergency process records for
 external-script subprocess failures. They still do not persist raw prompts,
 raw provider outputs, tool arguments, retrieval records, risk tags, or
 capability inventories.
+
+The v0.6.6 RunSet root and record provenance also admit an optional
+`study_manifest_digest`. Absence remains coherent for ordinary runs. When a
+RunSet carries the field, every record must carry the same exact value; a
+partial or conflicting backlink fails validation. Real-model study analysis
+requires the exact frozen manifest digest on both source RunSets and every
+record, so a non-study or differently registered execution cannot be
+substituted into the confirmatory replay.
 
 The implemented live adapter IDs include `static-jsonl`,
 `openai-chat-completions`, and `external-script`. The OpenAI-compatible adapter

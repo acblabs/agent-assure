@@ -1,0 +1,181 @@
+{
+  "$defs": {
+    "PilotInputIdentityKind": {
+      "enum": [
+        "compiled_suite",
+        "run_set",
+        "waiver_set",
+        "knowledge_contract",
+        "rag_corpus",
+        "synthetic_data_attestation"
+      ],
+      "title": "PilotInputIdentityKind",
+      "type": "string"
+    },
+    "PilotInputKind": {
+      "enum": [
+        "configuration",
+        "data"
+      ],
+      "title": "PilotInputKind",
+      "type": "string"
+    },
+    "PilotInputManifestEntry": {
+      "additionalProperties": false,
+      "properties": {
+        "content_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "entry_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Entry Id",
+          "type": "string"
+        },
+        "input_kind": {
+          "$ref": "#/$defs/PilotInputKind"
+        },
+        "option_name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Option Name",
+          "type": "string"
+        },
+        "option_value": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "pattern": "^[^\\x00\\r\\n]+$",
+          "title": "Option Value",
+          "type": "string"
+        },
+        "origin": {
+          "$ref": "#/$defs/PilotInputOrigin"
+        },
+        "semantic_identity_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Semantic Identity Digest",
+          "type": "string"
+        },
+        "semantic_identity_kind": {
+          "$ref": "#/$defs/PilotInputIdentityKind"
+        }
+      },
+      "required": [
+        "entry_id",
+        "input_kind",
+        "origin",
+        "option_name",
+        "option_value",
+        "content_sha256",
+        "semantic_identity_kind",
+        "semantic_identity_digest"
+      ],
+      "title": "PilotInputManifestEntry",
+      "type": "object"
+    },
+    "PilotInputOrigin": {
+      "enum": [
+        "non_bundled",
+        "bundled",
+        "mixed_bundled_non_bundled",
+        "synthetic",
+        "absent"
+      ],
+      "title": "PilotInputOrigin",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/external-pilot-input-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "external-pilot-input-manifest",
+      "default": "external-pilot-input-manifest",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "configuration_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Configuration Digest"
+    },
+    "contract_id": {
+      "const": "PilotInputManifest/v1",
+      "default": "PilotInputManifest/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "data_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Data Digest"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/PilotInputManifestEntry"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Entries",
+      "type": "array"
+    },
+    "schema_name": {
+      "const": "external-pilot-input-manifest",
+      "default": "external-pilot-input-manifest",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "workflow_id": {
+      "enum": [
+        "controls-mutate",
+        "rag-sensitivity"
+      ],
+      "title": "Workflow Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "workflow_id",
+    "entries",
+    "configuration_digest",
+    "data_digest",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "PilotInputManifest",
+  "type": "object"
+}

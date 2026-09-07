@@ -505,10 +505,18 @@ def test_dependency_rejects_cross_subject_scope_and_cycles() -> None:
 def test_stochastic_dependency_content_is_gated_to_graph_schema_0_6_5() -> None:
     graph = _build(_parts())
     payload = graph.model_dump(mode="json")
+
+    payload["schema_version"] = "0.6.5"
+    payload["graph_digest"] = sha256_hexdigest(
+        {key: value for key, value in payload.items() if key != "graph_digest"}
+    )
+    replayed = AssuranceEvidenceGraph.model_validate(payload)
+    assert replayed.schema_version == "0.6.5"
+
     payload["schema_version"] = "0.6.4"
     payload["graph_digest"] = sha256_hexdigest(
         {key: value for key, value in payload.items() if key != "graph_digest"}
     )
 
-    with pytest.raises(ValidationError, match="requires schema_version '0.6.5'"):
+    with pytest.raises(ValidationError, match="requires schema_version '0.6.5' or later"):
         AssuranceEvidenceGraph.model_validate(payload)

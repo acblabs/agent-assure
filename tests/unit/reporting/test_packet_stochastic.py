@@ -2,22 +2,35 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import pytest
 from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
+import agent_assure.reporting.packet as packet_reporting
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    BoundedFileContents,
+    load_json_bytes_bounded,
+)
+from agent_assure.onboarding.path_safety import read_confined_file_snapshot
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.rag.repeated_sensitivity import (
+    assemble_paired_observations,
+    build_paired_runset_dependencies,
+)
 from agent_assure.rag.sensitivity_statistics import (
     build_stochastic_sensitivity_report,
     evaluate_statistical_sufficiency,
     plan_binary_paired_design,
 )
 from agent_assure.reporting.packet import (
+    DEFAULT_INTERPRETATION,
+    DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
     build_privacy_filtered_evidence_graph,
     load_evaluation_summary_snapshot,
@@ -27,6 +40,7 @@ from agent_assure.reporting.packet import (
     load_stochastic_evidence_sensitivity_report,
     load_stochastic_evidence_sensitivity_report_snapshot,
     packet_artifact_digest_from_snapshot,
+    packet_artifact_max_bytes,
     packet_summary_files_binding_error_for_trusted_publication,
     packet_summary_snapshots_binding_error,
     release_artifact_from_source_snapshot,
@@ -38,11 +52,18 @@ from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.graph import EvidenceGraphEdgeKind
-from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
-from agent_assure.schema.run import RunSet
+from agent_assure.schema.run import (
+    LiveExecutionAttemptEvent,
+    LiveExecutionAttemptJournal,
+    RunSet,
+)
+from agent_assure.schema.sensitivity import RAGSensitivityDecision, RAGSensitivityOutcome
 from agent_assure.schema.stochastic_sensitivity import (
     CaseClusterBinding,
+    CouplingClassification,
+    CouplingCondition,
     CouplingDescriptor,
     PairDisposition,
     PairedSensitivityObservation,
@@ -162,7 +183,7 @@ def test_packet_requires_atomic_reports_exact_digests_and_exact_dependency() -> 
         )
 
     legacy_evaluation = evaluation.model_copy(update={"schema_version": "0.6.4"})
-    with pytest.raises(ValidationError, match="evaluation.schema_version '0.6.5'"):
+    with pytest.raises(ValidationError, match="evaluation.schema_version '0.6.6'"):
         build_evidence_packet(
             legacy_evaluation,
             statistical_sufficiency=sufficiency,
@@ -342,9 +363,25 @@ def test_underpowered_packet_remains_nonverdict() -> None:
         )
 
 
-def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
-    sufficiency, stochastic, sources = _reports()
-    evaluation = _evaluation(sufficiency)
+def test_packet_artifact_limits_expand_only_stochastic_source_runsets() -> None:
+    assert (
+        packet_artifact_max_bytes("stochastic-baseline-source-runset")
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
+    assert (
+        packet_artifact_max_bytes("stochastic-counterfactual-source-runset")
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
+    assert packet_artifact_max_bytes("candidate-runset") == MAX_ARTIFACT_JSON_BYTES
+    assert packet_artifact_max_bytes("evaluation-summary") == MAX_ARTIFACT_JSON_BYTES
+
+
+def test_stochastic_summary_snapshots_bind_exact_files(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sufficiency, stochastic, sources = _reports(schema_version="0.6.5")
+    evaluation = _evaluation(sufficiency).model_copy(update={"schema_version": "0.6.5"})
     evaluation_path = tmp_path / "evaluation.json"
     sufficiency_path = tmp_path / "sufficiency.json"
     stochastic_path = tmp_path / "stochastic.json"
@@ -375,20 +412,20 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
         baseline_path,
         root=tmp_path,
         artifact_root=tmp_path,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        max_bytes=packet_artifact_max_bytes("stochastic-baseline-source-runset"),
         label="stochastic baseline source RunSet",
     )
     counterfactual_snapshot = load_packet_source_file_snapshot(
         counterfactual_path,
         root=tmp_path,
         artifact_root=tmp_path,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        max_bytes=packet_artifact_max_bytes("stochastic-counterfactual-source-runset"),
         label="stochastic counterfactual source RunSet",
     )
     assert load_statistical_sufficiency_report(sufficiency_path) == sufficiency
     assert load_stochastic_evidence_sensitivity_report(stochastic_path) == stochastic
 
-    release_artifacts = (
+    release_artifacts: tuple[ReleaseArtifact, ...] = (
         release_artifact_from_summary_snapshot(
             "evaluation-summary",
             evaluation_snapshot,
@@ -410,16 +447,12 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
             counterfactual_snapshot,
         ),
     )
-    packet = build_evidence_packet(
-        evaluation,
-        statistical_sufficiency=sufficiency,
-        stochastic_evidence_sensitivity=stochastic,
-        release_manifest=ReleaseArtifactManifest(
-            manifest_id="stochastic-packet-snapshots",
-            artifacts=release_artifacts,
-            environment=EnvironmentInfo(platform="test", python_version="3.12"),
-        ),
-        artifact_digests=(
+    release_artifacts = tuple(
+        artifact.model_copy(update={"schema_version": "0.6.5"}) for artifact in release_artifacts
+    )
+    artifact_digests = tuple(
+        digest.model_copy(update={"schema_version": "0.6.5"})
+        for digest in (
             packet_artifact_digest_from_snapshot(
                 "evaluation-summary",
                 evaluation_snapshot,
@@ -440,7 +473,27 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
                 role="stochastic-counterfactual-source-runset",
                 sha256=counterfactual_snapshot.contents.sha256,
             ),
+        )
+    )
+    packet = EvidencePacket(
+        schema_version="0.6.5",
+        packet_id="stochastic-packet-snapshots",
+        interpretation=DEFAULT_INTERPRETATION,
+        limitations=DEFAULT_PACKET_LIMITATIONS,
+        evaluation=evaluation,
+        statistical_sufficiency=sufficiency,
+        stochastic_evidence_sensitivity=stochastic,
+        release_manifest=ReleaseArtifactManifest(
+            schema_version="0.6.5",
+            manifest_id="stochastic-packet-snapshots",
+            artifacts=release_artifacts,
+            environment=EnvironmentInfo(
+                schema_version="0.6.5",
+                platform="test",
+                python_version="3.12",
+            ),
         ),
+        artifact_digests=artifact_digests,
     )
     snapshots = {
         evaluation_snapshot.relative_path: evaluation_snapshot.contents,
@@ -449,6 +502,22 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
         baseline_snapshot.relative_path: baseline_snapshot.contents,
         counterfactual_snapshot.relative_path: counterfactual_snapshot.contents,
     }
+    parsed_limits: dict[str, int] = {}
+
+    def tracking_load_json_bytes_bounded(
+        data: bytes,
+        *,
+        max_bytes: int,
+        label: str,
+    ) -> object:
+        parsed_limits[label] = max_bytes
+        return load_json_bytes_bounded(data, max_bytes=max_bytes, label=label)
+
+    monkeypatch.setattr(
+        packet_reporting,
+        "load_json_bytes_bounded",
+        tracking_load_json_bytes_bounded,
+    )
     assert (
         packet_summary_snapshots_binding_error(
             packet,
@@ -456,11 +525,40 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
         )
         is None
     )
+    assert (
+        parsed_limits["stochastic baseline source runset"] == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
+    assert (
+        parsed_limits["stochastic counterfactual source runset"]
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
     expected_graph = build_privacy_filtered_evidence_graph(
         evaluation,
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         limitations=packet.limitations,
+    )
+    revalidation_limits: dict[str, int] = {}
+
+    def tracking_read_confined_file_snapshot(
+        path: Path,
+        *,
+        root: Path,
+        max_bytes: int,
+        label: str,
+    ) -> BoundedFileContents:
+        revalidation_limits[label] = max_bytes
+        return read_confined_file_snapshot(
+            path,
+            root=root,
+            max_bytes=max_bytes,
+            label=label,
+        )
+
+    monkeypatch.setattr(
+        packet_reporting,
+        "read_confined_file_snapshot",
+        tracking_read_confined_file_snapshot,
     )
     assert (
         packet_summary_files_binding_error_for_trusted_publication(
@@ -473,6 +571,18 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
             },
         )
         is None
+    )
+    assert (
+        revalidation_limits["release manifest stochastic-baseline-source-runset artifact"]
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
+    assert (
+        revalidation_limits["release manifest stochastic-counterfactual-source-runset artifact"]
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
+    assert (
+        revalidation_limits["release manifest evaluation-summary artifact"]
+        == MAX_ARTIFACT_JSON_BYTES
     )
 
     tampered_snapshots = {
@@ -516,27 +626,42 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
     swapped_release_artifacts = (
         *summary_release_artifacts,
         ReleaseArtifact(
+            schema_version="0.6.5",
             role="stochastic-baseline-source-runset",
             path=counterfactual_snapshot.relative_path,
             sha256=counterfactual_snapshot.contents.sha256,
         ),
         ReleaseArtifact(
+            schema_version="0.6.5",
             role="stochastic-counterfactual-source-runset",
             path=baseline_snapshot.relative_path,
             sha256=baseline_snapshot.contents.sha256,
         ),
     )
-    swapped_packet = build_evidence_packet(
-        evaluation,
+    swapped_packet = EvidencePacket(
+        schema_version="0.6.5",
+        packet_id="stochastic-packet-swapped-sources",
+        interpretation=DEFAULT_INTERPRETATION,
+        limitations=DEFAULT_PACKET_LIMITATIONS,
+        evaluation=evaluation,
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         release_manifest=ReleaseArtifactManifest(
+            schema_version="0.6.5",
             manifest_id="stochastic-packet-swapped-sources",
             artifacts=swapped_release_artifacts,
-            environment=EnvironmentInfo(platform="test", python_version="3.12"),
+            environment=EnvironmentInfo(
+                schema_version="0.6.5",
+                platform="test",
+                python_version="3.12",
+            ),
         ),
         artifact_digests=tuple(
-            PacketArtifactDigest(role=artifact.role, sha256=artifact.sha256)
+            PacketArtifactDigest(
+                schema_version="0.6.5",
+                role=cast(PacketArtifactRole, artifact.role),
+                sha256=artifact.sha256,
+            )
             for artifact in swapped_release_artifacts
         ),
     )
@@ -552,18 +677,27 @@ def test_stochastic_summary_snapshots_bind_exact_files(tmp_path: Path) -> None:
         ValidationError,
         match="release manifest.*stochastic-baseline-source-runset",
     ):
-        build_evidence_packet(
-            evaluation,
+        EvidencePacket(
+            schema_version="0.6.5",
+            packet_id="stochastic-packet-missing-source-role",
+            interpretation=DEFAULT_INTERPRETATION,
+            limitations=DEFAULT_PACKET_LIMITATIONS,
+            evaluation=evaluation,
             statistical_sufficiency=sufficiency,
             stochastic_evidence_sensitivity=stochastic,
             release_manifest=ReleaseArtifactManifest(
+                schema_version="0.6.5",
                 manifest_id="stochastic-packet-missing-source-role",
                 artifacts=tuple(
                     artifact
                     for artifact in release_artifacts
                     if artifact.role != "stochastic-baseline-source-runset"
                 ),
-                environment=EnvironmentInfo(platform="test", python_version="3.12"),
+                environment=EnvironmentInfo(
+                    schema_version="0.6.5",
+                    platform="test",
+                    python_version="3.12",
+                ),
             ),
             artifact_digests=packet.artifact_digests,
         )
@@ -586,11 +720,15 @@ def _reports(
     *,
     response_values: tuple[Literal[0, 1], Literal[0, 1]] = (1, 1),
     underpowered: bool = False,
+    schema_version: Literal["0.6.5", "0.6.6"] = "0.6.6",
+    journal_bound: bool = False,
 ) -> tuple[
     StatisticalSufficiencyReport,
     StochasticEvidenceSensitivityReport,
     tuple[RunSet, RunSet],
 ]:
+    if journal_bound and schema_version != "0.6.6":
+        raise ValueError("attempt journals are supported only for current stochastic fixtures")
     design = plan_binary_paired_design(
         familywise_alpha="0.500000",
         desired_power="0.500000",
@@ -610,7 +748,9 @@ def _reports(
         corpus_digest="3" * 64,
     )
     protocol = RepeatedEvidenceSensitivityProtocol.build(
+        schema_version=schema_version,
         protocol_id="stochastic-packet-protocol",
+        execution_attempt_id=("stochastic-packet-attempt-01" if journal_bound else None),
         interpretation="confirmatory",
         execution_mode="stochastic_live",
         baseline_arm=baseline_arm,
@@ -631,15 +771,15 @@ def _reports(
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
             stochastic_dimensions=(
-                "provider_sampling_randomness",
-                "temporal_execution_order",
+                CouplingCondition.provider_sampling_randomness,
+                CouplingCondition.temporal_execution_order,
             ),
-            intentionally_different=("governing_corpus_digest",),
+            intentionally_different=(CouplingCondition.governing_corpus_digest,),
             not_shared=(
-                "provider_sampling_randomness",
-                "temporal_execution_order",
+                CouplingCondition.provider_sampling_randomness,
+                CouplingCondition.temporal_execution_order,
             ),
-            classification="nominally_paired",
+            classification=CouplingClassification.nominally_paired,
         ),
         design=design,
         limitations=("Synthetic stochastic packet fixture.",),
@@ -663,20 +803,38 @@ def _reports(
                 None if underpowered and index == 1 else f"counterfactual-{case_id}"
             ),
             counterfactual_run_digest=(None if underpowered and index == 1 else "0" * 64),
-            baseline_recommendation=(None if underpowered and index == 1 else "approve"),
-            baseline_outcome=None if underpowered and index == 1 else "approved",
+            baseline_recommendation=(
+                None if underpowered and index == 1 else RAGSensitivityDecision.approve
+            ),
+            baseline_outcome=(
+                None if underpowered and index == 1 else RAGSensitivityOutcome.approved
+            ),
             counterfactual_recommendation=(
-                None if underpowered and index == 1 else "deny" if endpoint_value else "approve"
+                None
+                if underpowered and index == 1
+                else RAGSensitivityDecision.deny
+                if endpoint_value
+                else RAGSensitivityDecision.approve
             ),
             counterfactual_outcome=(
-                None if underpowered and index == 1 else "denied" if endpoint_value else "approved"
+                None
+                if underpowered and index == 1
+                else RAGSensitivityOutcome.denied
+                if endpoint_value
+                else RAGSensitivityOutcome.approved
             ),
-            baseline_expected_recommendation=(None if underpowered and index == 1 else "approve"),
-            baseline_expected_outcome=(None if underpowered and index == 1 else "approved"),
+            baseline_expected_recommendation=(
+                None if underpowered and index == 1 else RAGSensitivityDecision.approve
+            ),
+            baseline_expected_outcome=(
+                None if underpowered and index == 1 else RAGSensitivityOutcome.approved
+            ),
             counterfactual_expected_recommendation=(
-                None if underpowered and index == 1 else "deny"
+                None if underpowered and index == 1 else RAGSensitivityDecision.deny
             ),
-            counterfactual_expected_outcome=(None if underpowered and index == 1 else "denied"),
+            counterfactual_expected_outcome=(
+                None if underpowered and index == 1 else RAGSensitivityOutcome.denied
+            ),
             endpoint_value=(None if underpowered and index == 1 else endpoint_value),
         )
         for index, (case_id, endpoint_value) in enumerate(
@@ -687,12 +845,123 @@ def _reports(
         protocol,
         observations,
     )
+    if journal_bound:
+        sources = _journaled_sources(protocol, sources)
+        observations = assemble_paired_observations(protocol, *sources)
+        dependencies = build_paired_runset_dependencies(protocol, *sources)
     sufficiency = evaluate_statistical_sufficiency(
         protocol,
         observations,
         source_runsets=dependencies,
     )
-    return sufficiency, build_stochastic_sensitivity_report(sufficiency), sources
+    if schema_version == "0.6.5":
+        sufficiency_payload = sufficiency.model_dump(
+            mode="python",
+            exclude={"report_digest"},
+        )
+        sufficiency_payload["schema_version"] = schema_version
+        sufficiency = StatisticalSufficiencyReport.build(**sufficiency_payload)
+    stochastic = build_stochastic_sensitivity_report(sufficiency)
+    if schema_version == "0.6.5":
+        stochastic_payload = stochastic.model_dump(
+            mode="python",
+            exclude={"report_digest"},
+        )
+        stochastic_payload["schema_version"] = schema_version
+        stochastic = StochasticEvidenceSensitivityReport.build(**stochastic_payload)
+    return sufficiency, stochastic, sources
+
+
+def _journaled_sources(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+    sources: tuple[RunSet, RunSet],
+) -> tuple[RunSet, RunSet]:
+    assert protocol.execution_attempt_id is not None
+
+    def add_attempt_accounting(runset: RunSet) -> RunSet:
+        return runset.model_copy(
+            update={
+                "runs": tuple(
+                    run.model_copy(
+                        update={
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "rate_limit_events": 0,
+                            "provider_response_id": f"response-{run.run_id}",
+                        }
+                    )
+                    for run in runset.runs
+                )
+            }
+        )
+
+    baseline = add_attempt_accounting(sources[0])
+    counterfactual = add_attempt_accounting(sources[1])
+    event_payloads: list[dict[str, object]] = []
+
+    def append_event(event_type: str, **values: object) -> None:
+        event_payloads.append(
+            {
+                "event_index": len(event_payloads),
+                "event_type": event_type,
+                "occurred_at_utc": "2026-09-05T12:00:00Z",
+                **values,
+            }
+        )
+
+    for arm_id, runset in (
+        (protocol.baseline_arm.arm_id, baseline),
+        (protocol.counterfactual_arm.arm_id, counterfactual),
+    ):
+        append_event("arm_started", arm_id=arm_id)
+        for run in runset.runs:
+            identity = {
+                "arm_id": arm_id,
+                "run_id": run.run_id,
+                "observation_id": run.observation_id,
+                "case_id": run.case_id,
+                "repetition_index": run.repetition_index,
+                "adapter_attempt_index": 1,
+            }
+            append_event("request_issued", **identity)
+            append_event(
+                "request_succeeded",
+                **identity,
+                provider_response_id_digest=sha256_hexdigest(
+                    {
+                        "purpose": "provider-response-id/v1",
+                        "provider_response_id": run.provider_response_id,
+                    }
+                ),
+            )
+        append_event("arm_completed", arm_id=arm_id)
+    append_event("attempt_completed")
+    journal = LiveExecutionAttemptJournal.build(
+        journal_version="1.0.0",
+        execution_attempt_id=protocol.execution_attempt_id,
+        repeated_protocol_digest=protocol.protocol_digest,
+        operational_protocol_digest=baseline.protocol_digest,
+        study_manifest_digest=None,
+        baseline_configuration_digest=protocol.baseline_arm.configuration_digest,
+        counterfactual_configuration_digest=protocol.counterfactual_arm.configuration_digest,
+        status="complete",
+        events=tuple(
+            LiveExecutionAttemptEvent.model_validate(payload) for payload in event_payloads
+        ),
+    )
+
+    def attach(runset: RunSet) -> RunSet:
+        payload = runset.model_dump(mode="json")
+        payload.update(
+            {
+                "execution_attempt_id": journal.execution_attempt_id,
+                "execution_attempt_journal_digest": journal.journal_digest,
+                "execution_attempt_journal": journal.model_dump(mode="json"),
+            }
+        )
+        return RunSet.model_validate(payload)
+
+    return attach(baseline), attach(counterfactual)
 
 
 def _arm(
@@ -704,8 +973,12 @@ def _arm(
     is_baseline = arm_id == "baseline_evidence"
     return SensitivityArmBinding(
         arm_id=arm_id,
-        expected_recommendation="approve" if is_baseline else "deny",
-        expected_outcome="approved" if is_baseline else "denied",
+        expected_recommendation=(
+            RAGSensitivityDecision.approve if is_baseline else RAGSensitivityDecision.deny
+        ),
+        expected_outcome=(
+            RAGSensitivityOutcome.approved if is_baseline else RAGSensitivityOutcome.denied
+        ),
         configuration_digest=configuration_digest,
         corpus_digest=corpus_digest,
         prompt_manifest_digest="d" * 64,

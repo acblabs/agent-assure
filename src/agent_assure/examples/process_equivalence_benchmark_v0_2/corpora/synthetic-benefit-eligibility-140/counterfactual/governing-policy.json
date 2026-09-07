@@ -1,0 +1,15 @@
+{
+  "governing_decision": "deny",
+  "governing_outcome": "denied",
+  "ref_id": "ref-governing-benefit-policy-140",
+  "retrieval_terms": [
+    "benefit",
+    "eligibility",
+    "governing",
+    "policy",
+    "synthetic"
+  ],
+  "safe_summary": "Synthetic case 140 counterfactual authority requires deny for the declared benefit eligibility query.",
+  "source_id": "synthetic-benefit-governing-policy-140",
+  "title": "Synthetic Benefit Case 140 Counterfactual Authority"
+}

@@ -4,13 +4,31 @@ on:
   workflow_dispatch:
     inputs:
       operation:
-        description: "Run the standard dry run or the exact allowlisted v0.6.0 recovery."
+        description: "Dry-run/verify a tag, prepare/resume one gated tag, or run the v0.6.0 recovery."
         required: true
         default: standard
         type: choice
         options:
           - standard
+          - prepare-tag
+          - resume-tag
           - recover-v0.6.0
+      source-sha:
+        description: "Exact 40-character release commit SHA; required for prepare-tag/resume-tag."
+        required: false
+        type: string
+      expected-version:
+        description: "Exact stable package version (for example 0.6.6); required for prepare-tag/resume-tag."
+        required: false
+        type: string
+      authorization-run-id:
+        description: "Protected prepare/resume run authorizing a standard tag publication. Set only by this workflow."
+        required: false
+        type: string
+      authorization-run-attempt:
+        description: "Exact attempt of the protected authorization run. Set only by this workflow."
+        required: false
+        type: string
   push:
     tags:
       - "v*"
@@ -19,7 +37,14 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-${{ github.ref }}
+  # Prepare runs originate from the default branch and resume runs from the
+  # immutable tag, but both operate on one release identity. Serialize them
+  # with tag-bound publication without replacing an authorized pending child.
+  group: >-
+    release-${{ github.event_name == 'workflow_dispatch' &&
+    (inputs.operation == 'prepare-tag' || inputs.operation == 'resume-tag') &&
+    format('refs/tags/v{0}', inputs.expected-version) || github.ref }}
+  queue: max
   cancel-in-progress: false
 
 env:
@@ -28,23 +53,37 @@ env:
   PYTHON_VERSION: "3.14.6"
   COSIGN_VERSION: "v3.0.6"
   SOURCE_DATE_EPOCH: "1783036800"
+  # The publish gate replays both closed evidence bundles.
+  EMPIRICAL_STUDY_BUNDLE_ROOT: evidence/empirical/real-model-study
+  EXTERNAL_PILOT_BUNDLE_ROOT: evidence/empirical/external-pilot
+  EXTERNAL_PILOT_EVIDENCE: external-pilot-evidence.json
+  EXTERNAL_PILOT_REVIEW_RECEIPT: external-pilot-independence-review.json
 
 jobs:
   build:
     name: Build and test without publishing credentials
-    if: github.event_name != 'workflow_dispatch' || inputs.operation == 'standard'
+    if: >-
+      github.event_name != 'workflow_dispatch' ||
+      inputs.operation == 'standard' ||
+      inputs.operation == 'prepare-tag' ||
+      inputs.operation == 'resume-tag'
     runs-on: ubuntu-latest
     permissions:
       contents: read
     outputs:
       bundle_artifact_id: ${{ steps.upload-bundle.outputs.artifact-id }}
       bundle_artifact_digest: ${{ steps.upload-bundle.outputs.artifact-digest }}
+      package_version: ${{ steps.package-version.outputs.value }}
+      source_sha: ${{ steps.release-identity.outputs.source_sha }}
+      source_ref: ${{ steps.release-identity.outputs.source_ref }}
+      release_tag: ${{ steps.release-identity.outputs.release_tag }}
     steps:
       # actions/checkout@v4
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.operation == 'prepare-tag' && inputs.source-sha || github.ref }}
       # actions/setup-python@v5
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -58,18 +97,60 @@ jobs:
           [[ "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(rc[1-9][0-9]*)?$ ]]
           printf 'value=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
       - name: Validate immutable release source
-        if: startsWith(github.ref, 'refs/tags/v')
+        id: release-identity
         env:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          OPERATION: ${{ inputs.operation }}
+          REQUESTED_SOURCE_SHA: ${{ inputs.source-sha }}
+          REQUESTED_VERSION: ${{ inputs.expected-version }}
+          PACKAGE_VERSION: ${{ steps.package-version.outputs.value }}
         shell: bash
         run: |
           set -euo pipefail
-          python scripts/check_version_matches_tag.py "${GITHUB_REF_NAME}" --require-stable
-          version="${GITHUB_REF_NAME#v}"
-          grep -Fq "## ${version} -" CHANGELOG.md
-          test -f "docs/release_notes/${GITHUB_REF_NAME}.md"
-          test "$(git rev-parse "${GITHUB_REF}^{commit}")" = "${GITHUB_SHA}"
-          git merge-base --is-ancestor "${GITHUB_SHA}" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          source_sha="$(git rev-parse HEAD)"
+          source_ref="${GITHUB_REF}"
+          release_tag=""
+          if [ "${GITHUB_EVENT_NAME}" = "workflow_dispatch" ] && { [ "${OPERATION}" = "prepare-tag" ] || [ "${OPERATION}" = "resume-tag" ]; }; then
+            [[ "${REQUESTED_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+            [[ "${REQUESTED_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+            test "${PACKAGE_VERSION}" = "${REQUESTED_VERSION}"
+            release_tag="v${REQUESTED_VERSION}"
+            source_ref="refs/tags/${release_tag}"
+            if [ "${OPERATION}" = "prepare-tag" ]; then
+              test "${GITHUB_REF}" = "refs/heads/${DEFAULT_BRANCH}"
+            else
+              test "${GITHUB_REF}" = "${source_ref}"
+            fi
+            test "${GITHUB_SHA}" = "${REQUESTED_SOURCE_SHA}"
+            test "${source_sha}" = "${REQUESTED_SOURCE_SHA}"
+          elif [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            release_tag="${GITHUB_REF_NAME}"
+          fi
+          if [ -n "${release_tag}" ]; then
+            python scripts/check_version_matches_tag.py "${release_tag}" --require-stable
+            version="${release_tag#v}"
+            grep -Fq "## ${version} -" CHANGELOG.md
+            test -f "docs/release_notes/${release_tag}.md"
+            git merge-base --is-ancestor "${source_sha}" "refs/remotes/origin/${DEFAULT_BRANCH}"
+          fi
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            test "$(git rev-parse "${GITHUB_REF}^{commit}")" = "${source_sha}"
+            test "${source_sha}" = "${GITHUB_SHA}"
+          fi
+          if [ "${OPERATION}" = "prepare-tag" ] && git show-ref --verify --quiet "refs/tags/${release_tag}"; then
+            echo "release tag already exists; refusing to move or replace it" >&2
+            exit 1
+          fi
+          if [ "${OPERATION}" = "resume-tag" ]; then
+            git show-ref --verify --quiet "refs/tags/${release_tag}"
+            test "$(git cat-file -t "refs/tags/${release_tag}")" = "tag"
+            test "$(git rev-parse "refs/tags/${release_tag}^{commit}")" = "${source_sha}"
+          fi
+          {
+            printf 'source_sha=%s\n' "${source_sha}"
+            printf 'source_ref=%s\n' "${source_ref}"
+            printf 'release_tag=%s\n' "${release_tag}"
+          } >> "${GITHUB_OUTPUT}"
       - name: Require clean source before build
         shell: bash
         run: |
@@ -78,7 +159,8 @@ jobs:
           test -z "${dirty}"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
-      - run: make release-check EXPECTED_RELEASE="${{ steps.package-version.outputs.value }}"
+      - name: Require empirical checkpoint and run release checks
+        run: make release-publish-check EXPECTED_RELEASE="${{ steps.package-version.outputs.value }}"
       - run: python scripts/update_golden.py
       - name: Build release bundle
         run: >
@@ -86,12 +168,12 @@ jobs:
           --expected-release "${{ steps.package-version.outputs.value }}"
           --out .tmp/release
           --write-digests .tmp/release/release-digest-replay.json
-          --source-ref "${GITHUB_REF}"
+          --source-ref "${{ steps.release-identity.outputs.source_ref }}"
           --require-clean-source
       - name: Add reviewed release notes to the immutable bundle
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: steps.release-identity.outputs.release_tag != ''
         shell: bash
-        run: cp "docs/release_notes/${GITHUB_REF_NAME}.md" .tmp/release/release-notes.md
+        run: cp "docs/release_notes/${{ steps.release-identity.outputs.release_tag }}.md" .tmp/release/release-notes.md
       - name: Check release distributions
         shell: bash
         run: |
@@ -103,7 +185,7 @@ jobs:
         run: >
           agent-assure release replay .tmp/release/release-digest-replay.json
           --artifact-root .
-          --expect-ref "${GITHUB_REF}"
+          --expect-ref "${{ steps.release-identity.outputs.source_ref }}"
           --require-current-commit
       - name: Require clean source after build
         if: always()
@@ -140,6 +222,7 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
+          ref: ${{ needs.build.outputs.source_sha }}
       # actions/setup-python@v5
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
         with:
@@ -151,6 +234,8 @@ jobs:
           set -euo pipefail
           version="$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")"
           [[ "${version}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(rc[1-9][0-9]*)?$ ]]
+          test "${version}" = "${{ needs.build.outputs.package_version }}"
+          test "$(git rev-parse HEAD)" = "${{ needs.build.outputs.source_sha }}"
           printf 'value=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
@@ -168,24 +253,24 @@ jobs:
           --expected-release "${{ steps.package-version.outputs.value }}"
           --out .tmp/release
           --write-digests .tmp/release/release-digest-replay.json
-          --source-ref "${GITHUB_REF}"
+          --source-ref "${{ needs.build.outputs.source_ref }}"
           --require-clean-source
       - name: Add independently sourced release notes
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: needs.build.outputs.release_tag != ''
         shell: bash
-        run: cp "docs/release_notes/${GITHUB_REF_NAME}.md" .tmp/release/release-notes.md
+        run: cp "docs/release_notes/${{ needs.build.outputs.release_tag }}.md" .tmp/release/release-notes.md
       - name: Compare every future signing input by actual bytes
         run: >
           python scripts/assert_dist_reproducible.py
           .tmp/published
           .tmp/release
           --verified-out .tmp/verified-release
-          ${{ startsWith(github.ref, 'refs/tags/v') && '--require-release-notes' || '' }}
+          ${{ needs.build.outputs.release_tag != '' && '--require-release-notes' || '' }}
       - name: Replay digests from fresh-job rebuild
         run: >
           agent-assure release replay .tmp/release/release-digest-replay.json
           --artifact-root .
-          --expect-ref "${GITHUB_REF}"
+          --expect-ref "${{ needs.build.outputs.source_ref }}"
           --require-current-commit
       - name: Require clean source after reproduction
         if: always()
@@ -204,10 +289,582 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+  prepare-release-tag:
+    name: Create one SHA-bound release tag after all unprivileged gates
+    needs: [build, reproduce]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'prepare-tag' &&
+      needs.build.result == 'success' &&
+      needs.reproduce.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: release-tag
+    permissions:
+      actions: write
+      contents: write
+    steps:
+      - name: Create immutable SHA-bound annotated release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          EXPECTED_VERSION: ${{ needs.build.outputs.package_version }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${GITHUB_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${EXPECTED_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${EXPECTED_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test "${RELEASE_TAG}" = "v${EXPECTED_VERSION}"
+          repository_sha="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/commits/${EXPECTED_SOURCE_SHA}" \
+              --jq .sha
+          )"
+          test "${repository_sha}" = "${EXPECTED_SOURCE_SHA}"
+          default_branch="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}" \
+              --jq .default_branch
+          )"
+          test -n "${default_branch}"
+          encoded_default_branch="$(printf '%s' "${default_branch}" | jq -sRr @uri)"
+          ancestry_status="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/compare/${EXPECTED_SOURCE_SHA}...${encoded_default_branch}" \
+              --jq .status
+          )"
+          case "${ancestry_status}" in
+            ahead|identical)
+              ;;
+            *)
+              echo "release source is no longer on the default branch" >&2
+              exit 1
+              ;;
+          esac
+          ref_response="$(mktemp)"
+          ref_error="$(mktemp)"
+          set +e
+          gh api --include \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+            >"${ref_response}" 2>"${ref_error}"
+          ref_exit="$?"
+          set -e
+          ref_status="$(awk 'NR == 1 {print $2}' "${ref_response}")"
+          rm -f "${ref_response}" "${ref_error}"
+          case "${ref_status}" in
+            404)
+              test "${ref_exit}" -ne 0
+              ;;
+            200)
+              echo "release tag already exists; refusing to move or replace it" >&2
+              exit 1
+              ;;
+            *)
+              echo "unable to prove release-tag absence (HTTP ${ref_status:-none})" >&2
+              exit 1
+              ;;
+          esac
+          tag_message="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}"
+          tag_object_sha="$(
+            gh api --method POST \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/tags" \
+              -f tag="${RELEASE_TAG}" \
+              -f message="${tag_message}" \
+              -f object="${EXPECTED_SOURCE_SHA}" \
+              -f type=commit \
+              --jq .sha
+          )"
+          [[ "${tag_object_sha}" =~ ^[0-9a-f]{40}$ ]]
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f ref="refs/tags/${RELEASE_TAG}" \
+            -f sha="${tag_object_sha}" \
+            >/dev/null
+      - name: Verify immutable release tag binding
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          EXPECTED_VERSION: ${{ needs.build.outputs.package_version }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bound_tag_object="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}" \
+              --jq 'select(.object.type == "tag") | .object.sha'
+          )"
+          [[ "${bound_tag_object}" =~ ^[0-9a-f]{40}$ ]]
+          tag_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/tags/${bound_tag_object}"
+          )"
+          test "$(printf '%s' "${tag_payload}" | jq -er .tag)" = "${RELEASE_TAG}"
+          test "$(printf '%s' "${tag_payload}" | jq -er .object.type)" = "commit"
+          test "$(printf '%s' "${tag_payload}" | jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"
+          test "$(printf '%s' "${tag_payload}" | jq -er .message)" = \
+            "agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}"
+      - name: Dispatch tag-bound publication from the immutable tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${RELEASE_TAG}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+            -f ref="${RELEASE_TAG}" \
+            -f 'inputs[operation]=standard' \
+            -f "inputs[authorization-run-id]=${GITHUB_RUN_ID}" \
+            -f "inputs[authorization-run-attempt]=${GITHUB_RUN_ATTEMPT}"
+
+  resume-release-tag:
+    name: Resume publication from one verified immutable release tag
+    needs: [build, reproduce]
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      inputs.operation == 'resume-tag' &&
+      needs.build.result == 'success' &&
+      needs.reproduce.result == 'success'
+    runs-on: ubuntu-latest
+    environment:
+      name: release-tag
+    permissions:
+      actions: write
+      contents: read
+    steps:
+      - name: Verify the existing annotated tag and idempotently dispatch publication
+        env:
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          GH_TOKEN: ${{ github.token }}
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          EXPECTED_VERSION: ${{ needs.build.outputs.package_version }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${EXPECTED_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          [[ "${EXPECTED_VERSION}" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]
+          test -n "${DEFAULT_BRANCH}"
+          test "${RELEASE_TAG}" = "v${EXPECTED_VERSION}"
+          ref_payload="$({
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}"
+          })"
+          tag_object_sha="$(
+            printf '%s' "${ref_payload}" |
+              jq -er 'select(.object.type == "tag") | .object.sha'
+          )"
+          [[ "${tag_object_sha}" =~ ^[0-9a-f]{40}$ ]]
+          tag_payload="$({
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object_sha}"
+          })"
+          test "$(printf '%s' "${tag_payload}" | jq -er .tag)" = "${RELEASE_TAG}"
+          test "$(printf '%s' "${tag_payload}" | jq -er .object.type)" = "commit"
+          test "$(printf '%s' "${tag_payload}" | jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"
+          tag_message="$(printf '%s' "${tag_payload}" | jq -er .message)"
+          # Bind the attempt as well as the run: a later rerun must not replace
+          # the job provenance of the attempt that actually created the tag.
+          annotation_prefix="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; preflight run "
+          preflight_identity="${tag_message#"${annotation_prefix}"}"
+          preflight_run_id="${preflight_identity%%;*}"
+          preflight_run_attempt="${preflight_identity#*; attempt }"
+          if ! [[ "${preflight_run_id}" =~ ^[1-9][0-9]*$ ]] || \
+            ! [[ "${preflight_run_attempt}" =~ ^[1-9][0-9]*$ ]] || \
+            [ "${tag_message}" != "${annotation_prefix}${preflight_run_id}; attempt ${preflight_run_attempt}" ]; then
+            echo "release tag annotation does not match the gated preparation contract" >&2
+            exit 1
+          fi
+          preflight_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${preflight_run_id}/attempts/${preflight_run_attempt}"
+          )"
+          if ! printf '%s' "${preflight_payload}" | jq -e \
+            --arg expected_run_id "${preflight_run_id}" \
+            --arg expected_run_attempt "${preflight_run_attempt}" \
+            --arg expected_branch "${DEFAULT_BRANCH}" \
+            --arg expected_repository "${GITHUB_REPOSITORY}" \
+            --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+            '
+              (.id | tostring) == $expected_run_id and
+              (.run_attempt | tostring) == $expected_run_attempt and
+              .event == "workflow_dispatch" and
+              .path == ".github/workflows/release.yml" and
+              .head_branch == $expected_branch and
+              .head_sha == $expected_sha and
+              .repository.full_name == $expected_repository and
+              .status == "completed" and
+              (
+                .conclusion == "success" or
+                .conclusion == "failure" or
+                .conclusion == "cancelled" or
+                .conclusion == "timed_out"
+              )
+            ' >/dev/null; then
+            echo "tag annotation does not identify a completed matching release preflight attempt" >&2
+            exit 1
+          fi
+          preflight_conclusion="$(
+            printf '%s' "${preflight_payload}" | jq -er .conclusion
+          )"
+          preflight_jobs_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${preflight_run_id}/attempts/${preflight_run_attempt}/jobs?per_page=100"
+          )"
+          preflight_job_count="$(
+            printf '%s' "${preflight_jobs_payload}" | jq -er '.total_count | tostring'
+          )"
+          [[ "${preflight_job_count}" =~ ^[0-9]+$ ]]
+          if [ "${preflight_job_count}" -gt 100 ]; then
+            echo "unable to prove release preflight provenance within the bounded job scan" >&2
+            exit 1
+          fi
+          if ! printf '%s' "${preflight_jobs_payload}" | jq -e \
+            --arg build_name "Build and test without publishing credentials" \
+            --arg create_step "Create immutable SHA-bound annotated release tag" \
+            --arg expected_run_id "${preflight_run_id}" \
+            --arg expected_run_attempt "${preflight_run_attempt}" \
+            --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+            --arg prepare_name "Create one SHA-bound release tag after all unprivileged gates" \
+            --arg reproduce_name "Fresh-job rebuild and promote byte-matched signing inputs" \
+            --arg run_conclusion "${preflight_conclusion}" \
+            '
+              def bound_job:
+                (.run_id | tostring) == $expected_run_id and
+                (.run_attempt | tostring) == $expected_run_attempt and
+                .head_sha == $expected_sha and
+                .workflow_name == "release";
+              def successful_job($name):
+                [.jobs[] | select(
+                  .name == $name and
+                  bound_job and
+                  .status == "completed" and
+                  .conclusion == "success"
+                )] | length == 1;
+              successful_job($build_name) and
+              successful_job($reproduce_name) and
+              (
+                [.jobs[] | select(.name == $prepare_name and bound_job)] as $prepare |
+                ($prepare | length) == 1 and
+                $prepare[0].status == "completed" and
+                $prepare[0].conclusion == $run_conclusion and
+                (
+                  [$prepare[0].steps[]? | select(
+                    .name == $create_step and
+                    .status == "completed" and
+                    .conclusion == "success"
+                  )] | length
+                ) == 1
+              )
+            ' >/dev/null; then
+            echo "tag annotation is not backed by the required release preflight jobs" >&2
+            exit 1
+          fi
+          # A network failure, cancellation, or timeout after the create step
+          # leaves a valid immutable tag. The exact successful create step and
+          # independently revalidated tag make that narrow state recoverable.
+          if [ "${preflight_conclusion}" != "success" ]; then
+            echo "release preflight ended after immutable tag creation; resuming from revalidated tag state"
+          fi
+          encoded_release_tag="$(printf '%s' "${RELEASE_TAG}" | jq -sRr @uri)"
+          runs_payload="$({
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/runs?event=workflow_dispatch&branch=${encoded_release_tag}&per_page=100"
+          })"
+          total_count="$(printf '%s' "${runs_payload}" | jq -er .total_count)"
+          [[ "${total_count}" =~ ^[0-9]+$ ]]
+          if [ "${total_count}" -gt 100 ]; then
+            echo "unable to prove idempotent tag-bound dispatch within the bounded run scan" >&2
+            exit 1
+          fi
+          protected_run_count="$(
+            printf '%s' "${runs_payload}" |
+              jq -er \
+                --arg current_run_id "${GITHUB_RUN_ID}" \
+                --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+                --arg release_tag "${RELEASE_TAG}" \
+                '[.workflow_runs[] | select(
+                  (.id | tostring) != $current_run_id and
+                  .event == "workflow_dispatch" and
+                  .path == ".github/workflows/release.yml" and
+                  .head_branch == $release_tag and
+                  .head_sha == $expected_sha and
+                  (.status != "completed" or .conclusion == "success")
+                )] | length'
+          )"
+          [[ "${protected_run_count}" =~ ^[0-9]+$ ]]
+          if [ "${protected_run_count}" -gt 0 ]; then
+            echo "an active or successful tag-bound release run already exists; no dispatch needed"
+            exit 0
+          fi
+          gh api --method POST \
+            -H "Accept: application/vnd.github+json" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            "repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches" \
+            -f ref="${RELEASE_TAG}" \
+            -f 'inputs[operation]=standard' \
+            -f "inputs[authorization-run-id]=${GITHUB_RUN_ID}" \
+            -f "inputs[authorization-run-attempt]=${GITHUB_RUN_ATTEMPT}"
+
+  verify-release-tag-provenance:
+    name: Verify protected release-tag authorization
+    needs: [build, reproduce]
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name != 'workflow_dispatch' || inputs.operation == 'standard') &&
+      needs.build.result == 'success' &&
+      needs.reproduce.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Verify annotated tag and its protected authorization attempt
+        env:
+          AUTHORIZATION_RUN_ATTEMPT: ${{ inputs.authorization-run-attempt }}
+          AUTHORIZATION_RUN_ID: ${{ inputs.authorization-run-id }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+          EXPECTED_VERSION: ${{ needs.build.outputs.package_version }}
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${AUTHORIZATION_RUN_ID}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${AUTHORIZATION_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]]
+          [[ "${EXPECTED_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]
+          test -n "${DEFAULT_BRANCH}"
+          test "${GITHUB_REF}" = "refs/tags/${RELEASE_TAG}"
+          test "${GITHUB_SHA}" = "${EXPECTED_SOURCE_SHA}"
+          test "${RELEASE_TAG}" = "v${EXPECTED_VERSION}"
+
+          ref_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}"
+          )"
+          tag_object_sha="$(
+            printf '%s' "${ref_payload}" |
+              jq -er 'select(.object.type == "tag") | .object.sha'
+          )"
+          [[ "${tag_object_sha}" =~ ^[0-9a-f]{40}$ ]]
+          tag_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/git/tags/${tag_object_sha}"
+          )"
+          test "$(printf '%s' "${tag_payload}" | jq -er .tag)" = "${RELEASE_TAG}"
+          test "$(printf '%s' "${tag_payload}" | jq -er .object.type)" = "commit"
+          test "$(printf '%s' "${tag_payload}" | jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"
+          tag_message="$(printf '%s' "${tag_payload}" | jq -er .message)"
+          annotation_prefix="agent-assure ${EXPECTED_VERSION}; source ${EXPECTED_SOURCE_SHA}; preflight run "
+          preflight_identity="${tag_message#"${annotation_prefix}"}"
+          preflight_run_id="${preflight_identity%%;*}"
+          preflight_run_attempt="${preflight_identity#*; attempt }"
+          if ! [[ "${preflight_run_id}" =~ ^[1-9][0-9]*$ ]] || \
+            ! [[ "${preflight_run_attempt}" =~ ^[1-9][0-9]*$ ]] || \
+            [ "${tag_message}" != "${annotation_prefix}${preflight_run_id}; attempt ${preflight_run_attempt}" ]; then
+            echo "release tag annotation does not match the gated preparation contract" >&2
+            exit 1
+          fi
+
+          preflight_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${preflight_run_id}/attempts/${preflight_run_attempt}"
+          )"
+          if ! printf '%s' "${preflight_payload}" | jq -e \
+            --arg expected_attempt "${preflight_run_attempt}" \
+            --arg expected_branch "${DEFAULT_BRANCH}" \
+            --arg expected_repository "${GITHUB_REPOSITORY}" \
+            --arg expected_run_id "${preflight_run_id}" \
+            --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+            '
+              (.id | tostring) == $expected_run_id and
+              (.run_attempt | tostring) == $expected_attempt and
+              .event == "workflow_dispatch" and
+              .path == ".github/workflows/release.yml" and
+              .head_branch == $expected_branch and
+              .head_sha == $expected_sha and
+              .repository.full_name == $expected_repository and
+              .status == "completed" and
+              (
+                .conclusion == "success" or
+                .conclusion == "failure" or
+                .conclusion == "cancelled" or
+                .conclusion == "timed_out"
+              )
+            ' >/dev/null; then
+            echo "release tag does not identify an exact completed preparation attempt" >&2
+            exit 1
+          fi
+          preflight_conclusion="$(printf '%s' "${preflight_payload}" | jq -er .conclusion)"
+          preflight_jobs="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${preflight_run_id}/attempts/${preflight_run_attempt}/jobs?per_page=100"
+          )"
+          preflight_job_count="$(printf '%s' "${preflight_jobs}" | jq -er '.total_count | tostring')"
+          [[ "${preflight_job_count}" =~ ^[0-9]+$ ]]
+          if [ "${preflight_job_count}" -gt 100 ]; then
+            echo "unable to prove preparation provenance within the bounded job scan" >&2
+            exit 1
+          fi
+          if ! printf '%s' "${preflight_jobs}" | jq -e \
+            --arg build_name "Build and test without publishing credentials" \
+            --arg create_step "Create immutable SHA-bound annotated release tag" \
+            --arg expected_attempt "${preflight_run_attempt}" \
+            --arg expected_run_id "${preflight_run_id}" \
+            --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+            --arg prepare_name "Create one SHA-bound release tag after all unprivileged gates" \
+            --arg reproduce_name "Fresh-job rebuild and promote byte-matched signing inputs" \
+            '
+              def bound_job:
+                (.run_id | tostring) == $expected_run_id and
+                (.run_attempt | tostring) == $expected_attempt and
+                .head_sha == $expected_sha and
+                .workflow_name == "release";
+              def successful_job($name):
+                [.jobs[] | select(
+                  .name == $name and bound_job and
+                  .status == "completed" and .conclusion == "success"
+                )] | length == 1;
+              successful_job($build_name) and
+              successful_job($reproduce_name) and
+              (
+                [.jobs[] | select(.name == $prepare_name and bound_job)] as $prepare |
+                ($prepare | length) == 1 and
+                (
+                  [$prepare[0].steps[]? | select(
+                    .name == $create_step and
+                    .status == "completed" and .conclusion == "success"
+                  )] | length
+                ) == 1
+              )
+            ' >/dev/null; then
+            echo "release tag is not backed by successful build, reproduce, and create steps" >&2
+            exit 1
+          fi
+
+          if [ "${AUTHORIZATION_RUN_ID}" = "${preflight_run_id}" ] && \
+            [ "${AUTHORIZATION_RUN_ATTEMPT}" = "${preflight_run_attempt}" ]; then
+            test "${preflight_conclusion}" = "success"
+            authorization_ref="${DEFAULT_BRANCH}"
+            authorization_job_name="Create one SHA-bound release tag after all unprivileged gates"
+            authorization_step_name="Dispatch tag-bound publication from the immutable tag"
+          else
+            authorization_ref="${RELEASE_TAG}"
+            authorization_job_name="Resume publication from one verified immutable release tag"
+            authorization_step_name="Verify the existing annotated tag and idempotently dispatch publication"
+          fi
+          authorization_payload="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${AUTHORIZATION_RUN_ID}/attempts/${AUTHORIZATION_RUN_ATTEMPT}"
+          )"
+          if ! printf '%s' "${authorization_payload}" | jq -e \
+            --arg expected_attempt "${AUTHORIZATION_RUN_ATTEMPT}" \
+            --arg expected_branch "${authorization_ref}" \
+            --arg expected_repository "${GITHUB_REPOSITORY}" \
+            --arg expected_run_id "${AUTHORIZATION_RUN_ID}" \
+            --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+            '
+              (.id | tostring) == $expected_run_id and
+              (.run_attempt | tostring) == $expected_attempt and
+              .event == "workflow_dispatch" and
+              .path == ".github/workflows/release.yml" and
+              .head_branch == $expected_branch and
+              .head_sha == $expected_sha and
+              .repository.full_name == $expected_repository and
+              .status == "completed" and .conclusion == "success"
+            ' >/dev/null; then
+            echo "standard publication lacks a successful protected authorization attempt" >&2
+            exit 1
+          fi
+          authorization_jobs="$(
+            gh api \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "repos/${GITHUB_REPOSITORY}/actions/runs/${AUTHORIZATION_RUN_ID}/attempts/${AUTHORIZATION_RUN_ATTEMPT}/jobs?per_page=100"
+          )"
+          authorization_job_count="$(printf '%s' "${authorization_jobs}" | jq -er '.total_count | tostring')"
+          [[ "${authorization_job_count}" =~ ^[0-9]+$ ]]
+          if [ "${authorization_job_count}" -gt 100 ]; then
+            echo "unable to prove authorization provenance within the bounded job scan" >&2
+            exit 1
+          fi
+          if ! printf '%s' "${authorization_jobs}" | jq -e \
+            --arg expected_attempt "${AUTHORIZATION_RUN_ATTEMPT}" \
+            --arg expected_job "${authorization_job_name}" \
+            --arg expected_run_id "${AUTHORIZATION_RUN_ID}" \
+            --arg expected_sha "${EXPECTED_SOURCE_SHA}" \
+            --arg expected_step "${authorization_step_name}" \
+            '
+              [.jobs[] | select(
+                .name == $expected_job and
+                (.run_id | tostring) == $expected_run_id and
+                (.run_attempt | tostring) == $expected_attempt and
+                .head_sha == $expected_sha and
+                .workflow_name == "release" and
+                .status == "completed" and .conclusion == "success" and
+                (
+                  [.steps[]? | select(
+                    .name == $expected_step and
+                    .status == "completed" and .conclusion == "success"
+                  )] | length
+                ) == 1
+              )] | length == 1
+            ' >/dev/null; then
+            echo "standard publication is not backed by the expected protected authorization job" >&2
+            exit 1
+          fi
+
   sign:
     name: Sign fixed release artifacts only
-    needs: reproduce
-    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [reproduce, verify-release-tag-provenance]
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') &&
+      (github.event_name != 'workflow_dispatch' || inputs.operation == 'standard')
     runs-on: ubuntu-latest
     environment:
       name: signing

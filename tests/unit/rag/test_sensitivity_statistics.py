@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_DOWN, Decimal, Inexact, Rounded, localcontext
 from hashlib import sha256
 
 import pytest
@@ -56,6 +56,32 @@ def _plan(
         monte_carlo_diagnostic_threshold_clusters=diagnostic_threshold,
         monte_carlo_resamples=resamples,
     )
+
+
+def test_design_planning_is_independent_of_ambient_decimal_context() -> None:
+    arguments = {
+        "familywise_alpha": "0.050000",
+        "desired_power": "0.500000",
+        "null_response_rate": "0.123456",
+        "alternative_response_rate": "0.654321",
+        "multiplicity_method": "bonferroni",
+        "multiplicity_family_size": 3,
+        "monte_carlo_resamples": 1_000,
+    }
+    expected = plan_binary_paired_design(**arguments)  # type: ignore[arg-type]
+
+    with localcontext() as context:
+        context.prec = 1
+        context.Emin = -5
+        context.Emax = 5
+        context.rounding = ROUND_DOWN
+        context.traps[Inexact] = True
+        context.traps[Rounded] = True
+        observed = plan_binary_paired_design(**arguments)  # type: ignore[arg-type]
+
+    assert observed == expected
+    assert observed.adjusted_alpha == "0.016666"
+    assert observed.minimum_detectable_difference == "0.530865"
 
 
 def _arm(arm_id: str, configuration: str, corpus: str) -> SensitivityArmBinding:

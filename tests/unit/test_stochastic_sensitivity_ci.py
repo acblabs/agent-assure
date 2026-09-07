@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from hashlib import sha256
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 
 import pytest
 from click import unstyle
@@ -19,17 +19,24 @@ from agent_assure.rag.sensitivity_statistics import (
     evaluate_statistical_sufficiency,
     plan_binary_paired_design,
 )
-from agent_assure.reporting.packet import build_evidence_packet
+from agent_assure.reporting.packet import (
+    DEFAULT_INTERPRETATION,
+    DEFAULT_PACKET_LIMITATIONS,
+    build_evidence_packet,
+)
+from agent_assure.schema.base import SchemaVersion
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
-from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest, PacketArtifactRole
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 from agent_assure.schema.run import RunSet
+from agent_assure.schema.sensitivity import RAGSensitivityDecision, RAGSensitivityOutcome
 from agent_assure.schema.stochastic_sensitivity import (
     ArtifactDependency,
     CaseClusterBinding,
     CouplingClassification,
+    CouplingCondition,
     CouplingDescriptor,
     PairDisposition,
     PairedSensitivityObservation,
@@ -50,6 +57,7 @@ _EndpointValue = Literal[0, 1]
 _ReportMode = Literal["pass", "block", "inconclusive", "prerequisites_unmet"]
 RUNNER = CliRunner()
 REQUIRE_FLAG = "--require-stochastic-evidence-sensitivity"
+_LEGACY_STOCHASTIC_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
 
 
 @pytest.mark.parametrize(
@@ -264,7 +272,7 @@ def test_forged_record_membership_cannot_pass_against_exact_source_runsets() -> 
             ),
         },
     )
-    forged_packet = build_evidence_packet(
+    forged_packet = _build_stochastic_packet(
         packet.evaluation,
         statistical_sufficiency=forged_sufficiency,
         stochastic_evidence_sensitivity=forged_stochastic,
@@ -451,25 +459,29 @@ def test_required_ci_gate_rejects_model_copy_configuration_bypass() -> None:
 
 def _packet_fixture(mode: _ReportMode) -> tuple[EvidencePacket, tuple[RunSet, RunSet]]:
     sufficiency, stochastic, source_runsets = _reports(mode)
-    packet = build_evidence_packet(
+    packet = _build_stochastic_packet(
         _evaluation(sufficiency),
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         artifact_digests=(
-            _evaluation_digest(),
+            _evaluation_digest(schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION),
             PacketArtifactDigest(
+                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
                 role="statistical-sufficiency-report",
                 sha256="b" * 64,
             ),
             PacketArtifactDigest(
+                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
                 role="stochastic-evidence-sensitivity-report",
                 sha256="c" * 64,
             ),
             PacketArtifactDigest(
+                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
                 role="stochastic-baseline-source-runset",
                 sha256="d" * 64,
             ),
             PacketArtifactDigest(
+                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
                 role="stochastic-counterfactual-source-runset",
                 sha256="e" * 64,
             ),
@@ -531,7 +543,7 @@ def _semantic_mismatch_fixture() -> tuple[EvidencePacket, tuple[RunSet, RunSet]]
             ),
         },
     )
-    forged_packet = build_evidence_packet(
+    forged_packet = _build_stochastic_packet(
         _evaluation(forged_sufficiency),
         statistical_sufficiency=forged_sufficiency,
         stochastic_evidence_sensitivity=forged_stochastic,
@@ -589,6 +601,7 @@ def _write_packet_fixture_bundle(
         _write_json(path, artifact.model_dump(mode="json"))
     release_artifacts = tuple(
         ReleaseArtifact(
+            schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
             role=role,
             path=path.name,
             sha256=sha256(path.read_bytes()).hexdigest(),
@@ -596,17 +609,26 @@ def _write_packet_fixture_bundle(
         for role, path, _ in sources
     )
     manifest = ReleaseArtifactManifest(
+        schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
         manifest_id=f"stochastic-ci-{packet.packet_id}",
         artifacts=release_artifacts,
-        environment=EnvironmentInfo(platform="test", python_version="3.12"),
+        environment=EnvironmentInfo(
+            schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+            platform="test",
+            python_version="3.12",
+        ),
     )
-    persisted_packet = build_evidence_packet(
+    persisted_packet = _build_stochastic_packet(
         packet.evaluation,
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         release_manifest=manifest,
         artifact_digests=tuple(
-            PacketArtifactDigest(role=artifact.role, sha256=artifact.sha256)
+            PacketArtifactDigest(
+                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+                role=cast(PacketArtifactRole, artifact.role),
+                sha256=artifact.sha256,
+            )
             for artifact in release_artifacts
         ),
     )
@@ -641,6 +663,7 @@ def _reports(
         corpus_digest="3" * 64,
     )
     protocol = RepeatedEvidenceSensitivityProtocol.build(
+        schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
         protocol_id=f"stochastic-ci-{mode}",
         interpretation="confirmatory",
         execution_mode="stochastic_live",
@@ -662,13 +685,13 @@ def _reports(
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
             stochastic_dimensions=(
-                "provider_sampling_randomness",
-                "temporal_execution_order",
+                CouplingCondition.provider_sampling_randomness,
+                CouplingCondition.temporal_execution_order,
             ),
-            intentionally_different=("governing_corpus_digest",),
+            intentionally_different=(CouplingCondition.governing_corpus_digest,),
             not_shared=(
-                "provider_sampling_randomness",
-                "temporal_execution_order",
+                CouplingCondition.provider_sampling_randomness,
+                CouplingCondition.temporal_execution_order,
             ),
             classification=CouplingClassification.nominally_paired,
         ),
@@ -719,14 +742,22 @@ def _reports(
                 baseline_run_digest=_run_digest("baseline_evidence", case_id),
                 counterfactual_run_id=f"counterfactual-{case_id}",
                 counterfactual_run_digest=_run_digest("counterfactual_evidence", case_id),
-                baseline_recommendation="approve",
-                baseline_outcome="approved",
-                counterfactual_recommendation=("deny" if endpoint_value else "approve"),
-                counterfactual_outcome=("denied" if endpoint_value else "approved"),
-                baseline_expected_recommendation="approve",
-                baseline_expected_outcome="approved",
-                counterfactual_expected_recommendation="deny",
-                counterfactual_expected_outcome="denied",
+                baseline_recommendation=RAGSensitivityDecision.approve,
+                baseline_outcome=RAGSensitivityOutcome.approved,
+                counterfactual_recommendation=(
+                    RAGSensitivityDecision.deny
+                    if endpoint_value
+                    else RAGSensitivityDecision.approve
+                ),
+                counterfactual_outcome=(
+                    RAGSensitivityOutcome.denied
+                    if endpoint_value
+                    else RAGSensitivityOutcome.approved
+                ),
+                baseline_expected_recommendation=RAGSensitivityDecision.approve,
+                baseline_expected_outcome=RAGSensitivityOutcome.approved,
+                counterfactual_expected_recommendation=RAGSensitivityDecision.deny,
+                counterfactual_expected_outcome=RAGSensitivityOutcome.denied,
                 endpoint_value=endpoint_value,
             )
         )
@@ -740,7 +771,20 @@ def _reports(
         observation_tuple,
         source_runsets=dependencies,
     )
-    return sufficiency, build_stochastic_sensitivity_report(sufficiency), source_runsets
+    sufficiency_payload = sufficiency.model_dump(
+        mode="python",
+        exclude={"report_digest"},
+    )
+    sufficiency_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
+    sufficiency = StatisticalSufficiencyReport.build(**sufficiency_payload)
+    stochastic = build_stochastic_sensitivity_report(sufficiency)
+    stochastic_payload = stochastic.model_dump(
+        mode="python",
+        exclude={"report_digest"},
+    )
+    stochastic_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
+    stochastic = StochasticEvidenceSensitivityReport.build(**stochastic_payload)
+    return sufficiency, stochastic, source_runsets
 
 
 def _arm(
@@ -752,8 +796,12 @@ def _arm(
     is_baseline = arm_id == "baseline_evidence"
     return SensitivityArmBinding(
         arm_id=arm_id,
-        expected_recommendation="approve" if is_baseline else "deny",
-        expected_outcome="approved" if is_baseline else "denied",
+        expected_recommendation=(
+            RAGSensitivityDecision.approve if is_baseline else RAGSensitivityDecision.deny
+        ),
+        expected_outcome=(
+            RAGSensitivityOutcome.approved if is_baseline else RAGSensitivityOutcome.denied
+        ),
         configuration_digest=configuration_digest,
         corpus_digest=corpus_digest,
         prompt_manifest_digest="d" * 64,
@@ -782,6 +830,7 @@ def _evaluation(
 ) -> EvaluationSummary:
     candidate = sufficiency.source_runsets[1] if sufficiency is not None else None
     return EvaluationSummary(
+        schema_version=(sufficiency.schema_version if sufficiency is not None else "0.6.6"),
         runset_id=(candidate.runset_id if candidate is not None else "deterministic-runset"),
         runset_digest=(candidate.runset_digest if candidate is not None else "9" * 64),
         privacy_profile_id=PRIVACY_PROFILE_ID,
@@ -790,8 +839,37 @@ def _evaluation(
     )
 
 
-def _evaluation_digest() -> PacketArtifactDigest:
-    return PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64)
+def _evaluation_digest(*, schema_version: SchemaVersion = "0.6.6") -> PacketArtifactDigest:
+    return PacketArtifactDigest(
+        schema_version=schema_version,
+        role="evaluation-summary",
+        sha256="a" * 64,
+    )
+
+
+def _build_stochastic_packet(
+    evaluation: EvaluationSummary,
+    *,
+    statistical_sufficiency: StatisticalSufficiencyReport,
+    stochastic_evidence_sensitivity: StochasticEvidenceSensitivityReport,
+    artifact_digests: tuple[PacketArtifactDigest, ...],
+    release_manifest: ReleaseArtifactManifest | None = None,
+) -> EvidencePacket:
+    schema_version = statistical_sufficiency.schema_version
+    return EvidencePacket(
+        schema_version=schema_version,
+        packet_id=f"{statistical_sufficiency.protocol.protocol_id}-packet",
+        interpretation=DEFAULT_INTERPRETATION,
+        evaluation=evaluation,
+        statistical_sufficiency=statistical_sufficiency,
+        stochastic_evidence_sensitivity=stochastic_evidence_sensitivity,
+        release_manifest=release_manifest,
+        artifact_digests=tuple(
+            digest.model_copy(update={"schema_version": schema_version})
+            for digest in artifact_digests
+        ),
+        limitations=DEFAULT_PACKET_LIMITATIONS,
+    )
 
 
 def _tampered_stochastic_report(

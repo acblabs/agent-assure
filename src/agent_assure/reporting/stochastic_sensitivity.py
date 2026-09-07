@@ -14,7 +14,10 @@ from typing import cast
 from pydantic import BaseModel
 
 from agent_assure.artifact_io import ensure_unlinked_directory
-from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+)
 from agent_assure.onboarding.path_safety import (
     metadata_is_regular_file,
     metadata_is_reparse,
@@ -55,7 +58,12 @@ REPEATED_RUN_OUTPUT_FILENAMES = (
     "baseline.runset.json",
     "counterfactual.runset.json",
 )
+# Keep the existing Sprint 5/6 publication surface at its reviewed bound.
+# Larger internal publishers must opt in explicitly, and may not exceed the
+# separately reviewed transaction hard limit.
 _MAX_OUTPUT_ENTRIES = 32
+_MAX_OUTPUT_ENTRIES_HARD_LIMIT = 384
+_PUBLICATION_ARTIFACT_BYTES_HARD_LIMIT = MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
 _STAGING_NAME_PREFIX = ".agent-assure-stochastic-"
 _PUBLICATION_LOCK_PREFIX = ".agent-assure-stochastic-lock-"
 _BEST_EFFORT_LOCK_TIMEOUT_SECONDS = 0.001
@@ -139,10 +147,14 @@ def write_repeated_analysis_artifacts(
         "stochastic-evidence-sensitivity.md": render_stochastic_sensitivity_markdown(report),
     }
     _assert_text_safe(texts["stochastic-evidence-sensitivity.md"])
-    return _publish_generation(
+    return publish_generation(
         out_dir,
         texts,
         expected_filenames=REPEATED_ANALYSIS_OUTPUT_FILENAMES,
+        artifact_max_bytes={
+            "baseline.source.runset.json": MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+            "counterfactual.source.runset.json": MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+        },
     )
 
 
@@ -162,10 +174,14 @@ def write_repeated_run_artifacts(
         "baseline.runset.json": _model_json_text(baseline),
         "counterfactual.runset.json": _model_json_text(counterfactual),
     }
-    return _publish_generation(
+    return publish_generation(
         out_dir,
         texts,
         expected_filenames=REPEATED_RUN_OUTPUT_FILENAMES,
+        artifact_max_bytes={
+            "baseline.runset.json": MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+            "counterfactual.runset.json": MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+        },
     )
 
 
@@ -326,19 +342,26 @@ def _assert_text_safe(value: str) -> None:
         )
 
 
-def _publish_generation(
+def publish_generation(
     out_dir: Path,
     texts: Mapping[str, str],
     *,
     expected_filenames: tuple[str, ...],
+    max_output_entries: int = _MAX_OUTPUT_ENTRIES,
+    artifact_max_bytes: Mapping[str, int] | None = None,
 ) -> dict[str, Path]:
+    if not 1 <= max_output_entries <= _MAX_OUTPUT_ENTRIES_HARD_LIMIT:
+        raise ValueError("publication output-entry bound is outside the reviewed limits")
+    if len(expected_filenames) > max_output_entries:
+        raise ValueError("publication output inventory exceeds its declared entry bound")
     if tuple(texts) != expected_filenames:
         raise ValueError("repeated sensitivity output inventory is inconsistent")
     if len({os.path.normcase(name) for name in expected_filenames}) != len(expected_filenames):
         raise ValueError("repeated sensitivity output filenames alias on this filesystem")
     target = _validate_output_target(out_dir)
     payloads = {name: text.encode("utf-8") for name, text in texts.items()}
-    if any(len(payload) > MAX_ARTIFACT_JSON_BYTES for payload in payloads.values()):
+    byte_limits = _publication_byte_limits(expected_filenames, artifact_max_bytes)
+    if any(len(payload) > byte_limits[name] for name, payload in payloads.items()):
         raise ValueError("repeated sensitivity artifact exceeds the maximum supported size")
 
     parent = ensure_unlinked_directory(target.parent)
@@ -364,6 +387,8 @@ def _publish_generation(
                 parent_lease,
                 target,
                 expected_filenames,
+                max_output_entries=max_output_entries,
+                artifact_max_bytes=byte_limits,
             )
             if existing is not None:
                 if existing == dict(texts):
@@ -394,7 +419,7 @@ def _publish_generation(
                         os.fsync(descriptor)
                         _verify_created_output(claim, created_output, payloads[name])
                     names = claim.entry_names(
-                        max_entries=_MAX_OUTPUT_ENTRIES,
+                        max_entries=max_output_entries,
                         label="staged repeated sensitivity output",
                     )
                     expected_by_normalized_name = {
@@ -443,6 +468,8 @@ def _publish_generation(
                     final_child_pins = _validate_staged_generation_immediately_before_commit(
                         claim,
                         payloads,
+                        max_output_entries=max_output_entries,
+                        artifact_max_bytes=byte_limits,
                     )
                 except Exception as exc:
                     raise OSError(
@@ -469,6 +496,8 @@ def _publish_generation(
                             parent_lease,
                             target,
                             expected_filenames,
+                            max_output_entries=max_output_entries,
+                            artifact_max_bytes=byte_limits,
                         )
                         if installed != dict(texts):
                             raise OSError(
@@ -480,6 +509,7 @@ def _publish_generation(
                             claim,
                             payloads,
                             final_child_pins,
+                            max_output_entries=max_output_entries,
                         )
                     close_errors = _close_final_child_pins(final_child_pins)
                     final_child_pins = ()
@@ -502,6 +532,8 @@ def _publish_generation(
                             parent_lease,
                             target,
                             expected_filenames,
+                            max_output_entries=max_output_entries,
+                            artifact_max_bytes=byte_limits,
                         )
                     except (OSError, UnicodeError, ValueError) as verification_error:
                         raise RepeatedSensitivityOutputConflictError(
@@ -538,6 +570,8 @@ def _publish_generation(
                     parent_lease,
                     target,
                     expected_filenames,
+                    max_output_entries=max_output_entries,
+                    artifact_max_bytes=byte_limits,
                 )
                 if installed != dict(texts):
                     raise OSError("committed repeated sensitivity output could not be revalidated")
@@ -547,6 +581,27 @@ def _publish_generation(
                     f"validation failed; committed target retained at {target}"
                 ) from exc
     return {name: target / name for name in expected_filenames}
+
+
+def _publication_byte_limits(
+    expected_filenames: tuple[str, ...],
+    overrides: Mapping[str, int] | None,
+) -> dict[str, int]:
+    limits = {name: MAX_ARTIFACT_JSON_BYTES for name in expected_filenames}
+    if overrides is None:
+        return limits
+    unknown = set(overrides) - set(expected_filenames)
+    if unknown:
+        raise ValueError("publication byte-limit inventory contains an unknown artifact")
+    for name, value in overrides.items():
+        if (
+            isinstance(value, bool)
+            or not isinstance(value, int)
+            or not 1 <= value <= _PUBLICATION_ARTIFACT_BYTES_HARD_LIMIT
+        ):
+            raise ValueError("publication artifact byte limit is outside the reviewed bounds")
+        limits[name] = value
+    return limits
 
 
 def _claim_private_staging_directory(
@@ -712,7 +767,11 @@ def _existing_generation(
     parent: RootedDirectoryDescriptor,
     out_dir: Path,
     expected_filenames: tuple[str, ...],
+    *,
+    max_output_entries: int = _MAX_OUTPUT_ENTRIES,
+    artifact_max_bytes: Mapping[str, int] | None = None,
 ) -> dict[str, str] | None:
+    byte_limits = _publication_byte_limits(expected_filenames, artifact_max_bytes)
     _require_directory_identity(
         parent.path,
         device=parent.device,
@@ -745,7 +804,7 @@ def _existing_generation(
                     "repeated sensitivity output parent changed during verification"
                 )
             names = lease.entry_names(
-                max_entries=_MAX_OUTPUT_ENTRIES,
+                max_entries=max_output_entries,
                 label="existing repeated sensitivity output",
             )
             if any(
@@ -770,14 +829,14 @@ def _existing_generation(
                         raise _ExistingGenerationForeignEntryError(name)
                     opened = lease.open_file_bounded(
                         name,
-                        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                        max_bytes=byte_limits[name],
                         label="existing repeated sensitivity output",
                         require_single_link=True,
                     )
                     opened_files.append(opened)
                     observed[name] = opened.contents.data.decode("utf-8")
                 verified_names = lease.entry_names(
-                    max_entries=_MAX_OUTPUT_ENTRIES,
+                    max_entries=max_output_entries,
                     label="existing repeated sensitivity output",
                 )
                 if len(verified_names) != len(names) or set(verified_names) != set(names):
@@ -823,11 +882,20 @@ def _existing_generation_with_transient_share_retry(
     parent: RootedDirectoryDescriptor,
     out_dir: Path,
     expected_filenames: tuple[str, ...],
+    *,
+    max_output_entries: int = _MAX_OUTPUT_ENTRIES,
+    artifact_max_bytes: Mapping[str, int] | None = None,
 ) -> dict[str, str] | None:
     """Re-run exact verification while an honest Windows winner releases its pin."""
 
     return retry_windows_sharing_violation(
-        lambda: _existing_generation(parent, out_dir, expected_filenames),
+        lambda: _existing_generation(
+            parent,
+            out_dir,
+            expected_filenames,
+            max_output_entries=max_output_entries,
+            artifact_max_bytes=artifact_max_bytes,
+        ),
         timeout_seconds=_CONCURRENT_GENERATION_RETRY_TIMEOUT_SECONDS,
     )
 
@@ -915,22 +983,25 @@ def _validate_staged_generation_immediately_before_commit(
     claim: RootedDirectoryClaim,
     payloads: Mapping[str, bytes],
     *,
+    max_output_entries: int = _MAX_OUTPUT_ENTRIES,
+    artifact_max_bytes: Mapping[str, int] | None = None,
     label: str = "final staged repeated sensitivity output",
 ) -> tuple[PinnedDirectoryFile, ...]:
     """Validate every child and return pins whose caller owns transactionally."""
     names = claim.entry_names(
-        max_entries=_MAX_OUTPUT_ENTRIES,
+        max_entries=max_output_entries,
         label=label,
     )
     if len(names) != len(payloads) or set(names) != set(payloads):
         raise OSError(f"{label} inventory is not exact")
     opened_files: list[PinnedDirectoryFile] = []
+    byte_limits = _publication_byte_limits(tuple(payloads), artifact_max_bytes)
     pending_error: BaseException | None = None
     try:
         for name in payloads:
             opened = claim.open_file_bounded(
                 name,
-                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                max_bytes=byte_limits[name],
                 label=label,
                 require_single_link=True,
             )
@@ -938,7 +1009,7 @@ def _validate_staged_generation_immediately_before_commit(
             if opened.contents.data != payloads[name]:
                 raise OSError(f"{label} bytes are not exact: {name}")
         verified_names = claim.entry_names(
-            max_entries=_MAX_OUTPUT_ENTRIES,
+            max_entries=max_output_entries,
             label=label,
         )
         if len(verified_names) != len(names) or set(verified_names) != set(names):
@@ -962,12 +1033,14 @@ def _revalidate_installed_generation_pins(
     claim: RootedDirectoryClaim,
     payloads: Mapping[str, bytes],
     opened_files: tuple[PinnedDirectoryFile, ...],
+    *,
+    max_output_entries: int = _MAX_OUTPUT_ENTRIES,
 ) -> None:
     """Bind POSIX pre-commit child pins to their installed names before close."""
     if len(opened_files) != len(payloads):
         raise OSError("installed repeated sensitivity output pin inventory is incomplete")
     names = claim.entry_names(
-        max_entries=_MAX_OUTPUT_ENTRIES,
+        max_entries=max_output_entries,
         label="installed repeated sensitivity output",
     )
     if len(names) != len(payloads) or set(names) != set(payloads):
@@ -980,7 +1053,7 @@ def _revalidate_installed_generation_pins(
             )
         opened.revalidate()
     verified_names = claim.entry_names(
-        max_entries=_MAX_OUTPUT_ENTRIES,
+        max_entries=max_output_entries,
         label="installed repeated sensitivity output",
     )
     if len(verified_names) != len(names) or set(verified_names) != set(names):
@@ -1022,6 +1095,7 @@ __all__ = [
     "REPEATED_RUN_OUTPUT_FILENAMES",
     "RepeatedSensitivityOutputConflictError",
     "RepeatedSensitivityPrivacyError",
+    "publish_generation",
     "render_stochastic_sensitivity_markdown",
     "write_repeated_analysis_artifacts",
     "write_repeated_run_artifacts",

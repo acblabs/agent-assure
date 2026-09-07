@@ -180,7 +180,7 @@ class ProcessEquivalenceReproductionIndex(SelfDigestedArtifact):
     artifact_kind: Literal["process-equivalence-reproduction-index"] = (
         "process-equivalence-reproduction-index"
     )
-    schema_version: Literal["0.6.4", "0.6.5"] = "0.6.5"
+    schema_version: Literal["0.6.4", "0.6.5", "0.6.6"] = "0.6.6"
     schema_name: Literal["process-equivalence-reproduction-index"] = (
         "process-equivalence-reproduction-index"
     )

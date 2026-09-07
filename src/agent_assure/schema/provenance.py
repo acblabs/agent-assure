@@ -22,3 +22,7 @@ class Provenance(PersistedArtifact):
         default=None,
         exclude_if=lambda value: value is None,
     )
+    study_manifest_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )

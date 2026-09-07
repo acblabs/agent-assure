@@ -1,0 +1,1090 @@
+{
+  "artifact_kind": "rag-sensitivity-knowledge-contract",
+  "assignments": [
+    {
+      "claim_id": "claim-benefit-eligibility-004",
+      "corpus_digest": "3a28b89b1bdf5dd1861ad086a452c93f01ed05ce4571ff4f3b23006c30994ef2",
+      "expected_decision": "approve",
+      "expected_outcome": "approved",
+      "governing_content_digest": "9a604f10db45cbb9d17faf76dc3774c0cb82488956ecddffb6b69ccaa1b11839",
+      "governing_ref_id": "ref-governing-benefit-policy-004",
+      "governing_source_id": "synthetic-benefit-governing-policy-004"
+    },
+    {
+      "claim_id": "claim-benefit-eligibility-004",
+      "corpus_digest": "cda9887fdeef54a8b11b713f5e5b535475e757cfa039bdf5964643b30191522b",
+      "expected_decision": "deny",
+      "expected_outcome": "denied",
+      "governing_content_digest": "e7d9164dc93e4767abf196ab468802f84468ac4c2d76c73952b2bc7e9d88977b",
+      "governing_ref_id": "ref-governing-benefit-policy-004",
+      "governing_source_id": "synthetic-benefit-governing-policy-004"
+    }
+  ],
+  "authority_level": "authoritative",
+  "case_authority_bindings": [
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-004",
+          "corpus_digest": "3a28b89b1bdf5dd1861ad086a452c93f01ed05ce4571ff4f3b23006c30994ef2",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "9a604f10db45cbb9d17faf76dc3774c0cb82488956ecddffb6b69ccaa1b11839",
+          "governing_ref_id": "ref-governing-benefit-policy-004",
+          "governing_source_id": "synthetic-benefit-governing-policy-004"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-004",
+          "corpus_digest": "cda9887fdeef54a8b11b713f5e5b535475e757cfa039bdf5964643b30191522b",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "e7d9164dc93e4767abf196ab468802f84468ac4c2d76c73952b2bc7e9d88977b",
+          "governing_ref_id": "ref-governing-benefit-policy-004",
+          "governing_source_id": "synthetic-benefit-governing-policy-004"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-004",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-007",
+          "corpus_digest": "04466b4ee3ff7ec90e91fff0afa3b85c13c38c02c9cfe4e570fd7e9463c0ad31",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "0cb74091747e0925e2595027f52dbca30d3904ee66c9930ec099927c63366e0b",
+          "governing_ref_id": "ref-governing-benefit-policy-007",
+          "governing_source_id": "synthetic-benefit-governing-policy-007"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-007",
+          "corpus_digest": "989945e4039f73244f366899c95f22148a3b118e85f5bd4cb78d47871db3de81",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "1638b6a5a88326b793dba0e3cd9cf831fdd13b0e9bbef0055406eb017629ac6f",
+          "governing_ref_id": "ref-governing-benefit-policy-007",
+          "governing_source_id": "synthetic-benefit-governing-policy-007"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-007",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-010",
+          "corpus_digest": "402432b465167d8020b382da3c1b0c873f3778c508beb717d3b18b824ae5167e",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "95f93275a2e49df49d4e4d22c4f57cd273c47aa6b6c9d9b6bc0c218ee9378ad5",
+          "governing_ref_id": "ref-governing-benefit-policy-010",
+          "governing_source_id": "synthetic-benefit-governing-policy-010"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-010",
+          "corpus_digest": "93f8d5cba737a678894fda0f438458759b59d604b17f5b5dad47507cc1151e55",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "7a93af6a493fb9e1d347a3c6c32c82047ae5e8c5457160b6424a8f64371175bf",
+          "governing_ref_id": "ref-governing-benefit-policy-010",
+          "governing_source_id": "synthetic-benefit-governing-policy-010"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-010",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-013",
+          "corpus_digest": "7b45df76b04aabf43a11ae1b398ed10741f95275045421c457015a22ea4df0e4",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "e8cc5ddb30b133e6b5e3504a63be974eb700961665d090980b379447fccc53b0",
+          "governing_ref_id": "ref-governing-benefit-policy-013",
+          "governing_source_id": "synthetic-benefit-governing-policy-013"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-013",
+          "corpus_digest": "cae60e4686a210db240ca3968b1a5313051bf2b196f15d549734a6f6d42e0458",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "b5cead5ca6c32bdc6cdb87a54ae41d55b4e669414c9767ec857723814253bfe0",
+          "governing_ref_id": "ref-governing-benefit-policy-013",
+          "governing_source_id": "synthetic-benefit-governing-policy-013"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-013",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-020",
+          "corpus_digest": "89dd76479c071208308ed663f3587aefac0c97ad1511a77a243cde43dbead6bb",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "df2e3fad7eea855f378f04a55ac4eccb80c87b4bdec684cc6b30e280a82fc595",
+          "governing_ref_id": "ref-governing-benefit-policy-020",
+          "governing_source_id": "synthetic-benefit-governing-policy-020"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-020",
+          "corpus_digest": "c66fff18ef8e5fe59804a7aa68dc23d9176987343374c0fa5df3e3ce573b441f",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4110a6bd56bc247263e4992f47cb2788013bb08b38c51d2871bfc783d189c8f9",
+          "governing_ref_id": "ref-governing-benefit-policy-020",
+          "governing_source_id": "synthetic-benefit-governing-policy-020"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-020",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-023",
+          "corpus_digest": "6fde2c7196af5ce866d78f1047f3d6165178fb4d0bece74475fef1f0330f6c69",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "96c37d16f8781350e4b2377ece99c249367ddeb7d282fc8cd6c33fa65ab4bfb3",
+          "governing_ref_id": "ref-governing-benefit-policy-023",
+          "governing_source_id": "synthetic-benefit-governing-policy-023"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-023",
+          "corpus_digest": "f24c72f6b3b8f34034679a723f868ba74517a9867ec499678a5e2e5386459a69",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "da8858ada46fdee074179792a1efbcfe952bc2801729ad648ac7c71fe77f7a9a",
+          "governing_ref_id": "ref-governing-benefit-policy-023",
+          "governing_source_id": "synthetic-benefit-governing-policy-023"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-023",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-026",
+          "corpus_digest": "2d5ae631d4a334b197ba51208d7b9b3609ee0cf169b1116f832c646bce225fb2",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "e48cd38badc030e4d9698eefcbf93600cc3086e0f105b08c1c284bbb2f51b768",
+          "governing_ref_id": "ref-governing-benefit-policy-026",
+          "governing_source_id": "synthetic-benefit-governing-policy-026"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-026",
+          "corpus_digest": "453c170359fcdbb4ce31ee267c94683ad1e2a1c5c3a02a64ab6afb8aec226c6b",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "901af2d6d9d0e6185a4cc31c01c30773700177cd6a6be4163a21f01da57a05c1",
+          "governing_ref_id": "ref-governing-benefit-policy-026",
+          "governing_source_id": "synthetic-benefit-governing-policy-026"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-026",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-029",
+          "corpus_digest": "6176ccdc66232705ccff6523ee2112a307b01f6c9794efc5d6e5a5c561d6a38d",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4c487fb6ad5a344c66a18a0464f41dbba886bd5d4e7f122922a0704f3256cfce",
+          "governing_ref_id": "ref-governing-benefit-policy-029",
+          "governing_source_id": "synthetic-benefit-governing-policy-029"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-029",
+          "corpus_digest": "7481ab01a0de7c0dbb5802628e26a8364d67d2474688e4379557e6854d09e84e",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "cf784c5879cd5a2d8e42adf495ed19121b1e71a72bd564733773edcae983467a",
+          "governing_ref_id": "ref-governing-benefit-policy-029",
+          "governing_source_id": "synthetic-benefit-governing-policy-029"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-029",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-036",
+          "corpus_digest": "46ff2921e4ce299f3d1fde4fa3d8b988b1875a8abd832248f6457ba96b46c9ca",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "72292547f8f938e6717b75d18a954b6616f20fc5ef0db965edd5ea09c989c38c",
+          "governing_ref_id": "ref-governing-benefit-policy-036",
+          "governing_source_id": "synthetic-benefit-governing-policy-036"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-036",
+          "corpus_digest": "79c9e674b7acd7d0dd57c1e31cd766141296343d8ff793c53df4c79c3fb7b3e4",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "45f00c4a58c3a91d225567fd9295f7685964bd2b024c2c106a3469898641f29e",
+          "governing_ref_id": "ref-governing-benefit-policy-036",
+          "governing_source_id": "synthetic-benefit-governing-policy-036"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-036",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-039",
+          "corpus_digest": "5f0ee4a3fa638bf635e56ee4af4572a1e788e773fa75a540ef976e2c06573988",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "0d351c038a8724c4d1cdf73984f57b5d31eb82dfe285de0ef539ecccd099320d",
+          "governing_ref_id": "ref-governing-benefit-policy-039",
+          "governing_source_id": "synthetic-benefit-governing-policy-039"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-039",
+          "corpus_digest": "f1960435b960325908508d86d1da8a39bf9b671fd41adbe155058a7c4132eb49",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "652245611cef34f456fe8680bb6a46398cd5df73577bf80b41dd45337f524e3e",
+          "governing_ref_id": "ref-governing-benefit-policy-039",
+          "governing_source_id": "synthetic-benefit-governing-policy-039"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-039",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-042",
+          "corpus_digest": "649b3c163f77e387de68dc0df934b7edf57280892097f3782296a8577d3d8025",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "0f8f62ea4313ae8dfe2f2881f9f67aee98cbdb267abad80b5a4eadace437c4a9",
+          "governing_ref_id": "ref-governing-benefit-policy-042",
+          "governing_source_id": "synthetic-benefit-governing-policy-042"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-042",
+          "corpus_digest": "c5791fd6e75a2957be1052a8d319ba326035035319a8a98fc93b4fa61aa16cb9",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "9315c67132bc86a385e84a4124cce6d2873e28ecda84ccca01cb3f88836d1110",
+          "governing_ref_id": "ref-governing-benefit-policy-042",
+          "governing_source_id": "synthetic-benefit-governing-policy-042"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-042",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-045",
+          "corpus_digest": "5c116070d89937eac7474be3087c86347529eb8f2fa3081f41ab50c015cf502a",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "21a733044ea4bc2d7ddb1a093aed9cf26e76c82930416647601eb5aecd1e30a0",
+          "governing_ref_id": "ref-governing-benefit-policy-045",
+          "governing_source_id": "synthetic-benefit-governing-policy-045"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-045",
+          "corpus_digest": "7b7dce33fe51679b0a6f2558988de0a70511cf72b3e144b3a824b6fe98260be3",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "7ed2c34928ec0310a099e078bcbc91e764522531bef7dd9de9916b8f9b64007c",
+          "governing_ref_id": "ref-governing-benefit-policy-045",
+          "governing_source_id": "synthetic-benefit-governing-policy-045"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-045",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-052",
+          "corpus_digest": "8b430a598ddbd50a3f09b07d6ecebe2d0bc99e863c7fcc68d427fa4286a3f8fc",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4cd4c53bc593df3338c0bfa329e531c634a8483b8a9b9e712a59d47760fd0fa8",
+          "governing_ref_id": "ref-governing-benefit-policy-052",
+          "governing_source_id": "synthetic-benefit-governing-policy-052"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-052",
+          "corpus_digest": "a782ba6f3b6141930125fdc081a41c02545b7fbbe98bcc64e6968a626dd3f8a0",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "e52acd2ba52288e3a957e82acd1881800efdc180335df16a17163eaf8dbb4f7e",
+          "governing_ref_id": "ref-governing-benefit-policy-052",
+          "governing_source_id": "synthetic-benefit-governing-policy-052"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-052",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-055",
+          "corpus_digest": "1660fc4a7f80f1742cf6bcaff62638702948d1bd54c165f3059d85380c4415f7",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "fb079b52a2074b175df988b0609626051ee651675586efc235d64f433d97bb86",
+          "governing_ref_id": "ref-governing-benefit-policy-055",
+          "governing_source_id": "synthetic-benefit-governing-policy-055"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-055",
+          "corpus_digest": "4f18c81b60f8792ff4b58332f410f0118067ae9eb777b4b6276e00887d3b445a",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "af0acc01de86bacdb8d2db9759171f03586011c04df09cd8b865a460160d7bbc",
+          "governing_ref_id": "ref-governing-benefit-policy-055",
+          "governing_source_id": "synthetic-benefit-governing-policy-055"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-055",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-058",
+          "corpus_digest": "881ba11074e87e3dddfd4f50933f52964d6cdf53d7c37a740e05af95ffe7341c",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "ae02104fc2b286be9006210530744e6c3ba9ff15a4541fd6595d72847a2031ed",
+          "governing_ref_id": "ref-governing-benefit-policy-058",
+          "governing_source_id": "synthetic-benefit-governing-policy-058"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-058",
+          "corpus_digest": "ac408b7e88bd38b5e6c9e9779a04d50df6efb964d6c5dcf5075fbea420192137",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "cf7537020d6c43c5aea6172d90c5439350a0e69bbdd674ab79b9010ab70654d7",
+          "governing_ref_id": "ref-governing-benefit-policy-058",
+          "governing_source_id": "synthetic-benefit-governing-policy-058"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-058",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-061",
+          "corpus_digest": "551c548427979f848d7abc383c99eb46e85cd52123743e02f162d6d4f6cb395c",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "04719c44659f5d4abf355b074b13f77bf4f04def8abf7baffdf376ace4e38a13",
+          "governing_ref_id": "ref-governing-benefit-policy-061",
+          "governing_source_id": "synthetic-benefit-governing-policy-061"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-061",
+          "corpus_digest": "c01064bddf9655da7b375f2a68959b7efc6711d9a394975cb5ac7bb17812ad40",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "829240e4b7444ba87916f6d5a2ad7392a99d7bfc88692a116a20344ffc3cb17d",
+          "governing_ref_id": "ref-governing-benefit-policy-061",
+          "governing_source_id": "synthetic-benefit-governing-policy-061"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-061",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-068",
+          "corpus_digest": "15efe24758cd8177ac494a8c1b3a7b21f8b8380b1a25b95aa260284f956c60ab",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "cddd954cbf20b6d7380835f2dac9002c8eec91546fbd6991cecf157a19b841f4",
+          "governing_ref_id": "ref-governing-benefit-policy-068",
+          "governing_source_id": "synthetic-benefit-governing-policy-068"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-068",
+          "corpus_digest": "5ba5b8eb087be46b1e9ba9748fda444617ebd22d7cdf33db59206d838d1a1241",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "1868e07a805633a1390a0d42c8ae1e5e370951fad0952eadaaa2d3f3502c1ba1",
+          "governing_ref_id": "ref-governing-benefit-policy-068",
+          "governing_source_id": "synthetic-benefit-governing-policy-068"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-068",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-071",
+          "corpus_digest": "9f946e8a00ea16b27c6dde65c6189cd62110f3fd00c189c3b89000383eeed29b",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "ecd4952cdaed271366e28eb32e5a2a314a17611ed7544106578967c799e9b601",
+          "governing_ref_id": "ref-governing-benefit-policy-071",
+          "governing_source_id": "synthetic-benefit-governing-policy-071"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-071",
+          "corpus_digest": "d02bea0cdc4cdae0cd5853d90eb027e5460a40371f17d55533d36b0db54fa1fe",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "ab2a9bf66814b96e6c5207d383b259dd4dcca6a57e4f02d93aafdb450a744916",
+          "governing_ref_id": "ref-governing-benefit-policy-071",
+          "governing_source_id": "synthetic-benefit-governing-policy-071"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-071",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-074",
+          "corpus_digest": "18214414d2ad6b954400580d8ed6bdf495742b70c1696dbac72a8d2dfcdf19bc",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "5b741cfee9c076e02f52eaaaff434077143141acc1cfd2777dab9fa599400527",
+          "governing_ref_id": "ref-governing-benefit-policy-074",
+          "governing_source_id": "synthetic-benefit-governing-policy-074"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-074",
+          "corpus_digest": "819f009009598a7188d2e8c2d9ef631c439396e972d382744cea52bd944c5c3b",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4c264aa52059c7ae1aa62aaad2ece2eea0e7621d54b31f3f99ea812a0b23781b",
+          "governing_ref_id": "ref-governing-benefit-policy-074",
+          "governing_source_id": "synthetic-benefit-governing-policy-074"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-074",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-077",
+          "corpus_digest": "3a11bc10ac85496c57366fbdc66571f9ca167c86f6274975a0a972d92d699e87",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "cf9144fe9027fefb20fbc0af2510a1cebb4c51f098cc8e92ffa068707f3b3e5c",
+          "governing_ref_id": "ref-governing-benefit-policy-077",
+          "governing_source_id": "synthetic-benefit-governing-policy-077"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-077",
+          "corpus_digest": "a1784648ceeacbfe146ccaf1bb235e8dbb0a8b7da925317919e2dcf5ff6752b1",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "ae69a16deebfcbcc73b8b50922aad53a40b27fe7a6b42d839a5e45a8a8c44042",
+          "governing_ref_id": "ref-governing-benefit-policy-077",
+          "governing_source_id": "synthetic-benefit-governing-policy-077"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-077",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-084",
+          "corpus_digest": "59a8aaf8e052b8cbad16dbf68050f168bbe8355155c4117ea86649c9351dba2f",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "2436d129352fff331b86fc5876d0fc90f02e929eab42239cd8cf6cbb06abc312",
+          "governing_ref_id": "ref-governing-benefit-policy-084",
+          "governing_source_id": "synthetic-benefit-governing-policy-084"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-084",
+          "corpus_digest": "f86103fe32c491207631fff3917f637070371f7266b2ceaa0ed90fa9af1b1c0a",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "58d24c338bd0453d6448b66bb7c5c254ec9cbab88ee603eb0fea9b0e79744c6d",
+          "governing_ref_id": "ref-governing-benefit-policy-084",
+          "governing_source_id": "synthetic-benefit-governing-policy-084"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-084",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-087",
+          "corpus_digest": "5e989096b1e3e4ee2ff532eaddfceabe10074aae051162168830febf8a1e60e1",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4d3247d3d8749ec34808a9d32d3562fb773c46ad8904c743508d0c13aec14fc5",
+          "governing_ref_id": "ref-governing-benefit-policy-087",
+          "governing_source_id": "synthetic-benefit-governing-policy-087"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-087",
+          "corpus_digest": "f54b300375e802522b2eaff8ed8d19b199627b76d29b6a09eec4005d01f91d2e",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "d2a6eeb9f8594819b133c02da7fb7e43600b13d958aee88d36c195ceb763324b",
+          "governing_ref_id": "ref-governing-benefit-policy-087",
+          "governing_source_id": "synthetic-benefit-governing-policy-087"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-087",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-090",
+          "corpus_digest": "03a7d0a5e9bc9808f85658cd6c11c7703af9b5592a912e5f338498e77cce1ea8",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "15d68aa5de07027b43783fa907390c20073a9b522d83e3d25d66e85a226a74ac",
+          "governing_ref_id": "ref-governing-benefit-policy-090",
+          "governing_source_id": "synthetic-benefit-governing-policy-090"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-090",
+          "corpus_digest": "44d2ac34c41af9fec55ba231c8c68942aae34277f791a2d69c8a1c0c6ea1f1a5",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "945cc5a3fa34c55aaa40957e7e12c568858c1cfda720c47c508b4d444c03b1ef",
+          "governing_ref_id": "ref-governing-benefit-policy-090",
+          "governing_source_id": "synthetic-benefit-governing-policy-090"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-090",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-093",
+          "corpus_digest": "52c0457ada8c6f3db67bc072453ddd8c60fb6a0e4cee66e77b5f509f3b3021ba",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "c2f5595e33917bcb718275ff1d994af42129120ef800aee61408d3a94e0874f5",
+          "governing_ref_id": "ref-governing-benefit-policy-093",
+          "governing_source_id": "synthetic-benefit-governing-policy-093"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-093",
+          "corpus_digest": "dd5d43d58691c1c04983c2cfdd5c2800e34f103e0ee8bbf75f4c11dbe41726fb",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "943c7c341a8dd4d4cd470774f7ccfb20ade20636fbfad9f968eb864e30460f7d",
+          "governing_ref_id": "ref-governing-benefit-policy-093",
+          "governing_source_id": "synthetic-benefit-governing-policy-093"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-093",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-100",
+          "corpus_digest": "32ff3479d5fd3dbe0d4da828384b5100d0849faaca8c75b539af24c0c7a9857b",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "b76cd389772a33d446ea0c6226ce8149f550a05dc862495dcb0f0553e959804b",
+          "governing_ref_id": "ref-governing-benefit-policy-100",
+          "governing_source_id": "synthetic-benefit-governing-policy-100"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-100",
+          "corpus_digest": "ae92a9a5f6b61aa546070793f482b6df651cafb681554259f73231f2eb290eed",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "97209578fc993563cc1eb6345980719f069dd2d5e33cef3edf96f20ab8e570b6",
+          "governing_ref_id": "ref-governing-benefit-policy-100",
+          "governing_source_id": "synthetic-benefit-governing-policy-100"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-100",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-103",
+          "corpus_digest": "10ed585bd816f2d0504436740c55a3bce649c8aed2872905bb114648498350c9",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "0033cdb055a4c04391b9b3e613bec924dc26fd03d5702e9bf3ad8f9a133ca6c9",
+          "governing_ref_id": "ref-governing-benefit-policy-103",
+          "governing_source_id": "synthetic-benefit-governing-policy-103"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-103",
+          "corpus_digest": "c350ef6b87179bc61eaeecea0c33fd871c2965be0b1be69b54dc7ea7371e2bd8",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "e63d5f982f878d4b2cc1888ee74fe7439643821ec7e478d43bd6be5f9a342358",
+          "governing_ref_id": "ref-governing-benefit-policy-103",
+          "governing_source_id": "synthetic-benefit-governing-policy-103"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-103",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-106",
+          "corpus_digest": "3daa12655f8014295cd81c7c63e28c418328277baf0a357c2cbaf5ca2098bcb9",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "50c6da095642e1c8ec1ac93d0c2aec0d4f6f152625d54acd5e1c6d4e3074b73f",
+          "governing_ref_id": "ref-governing-benefit-policy-106",
+          "governing_source_id": "synthetic-benefit-governing-policy-106"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-106",
+          "corpus_digest": "e559be3edcbb50d0a06f55d40587e398dca78703041995c9a5b775c11788a5ff",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "cf87d2e922fe4bf84b13e4065a2a99f8652a4b450ee2d79b91014afbbce5cc2c",
+          "governing_ref_id": "ref-governing-benefit-policy-106",
+          "governing_source_id": "synthetic-benefit-governing-policy-106"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-106",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-109",
+          "corpus_digest": "87316d6192578eadfcc65d723438b97768e830a60384a7665710830a09ca29f7",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "6d053c00a0ed5e7d5ae417bc9cbcf54f376d587fc918bd633366c9720521ec51",
+          "governing_ref_id": "ref-governing-benefit-policy-109",
+          "governing_source_id": "synthetic-benefit-governing-policy-109"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-109",
+          "corpus_digest": "d55c33ca0c3ed7586e4615b7b9f7ad641f403a36d69630f374697a335b296f03",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "93dc03bbcc2f18768ed6645180021663488a68ca0f81595cf25a582a839f4448",
+          "governing_ref_id": "ref-governing-benefit-policy-109",
+          "governing_source_id": "synthetic-benefit-governing-policy-109"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-109",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-116",
+          "corpus_digest": "7702384c3b6d4d80ad7c7c2f4a5f66cc02fd41f765a82088a5f2f60057eb9002",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "1e1fbbd7ee3e202754354c61d92a25cd6b37a44866f9472e6aba5f7f7f76d401",
+          "governing_ref_id": "ref-governing-benefit-policy-116",
+          "governing_source_id": "synthetic-benefit-governing-policy-116"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-116",
+          "corpus_digest": "af55c52545bc5d864b300c2cd66a7dc560109b4f83fa39bb045dcdeb80347899",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "e5d453d904a2a352123aa7c9d0fa41fd95afff22636fe874efd9388139aa3877",
+          "governing_ref_id": "ref-governing-benefit-policy-116",
+          "governing_source_id": "synthetic-benefit-governing-policy-116"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-116",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-119",
+          "corpus_digest": "3ffaeccadd8eee9055c4ceb821a9c4c94edba6f3eff5f4c9565ac00459d68e31",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "6904aa3a1843a02d4941d5f12436cfccb35a0166bf52c987d57bf7b542bb74e0",
+          "governing_ref_id": "ref-governing-benefit-policy-119",
+          "governing_source_id": "synthetic-benefit-governing-policy-119"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-119",
+          "corpus_digest": "dca6bdace387a6a4d8135f9012958b82a76d78da0d07c2b74dc86ac0c32ca9b2",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "f614497cc507c6e75bdf9e237a324b6b4cb20a7c9131c0f35bec6ca1b1047233",
+          "governing_ref_id": "ref-governing-benefit-policy-119",
+          "governing_source_id": "synthetic-benefit-governing-policy-119"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-119",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-122",
+          "corpus_digest": "dbb2a4d7d4ad88263230eb8dcbc7b7667f97597f8ff9dbd512e04cf7bba03894",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "6f6f8b81802f32f3d5e594fa38d96f94843bc841939c7153ec37b84af9db42bb",
+          "governing_ref_id": "ref-governing-benefit-policy-122",
+          "governing_source_id": "synthetic-benefit-governing-policy-122"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-122",
+          "corpus_digest": "de9123b4aea99650f14d98558e452d25a6594bba56e99f698d92db3fd780bed2",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "b8bb0b2e31dc3f202fef4b0075639ef3c3794d2990f95dbbb56c0dc0b6ff0e85",
+          "governing_ref_id": "ref-governing-benefit-policy-122",
+          "governing_source_id": "synthetic-benefit-governing-policy-122"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-122",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-125",
+          "corpus_digest": "41f3553029c62dc4c67efe8912997e80734841afb72e083b329859101658f564",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "9137c48ee101b35887844649c270a06640980cd71c0679a0a7296eb6dc9f617b",
+          "governing_ref_id": "ref-governing-benefit-policy-125",
+          "governing_source_id": "synthetic-benefit-governing-policy-125"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-125",
+          "corpus_digest": "8901c65970c9256c5a14114670af0d0d0c0ced7b1169d84e64af15a7516a1913",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "58cef210e36ea7b5144771aa8a3c0d03427f7db69db08819bbe26deef7accb26",
+          "governing_ref_id": "ref-governing-benefit-policy-125",
+          "governing_source_id": "synthetic-benefit-governing-policy-125"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-125",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-132",
+          "corpus_digest": "d114d5228d2f5eb44d16542f91a1b851d897c0576962cf2702d0c38e0c2384bc",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "e9c14f085780a5cb64ae40449f8462ceae1b9b811f1a729c77d3220e5257485d",
+          "governing_ref_id": "ref-governing-benefit-policy-132",
+          "governing_source_id": "synthetic-benefit-governing-policy-132"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-132",
+          "corpus_digest": "df87401a3f37e1dc5301654d8b1b1b50c09421afe7b5f43b52007c56c4afa6d0",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "780e1c7b1cdd72d0f6f6446f9497dee1bc82c329b6d399a67285d185180ec8cd",
+          "governing_ref_id": "ref-governing-benefit-policy-132",
+          "governing_source_id": "synthetic-benefit-governing-policy-132"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-132",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-135",
+          "corpus_digest": "c7a323fad8774c24dd5c73b29952ea0569c8505b0d91c0f4a8c61a16979a7bee",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "cdcb469d8fb9f43f55b09d9af2f3f827dd0c016bb10a61b4dcfc7217611a47fc",
+          "governing_ref_id": "ref-governing-benefit-policy-135",
+          "governing_source_id": "synthetic-benefit-governing-policy-135"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-135",
+          "corpus_digest": "ce0076759a637c3abc0f96f5ad20d643191b01973a0954b0918b2a3dae09f0d0",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "6b612544659ae9f3f6fa9cafe590ff344889603799b0c0d745d89ce613e7e3a2",
+          "governing_ref_id": "ref-governing-benefit-policy-135",
+          "governing_source_id": "synthetic-benefit-governing-policy-135"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-135",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-138",
+          "corpus_digest": "90a5aa2a970c4e0b0026c06d52a0b0058f5ed86744ae61e89b508f2e3fc154af",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "a8d7b71eff4abed47606786a3a5b46a4a4bdcf00ca21e81ca4bf9ab81affab02",
+          "governing_ref_id": "ref-governing-benefit-policy-138",
+          "governing_source_id": "synthetic-benefit-governing-policy-138"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-138",
+          "corpus_digest": "f01c3f68365e8d6fa079981212a92797466ad34777d447b4d05bb1f711dc7fa0",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4c9fb2dc55a94a90dbc35fb7119ac7bffd2e5552599a8f9b91fde92587d9fe49",
+          "governing_ref_id": "ref-governing-benefit-policy-138",
+          "governing_source_id": "synthetic-benefit-governing-policy-138"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-138",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-141",
+          "corpus_digest": "4b1693a0303311f7546951d935403a44fc2e3fee421d39666fbd7a0ee7583141",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "47ffb30f374fe55968e2ba9545d08acb6c8fef042dc321c88f3720503ff32ac5",
+          "governing_ref_id": "ref-governing-benefit-policy-141",
+          "governing_source_id": "synthetic-benefit-governing-policy-141"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-141",
+          "corpus_digest": "6f02429b7cc5368ef9a1eae73e110b2a961c4a6f9f71d15af19115cc2feb9d8d",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "1cff6ab3fc1cf35c05ed3805454972815f4f5e83e69c2c54885fb8104687be0a",
+          "governing_ref_id": "ref-governing-benefit-policy-141",
+          "governing_source_id": "synthetic-benefit-governing-policy-141"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-141",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-148",
+          "corpus_digest": "942a62c09152e121246d97266a9b6491ee39bbfb3edf5e122b375fc3871f076c",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "08724abb204c3caadcec01c46d54474d2464bb87a426a8d80742da7fee810264",
+          "governing_ref_id": "ref-governing-benefit-policy-148",
+          "governing_source_id": "synthetic-benefit-governing-policy-148"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-148",
+          "corpus_digest": "a50b06495d1d4560c7920d3714949826b38bbc6294593750b8149a5d9d9f33d0",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "01a8914b61671fb7ec5b235bb059091514d5b0d03da1edc853208a0448e1dde6",
+          "governing_ref_id": "ref-governing-benefit-policy-148",
+          "governing_source_id": "synthetic-benefit-governing-policy-148"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-148",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-151",
+          "corpus_digest": "2390d43b57eb2aeb209fe9a544f953c608a2c1aca5938105870906e86dfdf085",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "1c0913f7391ef0dd3910a3e02286df55089c8f988c48b6283c611022fb857d80",
+          "governing_ref_id": "ref-governing-benefit-policy-151",
+          "governing_source_id": "synthetic-benefit-governing-policy-151"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-151",
+          "corpus_digest": "e694fef83d2a3247b5c7ac6c89b81102e8e8c1bac54ffdaf843da7d8bc20aba3",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "41af7d832a0862e2aa51ace315da6a828202cf38201cf6c086e17bb4ea486b43",
+          "governing_ref_id": "ref-governing-benefit-policy-151",
+          "governing_source_id": "synthetic-benefit-governing-policy-151"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-151",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-154",
+          "corpus_digest": "1a41780b378e9989f2991bcbfa757aac6c378c01cb17c4ff26643417f241f2d1",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "c5a0e07ec41e629121c0eaa3ded1b852fe17e5a729c33b7ccf5936355a544a0b",
+          "governing_ref_id": "ref-governing-benefit-policy-154",
+          "governing_source_id": "synthetic-benefit-governing-policy-154"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-154",
+          "corpus_digest": "d47de8ebd1ca4e0fcb9e199f6edf4b8a807de2bafc8da9585e6cd5da7723e874",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "af44934f0fea3aa0c0cee318926e159c2ff160d512aa91b6b65d50972c747c9b",
+          "governing_ref_id": "ref-governing-benefit-policy-154",
+          "governing_source_id": "synthetic-benefit-governing-policy-154"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-154",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-157",
+          "corpus_digest": "739ac4e4eb997d721e637c9f9b37c6a693db91d707acda24b0dabeeaee21b9d7",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "2080890ecbeea845583bd02168f7b44d21bd0e6b3c7f12903c84c18eb49ce8bf",
+          "governing_ref_id": "ref-governing-benefit-policy-157",
+          "governing_source_id": "synthetic-benefit-governing-policy-157"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-157",
+          "corpus_digest": "f3a23d6334c153a2bcd55473ddb1feca0df73f90a69564458dec9e14217bcfe0",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "6a7ef3ba4b14a3313d01a60c02aefd2024977a752895c98aecdbfbea2d052fd8",
+          "governing_ref_id": "ref-governing-benefit-policy-157",
+          "governing_source_id": "synthetic-benefit-governing-policy-157"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-157",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-164",
+          "corpus_digest": "13a825ea301ecd4804367d32fa104355268596ca73ca85be94dab15a03168ff1",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "d04a4b258169ee97e677054ed8f4899efe39e48937903b7cfc127945eafa7531",
+          "governing_ref_id": "ref-governing-benefit-policy-164",
+          "governing_source_id": "synthetic-benefit-governing-policy-164"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-164",
+          "corpus_digest": "72a920d44b007a10cf76260b2229ed02ae32a12d0244d17b232bb8ea470538cc",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "a6c37ee44ad9b057bae67ac62b4999ae3b02ae7a5424dcf9f9437827454f3dce",
+          "governing_ref_id": "ref-governing-benefit-policy-164",
+          "governing_source_id": "synthetic-benefit-governing-policy-164"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-164",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    },
+    {
+      "assignments": [
+        {
+          "claim_id": "claim-benefit-eligibility-167",
+          "corpus_digest": "c01a23ebee032750c990f32eeba000ef4612ad131484e0c6cb19f707bcfb5323",
+          "expected_decision": "approve",
+          "expected_outcome": "approved",
+          "governing_content_digest": "d68559a841126e3cfba35485a6fe7c2d3564c8f25a6fcf86fa22e6b33ae6b184",
+          "governing_ref_id": "ref-governing-benefit-policy-167",
+          "governing_source_id": "synthetic-benefit-governing-policy-167"
+        },
+        {
+          "claim_id": "claim-benefit-eligibility-167",
+          "corpus_digest": "d362af0626e738a18ad09e42ec5181b3ee90658e81302b9c64562d87c9103ff4",
+          "expected_decision": "deny",
+          "expected_outcome": "denied",
+          "governing_content_digest": "4c7c057ba7c0d987fb06a2842ff164b63f778dae067a2752515900811fe0ae10",
+          "governing_ref_id": "ref-governing-benefit-policy-167",
+          "governing_source_id": "synthetic-benefit-governing-policy-167"
+        }
+      ],
+      "case_id": "synthetic-benefit-eligibility-167",
+      "expected_relation": "decision_flip",
+      "query_family_id": "synthetic-benefit-deny-to-approve"
+    }
+  ],
+  "case_id": "synthetic-benefit-eligibility-004",
+  "conflict_direction": "context_overrides_parametric_memory",
+  "contract_id": "RAGSensitivityKnowledgeAuthority/v1",
+  "contract_version": "1.0.0",
+  "expected_behavior": "follow_governing_context",
+  "expected_response_relation": "decision_flip",
+  "governing_source": "contextual_evidence",
+  "knowledge_contract_digest": "7f3336cdc49cf4746318a49644c8445b5de3d42206e27fca128499864c7ccfb4",
+  "limitations": [
+    "Synthetic authority fixtures test controlled decision relations; they do not estimate real-model behavior or prevalence."
+  ],
+  "query_family_id": "synthetic-benefit-deny-to-approve",
+  "schema_name": "rag-sensitivity-knowledge-contract",
+  "schema_version": "0.6.6"
+}

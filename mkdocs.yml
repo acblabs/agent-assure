@@ -21,6 +21,8 @@ nav:
   - RAG demo: demo_rag.md
   - Controlled RAG evidence sensitivity: evidence_sensitivity.md
   - Repeated paired evidence sensitivity: repeated_evidence_sensitivity.md
+  - Preregistered real-model study: real_model_study.md
+  - External CI pilot evidence: external_pilot.md
   - Expense demo: demo_expense.md
   - Evidence diff: evidence_diff.md
   - Claim boundary: claim_boundary.md

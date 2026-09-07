@@ -20,6 +20,11 @@ env:
   # Match the canonical release-evidence producer exactly.
   PYTHON_VERSION: "3.14.6"
   SOURCE_DATE_EPOCH: "1783036800"
+  # The publish gate replays both closed evidence bundles.
+  EMPIRICAL_STUDY_BUNDLE_ROOT: evidence/empirical/real-model-study
+  EXTERNAL_PILOT_BUNDLE_ROOT: evidence/empirical/external-pilot
+  EXTERNAL_PILOT_EVIDENCE: external-pilot-evidence.json
+  EXTERNAL_PILOT_REVIEW_RECEIPT: external-pilot-independence-review.json
 
 jobs:
   build:
@@ -59,7 +64,7 @@ jobs:
       - name: Run release checks for the requested version
         env:
           EXPECTED_RELEASE: ${{ inputs['expected-version'] }}
-        run: make release-check EXPECTED_RELEASE="${EXPECTED_RELEASE}"
+        run: make release-publish-check EXPECTED_RELEASE="${EXPECTED_RELEASE}"
       - name: Validate exact distribution set
         run: python scripts/check_wheel_contents.py --dist dist
       - name: Require clean source after build
@@ -116,7 +121,7 @@ jobs:
           python scripts/check_version_matches_tag.py "v${EXPECTED_VERSION}"
           make schema-check
           python scripts/check_tagged_schema_immutability.py --require-release-tags
-          make release-check EXPECTED_RELEASE="${EXPECTED_VERSION}"
+          make release-publish-check EXPECTED_RELEASE="${EXPECTED_VERSION}"
           python scripts/check_wheel_contents.py --dist dist
       - name: Compare exact distribution bytes
         shell: bash

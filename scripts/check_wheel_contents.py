@@ -22,8 +22,13 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agent_assure.privacy.distribution import (  # noqa: E402
+    validate_distribution_member_privacy,
+    validate_zip_metadata_absent,
+)
 from scripts.example_resource_manifest import (  # noqa: E402
     EVIDENCE_SENSITIVITY_REQUIRED_RESOURCE_PATHS,
+    PROCESS_EQUIVALENCE_BENCHMARK_REQUIRED_RESOURCE_PATHS,
 )
 from scripts.schema_versions import (  # noqa: E402
     SCHEMA_ROOT,
@@ -43,6 +48,59 @@ MAX_ZIP_CENTRAL_DIRECTORY_BYTES = 16 * 1024 * 1024
 MAX_TAR_EXTENDED_HEADER_BYTES = 1024 * 1024
 MAX_TAR_EXTENDED_HEADER_TOTAL_BYTES = 8 * 1024 * 1024
 MAX_TAR_RAW_MEMBERS = (2 * MAX_ARCHIVE_MEMBERS) + 32
+MAX_DISTRIBUTION_PRIVACY_SCAN_LINES = 1_000_000
+MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES = 4 * 1024 * 1024
+MAX_DISTRIBUTION_PYTHON_MEMBER_LINES = 50_000
+MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS = 400_000
+REVIEWED_BINARY_ASSET_SHA256 = {
+    "docs/assets/flagship-evidence-diff.png": (
+        "9e94351162d69fb8790756a662721ed58a89b38f98f3f6ada174c44f071987a7"
+    ),
+}
+# Tests that exercise high-confidence credential detectors may contain inert
+# synthetic literals. Any exception is exact-byte-bound: changing even one byte
+# restores the normal scan until a reviewer updates this inventory.
+SDIST_SENSITIVE_FIXTURE_SHA256 = {
+    "tests/integration/test_controls_mutate_cli.py": (
+        "0548fc9f0b5f2c6337a437400174c99dbd73a5e836a1e2b2f9c5b34b05526f5a"
+    ),
+    "tests/integration/test_external_pilot_cli.py": (
+        "b8c629291cce9a38446ec057e02f47dbc5ce6ebcb635104b290f36ec17caa530"
+    ),
+    "tests/integration/test_stream_cli.py": (
+        "676ae69422330a62a867c20fa57bdc08887304f05bcb90ba9fe528ebc0d5f716"
+    ),
+    "tests/unit/test_otel_cli.py": (
+        "08eeed8dcd68fd1b7fc65ea7a4d2ce087dab774af9be1d4fb4d48029fb8ed6c5"
+    ),
+    "tests/unit/test_pilot_bundle.py": (
+        "45bd555e918f35f5ac8a592f7016f72e0fce390e9f7c7cf71d459f6a518ef8b4"
+    ),
+    "tests/unit/authoring/test_yaml_loader.py": (
+        "ad351d179f95321c6f53a9bd3998295e96fad0086463d8c4d79297f6dd8e813f"
+    ),
+    "tests/unit/evaluation/test_live_runner.py": (
+        "52cc7f5ac77d60c8150cfbc70b70e846a4b1e4d206ed004e7955b5b96a81ecf0"
+    ),
+    "tests/unit/mutation/test_campaign.py": (
+        "00675c6263cd18e6e24f7969f755347426b0a022ef66a1b9a007dfce028d9b59"
+    ),
+    "tests/unit/mutation/test_execution.py": (
+        "14c5ceda011304a69e91884f54266cc8a5723212b32e6d991d450c815d6cb83e"
+    ),
+    "tests/unit/privacy/test_hmac_and_redaction.py": (
+        "0fab0e1372db920c0aa670cd6e8735526d07a264f081a602445bc950439182d4"
+    ),
+    "tests/unit/rag/test_repeated_live_workflow.py": (
+        "9297fd8250cd6e774254b68142aae202342a4b7c5432bfd3b6873c0366e0c3c6"
+    ),
+    "tests/unit/release/test_wheel_content_checks.py": (
+        "ccfb4cf2dfe16c85f274477535af1d55649b357e28b8e69a1f50d26f21ab8312"
+    ),
+    "tests/unit/schema/test_pilot_evidence.py": (
+        "8ff25b5e57c682307418f70d200eda19c19ad7ecefee96a99abd26b44974c037"
+    ),
+}
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _WINDOWS_FORBIDDEN_FILENAME_CHARACTERS = frozenset('<>"|?*')
 _WINDOWS_RESERVED_NAMES = {
@@ -141,14 +199,26 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/cli/main.py",
     "agent_assure/cli/rag_cmd.py",
+    "agent_assure/cli/study_cmd.py",
     "agent_assure/demo/evidence_sensitivity.py",
+    "agent_assure/live/config.py",
+    "agent_assure/live/runner.py",
     "agent_assure/mutation/campaign.py",
     "agent_assure/mutation/introduction_snapshots.json",
     "agent_assure/reporting/campaign.py",
     "agent_assure/reporting/sensitivity.py",
+    "agent_assure/reporting/study.py",
+    "agent_assure/rag/repeated_sensitivity.py",
     "agent_assure/rag/sensitivity.py",
+    "agent_assure/schema/benchmark.py",
     "agent_assure/schema/campaign.py",
+    "agent_assure/schema/pilot.py",
     "agent_assure/schema/sensitivity.py",
+    "agent_assure/schema/study.py",
+    "agent_assure/statistics/binomial_intervals.py",
+    "agent_assure/study/__init__.py",
+    "agent_assure/study/analysis.py",
+    "agent_assure/study/readiness.py",
     "agent_assure/examples/",
     "agent_assure/examples/prior_auth_synthetic/",
     "agent_assure/examples/prior_auth_synthetic/suite.yaml",
@@ -213,6 +283,11 @@ BASE_REQUIRED_ARCHIVE_PATHS = (
     *(
         f"agent_assure/examples/evidence_sensitivity/{relative_path}"
         for relative_path in EVIDENCE_SENSITIVITY_REQUIRED_RESOURCE_PATHS
+    ),
+    "agent_assure/examples/process_equivalence_benchmark_v0_2/",
+    *(
+        f"agent_assure/examples/process_equivalence_benchmark_v0_2/{relative_path}"
+        for relative_path in PROCESS_EQUIVALENCE_BENCHMARK_REQUIRED_RESOURCE_PATHS
     ),
     "agent_assure/examples/process_equivalence_reproduction_index.json",
     "agent_assure/schema_resources/__init__.py",
@@ -466,8 +541,10 @@ def _preflight_zip_archive(path: Path) -> None:
         total_entry_count,
         central_directory_size,
         central_directory_offset,
-        _comment_size,
+        comment_size,
     ) = eocd
+    if comment_size:
+        raise ValueError("wheel archive comments are not supported")
     if disk_number != 0 or central_directory_disk != 0 or disk_entry_count != total_entry_count:
         raise ValueError("wheel multi-disk ZIP archives are not supported")
     if (
@@ -505,6 +582,8 @@ def _preflight_zip_archive(path: Path) -> None:
                 raise zipfile.BadZipFile(f"invalid wheel central-directory entry {entry_index + 1}")
             if parsed_header[13] != 0:
                 raise ValueError("wheel central-directory entry refers to another disk")
+            if parsed_header[11] or parsed_header[12]:
+                raise ValueError("wheel member extra fields and comments are not supported")
             variable_size = sum(parsed_header[index] for index in (10, 11, 12))
             entry_size = _ZIP_CENTRAL_DIRECTORY_HEADER_SIZE + variable_size
             if entry_size > remaining:
@@ -524,6 +603,8 @@ def inspect_wheel(wheel: Path) -> tuple[list[str], list[str]]:
     with zipfile.ZipFile(wheel) as archive:
         names, regular_names, unsafe = _inspect_zip_members(archive)
         _validate_wheel_record(archive, regular_names)
+        if not unsafe:
+            _validate_wheel_privacy(archive, regular_names)
     required_paths = required_archive_paths()
     missing = [
         required
@@ -538,6 +619,8 @@ def inspect_sdist(sdist: Path) -> tuple[list[str], list[str]]:
     _validate_archive_file(sdist, label="sdist")
     with tarfile.open(sdist, "r:gz", tarinfo=_BoundedTarInfo) as archive:
         names, regular_names, unsafe = _inspect_tar_members(archive)
+    if not unsafe:
+        _validate_sdist_privacy(sdist)
     stripped_names = tuple(sorted(_strip_sdist_root(name) for name in names))
     stripped_regular_names = frozenset(_strip_sdist_root(name) for name in regular_names)
     missing = [
@@ -547,6 +630,62 @@ def inspect_sdist(sdist: Path) -> tuple[list[str], list[str]]:
     ]
     forbidden = [*unsafe, *(name for name in names if _is_forbidden_sdist_path(name))]
     return missing, forbidden
+
+
+def _validate_wheel_privacy(
+    archive: zipfile.ZipFile,
+    regular_names: frozenset[str],
+) -> None:
+    remaining_lines = MAX_DISTRIBUTION_PRIVACY_SCAN_LINES
+    for name in sorted(regular_names):
+        data = _read_zip_member_bytes(archive, archive.getinfo(name))
+        scanned_lines = validate_distribution_member_privacy(
+            name,
+            data,
+            max_structural_scan_lines=remaining_lines,
+            max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
+            max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
+            max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
+            strict_python_source=name.startswith("agent_assure/"),
+        )
+        remaining_lines -= scanned_lines
+
+
+def _validate_sdist_privacy(sdist: Path) -> None:
+    remaining_lines = MAX_DISTRIBUTION_PRIVACY_SCAN_LINES
+    expanded_bytes = 0
+    with tarfile.open(sdist, "r:gz", tarinfo=_BoundedTarInfo) as archive:
+        for member_count, member in enumerate(archive, start=1):
+            if member_count > MAX_ARCHIVE_MEMBERS:
+                raise ValueError(f"sdist contains more than {MAX_ARCHIVE_MEMBERS} members")
+            if not member.isfile():
+                continue
+            if member.size > MAX_ARCHIVE_MEMBER_BYTES:
+                raise ValueError(
+                    f"{member.name} exceeds the {MAX_ARCHIVE_MEMBER_BYTES}-byte member limit"
+                )
+            expanded_bytes += member.size
+            if expanded_bytes > MAX_ARCHIVE_TOTAL_BYTES:
+                raise ValueError(f"sdist expands to more than {MAX_ARCHIVE_TOTAL_BYTES} bytes")
+            data = _read_tar_member_bytes(archive, member)
+            name = _strip_sdist_root(member.name)
+            expected_fixture_digest = SDIST_SENSITIVE_FIXTURE_SHA256.get(name)
+            allow_sensitive_fixture = (
+                expected_fixture_digest is not None
+                and hashlib.sha256(data).hexdigest() == expected_fixture_digest
+            )
+            scanned_lines = validate_distribution_member_privacy(
+                name,
+                data,
+                max_structural_scan_lines=remaining_lines,
+                max_python_member_bytes=MAX_DISTRIBUTION_PYTHON_MEMBER_BYTES,
+                max_python_member_lines=MAX_DISTRIBUTION_PYTHON_MEMBER_LINES,
+                max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
+                strict_python_source=name.startswith("src/agent_assure/"),
+                reviewed_binary_assets=REVIEWED_BINARY_ASSET_SHA256,
+                allow_sensitive_fixture=allow_sensitive_fixture,
+            )
+            remaining_lines -= scanned_lines
 
 
 def required_archive_paths(
@@ -853,6 +992,7 @@ def _archive_contains(
 def _inspect_zip_members(
     archive: zipfile.ZipFile,
 ) -> tuple[tuple[str, ...], frozenset[str], list[str]]:
+    validate_zip_metadata_absent(archive)
     infos = archive.infolist()
     if len(infos) > MAX_ARCHIVE_MEMBERS:
         raise ValueError(f"wheel contains {len(infos)} members; maximum is {MAX_ARCHIVE_MEMBERS}")
@@ -896,6 +1036,8 @@ def _inspect_zip_members(
 def _inspect_tar_members(
     archive: tarfile.TarFile,
 ) -> tuple[tuple[str, ...], frozenset[str], list[str]]:
+    if archive.pax_headers:
+        raise ValueError("sdist global PAX metadata is not supported")
     names: list[str] = []
     regular_names: set[str] = set()
     unsafe: list[str] = []
@@ -905,6 +1047,8 @@ def _inspect_tar_members(
     for member_count, member in enumerate(archive, start=1):
         if member_count > MAX_ARCHIVE_MEMBERS:
             raise ValueError(f"sdist contains more than {MAX_ARCHIVE_MEMBERS} members")
+        if member.isfile() or member.isdir():
+            _validate_tar_member_metadata(member)
         name = member.name
         names.append(name)
         issue = _portable_archive_member_error(name)
@@ -932,6 +1076,13 @@ def _inspect_tar_members(
     if total > MAX_ARCHIVE_TOTAL_BYTES:
         raise ValueError(f"sdist expands to {total} bytes; maximum is {MAX_ARCHIVE_TOTAL_BYTES}")
     return tuple(sorted(names)), frozenset(regular_names), unsafe
+
+
+def _validate_tar_member_metadata(member: tarfile.TarInfo) -> None:
+    if member.uname or member.gname or member.linkname:
+        raise ValueError("sdist member identity and link metadata must be empty")
+    if member.pax_headers not in ({}, {"path": member.name}):
+        raise ValueError("sdist member PAX metadata must be an exact path record")
 
 
 def _portable_archive_member_error(name: str) -> str | None:

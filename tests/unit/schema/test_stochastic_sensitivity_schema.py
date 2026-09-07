@@ -11,6 +11,7 @@ from pydantic import ValidationError
 
 from agent_assure.rag.sensitivity_statistics import plan_binary_paired_design
 from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityExpectedRelation,
     RAGSensitivityAuthorityAssignment,
     RAGSensitivityCaseAuthorityBinding,
 )
@@ -150,6 +151,91 @@ def _protocol_payload() -> dict[str, object]:
     }
 
 
+def test_deterministic_protocol_rejects_execution_attempt_identity_in_model_and_schema() -> None:
+    payload = _protocol_payload()
+    payload.update(
+        {
+            "execution_mode": "deterministic_fixture",
+            "interpretation": "exploratory",
+        }
+    )
+    deterministic = RepeatedEvidenceSensitivityProtocol.build(**payload)
+    malformed = deterministic.model_dump(mode="json")
+    malformed["execution_attempt_id"] = "misleading-provider-attempt"
+
+    with pytest.raises(ValidationError, match="cannot bind execution_attempt_id"):
+        RepeatedEvidenceSensitivityProtocol.build(
+            **payload,
+            execution_attempt_id="misleading-provider-attempt",
+        )
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+        ).validate(malformed)
+
+
+def _protocol_payload_for_relation(
+    *,
+    expected_relation: EvidenceSensitivityExpectedRelation,
+    baseline_decision: Literal["approve", "deny"],
+    counterfactual_decision: Literal["approve", "deny"],
+) -> dict[str, object]:
+    payload = _protocol_payload()
+    outcomes = {"approve": "approved", "deny": "denied"}
+    baseline = SensitivityArmBinding.model_validate(
+        {
+            **cast(SensitivityArmBinding, payload["baseline_arm"]).model_dump(mode="json"),
+            "expected_recommendation": baseline_decision,
+            "expected_outcome": outcomes[baseline_decision],
+        }
+    )
+    counterfactual = SensitivityArmBinding.model_validate(
+        {
+            **cast(SensitivityArmBinding, payload["counterfactual_arm"]).model_dump(mode="json"),
+            "expected_recommendation": counterfactual_decision,
+            "expected_outcome": outcomes[counterfactual_decision],
+        }
+    )
+    payload["expected_relation"] = expected_relation
+    payload["baseline_arm"] = baseline
+    payload["counterfactual_arm"] = counterfactual
+    bindings = cast(
+        tuple[RAGSensitivityCaseAuthorityBinding, ...],
+        payload["case_authority_bindings"],
+    )
+    payload["case_authority_bindings"] = tuple(
+        RAGSensitivityCaseAuthorityBinding(
+            case_id=binding.case_id,
+            query_family_id=binding.query_family_id,
+            expected_relation=(
+                expected_relation
+                if expected_relation is EvidenceSensitivityExpectedRelation.decision_invariant
+                else None
+            ),
+            assignments=tuple(
+                RAGSensitivityAuthorityAssignment.model_validate(
+                    {
+                        **assignment.model_dump(mode="json"),
+                        "expected_decision": (
+                            baseline_decision
+                            if assignment.corpus_digest == baseline.corpus_digest
+                            else counterfactual_decision
+                        ),
+                        "expected_outcome": (
+                            outcomes[baseline_decision]
+                            if assignment.corpus_digest == baseline.corpus_digest
+                            else outcomes[counterfactual_decision]
+                        ),
+                    }
+                )
+                for assignment in binding.assignments
+            ),
+        )
+        for binding in bindings
+    )
+    return payload
+
+
 def test_confirmatory_protocol_rejects_unsupported_adapter_in_model_and_json_schema() -> None:
     payload = _protocol_payload()
     for arm_name in ("baseline_arm", "counterfactual_arm"):
@@ -177,6 +263,91 @@ def test_confirmatory_protocol_requires_exact_case_authority_coverage() -> None:
 
     with pytest.raises(ValidationError, match="exactly cover planned_case_ids"):
         RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+
+@pytest.mark.parametrize(
+    ("expected_relation", "baseline_decision", "counterfactual_decision"),
+    (
+        (EvidenceSensitivityExpectedRelation.decision_invariant, "approve", "approve"),
+        (EvidenceSensitivityExpectedRelation.decision_invariant, "deny", "deny"),
+        (EvidenceSensitivityExpectedRelation.decision_flip, "deny", "approve"),
+    ),
+)
+def test_v066_protocol_supports_negative_controls_and_both_flip_directions(
+    expected_relation: EvidenceSensitivityExpectedRelation,
+    baseline_decision: Literal["approve", "deny"],
+    counterfactual_decision: Literal["approve", "deny"],
+) -> None:
+    protocol = RepeatedEvidenceSensitivityProtocol.build(
+        **_protocol_payload_for_relation(
+            expected_relation=expected_relation,
+            baseline_decision=baseline_decision,
+            counterfactual_decision=counterfactual_decision,
+        )
+    )
+
+    assert protocol.schema_version == "0.6.6"
+    assert protocol.expected_relation is expected_relation
+    assert protocol.baseline_arm.expected_recommendation.value == baseline_decision
+    assert protocol.counterfactual_arm.expected_recommendation.value == counterfactual_decision
+    assert all(
+        (binding.expected_relation or EvidenceSensitivityExpectedRelation.decision_flip)
+        is expected_relation
+        for binding in protocol.case_authority_bindings
+    )
+
+
+def test_v065_protocol_rejects_decision_invariant_extension() -> None:
+    payload = _protocol_payload_for_relation(
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_invariant,
+        baseline_decision="approve",
+        counterfactual_decision="approve",
+    )
+
+    with pytest.raises(ValidationError, match="require schema version 0.6.6"):
+        RepeatedEvidenceSensitivityProtocol.build(**payload, schema_version="0.6.5")
+
+
+def test_protocol_relation_and_authority_binding_must_match() -> None:
+    payload = _protocol_payload_for_relation(
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_invariant,
+        baseline_decision="approve",
+        counterfactual_decision="approve",
+    )
+    payload["expected_relation"] = "decision_flip"
+
+    with pytest.raises(ValidationError, match="decision_flip|expected relation"):
+        RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+
+def test_decision_invariant_still_requires_distinct_governing_content() -> None:
+    payload = _protocol_payload_for_relation(
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_invariant,
+        baseline_decision="deny",
+        counterfactual_decision="deny",
+    )
+    bindings = cast(
+        tuple[RAGSensitivityCaseAuthorityBinding, ...],
+        payload["case_authority_bindings"],
+    )
+    first = bindings[0]
+    duplicate_content = first.assignments[0].governing_content_digest
+
+    with pytest.raises(ValidationError, match="different governing evidence content"):
+        RAGSensitivityCaseAuthorityBinding(
+            case_id=first.case_id,
+            query_family_id=first.query_family_id,
+            expected_relation=EvidenceSensitivityExpectedRelation.decision_invariant,
+            assignments=(
+                first.assignments[0],
+                RAGSensitivityAuthorityAssignment.model_validate(
+                    {
+                        **first.assignments[1].model_dump(mode="json"),
+                        "governing_content_digest": duplicate_content,
+                    }
+                ),
+            ),
+        )
 
 
 @pytest.mark.parametrize(
@@ -605,3 +776,91 @@ def test_endpoint_is_derived_from_structured_decisions_and_exact_sources() -> No
         **source_fields,
     )
     assert wrong_direction.endpoint_value == 0
+    assert "expected_relation" not in wrong_direction.model_dump(mode="json")
+
+
+@pytest.mark.parametrize(
+    ("expected_decision", "expected_outcome", "other_decision", "other_outcome"),
+    (
+        ("approve", "approved", "deny", "denied"),
+        ("deny", "denied", "approve", "approved"),
+    ),
+)
+def test_decision_invariant_endpoint_scores_exact_correctness_in_both_arms(
+    expected_decision: Literal["approve", "deny"],
+    expected_outcome: Literal["approved", "denied"],
+    other_decision: Literal["approve", "deny"],
+    other_outcome: Literal["approved", "denied"],
+) -> None:
+    source_fields = {
+        "baseline_run_id": "baseline-run",
+        "baseline_run_digest": _digest("baseline-run"),
+        "counterfactual_run_id": "counterfactual-run",
+        "counterfactual_run_digest": _digest("counterfactual-run"),
+    }
+    common = {
+        "case_id": "case-00",
+        "repetition_index": 0,
+        "cluster_id": "case-00",
+        "disposition": "included",
+        "baseline_recommendation": expected_decision,
+        "baseline_outcome": expected_outcome,
+        "baseline_expected_recommendation": expected_decision,
+        "baseline_expected_outcome": expected_outcome,
+        "counterfactual_expected_recommendation": expected_decision,
+        "counterfactual_expected_outcome": expected_outcome,
+        "expected_relation": "decision_invariant",
+        **source_fields,
+    }
+    exact = PairedSensitivityObservation.model_validate(
+        {
+            **common,
+            "counterfactual_recommendation": expected_decision,
+            "counterfactual_outcome": expected_outcome,
+            "endpoint_value": 1,
+        }
+    )
+    one_arm_wrong = PairedSensitivityObservation.model_validate(
+        {
+            **common,
+            "counterfactual_recommendation": other_decision,
+            "counterfactual_outcome": other_outcome,
+            "endpoint_value": 0,
+        }
+    )
+
+    assert exact.endpoint_value == 1
+    assert one_arm_wrong.endpoint_value == 0
+    assert exact.model_dump(mode="json")["expected_relation"] == "decision_invariant"
+
+
+def test_observation_rejects_expected_relation_mismatches() -> None:
+    fields = {
+        "case_id": "case-00",
+        "repetition_index": 0,
+        "cluster_id": "case-00",
+        "disposition": "included",
+        "baseline_recommendation": "approve",
+        "baseline_outcome": "approved",
+        "counterfactual_recommendation": "approve",
+        "counterfactual_outcome": "approved",
+        "baseline_expected_recommendation": "approve",
+        "baseline_expected_outcome": "approved",
+        "counterfactual_expected_recommendation": "approve",
+        "counterfactual_expected_outcome": "approved",
+        "endpoint_value": 1,
+        "baseline_run_id": "baseline-run",
+        "baseline_run_digest": _digest("baseline-run"),
+        "counterfactual_run_id": "counterfactual-run",
+        "counterfactual_run_digest": _digest("counterfactual-run"),
+    }
+    with pytest.raises(ValidationError, match="decision_flip"):
+        PairedSensitivityObservation.model_validate(fields)
+
+    fields["expected_relation"] = "decision_invariant"
+    fields["counterfactual_expected_recommendation"] = "deny"
+    fields["counterfactual_expected_outcome"] = "denied"
+    fields["counterfactual_recommendation"] = "deny"
+    fields["counterfactual_outcome"] = "denied"
+    with pytest.raises(ValidationError, match="decision_invariant"):
+        PairedSensitivityObservation.model_validate(fields)

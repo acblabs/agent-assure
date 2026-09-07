@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "RAGSensitivityCorpusDocument": {
+      "additionalProperties": false,
+      "properties": {
+        "content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Content Digest",
+          "type": "string"
+        },
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "source_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "source_id",
+        "content_digest"
+      ],
+      "title": "RAGSensitivityCorpusDocument",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/rag-sensitivity-corpus-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "rag-sensitivity-corpus-manifest",
+      "default": "rag-sensitivity-corpus-manifest",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "RAGSensitivityCorpusManifest/v1",
+      "default": "RAGSensitivityCorpusManifest/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "corpus_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Corpus Digest",
+      "type": "string"
+    },
+    "corpus_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Corpus Id",
+      "type": "string"
+    },
+    "corpus_version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Corpus Version",
+      "type": "string"
+    },
+    "documents": {
+      "items": {
+        "$ref": "#/$defs/RAGSensitivityCorpusDocument"
+      },
+      "maxItems": 256,
+      "minItems": 1,
+      "title": "Documents",
+      "type": "array"
+    },
+    "query_family_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Query Family Id",
+      "type": "string"
+    },
+    "retrieval_algorithm_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Retrieval Algorithm Id",
+      "type": "string"
+    },
+    "retrieval_algorithm_version": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Retrieval Algorithm Version",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "rag-sensitivity-corpus-manifest",
+      "default": "rag-sensitivity-corpus-manifest",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "top_k": {
+      "maximum": 256,
+      "minimum": 1,
+      "title": "Top K",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "corpus_digest",
+    "corpus_id",
+    "corpus_version",
+    "query_family_id",
+    "retrieval_algorithm_id",
+    "retrieval_algorithm_version",
+    "top_k",
+    "documents",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RAGSensitivityCorpusManifest",
+  "type": "object"
+}

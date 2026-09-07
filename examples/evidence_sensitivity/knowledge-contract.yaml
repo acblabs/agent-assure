@@ -1,9 +1,9 @@
 artifact_kind: rag-sensitivity-knowledge-contract
-schema_version: 0.6.5
+schema_version: 0.6.6
 schema_name: rag-sensitivity-knowledge-contract
 contract_id: RAGSensitivityKnowledgeAuthority/v1
 contract_version: 1.0.0
-knowledge_contract_digest: 9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816
+knowledge_contract_digest: 187738466df6185fcad4f93d7cf0ff9c9c85a892396400099d3a374c0841bcd2
 governing_source: contextual_evidence
 authority_level: authoritative
 expected_behavior: follow_governing_context
@@ -12,14 +12,14 @@ expected_response_relation: decision_flip
 case_id: synthetic-benefit-eligibility
 query_family_id: synthetic-benefit-eligibility
 assignments:
-  - corpus_digest: 0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc
+  - corpus_digest: 26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a
     expected_decision: approve
     expected_outcome: approved
     governing_source_id: synthetic-benefit-governing-policy
     governing_ref_id: ref-governing-benefit-policy
     governing_content_digest: 39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13
     claim_id: claim-benefit-eligibility
-  - corpus_digest: 7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81
+  - corpus_digest: dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce
     expected_decision: deny
     expected_outcome: denied
     governing_source_id: synthetic-benefit-governing-policy

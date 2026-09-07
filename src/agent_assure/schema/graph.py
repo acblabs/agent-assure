@@ -71,7 +71,7 @@ from agent_assure.sensitivity_contract import (
 
 GRAPH_CONTRACT_ID: Literal["AssuranceEvidenceGraph/v1"] = "AssuranceEvidenceGraph/v1"
 GRAPH_CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
-GRAPH_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
+GRAPH_SCHEMA_VERSION: Literal["0.6.6"] = "0.6.6"
 MAX_GRAPH_NODES = 131_072
 MAX_GRAPH_EDGES = 524_288
 MAX_GRAPH_REFERENCES = MAX_CATALOG_THREAT_REFERENCES + 1
@@ -2064,7 +2064,7 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
     _digest_field = "graph_digest"
 
     artifact_kind: Literal["assurance-evidence-graph"] = "assurance-evidence-graph"
-    schema_version: Literal["0.6.3", "0.6.4", "0.6.5"] = GRAPH_SCHEMA_VERSION
+    schema_version: Literal["0.6.3", "0.6.4", "0.6.5", "0.6.6"] = GRAPH_SCHEMA_VERSION
     schema_name: Literal["assurance-evidence-graph"] = "assurance-evidence-graph"
     contract_id: Literal["AssuranceEvidenceGraph/v1"] = GRAPH_CONTRACT_ID
     contract_version: Literal["1.0.0"] = GRAPH_CONTRACT_VERSION
@@ -2114,7 +2114,7 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
             raise ValueError(
                 "evidence-sensitivity graph content requires schema_version '0.6.4' or later"
             )
-        if self.schema_version != GRAPH_SCHEMA_VERSION and (
+        if self.schema_version in {"0.6.3", "0.6.4"} and (
             any(edge.kind is EvidenceGraphEdgeKind.depends_on for edge in self.edges)
             or any(
                 isinstance(node.payload, EvidenceGraphEvidencePayload)
@@ -2131,8 +2131,7 @@ class AssuranceEvidenceGraph(SelfDigestedArtifact):
             )
         ):
             raise ValueError(
-                "stochastic sensitivity graph content requires schema_version "
-                f"{GRAPH_SCHEMA_VERSION!r}"
+                "stochastic sensitivity graph content requires schema_version '0.6.5' or later"
             )
         expected_nodes = tuple(sorted(self.nodes, key=evidence_graph_node_sort_key))
         if self.nodes != expected_nodes:

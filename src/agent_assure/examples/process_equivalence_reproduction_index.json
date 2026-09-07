@@ -15,11 +15,11 @@
       "source_artifacts": [
         {
           "path": "examples/evidence_sensitivity/corpora/policy_a/corpus-manifest.json",
-          "sha256": "f84828b85a0443f9d8cb88d5cbd320442a885688330a93fb57e7e212448f9ce7"
+          "sha256": "aef349b98235974b12c19503297713c18dd9aabd77ba83afa3eeb71266618d89"
         },
         {
           "path": "examples/evidence_sensitivity/corpora/policy_b/corpus-manifest.json",
-          "sha256": "b134566a99d32a7e775b1ca5d922af3d0182afc1a92ff453ec5a24eb6b5d7d9b"
+          "sha256": "9124a7d0a94f4d26eb17708f6f63a84e1baefd1b9d4d3494d250b4b795e68d31"
         },
         {
           "path": "examples/evidence_sensitivity/evidence_inertial_suite.yaml",
@@ -27,11 +27,11 @@
         },
         {
           "path": "examples/evidence_sensitivity/knowledge-contract.yaml",
-          "sha256": "560329a82659fb9b11df31ab72b1a1d83fc121791064095c9caf0246062a2041"
+          "sha256": "d0fdcd5d2ba47b76cff1090dcc48807cfc161fde7b170531deb0f55ce0112a60"
         }
       ],
       "source_closure": {
-        "closure_digest": "23add3bde62ff4eedbe7b134e5ef8ca31ed2123a4441b024f78d620c593c1d3c",
+        "closure_digest": "aeeda104e4c6b73731b2ea688542d8ac7dc8dfe13f419046d4fceca24a06b3bc",
         "entries": [
           {
             "path": "README.md",
@@ -39,7 +39,7 @@
           },
           {
             "path": "corpora/policy_a/corpus-manifest.json",
-            "sha256": "f84828b85a0443f9d8cb88d5cbd320442a885688330a93fb57e7e212448f9ce7"
+            "sha256": "aef349b98235974b12c19503297713c18dd9aabd77ba83afa3eeb71266618d89"
           },
           {
             "path": "corpora/policy_a/governing-policy.json",
@@ -47,7 +47,7 @@
           },
           {
             "path": "corpora/policy_b/corpus-manifest.json",
-            "sha256": "b134566a99d32a7e775b1ca5d922af3d0182afc1a92ff453ec5a24eb6b5d7d9b"
+            "sha256": "9124a7d0a94f4d26eb17708f6f63a84e1baefd1b9d4d3494d250b4b795e68d31"
           },
           {
             "path": "corpora/policy_b/governing-policy.json",
@@ -99,7 +99,7 @@
           },
           {
             "path": "knowledge-contract.yaml",
-            "sha256": "560329a82659fb9b11df31ab72b1a1d83fc121791064095c9caf0246062a2041"
+            "sha256": "d0fdcd5d2ba47b76cff1090dcc48807cfc161fde7b170531deb0f55ce0112a60"
           },
           {
             "path": "responsive_suite.yaml",
@@ -395,7 +395,7 @@
   ],
   "prevalence_claim_supported": false,
   "real_model_measurement": false,
-  "reproduction_index_digest": "4a27e9e385eaaa42bf3cc908273b1d9ba0894974978cd6dc465cb08b15312564",
+  "reproduction_index_digest": "bc9a855d4c85a31e326e44abf31ff840831dafc7472d8c830f9442d7476ebeb1",
   "reproduction_index_id": "process-equivalence-reproduction-index",
   "reproduction_index_version": "0.1.0",
   "schema_name": "process-equivalence-reproduction-index",

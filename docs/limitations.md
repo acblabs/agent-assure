@@ -262,9 +262,13 @@ responses.
 
 A live RunSet is one bounded JSON artifact rather than a streaming log. Live
 and repeated-sensitivity plans therefore reject more than 4,096 observations
-per RunSet before schedule allocation, and the writer separately rejects an
-encoded RunSet above the 16 MiB loader ceiling. Larger studies must be split
-into independently bound RunSets; automatic sharding is not implemented.
+per RunSet before schedule allocation. Ordinary JSON artifacts retain a 16 MiB
+loader ceiling. A current RunSet carrying the complete bounded provider-attempt
+journal has an explicit 64 MiB ceiling at its writers, specialized loaders, and
+the generic `agent-assure validate --kind run-set` path. The artifact kind is
+selected before reading any artifact-controlled bytes; no other kind inherits
+that exception. Larger studies must be split into independently bound RunSets;
+automatic sharding is not implemented.
 
 The `prompt_injection_control_boundary` is a review-route invariant for cases
 tagged `prompt-boundary`. It verifies that an upstream injection signal
@@ -498,6 +502,59 @@ under its declared demo resource root, with runtime caches excluded by policy.
 That closure does not bind interpreter, dependency, operating-system, or other
 runtime bytes outside the declared root; replay results still depend on the
 installed execution environment.
+
+## Real-Model Study and External-Pilot Boundary
+
+No real-provider study result or qualifying external CI pilot is present in
+this repository at the current development checkpoint. The implementation and
+templates do not make either event true, and no `not_executed` artifact can
+substitute for observed evidence.
+
+The real-model study estimates a decision-inertia rate only for its frozen
+benchmark cases, authored authority contracts, task/model conditions,
+configurations, protocols, execution window, and fixed case-cluster frame. It
+does not estimate universal prevalence, identify a model's internal knowledge
+source, establish that context should always control, or measure safety.
+One-sided exact Clopper-Pearson intervals and Bonferroni adjustment account for
+the declared binomial family; they do not verify cluster independence or
+exchangeability, correct benchmark selection, provider drift, unrecorded
+reruns, or publication bias.
+
+Missing, excluded, invalid, or non-analyzable observations remain visible.
+Inertia is counted directly from coherent same-decision arm pairs rather than
+as the complement of expected response. Invariant negative-control changes
+produce `control_failed` and block classification. `underpowered`,
+`invalidated`, and `not_executed` conditions omit inapplicable rates and
+intervals and likewise cannot produce a confirmatory `supported`,
+`contradicted`, or `inconclusive` classification. A
+`local_digest_commitment` may support local replay but is insufficient for
+confirmatory publication. The software does not independently verify that a
+declared version-control commit or append-only registration exists or predates
+the observations. It instead requires an exact local record and an explicit
+pre-execution human review receipt; remote-state truth and reviewer identity
+remain out-of-band trust decisions.
+
+An external-pilot artifact is provenance and learning evidence, not an
+attestation. Its relational checks cannot prove environment ownership,
+participant independence, consent authority, execution truth, or artifact
+authenticity. Internal dogfood, synthetic harnesses, bundled-only inputs, and
+maintainer-controlled repositories remain non-external. Even a qualifying
+external pilot is fixed to the `pre_candidate` phase and
+`learning_and_remediation_only` use; it cannot satisfy a later
+clean-reproduction or exact-candidate CI integration gate.
+
+Tested pilot wheels and final release wheel/source distributions cross a
+bounded, closed-inventory privacy scan. Unknown or undecodable member types,
+credential-shaped member names, credential files, raw-output capture paths,
+literal credential values, and credential-valued assignments in installable
+Python fail closed. Credential-handling source is parsed structurally rather
+than rejected for vocabulary alone. The sole binary source-distribution asset
+is bound to an explicitly reviewed path and SHA-256 digest and must also pass
+bounded PNG structure and decompression checks. Intentional credential-detector
+test vectors are exceptions only at exact path-and-byte digests, so any edit
+restores ordinary scanning. These checks are not general DLP or steganography
+detection; reviewers remain responsible for the approved source and exact
+binary asset bytes.
 
 ## Release-Evidence Boundary
 

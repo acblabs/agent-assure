@@ -8,10 +8,55 @@ from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from referencing.exceptions import Unresolvable
 
 from agent_assure.ci import load_gate_artifact
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+)
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.release_evidence import load_digest_replay
 from agent_assure.schema import validation
 from agent_assure.schema.base import SCHEMA_VERSION
+
+
+@pytest.mark.parametrize(
+    ("kind", "expected_max"),
+    (
+        ("run-set", MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES),
+        ("compiled-suite", MAX_ARTIFACT_JSON_BYTES),
+    ),
+)
+def test_generic_validation_selects_only_the_bounded_runset_size_exception(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    kind: str,
+    expected_max: int,
+) -> None:
+    path = tmp_path / "artifact.json"
+    path.write_text("{}", encoding="utf-8")
+    observed: dict[str, object] = {}
+
+    def capture_load(
+        loaded_path: Path,
+        *,
+        max_bytes: int,
+        label: str,
+    ) -> dict[str, object]:
+        observed.update(path=loaded_path, max_bytes=max_bytes, label=label)
+        return {}
+
+    monkeypatch.setattr(validation, "load_json_bounded_from_filesystem_root", capture_load)
+    monkeypatch.setattr(
+        validation,
+        "validate_artifact_payload",
+        lambda _payload, _kind: "bounded-test-validator",
+    )
+
+    assert validation.validate_artifact(path, kind) == "bounded-test-validator"
+    assert observed == {
+        "path": path,
+        "max_bytes": expected_max,
+        "label": f"{kind} artifact JSON",
+    }
 
 
 def test_legacy_schema_version_cannot_traverse_schema_root() -> None:
@@ -63,8 +108,8 @@ def test_v060_runset_routes_through_immutable_frozen_schema() -> None:
 
 
 def test_latest_released_schema_is_frozen_while_current_writer_is_not() -> None:
-    assert "0.6.4" in validation.FROZEN_SCHEMA_VERSIONS
-    assert SCHEMA_VERSION == "0.6.5"
+    assert "0.6.5" in validation.FROZEN_SCHEMA_VERSIONS
+    assert SCHEMA_VERSION == "0.6.6"
     assert SCHEMA_VERSION not in validation.FROZEN_SCHEMA_VERSIONS
 
 
@@ -133,6 +178,27 @@ def test_explicit_empty_registry_does_not_retrieve_remote_ref() -> None:
 
     with pytest.raises(Unresolvable):
         validation._validate_json_schema(schema, {})
+
+
+def test_json_schema_compilation_cache_is_exact_and_mutation_sensitive() -> None:
+    validation._compiled_json_schema_validator.cache_clear()
+    schema = {
+        "$schema": "https://json-schema.org/draft/2020-12/schema",
+        "type": "object",
+    }
+
+    validation._validate_json_schema(schema, {})
+    validation._validate_json_schema(schema, {})
+    cache_info = validation._compiled_json_schema_validator.cache_info()
+    assert cache_info.misses == 1
+    assert cache_info.hits == 1
+
+    schema["required"] = ["required-after-mutation"]
+    with pytest.raises(JsonSchemaValidationError):
+        validation._validate_json_schema(schema, {})
+    mutated_cache_info = validation._compiled_json_schema_validator.cache_info()
+    assert mutated_cache_info.misses == 2
+    validation._compiled_json_schema_validator.cache_clear()
 
 
 def test_runtime_schema_validation_error_does_not_echo_instance_values(

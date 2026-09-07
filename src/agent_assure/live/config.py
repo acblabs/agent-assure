@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import ipaddress
+import re
 import socket
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
 from typing import Any, Self
+from urllib.parse import urlsplit
 
 from pydantic import Field
 from pydantic.functional_validators import field_validator, model_validator
@@ -17,6 +19,18 @@ from agent_assure.io_limits import (
     MAX_PERSISTED_OBSERVATIONS,
     loads_json_bounded,
     read_text_bounded_from_filesystem_root,
+)
+from agent_assure.live.identity import (
+    AGENT_ASSURE_EXECUTION_VERSION,
+    LIVE_ADAPTER_IMPLEMENTATION_ID,
+    LIVE_PROVIDER_REQUEST_ENVELOPE_ID,
+)
+from agent_assure.privacy.credential_uri import (
+    PERSISTED_CREDENTIAL_NAMES,
+    PERSISTED_CREDENTIAL_SUFFIXES,
+    SENSITIVE_HEADER_NAMES,
+    contains_persisted_credential,
+    matches_credential_name,
 )
 from agent_assure.privacy.detectors import (
     MAX_PRIVACY_SCAN_CHARS,
@@ -34,6 +48,7 @@ from agent_assure.schema.common import (
 USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 ENV_VAR_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
+ENV_VAR_ALLOWLIST_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_.()\-]*$"
 EndpointResolver = Callable[..., Iterable[Any]]
 DISALLOWED_ENDPOINT_HOSTNAMES = frozenset(
     {
@@ -47,6 +62,7 @@ MAX_LIVE_REPETITIONS = MAX_PERSISTED_OBSERVATIONS
 MAX_LIVE_REQUESTS = MAX_PERSISTED_OBSERVATIONS
 MAX_LIVE_RETRIES = 10
 MAX_LIVE_RETRY_BACKOFF_SECONDS = Decimal("300.000000")
+_HEADER_OPTION_NAMES = frozenset({"header", "proxy-header"})
 
 
 @dataclass(frozen=True)
@@ -71,9 +87,11 @@ class LiveScriptEnvVar(StrictModel):
         # assignment so split key/value credentials cannot evade scalar scans.
         # Secret values must instead enter at execution time through the
         # explicitly acknowledged host-environment allowlist.
-        if contains_sensitive_value(
-            f"{self.name}={self.value}"
-        ) or contains_sensitive_mapping_entry(self.name, self.value):
+        if (
+            _contains_persisted_credential(f"{self.name}={self.value}")
+            or _contains_persisted_credential(self.value)
+            or contains_sensitive_mapping_entry(self.name, self.value)
+        ):
             raise ValueError(
                 "script_env must contain only non-sensitive configuration; "
                 "use script_env_allowlist for secret host environment variables"
@@ -102,7 +120,7 @@ class LiveAdapterConfig(StrictModel):
     script_args: tuple[str, ...] = ()
     script_cwd: str | None = None
     script_env: tuple[LiveScriptEnvVar, ...] = ()
-    script_env_allowlist: tuple[str, ...] = ()
+    script_env_allowlist: tuple[str, ...] = Field(default=(), max_length=64)
     timeout_seconds: int = Field(default=60, ge=1)
     temperature: str = Field(default="0.700000", pattern=r"^(0|1|2)\.[0-9]{6}$")
     max_output_tokens: int | None = Field(default=None, ge=1)
@@ -120,6 +138,28 @@ class LiveAdapterConfig(StrictModel):
         decimal = Decimal(value)
         if decimal < Decimal("0") or decimal > Decimal("2"):
             raise ValueError("temperature must be between 0.000000 and 2.000000")
+        return value
+
+    @field_validator("api_key_env")
+    @classmethod
+    def _validate_api_key_environment_name(cls, value: str | None) -> str | None:
+        if value is not None and re.fullmatch(ENV_VAR_NAME_PATTERN, value) is None:
+            raise ValueError("api_key_env must name a host environment variable")
+        return value
+
+    @field_validator("endpoint_url")
+    @classmethod
+    def _reject_endpoint_credentials(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        try:
+            parsed = urlsplit(value)
+        except ValueError as exc:
+            raise ValueError("endpoint_url is not a safely parseable URL") from exc
+        if parsed.username is not None or parsed.password is not None:
+            raise ValueError("endpoint_url must not persist URL userinfo")
+        if _contains_persisted_credential(value):
+            raise ValueError("endpoint_url must not persist credentials")
         return value
 
     @field_validator(
@@ -143,6 +183,11 @@ class LiveAdapterConfig(StrictModel):
                 raise ValueError("allowed_endpoint_hosts entries must not be empty")
             if any(marker in cleaned for marker in (":", "/", "*")):
                 raise ValueError("allowed_endpoint_hosts entries must be bare hostnames")
+            if _contains_persisted_credential(cleaned):
+                raise ValueError(
+                    "allowed_endpoint_hosts entries must not persist credentials "
+                    "or sensitive values"
+                )
             if is_disallowed_endpoint_host(cleaned):
                 raise ValueError(
                     "allowed_endpoint_hosts entries must not target localhost, "
@@ -150,6 +195,25 @@ class LiveAdapterConfig(StrictModel):
                 )
             normalized.append(cleaned)
         return tuple(normalized)
+
+    @field_validator("script_env_allowlist")
+    @classmethod
+    def _validate_script_environment_allowlist(
+        cls,
+        value: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        for name in value:
+            if len(name) > 128 or re.fullmatch(ENV_VAR_ALLOWLIST_NAME_PATTERN, name) is None:
+                raise ValueError(
+                    "script_env_allowlist entries must be bounded environment variable names"
+                )
+            if contains_sensitive_value(name):
+                raise ValueError(
+                    "script_env_allowlist must contain names, not credentials or sensitive values"
+                )
+        if value != tuple(sorted(set(value))):
+            raise ValueError("script_env_allowlist entries must be unique and canonically sorted")
+        return value
 
     @model_validator(mode="after")
     def _validate_adapter_capabilities(self) -> Self:
@@ -171,6 +235,27 @@ class LiveAdapterConfig(StrictModel):
         return self
 
     @model_validator(mode="after")
+    def _reject_persisted_credentials(self) -> Self:
+        for field_name in (
+            "adapter_id",
+            "provider",
+            "model",
+            "response_jsonl_path",
+            "script_path",
+            "script_executable",
+            "script_cwd",
+            "api_version",
+            "sdk_name",
+            "sdk_version",
+            "region",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and _contains_persisted_credential(value):
+                raise ValueError(f"{field_name} must not persist credentials or sensitive values")
+        _reject_sensitive_script_arguments(self.script_args)
+        return self
+
+    @model_validator(mode="after")
     def _validate_pricing_rates(self) -> Self:
         rates = (
             self.cost_per_1k_prompt_tokens_usd,
@@ -187,6 +272,14 @@ class LivePromptCase(StrictModel):
     input_summary: str = Field(min_length=1, max_length=MAX_SUMMARY_CHARS)
     source_group_id: str | None = None
 
+    @model_validator(mode="after")
+    def _reject_persisted_sensitive_metadata(self) -> Self:
+        for field_name in ("case_id", "prompt_path", "input_summary", "source_group_id"):
+            value = getattr(self, field_name)
+            if value is not None and _contains_persisted_credential(value):
+                raise ValueError(f"{field_name} must not persist credentials or sensitive values")
+        return self
+
 
 def live_sdk_identifier(config: LiveAdapterConfig) -> str | None:
     """Return the canonical persisted SDK identity for a live adapter."""
@@ -201,6 +294,9 @@ def live_sdk_identifier(config: LiveAdapterConfig) -> str | None:
 
 
 class LiveRunConfig(StrictModel):
+    agent_assure_execution_version: str = AGENT_ASSURE_EXECUTION_VERSION
+    live_adapter_implementation_id: str = LIVE_ADAPTER_IMPLEMENTATION_ID
+    provider_request_envelope_id: str = LIVE_PROVIDER_REQUEST_ENVELOPE_ID
     variant_id: str = Field(min_length=1)
     pipeline_id: str = Field(min_length=1)
     tool_schema_digest: DigestHex
@@ -222,6 +318,10 @@ class LiveRunConfig(StrictModel):
         exclude_if=lambda value: value is None,
     )
     evidence_sensitivity_design_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    study_manifest_digest: DigestHex | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
     )
@@ -251,6 +351,12 @@ class LiveRunConfig(StrictModel):
 
     @model_validator(mode="after")
     def _validate_planned_request_bounds(self) -> Self:
+        if self.agent_assure_execution_version != AGENT_ASSURE_EXECUTION_VERSION:
+            raise ValueError("live config agent-assure execution version is unsupported")
+        if self.live_adapter_implementation_id != LIVE_ADAPTER_IMPLEMENTATION_ID:
+            raise ValueError("live config adapter implementation identity is unsupported")
+        if self.provider_request_envelope_id != LIVE_PROVIDER_REQUEST_ENVELOPE_ID:
+            raise ValueError("live config provider request envelope identity is unsupported")
         if self.retrieval_corpus_dir is not None and self.retrieval_corpus_digest is None:
             raise ValueError("retrieval_corpus_dir requires retrieval_corpus_digest")
         if self.knowledge_contract_path is not None and self.knowledge_contract_digest is None:
@@ -278,6 +384,90 @@ class LiveRunConfig(StrictModel):
                 "retry_initial_backoff_seconds must not exceed retry_max_backoff_seconds"
             )
         return self
+
+    @model_validator(mode="after")
+    def _reject_sensitive_persisted_notes(self) -> Self:
+        for field_name in (
+            "variant_id",
+            "pipeline_id",
+            "retrieval_corpus_dir",
+            "knowledge_contract_path",
+            "protocol_id",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and _contains_persisted_credential(value):
+                raise ValueError(f"{field_name} must not persist credentials or sensitive values")
+        if any(_contains_persisted_credential(note) for note in self.safety_notes):
+            raise ValueError("safety_notes must not persist credentials or sensitive values")
+        return self
+
+
+def _reject_sensitive_script_arguments(arguments: tuple[str, ...]) -> None:
+    """Reject credentials split across argv tokens before configs reach disk."""
+
+    for index, argument in enumerate(arguments):
+        normalized = argument.strip()
+        if _contains_persisted_credential(normalized):
+            raise ValueError("script_args must not persist credentials or sensitive values")
+        if normalized in {"-u", "-U"} or (
+            normalized.startswith(("-u", "-U"))
+            and not normalized.startswith("--")
+            and ":" in normalized[2:]
+        ):
+            raise ValueError("script_args must not persist curl userinfo")
+        option_name, inline_value = _normalized_long_option(normalized)
+        if option_name is not None and _is_credential_option_name(option_name):
+            raise ValueError("script_args must not persist credential-bearing options")
+        if option_name in _HEADER_OPTION_NAMES:
+            header_value = inline_value
+            if header_value is None and index + 1 < len(arguments):
+                header_value = arguments[index + 1]
+            if header_value is None or _looks_like_sensitive_header(header_value):
+                raise ValueError("script_args must not persist sensitive HTTP headers")
+        if normalized == "-H":
+            if index + 1 >= len(arguments) or _looks_like_sensitive_header(arguments[index + 1]):
+                raise ValueError("script_args must not persist sensitive HTTP headers")
+        elif normalized.startswith("-H") and _looks_like_sensitive_header(normalized[2:]):
+            raise ValueError("script_args must not persist sensitive HTTP headers")
+        candidates = (normalized,) if inline_value is None else (normalized, inline_value)
+        if any(_contains_persisted_credential(candidate) for candidate in candidates):
+            raise ValueError("script_args must not persist credentials or sensitive values")
+
+
+def _normalized_long_option(value: str) -> tuple[str | None, str | None]:
+    if not value.startswith("--") or value == "--":
+        return None, None
+    option, separator, inline_value = value[2:].partition("=")
+    if not option:
+        return None, None
+    return option.casefold().replace("_", "-"), inline_value if separator else None
+
+
+def _is_credential_option_name(value: str) -> bool:
+    return matches_credential_name(
+        value,
+        exact_names=PERSISTED_CREDENTIAL_NAMES,
+        suffixes=PERSISTED_CREDENTIAL_SUFFIXES,
+    )
+
+
+def _looks_like_sensitive_header(value: str) -> bool:
+    header_name, separator, _header_value = value.partition(":")
+    normalized_name = header_name.strip().casefold().replace("_", "-")
+    return bool(separator) and (
+        normalized_name in SENSITIVE_HEADER_NAMES or _is_credential_option_name(normalized_name)
+    )
+
+
+def _contains_persisted_credential(value: str) -> bool:
+    """Apply the shared durable-text credential policy with live vocabularies."""
+
+    return contains_persisted_credential(
+        value,
+        exact_names=PERSISTED_CREDENTIAL_NAMES,
+        suffixes=PERSISTED_CREDENTIAL_SUFFIXES,
+        sensitive_header_names=SENSITIVE_HEADER_NAMES,
+    )
 
 
 def load_live_run_config(path: Path) -> LiveRunConfig:

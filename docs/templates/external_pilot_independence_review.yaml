@@ -1,0 +1,26 @@
+# Human attestations only. Keep this file outside the closed pilot bundle.
+# Every true value must reflect a review you actually completed. The CLI derives
+# all pilot IDs, digests, artifact bindings, and the release line from verified
+# bundle bytes; attempts to supply those fields are rejected.
+receipt_id: replace-review-receipt-id
+reviewer_pseudonym: replace-release-reviewer-pseudonym
+manual_approval_is_trust_root: true
+reviewer_independent_of_pilot_execution: true
+reviewer_independence_rationale: Replace with the privacy-safe basis for reviewer independence.
+environment_control_evidence_reviewed: true
+artifact_inventory_reviewed: true
+tested_distribution_provenance_reviewed: true
+command_input_bindings_reviewed: true
+# Assert true only after independently hashing the exact non-bundled input
+# bytes supplied to execution and matching every manifest content_sha256.
+execution_time_input_content_digests_reviewed: true
+# Assert true only after deriving each semantic identity from those same input
+# bytes and matching the manifest; the bundle then compares those identities
+# with every supported assurance output.
+input_semantic_identities_reviewed: true
+# Assert true only when the digest-bound consent record explicitly covers the
+# evidence descriptor, this generated receipt, and every declared artifact.
+complete_bundle_publication_consent_reviewed: true
+privacy_boundary_reviewed: true
+review_outcome: approved_for_empirical_checkpoint
+reviewed_at: "2030-01-01T00:00:00Z"

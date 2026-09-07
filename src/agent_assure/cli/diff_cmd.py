@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 
 from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
+from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
 from agent_assure.reporting.evidence_diff_html import THESIS_TITLE, write_evidence_diff_html
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -140,7 +141,12 @@ def _required_path(path: Path | None, option_name: str) -> Path:
 
 def _load_runset(path: Path) -> RunSet:
     return project_validated_artifact_payload(
-        load_validated_artifact_payload(path, "run-set"),
+        load_validated_artifact_payload(
+            path,
+            "run-set",
+            max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+            label="RunSet JSON",
+        ),
         RunSet,
         kind="run-set",
     )

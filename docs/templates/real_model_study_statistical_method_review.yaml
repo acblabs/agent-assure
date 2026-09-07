@@ -1,0 +1,24 @@
+# Human-authored input for a qualified statistical-method review command.
+# Complete this after preregistration and before the planned execution window.
+# The command derives all manifest, benchmark, protocol, and design digests.
+receipt_id: replace-statistical-method-review-id
+reviewed_at_utc: "2026-01-01T12:00:00Z"
+reviewer_pseudonym: replace-independent-statistical-reviewer-pseudonym
+
+# Every assertion is mandatory and must be literally true. Reviewer identity,
+# qualifications, independence, and the truth of these assertions are
+# authenticated out of band; the JSON receipt binds them to exact local bytes.
+reviewer_statistical_qualification_confirmed: true
+reviewer_qualification_basis: >-
+  The reviewer has training and applied experience in preregistered binomial
+  inference, clustered study design, multiplicity control, and power analysis.
+reviewer_independent_of_design_execution_and_analysis: true
+reviewer_independence_rationale: >-
+  The reviewer did not author the study design, construct the benchmark,
+  execute provider calls, select observations, or perform the final analysis.
+benchmark_cluster_assignments_reviewed: true
+independence_and_exchangeability_assumptions_reviewed: true
+sampling_frame_and_estimand_reviewed: true
+multiplicity_and_interval_method_reviewed: true
+power_and_decision_boundary_reachability_reviewed: true
+negative_control_design_reviewed: true

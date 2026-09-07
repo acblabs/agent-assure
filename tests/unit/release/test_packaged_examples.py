@@ -119,6 +119,38 @@ def test_packaged_examples_report_evidence_reversed_fixture_drift(tmp_path: Path
     assert "differ" in drift[0].message
 
 
+def test_packaged_examples_report_process_equivalence_benchmark_input_drift(
+    tmp_path: Path,
+) -> None:
+    top_level, packaged = _write_example_pair(tmp_path, content="same")
+    (packaged / "process_equivalence_benchmark_v0_2" / "inputs" / "case.json").write_text(
+        "changed\n", encoding="utf-8"
+    )
+
+    drift = compare_packaged_examples(top_level, packaged)
+
+    assert len(drift) == 1
+    assert drift[0].example == "process_equivalence_benchmark_v0_2"
+    assert drift[0].relative_path.as_posix() == "inputs/case.json"
+    assert "differ" in drift[0].message
+
+
+def test_packaged_examples_report_process_equivalence_contract_drift(
+    tmp_path: Path,
+) -> None:
+    top_level, packaged = _write_example_pair(tmp_path, content="same")
+    (
+        packaged / "process_equivalence_benchmark_v0_2" / "knowledge-contracts" / "contract.json"
+    ).write_text("changed\n", encoding="utf-8")
+
+    drift = compare_packaged_examples(top_level, packaged)
+
+    assert len(drift) == 1
+    assert drift[0].example == "process_equivalence_benchmark_v0_2"
+    assert drift[0].relative_path.as_posix() == "knowledge-contracts/contract.json"
+    assert "differ" in drift[0].message
+
+
 def test_packaged_examples_report_reproduction_index_drift(tmp_path: Path) -> None:
     top_level, packaged = _write_example_pair(tmp_path, content="same")
     (packaged / "process_equivalence_reproduction_index.json").write_text(
@@ -361,4 +393,24 @@ def _write_example_pair(tmp_path: Path, *, content: str) -> tuple[Path, Path]:
                 f"{content}\n",
                 encoding="utf-8",
             )
+        benchmark_root = root / "process_equivalence_benchmark_v0_2"
+        (benchmark_root / "inputs").mkdir(parents=True)
+        (benchmark_root / "knowledge-contracts").mkdir(parents=True)
+        (benchmark_root / "README.md").write_text("# Benchmark\n", encoding="utf-8")
+        (benchmark_root / "authority-contract.json").write_text(
+            f"{content}\n",
+            encoding="utf-8",
+        )
+        (benchmark_root / "benchmark.json").write_text(
+            f"{content}\n",
+            encoding="utf-8",
+        )
+        (benchmark_root / "inputs" / "case.json").write_text(
+            f"{content}\n",
+            encoding="utf-8",
+        )
+        (benchmark_root / "knowledge-contracts" / "contract.json").write_text(
+            f"{content}\n",
+            encoding="utf-8",
+        )
     return top_level, packaged

@@ -22,6 +22,7 @@ _PRIVACY_PROFILE_SCHEMA_VERSIONS = (
     "0.6.3",
     "0.6.4",
     "0.6.5",
+    "0.6.6",
 )
 
 

@@ -84,7 +84,9 @@ _STOCHASTIC_PACKET_ARTIFACT_ROLES = (
     "stochastic-baseline-source-runset",
     "stochastic-counterfactual-source-runset",
 )
-_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset({"0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"})
+_EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset(
+    {"0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"}
+)
 _USAGE_ARTIFACT_SCHEMA_VERSION = "0.4.3"
 
 

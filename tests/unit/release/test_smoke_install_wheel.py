@@ -473,6 +473,7 @@ def test_packaged_example_assertion_includes_evidence_sensitivity_resources(
     tmp_path: Path,
 ) -> None:
     assertion = _packaged_example_assertion()
+    assert len(assertion) <= smoke_install._MAX_INLINE_PYTHON_ASSERTION_CHARS
     assert "evidence_sensitivity/evidence_reversed_suite.yaml" in assertion
     for fixture_kind in ("requests", "model_outputs", "tool_outputs"):
         assert (

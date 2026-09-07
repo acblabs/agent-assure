@@ -1,0 +1,21 @@
+{
+  "artifact_kind": "rag-sensitivity-corpus-manifest",
+  "contract_id": "RAGSensitivityCorpusManifest/v1",
+  "contract_version": "1.0.0",
+  "corpus_digest": "9f7f8f4287e4d18cb61727828818396165d486a2227a391fe3c7e64557266e1b",
+  "corpus_id": "synthetic-benefit-eligibility-009-baseline",
+  "corpus_version": "1.0.0",
+  "documents": [
+    {
+      "content_digest": "12dbd03aac4b6ec8bc6fe861c9c9a89a75abc2282a1999689813807defb5396c",
+      "path": "governing-policy.json",
+      "source_id": "synthetic-benefit-governing-policy-009"
+    }
+  ],
+  "query_family_id": "synthetic-benefit-deny-invariant",
+  "retrieval_algorithm_id": "deterministic-term-overlap",
+  "retrieval_algorithm_version": "1.0.0",
+  "schema_name": "rag-sensitivity-corpus-manifest",
+  "schema_version": "0.6.6",
+  "top_k": 1
+}

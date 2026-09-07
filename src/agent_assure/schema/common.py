@@ -1,7 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from decimal import Decimal
+from decimal import (
+    ROUND_HALF_EVEN,
+    Clamped,
+    Context,
+    Decimal,
+    DivisionByZero,
+    Inexact,
+    InvalidOperation,
+    Overflow,
+    Rounded,
+    Subnormal,
+    Underflow,
+    localcontext,
+)
 from enum import StrEnum
 from re import fullmatch
 from typing import Annotated, Any, Literal, TypeVar
@@ -9,6 +22,9 @@ from typing import Annotated, Any, Literal, TypeVar
 from pydantic import Field
 
 from agent_assure.schema.base import PersistedArtifact
+from agent_assure.timestamps import (
+    STRICT_RFC3339_TIMESTAMP_PATTERN as STRICT_RFC3339_TIMESTAMP_PATTERN,
+)
 
 EnumT = TypeVar("EnumT", bound=StrEnum)
 
@@ -85,7 +101,7 @@ MachineIdentifier = Annotated[
         pattern=MACHINE_IDENTIFIER_PATTERN,
     ),
 ]
-MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.5"
+MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.6"
 # v0.6.1 introduced the bounded ASCII machine-identifier contract. Keep the
 # version set explicit so compatibility projection cannot silently weaken that
 # released contract when the current writer version advances.
@@ -94,7 +110,8 @@ MACHINE_IDENTIFIER_SCHEMA_VERSIONS = (
     "0.6.2",
     "0.6.3",
     "0.6.4",
-    MACHINE_IDENTIFIER_SCHEMA_VERSION,
+    "0.6.5",
+    "0.6.6",
 )
 # These relational and non-empty identity requirements were introduced on the
 # v0.6.3 writer surface. Keep every governed version explicit so advancing the
@@ -103,6 +120,7 @@ V063_CONTRACT_SCHEMA_VERSIONS = (
     "0.6.3",
     "0.6.4",
     "0.6.5",
+    "0.6.6",
 )
 _MACHINE_IDENTIFIER_JSON_SCHEMA_PATTERN = (
     MACHINE_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])"
@@ -116,12 +134,8 @@ PACKAGE_RELEASE_VERSION_PATTERN = (
     r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)"
     r"(?:rc[1-9][0-9]*)?$"
 )
-STRICT_RFC3339_TIMESTAMP_PATTERN = (
-    r"^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T"
-    r"(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\.[0-9]+)?"
-    r"(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$"
-)
 _SIX_DECIMAL_PLACES = Decimal("0.000001")
+_MAX_DECIMAL_STRING_DIGITS = 4_096
 
 
 def current_machine_identifier_json_schema_extra(
@@ -200,9 +214,32 @@ def validate_machine_identifier(value: str, *, field_name: str) -> str:
 
 def decimal_string(value: Decimal | str | int) -> str:
     projected = Decimal(str(value))
+    if not projected.is_finite():
+        raise ValueError("decimal value must be finite")
+    if len(projected.as_tuple().digits) > _MAX_DECIMAL_STRING_DIGITS:
+        raise ValueError("decimal value exceeds the supported precision bound")
     if projected == Decimal("-0"):
         projected = Decimal("0")
-    quantized = projected.quantize(_SIX_DECIMAL_PLACES)
+    required_precision = max(32, projected.adjusted() + 7)
+    if required_precision > _MAX_DECIMAL_STRING_DIGITS:
+        raise ValueError("decimal value exceeds the supported precision bound")
+    decimal_context = Context(
+        prec=required_precision,
+        rounding=ROUND_HALF_EVEN,
+        Emin=-_MAX_DECIMAL_STRING_DIGITS,
+        Emax=_MAX_DECIMAL_STRING_DIGITS,
+        capitals=1,
+        clamp=0,
+        flags=[],
+        # Pin every trap instead of inheriting process- or thread-local state.
+        # Invalid arithmetic remains exceptional; representational status
+        # signals produced by quantization are deliberately non-trapping.
+        traps=[DivisionByZero, InvalidOperation, Overflow],
+    )
+    for signal in (Clamped, Inexact, Rounded, Subnormal, Underflow):
+        decimal_context.traps[signal] = False
+    with localcontext(decimal_context):
+        quantized = projected.quantize(_SIX_DECIMAL_PLACES)
     if quantized == Decimal("-0.000000"):
         quantized = Decimal("0.000000")
     return f"{quantized:f}"

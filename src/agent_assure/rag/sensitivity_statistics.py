@@ -12,7 +12,7 @@ output, when present, is a reproducibility diagnostic only.
 from __future__ import annotations
 
 from collections import Counter
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, localcontext
+from decimal import ROUND_CEILING, ROUND_FLOOR, Context, Decimal, localcontext
 from typing import Literal
 
 from agent_assure.schema.common import decimal_string
@@ -91,11 +91,13 @@ def plan_binary_paired_design(
     ):
         raise ValueError(f"planned_inferential_clusters must be in [2, {MAX_PLANNED_CASES:,}]")
 
-    adjusted_alpha = (
-        Decimal(_probability_floor(alpha / Decimal(multiplicity_family_size)))
-        if multiplicity_method == "bonferroni"
-        else alpha
-    )
+    with localcontext(Context(prec=32)):
+        adjusted_alpha = (
+            Decimal(_probability_floor(alpha / Decimal(multiplicity_family_size)))
+            if multiplicity_method == "bonferroni"
+            else alpha
+        )
+        minimum_detectable_difference = p1 - p0
     if adjusted_alpha <= Decimal("0"):
         raise ValueError("multiplicity-adjusted alpha is below persisted precision")
     try:
@@ -122,7 +124,7 @@ def plan_binary_paired_design(
         desired_power=decimal_string(target_power),
         null_response_rate=decimal_string(p0),
         alternative_response_rate=decimal_string(p1),
-        minimum_detectable_difference=decimal_string(p1 - p0),
+        minimum_detectable_difference=decimal_string(minimum_detectable_difference),
         maximum_exclusion_rate=decimal_string(exclusion),
         planned_inferential_clusters=exact.required_clusters,
         critical_cluster_responses=exact.critical_successes,
@@ -448,8 +450,7 @@ def _six_place_input(value: str, *, name: str) -> Decimal:
 def _six_place_probability(value: Decimal, *, rounding: str) -> str:
     if not value.is_finite() or not Decimal("0") <= value <= Decimal("1"):
         raise ValueError("probability must be finite and in [0, 1]")
-    with localcontext() as context:
-        context.prec = max(32, len(value.as_tuple().digits) + 2)
+    with localcontext(Context(prec=max(32, len(value.as_tuple().digits) + 2))):
         rendered = value.quantize(Decimal("0.000001"), rounding=rounding)
     return f"{rendered:.6f}"
 

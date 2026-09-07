@@ -1,0 +1,15 @@
+{
+  "governing_decision": "approve",
+  "governing_outcome": "approved",
+  "ref_id": "ref-governing-benefit-policy-149",
+  "retrieval_terms": [
+    "benefit",
+    "eligibility",
+    "governing",
+    "policy",
+    "synthetic"
+  ],
+  "safe_summary": "Synthetic case 149 baseline authority requires approve for the declared benefit eligibility query.",
+  "source_id": "synthetic-benefit-governing-policy-149",
+  "title": "Synthetic Benefit Case 149 Baseline Authority"
+}

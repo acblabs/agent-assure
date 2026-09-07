@@ -10,6 +10,7 @@ from agent_assure.artifact_io import write_text_atomic
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.base import SCHEMA_VERSION
+from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
 from agent_assure.schema.campaign import (
     AssuranceMutationCampaign,
     AssuranceMutationCatalog,
@@ -38,6 +39,11 @@ from agent_assure.schema.mutation import (
     ExpectedDetectionContract,
 )
 from agent_assure.schema.packet import EvidencePacket
+from agent_assure.schema.pilot import (
+    ExternalPilotEvidence,
+    ExternalPilotIndependenceReviewReceipt,
+    PilotInputManifest,
+)
 from agent_assure.schema.release import ReleaseArtifactManifest, ReleaseDigestReplay
 from agent_assure.schema.reproduction_index import ProcessEquivalenceReproductionIndex
 from agent_assure.schema.run import AgentRunRecord, RunSet
@@ -59,6 +65,13 @@ from agent_assure.schema.stream import (
     StreamEventRecord,
     StreamIngestionDiagnostics,
     StreamRunRecord,
+)
+from agent_assure.schema.study import (
+    RealModelStudyManifest,
+    RealModelStudyReport,
+    StudyExecutionReviewReceipt,
+    StudyRegistrationReviewReceipt,
+    StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.schema.telemetry import SpanPlan
@@ -82,8 +95,12 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
         "assurance-mutation-operator",
         "assurance-mutation-result",
         "control-efficacy-report",
+        "external-pilot-evidence",
+        "external-pilot-input-manifest",
+        "external-pilot-independence-review",
         "expected-detection-contract",
         "process-equivalence-reproduction-index",
+        "process-equivalence-benchmark",
         "evidence-sensitivity-protocol",
         "evidence-sensitivity-report",
         "rag-sensitivity-corpus-manifest",
@@ -94,6 +111,11 @@ CONTRACT_ARTIFACT_KINDS = frozenset(
         "statistical-sufficiency-report",
         "stochastic-evidence-sensitivity-report",
         "threat-applicability-manifest",
+        "real-model-study-manifest",
+        "real-model-study-report",
+        "real-model-study-execution-review",
+        "real-model-study-registration-review",
+        "real-model-study-statistical-method-review",
     }
 )
 
@@ -114,6 +136,9 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "evaluation-summary": EvaluationSummary,
     "emergency-process-record": EmergencyProcessRecord,
     "evidence-packet": EvidencePacket,
+    "external-pilot-evidence": ExternalPilotEvidence,
+    "external-pilot-input-manifest": PilotInputManifest,
+    "external-pilot-independence-review": ExternalPilotIndependenceReviewReceipt,
     "evidence-sensitivity-protocol": RAGSensitivityProtocol,
     "evidence-sensitivity-report": RAGSensitivityReport,
     "environment-info": EnvironmentInfo,
@@ -126,9 +151,15 @@ SCHEMA_MODELS: dict[str, SchemaModel] = {
     "live-evaluation-report": LiveEvaluationReport,
     "live-protocol-record": LiveProtocolRecord,
     "live-trajectory-report": LiveTrajectoryReport,
+    "process-equivalence-benchmark": ProcessEquivalenceBenchmarkManifest,
     "process-equivalence-reproduction-index": ProcessEquivalenceReproductionIndex,
     "release-artifact-manifest": ReleaseArtifactManifest,
     "release-digest-replay": ReleaseDigestReplay,
+    "real-model-study-manifest": RealModelStudyManifest,
+    "real-model-study-report": RealModelStudyReport,
+    "real-model-study-execution-review": StudyExecutionReviewReceipt,
+    "real-model-study-registration-review": StudyRegistrationReviewReceipt,
+    "real-model-study-statistical-method-review": StudyStatisticalMethodReviewReceipt,
     "rag-sensitivity-corpus-manifest": RAGSensitivityCorpusManifest,
     "rag-sensitivity-corpus-snapshot": RAGSensitivityCorpusSnapshot,
     "rag-sensitivity-knowledge-contract": RAGSensitivityKnowledgeContract,

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections import Counter
-from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, localcontext
+from decimal import ROUND_CEILING, ROUND_FLOOR, Context, Decimal, localcontext
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Self, cast
 
@@ -19,6 +19,7 @@ from agent_assure.schema.common import (
 )
 from agent_assure.schema.mutation import SelfDigestedArtifact
 from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityExpectedRelation,
     RAGSensitivityCaseAuthorityBinding,
     RAGSensitivityDecision,
     RAGSensitivityOutcome,
@@ -34,7 +35,7 @@ from agent_assure.statistics.cluster_binomial import (
     plan_cluster_binomial_design,
 )
 
-STOCHASTIC_SENSITIVITY_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
+STOCHASTIC_SENSITIVITY_SCHEMA_VERSION: Literal["0.6.6"] = "0.6.6"
 STOCHASTIC_SENSITIVITY_CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
 MAX_PAIRED_OBSERVATIONS = MAX_PERSISTED_OBSERVATIONS
 # Exact binomial expressions and standalone power planning retain their
@@ -182,6 +183,17 @@ def _repeated_protocol_json_schema_extra(schema: dict[str, Any]) -> None:
                     },
                 },
             },
+        }
+    )
+    rules.append(
+        {
+            "if": {
+                "required": ["execution_mode"],
+                "properties": {
+                    "execution_mode": {"const": "deterministic_fixture"},
+                },
+            },
+            "then": {"not": {"required": ["execution_attempt_id"]}},
         }
     )
     rules.append(
@@ -451,6 +463,53 @@ class SensitivityArmBinding(FrozenStrictModel):
         return self
 
 
+def _validate_expected_decision_relation(
+    *,
+    expected_relation: EvidenceSensitivityExpectedRelation,
+    baseline_expected_recommendation: RAGSensitivityDecision,
+    baseline_expected_outcome: RAGSensitivityOutcome,
+    counterfactual_expected_recommendation: RAGSensitivityDecision,
+    counterfactual_expected_outcome: RAGSensitivityOutcome,
+) -> None:
+    expected_outcomes = {
+        RAGSensitivityDecision.approve: RAGSensitivityOutcome.approved,
+        RAGSensitivityDecision.deny: RAGSensitivityOutcome.denied,
+        RAGSensitivityDecision.escalate: RAGSensitivityOutcome.escalated,
+    }
+    if (
+        baseline_expected_outcome is not expected_outcomes[baseline_expected_recommendation]
+        or counterfactual_expected_outcome
+        is not expected_outcomes[counterfactual_expected_recommendation]
+    ):
+        raise ValueError("expected recommendation and outcome must be coherent in both arms")
+    decisions = {
+        baseline_expected_recommendation,
+        counterfactual_expected_recommendation,
+    }
+    if expected_relation is EvidenceSensitivityExpectedRelation.decision_flip and decisions != {
+        RAGSensitivityDecision.approve,
+        RAGSensitivityDecision.deny,
+    }:
+        raise ValueError(
+            "decision_flip requires one expected approve arm and one expected deny arm"
+        )
+    if RAGSensitivityDecision.escalate in decisions:
+        raise ValueError("expected relation may only bind approve or deny decisions")
+    if (
+        expected_relation is EvidenceSensitivityExpectedRelation.decision_invariant
+        and len(decisions) != 1
+    ):
+        raise ValueError(
+            "decision_invariant requires the same expected approve or deny decision in both arms"
+        )
+
+
+def _effective_expected_relation(
+    expected_relation: EvidenceSensitivityExpectedRelation | None,
+) -> EvidenceSensitivityExpectedRelation:
+    return expected_relation or EvidenceSensitivityExpectedRelation.decision_flip
+
+
 class CaseClusterBinding(FrozenStrictModel):
     case_id: MachineIdentifier
     cluster_id: MachineIdentifier
@@ -497,7 +556,8 @@ class BinaryPairedDesignPlan(FrozenStrictModel):
         power = Decimal(self.desired_power)
         null_rate = Decimal(self.null_response_rate)
         alternative = Decimal(self.alternative_response_rate)
-        difference = alternative - null_rate
+        with localcontext(Context(prec=32)):
+            difference = alternative - null_rate
         exclusion = Decimal(self.maximum_exclusion_rate)
         if not Decimal("0") < alpha < Decimal("1"):
             raise ValueError("familywise_alpha must be between zero and one")
@@ -560,7 +620,7 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     artifact_kind: Literal["repeated-evidence-sensitivity-protocol"] = (
         "repeated-evidence-sensitivity-protocol"
     )
-    schema_version: Literal["0.6.5"] = STOCHASTIC_SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.5", "0.6.6"] = STOCHASTIC_SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["repeated-evidence-sensitivity-protocol"] = (
         "repeated-evidence-sensitivity-protocol"
     )
@@ -569,10 +629,16 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     )
     contract_version: Literal["1.0.0"] = STOCHASTIC_SENSITIVITY_CONTRACT_VERSION
     protocol_id: MachineIdentifier
+    execution_attempt_id: MachineIdentifier | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     protocol_digest: DigestHex
     design_commitment_digest: DigestHex
     endpoint: Literal["expected_decision_response"] = "expected_decision_response"
-    expected_relation: Literal["decision_flip"] = "decision_flip"
+    expected_relation: EvidenceSensitivityExpectedRelation = (
+        EvidenceSensitivityExpectedRelation.decision_flip
+    )
     inferential_unit: Literal["case_id", "source_group_id"] = "case_id"
     pair_identity: Literal["case_id_repetition_index"] = "case_id_repetition_index"
     cluster_by: Literal["case_id", "source_group_id"] = "case_id"
@@ -631,9 +697,18 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     def _coerce_execution_mode(cls, value: object) -> SensitivityExecutionMode:
         return coerce_enum(SensitivityExecutionMode, value)
 
+    @field_validator("expected_relation", mode="before")
+    @classmethod
+    def _coerce_expected_relation(
+        cls,
+        value: object,
+    ) -> EvidenceSensitivityExpectedRelation:
+        return coerce_enum(EvidenceSensitivityExpectedRelation, value)
+
     @classmethod
     def build(cls, **values: object) -> Self:
         """Build both the non-circular design commitment and artifact digest."""
+
         prepared = {
             "artifact_kind": "repeated-evidence-sensitivity-protocol",
             "schema_version": STOCHASTIC_SENSITIVITY_SCHEMA_VERSION,
@@ -660,6 +735,18 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_protocol(self, info: ValidationInfo) -> Self:
+        if (
+            self.schema_version == "0.6.5"
+            and self.expected_relation is not EvidenceSensitivityExpectedRelation.decision_flip
+        ):
+            raise ValueError("decision_invariant protocols require schema version 0.6.6")
+        if self.schema_version == "0.6.5" and self.execution_attempt_id is not None:
+            raise ValueError("execution_attempt_id was introduced in schema version 0.6.6")
+        if (
+            self.execution_mode is SensitivityExecutionMode.deterministic_fixture
+            and self.execution_attempt_id is not None
+        ):
+            raise ValueError("deterministic fixture protocols cannot bind execution_attempt_id")
         for name, values in (
             ("planned_case_ids", self.planned_case_ids),
             ("planned_cluster_ids", self.planned_cluster_ids),
@@ -702,23 +789,15 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
             raise ValueError("paired evidence arms require distinct governing corpus digests")
         if self.baseline_arm.configuration_digest == self.counterfactual_arm.configuration_digest:
             raise ValueError("paired evidence arms require distinct exact configuration digests")
-        expected_arm_decisions = {
-            (
-                self.baseline_arm.expected_recommendation,
-                self.baseline_arm.expected_outcome,
+        _validate_expected_decision_relation(
+            expected_relation=self.expected_relation,
+            baseline_expected_recommendation=(self.baseline_arm.expected_recommendation),
+            baseline_expected_outcome=self.baseline_arm.expected_outcome,
+            counterfactual_expected_recommendation=(
+                self.counterfactual_arm.expected_recommendation
             ),
-            (
-                self.counterfactual_arm.expected_recommendation,
-                self.counterfactual_arm.expected_outcome,
-            ),
-        }
-        if expected_arm_decisions != {
-            (RAGSensitivityDecision.approve, RAGSensitivityOutcome.approved),
-            (RAGSensitivityDecision.deny, RAGSensitivityOutcome.denied),
-        }:
-            raise ValueError(
-                "decision_flip requires one expected approve arm and one expected deny arm"
-            )
+            counterfactual_expected_outcome=self.counterfactual_arm.expected_outcome,
+        )
         fixed_fields = (
             "prompt_manifest_digest",
             "case_manifest_digest",
@@ -747,6 +826,14 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
             self.counterfactual_arm.corpus_digest,
         }
         for binding in self.case_authority_bindings:
+            if self.schema_version == "0.6.5" and binding.expected_relation is not None:
+                raise ValueError(
+                    "authority-binding expected_relation was introduced in schema version 0.6.6"
+                )
+            if _effective_expected_relation(binding.expected_relation) is not (
+                self.expected_relation
+            ):
+                raise ValueError("case authority binding expected relation must match the protocol")
             assignments = {item.corpus_digest: item for item in binding.assignments}
             if set(assignments) != expected_corpora:
                 raise ValueError(
@@ -776,15 +863,17 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
             )
         if self.multiplicity_method == "single_endpoint" and self.multiplicity_family_size != 1:
             raise ValueError("single_endpoint multiplicity requires family size one")
-        expected_adjusted = (
-            Decimal(
-                _probability_floor(
-                    Decimal(self.design.familywise_alpha) / Decimal(self.multiplicity_family_size)
+        with localcontext(Context(prec=32)):
+            expected_adjusted = (
+                Decimal(
+                    _probability_floor(
+                        Decimal(self.design.familywise_alpha)
+                        / Decimal(self.multiplicity_family_size)
+                    )
                 )
+                if self.multiplicity_method == "bonferroni"
+                else Decimal(self.design.familywise_alpha)
             )
-            if self.multiplicity_method == "bonferroni"
-            else Decimal(self.design.familywise_alpha)
-        )
         if self.design.adjusted_alpha != decimal_string(expected_adjusted):
             raise ValueError("design adjusted_alpha does not match multiplicity declaration")
         if (
@@ -885,8 +974,7 @@ def _canonical_sha256(value: object) -> str:
 def _six_place_probability(value: Decimal, *, rounding: str) -> str:
     if not value.is_finite() or not Decimal("0") <= value <= Decimal("1"):
         raise ValueError("probability must be finite and in [0, 1]")
-    with localcontext() as context:
-        context.prec = max(32, len(value.as_tuple().digits) + 2)
+    with localcontext(Context(prec=max(32, len(value.as_tuple().digits) + 2))):
         rendered = value.quantize(Decimal("0.000001"), rounding=rounding)
     return f"{rendered:.6f}"
 
@@ -919,6 +1007,10 @@ class PairedSensitivityObservation(FrozenStrictModel):
     baseline_expected_outcome: RAGSensitivityOutcome | None = None
     counterfactual_expected_recommendation: RAGSensitivityDecision | None = None
     counterfactual_expected_outcome: RAGSensitivityOutcome | None = None
+    expected_relation: EvidenceSensitivityExpectedRelation | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     endpoint_value: Literal[0, 1] | None = None
 
     @field_validator("disposition", mode="before")
@@ -951,6 +1043,16 @@ class PairedSensitivityObservation(FrozenStrictModel):
             return None
         return coerce_enum(RAGSensitivityOutcome, value)
 
+    @field_validator("expected_relation", mode="before")
+    @classmethod
+    def _coerce_expected_relation(
+        cls,
+        value: object,
+    ) -> EvidenceSensitivityExpectedRelation | None:
+        if value is None:
+            return None
+        return coerce_enum(EvidenceSensitivityExpectedRelation, value)
+
     @model_validator(mode="after")
     def _validate_observation(self) -> Self:
         decisions = (
@@ -970,6 +1072,26 @@ class PairedSensitivityObservation(FrozenStrictModel):
                 raise ValueError(
                     "included pairs require observed and predeclared expected arm decisions"
                 )
+            effective_relation = _effective_expected_relation(self.expected_relation)
+            _validate_expected_decision_relation(
+                expected_relation=effective_relation,
+                baseline_expected_recommendation=cast(
+                    RAGSensitivityDecision,
+                    self.baseline_expected_recommendation,
+                ),
+                baseline_expected_outcome=cast(
+                    RAGSensitivityOutcome,
+                    self.baseline_expected_outcome,
+                ),
+                counterfactual_expected_recommendation=cast(
+                    RAGSensitivityDecision,
+                    self.counterfactual_expected_recommendation,
+                ),
+                counterfactual_expected_outcome=cast(
+                    RAGSensitivityOutcome,
+                    self.counterfactual_expected_outcome,
+                ),
+            )
             expected_endpoint = derive_expected_decision_response(
                 baseline_recommendation=cast(str, self.baseline_recommendation),
                 baseline_outcome=cast(str, self.baseline_outcome),
@@ -991,11 +1113,11 @@ class PairedSensitivityObservation(FrozenStrictModel):
                     RAGSensitivityOutcome,
                     self.counterfactual_expected_outcome,
                 ),
+                expected_relation=effective_relation,
             )
             if self.endpoint_value != expected_endpoint:
                 raise ValueError(
-                    "endpoint_value must be exactly derived from the declared "
-                    "decision_flip relation"
+                    "endpoint_value must be exactly derived from the declared expected relation"
                 )
             if self.disposition_reason is not None:
                 raise ValueError("included pairs cannot carry a disposition reason")
@@ -1059,8 +1181,20 @@ def derive_expected_decision_response(
     baseline_expected_outcome: RAGSensitivityOutcome,
     counterfactual_expected_recommendation: RAGSensitivityDecision,
     counterfactual_expected_outcome: RAGSensitivityOutcome,
+    expected_relation: EvidenceSensitivityExpectedRelation = (
+        EvidenceSensitivityExpectedRelation.decision_flip
+    ),
 ) -> Literal[0, 1]:
-    """Score only the predeclared directional response for both exact arms."""
+    """Score exact correctness in both arms under the predeclared relation."""
+
+    expected_relation = coerce_enum(EvidenceSensitivityExpectedRelation, expected_relation)
+    _validate_expected_decision_relation(
+        expected_relation=expected_relation,
+        baseline_expected_recommendation=baseline_expected_recommendation,
+        baseline_expected_outcome=baseline_expected_outcome,
+        counterfactual_expected_recommendation=counterfactual_expected_recommendation,
+        counterfactual_expected_outcome=counterfactual_expected_outcome,
+    )
 
     return cast(
         Literal[0, 1],
@@ -1123,11 +1257,11 @@ class ExactBinomialTailExpression(FrozenStrictModel):
         return self
 
     def evaluate(self) -> Decimal:
-        return exact_binomial_upper_tail(
-            self.trials,
-            self.threshold,
-            Decimal(self.probability_numerator) / Decimal(self.probability_denominator),
-        )
+        with localcontext(Context(prec=32)):
+            probability = Decimal(self.probability_numerator) / Decimal(
+                self.probability_denominator
+            )
+        return exact_binomial_upper_tail(self.trials, self.threshold, probability)
 
 
 class ClusterBinomialAnalysisResult(FrozenStrictModel):
@@ -1252,7 +1386,10 @@ def derive_cluster_binomial_analysis(
         exact_diagnostic_cap=(protocol.design.monte_carlo_diagnostic_threshold_clusters),
         monte_carlo_resamples=protocol.design.monte_carlo_resamples,
     )
-    planned_rate = Decimal(raw.success_count) / Decimal(raw.cluster_count)
+    with localcontext(Context(prec=32)):
+        planned_rate = Decimal(raw.success_count) / Decimal(raw.cluster_count)
+        difference_from_null = planned_rate - Decimal(protocol.design.null_response_rate)
+        probability_numerator = int(Decimal(protocol.design.null_response_rate) * PROBABILITY_SCALE)
     diagnostic = raw.monte_carlo_diagnostic
     limitations = [
         (
@@ -1295,15 +1432,11 @@ def derive_cluster_binomial_analysis(
         responding_clusters=raw.success_count,
         included_pairs=sum(item.disposition is PairDisposition.included for item in observations),
         planned_cluster_response_rate=decimal_string(planned_rate),
-        planned_cluster_difference_from_null=decimal_string(
-            planned_rate - Decimal(protocol.design.null_response_rate)
-        ),
+        planned_cluster_difference_from_null=decimal_string(difference_from_null),
         exact_p_value_expression=ExactBinomialTailExpression(
             trials=raw.cluster_count,
             threshold=raw.success_count,
-            probability_numerator=(
-                int(Decimal(protocol.design.null_response_rate) * PROBABILITY_SCALE)
-            ),
+            probability_numerator=probability_numerator,
         ),
         p_value_upper_bound=_probability_ceiling(raw.exact_p_value),
         adjusted_alpha=protocol.design.adjusted_alpha,
@@ -1336,6 +1469,10 @@ class RunSetArtifactDependency(FrozenStrictModel):
     operational_protocol_id: MachineIdentifier
     operational_protocol_digest: DigestHex
     evidence_sensitivity_design_digest: DigestHex
+    study_manifest_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     completion_status: Literal["complete", "incomplete"] = "complete"
     stop_reasons: tuple[MachineIdentifier, ...] = ()
     records: tuple[RunRecordArtifactDependency, ...] = Field(
@@ -1392,7 +1529,7 @@ class StatisticalSufficiencyReport(SelfDigestedArtifact):
     _digest_field = "report_digest"
 
     artifact_kind: Literal["statistical-sufficiency-report"] = "statistical-sufficiency-report"
-    schema_version: Literal["0.6.5"] = STOCHASTIC_SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.5", "0.6.6"] = STOCHASTIC_SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["statistical-sufficiency-report"] = "statistical-sufficiency-report"
     contract_id: Literal["StatisticalSufficiencyReport/v1"] = "StatisticalSufficiencyReport/v1"
     contract_version: Literal["1.0.0"] = STOCHASTIC_SENSITIVITY_CONTRACT_VERSION
@@ -1452,6 +1589,16 @@ class StatisticalSufficiencyReport(SelfDigestedArtifact):
         )
         if observation_keys != expected_keys:
             raise ValueError("observations must exactly cover the predeclared pair manifest")
+        if self.protocol.schema_version == "0.6.5" and any(
+            item.expected_relation is not None for item in self.observations
+        ):
+            raise ValueError("observation expected_relation was introduced in schema version 0.6.6")
+        if any(
+            _effective_expected_relation(item.expected_relation)
+            is not self.protocol.expected_relation
+            for item in self.observations
+        ):
+            raise ValueError("paired observation expected relations must match the frozen protocol")
         included = tuple(
             item for item in self.observations if item.disposition is PairDisposition.included
         )
@@ -1632,7 +1779,8 @@ def derive_sufficiency_prerequisites(
         )
         for item in observations
     )
-    exclusion_rate = Decimal(excluded_pairs) / Decimal(protocol.planned_pairs)
+    with localcontext(Context(prec=32)):
+        exclusion_rate = Decimal(excluded_pairs) / Decimal(protocol.planned_pairs)
     checks: dict[str, tuple[PrerequisiteCheckState, str | None]] = {
         "arm_configuration_comparability": _prerequisite_state(
             not any(item.disposition in arm_difference_dispositions for item in observations),
@@ -1930,7 +2078,7 @@ class StochasticEvidenceSensitivityReport(SelfDigestedArtifact):
     artifact_kind: Literal["stochastic-evidence-sensitivity-report"] = (
         "stochastic-evidence-sensitivity-report"
     )
-    schema_version: Literal["0.6.5"] = STOCHASTIC_SENSITIVITY_SCHEMA_VERSION
+    schema_version: Literal["0.6.5", "0.6.6"] = STOCHASTIC_SENSITIVITY_SCHEMA_VERSION
     schema_name: Literal["stochastic-evidence-sensitivity-report"] = (
         "stochastic-evidence-sensitivity-report"
     )

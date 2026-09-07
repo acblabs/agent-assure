@@ -3,8 +3,10 @@
 Current released schema snapshot: `schemas/v0.6.5/`. It is immutable because
 the matching `v0.6.5` tag exists.
 
-Current released persisted artifact `schema_version`: `0.6.5`. Current models
-and evidence-carrying roots emit `0.6.5` from the v0.6.5 release surface.
+Current released persisted artifact `schema_version`: `0.6.5`. Current
+development models and evidence-carrying roots emit `0.6.6`. No v0.6.6 tag or
+release exists; its versioned schema directory remains a mutable candidate
+until an explicitly authorized release freezes it.
 
 An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
@@ -26,6 +28,8 @@ Use these directories as the release lifecycle:
 - `schemas/v0.6.3/` contains the released v0.6.3 snapshot and is immutable.
 - `schemas/v0.6.4/` contains the released v0.6.4 snapshot and is immutable.
 - `schemas/v0.6.5/` contains the released v0.6.5 snapshot and is immutable.
+- `schemas/v0.6.6/` contains the untagged current development-writer
+  candidate and remains mutable until a matching release is created.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
 Before a matching release tag exists, an active versioned directory is a
@@ -39,7 +43,7 @@ snapshot stabilized, as its immutable baseline.
 Automation has complementary checks:
 
 - frozen schema parity exports the current schema surface to
-  `schemas/v0.6.5/` and fails if those candidate files drift;
+  `schemas/v0.6.6/` and fails if those candidate files drift;
 - tagged-schema immutability compares every released snapshot with its local
   full-history Git tag baseline; its dedicated CI job requires release tags
   rather than silently skipping when history is unavailable;
@@ -123,9 +127,10 @@ the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
 `schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
 `schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`,
 `schemas/v0.6.2/`, `schemas/v0.6.3/`, `schemas/v0.6.4/`, and
-`schemas/v0.6.5/`. v0.6.5 is the
-current writer surface, while historical replay remains bounded to tagged
-snapshots; current-schema checks target `schemas/v0.6.5/`.
+`schemas/v0.6.5/`. v0.6.5 is the latest published writer surface. The
+untagged v0.6.6 development writer accepts those frozen versions, while
+historical replay remains bounded to tagged snapshots; current-schema checks
+target `schemas/v0.6.6/`.
 
 Persisted inputs are checked against their frozen schema before typed runtime
 projection. The v0.1 `release-digest-replay` contract is shape-identical to
@@ -146,8 +151,8 @@ version-exact at every nested persisted-model boundary; frozen-schema replay is
 a separate read path and does not make historical labels valid current wire
 output.
 
-Evidence packets apply that split recursively. Current v0.6.5 and frozen
-v0.6.4, v0.6.3, v0.6.2, and v0.6.1 packets enforce the nested persisted-artifact
+Evidence packets apply that split recursively. Current development v0.6.6 and
+frozen v0.6.5, v0.6.4, v0.6.3, v0.6.2, and v0.6.1 packets enforce the nested persisted-artifact
 versions required by their writer or frozen schemas, with separately versioned
 usage artifacts as the explicit exception. The writer validates the complete
 post-redaction payload under the schema selected by the packet root version
@@ -158,7 +163,7 @@ window. It is package-bound input for the onboarding workflow, not an exported
 evidence root, and therefore has no frozen JSON Schema compatibility promise.
 
 The golden check follows the same split: unversioned flagship compiled-suite
-and fixture-manifest goldens track the current v0.6.5 producer, while explicitly
+and fixture-manifest goldens track the current v0.6.6 producer, while explicitly
 named `*.v0.5.0.*.json` and `*.v0.6.3.*.json` goldens are byte-pinned and
 replayed through their corresponding frozen JSON Schemas. `--update-golden`
 never rewrites those legacy fixtures.
@@ -194,8 +199,9 @@ Any new persisted artifact root must include:
 
 The evidence descriptor, mutation operator, expected-detection contract, and
 mutation result were introduced as persisted roots in the v0.6.0 schema
-surface. Current producers emit their additive v0.6.5 representation while
-retaining frozen v0.6.0, v0.6.1, v0.6.2, v0.6.3, and v0.6.4 validation and replay. The mutation
+surface. Current producers emit their additive v0.6.6 representation while
+retaining frozen v0.6.0, v0.6.1, v0.6.2, v0.6.3, v0.6.4, and v0.6.5
+validation and replay. The mutation
 catalog and campaign are new persisted roots in v0.6.1. All six separately carry a stable
 `/v1` contract ID and `contract_version: 1.0.0`. This separation allows a
 future additive JSON shape change to follow the ordinary schema lifecycle
@@ -218,19 +224,66 @@ pair closes authenticated comparison-to-RunSet binding while allowing
 producer-local environment metadata to remain outside the controlled
 sensitivity semantic projection.
 
-Every raw persisted v0.6.0, v0.6.1, v0.6.2, v0.6.3, v0.6.4, or v0.6.5 artifact must
-explicitly carry
+The untagged v0.6.6 development writer adds eight persisted roots:
+`ProcessEquivalenceBenchmark/v1`, `RealModelStudyManifest/v1`,
+`StudyRegistrationReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
+`RealModelStudyReport/v1`, `ExternalPilotEvidence/v1`,
+`PilotInputManifest/v1`, and
+`ExternalPilotIndependenceReviewReceipt/v1`. The benchmark
+binds a non-sensitive v0.2 case catalog without observations. The study
+manifest binds the declared locator and digest for an independently
+materialized pre-observation registration record, exact condition
+protocols/configurations/model identities, execution window, budget,
+publication boundary, and hypothesis rule. The study registration-review
+receipt binds exact raw registration bytes and a mandatory pre-execution human
+checklist. The execution-review receipt binds an independent post-window human
+review of provider logs/account records to the exact manifest, report, RunSets,
+observed provenance, and provider-response-ID-set digests. The study report
+binds that manifest to replayed privacy-filtered
+RunSets and derived observed-execution provenance, directly partitions
+same-decision inertia from response and wrong-direction movement, gates on
+invariant controls, and omits inapplicable statistics for non-executed,
+invalidated, or underpowered conditions. RunSets and record provenance can
+carry the manifest digest so a later analysis cannot substitute evidence
+produced without the frozen study backlink.
+
+The pilot root records pseudonymous environment, input, command, artifact,
+friction, remediation, consent, and privacy evidence. Its schema fixes
+pre-candidate pilot evidence to learning/remediation-only and makes every
+later exact-candidate gate-eligibility field false. These additions are
+development contracts; they do not imply that a real-model study or external
+pilot ran, and they do not create a v0.6.6 release.
+The typed pilot input manifest maps every input-bearing workflow argv value to
+a privacy-safe content digest and derives separate configuration/data aggregate
+digests. Each recorded command binds that manifest, the exact tested wheel
+digest, and the declared source revision; the closed-bundle verifier rejects
+dangling, unused, or mismatched argv bindings.
+
+The v0.6.6 RunSet persistence boundary is intentionally stricter than earlier
+writers: structural credential names, headers, and URI forms are checked on
+all non-exempt strings rather than only by the narrower sensitive-value
+detector. This can reject an older producer's credential-shaped identifiers or
+free text. The canonical HMAC-pseudonym `input_summary` grammar is implemented
+once and shared by both RunSet-specific and generic durable-payload checks;
+there is no broader token-name exemption.
+
+Every raw persisted v0.6.0, v0.6.1, v0.6.2, v0.6.3, v0.6.4, v0.6.5, or
+v0.6.6 artifact must explicitly carry
 `artifact_kind` and `schema_version`; model defaults are construction
 conveniences, not permission to omit wire discriminators. Evidence descriptors,
 mutation operators, expected-detection contracts, mutation results, catalogs,
-campaigns, and evidence graphs additionally require `schema_name`,
-`contract_id`, and `contract_version` in raw payloads.
+campaigns, evidence graphs, process-equivalence benchmarks, real-model study
+manifests/reports/review receipts, and external-pilot evidence additionally require
+`schema_name`, `contract_id`, and `contract_version` in raw payloads.
 
 Each root has one explicit self-digest field: `evidence_digest`,
 `operator_digest`, `contract_digest`, `result_digest`, `catalog_digest`, or
-`campaign_digest`; the evidence graph uses `graph_digest`. The corresponding
-digest projection excludes only that field and uses the repository RFC 8785
-canonicalization path. Historical
+`campaign_digest`; the evidence graph uses `graph_digest`, while the
+development benchmark, study, and pilot roots use `benchmark_digest`,
+`manifest_digest`, `review_receipt_digest`, `report_digest`, and
+`pilot_evidence_digest`. The
+corresponding digest projection excludes only that field and uses the
+repository RFC 8785 canonicalization path. Historical
 schema snapshots and replay artifacts are not rewritten when these roots are
 added.
 

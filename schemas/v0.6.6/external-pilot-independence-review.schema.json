@@ -1,0 +1,214 @@
+{
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/external-pilot-independence-review.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Operator-attested review bound to one exact external-pilot evidence bundle.",
+  "properties": {
+    "artifact_inventory_reviewed": {
+      "const": true,
+      "title": "Artifact Inventory Reviewed",
+      "type": "boolean"
+    },
+    "artifact_kind": {
+      "const": "external-pilot-independence-review",
+      "default": "external-pilot-independence-review",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "artifact_manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Artifact Manifest Digest",
+      "type": "string"
+    },
+    "command_input_bindings_reviewed": {
+      "const": true,
+      "title": "Command Input Bindings Reviewed",
+      "type": "boolean"
+    },
+    "complete_bundle_publication_consent_reviewed": {
+      "const": true,
+      "title": "Complete Bundle Publication Consent Reviewed",
+      "type": "boolean"
+    },
+    "contract_id": {
+      "const": "ExternalPilotIndependenceReviewReceipt/v1",
+      "default": "ExternalPilotIndependenceReviewReceipt/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "environment_control_evidence_artifact_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Environment Control Evidence Artifact Id",
+      "type": "string"
+    },
+    "environment_control_evidence_reviewed": {
+      "const": true,
+      "title": "Environment Control Evidence Reviewed",
+      "type": "boolean"
+    },
+    "environment_control_evidence_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Environment Control Evidence Sha256",
+      "type": "string"
+    },
+    "execution_time_input_content_digests_reviewed": {
+      "const": true,
+      "title": "Execution Time Input Content Digests Reviewed",
+      "type": "boolean"
+    },
+    "expected_release_line": {
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "title": "Expected Release Line",
+      "type": "string"
+    },
+    "input_semantic_identities_reviewed": {
+      "const": true,
+      "title": "Input Semantic Identities Reviewed",
+      "type": "boolean"
+    },
+    "manual_approval_is_trust_root": {
+      "const": true,
+      "title": "Manual Approval Is Trust Root",
+      "type": "boolean"
+    },
+    "pilot_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Pilot Evidence Digest",
+      "type": "string"
+    },
+    "pilot_evidence_file_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Pilot Evidence File Sha256",
+      "type": "string"
+    },
+    "pilot_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Pilot Id",
+      "type": "string"
+    },
+    "pilot_participant_pseudonym": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Pilot Participant Pseudonym",
+      "type": "string"
+    },
+    "privacy_boundary_reviewed": {
+      "const": true,
+      "title": "Privacy Boundary Reviewed",
+      "type": "boolean"
+    },
+    "receipt_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "review_method": {
+      "const": "human_operator_attestation",
+      "default": "human_operator_attestation",
+      "title": "Review Method",
+      "type": "string"
+    },
+    "review_outcome": {
+      "const": "approved_for_empirical_checkpoint",
+      "title": "Review Outcome",
+      "type": "string"
+    },
+    "review_receipt_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Review Receipt Digest",
+      "type": "string"
+    },
+    "reviewed_at": {
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Reviewed At",
+      "type": "string"
+    },
+    "reviewer_identity_authentication": {
+      "const": "out_of_band_not_machine_verified",
+      "default": "out_of_band_not_machine_verified",
+      "title": "Reviewer Identity Authentication",
+      "type": "string"
+    },
+    "reviewer_independence_rationale": {
+      "maxLength": 2048,
+      "minLength": 1,
+      "title": "Reviewer Independence Rationale",
+      "type": "string"
+    },
+    "reviewer_independent_of_pilot_execution": {
+      "const": true,
+      "title": "Reviewer Independent Of Pilot Execution",
+      "type": "boolean"
+    },
+    "reviewer_pseudonym": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Reviewer Pseudonym",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "external-pilot-independence-review",
+      "default": "external-pilot-independence-review",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tested_distribution_provenance_reviewed": {
+      "const": true,
+      "title": "Tested Distribution Provenance Reviewed",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "review_receipt_digest",
+    "receipt_id",
+    "pilot_id",
+    "pilot_participant_pseudonym",
+    "pilot_evidence_digest",
+    "pilot_evidence_file_sha256",
+    "artifact_manifest_digest",
+    "environment_control_evidence_artifact_id",
+    "environment_control_evidence_sha256",
+    "expected_release_line",
+    "reviewer_pseudonym",
+    "manual_approval_is_trust_root",
+    "reviewer_independent_of_pilot_execution",
+    "reviewer_independence_rationale",
+    "environment_control_evidence_reviewed",
+    "artifact_inventory_reviewed",
+    "tested_distribution_provenance_reviewed",
+    "command_input_bindings_reviewed",
+    "execution_time_input_content_digests_reviewed",
+    "input_semantic_identities_reviewed",
+    "complete_bundle_publication_consent_reviewed",
+    "privacy_boundary_reviewed",
+    "review_outcome",
+    "reviewed_at",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ExternalPilotIndependenceReviewReceipt",
+  "type": "object"
+}

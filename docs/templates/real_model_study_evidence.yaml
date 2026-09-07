@@ -1,0 +1,22 @@
+# Relative-path analysis descriptor only; this file contains no observations.
+# Keep source_run_directory null until the exact, study-bound paired execution
+# exists. Null produces an honest not_executed condition and a non-publishable
+# report. Conditions must be unique and sorted by condition_id.
+schema_name: real-model-study-evidence-input/v1
+# Both paths are relative to this descriptor. The record is preserved byte for
+# byte and must hash to manifest.registration.evidence_digest. Build the
+# canonical receipt before execution with "rag study review-registration".
+registration_record: registration/registration-record.json
+registration_review_receipt: registration/study-registration-review.json
+# Build this qualified, independent receipt after preregistration and before
+# the execution window with "rag study review-statistics". It is optional only
+# for a non-publishable draft replay.
+statistical_method_review_receipt: registration/study-statistical-method-review.json
+# Keep null for the first exact replay. After the planned execution window,
+# build a receipt with "rag study review-execution", set this to its relative
+# path, and rerun analysis into a new empty final directory.
+execution_review_receipt: null
+conditions:
+  - condition_id: replace-provider-model-condition
+    registered_protocol: condition/repeated-evidence-sensitivity-protocol.json
+    source_run_directory: null

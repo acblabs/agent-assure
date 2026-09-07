@@ -16,6 +16,7 @@ import tarfile
 import tempfile
 import venv
 import zipfile
+import zlib
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
@@ -40,6 +41,7 @@ from scripts.check_wheel_contents import (  # noqa: E402
 )
 from scripts.example_resource_manifest import (  # noqa: E402
     EVIDENCE_SENSITIVITY_REQUIRED_RESOURCE_PATHS,
+    PROCESS_EQUIVALENCE_BENCHMARK_REQUIRED_RESOURCE_PATHS,
 )
 from scripts.schema_versions import SCHEMA_ROOT, frozen_schema_versions  # noqa: E402
 
@@ -52,6 +54,7 @@ MAX_ENVIRONMENT_MEMBERS = 100_000
 MAX_ENVIRONMENT_MEMBER_BYTES = 128 * 1024 * 1024
 MAX_ENVIRONMENT_TOTAL_BYTES = 4 * 1024 * 1024 * 1024
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
+_MAX_INLINE_PYTHON_ASSERTION_CHARS = 16_000
 
 
 @dataclass(frozen=True)
@@ -1646,13 +1649,33 @@ def _packaged_example_assertion() -> str:
         ),
         "process_equivalence_reproduction_index.json",
     )
-    return (
-        "from importlib.resources import files; "
+    # The exact benchmark inventory contains hundreds of repetitive paths.
+    # Transport it losslessly in compressed form so the Windows CreateProcess
+    # command line remains well below its platform limit.
+    encoded_benchmark_inventory = base64.b85encode(
+        zlib.compress(
+            json.dumps(
+                PROCESS_EQUIVALENCE_BENCHMARK_REQUIRED_RESOURCE_PATHS,
+                ensure_ascii=True,
+                separators=(",", ":"),
+            ).encode("utf-8"),
+            level=9,
+        )
+    ).decode("ascii")
+    assertion = (
+        "import base64,json,zlib; from importlib.resources import files; "
         f"required = {required!r}; "
+        "benchmark = json.loads(zlib.decompress(base64.b85decode("
+        f"{encoded_benchmark_inventory!r})).decode('utf-8')); "
+        "required += tuple('process_equivalence_benchmark_v0_2/' + name "
+        "for name in benchmark); "
         "root = files('agent_assure.examples'); "
         "missing = [name for name in required if not root.joinpath(name).is_file()]; "
         "raise SystemExit('missing packaged examples: ' + ', '.join(missing) if missing else 0)"
     )
+    if len(assertion) > _MAX_INLINE_PYTHON_ASSERTION_CHARS:
+        raise ValueError("packaged-example assertion exceeds the safe inline command bound")
+    return assertion
 
 
 def _packaged_schema_resource_assertion() -> str:

@@ -120,8 +120,8 @@ def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> 
         workflow.count("python scripts/check_tagged_schema_immutability.py --require-release-tags")
         == 2
     )
-    assert workflow.count('make release-check EXPECTED_RELEASE="${EXPECTED_VERSION}"') == 1
-    assert 'make release-check EXPECTED_RELEASE="${EXPECTED_RELEASE}"' in workflow
+    assert workflow.count('make release-publish-check EXPECTED_RELEASE="${EXPECTED_VERSION}"') == 1
+    assert 'make release-publish-check EXPECTED_RELEASE="${EXPECTED_RELEASE}"' in workflow
 
 
 def test_testpypi_checks_committed_version_bound_goldens_before_release_checks() -> None:
@@ -133,7 +133,9 @@ def test_testpypi_checks_committed_version_bound_goldens_before_release_checks()
     assert "include matching committed version-bound deterministic goldens" in workflow
     assert "for example 0.6.4rc1" in workflow
     for job in (build_job, reproduce_job):
-        assert job.index("python scripts/update_golden.py") < job.index("make release-check")
+        assert job.index("python scripts/update_golden.py") < job.index(
+            "make release-publish-check"
+        )
 
 
 def test_every_checkout_disables_persisted_credentials() -> None:
@@ -311,7 +313,12 @@ def test_evidence_fresh_job_verifies_the_exact_uploaded_id_without_reupload() ->
 def test_release_privileges_are_split_from_build_and_verification() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
-    reproduce = workflow.split("  reproduce:\n", maxsplit=1)[1].split("  sign:\n", maxsplit=1)[0]
+    reproduce = workflow.split("  reproduce:\n", maxsplit=1)[1].split(
+        "  prepare-release-tag:\n", maxsplit=1
+    )[0]
+    prepare_tag = workflow.split("  prepare-release-tag:\n", maxsplit=1)[1].split(
+        "  sign:\n", maxsplit=1
+    )[0]
     sign = workflow.split("  sign:\n", maxsplit=1)[1].split("  verify-signatures:\n", maxsplit=1)[0]
     pypi = workflow.split("  pypi-publish:\n", maxsplit=1)[1].split(
         "  recover-verify:\n", maxsplit=1
@@ -320,6 +327,11 @@ def test_release_privileges_are_split_from_build_and_verification() -> None:
     assert "id-token: write" not in build
     assert "contents: write" not in build
     assert "id-token: write" not in reproduce
+    assert "environment:\n      name: release-tag" in prepare_tag
+    assert "contents: write" in prepare_tag
+    assert "actions: write" in prepare_tag
+    assert "id-token: write" not in prepare_tag
+    assert "actions/checkout" not in prepare_tag
     assert "id-token: write" in sign
     assert "actions/checkout" not in sign
     assert "setup-python" not in sign
@@ -358,9 +370,8 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     recover_pypi = workflow.split("  recover-pypi-publish:\n", maxsplit=1)[1]
 
     assert "recover-v0.6.0" in workflow
-    assert (
-        "if: github.event_name != 'workflow_dispatch' || inputs.operation == 'standard'"
-    ) in workflow
+    assert "inputs.operation == 'standard' ||" in workflow
+    assert "inputs.operation == 'prepare-tag'" in workflow
     assert (
         "if: github.event_name == 'workflow_dispatch' && inputs.operation == 'recover-v0.6.0'"
     ) in recover_verify
@@ -464,6 +475,217 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     )
 
 
+def test_release_tag_creation_is_sha_bound_and_runs_after_unprivileged_gates() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
+    prepare_tag = workflow.split("  prepare-release-tag:\n", maxsplit=1)[1].split(
+        "  resume-release-tag:\n", maxsplit=1
+    )[0]
+
+    assert "source-sha:" in workflow
+    assert "expected-version:" in workflow
+    assert (
+        "ref: ${{ github.event_name == 'workflow_dispatch' && "
+        "inputs.operation == 'prepare-tag' && inputs.source-sha || github.ref }}" in build
+    )
+    assert '[[ "${REQUESTED_SOURCE_SHA}" =~ ^[0-9a-f]{40}$ ]]' in build
+    assert 'test "${GITHUB_REF}" = "refs/heads/${DEFAULT_BRANCH}"' in build
+    assert 'test "${GITHUB_REF}" = "${source_ref}"' in build
+    assert 'if [ "${OPERATION}" = "prepare-tag" ]; then' in build
+    assert 'test "${GITHUB_SHA}" = "${REQUESTED_SOURCE_SHA}"' in build
+    assert 'test "${source_sha}" = "${REQUESTED_SOURCE_SHA}"' in build
+    assert 'test "${PACKAGE_VERSION}" = "${REQUESTED_VERSION}"' in build
+    assert 'git merge-base --is-ancestor "${source_sha}"' in build
+    assert build.index("make release-publish-check") < build.index("Upload exact unsigned")
+
+    assert "needs: [build, reproduce]" in prepare_tag
+    assert "needs.reproduce.result == 'success'" in prepare_tag
+    assert "environment:\n      name: release-tag" in prepare_tag
+    assert "contents: write" in prepare_tag
+    assert "persist-credentials" not in prepare_tag
+    assert '[[ "${GITHUB_RUN_ID}" =~ ^[1-9][0-9]*$ ]]' in prepare_tag
+    assert '[[ "${GITHUB_RUN_ATTEMPT}" =~ ^[1-9][0-9]*$ ]]' in prepare_tag
+    assert "preflight run ${GITHUB_RUN_ID}; attempt ${GITHUB_RUN_ATTEMPT}" in prepare_tag
+    assert "release tag already exists; refusing to move or replace it" in prepare_tag
+    assert 'test "${RELEASE_TAG}" = "v${EXPECTED_VERSION}"' in prepare_tag
+    assert '"repos/${GITHUB_REPOSITORY}/git/commits/${EXPECTED_SOURCE_SHA}"' in prepare_tag
+    assert '"repos/${GITHUB_REPOSITORY}/compare/${EXPECTED_SOURCE_SHA}...' in prepare_tag
+    assert "ahead|identical)" in prepare_tag
+    assert '"repos/${GITHUB_REPOSITORY}/git/ref/tags/${RELEASE_TAG}"' in prepare_tag
+    assert '"repos/${GITHUB_REPOSITORY}/git/tags"' in prepare_tag
+    assert '-f object="${EXPECTED_SOURCE_SHA}"' in prepare_tag
+    assert '-f ref="refs/tags/${RELEASE_TAG}"' in prepare_tag
+    assert "name: Create immutable SHA-bound annotated release tag" in prepare_tag
+    assert "name: Verify immutable release tag binding" in prepare_tag
+    assert 'jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"' in prepare_tag
+    assert "name: Dispatch tag-bound publication from the immutable tag" in prepare_tag
+    assert '"repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches"' in prepare_tag
+    assert "-f 'inputs[operation]=standard'" in prepare_tag
+    assert '-f "inputs[authorization-run-id]=${GITHUB_RUN_ID}"' in prepare_tag
+    assert '-f "inputs[authorization-run-attempt]=${GITHUB_RUN_ATTEMPT}"' in prepare_tag
+    assert prepare_tag.index('"repos/${GITHUB_REPOSITORY}/git/tags"') < prepare_tag.index(
+        '"repos/${GITHUB_REPOSITORY}/git/refs"'
+    )
+    assert prepare_tag.index('"repos/${GITHUB_REPOSITORY}/git/refs"') < prepare_tag.index(
+        '"repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches"'
+    )
+    assert prepare_tag.index(
+        "name: Create immutable SHA-bound annotated release tag"
+    ) < prepare_tag.index("name: Verify immutable release tag binding")
+    assert prepare_tag.index("name: Verify immutable release tag binding") < prepare_tag.index(
+        "name: Dispatch tag-bound publication from the immutable tag"
+    )
+
+
+def test_release_tag_operations_share_tag_bound_concurrency_across_dispatch_refs() -> None:
+    workflow_path = ROOT / ".github" / "workflows" / "release.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+    assert workflow["concurrency"] == {
+        "group": (
+            "release-${{ github.event_name == 'workflow_dispatch' && "
+            "(inputs.operation == 'prepare-tag' || inputs.operation == 'resume-tag') && "
+            "format('refs/tags/v{0}', inputs.expected-version) || github.ref }}"
+        ),
+        "queue": "max",
+        "cancel-in-progress": False,
+    }
+
+
+def test_release_tag_recovery_revalidates_and_dispatches_idempotently() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    runbook = (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8")
+    build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
+    resume_tag = workflow.split("  resume-release-tag:\n", maxsplit=1)[1].split(
+        "  verify-release-tag-provenance:\n", maxsplit=1
+    )[0]
+
+    assert "- resume-tag" in workflow
+    assert "inputs.operation == 'resume-tag'" in build
+    assert (
+        "inputs.operation == 'prepare-tag' && inputs.source-sha || github.ref }}" in build
+    )
+    assert (
+        "(inputs.operation == 'prepare-tag' || inputs.operation == 'resume-tag') "
+        "&& inputs.source-sha" not in build
+    )
+    assert 'test "${GITHUB_REF}" = "${source_ref}"' in build
+    assert 'test "${GITHUB_SHA}" = "${REQUESTED_SOURCE_SHA}"' in build
+    assert 'test "$(git cat-file -t "refs/tags/${release_tag}")" = "tag"' in build
+    assert 'test "$(git rev-parse "refs/tags/${release_tag}^{commit}")"' in build
+    assert "needs: [build, reproduce]" in resume_tag
+    assert "needs.reproduce.result == 'success'" in resume_tag
+    assert "environment:\n      name: release-tag" in resume_tag
+    assert "actions: write" in resume_tag
+    assert "contents: read" in resume_tag
+    assert "contents: write" not in resume_tag
+    assert "actions/checkout" not in resume_tag
+    assert 'select(.object.type == "tag") | .object.sha' in resume_tag
+    assert 'jq -er .object.type)" = "commit"' in resume_tag
+    assert 'jq -er .object.sha)" = "${EXPECTED_SOURCE_SHA}"' in resume_tag
+    assert "release tag annotation does not match" in resume_tag
+    assert 'preflight_identity="${tag_message#"${annotation_prefix}"}"' in resume_tag
+    assert 'preflight_run_id="${preflight_identity%%;*}"' in resume_tag
+    assert 'preflight_run_attempt="${preflight_identity#*; attempt }"' in resume_tag
+    assert '[[ "${preflight_run_id}" =~ ^[1-9][0-9]*$ ]]' in resume_tag
+    assert '[[ "${preflight_run_attempt}" =~ ^[1-9][0-9]*$ ]]' in resume_tag
+    assert (
+        '[ "${tag_message}" != "${annotation_prefix}${preflight_run_id}; '
+        'attempt ${preflight_run_attempt}" ]' in resume_tag
+    )
+    assert 'case "${tag_message}"' not in resume_tag
+    assert (
+        '"repos/${GITHUB_REPOSITORY}/actions/runs/${preflight_run_id}/'
+        'attempts/${preflight_run_attempt}"' in resume_tag
+    )
+    assert "(.run_attempt | tostring) == $expected_run_attempt" in resume_tag
+    assert '.event == "workflow_dispatch"' in resume_tag
+    assert '.path == ".github/workflows/release.yml"' in resume_tag
+    assert ".head_branch == $expected_branch" in resume_tag
+    assert ".head_sha == $expected_sha" in resume_tag
+    assert ".repository.full_name == $expected_repository" in resume_tag
+    for conclusion in ("success", "failure", "cancelled", "timed_out"):
+        assert f'.conclusion == "{conclusion}"' in resume_tag
+    assert (
+        '"repos/${GITHUB_REPOSITORY}/actions/runs/${preflight_run_id}/attempts/'
+        '${preflight_run_attempt}/jobs?per_page=100"' in resume_tag
+    )
+    assert "filter=latest" not in resume_tag
+    assert "unable to prove release preflight provenance within the bounded job scan" in resume_tag
+    assert "def successful_job($name):" in resume_tag
+    assert '.workflow_name == "release"' in resume_tag
+    assert "successful_job($build_name)" in resume_tag
+    assert "successful_job($reproduce_name)" in resume_tag
+    assert '--arg create_step "Create immutable SHA-bound annotated release tag"' in resume_tag
+    assert "release preflight ended after immutable tag creation" in resume_tag
+    assert "unable to prove idempotent tag-bound dispatch" in resume_tag
+    assert '.status != "completed" or .conclusion == "success"' in resume_tag
+    assert "an active or successful tag-bound release run already exists" in resume_tag
+    assert '"repos/${GITHUB_REPOSITORY}/actions/workflows/release.yml/dispatches"' in resume_tag
+    assert "-f 'inputs[operation]=standard'" in resume_tag
+    assert '-f "inputs[authorization-run-id]=${GITHUB_RUN_ID}"' in resume_tag
+    assert '-f "inputs[authorization-run-attempt]=${GITHUB_RUN_ATTEMPT}"' in resume_tag
+    assert resume_tag.index("actions/runs/${preflight_run_id}") < resume_tag.index(
+        "actions/workflows/release.yml/runs?"
+    )
+    assert resume_tag.index("actions/workflows/release.yml/runs?") < resume_tag.index(
+        "actions/workflows/release.yml/dispatches"
+    )
+    assert 'release_tag="v0.6.6"' in runbook
+    assert 'gh workflow run release.yml --ref "${release_tag}"' in runbook
+    assert "workflow from that immutable tag" in runbook
+
+
+def test_prepare_and_resume_tag_dispatches_cannot_enter_signing_directly() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    sign = workflow.split("  sign:\n", maxsplit=1)[1].split("  verify-signatures:\n", maxsplit=1)[0]
+
+    assert "startsWith(github.ref, 'refs/tags/v')" in sign
+    assert "github.event_name != 'workflow_dispatch' || inputs.operation == 'standard'" in sign
+    assert "inputs.operation == 'prepare-tag'" not in sign
+    assert "inputs.operation == 'resume-tag'" not in sign
+
+
+def test_every_standard_tag_route_requires_protected_attempt_provenance_before_signing() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    provenance = workflow.split("  verify-release-tag-provenance:\n", maxsplit=1)[1].split(
+        "  sign:\n", maxsplit=1
+    )[0]
+    sign = workflow.split("  sign:\n", maxsplit=1)[1].split(
+        "  verify-signatures:\n", maxsplit=1
+    )[0]
+
+    assert "authorization-run-id:" in workflow
+    assert "authorization-run-attempt:" in workflow
+    assert "needs: [build, reproduce]" in provenance
+    assert "actions: read" in provenance
+    assert "contents: read" in provenance
+    assert "id-token: write" not in provenance
+    assert "actions/checkout" not in provenance
+    assert "startsWith(github.ref, 'refs/tags/v')" in provenance
+    assert "AUTHORIZATION_RUN_ID: ${{ inputs.authorization-run-id }}" in provenance
+    assert (
+        "AUTHORIZATION_RUN_ATTEMPT: ${{ inputs.authorization-run-attempt }}" in provenance
+    )
+    assert 'test "${GITHUB_REF}" = "refs/tags/${RELEASE_TAG}"' in provenance
+    assert 'select(.object.type == "tag") | .object.sha' in provenance
+    assert 'preflight_run_id="${preflight_identity%%;*}"' in provenance
+    assert 'preflight_run_attempt="${preflight_identity#*; attempt }"' in provenance
+    assert provenance.count("actions/runs/${preflight_run_id}/attempts/") == 2
+    assert provenance.count("actions/runs/${AUTHORIZATION_RUN_ID}/attempts/") == 2
+    assert ".status == \"completed\" and .conclusion == \"success\"" in provenance
+    assert "successful_job($build_name)" in provenance
+    assert "successful_job($reproduce_name)" in provenance
+    assert "Create immutable SHA-bound annotated release tag" in provenance
+    assert "Resume publication from one verified immutable release tag" in provenance
+    assert 'authorization_ref="${DEFAULT_BRANCH}"' in provenance
+    assert 'authorization_ref="${RELEASE_TAG}"' in provenance
+    assert '--arg expected_branch "${authorization_ref}"' in provenance
+    assert "standard publication lacks a successful protected authorization attempt" in provenance
+    assert "-gt 100" in provenance
+    assert "needs: [reproduce, verify-release-tag-provenance]" in sign
+
+
 def test_release_requires_reproduction_before_signing_and_publication() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
@@ -517,7 +739,12 @@ def test_signers_only_consume_reproducer_promoted_artifacts() -> None:
 
         assert "verified_bundle_artifact_id:" in reproduce
         assert "path: .tmp/verified-release" in reproduce
-        assert "needs: reproduce" in sign
+        expected_needs = (
+            "needs: [reproduce, verify-release-tag-provenance]"
+            if workflow_name == "release.yml"
+            else "needs: reproduce"
+        )
+        assert expected_needs in sign
         assert "artifact-ids: ${{ needs.reproduce.outputs.verified_bundle_artifact_id }}" in sign
         assert "needs.build.outputs.bundle_artifact_id" not in sign
 
@@ -582,7 +809,7 @@ def test_github_release_rechecks_remote_tag_against_signed_commit() -> None:
 
 def test_oidc_signing_is_tag_only_and_environment_protected() -> None:
     release_workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
-    assert 'check_version_matches_tag.py "${GITHUB_REF_NAME}" --require-stable' in release_workflow
+    assert 'check_version_matches_tag.py "${release_tag}" --require-stable' in release_workflow
 
     for workflow_name, verify_header in (
         ("release.yml", "  verify-signatures:\n"),
@@ -594,7 +821,7 @@ def test_oidc_signing_is_tag_only_and_environment_protected() -> None:
             maxsplit=1,
         )[0]
 
-        assert "if: startsWith(github.ref, 'refs/tags/v')" in sign
+        assert "startsWith(github.ref, 'refs/tags/v')" in sign
         assert "environment:\n      name: signing" in sign
     assert "Validate immutable signing source" in (
         ROOT / ".github" / "workflows" / "evidence.yml"

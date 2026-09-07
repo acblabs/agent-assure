@@ -74,7 +74,9 @@ release expectation regresses:
   the exact candidate RunSet, while both source execution configurations remain
   anchored to their predeclared arms. Conclusions remain conditional on
   statistical sufficiency, exact subject binding, and declared cluster
-  assumptions.
+  assumptions. The untagged development surface also provides a
+  [preregistered real-model study workflow](docs/real_model_study.md), but this
+  repository contains no real-provider study result.
 - **Human review:** a required route or performed-review record is missing.
 - **Provider, tool, and privacy boundaries:** a forbidden provider or tool
   appears, or declared route, redaction state, or detector identity changes.
@@ -396,6 +398,8 @@ standardized classifier to an RC and does not widen that surface.
 | JSONL or multi-agent events | [Streaming example](examples/streaming_process_regression/README.md) | Experimental |
 | LangGraph or Google ADK events | [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) | Experimental |
 | Live provider or external-script subjects | [Adapter contract](docs/adapters/adapter_contract.md) | Experimental, time-bound evidence |
+| Preregistered real-model measurement | [Real-model study](docs/real_model_study.md) | Untagged development contract; no study result published |
+| Independently controlled CI learning pilot | [External pilot evidence](docs/external_pilot.md) | Untagged development contract; no qualifying pilot recorded |
 | OpenTelemetry context or export | [OpenTelemetry alignment](docs/otel_alignment.md) | Optional alignment only |
 
 <details>
@@ -452,7 +456,7 @@ and [security guidance](SECURITY.md).
 
 ## Learn more
 
-- **Statistical methods:** [Repeated paired evidence sensitivity](docs/repeated_evidence_sensitivity.md) and [live calibration](docs/live_calibration.md)
+- **Statistical methods:** [Repeated paired evidence sensitivity](docs/repeated_evidence_sensitivity.md) · [Preregistered real-model study](docs/real_model_study.md) · [Live calibration](docs/live_calibration.md)
 
 - **Start:** [Documentation](docs/index.md) · [For AI leaders](docs/for_ai_leaders.md) · [For architects](docs/architecture.md) · [For engineers](docs/for_engineers.md)
 - **Demos:** [Assure the assurance](docs/control_efficacy.md#one-command-demonstration) · [Flagship](docs/demo_flagship.md) · [RAG provenance](docs/demo_rag.md) · [Expense approval](docs/demo_expense.md)

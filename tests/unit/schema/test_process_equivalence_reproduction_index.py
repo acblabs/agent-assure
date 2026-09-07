@@ -144,7 +144,7 @@ def test_reproduction_index_freshness_is_wired_into_ci_and_release_checks() -> N
     assert "scripts/update_process_equivalence_reproduction_index.py" in makefile
     assert "reproduction-index-check" in makefile[makefile.index("check:") :]
     assert "make release-check" in ci_workflow
-    assert publish_workflow.count("make release-check") == 2
+    assert publish_workflow.count("make release-publish-check") == 2
 
 
 def test_source_closure_enforces_file_and_byte_limits(

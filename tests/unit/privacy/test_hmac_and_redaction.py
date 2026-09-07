@@ -12,12 +12,18 @@ import agent_assure.privacy.detectors as privacy_detectors
 from agent_assure.adapters.base import validate_privacy_filtered_mapping
 from agent_assure.canonical.hmac_tokens import hmac_sha256_token, verify_hmac_token
 from agent_assure.policies.privacy import evaluate_redaction
+from agent_assure.privacy.credential_uri import MAX_DURABLE_CREDENTIAL_SCAN_CHARS
 from agent_assure.privacy.detectors import (
     MAX_PRIVACY_SCAN_CHARS,
     PRIVACY_PROFILE_DIGEST,
     PRIVACY_PROFILE_ID,
     contains_sensitive_value,
     privacy_profile_manifest,
+)
+from agent_assure.privacy.persistence import (
+    UnsafePersistedTextError,
+    assert_persisted_payload_safe,
+    assert_persisted_text_safe,
 )
 from agent_assure.privacy.redaction import (
     assert_runset_payload_safe_for_persistence,
@@ -425,6 +431,191 @@ def test_runset_persistence_rejects_sensitive_and_control_mapping_keys() -> None
         assert_runset_payload_safe_for_persistence({"unsafe\nkey": "safe"})
 
 
+@pytest.mark.parametrize("pseudonym_name", ("subject_token", "employee_token"))
+def test_runset_persistence_accepts_canonical_hmac_pseudonym_summary(
+    pseudonym_name: str,
+) -> None:
+    payload = {
+        "runs": [
+            {"input_summary": (f"case=case-1; {pseudonym_name}={'a' * 32}; fixture=fixture-1")}
+        ]
+    }
+
+    assert_runset_payload_safe_for_persistence(payload)
+    assert_persisted_payload_safe(payload, owner="test RunSet")
+
+
+def test_runset_persistence_accepts_canonical_rag_hmac_pseudonym_summary() -> None:
+    payload = {
+        "runs": [
+            {
+                "input_summary": (
+                    f"case=case-1; subject_token={'a' * 32}; fixture=fixture-1; "
+                    f"query_digest={'b' * 64}; corpus_version=policy-b-v1"
+                )
+            }
+        ]
+    }
+
+    assert_runset_payload_safe_for_persistence(payload)
+    assert_persisted_payload_safe(payload, owner="test RunSet")
+
+
+@pytest.mark.parametrize(
+    "ordinary_prose",
+    (
+        "See signature: ok",
+        "retry after broken token: none",
+        "Digital signature: valid",
+    ),
+)
+def test_persisted_credential_scan_does_not_treat_ordinary_prose_as_a_field_name(
+    ordinary_prose: str,
+) -> None:
+    assert_persisted_text_safe(
+        ordinary_prose,
+        owner="test RunSet",
+        field_name="stop_reasons",
+    )
+
+
+def test_persisted_document_scan_accepts_many_markdown_headings() -> None:
+    document = "\n".join(
+        f"### Synthetic condition {index:03d}\n\n- State: not measured" for index in range(200)
+    )
+
+    assert len(document) < MAX_PRIVACY_SCAN_CHARS
+    assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+
+def test_persisted_document_scan_accepts_safe_text_above_scalar_limit() -> None:
+    document = "\n".join(
+        f"### Synthetic condition {index:03d}\n- State: not measured" for index in range(400)
+    )
+
+    assert MAX_PRIVACY_SCAN_CHARS < len(document) < MAX_DURABLE_CREDENTIAL_SCAN_CHARS
+    assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+
+def test_persisted_document_scan_reports_exhaustion_distinctly() -> None:
+    document = "safe\n" * (MAX_DURABLE_CREDENTIAL_SCAN_CHARS // 5 + 1)
+
+    with pytest.raises(UnsafePersistedTextError, match="bounded credential scan") as exc_info:
+        assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+    assert "credential material" not in str(exc_info.value)
+
+
+def test_persisted_document_scan_preflights_field_budget_without_a_large_document() -> None:
+    document = "safe\n" * 32_769
+
+    assert len(document) < MAX_DURABLE_CREDENTIAL_SCAN_CHARS
+    with pytest.raises(UnsafePersistedTextError, match="bounded credential scan") as exc_info:
+        assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+    assert "credential material" not in str(exc_info.value)
+
+
+def test_persisted_document_scan_detects_secret_across_window_boundary() -> None:
+    document = "a" * (MAX_PRIVACY_SCAN_CHARS - 10) + " sk-proj-abcdefghijklmnopqrstuvwxyz123456\n"
+
+    with pytest.raises(UnsafePersistedTextError, match="credential material"):
+        assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+
+@pytest.mark.parametrize(
+    ("field_value", "rejected"),
+    (
+        ("1234567", False),
+        ("12345678", True),
+    ),
+)
+def test_persisted_document_scan_handles_structural_credentials_split_across_windows(
+    field_value: str,
+    rejected: bool,
+) -> None:
+    document = "database-password:" + (" " * MAX_PRIVACY_SCAN_CHARS) + field_value
+
+    if rejected:
+        with pytest.raises(UnsafePersistedTextError, match="credential material"):
+            assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+    else:
+        assert_persisted_payload_safe({"content": document}, owner="test Markdown report")
+
+
+def test_persisted_credential_scan_retains_compact_identifier_suffix_detection() -> None:
+    with pytest.raises(ValueError, match="credential material"):
+        assert_persisted_text_safe(
+            "requestSignature: hunter2-value",
+            owner="test RunSet",
+            field_name="stop_reasons",
+        )
+
+
+@pytest.mark.parametrize(
+    "credential_field",
+    (
+        "service access token=hunter2-value",
+        "my api key: hunter2-value",
+    ),
+)
+def test_persisted_credential_scan_rejects_spaced_structural_names(
+    credential_field: str,
+) -> None:
+    with pytest.raises(ValueError, match="credential material"):
+        assert_persisted_text_safe(
+            credential_field,
+            owner="test RunSet",
+            field_name="stop_reasons",
+        )
+
+
+def test_runset_and_generic_persistence_share_mapping_key_policy() -> None:
+    payload = {"runs": [{"api_key": ""}]}
+
+    with pytest.raises(ValueError, match="mapping key"):
+        assert_runset_payload_safe_for_persistence(payload)
+    with pytest.raises(ValueError, match="mapping key"):
+        assert_persisted_payload_safe(payload, owner="test RunSet")
+
+
+@pytest.mark.parametrize(
+    "input_summary",
+    (
+        "case=case-1; subject_token=short; fixture=fixture-1",
+        f"case=case-1; subject_token={'a' * 32}; api_key=short",
+        f"https://safe.example/callback?subject_token={'a' * 32}",
+    ),
+)
+def test_runset_persistence_does_not_generalize_pseudonym_summary_exception(
+    input_summary: str,
+) -> None:
+    with pytest.raises(ValueError, match="input_summary"):
+        assert_runset_payload_safe_for_persistence({"runs": [{"input_summary": input_summary}]})
+
+
+@pytest.mark.parametrize(
+    "credential_reference",
+    (
+        "https://provider.example/response?sig=x",
+        "//user:password@provider.example/response",
+        ("https://safe.example/response?redirect=https%3A%2F%2Fprovider.example%2F%3Ftoken%3Dx"),
+    ),
+)
+def test_runset_persistence_rejects_structural_credentials_in_provider_metadata(
+    credential_reference: str,
+) -> None:
+    payload = {"runs": [{"provider_response_id": credential_reference}]}
+
+    with pytest.raises(ValueError, match="provider_response_id") as exc_info:
+        assert_runset_payload_safe_for_persistence(payload)
+
+    assert credential_reference not in str(exc_info.value)
+    with pytest.raises(ValueError, match="provider_response_id") as stream_exc_info:
+        assert_stream_payload_safe_for_persistence(payload)
+    assert credential_reference not in str(stream_exc_info.value)
+
+
 def test_runset_redaction_recurses_persisted_record_fields() -> None:
     design_digest = "b" * 64
     payload = {
@@ -469,6 +660,19 @@ def test_runset_design_commitment_digest_fails_closed_on_raw_secret() -> None:
     assert redacted["evidence_sensitivity_design_digest"] == "[REDACTED]"
     with pytest.raises(ValueError, match="evidence_sensitivity_design_digest"):
         assert_runset_payload_safe_for_persistence(payload)
+
+
+def test_sha256_suffix_uses_the_same_digest_contract_at_both_privacy_boundaries() -> None:
+    digest = "a" * 64
+    payload = {"registration_record_sha256": digest}
+
+    assert redact_packet_payload(payload) == payload
+    assert_persisted_payload_safe(payload, owner="registration record")
+
+    unsafe = {"registration_record_sha256": "api_key=abcdef1234567890"}
+    assert redact_packet_payload(unsafe) == {"registration_record_sha256": "[REDACTED]"}
+    with pytest.raises(UnsafePersistedTextError, match="sensitive or credential material"):
+        assert_persisted_payload_safe(unsafe, owner="registration record")
 
 
 def test_redaction_recurses_nested_values_under_preserved_keys() -> None:

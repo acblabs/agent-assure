@@ -591,7 +591,7 @@ def test_linux_syscall_fallback_installs_without_replacement(
             True,
         ),
         (
-            "agent_assure.cli.rag_cmd",
+            "agent_assure.cli._publication",
             "_lock_finalize_descriptor",
             "sensitivity finalize publication",
             None,

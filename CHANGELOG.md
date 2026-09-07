@@ -2,6 +2,66 @@
 
 ## Unreleased
 
+- Advanced the development writer to schema version 0.6.6 and added
+  self-digested contracts for a frozen real-model study manifest, a
+  reproducible study report, operator-attested study-registration review
+  receipt, Process-Equivalence Benchmark v0.2, and
+  independently controlled external-pilot evidence. Released snapshots through
+  v0.6.5 remain immutable and replayable.
+- Added offline `rag study finalize`, pre-execution
+  `rag study review-registration`, pre-dispatch `rag study input-commitment`,
+  atomic two-arm `rag study bind-config`, post-execution
+  `rag study review-execution`, and `rag study analyze` workflows. Study-bound
+  live RunSets carry the exact
+  preregistered-manifest backlink through per-record provenance; provider,
+  model, adapter, pipeline, configuration, protocol, decision-rule, benchmark,
+  or execution-window drift fails closed.
+- Added a digest-bound human execution-review receipt that ties provider
+  log/account review to the exact manifest, report, source RunSets, observed
+  provenance, and provider response-ID set before study publication readiness.
+- Added direct same-decision inertia with exact one-sided Clopper--Pearson
+  intervals and Bonferroni control over frozen decision-flip targets. Expected
+  response, inertia, wrong-direction, and other non-inertia are disjoint;
+  decision-invariant conditions are negative controls whose arm changes produce
+  `control_failed`. Any exclusion or deviation invalidates confirmatory
+  analysis instead of entering an endpoint by complement.
+- Hardened real-model study semantics with a descriptive baseline-correct,
+  baseline-incorrect, and mixed inertia split; a polarity-neutral prior
+  expected-response diagnostic wrapper; resolved independence review gates;
+  dated provider-model preregistration and complete/stable-or-absent serving
+  fingerprints within conditions and across model-matched target/control
+  groups; conservative design-time plus report-ingestion Clopper--Pearson work
+  prevalidation; and a locked 42-cluster decision-boundary test clarifying that
+  each direction receives its own familywise alpha control rather than one
+  joint two-sided guarantee.
+- Packaged a 168-case, non-sensitive benchmark fixture with four balanced
+  42-case relation/orientation strata. Authority sources and globally unique
+  exact inputs are byte-for-byte SHA-256 bound, with wheel/sdist and
+  installed-package closure checks.
+- Added a privacy-filtered external-pilot evidence contract that distinguishes
+  independently controlled CI attempts from internal dogfood and synthetic
+  harnesses, requires non-bundled inputs and friction/remediation provenance,
+  and is permanently ineligible for later exact-candidate release gates.
+- Hardened the publish checkpoint so bare pilot metadata cannot pass: it now
+  verifies a closed, bounded, link-free artifact bundle, the tested wheel's
+  identity and RECORD, declared output schemas, textual privacy boundaries, and
+  a separately persisted, digest-bound human independence-review receipt.
+- Added a typed pilot input manifest with exact execution-byte and semantic
+  identity commitments, model-matched command/output linkage, mixed-origin
+  handling, explicit complete-bundle consent review, bounded wheel privacy
+  scanning, and credential checks that distinguish structural assignments from
+  ordinary prose.
+- Hardened release and validation boundaries with fail-closed wheel/sdist
+  privacy scanning, one shared `_digest`/`_digests`/`_sha256` field vocabulary,
+  exact microsecond-bounded RFC 3339 timestamps, kind-aware 64 MiB RunSet
+  validation, and protected-attempt provenance verification before tag signing.
+- Made `release pilot finalize --out` an explicit required publication target,
+  and preserved the readiness assessor's actionable blocking reasons when a
+  study or pilot bundle root has not yet been produced. Existing invalid or
+  inaccessible bundles still fail closed with a value-free exception category.
+- No provider study or external pilot evidence is bundled, and no empirical
+  model-behavior or external-adoption claim is made.
+
 ## 0.6.5 - 2026-08-29
 
 - Introduced privacy detector profile v3. It normalizes Unicode dash

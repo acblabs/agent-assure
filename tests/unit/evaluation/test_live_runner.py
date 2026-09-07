@@ -10,6 +10,7 @@ from collections.abc import Callable
 from dataclasses import replace
 from hashlib import sha256
 from pathlib import Path
+from urllib.parse import quote
 
 import pytest
 import typer
@@ -444,14 +445,14 @@ def test_openai_cost_estimate_is_unavailable_without_complete_usage() -> None:
     missing_usage = _openai_response(
         {
             "model": "gpt-test",
-            "choices": [{"message": {"content": "{}"}}],
+            "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
         },
         config,
     )
     measured = _openai_response(
         {
             "model": "gpt-test",
-            "choices": [{"message": {"content": "{}"}}],
+            "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
             "usage": {"prompt_tokens": 1000, "completion_tokens": 1000},
         },
         config,
@@ -473,13 +474,52 @@ def test_openai_response_preserves_requested_alias_and_audits_provider_snapshot(
     response = _openai_response(
         {
             "model": "gpt-4o-2024-08-06",
-            "choices": [{"message": {"content": "{}"}}],
+            "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
         },
         config,
     )
 
     assert response.model == "gpt-4o"
     assert response.resolved_model == "gpt-4o-2024-08-06"
+
+
+def test_openai_response_captures_bounded_serving_and_termination_metadata() -> None:
+    config = LiveAdapterConfig(
+        adapter_id="openai-chat-completions",
+        provider="openai",
+        model="gpt-4o",
+    )
+
+    response = _openai_response(
+        {
+            "id": "chatcmpl-safe-1",
+            "model": "gpt-4o-2024-08-06",
+            "created": 1_725_000_000,
+            "system_fingerprint": "fp_44709d6fcb",
+            "choices": [{"finish_reason": "length", "message": {"content": "{}"}}],
+        },
+        config,
+    )
+
+    assert response.provider_finish_reason == "length"
+    assert response.provider_serving_fingerprint == "fp_44709d6fcb"
+    assert response.provider_created_unix_seconds == 1_725_000_000
+    assert response.observation_status == "excluded"
+    assert response.exclusion_reason == "provider-termination-not-normal"
+
+
+def test_openai_response_fails_closed_without_finish_reason() -> None:
+    config = LiveAdapterConfig(
+        adapter_id="openai-chat-completions",
+        provider="openai",
+        model="gpt-4o",
+    )
+
+    with pytest.raises(ValueError, match="finish_reason"):
+        _openai_response(
+            {"choices": [{"message": {"content": "{}"}}]},
+            config,
+        )
 
 
 @pytest.mark.parametrize("provider_model", (None, "", "   "))
@@ -492,7 +532,7 @@ def test_openai_response_does_not_invent_resolved_model_identity(
         model="gpt-4o",
     )
     payload: dict[str, object] = {
-        "choices": [{"message": {"content": "{}"}}],
+        "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
     }
     if provider_model is not None:
         payload["model"] = provider_model
@@ -555,7 +595,7 @@ def test_live_cli_network_trust_reason_displays_only_endpoint_host() -> None:
             adapter_id="openai-chat-completions",
             provider="provider",
             model="model",
-            endpoint_url="https://api.example.test/v1?token=do-not-display",
+            endpoint_url="https://api.example.test/v1?api-version=2026-01-01",
             allow_network=True,
         ),
         cases=(
@@ -570,7 +610,7 @@ def test_live_cli_network_trust_reason_displays_only_endpoint_host() -> None:
     reasons = _trusted_live_config_reasons(config)
 
     assert reasons == ("allow_network can send prompts and metadata to 'api.example.test'",)
-    assert "do-not-display" not in reasons[0]
+    assert "api-version" not in reasons[0]
 
 
 def test_live_cli_external_script_prompt_matches_direct_launcher_and_network_scope() -> None:
@@ -584,7 +624,7 @@ def test_live_cli_external_script_prompt_matches_direct_launcher_and_network_sco
             provider="local-script",
             model="script-model",
             script_path="adapter.exe",
-            endpoint_url="https://misleading.example.test/path?token=do-not-display",
+            endpoint_url="https://misleading.example.test/path?mode=batch",
             allow_network=True,
         ),
         cases=(
@@ -602,37 +642,22 @@ def test_live_cli_external_script_prompt_matches_direct_launcher_and_network_sco
     assert "current Python" not in reasons[0]
     assert "arbitrary network connections" in reasons[1]
     assert "misleading.example.test" not in reasons[1]
-    assert "do-not-display" not in reasons[1]
+    assert "mode=batch" not in reasons[1]
 
 
-def test_live_cli_trust_reasons_redact_sensitive_configured_paths() -> None:
+def test_live_config_rejects_sensitive_configured_paths_without_echoing_them() -> None:
     secret = "Bearer ABCDEFGHIJKLMNOPQRSTUVWXYZ"
-    config = LiveRunConfig(
-        variant_id="external-live",
-        pipeline_id="pipeline",
-        tool_schema_digest="1" * 64,
-        policy_bundle_digest="2" * 64,
-        adapter=LiveAdapterConfig(
+    with pytest.raises(ValueError, match="must not persist") as exc_info:
+        LiveAdapterConfig(
             adapter_id="external-script",
             provider="local-script",
             model="script-model",
             script_path=f"{secret}.py",
             script_executable=secret,
-            script_env_allowlist=(secret,),
-        ),
-        cases=(
-            LivePromptCase(
-                case_id="case-001",
-                prompt_path="prompt.txt",
-                input_summary="summary",
-            ),
-        ),
-    )
+            script_env_allowlist=("OPENAI_API_KEY",),
+        )
 
-    reasons = _trusted_live_config_reasons(config)
-
-    assert all(secret not in reason for reason in reasons)
-    assert all("[REDACTED]" in reason for reason in reasons)
+    assert secret not in str(exc_info.value)
 
 
 def test_live_config_accepts_windows_style_script_allowlist_name() -> None:
@@ -645,6 +670,34 @@ def test_live_config_accepts_windows_style_script_allowlist_name() -> None:
     )
 
     assert config.script_env_allowlist == ("ProgramFiles(x86)",)
+
+
+@pytest.mark.parametrize(
+    "name",
+    ("", "API_KEY=secret", " leading-space", "two words", "NAME\x00VALUE"),
+)
+def test_live_config_rejects_non_name_script_environment_allowlist_entries(
+    name: str,
+) -> None:
+    with pytest.raises(ValueError, match="script_env_allowlist"):
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            script_env_allowlist=(name,),
+        )
+
+
+def test_live_config_requires_canonical_script_environment_allowlist() -> None:
+    with pytest.raises(ValueError, match="unique and canonically sorted"):
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            script_env_allowlist=("Z_VAR", "A_VAR"),
+        )
 
 
 @pytest.mark.parametrize(
@@ -670,6 +723,266 @@ def test_live_config_rejects_inline_script_environment_secrets_without_echoing_t
         )
 
     assert secret not in str(exc_info.value)
+
+
+_STRUCTURAL_CREDENTIAL_REFERENCES = (
+    "https://example.invalid/path?sig=x",
+    "//user:password@example.invalid/path",
+    ("https://safe.example/path?redirect=https%3A%2F%2Fuser%3Apassword%40internal%2F"),
+)
+
+
+@pytest.mark.parametrize("credential_reference", _STRUCTURAL_CREDENTIAL_REFERENCES)
+def test_live_config_rejects_structural_credentials_in_script_environment_values(
+    credential_reference: str,
+) -> None:
+    with pytest.raises(ValueError, match="script_env_allowlist") as exc_info:
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            script_env=({"name": "SAFE_SETTING", "value": credential_reference},),
+        )
+
+    assert credential_reference not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "script_args",
+    (
+        ("--api-key", "short-secret"),
+        ("--api_key", "short-secret"),
+        ("--provider-token", "short-secret"),
+        ("--clientSecret", "short-secret"),
+        ("--token=short-secret",),
+        ("-u", "user:password"),
+        ("--header", "Authorization: Basic dXNlcjpwYXNzd29yZA=="),
+        ("--header", "X-Auth-Token: abc123"),
+        ("--header", "XAuthToken: x"),
+        ("--header", "X-Goog-Api-Key: abc123"),
+        ("--header", "Api-Key: abc123"),
+        ("--header=Authorization: x",),
+        ("-HAuthorization: x",),
+        ("token=short",),
+        ("https://api.example.test/v1?X-Amz-Signature=short",),
+        ("https://safe.example/path?subscriptionKey=short",),
+        ("https://safe.example/path;sig=short",),
+        ("https://safe.example/path/token=short",),
+        ("//user:password@internal/path",),
+        ("//user:password@[",),
+        ("///user:password@internal/path",),
+        (r"https:\\user:password@internal\path",),
+        (r"https:/\\user:password@internal/path",),
+        ("https\uff1a\uff0f\uff0fuser\uff1apassword\uff20internal\uff0fpath",),
+        ("\uff0f\uff0fuser\uff1apassword\uff20internal\uff0fpath",),
+        ("https://user\uff1apassword\uff20internal/path",),
+        ("callback?x=1;token=short",),
+        ("https://safe.example/path?%2573%2569%2567=short",),
+        ("https://safe.example/path?redirect=https%3A%2F%2Fuser%3Apassword%40internal%2F",),
+        ("callback?redirect=https%3A%2F%2Finternal%2F%3Ftoken%3Dshort",),
+    ),
+)
+def test_live_config_rejects_credentials_split_across_script_argv(
+    script_args: tuple[str, ...],
+) -> None:
+    with pytest.raises(ValueError, match="script_args") as exc_info:
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            script_args=script_args,
+        )
+
+    assert "short-secret" not in str(exc_info.value)
+    assert "dXNlcjpwYXNzd29yZA" not in str(exc_info.value)
+
+
+def test_live_config_fails_closed_when_nested_uri_scan_budget_is_exhausted() -> None:
+    nested = "https://internal/path?sig=short"
+    for _ in range(4):
+        nested = f"https://safe.example/path?redirect={quote(nested, safe='')}"
+
+    with pytest.raises(ValueError, match="script_args"):
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path="adapter.py",
+            script_args=(nested,),
+        )
+
+
+@pytest.mark.parametrize(
+    "argument",
+    ("-h", "-host", "-UseBasicParsing", "-Uri", "-utf8", "-update"),
+)
+def test_live_config_allows_noncredential_single_dash_script_arguments(
+    argument: str,
+) -> None:
+    adapter = LiveAdapterConfig(
+        adapter_id="external-script",
+        provider="local-script",
+        model="script-model",
+        script_path="adapter.ps1",
+        script_args=(argument,),
+    )
+
+    assert adapter.script_args == (argument,)
+
+
+@pytest.mark.parametrize(
+    "query",
+    (
+        "token=do-not-persist",
+        "sig=short",
+        "X-Amz-Credential=short",
+        "X-Goog-Signature=short",
+    ),
+)
+def test_live_config_rejects_endpoint_query_credentials_before_persistence(
+    query: str,
+) -> None:
+    secret = "do-not-persist"
+
+    with pytest.raises(ValueError, match="endpoint_url must not persist credentials") as exc_info:
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="provider",
+            model="model",
+            endpoint_url=f"https://api.example.test/v1?{query}",
+            allow_network=True,
+        )
+
+    assert secret not in str(exc_info.value)
+
+
+def test_live_config_rejects_a_credential_hidden_in_adapter_identity() -> None:
+    secret = "sk-" + "a" * 32
+
+    with pytest.raises(ValueError, match="adapter_id must not persist") as exc_info:
+        LiveAdapterConfig(
+            adapter_id=secret,
+            provider="provider",
+            model="model",
+        )
+
+    assert secret not in str(exc_info.value)
+
+
+def test_live_config_rejects_a_credential_hidden_in_allowed_endpoint_hosts() -> None:
+    secret = "sk-" + "b" * 32
+
+    with pytest.raises(ValueError, match="allowed_endpoint_hosts") as exc_info:
+        LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="provider",
+            model="model",
+            allowed_endpoint_hosts=(secret,),
+        )
+
+    assert secret not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "adapter_id",
+        "provider",
+        "model",
+        "response_jsonl_path",
+        "script_path",
+        "script_executable",
+        "script_cwd",
+        "api_version",
+        "region",
+    ),
+)
+@pytest.mark.parametrize("credential_reference", _STRUCTURAL_CREDENTIAL_REFERENCES)
+def test_live_adapter_rejects_structural_credentials_in_every_durable_string(
+    field_name: str,
+    credential_reference: str,
+) -> None:
+    payload: dict[str, object] = {
+        "adapter_id": "external-script",
+        "provider": "local-script",
+        "model": "script-model",
+    }
+    payload[field_name] = credential_reference
+
+    with pytest.raises(ValueError, match=rf"{field_name} must not persist") as exc_info:
+        LiveAdapterConfig.model_validate(payload)
+
+    assert credential_reference not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    ("case_id", "prompt_path", "input_summary", "source_group_id"),
+)
+@pytest.mark.parametrize("credential_reference", _STRUCTURAL_CREDENTIAL_REFERENCES)
+def test_live_prompt_case_rejects_structural_credentials_in_every_durable_string(
+    field_name: str,
+    credential_reference: str,
+) -> None:
+    payload: dict[str, object] = {
+        "case_id": "case-001",
+        "prompt_path": "prompt.txt",
+        "input_summary": "privacy-safe summary",
+    }
+    payload[field_name] = credential_reference
+
+    with pytest.raises(ValueError, match=rf"{field_name} must not persist") as exc_info:
+        LivePromptCase.model_validate(payload)
+
+    assert credential_reference not in str(exc_info.value)
+
+
+@pytest.mark.parametrize(
+    "field_name",
+    (
+        "variant_id",
+        "pipeline_id",
+        "retrieval_corpus_dir",
+        "knowledge_contract_path",
+        "protocol_id",
+        "safety_notes",
+    ),
+)
+@pytest.mark.parametrize("credential_reference", _STRUCTURAL_CREDENTIAL_REFERENCES)
+def test_live_run_config_rejects_structural_credentials_in_every_durable_string(
+    field_name: str,
+    credential_reference: str,
+) -> None:
+    payload: dict[str, object] = {
+        "variant_id": "variant",
+        "pipeline_id": "pipeline",
+        "tool_schema_digest": "1" * 64,
+        "policy_bundle_digest": "2" * 64,
+        "retrieval_corpus_digest": "3" * 64,
+        "knowledge_contract_digest": "4" * 64,
+        "adapter": {
+            "adapter_id": "static-jsonl",
+            "provider": "static-provider",
+            "model": "static-model",
+        },
+        "cases": (
+            {
+                "case_id": "case-001",
+                "prompt_path": "prompt.txt",
+                "input_summary": "privacy-safe summary",
+            },
+        ),
+    }
+    payload[field_name] = (
+        (credential_reference,) if field_name == "safety_notes" else credential_reference
+    )
+
+    with pytest.raises(ValueError, match=rf"{field_name} must not persist") as exc_info:
+        LiveRunConfig.model_validate(payload)
+
+    assert credential_reference not in str(exc_info.value)
 
 
 def test_live_cli_interactive_trust_confirms_each_capability(
@@ -1039,6 +1352,7 @@ raise SystemExit(9)
 
 def test_live_runner_marks_malformed_provider_output_as_structured_output_failure(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     compiled = compile_suite(SUITE)
     prompt = tmp_path / "prompt.txt"
@@ -1058,6 +1372,13 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
         protocol_digest,
         evidence_sensitivity_design_digest=design_digest,
     )
+    timestamps = iter(
+        (
+            "2026-09-05T12:00:00.100000Z",
+            "2026-09-05T12:00:00.100000Z",
+        )
+    )
+    monkeypatch.setattr(live_runner, "_utc_now", lambda: next(timestamps))
 
     runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
 
@@ -1065,6 +1386,8 @@ def test_live_runner_marks_malformed_provider_output_as_structured_output_failur
     assert runset.runs[0].observation_status == "excluded"
     assert runset.runs[0].exclusion_reason == "structured-output-invalid"
     assert runset.runs[0].traceparent is not None
+    assert runset.runs[0].started_at_utc == "2026-09-05T12:00:00.100000Z"
+    assert runset.runs[0].completed_at_utc == "2026-09-05T12:00:00.100001Z"
     assert runset.evidence_sensitivity_design_digest == design_digest
     assert runset.runs[0].provenance.evidence_sensitivity_design_digest == design_digest
 
@@ -1657,9 +1980,7 @@ def test_live_run_reconstructs_compiled_suite_before_adapter_construction(
     config = _static_config(prompt, responses, protocol, sha256_hexdigest(protocol))
     snapshot = prepare_live_execution_snapshot(compiled, config, config_dir=tmp_path)
     forged_case = compiled.cases[0].model_copy(update={"case_id": ""})
-    forged_compiled = compiled.model_copy(
-        update={"cases": (forged_case, *compiled.cases[1:])}
-    )
+    forged_compiled = compiled.model_copy(update={"cases": (forged_case, *compiled.cases[1:])})
     adapter_constructed = False
 
     def forbidden_adapter_construction(*_args: object, **_kwargs: object) -> object:
@@ -1879,6 +2200,90 @@ def test_max_requests_counts_retry_attempts(
     assert pace_calls[0] > 0
     assert runset.runs[1].exclusion_reason == "budget_exhausted"
     assert runset.stop_reasons == ("request_budget_exhausted",)
+
+
+def test_attempt_observer_failure_after_response_aborts_before_next_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    protocol_payload = _protocol_payload(compiled)
+    protocol_payload.update(
+        {
+            "planned_observations": 2,
+            "planned_repetitions": 2,
+            "planned_observations_per_cluster": "2.000000",
+            "design_effect": "1.200000",
+            "planned_effective_n": "1.666667",
+            "max_requests": 2,
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(protocol_payload)
+    config = LiveRunConfig(
+        variant_id="journal-failure-live",
+        pipeline_id="expense-live",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="fake",
+            provider="fake-provider",
+            model="fake-model",
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        repetitions=2,
+        max_requests=2,
+        max_retries=0,
+        max_total_cost_usd="1.000000",
+        max_cost_per_observation_usd="1.000000",
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+    )
+
+    class CountingAdapter:
+        adapter_id = "fake"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            self.calls += 1
+            return LiveProviderResponse(
+                content=json.dumps(
+                    {
+                        "recommendation": "approve",
+                        "outcome": "approve",
+                        "output_summary": "approved",
+                    }
+                ),
+                provider="fake-provider",
+                model="fake-model",
+            )
+
+    adapter = CountingAdapter()
+    monkeypatch.setattr(live_runner, "build_adapter", lambda *_args, **_kwargs: adapter)
+
+    def failing_observer(notification: live_runner.LiveAttemptNotification) -> None:
+        if notification.phase == "succeeded":
+            raise OSError("simulated journal fsync failure")
+
+    with pytest.raises(live_runner.LiveAttemptObserverError, match="journal update failed"):
+        run_live_suite(
+            compiled,
+            config,
+            protocol=protocol,
+            config_dir=tmp_path,
+            attempt_observer=failing_observer,
+        )
+
+    assert adapter.calls == 1
 
 
 def test_permanent_provider_error_is_not_retried(
@@ -3183,7 +3588,7 @@ def test_openai_adapter_keeps_adversarial_governing_evidence_out_of_system_role(
                 {
                     "id": "response-1",
                     "model": "gpt-4o-2024-08-06",
-                    "choices": [{"message": {"content": "{}"}}],
+                    "choices": [{"finish_reason": "stop", "message": {"content": "{}"}}],
                 }
             ).encode("utf-8")
 

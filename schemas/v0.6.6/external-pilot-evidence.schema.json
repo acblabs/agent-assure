@@ -1,0 +1,960 @@
+{
+  "$defs": {
+    "PilotArtifactContentScope": {
+      "enum": [
+        "distribution_binary",
+        "metadata_only",
+        "privacy_filtered"
+      ],
+      "title": "PilotArtifactContentScope",
+      "type": "string"
+    },
+    "PilotArtifactDigest": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "content_scope": {
+          "$ref": "#/$defs/PilotArtifactContentScope"
+        },
+        "path": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "producing_command_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Producing Command Id"
+        },
+        "role": {
+          "$ref": "#/$defs/PilotArtifactRole"
+        },
+        "schema_contract": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Schema Contract"
+        },
+        "schema_validated": {
+          "title": "Schema Validated",
+          "type": "boolean"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "path",
+        "role",
+        "sha256",
+        "content_scope",
+        "schema_validated",
+        "schema_contract"
+      ],
+      "title": "PilotArtifactDigest",
+      "type": "object"
+    },
+    "PilotArtifactRole": {
+      "enum": [
+        "tested_distribution",
+        "environment_manifest",
+        "environment_control_evidence",
+        "input_manifest",
+        "execution_evidence",
+        "assurance_output",
+        "friction_assessment",
+        "remediation_record",
+        "consent_record"
+      ],
+      "title": "PilotArtifactRole",
+      "type": "string"
+    },
+    "PilotAttemptStatus": {
+      "enum": [
+        "attempted",
+        "completed",
+        "not_attempted"
+      ],
+      "title": "PilotAttemptStatus",
+      "type": "string"
+    },
+    "PilotClassification": {
+      "enum": [
+        "external",
+        "internal_dogfood",
+        "synthetic"
+      ],
+      "title": "PilotClassification",
+      "type": "string"
+    },
+    "PilotCommandExecution": {
+      "additionalProperties": false,
+      "properties": {
+        "argv": {
+          "items": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "pattern": "^[^\\x00\\r\\n]+$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "minItems": 1,
+          "title": "Argv",
+          "type": "array"
+        },
+        "command_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Command Id",
+          "type": "string"
+        },
+        "consumed_input_entry_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Consumed Input Entry Ids",
+          "type": "array"
+        },
+        "credential_values_persisted": {
+          "const": false,
+          "title": "Credential Values Persisted",
+          "type": "boolean"
+        },
+        "environment_variable_names": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Environment Variable Names",
+          "type": "array"
+        },
+        "execution_evidence_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Execution Evidence Artifact Id",
+          "type": "string"
+        },
+        "execution_evidence_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Execution Evidence Digest",
+          "type": "string"
+        },
+        "exit_code": {
+          "maximum": 255,
+          "minimum": -255,
+          "title": "Exit Code",
+          "type": "integer"
+        },
+        "finished_at": {
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Finished At",
+          "type": "string"
+        },
+        "implementation_source_revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Implementation Source Revision",
+          "type": "string"
+        },
+        "input_manifest_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Input Manifest Artifact Id",
+          "type": "string"
+        },
+        "raw_output_persisted": {
+          "const": false,
+          "title": "Raw Output Persisted",
+          "type": "boolean"
+        },
+        "sequence": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Sequence",
+          "type": "integer"
+        },
+        "started_at": {
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Started At",
+          "type": "string"
+        },
+        "tested_distribution_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Tested Distribution Artifact Id",
+          "type": "string"
+        },
+        "tested_distribution_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Tested Distribution Digest",
+          "type": "string"
+        },
+        "working_directory_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Working Directory Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "command_id",
+        "sequence",
+        "argv",
+        "working_directory_id",
+        "environment_variable_names",
+        "credential_values_persisted",
+        "raw_output_persisted",
+        "tested_distribution_artifact_id",
+        "tested_distribution_digest",
+        "implementation_source_revision",
+        "input_manifest_artifact_id",
+        "consumed_input_entry_ids",
+        "started_at",
+        "finished_at",
+        "exit_code",
+        "execution_evidence_artifact_id",
+        "execution_evidence_digest"
+      ],
+      "title": "PilotCommandExecution",
+      "type": "object"
+    },
+    "PilotConsentStatus": {
+      "enum": [
+        "granted",
+        "withheld",
+        "not_requested"
+      ],
+      "title": "PilotConsentStatus",
+      "type": "string"
+    },
+    "PilotEnvironment": {
+      "additionalProperties": false,
+      "properties": {
+        "components": {
+          "items": {
+            "$ref": "#/$defs/PilotEnvironmentComponent"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Components",
+          "type": "array"
+        },
+        "control": {
+          "$ref": "#/$defs/PilotEnvironmentControl"
+        },
+        "control_evidence_artifact_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Control Evidence Artifact Id"
+        },
+        "environment_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Environment Id",
+          "type": "string"
+        },
+        "environment_manifest_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Environment Manifest Artifact Id",
+          "type": "string"
+        },
+        "environment_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Environment Manifest Digest",
+          "type": "string"
+        },
+        "execution_context": {
+          "$ref": "#/$defs/PilotExecutionContext"
+        },
+        "platform": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Platform",
+          "type": "string"
+        }
+      },
+      "required": [
+        "environment_id",
+        "execution_context",
+        "control",
+        "platform",
+        "components",
+        "environment_manifest_artifact_id",
+        "environment_manifest_digest",
+        "control_evidence_artifact_id"
+      ],
+      "title": "PilotEnvironment",
+      "type": "object"
+    },
+    "PilotEnvironmentComponent": {
+      "additionalProperties": false,
+      "properties": {
+        "component_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Component Id",
+          "type": "string"
+        },
+        "version": {
+          "maxLength": 128,
+          "minLength": 1,
+          "title": "Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "component_id",
+        "version"
+      ],
+      "title": "PilotEnvironmentComponent",
+      "type": "object"
+    },
+    "PilotEnvironmentControl": {
+      "enum": [
+        "independently_controlled_non_maintainer",
+        "maintainer_controlled",
+        "synthetic_harness",
+        "unverified"
+      ],
+      "title": "PilotEnvironmentControl",
+      "type": "string"
+    },
+    "PilotExecutionContext": {
+      "enum": [
+        "continuous_integration",
+        "local"
+      ],
+      "title": "PilotExecutionContext",
+      "type": "string"
+    },
+    "PilotFrictionAssessmentState": {
+      "enum": [
+        "friction_observed",
+        "no_friction_observed",
+        "not_assessed"
+      ],
+      "title": "PilotFrictionAssessmentState",
+      "type": "string"
+    },
+    "PilotFrictionCategory": {
+      "enum": [
+        "installation",
+        "configuration",
+        "diagnostics",
+        "continuous_integration",
+        "runtime",
+        "documentation",
+        "other"
+      ],
+      "title": "PilotFrictionCategory",
+      "type": "string"
+    },
+    "PilotFrictionFinding": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "$ref": "#/$defs/PilotFrictionCategory"
+        },
+        "evidence_artifact_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Evidence Artifact Ids",
+          "type": "array"
+        },
+        "friction_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Friction Id",
+          "type": "string"
+        },
+        "remediation_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Remediation Ids",
+          "type": "array"
+        },
+        "summary": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "title": "Summary",
+          "type": "string"
+        }
+      },
+      "required": [
+        "friction_id",
+        "category",
+        "summary",
+        "evidence_artifact_ids",
+        "remediation_ids"
+      ],
+      "title": "PilotFrictionFinding",
+      "type": "object"
+    },
+    "PilotInputBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "configuration_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Configuration Digest"
+        },
+        "configuration_origin": {
+          "$ref": "#/$defs/PilotInputOrigin"
+        },
+        "data_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Data Digest"
+        },
+        "data_origin": {
+          "$ref": "#/$defs/PilotInputOrigin"
+        },
+        "input_manifest_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Input Manifest Artifact Id",
+          "type": "string"
+        },
+        "input_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Input Manifest Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "configuration_origin",
+        "configuration_digest",
+        "data_origin",
+        "data_digest",
+        "input_manifest_artifact_id",
+        "input_manifest_digest"
+      ],
+      "title": "PilotInputBoundary",
+      "type": "object"
+    },
+    "PilotInputOrigin": {
+      "enum": [
+        "non_bundled",
+        "bundled",
+        "mixed_bundled_non_bundled",
+        "synthetic",
+        "absent"
+      ],
+      "title": "PilotInputOrigin",
+      "type": "string"
+    },
+    "PilotPrivacyBoundary": {
+      "additionalProperties": false,
+      "properties": {
+        "credential_values_persisted": {
+          "const": false,
+          "title": "Credential Values Persisted",
+          "type": "boolean"
+        },
+        "participant_direct_identifiers_persisted": {
+          "const": false,
+          "title": "Participant Direct Identifiers Persisted",
+          "type": "boolean"
+        },
+        "persisted_content": {
+          "const": "digests_and_privacy_filtered_metadata_only",
+          "title": "Persisted Content",
+          "type": "string"
+        },
+        "raw_inputs_persisted": {
+          "const": false,
+          "title": "Raw Inputs Persisted",
+          "type": "boolean"
+        },
+        "raw_outputs_persisted": {
+          "const": false,
+          "title": "Raw Outputs Persisted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "raw_inputs_persisted",
+        "raw_outputs_persisted",
+        "credential_values_persisted",
+        "participant_direct_identifiers_persisted",
+        "persisted_content"
+      ],
+      "title": "PilotPrivacyBoundary",
+      "type": "object"
+    },
+    "PilotPublication": {
+      "additionalProperties": false,
+      "properties": {
+        "consent_artifact_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Consent Artifact Id"
+        },
+        "consent_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "title": "Consent Digest"
+        },
+        "consent_status": {
+          "$ref": "#/$defs/PilotConsentStatus"
+        },
+        "publication_scope": {
+          "$ref": "#/$defs/PilotPublicationScope"
+        },
+        "published_artifact_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 256,
+          "title": "Published Artifact Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "consent_status",
+        "publication_scope",
+        "consent_artifact_id",
+        "consent_digest",
+        "published_artifact_ids"
+      ],
+      "title": "PilotPublication",
+      "type": "object"
+    },
+    "PilotPublicationScope": {
+      "enum": [
+        "private_record",
+        "aggregate_summary",
+        "privacy_filtered_record"
+      ],
+      "title": "PilotPublicationScope",
+      "type": "string"
+    },
+    "PilotRemediationArea": {
+      "enum": [
+        "onboarding",
+        "initialization",
+        "diagnostics",
+        "documentation",
+        "integration",
+        "roadmap",
+        "other"
+      ],
+      "title": "PilotRemediationArea",
+      "type": "string"
+    },
+    "PilotRemediationDisposition": {
+      "enum": [
+        "applied",
+        "planned",
+        "deferred",
+        "no_change_required"
+      ],
+      "title": "PilotRemediationDisposition",
+      "type": "string"
+    },
+    "PilotRemediationReference": {
+      "additionalProperties": false,
+      "properties": {
+        "areas": {
+          "items": {
+            "$ref": "#/$defs/PilotRemediationArea"
+          },
+          "maxItems": 8,
+          "minItems": 1,
+          "title": "Areas",
+          "type": "array"
+        },
+        "disposition": {
+          "$ref": "#/$defs/PilotRemediationDisposition"
+        },
+        "remediation_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Remediation Artifact Id",
+          "type": "string"
+        },
+        "remediation_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Remediation Digest",
+          "type": "string"
+        },
+        "remediation_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Remediation Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "remediation_id",
+        "areas",
+        "disposition",
+        "remediation_artifact_id",
+        "remediation_digest"
+      ],
+      "title": "PilotRemediationReference",
+      "type": "object"
+    },
+    "PilotSubject": {
+      "additionalProperties": false,
+      "properties": {
+        "distribution_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Distribution Artifact Id",
+          "type": "string"
+        },
+        "distribution_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Distribution Digest",
+          "type": "string"
+        },
+        "implementation_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Implementation Id",
+          "type": "string"
+        },
+        "implementation_version": {
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+          "title": "Implementation Version",
+          "type": "string"
+        },
+        "source_revision": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Source Revision",
+          "type": "string"
+        }
+      },
+      "required": [
+        "implementation_id",
+        "implementation_version",
+        "source_revision",
+        "distribution_artifact_id",
+        "distribution_digest"
+      ],
+      "title": "PilotSubject",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/external-pilot-evidence.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Digest-bound adoption evidence with deliberately non-release-gating semantics.",
+  "properties": {
+    "artifact_kind": {
+      "const": "external-pilot-evidence",
+      "default": "external-pilot-evidence",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "artifacts": {
+      "items": {
+        "$ref": "#/$defs/PilotArtifactDigest"
+      },
+      "maxItems": 256,
+      "minItems": 3,
+      "title": "Artifacts",
+      "type": "array"
+    },
+    "attempt_status": {
+      "$ref": "#/$defs/PilotAttemptStatus"
+    },
+    "ci_integration_gate_eligible": {
+      "const": false,
+      "title": "Ci Integration Gate Eligible",
+      "type": "boolean"
+    },
+    "classification": {
+      "$ref": "#/$defs/PilotClassification"
+    },
+    "clean_reproduction_gate_eligible": {
+      "const": false,
+      "title": "Clean Reproduction Gate Eligible",
+      "type": "boolean"
+    },
+    "commands": {
+      "items": {
+        "$ref": "#/$defs/PilotCommandExecution"
+      },
+      "maxItems": 64,
+      "title": "Commands",
+      "type": "array"
+    },
+    "contract_id": {
+      "const": "ExternalPilotEvidence/v1",
+      "default": "ExternalPilotEvidence/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "environment": {
+      "$ref": "#/$defs/PilotEnvironment"
+    },
+    "evidence_phase": {
+      "const": "pre_candidate",
+      "title": "Evidence Phase",
+      "type": "string"
+    },
+    "evidence_use": {
+      "const": "learning_and_remediation_only",
+      "title": "Evidence Use",
+      "type": "string"
+    },
+    "exact_candidate_gate_eligible": {
+      "const": false,
+      "title": "Exact Candidate Gate Eligible",
+      "type": "boolean"
+    },
+    "friction_assessment": {
+      "$ref": "#/$defs/PilotFrictionAssessmentState"
+    },
+    "friction_assessment_artifact_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Friction Assessment Artifact Id"
+    },
+    "friction_findings": {
+      "items": {
+        "$ref": "#/$defs/PilotFrictionFinding"
+      },
+      "maxItems": 128,
+      "title": "Friction Findings",
+      "type": "array"
+    },
+    "inputs": {
+      "$ref": "#/$defs/PilotInputBoundary"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 2048,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "participant_pseudonym": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Participant Pseudonym",
+      "type": "string"
+    },
+    "pilot_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Pilot Evidence Digest",
+      "type": "string"
+    },
+    "pilot_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Pilot Id",
+      "type": "string"
+    },
+    "privacy": {
+      "$ref": "#/$defs/PilotPrivacyBoundary"
+    },
+    "publication": {
+      "$ref": "#/$defs/PilotPublication"
+    },
+    "qualifies_as_external_attempt": {
+      "title": "Qualifies As External Attempt",
+      "type": "boolean"
+    },
+    "recorded_at": {
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Recorded At",
+      "type": "string"
+    },
+    "remediations": {
+      "items": {
+        "$ref": "#/$defs/PilotRemediationReference"
+      },
+      "maxItems": 128,
+      "title": "Remediations",
+      "type": "array"
+    },
+    "schema_name": {
+      "const": "external-pilot-evidence",
+      "default": "external-pilot-evidence",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "subject": {
+      "$ref": "#/$defs/PilotSubject"
+    },
+    "workflow_id": {
+      "enum": [
+        "controls-mutate",
+        "rag-sensitivity"
+      ],
+      "title": "Workflow Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "pilot_evidence_digest",
+    "pilot_id",
+    "workflow_id",
+    "participant_pseudonym",
+    "classification",
+    "attempt_status",
+    "qualifies_as_external_attempt",
+    "subject",
+    "environment",
+    "inputs",
+    "commands",
+    "artifacts",
+    "friction_assessment",
+    "friction_assessment_artifact_id",
+    "friction_findings",
+    "remediations",
+    "publication",
+    "privacy",
+    "recorded_at",
+    "limitations",
+    "evidence_phase",
+    "evidence_use",
+    "clean_reproduction_gate_eligible",
+    "exact_candidate_gate_eligible",
+    "ci_integration_gate_eligible",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ExternalPilotEvidence",
+  "type": "object"
+}

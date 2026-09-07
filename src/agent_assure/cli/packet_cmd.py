@@ -53,6 +53,7 @@ from agent_assure.reporting.packet import (
     load_statistical_sufficiency_report_snapshot,
     load_stochastic_evidence_sensitivity_report_snapshot,
     packet_artifact_digest_from_snapshot,
+    packet_artifact_max_bytes,
     packet_summary_files_binding_error_for_trusted_publication,
     release_artifact_from_source_snapshot,
     release_artifact_from_summary_snapshot,
@@ -322,14 +323,14 @@ def build(
                 stochastic_baseline_path,
                 root=source_root,
                 artifact_root=artifact_root,
-                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                max_bytes=packet_artifact_max_bytes("stochastic-baseline-source-runset"),
                 label="stochastic baseline source RunSet",
             )
             stochastic_counterfactual_snapshot = load_identity_bound_packet_source_file_snapshot(
                 stochastic_counterfactual_path,
                 root=source_root,
                 artifact_root=artifact_root,
-                max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                max_bytes=packet_artifact_max_bytes("stochastic-counterfactual-source-runset"),
                 label="stochastic counterfactual source RunSet",
             )
             sufficiency_report = sufficiency_snapshot.summary
@@ -792,7 +793,7 @@ def _project_stochastic_source_runset(
 ) -> RunSet:
     payload = load_json_bytes_bounded(
         snapshot.contents.data,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        max_bytes=packet_artifact_max_bytes(role),
         label=role.replace("-", " "),
     )
     validate_loaded_artifact_payload(payload, "run-set")

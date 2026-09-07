@@ -16,6 +16,7 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.graph import build_evidence_graph
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
+    MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
     BoundedFileContents,
     load_json_bytes_bounded,
 )
@@ -113,6 +114,21 @@ _REVALIDATED_CAPTURED_SOURCE_ROLES = frozenset(
         "stochastic-counterfactual-source-runset",
     }
 )
+_STOCHASTIC_SOURCE_RUNSET_ROLES = frozenset(
+    {
+        "stochastic-baseline-source-runset",
+        "stochastic-counterfactual-source-runset",
+    }
+)
+
+
+def packet_artifact_max_bytes(role: str) -> int:
+    """Return the per-file verification limit for a packet artifact role."""
+    if role in _STOCHASTIC_SOURCE_RUNSET_ROLES:
+        return MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    return MAX_ARTIFACT_JSON_BYTES
+
+
 SummaryT = TypeVar(
     "SummaryT",
     EvaluationSummary,
@@ -666,7 +682,7 @@ def _packet_summary_files_binding_error_from_paths(
                 live_contents = read_confined_file_snapshot(
                     source_path,
                     root=artifact_root,
-                    max_bytes=MAX_ARTIFACT_JSON_BYTES,
+                    max_bytes=packet_artifact_max_bytes(release_artifact.role),
                     label=f"release manifest {release_artifact.role} artifact",
                 )
                 relative_path = confined_snapshot_relative_path(
@@ -1105,8 +1121,7 @@ def _evaluation_source_binding_error(
         )
     except (KeyError, OSError, RuntimeError, TypeError, UnicodeError, ValueError):
         return (
-            "evidence packet manifest RunSets could not be safely verified against "
-            "compiled-suite"
+            "evidence packet manifest RunSets could not be safely verified against compiled-suite"
         )
     reproduced_evaluation = _replayed_evaluation_summary(
         candidate_report,
@@ -1157,9 +1172,7 @@ def _replayed_evaluation_summary(
     *,
     replay_context: EvaluationReplayContext,
 ) -> EvaluationSummary:
-    summary = report.candidate_vs_expectations.model_copy(
-        update={"replay_context": replay_context}
-    )
+    summary = report.candidate_vs_expectations.model_copy(update={"replay_context": replay_context})
     if replay_context.report_mode == "fail-fast":
         first = next((finding for finding in report.failed_controls), None)
         if first is not None:
@@ -1188,17 +1201,13 @@ def _comparison_runset_identity_binding_error(
         comparison.baseline_runset_digest,
     ) != (baseline.runset_id, runset_digest(baseline)):
         return (
-            "evidence packet comparison baseline identity does not match manifest "
-            "baseline-runset"
+            "evidence packet comparison baseline identity does not match manifest baseline-runset"
         )
     if (
         comparison.privacy_profile_id,
         comparison.privacy_profile_digest,
     ) != (baseline.privacy_profile_id, baseline.privacy_profile_digest):
-        return (
-            "evidence packet comparison privacy profile does not match manifest "
-            "baseline-runset"
-        )
+        return "evidence packet comparison privacy profile does not match manifest baseline-runset"
     if candidate is None:
         return None
     if (
@@ -1206,17 +1215,13 @@ def _comparison_runset_identity_binding_error(
         comparison.candidate_runset_digest,
     ) != (candidate.runset_id, runset_digest(candidate)):
         return (
-            "evidence packet comparison candidate identity does not match manifest "
-            "candidate-runset"
+            "evidence packet comparison candidate identity does not match manifest candidate-runset"
         )
     if (
         comparison.privacy_profile_id,
         comparison.privacy_profile_digest,
     ) != (candidate.privacy_profile_id, candidate.privacy_profile_digest):
-        return (
-            "evidence packet comparison privacy profile does not match manifest "
-            "candidate-runset"
-        )
+        return "evidence packet comparison privacy profile does not match manifest candidate-runset"
     return None
 
 
@@ -1319,7 +1324,7 @@ def _manifest_snapshot_binding_error(
     if not isinstance(contents.data, bytes):
         return f"evidence packet {artifact.role} source snapshot has invalid bytes", aggregate_bytes
     actual_size = len(contents.data)
-    if actual_size > MAX_ARTIFACT_JSON_BYTES:
+    if actual_size > packet_artifact_max_bytes(artifact.role):
         return (
             f"evidence packet {artifact.role} source file exceeds the verification limit",
             aggregate_bytes,
@@ -1371,7 +1376,7 @@ def _project_runset_snapshot(
 ) -> RunSet:
     payload = load_json_bytes_bounded(
         contents.data,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        max_bytes=packet_artifact_max_bytes(role),
         label=role.replace("-", " "),
     )
     validate_loaded_artifact_payload(payload, "run-set")

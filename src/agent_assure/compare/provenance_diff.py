@@ -14,6 +14,7 @@ PROVENANCE_FIELDS = (
     "fixture_manifest_digest",
     "retrieval_corpus_digest",
     "evidence_sensitivity_design_digest",
+    "study_manifest_digest",
 )
 
 

@@ -208,7 +208,7 @@ def test_core_release_roles_preserve_historical_replay_contract(
     assert core_release_roles_for_schema_version(schema_version) == LEGACY_CORE_RELEASE_ROLES
 
 
-@pytest.mark.parametrize("schema_version", ("0.6.3", "0.6.4", "0.6.5"))
+@pytest.mark.parametrize("schema_version", ("0.6.3", "0.6.4", "0.6.5", "0.6.6"))
 def test_core_release_roles_require_graph_for_graph_era_schemas(schema_version: str) -> None:
     assert core_release_roles_for_schema_version(schema_version) == CORE_RELEASE_ROLES
 
@@ -221,7 +221,7 @@ def test_core_release_role_policy_covers_every_schema_version() -> None:
 
 def test_core_release_roles_fail_closed_for_unmapped_schema() -> None:
     with pytest.raises(ValueError, match="no core release-role policy"):
-        core_release_roles_for_schema_version("0.6.6")
+        core_release_roles_for_schema_version("9.9.9")
 
 
 def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:

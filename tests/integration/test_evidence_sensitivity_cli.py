@@ -68,12 +68,10 @@ from agent_assure.schema.sensitivity import (
 )
 from agent_assure.sensitivity_comparison import derive_sensitivity_comparison
 from agent_assure.sensitivity_contract import (
-    BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES,
-    BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST,
-    BUNDLED_SENSITIVITY_SUITE_IDENTITIES,
     SENSITIVITY_HARNESS_NOTICE,
     SENSITIVITY_PROVENANCE_BINDING,
     SENSITIVITY_SUBJECT_EXECUTION_SCOPE,
+    bundled_sensitivity_identity_set,
 )
 
 RUNNER = CliRunner()
@@ -1974,10 +1972,12 @@ def _synthetic_data_attestation_args(
             ),
         }
     )
+    identity_set = bundled_sensitivity_identity_set(contract.schema_version)
     if (
-        (suite_digest, manifest_digest) in BUNDLED_SENSITIVITY_SUITE_IDENTITIES
-        and contract.knowledge_contract_digest == BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST
-        and snapshot_identities == BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES
+        identity_set is not None
+        and (suite_digest, manifest_digest) in identity_set.suite_identities
+        and contract.knowledge_contract_digest == identity_set.knowledge_contract_digest
+        and snapshot_identities == identity_set.corpus_snapshot_identities
     ):
         return []
 

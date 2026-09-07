@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[3]
 
 @pytest.mark.parametrize(
     "schema_version",
-    ("0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+    ("0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"),
 )
 def test_machine_id_era_artifact_schemas_require_privacy_profile_pair(
     schema_version: str,
@@ -53,14 +53,14 @@ def test_machine_id_era_artifact_schemas_require_privacy_profile_pair(
             "artifact_kind": model.model_fields["artifact_kind"].default,
             "schema_version": schema_version,
         }
-        if model is ComparisonSummary and schema_version in {"0.6.4", "0.6.5"}:
+        if model is ComparisonSummary and schema_version in {"0.6.4", "0.6.5", "0.6.6"}:
             identified_payload.update(
                 {
                     "baseline_runset_digest": "2" * 64,
                     "candidate_runset_digest": "3" * 64,
                 }
             )
-        if model is EvaluationSummary and schema_version == "0.6.5":
+        if model is EvaluationSummary and schema_version in {"0.6.5", "0.6.6"}:
             identified_payload["runset_digest"] = "4" * 64
         validator = Draft202012Validator(model.model_json_schema())
         with pytest.raises(JsonSchemaValidationError):

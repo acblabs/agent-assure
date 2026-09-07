@@ -1,0 +1,100 @@
+# Authoring template only; it is deliberately a non-qualifying, not-attempted,
+# private planning record. It is not evidence of external adoption or CI use.
+# Replace illustrative values with observed, consented facts. Omit the derived
+# pilot_evidence_digest, then finalize with:
+# agent-assure release pilot finalize --template external_pilot_evidence.yaml
+#   --out evidence/empirical/external-pilot/external-pilot-evidence.json
+artifact_kind: external-pilot-evidence
+schema_version: 0.6.6
+schema_name: external-pilot-evidence
+contract_id: ExternalPilotEvidence/v1
+contract_version: 1.0.0
+pilot_id: replace-pilot-id
+# Closed signature-workflow set: controls-mutate or rag-sensitivity.
+workflow_id: controls-mutate
+participant_pseudonym: replace-participant-pseudonym
+classification: external
+attempt_status: not_attempted
+qualifies_as_external_attempt: false
+subject:
+  implementation_id: agent-assure
+  implementation_version: 0.0.0
+  source_revision: replace-source-revision
+  distribution_artifact_id: distribution-artifact
+  distribution_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+environment:
+  environment_id: replace-environment-id
+  execution_context: continuous_integration
+  control: unverified
+  platform: Replace with privacy-safe platform and runner metadata.
+  components:
+    - component_id: python
+      version: replace-version
+  environment_manifest_artifact_id: environment-manifest
+  environment_manifest_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+  control_evidence_artifact_id: null
+inputs:
+  # Use mixed_bundled_non_bundled only when the typed manifest has at least
+  # one bundled and one non-bundled entry of this input kind.
+  configuration_origin: mixed_bundled_non_bundled
+  configuration_digest: "3333333333333333333333333333333333333333333333333333333333333333"
+  data_origin: absent
+  data_digest: null
+  input_manifest_artifact_id: input-manifest
+  input_manifest_digest: "4444444444444444444444444444444444444444444444444444444444444444"
+commands: []
+artifacts:
+  # Artifacts must be unique and sorted by artifact_id.
+  - artifact_id: distribution-artifact
+    # The verified release bundle currently accepts a wheel as the tested
+    # distribution and validates its filename, METADATA, WHEEL tags, and RECORD.
+    path: agent_assure-0.0.0-py3-none-any.whl
+    role: tested_distribution
+    sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+    content_scope: distribution_binary
+    schema_validated: false
+    schema_contract: null
+    producing_command_id: null
+  - artifact_id: environment-manifest
+    path: environment-manifest.json
+    role: environment_manifest
+    sha256: "2222222222222222222222222222222222222222222222222222222222222222"
+    content_scope: metadata_only
+    schema_validated: false
+    schema_contract: null
+    producing_command_id: null
+  - artifact_id: input-manifest
+    # This file must validate as PilotInputManifest/v1 and enumerate every
+    # workflow input consumed by a qualifying command. Its aggregate digests
+    # must match inputs.configuration_digest and inputs.data_digest.
+    path: input-manifest.json
+    role: input_manifest
+    sha256: "4444444444444444444444444444444444444444444444444444444444444444"
+    content_scope: metadata_only
+    schema_validated: true
+    schema_contract: PilotInputManifest/v1
+    producing_command_id: null
+friction_assessment: not_assessed
+friction_assessment_artifact_id: null
+friction_findings: []
+remediations: []
+publication:
+  consent_status: not_requested
+  publication_scope: private_record
+  consent_artifact_id: null
+  consent_digest: null
+  published_artifact_ids: []
+privacy:
+  raw_inputs_persisted: false
+  raw_outputs_persisted: false
+  credential_values_persisted: false
+  participant_direct_identifiers_persisted: false
+  persisted_content: digests_and_privacy_filtered_metadata_only
+recorded_at: "2030-01-01T00:00:00Z"
+limitations:
+  - No pilot attempt is represented by this unfilled authoring template.
+evidence_phase: pre_candidate
+evidence_use: learning_and_remediation_only
+clean_reproduction_gate_eligible: false
+exact_candidate_gate_eligible: false
+ci_integration_gate_eligible: false

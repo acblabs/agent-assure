@@ -1,25 +1,36 @@
 from __future__ import annotations
 
+import inspect
 import json
 import os
 import threading
+from collections.abc import Mapping
 from hashlib import sha256
 from pathlib import Path
-from typing import cast
+from typing import Literal, cast
 
 import pytest
 
 from agent_assure import rooted_io
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.evaluation.evaluator import load_runset
+from agent_assure.io_limits import (
+    MAX_ARTIFACT_JSON_BYTES,
+    MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+)
+from agent_assure.live.adapters import LiveProviderRequest
 from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
+from agent_assure.live.runner import LiveAttemptNotification
 from agent_assure.privacy.detectors import (
     PRIVACY_PROFILE_DIGEST,
     PRIVACY_PROFILE_ID,
     PRIVACY_REDACTION_TEXT,
 )
+from agent_assure.rag import repeated_sensitivity as repeated_workflow
 from agent_assure.rag.repeated_sensitivity import (
     assemble_paired_observations,
     build_paired_runset_dependencies,
+    execution_attempt_journal_path,
     run_repeated_live_study,
 )
 from agent_assure.rag.sensitivity_statistics import (
@@ -37,10 +48,19 @@ from agent_assure.reporting.stochastic_sensitivity import (
     write_repeated_run_artifacts,
 )
 from agent_assure.rooted_io import RootedDirectoryClaim, RootedDirectoryDescriptor
+from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
+from agent_assure.schema.run import (
+    MAX_LIVE_EXECUTION_ATTEMPT_EVENTS,
+    AgentRunRecord,
+    LiveExecutionAttemptEvent,
+    LiveExecutionAttemptJournal,
+    PolicyResult,
+    RunSet,
+)
 from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityExpectedRelation,
     RAGSensitivityAuthorityAssignment,
     RAGSensitivityCaseAuthorityBinding,
 )
@@ -52,18 +72,27 @@ from agent_assure.schema.stochastic_sensitivity import (
     SensitivityArmBinding,
 )
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import validate_artifact
 
 
 def _digest(value: str) -> str:
     return sha256(value.encode("utf-8")).hexdigest()
 
 
-def _arm(arm_id: str, *, configuration: str, corpus: str) -> SensitivityArmBinding:
-    is_baseline = arm_id == "baseline_evidence"
+def _arm(
+    arm_id: str,
+    *,
+    configuration: str,
+    corpus: str,
+    expected_recommendation: Literal["approve", "deny"] | None = None,
+) -> SensitivityArmBinding:
+    recommendation = expected_recommendation or (
+        "approve" if arm_id == "baseline_evidence" else "deny"
+    )
     return SensitivityArmBinding(
         arm_id=arm_id,
-        expected_recommendation="approve" if is_baseline else "deny",
-        expected_outcome="approved" if is_baseline else "denied",
+        expected_recommendation=recommendation,
+        expected_outcome="approved" if recommendation == "approve" else "denied",
         configuration_digest=_digest(configuration),
         corpus_digest=_digest(corpus),
         prompt_manifest_digest=_digest("shared-prompt-manifest"),
@@ -78,7 +107,30 @@ def _arm(arm_id: str, *, configuration: str, corpus: str) -> SensitivityArmBindi
     )
 
 
-def _protocol(*, source_groups: bool = False) -> RepeatedEvidenceSensitivityProtocol:
+def _protocol(
+    *,
+    source_groups: bool = False,
+    expected_relation: EvidenceSensitivityExpectedRelation = (
+        EvidenceSensitivityExpectedRelation.decision_flip
+    ),
+    baseline_expected_recommendation: Literal["approve", "deny"] = "approve",
+    counterfactual_expected_recommendation: Literal["approve", "deny"] = "deny",
+    execution_attempt_id: str | None = None,
+    allowed_exclusion_reasons: tuple[str, ...] = (),
+    schema_version: Literal["0.6.5", "0.6.6"] | None = None,
+    execution_mode: Literal["stochastic_live", "deterministic_fixture"] = ("stochastic_live"),
+) -> RepeatedEvidenceSensitivityProtocol:
+    # Unjournaled decision-flip fixtures exercise the frozen 0.6.5 compatibility
+    # path. A current stochastic-live fixture must opt in explicitly and either
+    # assert rejection or carry a complete execution-attempt journal.
+    if schema_version is None:
+        schema_version = (
+            "0.6.5"
+            if execution_attempt_id is None
+            and expected_relation is EvidenceSensitivityExpectedRelation.decision_flip
+            and execution_mode == "stochastic_live"
+            else "0.6.6"
+        )
     design = plan_binary_paired_design(
         familywise_alpha="0.050000",
         desired_power="0.800000",
@@ -108,18 +160,25 @@ def _protocol(*, source_groups: bool = False) -> RepeatedEvidenceSensitivityProt
         "baseline_evidence",
         configuration="baseline-configuration",
         corpus="baseline-corpus",
+        expected_recommendation=baseline_expected_recommendation,
     )
     counterfactual = _arm(
         "counterfactual_evidence",
         configuration="counterfactual-configuration",
         corpus="counterfactual-corpus",
+        expected_recommendation=counterfactual_expected_recommendation,
     )
     return RepeatedEvidenceSensitivityProtocol.build(
+        schema_version=schema_version,
         protocol_id="live-evidence-sensitivity",
-        interpretation="confirmatory",
-        execution_mode="stochastic_live",
+        execution_attempt_id=execution_attempt_id,
+        interpretation=(
+            "exploratory" if execution_mode == "deterministic_fixture" else "confirmatory"
+        ),
+        execution_mode=execution_mode,
         inferential_unit=cluster_by,
         cluster_by=cluster_by,
+        expected_relation=expected_relation,
         baseline_arm=baseline,
         counterfactual_arm=counterfactual,
         planned_case_ids=case_ids,
@@ -129,6 +188,11 @@ def _protocol(*, source_groups: bool = False) -> RepeatedEvidenceSensitivityProt
             RAGSensitivityCaseAuthorityBinding(
                 case_id=case_id,
                 query_family_id="shared-query-family",
+                expected_relation=(
+                    expected_relation
+                    if expected_relation is EvidenceSensitivityExpectedRelation.decision_invariant
+                    else None
+                ),
                 assignments=tuple(
                     sorted(
                         (
@@ -182,6 +246,7 @@ def _protocol(*, source_groups: bool = False) -> RepeatedEvidenceSensitivityProt
             variance_reduction_claim_permitted=False,
         ),
         design=design,
+        allowed_exclusion_reasons=allowed_exclusion_reasons,
         limitations=("Synthetic protocol for a bounded live-workflow test.",),
     )
 
@@ -204,14 +269,18 @@ def _record(
         protocol.baseline_arm if arm_id == "baseline_evidence" else protocol.counterfactual_arm
     )
     cluster_id = _cluster_for(protocol, case_id)
-    is_counterfactual = arm_id == "counterfactual_evidence"
+    run_execution_mode = (
+        ExecutionMode.fixture
+        if protocol.execution_mode.value == "deterministic_fixture"
+        else ExecutionMode.live
+    )
     return AgentRunRecord(
         run_id=f"{arm_id}-{case_id}-r0",
         case_id=case_id,
-        execution_mode="live",
+        execution_mode=run_execution_mode,
         pipeline_id=binding.pipeline_id,
-        recommendation="deny" if is_counterfactual else "approve",
-        outcome="denied" if is_counterfactual else "approved",
+        recommendation=binding.expected_recommendation.value,
+        outcome=binding.expected_outcome.value,
         input_summary="synthetic request",
         output_summary=output_summary,
         observation_id=f"obs-{arm_id}-{case_id}-r0",
@@ -263,6 +332,11 @@ def _runset(
         for index, case_id in enumerate(protocol.planned_case_ids)
         if case_id not in omitted
     )
+    run_execution_mode = (
+        ExecutionMode.fixture
+        if protocol.execution_mode.value == "deterministic_fixture"
+        else ExecutionMode.live
+    )
     return RunSet(
         runset_id=f"{arm_id}-runset",
         privacy_profile_id=PRIVACY_PROFILE_ID,
@@ -271,7 +345,7 @@ def _runset(
         suite_version="1.0.0",
         suite_digest=_digest("compiled-suite"),
         fixture_manifest_digest=binding.configuration_digest,
-        execution_mode="live",
+        execution_mode=run_execution_mode,
         protocol_id="operational-live-protocol",
         protocol_digest=_digest("operational-live-protocol"),
         evidence_sensitivity_design_digest=protocol.design_commitment_digest,
@@ -283,6 +357,1005 @@ def _runset(
 
 def _replace_first_record(runset: RunSet, record: AgentRunRecord) -> RunSet:
     return runset.model_copy(update={"runs": (record, *runset.runs[1:])})
+
+
+def _attempt_journal_header(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+) -> dict[str, object]:
+    assert protocol.execution_attempt_id is not None
+    return {
+        "event_type": "attempt_reserved",
+        "journal_version": "1.0.0",
+        "execution_attempt_id": protocol.execution_attempt_id,
+        "repeated_protocol_digest": protocol.protocol_digest,
+        "operational_protocol_digest": _digest("operational-live-protocol"),
+        "study_manifest_digest": None,
+        "baseline_configuration_digest": protocol.baseline_arm.configuration_digest,
+        "counterfactual_configuration_digest": protocol.counterfactual_arm.configuration_digest,
+    }
+
+
+def _attach_attempt_journal(runset: RunSet, journal: LiveExecutionAttemptJournal) -> RunSet:
+    payload = runset.model_dump(mode="json")
+    payload.update(
+        {
+            "execution_attempt_id": journal.execution_attempt_id,
+            "execution_attempt_journal_digest": journal.journal_digest,
+            "execution_attempt_journal": journal.model_dump(mode="json"),
+        }
+    )
+    return RunSet.model_validate(payload)
+
+
+def _rebuild_attempt_journal(
+    source: LiveExecutionAttemptJournal,
+    events: tuple[LiveExecutionAttemptEvent, ...],
+) -> LiveExecutionAttemptJournal:
+    return LiveExecutionAttemptJournal.build(
+        **{
+            **source.model_dump(mode="json", exclude={"journal_digest", "events"}),
+            "events": tuple(
+                event.model_copy(update={"event_index": index})
+                for index, event in enumerate(events)
+            ),
+        }
+    )
+
+
+def _journaled_pair(
+    *,
+    allowed_exclusion_reasons: tuple[str, ...] = (),
+) -> tuple[RepeatedEvidenceSensitivityProtocol, RunSet, RunSet]:
+    protocol = _protocol(
+        execution_attempt_id="live-evidence-sensitivity-attempt-01",
+        allowed_exclusion_reasons=allowed_exclusion_reasons,
+    )
+    baseline = _runset(protocol, arm_id="baseline_evidence")
+    counterfactual = _runset(protocol, arm_id="counterfactual_evidence")
+    baseline = baseline.model_copy(
+        update={
+            "runs": tuple(
+                run.model_copy(
+                    update={
+                        "attempt_count": 1,
+                        "retry_count": 0,
+                        "rate_limit_events": 0,
+                        "provider_response_id": f"response-{run.run_id}",
+                    }
+                )
+                for run in baseline.runs
+            )
+        }
+    )
+    counterfactual = counterfactual.model_copy(
+        update={
+            "runs": tuple(
+                run.model_copy(
+                    update={
+                        "attempt_count": 1,
+                        "retry_count": 0,
+                        "rate_limit_events": 0,
+                        "provider_response_id": f"response-{run.run_id}",
+                    }
+                )
+                for run in counterfactual.runs
+            )
+        }
+    )
+    event_payloads: list[dict[str, object]] = []
+
+    def append_event(event_type: str, **values: object) -> None:
+        event_payloads.append(
+            {
+                "event_index": len(event_payloads),
+                "event_type": event_type,
+                "occurred_at_utc": "2026-09-05T12:00:00Z",
+                **values,
+            }
+        )
+
+    for arm_id, runset in (
+        (protocol.baseline_arm.arm_id, baseline),
+        (protocol.counterfactual_arm.arm_id, counterfactual),
+    ):
+        append_event("arm_started", arm_id=arm_id)
+        for run in runset.runs:
+            identity = {
+                "arm_id": arm_id,
+                "run_id": run.run_id,
+                "observation_id": run.observation_id,
+                "case_id": run.case_id,
+                "repetition_index": run.repetition_index,
+                "adapter_attempt_index": 1,
+            }
+            append_event("request_issued", **identity)
+            append_event(
+                "request_succeeded",
+                **identity,
+                provider_response_id_digest=sha256_hexdigest(
+                    {
+                        "purpose": "provider-response-id/v1",
+                        "provider_response_id": run.provider_response_id,
+                    }
+                ),
+            )
+        append_event("arm_completed", arm_id=arm_id)
+    append_event("attempt_completed")
+    events = tuple(LiveExecutionAttemptEvent.model_validate(item) for item in event_payloads)
+    journal = LiveExecutionAttemptJournal.build(
+        journal_version="1.0.0",
+        execution_attempt_id=protocol.execution_attempt_id,
+        repeated_protocol_digest=protocol.protocol_digest,
+        operational_protocol_digest=baseline.protocol_digest,
+        study_manifest_digest=None,
+        baseline_configuration_digest=protocol.baseline_arm.configuration_digest,
+        counterfactual_configuration_digest=protocol.counterfactual_arm.configuration_digest,
+        status="complete",
+        events=events,
+    )
+    return (
+        protocol,
+        _attach_attempt_journal(baseline, journal),
+        _attach_attempt_journal(counterfactual, journal),
+    )
+
+
+def _maximum_journaled_pair() -> tuple[
+    RepeatedEvidenceSensitivityProtocol,
+    RunSet,
+    RunSet,
+]:
+    case_ids = tuple(f"case-{index:03d}" for index in range(64))
+    repetitions = 64
+    template = _protocol(execution_attempt_id="maximum-live-attempt")
+    baseline_arm = template.baseline_arm
+    counterfactual_arm = template.counterfactual_arm
+    design = plan_binary_paired_design(
+        familywise_alpha="0.050000",
+        desired_power="0.800000",
+        null_response_rate="0.500000",
+        alternative_response_rate="0.900000",
+        planned_inferential_clusters=len(case_ids),
+        monte_carlo_resamples=1_000,
+    )
+    authority_bindings = tuple(
+        RAGSensitivityCaseAuthorityBinding(
+            case_id=case_id,
+            query_family_id="shared-query-family",
+            assignments=tuple(
+                sorted(
+                    (
+                        RAGSensitivityAuthorityAssignment(
+                            corpus_digest=baseline_arm.corpus_digest,
+                            expected_decision=baseline_arm.expected_recommendation,
+                            expected_outcome=baseline_arm.expected_outcome,
+                            governing_source_id=f"source-{case_id}",
+                            governing_ref_id=f"ref-{case_id}",
+                            governing_content_digest=_digest(f"baseline-content-{case_id}"),
+                            claim_id=f"claim-{case_id}",
+                        ),
+                        RAGSensitivityAuthorityAssignment(
+                            corpus_digest=counterfactual_arm.corpus_digest,
+                            expected_decision=counterfactual_arm.expected_recommendation,
+                            expected_outcome=counterfactual_arm.expected_outcome,
+                            governing_source_id=f"source-{case_id}",
+                            governing_ref_id=f"ref-{case_id}",
+                            governing_content_digest=_digest(f"counterfactual-content-{case_id}"),
+                            claim_id=f"claim-{case_id}",
+                        ),
+                    ),
+                    key=lambda item: item.corpus_digest,
+                )
+            ),
+        )
+        for case_id in case_ids
+    )
+    protocol_payload = template.model_dump(
+        mode="python",
+        exclude={"protocol_digest", "design_commitment_digest"},
+    )
+    protocol_payload.update(
+        {
+            "planned_case_ids": case_ids,
+            "planned_cluster_ids": case_ids,
+            "case_cluster_bindings": tuple(
+                CaseClusterBinding(case_id=case_id, cluster_id=case_id) for case_id in case_ids
+            ),
+            "case_authority_bindings": authority_bindings,
+            "repetitions_per_arm": repetitions,
+            "planned_pairs": len(case_ids) * repetitions,
+            "design": design,
+        }
+    )
+    protocol = RepeatedEvidenceSensitivityProtocol.build(**protocol_payload)
+
+    def build_runset(arm_id: str) -> RunSet:
+        first_case = case_ids[0]
+        record_template = _record(
+            protocol,
+            arm_id=arm_id,
+            case_id=first_case,
+            schedule_index=0,
+        )
+        records: list[AgentRunRecord] = []
+        for repetition_index in range(repetitions):
+            for case_id in case_ids:
+                schedule_index = len(records)
+                identity = f"{arm_id}-{case_id}-r{repetition_index:02d}"
+                records.append(
+                    record_template.model_copy(
+                        update={
+                            "run_id": identity,
+                            "case_id": case_id,
+                            "observation_id": f"obs-{identity}",
+                            "repetition_index": repetition_index,
+                            "schedule_index": schedule_index,
+                            "randomization_block_id": (f"repetition-{repetition_index:02d}"),
+                            "cluster_id": case_id,
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "rate_limit_events": 0,
+                            "provider_response_id": f"response-{identity}",
+                        }
+                    )
+                )
+        shell = _runset(protocol, arm_id=arm_id)
+        return RunSet(
+            **shell.model_dump(mode="python", exclude={"runs"}),
+            runs=tuple(records),
+        )
+
+    baseline = build_runset(protocol.baseline_arm.arm_id)
+    counterfactual = build_runset(protocol.counterfactual_arm.arm_id)
+    events: list[LiveExecutionAttemptEvent] = []
+
+    def append_event(event_type: str, **values: object) -> None:
+        events.append(
+            LiveExecutionAttemptEvent(
+                event_index=len(events),
+                event_type=event_type,
+                occurred_at_utc="2026-09-05T12:00:00Z",
+                **values,
+            )
+        )
+
+    for arm_id, runset in (
+        (protocol.baseline_arm.arm_id, baseline),
+        (protocol.counterfactual_arm.arm_id, counterfactual),
+    ):
+        append_event("arm_started", arm_id=arm_id)
+        for run in runset.runs:
+            identity = {
+                "arm_id": arm_id,
+                "run_id": run.run_id,
+                "observation_id": run.observation_id,
+                "case_id": run.case_id,
+                "repetition_index": run.repetition_index,
+                "adapter_attempt_index": 1,
+            }
+            append_event("request_issued", **identity)
+            append_event(
+                "request_succeeded",
+                **identity,
+                provider_response_id_digest=sha256_hexdigest(
+                    {
+                        "purpose": "provider-response-id/v1",
+                        "provider_response_id": run.provider_response_id,
+                    }
+                ),
+            )
+        append_event("arm_completed", arm_id=arm_id)
+    append_event("attempt_completed")
+    assert len(events) == MAX_LIVE_EXECUTION_ATTEMPT_EVENTS
+    journal = LiveExecutionAttemptJournal.build(
+        journal_version="1.0.0",
+        execution_attempt_id=protocol.execution_attempt_id,
+        repeated_protocol_digest=protocol.protocol_digest,
+        operational_protocol_digest=baseline.protocol_digest,
+        study_manifest_digest=None,
+        baseline_configuration_digest=protocol.baseline_arm.configuration_digest,
+        counterfactual_configuration_digest=(protocol.counterfactual_arm.configuration_digest),
+        status="complete",
+        events=tuple(events),
+    )
+    return (
+        protocol,
+        _attach_attempt_journal(baseline, journal),
+        _attach_attempt_journal(counterfactual, journal),
+    )
+
+
+def test_attempt_registry_is_output_independent_and_crash_reservations_are_exclusive(
+    tmp_path: Path,
+) -> None:
+    protocol = _protocol(execution_attempt_id="live-evidence-sensitivity-attempt-crash")
+    protocol_path = tmp_path / "registered-protocol.json"
+    protocol_path.write_text("{}", encoding="utf-8")
+    first_output = tmp_path / "first-output"
+    second_output = tmp_path / "second-output"
+
+    first_path = execution_attempt_journal_path(protocol_path, protocol)
+    second_path = execution_attempt_journal_path(protocol_path, protocol)
+    assert first_output != second_output
+    assert first_path == second_path
+
+    reservation = repeated_workflow._DurableAttemptJournal(
+        first_path,
+        _attempt_journal_header(protocol),
+    )
+    reservation.close()  # Simulate process death after reservation and before a terminal event.
+
+    provider_calls = 0
+    with pytest.raises(ValueError, match="already reserved; refusing provider dispatch"):
+        repeated_workflow._DurableAttemptJournal(
+            second_path,
+            _attempt_journal_header(protocol),
+        )
+
+    assert provider_calls == 0
+    assert "attempt_reserved" in first_path.read_text(encoding="utf-8")
+
+
+def test_live_library_rejects_an_alternate_registered_protocol_path_before_dispatch(
+    tmp_path: Path,
+) -> None:
+    protocol = _protocol(execution_attempt_id="registered-attempt")
+    other_values = protocol.model_dump(
+        mode="python",
+        exclude={"protocol_digest", "design_commitment_digest"},
+    )
+    other_values["execution_attempt_id"] = "different-registered-attempt"
+    other = RepeatedEvidenceSensitivityProtocol.build(**other_values)
+    other_path = tmp_path / "other-registered-protocol.json"
+    other_path.write_text(
+        json.dumps(other.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    config = LiveRunConfig(
+        variant_id="pre-dispatch-boundary",
+        pipeline_id="sensitivity-pipeline",
+        tool_schema_digest=_digest("tool-schema"),
+        policy_bundle_digest=_digest("policy-bundle"),
+        adapter=LiveAdapterConfig(
+            adapter_id="static-jsonl",
+            provider="static-provider",
+            model="static-model",
+            response_jsonl_path="responses.jsonl",
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-00",
+                prompt_path="case-00.txt",
+                input_summary="synthetic request",
+            ),
+        ),
+        max_requests=1,
+        max_retries=0,
+    )
+
+    assert "attempt_journal_path" not in inspect.signature(run_repeated_live_study).parameters
+    with pytest.raises(ValueError, match="does not contain the exact execution protocol"):
+        run_repeated_live_study(
+            compiled=cast(CompiledSuite, object()),
+            protocol=protocol,
+            baseline_config=config,
+            counterfactual_config=config,
+            operational_protocol=cast(LiveProtocolRecord, object()),
+            baseline_config_dir=tmp_path,
+            counterfactual_config_dir=tmp_path,
+            registered_protocol_path=other_path,
+        )
+
+
+def test_attempt_journal_hashes_hostile_provider_response_identity(tmp_path: Path) -> None:
+    protocol = _protocol(execution_attempt_id="live-evidence-sensitivity-attempt-hostile-id")
+    path = execution_attempt_journal_path(tmp_path / "registered-protocol.json", protocol)
+    journal = repeated_workflow._DurableAttemptJournal(
+        path,
+        _attempt_journal_header(protocol),
+    )
+    request = LiveProviderRequest(
+        run_id="baseline-case-00-r0",
+        observation_id="obs-baseline-case-00-r0",
+        case_id="case-00",
+        repetition_index=0,
+        prompt="synthetic prompt",
+        provider="synthetic-provider",
+        model="synthetic-model",
+    )
+    hostile_response_id = "sk-proj-do-not-persist-this-provider-identity"
+    try:
+        journal.append(
+            "arm_started",
+            arm_id=protocol.baseline_arm.arm_id,
+        )
+        journal.append(
+            "request_issued",
+            arm_id=protocol.baseline_arm.arm_id,
+            notification=LiveAttemptNotification(
+                phase="issued",
+                request=request,
+                adapter_attempt_index=1,
+                provider_response_id=None,
+                retryable=None,
+                rate_limited=None,
+            ),
+        )
+        journal.append(
+            "request_succeeded",
+            arm_id=protocol.baseline_arm.arm_id,
+            notification=LiveAttemptNotification(
+                phase="succeeded",
+                request=request,
+                adapter_attempt_index=1,
+                provider_response_id=hostile_response_id,
+                retryable=None,
+                rate_limited=None,
+            ),
+        )
+    finally:
+        journal.close()
+
+    raw = path.read_text(encoding="utf-8")
+    assert hostile_response_id not in raw
+    assert (
+        sha256_hexdigest(
+            {
+                "purpose": "provider-response-id/v1",
+                "provider_response_id": hostile_response_id,
+            }
+        )
+        in raw
+    )
+
+
+def test_complete_attempt_journal_is_required_and_reconciled_before_analysis() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+
+    observations = assemble_paired_observations(protocol, baseline, counterfactual)
+
+    assert len(observations) == protocol.planned_pairs
+    assert all(item.disposition is PairDisposition.included for item in observations)
+
+    unbound_payload = counterfactual.model_dump(mode="json")
+    for field_name in (
+        "execution_attempt_id",
+        "execution_attempt_journal_digest",
+        "execution_attempt_journal",
+    ):
+        unbound_payload.pop(field_name)
+    unbound_counterfactual = RunSet.model_validate(unbound_payload)
+    with pytest.raises(ValueError, match="requires the complete attempt journal"):
+        assemble_paired_observations(protocol, baseline, unbound_counterfactual)
+
+
+def test_attempt_journal_rejects_provider_identity_and_cell_coverage_tampering() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    tampered_record = baseline.runs[0].model_copy(
+        update={"provider_response_id": "response-tampered"}
+    )
+    tampered_baseline = _replace_first_record(baseline, tampered_record)
+    with pytest.raises(ValueError, match="provider response identity"):
+        assemble_paired_observations(protocol, tampered_baseline, counterfactual)
+
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    omitted_case = baseline.runs[0].case_id
+    remaining_events = tuple(
+        event.model_copy(update={"event_index": index})
+        for index, event in enumerate(
+            event
+            for event in journal.events
+            if not (
+                event.arm_id == protocol.baseline_arm.arm_id
+                and event.case_id == omitted_case
+                and event.event_type in {"request_issued", "request_succeeded"}
+            )
+        )
+    )
+    omitted_journal = LiveExecutionAttemptJournal.build(
+        **{
+            **journal.model_dump(mode="json", exclude={"journal_digest", "events"}),
+            "events": remaining_events,
+        }
+    )
+    omitted_baseline = _attach_attempt_journal(baseline, omitted_journal)
+    omitted_counterfactual = _attach_attempt_journal(counterfactual, omitted_journal)
+    with pytest.raises(ValueError, match="first-issue order does not match"):
+        assemble_paired_observations(protocol, omitted_baseline, omitted_counterfactual)
+
+
+def test_attempt_journal_rejects_cross_arm_substitution_and_abandoned_status() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    substituted_events = (
+        journal.events[0].model_copy(update={"occurred_at_utc": "2026-09-05T12:00:01Z"}),
+        *journal.events[1:],
+    )
+    substituted = LiveExecutionAttemptJournal.build(
+        **{
+            **journal.model_dump(mode="json", exclude={"journal_digest", "events"}),
+            "events": substituted_events,
+        }
+    )
+    substituted_counterfactual = _attach_attempt_journal(counterfactual, substituted)
+    with pytest.raises(ValueError, match="exact same attempt journal"):
+        assemble_paired_observations(protocol, baseline, substituted_counterfactual)
+
+    abandoned_events = (
+        *journal.events[:-1],
+        journal.events[-1].model_copy(update={"event_type": "attempt_abandoned"}),
+    )
+    abandoned = LiveExecutionAttemptJournal.build(
+        **{
+            **journal.model_dump(
+                mode="json",
+                exclude={"journal_digest", "events", "status"},
+            ),
+            "status": "abandoned",
+            "events": abandoned_events,
+        }
+    )
+    abandoned_baseline = _attach_attempt_journal(baseline, abandoned)
+    abandoned_counterfactual = _attach_attempt_journal(counterfactual, abandoned)
+    with pytest.raises(ValueError, match="commitments do not match paired inputs"):
+        assemble_paired_observations(protocol, abandoned_baseline, abandoned_counterfactual)
+
+
+@pytest.mark.parametrize(
+    ("intermediate_kind", "expected_error"),
+    (
+        ("success", "non-final request terminal event must be a failure"),
+        ("nonretryable-failure", "non-final failed request attempt must be retryable"),
+        ("unclassified-failure", "explicit retryable and rate-limited accounting"),
+    ),
+)
+def test_attempt_journal_rejects_invalid_intermediate_retry_terminals(
+    intermediate_kind: str,
+    expected_error: str,
+) -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    target = baseline.runs[0]
+    success_index = next(
+        index
+        for index, event in enumerate(journal.events)
+        if event.event_type == "request_succeeded" and event.run_id == target.run_id
+    )
+    issued = journal.events[success_index - 1]
+    success = journal.events[success_index]
+    if intermediate_kind == "success":
+        intermediate = success
+    else:
+        failed_payload = success.model_dump(
+            mode="json",
+            exclude={"provider_response_id_digest"},
+        )
+        failed_payload["event_type"] = "request_failed"
+        if intermediate_kind == "nonretryable-failure":
+            failed_payload.update({"retryable": False, "rate_limited": False})
+        intermediate = LiveExecutionAttemptEvent.model_validate(failed_payload)
+    retry_issued = issued.model_copy(update={"adapter_attempt_index": 2})
+    retry_succeeded = success.model_copy(update={"adapter_attempt_index": 2})
+    events = (
+        *journal.events[:success_index],
+        intermediate,
+        retry_issued,
+        retry_succeeded,
+        *journal.events[success_index + 1 :],
+    )
+    tampered_journal = _rebuild_attempt_journal(journal, events)
+    retried_target = target.model_copy(update={"attempt_count": 2, "retry_count": 1})
+    retried_baseline = _replace_first_record(baseline, retried_target)
+    retried_baseline = _attach_attempt_journal(retried_baseline, tampered_journal)
+    counterfactual = _attach_attempt_journal(counterfactual, tampered_journal)
+
+    with pytest.raises(ValueError, match=expected_error):
+        assemble_paired_observations(protocol, retried_baseline, counterfactual)
+
+
+def test_attempt_journal_rejects_counterfactual_before_baseline_arm() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    first_completed = next(
+        index for index, event in enumerate(journal.events) if event.event_type == "arm_completed"
+    )
+    baseline_block = journal.events[: first_completed + 1]
+    counterfactual_block = journal.events[first_completed + 1 : -1]
+    reordered = _rebuild_attempt_journal(
+        journal,
+        (*counterfactual_block, *baseline_block, journal.events[-1]),
+    )
+    baseline = _attach_attempt_journal(baseline, reordered)
+    counterfactual = _attach_attempt_journal(counterfactual, reordered)
+
+    with pytest.raises(ValueError, match="registered order"):
+        assemble_paired_observations(protocol, baseline, counterfactual)
+
+
+def test_attempt_journal_rejects_first_issue_order_detached_from_runset_schedule() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    events = journal.events
+    reordered = _rebuild_attempt_journal(
+        journal,
+        (events[0], events[3], events[4], events[1], events[2], *events[5:]),
+    )
+    baseline = _attach_attempt_journal(baseline, reordered)
+    counterfactual = _attach_attempt_journal(counterfactual, reordered)
+
+    with pytest.raises(ValueError, match="first-issue order"):
+        assemble_paired_observations(protocol, baseline, counterfactual)
+
+
+def test_attempt_journal_rejects_self_consistent_cross_arm_schedule_reordering() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    counter_arm = protocol.counterfactual_arm.arm_id
+    counter_events = tuple(event for event in journal.events if event.arm_id == counter_arm)
+    assert tuple(event.event_type for event in counter_events[:5]) == (
+        "arm_started",
+        "request_issued",
+        "request_succeeded",
+        "request_issued",
+        "request_succeeded",
+    )
+    counter_reordered = (
+        counter_events[0],
+        counter_events[3],
+        counter_events[4],
+        counter_events[1],
+        counter_events[2],
+        *counter_events[5:],
+    )
+    baseline_events = tuple(
+        event for event in journal.events if event.arm_id == protocol.baseline_arm.arm_id
+    )
+    reordered_journal = _rebuild_attempt_journal(
+        journal,
+        (*baseline_events, *counter_reordered, journal.events[-1]),
+    )
+    reordered_runs = (
+        counterfactual.runs[0].model_copy(update={"schedule_index": 1}),
+        counterfactual.runs[1].model_copy(update={"schedule_index": 0}),
+        *counterfactual.runs[2:],
+    )
+    baseline = _attach_attempt_journal(baseline, reordered_journal)
+    counterfactual = _attach_attempt_journal(
+        counterfactual.model_copy(update={"runs": reordered_runs}),
+        reordered_journal,
+    )
+
+    with pytest.raises(ValueError, match="exact same schedule"):
+        assemble_paired_observations(protocol, baseline, counterfactual)
+
+
+def test_attempt_journal_rejects_retry_interleaved_with_another_cell() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    events = journal.events
+    first_success = events[2]
+    failed_payload = first_success.model_dump(
+        mode="json",
+        exclude={"provider_response_id_digest"},
+    )
+    failed_payload.update(
+        {
+            "event_type": "request_failed",
+            "retryable": True,
+            "rate_limited": False,
+        }
+    )
+    failed = LiveExecutionAttemptEvent.model_validate(failed_payload)
+    retry_issued = events[1].model_copy(update={"adapter_attempt_index": 2})
+    retry_succeeded = first_success.model_copy(update={"adapter_attempt_index": 2})
+    interleaved = _rebuild_attempt_journal(
+        journal,
+        (
+            events[0],
+            events[1],
+            failed,
+            events[3],
+            events[4],
+            retry_issued,
+            retry_succeeded,
+            *events[5:],
+        ),
+    )
+    retried = baseline.runs[0].model_copy(update={"attempt_count": 2, "retry_count": 1})
+    baseline = _attach_attempt_journal(
+        _replace_first_record(baseline, retried),
+        interleaved,
+    )
+    counterfactual = _attach_attempt_journal(counterfactual, interleaved)
+
+    with pytest.raises(ValueError, match="retries must remain contiguous"):
+        assemble_paired_observations(protocol, baseline, counterfactual)
+
+
+@pytest.mark.parametrize(
+    ("stop_reason", "tail_exclusion", "tail_has_timing"),
+    (
+        ("request_budget_exhausted", "budget_exhausted", False),
+        ("cost_budget_exhausted_before_attempt", "cost_budget_exhausted_before_attempt", True),
+        (
+            "generated_token_budget_exhausted_before_attempt",
+            "generated_token_budget_exhausted_before_attempt",
+            True,
+        ),
+        ("token_budget_exhausted_before_attempt", "token_budget_exhausted_before_attempt", True),
+        ("cost_budget_exceeded_after_response", "terminal_policy_stop", False),
+        ("generated_token_budget_exceeded_after_response", "terminal_policy_stop", False),
+        ("token_budget_exceeded_after_response", "terminal_policy_stop", False),
+        ("rate_limit_budget_exhausted", "terminal_policy_stop", False),
+        ("cost_accounting_unavailable", "budget_accounting_unavailable", False),
+        ("token_accounting_unavailable", "budget_accounting_unavailable", False),
+    ),
+)
+def test_retry_budget_stop_families_preserve_a_nonverdict_paired_audit(
+    stop_reason: str,
+    tail_exclusion: str,
+    tail_has_timing: bool,
+) -> None:
+    protocol, baseline, counterfactual = _journaled_pair(
+        allowed_exclusion_reasons=(
+            "budget_accounting_unavailable",
+            "budget_exhausted",
+            "cost_budget_exhausted_before_attempt",
+            "generated_token_budget_exhausted_before_attempt",
+            "terminal_policy_stop",
+            "token_budget_exhausted_before_attempt",
+        )
+    )
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    target = baseline.runs[0]
+    arm_id = protocol.baseline_arm.arm_id
+    first_issued = next(
+        event
+        for event in journal.events
+        if event.event_type == "request_issued"
+        and event.arm_id == arm_id
+        and event.run_id == target.run_id
+    )
+    first_success = next(
+        event
+        for event in journal.events
+        if event.event_type == "request_succeeded"
+        and event.arm_id == arm_id
+        and event.run_id == target.run_id
+    )
+    failure_payload = first_success.model_dump(
+        mode="json",
+        exclude={"provider_response_id_digest"},
+    )
+    failure_payload.update(
+        {
+            "event_type": "request_failed",
+            "retryable": True,
+            "rate_limited": False,
+        }
+    )
+    retry_failure = LiveExecutionAttemptEvent.model_validate(failure_payload)
+    retry_issued = first_issued.model_copy(update={"adapter_attempt_index": 2})
+    retry_success = first_success.model_copy(update={"adapter_attempt_index": 2})
+    baseline_started = next(
+        event
+        for event in journal.events
+        if event.event_type == "arm_started" and event.arm_id == arm_id
+    )
+    baseline_completed = next(
+        event
+        for event in journal.events
+        if event.event_type == "arm_completed" and event.arm_id == arm_id
+    )
+    counterfactual_events = tuple(
+        event for event in journal.events if event.arm_id == protocol.counterfactual_arm.arm_id
+    )
+    budget_journal = _rebuild_attempt_journal(
+        journal,
+        (
+            baseline_started,
+            first_issued,
+            retry_failure,
+            retry_issued,
+            retry_success,
+            baseline_completed,
+            *counterfactual_events,
+            journal.events[-1],
+        ),
+    )
+
+    def never_issued_budget_stop(run: AgentRunRecord) -> AgentRunRecord:
+        started = "2026-09-05T12:00:00.100000Z" if tail_has_timing else None
+        completed = "2026-09-05T12:00:00.100001Z" if tail_has_timing else None
+        return run.model_copy(
+            update={
+                "recommendation": "error",
+                "outcome": "excluded",
+                "output_summary": "live observation stopped before provider dispatch",
+                "observation_status": "excluded",
+                "exclusion_reason": tail_exclusion,
+                "provider_response_id": None,
+                "provider_finish_reason": None,
+                "provider_serving_fingerprint": None,
+                "provider_created_unix_seconds": None,
+                "attempt_count": None,
+                "retry_count": None,
+                "rate_limit_events": None,
+                "started_at_utc": started,
+                "completed_at_utc": completed,
+                "latency_ms": 0 if tail_has_timing else None,
+                "estimated_cost_usd": "0.000000",
+                "estimated_cost_source": "not_reported",
+                "cost_budget_committed_usd": "0.000000",
+                "generated_token_budget_committed": 0,
+                "total_token_budget_committed": 0,
+                "policy_results": (
+                    PolicyResult(
+                        policy_id="runtime.live",
+                        state="fail",
+                        reason_codes=("POLICY_FAILED",),
+                        severity="blocker",
+                        message="live response exceeded the configured budget policy",
+                    ),
+                ),
+            }
+        )
+
+    baseline = baseline.model_copy(
+        update={
+            "completion_status": "incomplete",
+            "stop_reasons": (stop_reason,),
+            "runs": (
+                target.model_copy(update={"attempt_count": 2, "retry_count": 1}),
+                *(never_issued_budget_stop(run) for run in baseline.runs[1:]),
+            ),
+        }
+    )
+    baseline = _attach_attempt_journal(baseline, budget_journal)
+    counterfactual = _attach_attempt_journal(counterfactual, budget_journal)
+
+    observations = assemble_paired_observations(protocol, baseline, counterfactual)
+    sufficiency, report = _analysis_generation(protocol, baseline, counterfactual)
+
+    included = tuple(item for item in observations if item.disposition is PairDisposition.included)
+    assert tuple((item.case_id, item.repetition_index) for item in included) == (
+        (target.case_id, target.repetition_index),
+    )
+    assert (
+        sum(item.disposition is PairDisposition.excluded_baseline for item in observations)
+        == len(observations) - 1
+    )
+    assert sufficiency.state.value == "inconclusive"
+    assert report.verdict_bearing is False
+
+
+def test_live_attempt_journal_bound_covers_the_full_retry_schedule() -> None:
+    assert MAX_LIVE_EXECUTION_ATTEMPT_EVENTS == (2 * 2 * 4_096) + 5 == 16_389
+    schema = LiveExecutionAttemptJournal.model_json_schema(mode="validation")
+    assert schema["properties"]["events"]["maxItems"] == 16_389
+
+
+def test_maximum_journaled_runsets_round_trip_through_writers_loaders_and_analysis(
+    tmp_path: Path,
+) -> None:
+    protocol, baseline, counterfactual = _maximum_journaled_pair()
+    repeated_workflow.validate_paired_attempt_journal(
+        protocol,
+        baseline,
+        counterfactual,
+    )
+
+    run_paths = write_repeated_run_artifacts(
+        protocol=protocol,
+        baseline=baseline,
+        counterfactual=counterfactual,
+        out_dir=tmp_path / "runs",
+    )
+    for name in ("baseline.runset.json", "counterfactual.runset.json"):
+        size = run_paths[name].stat().st_size
+        assert MAX_ARTIFACT_JSON_BYTES < size <= MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+        with pytest.raises(ValueError, match="maximum supported size"):
+            load_runset(run_paths[name], max_bytes=MAX_ARTIFACT_JSON_BYTES)
+    assert validate_artifact(run_paths["baseline.runset.json"], "run-set") == (
+        "pydantic+jsonschema"
+    )
+
+    loaded_baseline = load_runset(run_paths["baseline.runset.json"])
+    loaded_counterfactual = load_runset(run_paths["counterfactual.runset.json"])
+    assert loaded_baseline == baseline
+    assert loaded_counterfactual == counterfactual
+
+    observations = assemble_paired_observations(
+        protocol,
+        loaded_baseline,
+        loaded_counterfactual,
+    )
+    assert len(observations) == 4_096
+    sufficiency = evaluate_statistical_sufficiency(
+        protocol,
+        observations,
+        source_runsets=build_paired_runset_dependencies(
+            protocol,
+            loaded_baseline,
+            loaded_counterfactual,
+        ),
+    )
+    report = build_stochastic_sensitivity_report(sufficiency)
+    analysis_paths = write_repeated_analysis_artifacts(
+        protocol=protocol,
+        baseline_source=loaded_baseline,
+        counterfactual_source=loaded_counterfactual,
+        sufficiency=sufficiency,
+        report=report,
+        out_dir=tmp_path / "analysis",
+    )
+    replayed_baseline = load_runset(
+        analysis_paths["baseline.source.runset.json"],
+        max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    )
+    replayed_counterfactual = load_runset(
+        analysis_paths["counterfactual.source.runset.json"],
+        max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    )
+    assert (
+        assemble_paired_observations(
+            protocol,
+            replayed_baseline,
+            replayed_counterfactual,
+        )
+        == observations
+    )
+
+
+def test_current_live_analysis_rejects_an_unregistered_unjournaled_protocol() -> None:
+    protocol = _protocol(schema_version="0.6.6")
+
+    with pytest.raises(
+        ValueError,
+        match="requires a registered execution_attempt_id and complete attempt journal",
+    ):
+        assemble_paired_observations(
+            protocol,
+            _runset(protocol, arm_id="baseline_evidence"),
+            _runset(protocol, arm_id="counterfactual_evidence"),
+        )
+
+
+@pytest.mark.parametrize("exemption", ("legacy", "deterministic"))
+def test_unjournaled_exemptions_reject_stray_attempt_metadata(exemption: str) -> None:
+    current, baseline, counterfactual = _journaled_pair()
+    payload = current.model_dump(
+        mode="python",
+        exclude={"protocol_digest", "design_commitment_digest", "execution_attempt_id"},
+    )
+    if exemption == "legacy":
+        payload["schema_version"] = "0.6.5"
+    else:
+        payload.update(
+            {
+                "execution_mode": "deterministic_fixture",
+                "interpretation": "exploratory",
+            }
+        )
+    exempt_protocol = RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+    with pytest.raises(
+        ValueError,
+        match="cannot consume execution attempt journal metadata",
+    ):
+        repeated_workflow.validate_paired_attempt_journal(
+            exempt_protocol,
+            baseline,
+            counterfactual,
+        )
 
 
 def _operational_exclusion(
@@ -310,6 +1383,23 @@ def _operational_exclusion(
     )
 
 
+def test_unjournaled_non_budget_pre_dispatch_failure_remains_fail_closed() -> None:
+    protocol = _protocol(execution_attempt_id="fail-closed-unissued-attempt")
+    record = _operational_exclusion(
+        _runset(protocol, arm_id="baseline_evidence").runs[0],
+        "runtime-failed",
+    ).model_copy(
+        update={
+            "provider_response_id": None,
+            "attempt_count": None,
+            "retry_count": None,
+            "rate_limit_events": None,
+        }
+    )
+
+    assert repeated_workflow._is_never_issued_budget_stop_record(record) is False
+
+
 def _analysis_generation(
     protocol: RepeatedEvidenceSensitivityProtocol,
     baseline: RunSet,
@@ -325,7 +1415,7 @@ def _analysis_generation(
     return sufficiency, build_stochastic_sensitivity_report(sufficiency)
 
 
-def test_assemble_realistic_current_live_runsets_and_missing_dispositions() -> None:
+def test_assemble_legacy_live_runsets_and_missing_dispositions() -> None:
     protocol = _protocol()
     baseline_only = protocol.planned_case_ids[-3]
     counterfactual_only = protocol.planned_case_ids[-2]
@@ -357,6 +1447,105 @@ def test_assemble_realistic_current_live_runsets_and_missing_dispositions() -> N
     assert by_case[missing_both].disposition_reason == "both-arm-pair-missing"
     assert by_case[missing_both].baseline_run_id is None
     assert by_case[missing_both].counterfactual_run_id is None
+
+
+@pytest.mark.parametrize(
+    ("expected_relation", "baseline_expected", "counterfactual_expected"),
+    (
+        (
+            EvidenceSensitivityExpectedRelation.decision_invariant,
+            "approve",
+            "approve",
+        ),
+        (
+            EvidenceSensitivityExpectedRelation.decision_invariant,
+            "deny",
+            "deny",
+        ),
+        (
+            EvidenceSensitivityExpectedRelation.decision_flip,
+            "deny",
+            "approve",
+        ),
+    ),
+)
+def test_fixture_assembly_scores_negative_controls_and_both_flip_directions(
+    expected_relation: EvidenceSensitivityExpectedRelation,
+    baseline_expected: Literal["approve", "deny"],
+    counterfactual_expected: Literal["approve", "deny"],
+) -> None:
+    protocol = _protocol(
+        expected_relation=expected_relation,
+        baseline_expected_recommendation=baseline_expected,
+        counterfactual_expected_recommendation=counterfactual_expected,
+        execution_mode="deterministic_fixture",
+    )
+
+    observations = assemble_paired_observations(
+        protocol,
+        _runset(protocol, arm_id="baseline_evidence"),
+        _runset(protocol, arm_id="counterfactual_evidence"),
+    )
+
+    assert {item.endpoint_value for item in observations} == {1}
+    assert all(
+        (item.expected_relation or EvidenceSensitivityExpectedRelation.decision_flip)
+        is expected_relation
+        for item in observations
+    )
+
+
+def test_invariant_relation_is_preserved_for_nonincluded_pairs_and_exact_scoring() -> None:
+    protocol = _protocol(
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_invariant,
+        baseline_expected_recommendation="approve",
+        counterfactual_expected_recommendation="approve",
+        execution_mode="deterministic_fixture",
+    )
+    missing_case = protocol.planned_case_ids[-1]
+    baseline = _runset(protocol, arm_id="baseline_evidence")
+    counterfactual = _runset(
+        protocol,
+        arm_id="counterfactual_evidence",
+        omitted=frozenset({missing_case}),
+    )
+    wrong_counterfactual = counterfactual.runs[0].model_copy(
+        update={"recommendation": "deny", "outcome": "denied"}
+    )
+    counterfactual = _replace_first_record(counterfactual, wrong_counterfactual)
+
+    observations = assemble_paired_observations(protocol, baseline, counterfactual)
+    by_case = {item.case_id: item for item in observations}
+
+    assert observations[0].endpoint_value == 0
+    assert by_case[missing_case].disposition is PairDisposition.missing_counterfactual
+    assert by_case[missing_case].expected_relation is (
+        EvidenceSensitivityExpectedRelation.decision_invariant
+    )
+
+
+def test_sufficiency_rejects_observation_relation_detached_from_protocol() -> None:
+    protocol = _protocol(
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_invariant,
+        baseline_expected_recommendation="deny",
+        counterfactual_expected_recommendation="deny",
+        execution_mode="deterministic_fixture",
+    )
+    baseline = _runset(protocol, arm_id="baseline_evidence")
+    counterfactual = _runset(protocol, arm_id="counterfactual_evidence")
+    observations = list(assemble_paired_observations(protocol, baseline, counterfactual))
+    observations[0] = observations[0].model_copy(update={"expected_relation": None})
+
+    with pytest.raises(ValueError, match="decision_flip|expected relations must match"):
+        evaluate_statistical_sufficiency(
+            protocol,
+            tuple(observations),
+            source_runsets=build_paired_runset_dependencies(
+                protocol,
+                baseline,
+                counterfactual,
+            ),
+        )
 
 
 def test_missing_both_uses_the_frozen_source_group_binding() -> None:
@@ -1198,7 +2387,12 @@ def test_wrong_design_commitment_fails_before_live_adapter_dispatch(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    protocol = _protocol()
+    protocol = _protocol(execution_attempt_id="wrong-design-attempt")
+    protocol_path = tmp_path / "registered-protocol.json"
+    protocol_path.write_text(
+        json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     dispatches: list[str] = []
 
     def unexpected_dispatch(*args: object, **kwargs: object) -> RunSet:
@@ -1255,6 +2449,7 @@ def test_wrong_design_commitment_fails_before_live_adapter_dispatch(
             operational_protocol=cast(LiveProtocolRecord, object()),
             baseline_config_dir=tmp_path,
             counterfactual_config_dir=tmp_path,
+            registered_protocol_path=protocol_path,
         )
     assert dispatches == []
 
@@ -1264,7 +2459,12 @@ def test_confirmatory_stochastic_study_rejects_deterministic_replay_adapters(
     adapter_id: str,
     tmp_path: Path,
 ) -> None:
-    protocol = _protocol()
+    protocol = _protocol(execution_attempt_id=f"replay-adapter-{adapter_id}")
+    protocol_path = tmp_path / "registered-protocol.json"
+    protocol_path.write_text(
+        json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
     adapter = LiveAdapterConfig(
         adapter_id=adapter_id,
         provider="replay-provider",
@@ -1314,6 +2514,7 @@ def test_confirmatory_stochastic_study_rejects_deterministic_replay_adapters(
             operational_protocol=cast(LiveProtocolRecord, object()),
             baseline_config_dir=tmp_path,
             counterfactual_config_dir=tmp_path,
+            registered_protocol_path=protocol_path,
         )
 
 
@@ -2040,6 +3241,9 @@ def test_analysis_writer_concurrent_publishers_converge_without_lock_wait(
         parent: RootedDirectoryDescriptor,
         target: Path,
         expected_filenames: tuple[str, ...],
+        *,
+        max_output_entries: int,
+        artifact_max_bytes: Mapping[str, int] | None = None,
     ) -> dict[str, str] | None:
         thread_id = threading.get_ident()
         with check_lock:
@@ -2047,7 +3251,13 @@ def test_analysis_writer_concurrent_publishers_converge_without_lock_wait(
             first_checks.add(thread_id)
         if is_first:
             first_check_barrier.wait(timeout=10)
-        return real_existing(parent, target, expected_filenames)
+        return real_existing(
+            parent,
+            target,
+            expected_filenames,
+            max_output_entries=max_output_entries,
+            artifact_max_bytes=artifact_max_bytes,
+        )
 
     monkeypatch.setattr(writer, "_existing_generation", synchronize_first_check)
 

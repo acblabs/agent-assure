@@ -7,7 +7,8 @@ from typing import Literal
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.io_limits import MAX_PERSISTED_OBSERVATIONS
+from agent_assure.schema.base import FrozenStrictModel, PersistedArtifact
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     MAX_LABEL_CHARS,
@@ -52,9 +53,14 @@ _RUN_RECORD_USAGE_FIELD_PATHS = (
     ("usage_summary",),
 )
 _BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset(
-    {"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"}
+    {"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"}
 )
-_EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS = frozenset({"0.6.5"})
+_EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS = frozenset({"0.6.5", "0.6.6"})
+_STUDY_MANIFEST_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+# max_requests counts every adapter attempt, including retries. A paired study
+# therefore emits at most two events per attempt in each of two arms, plus two
+# arm start/end pairs and one attempt terminal event.
+MAX_LIVE_EXECUTION_ATTEMPT_EVENTS = (2 * 2 * MAX_PERSISTED_OBSERVATIONS) + 5
 _RUN_RECORD_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(*_RUN_RECORD_USAGE_FIELD_PATHS)
 _RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].append(
     {
@@ -241,6 +247,174 @@ class PolicyResult(PersistedArtifact):
         return value
 
 
+LiveAttemptEventType = Literal[
+    "arm_started",
+    "request_issued",
+    "request_succeeded",
+    "request_failed",
+    "arm_completed",
+    "attempt_completed",
+    "attempt_abandoned",
+]
+
+
+class LiveExecutionAttemptEvent(FrozenStrictModel):
+    """One privacy-safe, append-only provider-dispatch lifecycle event."""
+
+    event_index: int = Field(ge=0)
+    event_type: LiveAttemptEventType
+    occurred_at_utc: str = Field(
+        max_length=MAX_LABEL_CHARS,
+        pattern=STRICT_RFC3339_TIMESTAMP_PATTERN,
+    )
+    arm_id: str | None = Field(default=None, max_length=MAX_LABEL_CHARS)
+    run_id: str | None = Field(default=None, max_length=MAX_LABEL_CHARS)
+    observation_id: str | None = Field(default=None, max_length=MAX_LABEL_CHARS)
+    case_id: str | None = Field(default=None, max_length=MAX_LABEL_CHARS)
+    repetition_index: int | None = Field(default=None, ge=0)
+    adapter_attempt_index: int | None = Field(default=None, ge=1)
+    provider_response_id_digest: DigestHex | None = None
+    retryable: bool | None = None
+    rate_limited: bool | None = None
+
+    @model_validator(mode="after")
+    def _validate_shape(self) -> LiveExecutionAttemptEvent:
+        request_fields = (
+            self.run_id,
+            self.observation_id,
+            self.case_id,
+            self.repetition_index,
+            self.adapter_attempt_index,
+        )
+        is_request_event = self.event_type in {
+            "request_issued",
+            "request_succeeded",
+            "request_failed",
+        }
+        no_arm_event = self.event_type in {"attempt_completed", "attempt_abandoned"}
+        if (self.arm_id is None) != no_arm_event:
+            raise ValueError("attempt event arm identity does not match its event type")
+        if is_request_event and any(value is None for value in request_fields):
+            raise ValueError("request attempt events require the exact planned cell identity")
+        if not is_request_event and any(value is not None for value in request_fields):
+            raise ValueError("non-request attempt events cannot carry request cell fields")
+        if self.provider_response_id_digest is not None and self.event_type != "request_succeeded":
+            raise ValueError("provider_response_id_digest is permitted only on request_succeeded")
+        if (self.retryable is not None or self.rate_limited is not None) and (
+            self.event_type != "request_failed"
+        ):
+            raise ValueError("failure classification is permitted only on request_failed")
+        return self
+
+
+class LiveExecutionAttemptJournal(FrozenStrictModel):
+    """Digest-bound exhaustive journal embedded identically in both paired RunSets."""
+
+    journal_version: Literal["1.0.0"] = "1.0.0"
+    execution_attempt_id: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    repeated_protocol_digest: DigestHex
+    operational_protocol_digest: DigestHex
+    study_manifest_digest: DigestHex | None = None
+    baseline_configuration_digest: DigestHex
+    counterfactual_configuration_digest: DigestHex
+    status: Literal["complete", "abandoned"]
+    events: tuple[LiveExecutionAttemptEvent, ...] = Field(
+        min_length=1,
+        max_length=MAX_LIVE_EXECUTION_ATTEMPT_EVENTS,
+    )
+    journal_digest: DigestHex
+
+    @field_validator("events", mode="before")
+    @classmethod
+    def _coerce_events(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @classmethod
+    def build(cls, **values: object) -> LiveExecutionAttemptJournal:
+        provisional = cls.model_validate(
+            {**values, "journal_digest": "0" * 64},
+            context={"skip_journal_digest": True},
+        )
+        payload = provisional.model_dump(mode="json", exclude={"journal_digest"})
+        return cls.model_validate(
+            {
+                **provisional.model_dump(mode="json"),
+                "journal_digest": _run_schema_sha256(payload),
+            }
+        )
+
+    @model_validator(mode="after")
+    def _validate_journal(self, info: object) -> LiveExecutionAttemptJournal:
+        context = getattr(info, "context", None)
+        if not (isinstance(context, dict) and context.get("skip_journal_digest")):
+            expected = _run_schema_sha256(self.model_dump(mode="json", exclude={"journal_digest"}))
+            if self.journal_digest != expected:
+                raise ValueError("execution attempt journal digest does not match its contents")
+        _validate_live_attempt_event_sequence(self.status, self.events)
+        return self
+
+
+def _validate_live_attempt_event_sequence(
+    status: Literal["complete", "abandoned"],
+    events: tuple[LiveExecutionAttemptEvent, ...],
+) -> None:
+    if tuple(event.event_index for event in events) != tuple(range(len(events))):
+        raise ValueError("execution attempt event indexes must be contiguous and zero-based")
+    pending: tuple[object, ...] | None = None
+    completed_arms: list[str] = []
+    active_arm: str | None = None
+    for event in events:
+        if event.event_type == "arm_started":
+            if (
+                event.arm_id is None
+                or active_arm is not None
+                or pending is not None
+                or event.arm_id in completed_arms
+            ):
+                raise ValueError("execution attempt arm lifecycle is invalid")
+            active_arm = event.arm_id
+        elif event.event_type == "request_issued":
+            if active_arm != event.arm_id or pending is not None:
+                raise ValueError("request_issued must occur inside one active arm")
+            pending = _live_attempt_event_key(event)
+        elif event.event_type in {"request_succeeded", "request_failed"}:
+            if pending != _live_attempt_event_key(event):
+                raise ValueError("request terminal event must match the pending issued request")
+            pending = None
+        elif event.event_type == "arm_completed":
+            if active_arm is None or active_arm != event.arm_id or pending is not None:
+                raise ValueError("arm_completed must close the active arm with no pending request")
+            completed_arms.append(active_arm)
+            active_arm = None
+        elif event.event_type in {"attempt_completed", "attempt_abandoned"}:
+            if active_arm is not None or pending is not None or event is not events[-1]:
+                raise ValueError("attempt terminal event must be the final closed lifecycle event")
+    if status == "complete":
+        if not events or events[-1].event_type != "attempt_completed":
+            raise ValueError("complete execution attempt journal requires attempt_completed")
+        if len(completed_arms) != 2 or len(set(completed_arms)) != 2:
+            raise ValueError("complete paired execution requires exactly two completed arms")
+    elif not events or events[-1].event_type != "attempt_abandoned":
+        raise ValueError("abandoned execution attempt requires attempt_abandoned")
+
+
+def _live_attempt_event_key(event: LiveExecutionAttemptEvent) -> tuple[object, ...]:
+    return (
+        event.arm_id,
+        event.run_id,
+        event.observation_id,
+        event.case_id,
+        event.repetition_index,
+        event.adapter_attempt_index,
+    )
+
+
+def _run_schema_sha256(value: object) -> str:
+    from agent_assure.canonical.digests import sha256_hexdigest
+
+    return sha256_hexdigest(value)
+
+
 class AgentRunRecord(PersistedArtifact):
     model_config = ConfigDict(json_schema_extra=_RUN_RECORD_JSON_SCHEMA_EXTRA)
 
@@ -268,6 +442,26 @@ class AgentRunRecord(PersistedArtifact):
     provider_sdk: str | None = None
     provider_region: str | None = None
     provider_response_id: str | None = None
+    provider_finish_reason: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+        exclude_if=lambda value: value is None,
+    )
+    provider_serving_fingerprint: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+        exclude_if=lambda value: value is None,
+    )
+    provider_created_unix_seconds: int | None = Field(
+        default=None,
+        ge=0,
+        le=4_102_444_800,
+        exclude_if=lambda value: value is None,
+    )
     traceparent: str | None = Field(default=None, pattern=TRACEPARENT_FIELD_PATTERN)
     tracestate: str | None = None
     started_at_utc: str | None = Field(
@@ -527,6 +721,24 @@ class RunSet(PersistedArtifact):
         default=None,
         exclude_if=lambda value: value is None,
     )
+    study_manifest_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    execution_attempt_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_LABEL_CHARS,
+        exclude_if=lambda value: value is None,
+    )
+    execution_attempt_journal_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    execution_attempt_journal: LiveExecutionAttemptJournal | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     completion_status: Literal["complete", "incomplete"] = "complete"
     stop_reasons: tuple[str, ...] = ()
     emergency_records: tuple[EmergencyProcessRecord, ...] = Field(
@@ -541,7 +753,7 @@ class RunSet(PersistedArtifact):
         default=None,
         exclude_if=lambda value: value is None,
     )
-    runs: tuple[AgentRunRecord, ...]
+    runs: tuple[AgentRunRecord, ...] = Field(max_length=MAX_PERSISTED_OBSERVATIONS)
 
     @model_validator(mode="before")
     @classmethod
@@ -581,6 +793,29 @@ class RunSet(PersistedArtifact):
             self.usage_summary,
             owner="run set",
         )
+        journal_fields = (
+            self.execution_attempt_id,
+            self.execution_attempt_journal_digest,
+            self.execution_attempt_journal,
+        )
+        if any(value is not None for value in journal_fields) and not all(
+            value is not None for value in journal_fields
+        ):
+            raise ValueError("execution attempt journal fields must be supplied together")
+        if self.execution_attempt_journal is not None:
+            journal = self.execution_attempt_journal
+            if (
+                journal.execution_attempt_id != self.execution_attempt_id
+                or journal.journal_digest != self.execution_attempt_journal_digest
+                or journal.operational_protocol_digest != self.protocol_digest
+                or journal.study_manifest_digest != self.study_manifest_digest
+                or self.fixture_manifest_digest
+                not in {
+                    journal.baseline_configuration_digest,
+                    journal.counterfactual_configuration_digest,
+                }
+            ):
+                raise ValueError("RunSet execution attempt journal binding does not match")
         mismatched_modes = tuple(
             run.run_id for run in self.runs if run.execution_mode is not self.execution_mode
         )
@@ -604,6 +839,18 @@ class RunSet(PersistedArtifact):
                     "evidence_sensitivity_design_digest to exactly match the RunSet "
                     "commitment, including absence; mismatched runs: "
                     + ", ".join(mismatched_commitments)
+                )
+        if self.schema_version in _STUDY_MANIFEST_BINDING_SCHEMA_VERSIONS:
+            mismatched_study_commitments = tuple(
+                run.run_id
+                for run in self.runs
+                if run.provenance.study_manifest_digest != self.study_manifest_digest
+            )
+            if mismatched_study_commitments:
+                raise ValueError(
+                    "current live run sets require every run provenance "
+                    "study_manifest_digest to exactly match the RunSet commitment, "
+                    "including absence; mismatched runs: " + ", ".join(mismatched_study_commitments)
                 )
         missing = [
             field_name

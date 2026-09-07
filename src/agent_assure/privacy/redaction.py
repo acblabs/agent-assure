@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import hashlib
-import re
 from collections.abc import Iterator, Mapping
 from typing import Any
 
 from agent_assure.io_limits import load_json_bytes_bounded
+from agent_assure.privacy.credential_uri import (
+    PERSISTED_CREDENTIAL_NAMES,
+    PERSISTED_CREDENTIAL_SUFFIXES,
+    contains_persisted_credential,
+)
 from agent_assure.privacy.detectors import (
     MAX_PRIVACY_SCAN_CHARS,
     PRIVACY_REDACTION_TEXT,
@@ -14,6 +18,11 @@ from agent_assure.privacy.detectors import (
     privacy_scan_views,
     sensitive_patterns_for,
 )
+from agent_assure.privacy.digest_fields import is_digest_field_name, is_sha256_hex_digest
+from agent_assure.privacy.persistence import (
+    is_unsafe_persisted_mapping_key,
+    persisted_credential_scan_value,
+)
 from agent_assure.sensitivity_contract import (
     MAX_SENSITIVITY_CORPUS_BYTES,
     MAX_SENSITIVITY_FIXTURE_BYTES,
@@ -21,7 +30,6 @@ from agent_assure.sensitivity_contract import (
 
 REDACTION = PRIVACY_REDACTION_TEXT
 REDACTION_MASK_CHARACTER = "\u2588"
-_DIGEST_HEX_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 FAIL_CLOSED_RUNSET_KEYS = frozenset(
     {
         "runset_id",
@@ -47,8 +55,16 @@ FAIL_CLOSED_RUNSET_KEYS = frozenset(
         "provider_sdk",
         "provider_region",
         "provider_response_id",
+        "provider_finish_reason",
+        "provider_serving_fingerprint",
         "started_at_utc",
         "completed_at_utc",
+        "execution_attempt_id",
+        "journal_version",
+        "event_type",
+        "occurred_at_utc",
+        "arm_id",
+        "status",
         "currency",
         "cost_basis",
         "cost_basis_ids",
@@ -225,9 +241,14 @@ def assert_runset_payload_safe_for_persistence(payload: Mapping[str, Any]) -> No
     for path, key, value in _iter_string_fields(payload):
         if _is_valid_structural_digest(key, value):
             continue
-        if key in PRESERVE_RUNSET_KEYS and key not in FAIL_CLOSED_RUNSET_KEYS:
+        if (
+            key in PRESERVE_RUNSET_KEYS
+            and key not in FAIL_CLOSED_RUNSET_KEYS
+            and not _is_invalid_digest_scalar(key, value)
+        ):
             continue
-        if _contains_sensitive_value(value):
+        credential_scan_value = persisted_credential_scan_value(value, field_name=key)
+        if _contains_persisted_credential(credential_scan_value):
             field_kind = "preserved field" if key in FAIL_CLOSED_RUNSET_KEYS else "field"
             raise ValueError(f"runset {field_kind} contains sensitive-looking content: {path}")
 
@@ -235,7 +256,7 @@ def assert_runset_payload_safe_for_persistence(payload: Mapping[str, Any]) -> No
 def assert_stream_payload_safe_for_persistence(payload: Mapping[str, Any]) -> None:
     _assert_mapping_keys_safe(payload, owner="stream")
     for path, key, value in _iter_string_fields(payload):
-        if key in FAIL_CLOSED_STREAM_KEYS and _contains_sensitive_value(value):
+        if key in FAIL_CLOSED_STREAM_KEYS and _contains_persisted_credential(value):
             raise ValueError(f"stream preserved field contains sensitive-looking content: {path}")
 
 
@@ -270,9 +291,35 @@ PRESERVE_RUNSET_KEYS = frozenset(
         "provider_sdk",
         "provider_region",
         "provider_response_id",
+        "provider_finish_reason",
+        "provider_serving_fingerprint",
+        "provider_created_unix_seconds",
         "traceparent",
         "started_at_utc",
         "completed_at_utc",
+        "suite_digest",
+        "fixture_manifest_digest",
+        "protocol_digest",
+        "evidence_sensitivity_design_digest",
+        "study_manifest_digest",
+        "execution_attempt_id",
+        "execution_attempt_journal_digest",
+        "journal_version",
+        "repeated_protocol_digest",
+        "operational_protocol_digest",
+        "baseline_configuration_digest",
+        "counterfactual_configuration_digest",
+        "status",
+        "journal_digest",
+        "event_index",
+        "event_type",
+        "occurred_at_utc",
+        "arm_id",
+        "repetition_index",
+        "adapter_attempt_index",
+        "provider_response_id_digest",
+        "retryable",
+        "rate_limited",
         "estimated_cost_usd",
         "estimated_cost_microusd",
         "estimated_cost_source",
@@ -432,7 +479,7 @@ def _preserves_scalar_value(
         and isinstance(item, str)
         and (
             key in preserve_keys
-            or (key.endswith("_digest") and _DIGEST_HEX_PATTERN.fullmatch(item) is not None)
+            or (is_digest_field_name(key) and is_sha256_hex_digest(item))
         )
     )
 
@@ -499,9 +546,9 @@ def _redact_mapping_key(key: object) -> object:
 def _is_invalid_digest_scalar(key: object, item: object) -> bool:
     return (
         isinstance(key, str)
-        and (key.endswith("_digest") or key.endswith("_digests"))
+        and is_digest_field_name(key)
         and isinstance(item, str)
-        and _DIGEST_HEX_PATTERN.fullmatch(item) is None
+        and not is_sha256_hex_digest(item)
     )
 
 
@@ -509,14 +556,18 @@ def _contains_sensitive_value(value: str) -> bool:
     return contains_sensitive_value(value)
 
 
+def _contains_persisted_credential(value: str) -> bool:
+    return contains_persisted_credential(
+        value,
+        exact_names=PERSISTED_CREDENTIAL_NAMES,
+        suffixes=PERSISTED_CREDENTIAL_SUFFIXES,
+    )
+
+
 def _assert_mapping_keys_safe(value: Any, *, owner: str, path: str = "$") -> None:
     if isinstance(value, Mapping):
         for index, (key, item) in enumerate(value.items()):
             key_path = f"{path}.<key:{index}>"
-            if isinstance(key, str) and (
-                _contains_control_character(key) or contains_sensitive_value(key)
-            ):
-                raise ValueError(f"{owner} mapping key contains unsafe content: {key_path}")
             if (
                 isinstance(key, str)
                 and isinstance(item, str)
@@ -525,6 +576,8 @@ def _assert_mapping_keys_safe(value: Any, *, owner: str, path: str = "$") -> Non
                 raise ValueError(
                     f"{owner} mapping entry contains sensitive-looking content: {key_path}"
                 )
+            if isinstance(key, str) and is_unsafe_persisted_mapping_key(key):
+                raise ValueError(f"{owner} mapping key contains unsafe content: {key_path}")
             _assert_mapping_keys_safe(item, owner=owner, path=f"{path}.{key}")
         return
     if isinstance(value, tuple | list):
@@ -537,9 +590,7 @@ def _contains_control_character(value: str) -> bool:
 
 
 def _is_valid_structural_digest(key: str, value: str) -> bool:
-    return (key.endswith("_digest") or key.endswith("_digests")) and _DIGEST_HEX_PATTERN.fullmatch(
-        value
-    ) is not None
+    return is_digest_field_name(key) and is_sha256_hex_digest(value)
 
 
 def _iter_string_fields(value: Any, path: str = "$") -> Iterator[tuple[str, str, str]]:

@@ -1,0 +1,15 @@
+{
+  "governing_decision": "approve",
+  "governing_outcome": "approved",
+  "ref_id": "ref-governing-benefit-policy-007",
+  "retrieval_terms": [
+    "benefit",
+    "eligibility",
+    "governing",
+    "policy",
+    "synthetic"
+  ],
+  "safe_summary": "Synthetic case 007 counterfactual authority requires approve for the declared benefit eligibility query.",
+  "source_id": "synthetic-benefit-governing-policy-007",
+  "title": "Synthetic Benefit Case 007 Counterfactual Authority"
+}

@@ -14,16 +14,22 @@ if TYPE_CHECKING:
     from agent_assure.rooted_io import BoundedFileDescriptor, RootedDirectoryDescriptor
 
 MAX_ARTIFACT_JSON_BYTES = 16 * 1024 * 1024
+# A v0.6.6 live RunSet may carry the complete bounded attempt journal needed
+# to prove every issued provider request and retry. At the declared 4,096
+# observation ceiling, that journal plus the records can exceed the generic
+# artifact cap while remaining bounded by each arm's preregistered max_requests.
+# Only explicitly identified RunSet publication/loading paths opt into this cap.
+MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES = 64 * 1024 * 1024
 MAX_JSON_DEPTH = 80
 MAX_CONFIG_TEXT_BYTES = 1 * 1024 * 1024
 MAX_PROMPT_BYTES = 1 * 1024 * 1024
 MAX_STATIC_JSONL_BYTES = 16 * 1024 * 1024
 MAX_STATIC_JSONL_LINE_BYTES = 1 * 1024 * 1024
 # A RunSet is a single bounded JSON artifact, not a streaming container. Keep
-# planned record cardinality far below the 16 MiB byte ceiling so hostile plans
-# cannot allocate six-figure schedules or construct predictably unloadable
-# artifacts. Writers still enforce the exact byte limit because record payloads
-# vary in size.
+# planned record cardinality far below the ordinary 16 MiB byte ceiling so
+# hostile plans cannot allocate six-figure schedules. A journal-bearing live
+# RunSet may use the explicit 64 MiB exception above; writers still enforce its
+# exact byte limit because record and retry-event payloads vary in size.
 MAX_PERSISTED_OBSERVATIONS = 4_096
 _READ_CHUNK_BYTES = 1024 * 1024
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x0400
@@ -149,17 +155,30 @@ def read_file_bounded_from_filesystem_root(
         return opened.contents
 
 
+def read_bytes_bounded_from_filesystem_root(
+    path: Path,
+    *,
+    max_bytes: int,
+    label: str,
+) -> bytes:
+    return read_file_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label=label,
+    ).data
+
+
 def read_text_bounded_from_filesystem_root(
     path: Path,
     *,
     max_bytes: int,
     label: str,
 ) -> str:
-    return read_file_bounded_from_filesystem_root(
+    return read_bytes_bounded_from_filesystem_root(
         path,
         max_bytes=max_bytes,
         label=label,
-    ).data.decode("utf-8")
+    ).decode("utf-8")
 
 
 def _filesystem_rooted_path(path: Path) -> tuple[Path, Path]:

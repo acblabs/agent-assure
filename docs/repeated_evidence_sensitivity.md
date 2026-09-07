@@ -5,10 +5,12 @@ stochastic question: under a predeclared paired design, what proportion of the
 frozen planned independent clusters exhibit the declared
 `expected_decision_response` after the governing evidence changes, when every
 non-analyzable planned cluster is conservatively scored as zero? That fixed
-planned-frame composite is the confirmatory endpoint. Version 1 supports only
-an authority-bound `decision_flip`: one arm must predeclare
-`approve`/`approved`, the other must predeclare `deny`/`denied`, and each
-observed arm must exactly match its own assignment.
+planned-frame composite is the confirmatory endpoint. The released `0.6.5`
+wire form supports an authority-bound `decision_flip` in either direction.
+The `0.6.6` writer also supports a preregistered `decision_invariant`
+negative control, where both arms must bind the same approve or deny decision
+while retaining distinct governing evidence. In either mode, each observed arm
+must exactly match its own assignment for a positive endpoint.
 
 This method does not establish causality, general model quality, provider-wide
 behavior, safety, or compliance. Its population statement is conditional on
@@ -159,20 +161,23 @@ execute but, without configured per-resource digests or a signed preparation
 receipt, does not independently attest that a hostile caller obtained those
 bytes from the mutable paths named in the config.
 
-Schema version `0.6.5` permits verdict-bearing confirmatory stochastic execution
-only with the `openai-chat-completions` adapter. Static JSONL and external-script
-adapters remain useful for deterministic or exploratory rehearsal, but cannot
-be mislabeled as confirmatory live evidence.
+Schema versions `0.6.5` and `0.6.6` permit verdict-bearing confirmatory
+stochastic execution only with the `openai-chat-completions` adapter. Static
+JSONL and external-script adapters remain useful for deterministic or
+exploratory rehearsal, but cannot be mislabeled as confirmatory live evidence.
 
 The verified corpus evidence is delivered to the provider. The knowledge
 contract is provenance and prebinding metadata, not additional provider prompt
-content. A schema `0.6.5` `RAGSensitivityKnowledgeContract` carries a canonical,
-unique `case_authority_bindings` entry for every planned case, with exact
-corpus-to-expected-output assignments for both arms. The legacy scalar
-case/query/assignment fields must mirror one of those entries; a legacy contract
-without the collection is therefore safe only for a one-case frame. Finalization
-fails unless both arm snapshots expose the same authority bindings and those
-bindings exactly cover the frozen case frame.
+content. A schema `0.6.5` or `0.6.6`
+`RAGSensitivityKnowledgeContract` carries a canonical, unique
+`case_authority_bindings` entry for every planned case, with exact
+corpus-to-expected-output assignments for both arms. In `0.6.6`, invariant
+bindings explicitly carry `expected_relation: decision_invariant`; omitting
+that field retains the historical flip meaning. The legacy scalar
+case/query/assignment fields must mirror one of those entries; a legacy
+contract without the collection is therefore safe only for a one-case frame.
+Finalization fails unless both arm snapshots expose the same authority bindings
+and those bindings exactly cover the frozen case frame.
 
 The content-derived configuration digest `C` excludes only the design
 commitment back-link, so it can be computed before the design digest `D`.
@@ -184,6 +189,18 @@ outcomes are known. This is a commitment and replay boundary, not an external
 timestamp: without an append-only registry or signed time source it cannot
 prove that only one execution occurred or prevent cherry-picking among
 multiple executions made under identical `C` and `D`.
+
+For a current live run, the finalized protocol also preregisters one
+`execution_attempt_id`. The runner reopens the exact registered protocol path,
+derives an output-independent journal location beside it, and exclusively
+creates and syncs that reservation before the first provider request. Changing
+`--out` cannot create a second local attempt. The journal records every issued,
+failed, retried, and successful request and is reconciled with both RunSets
+before analysis. This is a local fail-closed guard, not an external uniqueness
+oracle: protect and retain the protocol directory and journal with append-only
+storage or equivalent access controls. Copying the registered protocol or
+deleting its journal defeats local replay prevention and is not evidence that
+only one execution occurred.
 
 Resolved model and provider response metadata can exist only after a call.
 The record preserves the requested model separately; a frozen non-null resolved
@@ -370,16 +387,18 @@ either content-derived configuration digest. Each finalized config output must
 be a distinct `.json` sibling of its uncommitted input so relative resources
 retain their meaning. Publication preflights all three outputs, never replaces a
 concurrent entry, and accepts only exact idempotent outputs. It never unlinks a
-final output during handled failure. An interruption can therefore retain a
-complete or partial exclusively created file; a retry accepts an exact complete
+pre-existing or concurrently substituted final output. On a recoverable failure,
+it removes only entries created by that invocation whose pinned device/inode
+identity still matches. Abrupt termination or power loss can retain a complete
+or partial exclusively created file; a retry accepts an exact complete
 file but fails closed on a partial or different entry until an operator inspects
 and removes it. On POSIX, each unique parent containing a newly created final
 name is synced before success. Windows flushes each file but provides no parent
 directory sync in this path, so final-name durability remains filesystem- and
 host-dependent. POSIX whole-file and Windows byte-lock acquisition both use
 nonblocking attempts under an explicit 60-second monotonic deadline and fail
-before preflight on timeout. The three outputs are not one cross-file
-transaction.
+before preflight on timeout. The three outputs are not one cross-file or
+crash-atomic transaction.
 Freeze and review the finalized JSON before execution; never derive or replace
 these commitments after observing outcomes.
 

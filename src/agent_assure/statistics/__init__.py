@@ -1,5 +1,18 @@
 """Dependency-light statistical engines used by assurance evaluators."""
 
+from agent_assure.statistics.binomial_intervals import (
+    CLOPPER_PEARSON_BISECTION_STEPS,
+    CLOPPER_PEARSON_METHOD,
+    MAX_CLOPPER_PEARSON_AGGREGATE_WORK_UNITS,
+    MAX_CLOPPER_PEARSON_TRIALS,
+    ClopperPearsonInterval,
+    IntervalSide,
+    clear_binomial_interval_cache,
+    clopper_pearson_interval_pair_work_units,
+    clopper_pearson_one_sided,
+    clopper_pearson_work_units,
+    validate_clopper_pearson_work_budget,
+)
 from agent_assure.statistics.cluster_binomial import (
     BINARY_CLUSTER_ASSUMPTION,
     MAX_CLUSTERS,
@@ -21,6 +34,10 @@ from agent_assure.statistics.cluster_binomial import (
 
 __all__ = [
     "BINARY_CLUSTER_ASSUMPTION",
+    "CLOPPER_PEARSON_BISECTION_STEPS",
+    "CLOPPER_PEARSON_METHOD",
+    "MAX_CLOPPER_PEARSON_AGGREGATE_WORK_UNITS",
+    "MAX_CLOPPER_PEARSON_TRIALS",
     "MAX_CLUSTERS",
     "MAX_MONTE_CARLO_BERNOULLI_DRAWS",
     "MAX_MONTE_CARLO_RESAMPLES",
@@ -28,12 +45,19 @@ __all__ = [
     "PROBABILITY_SCALE",
     "RATIONAL_BERNOULLI_SAMPLER_ID",
     "SHA256_COUNTER_BITSTREAM_ID",
+    "ClopperPearsonInterval",
     "ClusterBinomialAnalysis",
     "ClusterBinomialDesign",
+    "IntervalSide",
     "MonteCarloBinomialDiagnostic",
     "analyze_cluster_binomial",
+    "clear_binomial_interval_cache",
     "clear_cluster_binomial_caches",
+    "clopper_pearson_interval_pair_work_units",
+    "clopper_pearson_one_sided",
+    "clopper_pearson_work_units",
     "cluster_binomial_rejection_region_contains",
     "exact_binomial_upper_tail",
     "plan_cluster_binomial_design",
+    "validate_clopper_pearson_work_budget",
 ]

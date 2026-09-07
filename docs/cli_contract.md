@@ -26,6 +26,12 @@ Current commands:
 - `agent-assure rag sensitivity finalize --template REPEATED_PROTOCOL_TEMPLATE_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_UNCOMMITTED_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_UNCOMMITTED_LIVE_CONFIG --out REPEATED_PROTOCOL_JSON --baseline-config-out BASELINE_FINAL_LIVE_CONFIG_JSON --counterfactual-config-out COUNTERFACTUAL_FINAL_LIVE_CONFIG_JSON`
 - `agent-assure rag sensitivity run --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config LIVE_CONFIG --counterfactual-config LIVE_CONFIG --live-protocol LIVE_PROTOCOL_JSON --out RUNSET_DIR --network-opt-in [--trust-config] [--ci] [--allow-external-script] [--allow-script-env]`
 - `agent-assure rag sensitivity analyze --protocol REPEATED_PROTOCOL_JSON_OR_YAML --runset RUNSET_DIR --out ANALYSIS_DIR`
+- `agent-assure rag study input-commitment --compiled-suite COMPILED_SUITE_JSON --config UNBOUND_LIVE_CONFIG_JSON_OR_YAML`
+- `agent-assure rag study finalize --template STUDY_MANIFEST_TEMPLATE_JSON_OR_YAML --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --protocol CONDITION_ID=REPEATED_PROTOCOL_JSON_OR_YAML [--protocol CONDITION_ID=PATH ...] --out STUDY_MANIFEST_JSON`
+- `agent-assure rag study review-registration --manifest STUDY_MANIFEST_JSON --record REGISTRATION_RECORD_JSON --template REGISTRATION_REVIEW_TEMPLATE_JSON_OR_YAML --out REGISTRATION_REVIEW_RECEIPT_JSON`
+- `agent-assure rag study review-execution --bundle STUDY_PRE_REVIEW_BUNDLE_DIR --template EXECUTION_REVIEW_TEMPLATE_JSON_OR_YAML --out EXECUTION_REVIEW_RECEIPT_JSON`
+- `agent-assure rag study bind-config --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --condition-id CONDITION_ID --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_LIVE_CONFIG --baseline-config-out BASELINE_STUDY_BOUND_JSON --counterfactual-config-out COUNTERFACTUAL_STUDY_BOUND_JSON`
+- `agent-assure rag study analyze --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --evidence STUDY_EVIDENCE_DESCRIPTOR_JSON_OR_YAML --out STUDY_PUBLICATION_DIR`
 - `agent-assure live adapters`
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
@@ -35,6 +41,8 @@ Current commands:
 - `agent-assure stream ingest EVENTS_JSONL --sequence-scope global|producer_local --out STREAM_RUN_JSON [--producer-field producer_id|node_id|span_id] [--diagnostics-out PATH]`
 - `agent-assure stream evaluate STREAM_RUN_JSON --suite SUITE_YAML_OR_COMPILED_JSON --out-dir REPORT_DIR [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated]`
 - `agent-assure release replay RELEASE_DIGEST_REPLAY_JSON [--artifact-root DIR] [--require-role ROLE] [--expect-commit COMMIT] [--expect-ref REF] [--require-current-commit/--no-require-current-commit] [--require-core/--no-require-core]`
+- `agent-assure release pilot finalize --template EXTERNAL_PILOT_TEMPLATE_JSON_OR_YAML --out EXTERNAL_PILOT_EVIDENCE_JSON`
+- `agent-assure release pilot review --bundle-root EXTERNAL_PILOT_BUNDLE_DIR [--evidence EXTERNAL_PILOT_EVIDENCE_CHILD] --template PILOT_REVIEW_TEMPLATE_JSON_OR_YAML [--out PILOT_REVIEW_RECEIPT_CHILD]`
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header-env NAME=ENV_VAR] [--header-file NAME=PATH]`
 
@@ -142,14 +150,16 @@ acquired by that invocation and fails before output preflight or creation.
 All existing outputs are then preflighted, an exact existing output is accepted,
 and any different content fails before an absent output is created. Absent
 outputs are exclusively created through pinned parent directories. The command
-never replaces or unlinks a final output name, including during handled failure,
-so one invocation cannot remove an output another invocation adopted. Completed
-invocations are convergent and idempotent. Before reporting success on POSIX,
+never replaces a final output. On a recoverable failure it removes only entries
+that the current locked invocation created and whose pinned device/inode identity
+still matches; it never removes a pre-existing or concurrently substituted
+entry. Completed invocations are convergent and idempotent. Before reporting success on POSIX,
 the command syncs every unique parent directory in which it created a final
 name. Windows has no directory-sync operation in this path; file handles are
 flushed, while final-name durability remains subject to Windows filesystem and
-host guarantees. A handled failure or abrupt process or host interruption during an in-place write can leave an exclusively created
-output complete or partially written. A retry accepts byte-exact completed
+host guarantees. A handled failure is rolled back when identity-bound cleanup
+succeeds. An abrupt process or host interruption during an in-place write can
+leave an exclusively created output complete or partially written. A retry accepts byte-exact completed
 outputs but fails closed on a partial or differing entry; an operator must
 inspect and remove that entry before retrying. The three-file operation is not a
 single cross-file filesystem transaction. Source configs must not already carry an
@@ -164,6 +174,13 @@ implicitly. Every paired live invocation requires `--network-opt-in`; an
 actually network-backed adapter additionally requires its configuration opt-in.
 Risky configuration execution also follows the existing
 `--trust-config`/`--ci` acknowledgement boundary.
+Before dispatch, `run` reopens the exact `--protocol` file and exclusively
+reserves its preregistered `execution_attempt_id` in a synced, output-independent
+journal beside that file. A second invocation with a different `--out` still
+fails before provider dispatch while the reservation remains. This local guard
+depends on retaining and protecting the registered protocol directory; strict
+global single-execution claims require an external append-only registry or
+equivalent trusted coordinator.
 
 `analyze` outer-joins both RunSets over the complete planned pair manifest and
 embeds those observations in `statistical-sufficiency-report.json`. It writes
@@ -186,6 +203,118 @@ Observed/analyzable counts remain separate audit fields.
 denominator. Missing pairs, incomplete source execution, or excess exclusions
 therefore remain non-verdict even when a conservative exact analysis is
 available for inspection.
+
+The nested `rag study input-commitment`, `finalize`,
+`review-registration`, `bind-config`, `analyze`, and `review-execution`
+commands compose repeated conditions into a preregistered real-model study.
+This is an untagged development surface; no real-provider study result is
+included in the repository.
+
+`study input-commitment` snapshots a compiled suite and unbound live config
+without dispatch, renders the exact case-keyed provider inputs, and prints
+their aggregate manifest digest. Owners run it for both arms and freeze those
+digests in the manifest; final config binding and RunSet replay recompute them.
+
+`study finalize` accepts a manifest authoring mapping, the exact
+Process-Equivalence Benchmark v0.2 manifest, and one
+`CONDITION_ID=PROTOCOL_PATH` entry for every condition. It strips any supplied
+derived manifest, protocol-set, and hypothesis-rule digests, recomputes them,
+then validates exact condition, benchmark-case, task, authority, protocol,
+model, configuration, planned-frame, and decision-rule bindings. It neither
+constructs an adapter nor dispatches a provider. Before finalization, the study
+owner must place an independently materialized authoring/registration record
+covering the exact frozen inputs in a genuine version-control commit or
+append-only registry. `registration.reference_id` is that immutable record's
+external locator and `registration.evidence_digest` is the record's digest;
+it is not a circular claim that the record contains the self-digested manifest.
+A
+`local_digest_commitment` remains structurally usable but cannot permit a
+confirmatory publication.
+
+`study review-registration` takes that finalized manifest, the exact UTF-8
+JSON registration-record bytes, and the mandatory human checklist in
+`docs/templates/real_model_study_registration_review.yaml`. It checks the raw
+SHA-256, requires explicit reference-resolution, byte-match, immutability,
+coverage, and pre-observation attestations, enforces review before the
+execution window, builds the self-digested receipt, and publishes it
+no-clobber. It does not contact the VCS/registry or authenticate the reviewer;
+those remain operator and repository-approval trust boundaries.
+
+`study bind-config` verifies one frozen condition against the exact benchmark
+and writes both study-bound arm configurations under the same lock-coordinated,
+no-clobber, recoverable-failure rollback contract described above. This is not a
+two-file crash-atomic transaction: abrupt termination or power loss can expose a
+partial pair, which consumers must reject. The inputs and
+outputs must be distinct, confined files, and neither arm may contain inline
+environment values. Both outputs carry the same exact study-manifest digest;
+the command fails before publication if either arm, configuration digest,
+design commitment, compiled suite, protocol identity, prompt bytes, or
+knowledge-contract bytes differ. It performs no provider dispatch and does not
+grant network consent.
+
+Execution remains the separately authorized `rag sensitivity run` command,
+invoked once for each condition with the study-bound configs and the existing
+network, risky-config, credential, and budget controls.
+
+`study analyze` consumes a relative-path descriptor with exactly one sorted
+entry per frozen condition:
+
+```yaml
+schema_name: real-model-study-evidence-input/v1
+registration_record: registration/registration-record.json
+registration_review_receipt: registration/study-registration-review.json
+statistical_method_review_receipt: registration/study-statistical-method-review.json
+execution_review_receipt: registration/study-execution-review.json
+conditions:
+  - condition_id: provider-model-condition
+    registered_protocol: condition/protocol.json
+    source_run_directory: condition/run
+```
+
+Both registration paths are mandatory, bounded, relative inputs. The
+statistical-method review path is optional only for a non-publishable draft
+replay and mandatory for publication readiness. The execution review path is
+optional for a pre-review replay and mandatory for publication readiness.
+Each source directory contains
+`repeated-evidence-sensitivity-protocol.json`, `baseline.runset.json`, and
+`counterfactual.runset.json`. A null `source_run_directory` is represented
+as `not_executed`; it is not an escape hatch for a study result. The analyzer
+compares the source protocol with the separately retained registered protocol,
+replays the exact paired analysis, validates manifest backlinks and
+provider/model/config/window/cost identity, and atomically publishes the
+manifest, benchmark, exact registration record, canonical review receipt,
+report JSON/Markdown, registered protocols, and any exact privacy-filtered
+source protocols, RunSets, and observed-execution-provenance sidecars. It then
+reopens and exactly replays the closed output inventory.
+
+`study review-execution` consumes that exact closed pre-review bundle after
+the planned execution window and a mandatory human checklist. It derives and
+binds the manifest/report byte digests, every source RunSet ID and byte digest,
+observed-provenance digests, and provider-response-ID-set digests. The reviewer
+attests to independent provider log/account comparison; the command does not
+cryptographically authenticate that reviewer or provider. Add the resulting
+receipt to the descriptor and analyze into a new empty final directory.
+
+Before provider execution, `study review-statistics` builds a self-digested
+receipt from a qualified independent review template and binds it to the exact
+manifest, benchmark, and registered protocol set. Reviewer identity and
+qualifications remain out-of-band trust inputs.
+
+Exit `0` means the factory-verified closed bundle is study-publication-ready:
+the direct same-decision analysis and invariant controls satisfy the frozen
+rules, all executions have real-provider provenance, and the exact external
+registration record and provider-backed execution have timely operator review
+receipts bound to the replayed bytes. A standalone report always keeps its
+publication and confirmatory-permission flags false. Exit `1` means a
+replayable bundle exists but is not study-publication-ready, including a
+missing statistical-method or execution review, `control_failed`,
+`not_executed`, `invalidated`,
+`underpowered`, synthetic origin, or local-only registration. Invalid input,
+privacy failure, or an output conflict exits `2`; a bounded unexpected
+internal failure exits `4`.
+The implementation records inapplicable statistics by omitting their fields,
+never by manufacturing zero estimates. See
+[Preregistered Real-Model Study](real_model_study.md).
 
 OTLP authentication values are never accepted directly in command-line arguments. Use
 `--header-env` to read a value from an environment variable or `--header-file` to read it
@@ -879,6 +1008,29 @@ In v0.5.0, stream span plans are flat per-run span plans. Source `span_id` and
 `parent_span_id` values are preserved as event attributes for OpenTelemetry
 consumers, but the persisted `span-plan` schema does not yet model nested child
 span records.
+
+`release pilot finalize` loads one bounded JSON/YAML authoring mapping,
+removes any supplied self-digest, constructs `ExternalPilotEvidence/v1`
+through its model builder, verifies an exact canonical-JSON round trip, and
+publishes without overwriting different bytes. Its `--out` option is required
+so an omitted publication destination fails during CLI parsing, before the
+template is loaded or modeled. `release pilot review`
+requires a closed flat bundle containing exactly that evidence and every
+declared artifact, with the human-only template outside the bundle. It pins and
+validates all bytes, derives the evidence-file SHA-256, artifact-manifest
+digest, environment-control binding, pilot/participant identity, and release
+line, and accepts only reviewer attestations from the template. After
+no-clobber publication it verifies the complete bundle. An absent receipt or
+an already-valid exact receipt supports idempotent reruns; any extra entry,
+changed artifact, derived template field, different existing receipt, link, or
+privacy violation exits `2`. Bounded internal faults exit `4`.
+
+Both pilot commands keep persistent publication locks beside, rather than
+inside, the evidence directory. They refuse a target directory that is the
+current working directory or its ancestor, and refuse a lock root at the
+filesystem root. Operators must run from the parent of a dedicated evidence
+directory and name that output directory explicitly; the CLI will not silently
+write a lock above the working directory.
 
 `release replay` validates a `release-digest-replay` artifact under
 `--artifact-root`. It recomputes raw SHA-256 file digests for replay-stable

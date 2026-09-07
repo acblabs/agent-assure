@@ -1,0 +1,279 @@
+{
+  "$defs": {
+    "ProcessEquivalenceExpectedObservation": {
+      "enum": [
+        "evidence_insensitivity_blocked",
+        "same_output_different_process_detected"
+      ],
+      "title": "ProcessEquivalenceExpectedObservation",
+      "type": "string"
+    },
+    "ProcessEquivalenceReproductionIndexCase": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "replay": {
+          "$ref": "#/$defs/ProcessEquivalenceReproductionIndexReplay"
+        },
+        "source_artifacts": {
+          "items": {
+            "$ref": "#/$defs/ProcessEquivalenceReproductionIndexSourceArtifact"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Source Artifacts",
+          "type": "array"
+        },
+        "source_closure": {
+          "$ref": "#/$defs/ProcessEquivalenceReproductionIndexSourceClosure"
+        },
+        "stratum": {
+          "$ref": "#/$defs/ProcessEquivalenceStratum"
+        },
+        "subject_designation": {
+          "const": "synthetic_detector_contract_test",
+          "default": "synthetic_detector_contract_test",
+          "title": "Subject Designation",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "stratum",
+        "source_artifacts",
+        "source_closure",
+        "replay"
+      ],
+      "title": "ProcessEquivalenceReproductionIndexCase",
+      "type": "object"
+    },
+    "ProcessEquivalenceReproductionIndexReplay": {
+      "additionalProperties": false,
+      "properties": {
+        "clean": {
+          "const": true,
+          "default": true,
+          "title": "Clean",
+          "type": "boolean"
+        },
+        "command": {
+          "const": "demo",
+          "default": "demo",
+          "title": "Command",
+          "type": "string"
+        },
+        "demo": {
+          "enum": [
+            "evidence-sensitivity",
+            "flagship"
+          ],
+          "title": "Demo",
+          "type": "string"
+        },
+        "expected_exit_code": {
+          "const": 0,
+          "default": 0,
+          "title": "Expected Exit Code",
+          "type": "integer"
+        },
+        "expected_observation": {
+          "$ref": "#/$defs/ProcessEquivalenceExpectedObservation"
+        },
+        "output_format": {
+          "const": "json",
+          "default": "json",
+          "title": "Output Format",
+          "type": "string"
+        },
+        "program": {
+          "const": "agent-assure",
+          "default": "agent-assure",
+          "title": "Program",
+          "type": "string"
+        }
+      },
+      "required": [
+        "demo",
+        "expected_observation"
+      ],
+      "title": "ProcessEquivalenceReproductionIndexReplay",
+      "type": "object"
+    },
+    "ProcessEquivalenceReproductionIndexSourceArtifact": {
+      "additionalProperties": false,
+      "properties": {
+        "path": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Path",
+          "type": "string"
+        },
+        "sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "sha256"
+      ],
+      "title": "ProcessEquivalenceReproductionIndexSourceArtifact",
+      "type": "object"
+    },
+    "ProcessEquivalenceReproductionIndexSourceClosure": {
+      "additionalProperties": false,
+      "properties": {
+        "closure_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Closure Digest",
+          "type": "string"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/ProcessEquivalenceReproductionIndexSourceArtifact"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Entries",
+          "type": "array"
+        },
+        "inventory_policy": {
+          "const": "recursive_regular_files_no_runtime_cache_v1",
+          "default": "recursive_regular_files_no_runtime_cache_v1",
+          "title": "Inventory Policy",
+          "type": "string"
+        },
+        "source_root": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Source Root",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_root",
+        "closure_digest",
+        "entries"
+      ],
+      "title": "ProcessEquivalenceReproductionIndexSourceClosure",
+      "type": "object"
+    },
+    "ProcessEquivalenceStratum": {
+      "enum": [
+        "same_output_different_process",
+        "evidence_insensitivity"
+      ],
+      "title": "ProcessEquivalenceStratum",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/process-equivalence-reproduction-index.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "process-equivalence-reproduction-index",
+      "default": "process-equivalence-reproduction-index",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/ProcessEquivalenceReproductionIndexCase"
+      },
+      "maxItems": 256,
+      "minItems": 2,
+      "title": "Cases",
+      "type": "array"
+    },
+    "contract_id": {
+      "const": "ProcessEquivalenceReproductionIndex/v1",
+      "default": "ProcessEquivalenceReproductionIndex/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "leaderboard_supported": {
+      "const": false,
+      "default": false,
+      "title": "Leaderboard Supported",
+      "type": "boolean"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 8192,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "prevalence_claim_supported": {
+      "const": false,
+      "default": false,
+      "title": "Prevalence Claim Supported",
+      "type": "boolean"
+    },
+    "real_model_measurement": {
+      "const": false,
+      "default": false,
+      "title": "Real Model Measurement",
+      "type": "boolean"
+    },
+    "reproduction_index_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Reproduction Index Digest",
+      "type": "string"
+    },
+    "reproduction_index_id": {
+      "const": "process-equivalence-reproduction-index",
+      "default": "process-equivalence-reproduction-index",
+      "title": "Reproduction Index Id",
+      "type": "string"
+    },
+    "reproduction_index_version": {
+      "const": "0.1.0",
+      "default": "0.1.0",
+      "title": "Reproduction Index Version",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "process-equivalence-reproduction-index",
+      "default": "process-equivalence-reproduction-index",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "reproduction_index_digest",
+    "cases",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ProcessEquivalenceReproductionIndex",
+  "type": "object"
+}

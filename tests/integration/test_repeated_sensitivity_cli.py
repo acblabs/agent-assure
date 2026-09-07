@@ -12,6 +12,8 @@ import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
+from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.cli import _publication as publication_module
 from agent_assure.cli import rag_cmd as rag_cmd_module
 from agent_assure.cli.main import app
 from agent_assure.live.config import (
@@ -22,16 +24,22 @@ from agent_assure.live.config import (
     load_live_run_config,
 )
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.rag import repeated_sensitivity as repeated_workflow
 from agent_assure.rag.sensitivity import SensitivityInputError
 from agent_assure.rag.sensitivity_statistics import plan_binary_paired_design
 from agent_assure.release_evidence import build_digest_replay, verify_digest_replay
 from agent_assure.reporting.stochastic_sensitivity import (
     REPEATED_ANALYSIS_OUTPUT_FILENAMES,
 )
-from agent_assure.rooted_io import RootedDirectoryDescriptor
+from agent_assure.rooted_io import PinnedDirectoryFile, RootedDirectoryDescriptor
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    LiveExecutionAttemptEvent,
+    LiveExecutionAttemptJournal,
+    RunSet,
+)
 from agent_assure.schema.sensitivity import (
     RAGSensitivityAuthorityAssignment,
     RAGSensitivityCaseAuthorityBinding,
@@ -77,7 +85,10 @@ def _arm(
     )
 
 
-def _protocol() -> RepeatedEvidenceSensitivityProtocol:
+def _protocol(
+    *,
+    execution_attempt_id: str | None = None,
+) -> RepeatedEvidenceSensitivityProtocol:
     design = plan_binary_paired_design(
         familywise_alpha="0.050000",
         desired_power="0.800000",
@@ -90,6 +101,7 @@ def _protocol() -> RepeatedEvidenceSensitivityProtocol:
     counterfactual_arm = _arm("counterfactual_evidence")
     return RepeatedEvidenceSensitivityProtocol.build(
         protocol_id="cli-repeated-study",
+        execution_attempt_id=execution_attempt_id,
         interpretation="confirmatory",
         execution_mode="stochastic_live",
         inferential_unit="case_id",
@@ -179,7 +191,7 @@ def _runset(
     protocol: RepeatedEvidenceSensitivityProtocol,
     arm_id: Literal["baseline_evidence", "counterfactual_evidence"],
     *,
-    omitted_case: str | None = None,
+    completion_status: Literal["complete", "incomplete"] = "complete",
 ) -> RunSet:
     arm = protocol.baseline_arm if arm_id == "baseline_evidence" else protocol.counterfactual_arm
     is_baseline = arm_id == "baseline_evidence"
@@ -218,7 +230,6 @@ def _runset(
             ),
         )
         for index, case_id in enumerate(protocol.planned_case_ids)
-        if case_id != omitted_case
     )
     return RunSet(
         runset_id=f"{arm_id}-runset",
@@ -232,9 +243,107 @@ def _runset(
         protocol_id="operational-live-protocol",
         protocol_digest=_digest("operational-live-protocol"),
         evidence_sensitivity_design_digest=protocol.design_commitment_digest,
-        completion_status="incomplete" if omitted_case is not None else "complete",
-        stop_reasons=("synthetic-source-omission",) if omitted_case is not None else (),
+        completion_status=completion_status,
+        stop_reasons=("provider-budget-stop",) if completion_status == "incomplete" else (),
         runs=runs,
+    )
+
+
+def _attach_attempt_journal(
+    runset: RunSet,
+    journal: LiveExecutionAttemptJournal,
+) -> RunSet:
+    payload = runset.model_dump(mode="json")
+    payload.update(
+        {
+            "execution_attempt_id": journal.execution_attempt_id,
+            "execution_attempt_journal_digest": journal.journal_digest,
+            "execution_attempt_journal": journal.model_dump(mode="json"),
+        }
+    )
+    return RunSet.model_validate(payload)
+
+
+def _journaled_pair(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+    baseline: RunSet,
+    counterfactual: RunSet,
+) -> tuple[RunSet, RunSet]:
+    assert protocol.execution_attempt_id is not None
+
+    def add_attempt_accounting(runset: RunSet) -> RunSet:
+        return runset.model_copy(
+            update={
+                "runs": tuple(
+                    run.model_copy(
+                        update={
+                            "attempt_count": 1,
+                            "retry_count": 0,
+                            "rate_limit_events": 0,
+                            "provider_response_id": f"response-{run.run_id}",
+                        }
+                    )
+                    for run in runset.runs
+                )
+            }
+        )
+
+    baseline = add_attempt_accounting(baseline)
+    counterfactual = add_attempt_accounting(counterfactual)
+    event_payloads: list[dict[str, object]] = []
+
+    def append_event(event_type: str, **values: object) -> None:
+        event_payloads.append(
+            {
+                "event_index": len(event_payloads),
+                "event_type": event_type,
+                "occurred_at_utc": "2026-09-05T12:00:00Z",
+                **values,
+            }
+        )
+
+    for arm_id, runset in (
+        (protocol.baseline_arm.arm_id, baseline),
+        (protocol.counterfactual_arm.arm_id, counterfactual),
+    ):
+        append_event("arm_started", arm_id=arm_id)
+        for run in runset.runs:
+            identity = {
+                "arm_id": arm_id,
+                "run_id": run.run_id,
+                "observation_id": run.observation_id,
+                "case_id": run.case_id,
+                "repetition_index": run.repetition_index,
+                "adapter_attempt_index": 1,
+            }
+            append_event("request_issued", **identity)
+            append_event(
+                "request_succeeded",
+                **identity,
+                provider_response_id_digest=sha256_hexdigest(
+                    {
+                        "purpose": "provider-response-id/v1",
+                        "provider_response_id": run.provider_response_id,
+                    }
+                ),
+            )
+        append_event("arm_completed", arm_id=arm_id)
+    append_event("attempt_completed")
+
+    journal = LiveExecutionAttemptJournal.build(
+        journal_version="1.0.0",
+        execution_attempt_id=protocol.execution_attempt_id,
+        repeated_protocol_digest=protocol.protocol_digest,
+        operational_protocol_digest=baseline.protocol_digest,
+        study_manifest_digest=None,
+        baseline_configuration_digest=protocol.baseline_arm.configuration_digest,
+        counterfactual_configuration_digest=(protocol.counterfactual_arm.configuration_digest),
+        status="complete",
+        events=tuple(LiveExecutionAttemptEvent.model_validate(item) for item in event_payloads),
+    )
+    return (
+        _attach_attempt_journal(baseline, journal),
+        _attach_attempt_journal(counterfactual, journal),
     )
 
 
@@ -312,22 +421,24 @@ def _write_json(path: Path, value: object) -> None:
 def _persist_study(
     tmp_path: Path,
     *,
-    omitted_counterfactual_case: str | None = None,
+    registered: bool = True,
+    counterfactual_incomplete: bool = False,
 ) -> tuple[RepeatedEvidenceSensitivityProtocol, Path, Path]:
-    protocol = _protocol()
+    protocol = _protocol(execution_attempt_id="cli-analysis-attempt-01" if registered else None)
     protocol_path = tmp_path / "protocol.json"
     runset_dir = tmp_path / "paired-runs"
     runset_dir.mkdir()
-    _write_json(protocol_path, protocol)
-    _write_json(runset_dir / "baseline.runset.json", _runset(protocol, "baseline_evidence"))
-    _write_json(
-        runset_dir / "counterfactual.runset.json",
-        _runset(
-            protocol,
-            "counterfactual_evidence",
-            omitted_case=omitted_counterfactual_case,
-        ),
+    baseline = _runset(protocol, "baseline_evidence")
+    counterfactual = _runset(
+        protocol,
+        "counterfactual_evidence",
+        completion_status="incomplete" if counterfactual_incomplete else "complete",
     )
+    if registered:
+        baseline, counterfactual = _journaled_pair(protocol, baseline, counterfactual)
+    _write_json(protocol_path, protocol)
+    _write_json(runset_dir / "baseline.runset.json", baseline)
+    _write_json(runset_dir / "counterfactual.runset.json", counterfactual)
     return protocol, protocol_path, runset_dir
 
 
@@ -537,7 +648,7 @@ def test_repeated_sensitivity_finalize_refuses_every_inline_environment_value(
     assert not counterfactual_out.exists()
 
 
-def test_finalize_publication_never_clobbers_or_unlinks_final_names(
+def test_finalize_publication_rolls_back_owned_outputs_without_touching_collisions(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -552,7 +663,7 @@ def test_finalize_publication_never_clobbers_or_unlinks_final_names(
     second.write_text("foreign\n", encoding="utf-8")
 
     with pytest.raises(ValueError, match="already exists with different content"):
-        rag_cmd_module._publish_finalize_outputs(outputs)
+        publication_module.publish_finalize_outputs(outputs)
     assert not first.exists()
     assert second.read_text(encoding="utf-8") == "foreign\n"
     assert not third.exists()
@@ -579,10 +690,10 @@ def test_finalize_publication_never_clobbers_or_unlinks_final_names(
         create_concurrent_entry,
     )
     with pytest.raises(FileExistsError):
-        rag_cmd_module._publish_finalize_outputs(outputs)
+        publication_module.publish_finalize_outputs(outputs)
 
     assert collided
-    assert first.read_text(encoding="utf-8") == "first\n"
+    assert not first.exists()
     assert second.read_text(encoding="utf-8") == "concurrent\n"
     assert not third.exists()
 
@@ -610,8 +721,8 @@ def test_finalize_publication_serializes_partially_overlapping_output_sets(
     release_a = threading.Event()
     b_lock_attempted = threading.Event()
     b_finished = threading.Event()
-    real_write_all = rag_cmd_module._write_all
-    real_lock = rag_cmd_module._lock_finalize_descriptor
+    real_write_all = publication_module._write_all
+    real_lock = publication_module._lock_finalize_descriptor
     outcomes: dict[str, BaseException | None] = {}
 
     def pause_a_after_shared_write(descriptor: int, payload: bytes) -> None:
@@ -632,7 +743,7 @@ def test_finalize_publication_serializes_partially_overlapping_output_sets(
         finished: threading.Event | None = None,
     ) -> None:
         try:
-            rag_cmd_module._publish_finalize_outputs(outputs)
+            publication_module.publish_finalize_outputs(outputs)
         except BaseException as exc:
             outcomes[name] = exc
         else:
@@ -641,9 +752,9 @@ def test_finalize_publication_serializes_partially_overlapping_output_sets(
             if finished is not None:
                 finished.set()
 
-    monkeypatch.setattr(rag_cmd_module, "_write_all", pause_a_after_shared_write)
+    monkeypatch.setattr(publication_module, "_write_all", pause_a_after_shared_write)
     monkeypatch.setattr(
-        rag_cmd_module,
+        publication_module,
         "_lock_finalize_descriptor",
         observe_b_lock_attempt,
     )
@@ -687,27 +798,27 @@ def test_finalize_publication_close_failure_still_releases_output_locks(
         (tmp_path / f"output-{index}.json", f"output-{index}\n", f"output {index}")
         for index in range(3)
     )
-    real_close = rag_cmd_module._close_created_finalize_outputs
+    real_close = publication_module._close_created_finalize_outputs
     inject_close_error = True
 
     def report_close_error(
-        created: list[rag_cmd_module._CreatedFinalizeOutput],
+        created: list[publication_module._CreatedFinalizeOutput],
     ) -> tuple[str, ...]:
         errors = real_close(created)
-        if inject_close_error:
+        if created and inject_close_error:
             return (*errors, "injected created-descriptor close failure")
         return errors
 
     monkeypatch.setattr(
-        rag_cmd_module,
+        publication_module,
         "_close_created_finalize_outputs",
         report_close_error,
     )
     with pytest.raises(OSError, match="resource release was incomplete"):
-        rag_cmd_module._publish_finalize_outputs(outputs)
+        publication_module.publish_finalize_outputs(outputs)
 
     inject_close_error = False
-    rag_cmd_module._publish_finalize_outputs(outputs)
+    publication_module.publish_finalize_outputs(outputs)
     assert tuple(path.read_text(encoding="utf-8") for path, _, _ in outputs) == (
         "output-0\n",
         "output-1\n",
@@ -718,7 +829,33 @@ def test_finalize_publication_close_failure_still_releases_output_locks(
     foreign.write_text("foreign\n", encoding="utf-8")
     inject_close_error = True
     with pytest.raises(ValueError, match="already exists with different content"):
-        rag_cmd_module._publish_finalize_outputs(((foreign, "expected\n", "foreign output"),))
+        publication_module.publish_finalize_outputs(((foreign, "expected\n", "foreign output"),))
+
+
+def test_finalize_publication_pin_close_failure_still_releases_all_resources(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output = tmp_path / "existing.json"
+    output.write_bytes(b"expected\n")
+    outputs = ((output, "expected\n", "existing output"),)
+    real_close = PinnedDirectoryFile.close
+    close_calls = 0
+
+    def fail_second_close(opened: PinnedDirectoryFile) -> None:
+        nonlocal close_calls
+        close_calls += 1
+        real_close(opened)
+        if close_calls == 2:
+            raise OSError("injected verification-pin close failure")
+
+    monkeypatch.setattr(PinnedDirectoryFile, "close", fail_second_close)
+    with pytest.raises(OSError, match="resource release was incomplete"):
+        publication_module.publish_finalize_outputs(outputs)
+
+    monkeypatch.setattr(PinnedDirectoryFile, "close", real_close)
+    publication_module.publish_finalize_outputs(outputs)
+    assert output.read_text(encoding="utf-8") == "expected\n"
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX directory durability regression")
@@ -742,8 +879,8 @@ def test_finalize_publication_syncs_each_created_parent_before_success(
             synced_directories.append((metadata.st_dev, metadata.st_ino))
         real_fsync(descriptor)
 
-    monkeypatch.setattr(rag_cmd_module.os, "fsync", observe_fsync)
-    rag_cmd_module._publish_finalize_outputs(outputs)
+    monkeypatch.setattr(publication_module.os, "fsync", observe_fsync)
+    publication_module.publish_finalize_outputs(outputs)
 
     expected_parents = {
         (os.lstat(tmp_path).st_dev, os.lstat(tmp_path).st_ino),
@@ -849,14 +986,41 @@ def test_repeated_sensitivity_analyze_publishes_exact_six_file_pass_bundle(
     assert verify_digest_replay(replay, artifact_root=out).ok
 
 
+def test_repeated_sensitivity_analyze_requires_registered_execution_attempt(
+    tmp_path: Path,
+) -> None:
+    _, protocol_path, runset_dir = _persist_study(tmp_path, registered=False)
+    out = tmp_path / "analysis"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "rag",
+            "sensitivity",
+            "analyze",
+            "--protocol",
+            str(protocol_path),
+            "--runset",
+            str(runset_dir),
+            "--out",
+            str(out),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert result.output == (
+        "repeated sensitivity analysis failed: current paired live analysis requires "
+        "a registered execution_attempt_id and complete attempt journal\n"
+    )
+    assert not out.exists()
+
+
 def test_repeated_sensitivity_analyze_incomplete_bundle_is_nonverdict(
     tmp_path: Path,
 ) -> None:
-    protocol = _protocol()
-    omitted_case = protocol.planned_case_ids[-1]
     _, protocol_path, runset_dir = _persist_study(
         tmp_path,
-        omitted_counterfactual_case=omitted_case,
+        counterfactual_incomplete=True,
     )
     out = tmp_path / "analysis"
 
@@ -1022,6 +1186,105 @@ def test_repeated_sensitivity_run_requires_network_opt_in_before_dispatch(
     assert result.exit_code == 2
     assert "requires explicit --network-opt-in" in result.output
     assert dispatched is False
+
+
+def test_repeated_sensitivity_run_refuses_same_registered_attempt_with_different_out(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol = _protocol(execution_attempt_id="cli-registered-attempt-01")
+    input_paths = tuple(
+        tmp_path / name
+        for name in (
+            "protocol.json",
+            "suite.json",
+            "base.json",
+            "counter.json",
+            "live.json",
+        )
+    )
+    for path in input_paths:
+        path.write_text("{}\n", encoding="utf-8")
+    baseline_config = _uncommitted_live_config("baseline")
+    counterfactual_config = _uncommitted_live_config("counterfactual")
+    provider_dispatches = 0
+
+    monkeypatch.setattr(rag_cmd_module, "load_repeated_sensitivity_protocol", lambda _: protocol)
+    monkeypatch.setattr(rag_cmd_module, "load_compiled_suite", lambda _: object())
+    monkeypatch.setattr(
+        rag_cmd_module,
+        "load_live_run_config",
+        lambda path: baseline_config if path == input_paths[2] else counterfactual_config,
+    )
+    monkeypatch.setattr(rag_cmd_module, "_load_operational_live_protocol", lambda _: object())
+    monkeypatch.setattr(rag_cmd_module, "_confirm_trusted_live_config", lambda *_, **__: None)
+
+    def reserve_then_dispatch(**values: object) -> tuple[RunSet, RunSet]:
+        nonlocal provider_dispatches
+        registered_path = values["registered_protocol_path"]
+        assert isinstance(registered_path, Path)
+        journal_path = repeated_workflow.execution_attempt_journal_path(
+            registered_path,
+            protocol,
+        )
+        journal = repeated_workflow._DurableAttemptJournal(
+            journal_path,
+            {
+                "event_type": "attempt_reserved",
+                "journal_version": "1.0.0",
+                "execution_attempt_id": protocol.execution_attempt_id,
+                "repeated_protocol_digest": protocol.protocol_digest,
+                "operational_protocol_digest": _digest("operational-live-protocol"),
+                "study_manifest_digest": None,
+                "baseline_configuration_digest": protocol.baseline_arm.configuration_digest,
+                "counterfactual_configuration_digest": (
+                    protocol.counterfactual_arm.configuration_digest
+                ),
+            },
+        )
+        journal.close()
+        provider_dispatches += 1
+        return (
+            _runset(protocol, "baseline_evidence"),
+            _runset(protocol, "counterfactual_evidence"),
+        )
+
+    monkeypatch.setattr(rag_cmd_module, "run_repeated_live_study", reserve_then_dispatch)
+    first_out = tmp_path / "first-paired-output"
+    second_out = tmp_path / "second-paired-output"
+
+    def invoke(out: Path):
+        return RUNNER.invoke(
+            app,
+            [
+                "rag",
+                "sensitivity",
+                "run",
+                "--protocol",
+                str(input_paths[0]),
+                "--compiled-suite",
+                str(input_paths[1]),
+                "--baseline-config",
+                str(input_paths[2]),
+                "--counterfactual-config",
+                str(input_paths[3]),
+                "--live-protocol",
+                str(input_paths[4]),
+                "--out",
+                str(out),
+                "--network-opt-in",
+            ],
+        )
+
+    first = invoke(first_out)
+    second = invoke(second_out)
+
+    assert first.exit_code == 0, first.output
+    assert second.exit_code == 2
+    assert "already reserved; refusing provider dispatch" in second.output
+    assert provider_dispatches == 1
+    assert first_out.is_dir()
+    assert not second_out.exists()
 
 
 def test_sensitivity_help_and_legacy_deterministic_dispatch_remain_compatible(

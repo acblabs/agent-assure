@@ -73,9 +73,16 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
         "agent_assure/examples/streaming_process_regression/events/candidate_review_bypassed.jsonl"
     ) in required
     assert "agent_assure/cli/rag_cmd.py" in required
+    assert "agent_assure/cli/study_cmd.py" in required
     assert "agent_assure/rag/sensitivity.py" in required
+    assert "agent_assure/reporting/study.py" in required
     assert "agent_assure/reporting/sensitivity.py" in required
+    assert "agent_assure/schema/benchmark.py" in required
+    assert "agent_assure/schema/pilot.py" in required
     assert "agent_assure/schema/sensitivity.py" in required
+    assert "agent_assure/schema/study.py" in required
+    assert "agent_assure/statistics/binomial_intervals.py" in required
+    assert "agent_assure/study/analysis.py" in required
     assert "agent_assure/examples/evidence_sensitivity/responsive_suite.yaml" in required
     assert ("agent_assure/examples/evidence_sensitivity/evidence_inertial_suite.yaml") in required
     assert "agent_assure/examples/evidence_sensitivity/evidence_reversed_suite.yaml" in required
@@ -92,6 +99,15 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
             f"{fixture_kind}/synthetic-benefit-eligibility.json"
         ) in required
     assert "agent_assure/examples/process_equivalence_reproduction_index.json" in required
+    assert (
+        "agent_assure/examples/process_equivalence_benchmark_v0_2/benchmark.json"
+        in required
+    )
+    assert (
+        "agent_assure/examples/process_equivalence_benchmark_v0_2/"
+        "inputs/synthetic-benefit-eligibility-008.json"
+        in required
+    )
 
 
 def test_required_archive_paths_include_v061_campaign_contracts(
@@ -437,6 +453,10 @@ def test_required_sdist_paths_cover_installed_sources_and_resources() -> None:
 
     assert "src/agent_assure/rag/sensitivity.py" in required
     assert "src/agent_assure/examples/process_equivalence_reproduction_index.json" in required
+    assert (
+        "src/agent_assure/examples/process_equivalence_benchmark_v0_2/benchmark.json"
+        in required
+    )
     assert "src/agent_assure/schema_resources/__init__.py" in required
     assert "schemas/__init__.py" not in required
     assert "schemas/v0.6.4/evidence-sensitivity-report.schema.json" in required
@@ -667,6 +687,183 @@ def test_distribution_payload_equivalence_maps_every_installable_source_byte(
             b"{}\n"
         ).hexdigest(),
     }
+
+
+def test_wheel_privacy_scan_rejects_undecodable_binary_leak(tmp_path: Path) -> None:
+    wheel, _sdist = _write_payload_pair(
+        tmp_path,
+        extra_wheel={
+            "agent_assure/provider-response.bin": b"api_key=hunter2-value\xff",
+        },
+    )
+
+    with pytest.raises(ValueError, match="closed text inventory|unsupported binary"):
+        inspect_wheel(wheel)
+
+
+def test_sdist_privacy_scan_rejects_undecodable_binary_leak(tmp_path: Path) -> None:
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={
+            "src/agent_assure/provider-response.bin": b"api_key=hunter2-value\xff",
+        },
+    )
+
+    with pytest.raises(ValueError, match="closed text inventory|unsupported binary"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize("archive_kind", ("wheel", "sdist"))
+def test_distribution_privacy_scan_rejects_credential_literal_in_member_name(
+    tmp_path: Path,
+    archive_kind: str,
+) -> None:
+    credential_name = "sk-proj-abcdefghijklmnopqrstuvwxyz.py"
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_wheel={f"agent_assure/{credential_name}": b"pass\n"},
+        extra_sdist={f"src/agent_assure/{credential_name}": b"pass\n"},
+    )
+
+    with pytest.raises(ValueError, match="credential-literal privacy review"):
+        (inspect_wheel(wheel) if archive_kind == "wheel" else inspect_sdist(sdist))
+
+
+def test_release_scanner_allows_credential_handling_source_without_a_value(
+    tmp_path: Path,
+) -> None:
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={
+            "src/agent_assure/credential_handler.py": (
+                b"def load(api_key_env):\n    return os.environ.get(api_key_env)\n"
+            ),
+        },
+        extra_wheel={
+            "agent_assure/credential_handler.py": (
+                b"def load(api_key_env):\n    return os.environ.get(api_key_env)\n"
+            ),
+        },
+    )
+
+    inspect_wheel(wheel)
+    inspect_sdist(sdist)
+
+
+def test_sdist_sensitive_fixture_exception_is_bound_to_exact_path_and_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    approved = b"TOKEN = 'sk-proj-abcdefghijklmnopqrstuvwxyz'\n"
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_SENSITIVE_FIXTURE_SHA256,
+        fixture_path,
+        hashlib.sha256(approved).hexdigest(),
+    )
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: approved},
+    )
+
+    inspect_sdist(sdist)
+
+    _wheel, changed_sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: approved + b"# changed\n"},
+    )
+    with pytest.raises(ValueError, match="credential-literal privacy review"):
+        inspect_sdist(changed_sdist)
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        b"settings.api_key = 'hunter2-value'\n",
+        b"config['api_key'] = 'hunter2-value'\n",
+        b"def connect(api_key='hunter2-value'):\n    return None\n",
+        b"def connect(*, api_key='hunter2-value'):\n    return None\n",
+    ),
+)
+def test_release_scanner_rejects_literal_credentials_in_complex_assignment_targets(
+    tmp_path: Path,
+    source: bytes,
+) -> None:
+    wheel, _sdist = _write_payload_pair(
+        tmp_path,
+        extra_wheel={"agent_assure/leaked.py": source},
+    )
+
+    with pytest.raises(ValueError, match="structural privacy review"):
+        inspect_wheel(wheel)
+
+
+def test_empty_unknown_wheel_member_still_fails_the_closed_inventory(tmp_path: Path) -> None:
+    wheel, _sdist = _write_payload_pair(
+        tmp_path,
+        extra_wheel={"agent_assure/unknown.bin": b""},
+    )
+
+    with pytest.raises(ValueError, match="closed text inventory"):
+        inspect_wheel(wheel)
+
+
+@pytest.mark.parametrize(
+    "metadata_kind",
+    ("archive-comment", "member-comment", "member-extra"),
+)
+def test_wheel_metadata_cannot_carry_unscanned_bytes(
+    tmp_path: Path,
+    metadata_kind: str,
+) -> None:
+    wheel, _sdist = _write_payload_pair(tmp_path)
+    with zipfile.ZipFile(wheel, "a") as archive:
+        if metadata_kind == "archive-comment":
+            archive.comment = b"sk-proj-abcdefghijklmnopqrstuvwxyz"
+        else:
+            info = zipfile.ZipInfo("agent_assure/metadata_channel.py")
+            if metadata_kind == "member-comment":
+                info.comment = b"sk-proj-abcdefghijklmnopqrstuvwxyz"
+            else:
+                secret = b"sk-proj-abcdefghijklmnopqrstuvwxyz"
+                info.extra = struct.pack("<HH", 0xCAFE, len(secret)) + secret
+            archive.writestr(info, b"pass\n")
+
+    with pytest.raises(ValueError, match="comments|extra fields"):
+        inspect_wheel(wheel)
+
+
+@pytest.mark.parametrize(
+    "metadata_kind",
+    ("global-pax", "member-pax", "uname"),
+)
+def test_sdist_metadata_cannot_carry_unscanned_bytes(
+    tmp_path: Path,
+    metadata_kind: str,
+) -> None:
+    sdist = tmp_path / "agent_assure-0.6.4.tar.gz"
+    global_headers = (
+        {"comment": "sk-proj-abcdefghijklmnopqrstuvwxyz"}
+        if metadata_kind == "global-pax"
+        else None
+    )
+    with tarfile.open(
+        sdist,
+        "w:gz",
+        format=tarfile.PAX_FORMAT,
+        pax_headers=global_headers,
+    ) as archive:
+        data = b"safe\n"
+        info = tarfile.TarInfo("agent_assure-0.6.4/README.md")
+        info.size = len(data)
+        if metadata_kind == "member-pax":
+            info.pax_headers = {"comment": "sk-proj-abcdefghijklmnopqrstuvwxyz"}
+        elif metadata_kind == "uname":
+            info.uname = "sk-proj-abcdefghijklmnopqrstuvwxyz"
+        archive.addfile(info, io.BytesIO(data))
+
+    with pytest.raises(ValueError, match="PAX metadata|identity and link metadata"):
+        inspect_sdist(sdist)
 
 
 @pytest.mark.parametrize(

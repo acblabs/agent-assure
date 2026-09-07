@@ -1162,7 +1162,8 @@ def test_release_workflow_uses_canonical_release_gate() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
     build_job = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
 
-    assert "\n      - run: make release-check EXPECTED_RELEASE=" in build_job
+    assert "make release-publish-check EXPECTED_RELEASE=" in build_job
+    assert "Require empirical checkpoint and run release checks" in build_job
     assert "\n      - run: python scripts/update_golden.py\n" in build_job
     assert "\n      - run: mypy src\n" not in build_job
 

@@ -1252,7 +1252,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
 
     with pytest.raises(
         ValidationError,
-        match="evaluation.schema_version '0.6.5'; received '0.6.1'",
+        match="evaluation.schema_version '0.6.6'; received '0.6.1'",
     ):
         _build_packet(legacy_evaluation)
 
@@ -1262,7 +1262,7 @@ def test_packet_build_and_writer_reject_mixed_schema_versions_before_output(
     output = tmp_path / "not-created" / "evidence-packet.json"
     with pytest.raises(
         ValidationError,
-        match="evaluation.schema_version '0.6.5'; received '0.6.1'",
+        match="evaluation.schema_version '0.6.6'; received '0.6.1'",
     ):
         write_evidence_packet(mixed_packet, output)
 

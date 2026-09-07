@@ -33,6 +33,8 @@ evidence link. The CI gate blocks that process regression as expected.
 - [Who assures the assurance?](posts/who_assures_the_assurance.md)
 - [Flagship demo](demo_flagship.md)
 - [RAG provenance demo](demo_rag.md)
+- [Preregistered real-model study](real_model_study.md)
+- [External CI pilot evidence](external_pilot.md)
 - [Evidence diff](evidence_diff.md)
 - [Claim boundary](claim_boundary.md)
 

@@ -29,6 +29,7 @@ from agent_assure.schema.sensitivity import (
     RAGSensitivityRetrievedEvidence,
     derive_sensitivity_outcome_classification,
     derive_sensitivity_outcome_message,
+    knowledge_contract_case_authority_bindings,
     validate_exact_sensitivity_arm_runset_projection,
 )
 from agent_assure.schema.suite import CompiledSuite
@@ -753,6 +754,53 @@ def test_v064_authority_contract_rejects_case_authority_bindings(
         match="case_authority_bindings were introduced in schema version 0.6.5",
     ):
         RAGSensitivityKnowledgeContract.build(**payload)
+
+
+def test_decision_invariant_authority_contract_is_v066_only(
+    responsive_report: RAGSensitivityReport,
+) -> None:
+    payload = responsive_report.authority_contract.model_dump(
+        mode="json",
+        exclude={"knowledge_contract_digest", "case_authority_bindings"},
+    )
+    payload["expected_response_relation"] = "decision_invariant"
+    assignments = cast(list[dict[str, object]], payload["assignments"])
+    for assignment in assignments:
+        assignment["expected_decision"] = "approve"
+        assignment["expected_outcome"] = "approved"
+    payload["case_authority_bindings"] = [
+        {
+            "case_id": payload["case_id"],
+            "query_family_id": payload["query_family_id"],
+            "expected_relation": "decision_invariant",
+            "assignments": assignments,
+        }
+    ]
+
+    contract = RAGSensitivityKnowledgeContract.build(**payload)
+    assert contract.expected_response_relation is (
+        EvidenceSensitivityExpectedRelation.decision_invariant
+    )
+    assert knowledge_contract_case_authority_bindings(contract)[0].expected_relation is (
+        EvidenceSensitivityExpectedRelation.decision_invariant
+    )
+
+    payload["schema_version"] = "0.6.5"
+    with pytest.raises(ValidationError, match="require schema version 0.6.6"):
+        RAGSensitivityKnowledgeContract.build(**payload)
+
+
+def test_deterministic_protocol_rejects_repeated_only_invariant_relation(
+    responsive_report: RAGSensitivityReport,
+) -> None:
+    payload = responsive_report.protocol.model_dump(
+        mode="json",
+        exclude={"protocol_digest"},
+    )
+    payload["expected_relation"] = "decision_invariant"
+
+    with pytest.raises(ValidationError, match="support only decision_flip"):
+        RAGSensitivityProtocol.build(**payload)
 
 
 def test_persisted_report_self_digest_detects_payload_tampering(

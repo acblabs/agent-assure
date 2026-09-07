@@ -1,12 +1,13 @@
 # API Surface
 
-The public surface is intentionally narrow and status-qualified. v0.6.4 is the
-latest published package and its `schemas/v0.6.4` snapshot is immutable. The
-v0.6.4 release-candidate surface consists of:
+The public surface is intentionally narrow and status-qualified. v0.6.5 is the
+latest published package and its `schemas/v0.6.5` snapshot is immutable. The
+published v0.6.5 RC surface consists of:
 
 - the `agent-assure` CLI;
-- package v0.6.4, which uses the released writer snapshot under
-  `schemas/v0.6.4`, with the published `schemas/v0.6.3` snapshot and
+- package v0.6.5, which uses the released writer snapshot under
+  `schemas/v0.6.5`, with the published `schemas/v0.6.4` and
+  `schemas/v0.6.3` snapshots and
   earlier release schema sets retained under `schemas/v0.1.0`,
   `schemas/v0.2.0`, `schemas/v0.3.0`, `schemas/v0.3.1`,
   `schemas/v0.4.3`, `schemas/v0.5.0`, `schemas/v0.6.0`,
@@ -41,7 +42,25 @@ The development package additionally exposes non-stable surfaces:
   `RAGSensitivityCorpusSnapshot/v1`, `RAGSensitivityKnowledgeAuthority/v1`,
   `RAGSensitivityProtocol/v1`, `RAGSensitivityReport/v1`, and
   `ProcessEquivalenceReproductionIndex/v1`, plus the deterministic
-  `rag sensitivity` and `demo evidence-sensitivity` commands.
+  `rag sensitivity` and `demo evidence-sensitivity` commands;
+- untagged development `ProcessEquivalenceBenchmark/v1`,
+  `RealModelStudyManifest/v1`, `StudyRegistrationReviewReceipt/v1`,
+  `StudyStatisticalMethodReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
+  and `RealModelStudyReport/v1` contracts
+  plus the no-dispatch `agent-assure rag study input-commitment`, `finalize`,
+  `review-registration`, `review-execution`, and `bind-config` commands and
+  the replay-only `rag study analyze` command; and
+- untagged development `ExternalPilotEvidence/v1` and
+  `ExternalPilotIndependenceReviewReceipt/v1`: a pre-candidate,
+  learning/remediation-only bundle descriptor plus explicit operator-attested
+  review boundary that cannot satisfy a later exact-candidate gate, with
+  no-dispatch `agent-assure release pilot finalize` and
+  `agent-assure release pilot review` authoring commands and
+  factory-only validated review-input/bundle wrappers.
+
+The current development writer emits `schema_version: 0.6.6`, but no v0.6.6
+release exists. The repository contains no real-provider study result and no
+qualifying external CI pilot record.
 
 The `/v1` suffix identifies the proposed method-contract generation; it does
 not make an RFC surface a stable compatibility commitment. Promotion requires
@@ -93,3 +112,6 @@ The graph contract, identity rules, and explicit non-goals are documented in
 `docs/evidence_graph.md`.
 The controlled evidence-sensitivity contract, authority boundary, research
 context, and non-goals are documented in `docs/evidence_sensitivity.md`.
+The preregistration, exact decision rule, and report boundary are documented in
+`docs/real_model_study.md`. External-pilot provenance, consent, learning, and
+non-gating semantics are documented in `docs/external_pilot.md`.

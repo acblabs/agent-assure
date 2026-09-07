@@ -33,12 +33,12 @@ The contract set has seven durable JSON objects:
   control-efficacy, gate, and limitation evidence into a closed, digest-bound
   graph without replacing the authoritative typed gate decision.
 
-Current development roots use persisted `schema_version: 0.6.5`, a
-`contract_id` ending in `/v1`, and `contract_version: 1.0.0`; v0.6.4 remains
+Current development roots use persisted `schema_version: 0.6.6`, a
+`contract_id` ending in `/v1`, and `contract_version: 1.0.0`; v0.6.5 remains
 the latest published release. Contracts introduced in v0.6.0 also accept their
 frozen historical representations through version-aware reads. The graph was
 introduced on the v0.6.3 writer surface and accepts that frozen wire form.
-Current builders emit v0.6.5 by default, and official writers validate the
+Current builders emit v0.6.6 by default, and official writers validate the
 selected version before persistence.
 Fields and reason codes introduced after v0.6.0 therefore cannot be written
 under a v0.6.0 label. The contract version identifies method semantics; the schema
@@ -61,6 +61,46 @@ fields unsupported. See the
 [minimal assurance evidence graph](evidence_graph.md) for projection and packet
 binding semantics.
 
+## Empirical Measurement and Pilot Additions
+
+The untagged development writer adds a separate empirical contract family:
+
+- `ProcessEquivalenceBenchmark/v1` binds the non-sensitive v0.2 benchmark
+  case catalog without observations or scores.
+- `RealModelStudyManifest/v1` binds the declared locator and digest for an
+  independently materialized pre-observation registration record, benchmark,
+  repeated protocols, condition/model/config identities, execution window,
+  budget, publication policy, and exact hypothesis decision rule.
+- `RealModelStudyReport/v1` deterministically replays privacy-filtered source
+  RunSets and reports only scoped condition results. An invalidated,
+  underpowered, or unexecuted condition cannot emit an applicable
+  decision-inertia interval or confirmatory classification.
+- `StudyRegistrationReviewReceipt/v1` and
+  `StudyExecutionReviewReceipt/v1` bind mandatory pre-observation registration
+  review and post-execution provider-record review to the exact replayed bytes.
+  Both depend on human assertions whose authorship the software does not
+  authenticate.
+- `ExternalPilotEvidence/v1` binds pseudonymous subject,
+  environment-control and input-origin evidence, command/artifact identities,
+  friction/remediation, consent, and privacy boundaries. It derives external
+  attempt qualification only for attempted/completed, independently controlled
+  non-maintainer CI with non-bundled input.
+- `ExternalPilotIndependenceReviewReceipt/v1` binds a separate human
+  operator review to the exact raw/logical pilot evidence, complete artifact
+  descriptor manifest, environment-control evidence, and expected release
+  line. It explicitly does not machine-authenticate reviewer identity.
+- `PilotInputManifest/v1` binds each pilot workflow argument to exact content
+  and semantic identity digests so non-bundled provenance and assurance-output
+  linkage are reviewable rather than narrative.
+
+These roots are evidence-carrying, but they are not part of the mutation
+campaign's seven-object contract set above. No real-provider study or
+qualifying external pilot is included in this repository. A pilot record is
+always `pre_candidate` and `learning_and_remediation_only`; even a genuine
+external attempt cannot satisfy a later exact-candidate release gate. See
+[Preregistered Real-Model Study](real_model_study.md) and
+[External CI Pilot Evidence](external_pilot.md).
+
 ## Evidence Descriptor
 
 The following is the complete representative shape emitted for a caught
@@ -71,7 +111,7 @@ each execution; all other values are producer-owned contract values.
 ```yaml
 artifact_kind: assurance-evidence-descriptor
 schema_name: assurance-evidence-descriptor
-schema_version: 0.6.5
+schema_version: 0.6.6
 contract_id: AssuranceEvidenceDescriptor/v1
 contract_version: 1.0.0
 evidence_id: "ev-control-efficacy-<result-digest-prefix-24-hex>"
@@ -152,7 +192,7 @@ dependencies:
     digest: "<mutation-result-digest-64-lowercase-hex>"
 producer:
   name: agent-assure
-  version: 0.6.5
+  version: 0.6.6
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 
@@ -292,7 +332,7 @@ An expected-detection contract is explicit:
 ```yaml
 artifact_kind: expected-detection-contract
 schema_name: expected-detection-contract
-schema_version: 0.6.5
+schema_version: 0.6.6
 contract_id: ExpectedDetectionContract/v1
 contract_version: 1.0.0
 contract_digest: <64 lowercase hexadecimal characters>

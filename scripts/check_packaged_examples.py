@@ -35,6 +35,7 @@ EXAMPLE_RESOURCE_SETS = (
     "process_measurement_cases",
     "streaming_process_regression",
     "evidence_sensitivity",
+    "process_equivalence_benchmark_v0_2",
 )
 
 MIRRORED_RESOURCE_PATHS = (
@@ -52,7 +53,14 @@ MIRRORED_RESOURCE_PATHS = (
 )
 
 ROOT_MIRRORED_RESOURCE_PATHS = (Path("process_equivalence_reproduction_index.json"),)
-EXTRA_MIRRORED_RESOURCE_PATHS: dict[str, tuple[Path, ...]] = {}
+EXTRA_MIRRORED_RESOURCE_PATHS: dict[str, tuple[Path, ...]] = {
+    "process_equivalence_benchmark_v0_2": (
+        Path("authority-contract.json"),
+        Path("benchmark.json"),
+        Path("inputs"),
+        Path("knowledge-contracts"),
+    ),
+}
 
 INTENTIONAL_TOP_LEVEL_ONLY = {
     "prior_auth_synthetic": {"app", "cases", "rag", "runner.py"},
@@ -67,6 +75,7 @@ INTENTIONAL_PACKAGED_ONLY = {
     "langgraph_expense_assurance": {"__init__.py", "runner.py"},
     "adk_process_assurance": {"__init__.py", "runner.py"},
     "process_measurement_cases": {"__init__.py", "runner.py"},
+    "process_equivalence_benchmark_v0_2": {"__init__.py"},
 }
 
 

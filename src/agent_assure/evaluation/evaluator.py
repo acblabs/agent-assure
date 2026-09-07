@@ -12,6 +12,7 @@ from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.expectations import ExpectationResolver
 from agent_assure.evaluation.invariants import evaluate_runset_controls
 from agent_assure.fixtures.loader import compiled_suite_digest
+from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
 from agent_assure.policies.base import (
     DEFAULT_GATE_PROFILE,
     ControlResult,
@@ -58,7 +59,9 @@ _EVALUATION_REPORT_USAGE_FIELD_PATHS = (
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
     *_EVALUATION_REPORT_USAGE_FIELD_PATHS
 )
-_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset({"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"})
+_RUNSET_DIGEST_SCHEMA_VERSIONS = frozenset(
+    {"0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"}
+)
 _EVALUATION_REPORT_JSON_SCHEMA_EXTRA["allOf"].append(
     {
         "if": {
@@ -171,16 +174,34 @@ class EvaluationReport(PersistedArtifact):
         return self
 
 
-def load_runset(path: Path) -> RunSet:
+def load_runset(
+    path: Path,
+    *,
+    max_bytes: int = MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+) -> RunSet:
+    runset, _ = load_runset_with_size(path, max_bytes=max_bytes)
+    return runset
+
+
+def load_runset_with_size(
+    path: Path,
+    *,
+    max_bytes: int = MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+) -> tuple[RunSet, int]:
     # Imported lazily because schema export registration imports EvaluationReport
     # from this module while validation itself is initializing.
     from agent_assure.schema.validation import (
-        load_validated_artifact_payload,
+        load_validated_artifact_payload_with_size,
         project_validated_artifact_payload,
     )
 
-    payload = load_validated_artifact_payload(path, "run-set", label="RunSet JSON")
-    return project_validated_artifact_payload(payload, RunSet, kind="run-set")
+    payload, size = load_validated_artifact_payload_with_size(
+        path,
+        "run-set",
+        max_bytes=max_bytes,
+        label="RunSet JSON",
+    )
+    return project_validated_artifact_payload(payload, RunSet, kind="run-set"), size
 
 
 def runset_digest(runset: RunSet) -> str:

@@ -9,7 +9,7 @@
     "assignments": [
       {
         "claim_id": "claim-benefit-eligibility",
-        "corpus_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+        "corpus_digest": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
         "expected_decision": "approve",
         "expected_outcome": "approved",
         "governing_content_digest": "39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13",
@@ -18,7 +18,7 @@
       },
       {
         "claim_id": "claim-benefit-eligibility",
-        "corpus_digest": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+        "corpus_digest": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
         "expected_decision": "deny",
         "expected_outcome": "denied",
         "governing_content_digest": "0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6",
@@ -34,18 +34,18 @@
     "expected_behavior": "follow_governing_context",
     "expected_response_relation": "decision_flip",
     "governing_source": "contextual_evidence",
-    "knowledge_contract_digest": "9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816",
+    "knowledge_contract_digest": "187738466df6185fcad4f93d7cf0ff9c9c85a892396400099d3a374c0841bcd2",
     "limitations": [
       "Synthetic fixture outputs do not estimate evidence-insensitivity prevalence in real models."
     ],
     "query_family_id": "synthetic-benefit-eligibility",
     "schema_name": "rag-sensitivity-knowledge-contract",
-    "schema_version": "0.6.5"
+    "schema_version": "0.6.6"
   },
   "baseline_arm": {
-    "arm_id": "rag-sensitivity-d9ce94fd50dc0491022eaf44-baseline",
+    "arm_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19-baseline",
     "citation_presence_check": "pass",
-    "corpus_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+    "corpus_digest": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
     "corpus_evidence": [
       {
         "content_digest": "39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13",
@@ -56,17 +56,17 @@
       }
     ],
     "corpus_id": "synthetic-policy-a",
-    "corpus_manifest_file_sha256": "f84828b85a0443f9d8cb88d5cbd320442a885688330a93fb57e7e212448f9ce7",
-    "corpus_snapshot_digest": "1f17d6b774171ed8803ea3ff31c68fbb5d5ff6dbcf68012b21e75481e7132b6d",
+    "corpus_manifest_file_sha256": "aef349b98235974b12c19503297713c18dd9aabd77ba83afa3eeb71266618d89",
+    "corpus_snapshot_digest": "fd9d082654d02eedc7e0eb1bd04162012430405db567fe1655e9dfb3d58bf124",
     "decision": "approve",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "5c2a987caf884839cb66761dfa915581026a54a55ef7f8f8c5231b3d06987414",
+    "evaluation_summary_digest": "075bb114b4c4e0b7c913035d1821fd5fe4e915298b9c619746796f322886a37d",
     "evidence_link_present": true,
     "evidence_set_digest": "5e029cb06c362ab94f1d8d89e57037aa827fc2dfe4df1c94d6e7b5e4751774e6",
     "expected_decision": "approve",
     "expected_decision_match": true,
     "expected_outcome": "approved",
-    "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+    "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
     "governing_evidence_supported": true,
     "linked_evidence": [
       {
@@ -92,8 +92,8 @@
     ],
     "retrieved_evidence_digest": "0a4a0d857f018386405242bab1f863a373c1dee9aa7b0db48343edfad9a498c5",
     "role": "baseline",
-    "runset_digest": "1e30bada1636559bf22d1639ee453bcda735dcdf5fb98075b41b4db2aa6ddf57",
-    "runset_id": "sensitivity-runset-baseline-da9b9c1a8b7d63523c74aef0"
+    "runset_digest": "46a7600d0d4884f1ec68600edde3c52da46b7ff1bb170ce0f74877835adcdffd",
+    "runset_id": "sensitivity-runset-baseline-7f4ed5b150fbbf7afa42a83e"
   },
   "baseline_corpus_snapshot": {
     "artifact_kind": "rag-sensitivity-corpus-snapshot",
@@ -103,7 +103,7 @@
       "artifact_kind": "rag-sensitivity-corpus-manifest",
       "contract_id": "RAGSensitivityCorpusManifest/v1",
       "contract_version": "1.0.0",
-      "corpus_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+      "corpus_digest": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
       "corpus_id": "synthetic-policy-a",
       "corpus_version": "1.0.0",
       "documents": [
@@ -117,11 +117,11 @@
       "retrieval_algorithm_id": "deterministic-term-overlap",
       "retrieval_algorithm_version": "1.0.0",
       "schema_name": "rag-sensitivity-corpus-manifest",
-      "schema_version": "0.6.5",
+      "schema_version": "0.6.6",
       "top_k": 1
     },
-    "corpus_manifest_file_sha256": "f84828b85a0443f9d8cb88d5cbd320442a885688330a93fb57e7e212448f9ce7",
-    "corpus_manifest_utf8": "{\n  \"artifact_kind\": \"rag-sensitivity-corpus-manifest\",\n  \"contract_id\": \"RAGSensitivityCorpusManifest/v1\",\n  \"contract_version\": \"1.0.0\",\n  \"corpus_digest\": \"0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc\",\n  \"corpus_id\": \"synthetic-policy-a\",\n  \"corpus_version\": \"1.0.0\",\n  \"documents\": [\n    {\n      \"content_digest\": \"39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13\",\n      \"path\": \"governing-policy.json\",\n      \"source_id\": \"synthetic-benefit-governing-policy\"\n    }\n  ],\n  \"query_family_id\": \"synthetic-benefit-eligibility\",\n  \"retrieval_algorithm_id\": \"deterministic-term-overlap\",\n  \"retrieval_algorithm_version\": \"1.0.0\",\n  \"schema_name\": \"rag-sensitivity-corpus-manifest\",\n  \"schema_version\": \"0.6.5\",\n  \"top_k\": 1\n}\n",
+    "corpus_manifest_file_sha256": "aef349b98235974b12c19503297713c18dd9aabd77ba83afa3eeb71266618d89",
+    "corpus_manifest_utf8": "{\n  \"artifact_kind\": \"rag-sensitivity-corpus-manifest\",\n  \"contract_id\": \"RAGSensitivityCorpusManifest/v1\",\n  \"contract_version\": \"1.0.0\",\n  \"corpus_digest\": \"26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a\",\n  \"corpus_id\": \"synthetic-policy-a\",\n  \"corpus_version\": \"1.0.0\",\n  \"documents\": [\n    {\n      \"content_digest\": \"39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13\",\n      \"path\": \"governing-policy.json\",\n      \"source_id\": \"synthetic-benefit-governing-policy\"\n    }\n  ],\n  \"query_family_id\": \"synthetic-benefit-eligibility\",\n  \"retrieval_algorithm_id\": \"deterministic-term-overlap\",\n  \"retrieval_algorithm_version\": \"1.0.0\",\n  \"schema_name\": \"rag-sensitivity-corpus-manifest\",\n  \"schema_version\": \"0.6.6\",\n  \"top_k\": 1\n}\n",
     "documents": [
       {
         "content_utf8": "{\n  \"governing_decision\": \"approve\",\n  \"governing_outcome\": \"approved\",\n  \"ref_id\": \"ref-governing-benefit-policy\",\n  \"retrieval_terms\": [\n    \"benefit\",\n    \"governing\",\n    \"policy\",\n    \"synthetic\"\n  ],\n  \"safe_summary\": \"Synthetic Policy A authoritatively requires approval for this query family.\",\n  \"source_id\": \"synthetic-benefit-governing-policy\",\n  \"title\": \"Synthetic Benefit Policy A\"\n}\n",
@@ -147,8 +147,8 @@
       }
     ],
     "schema_name": "rag-sensitivity-corpus-snapshot",
-    "schema_version": "0.6.5",
-    "snapshot_digest": "1f17d6b774171ed8803ea3ff31c68fbb5d5ff6dbcf68012b21e75481e7132b6d"
+    "schema_version": "0.6.6",
+    "snapshot_digest": "fd9d082654d02eedc7e0eb1bd04162012430405db567fe1655e9dfb3d58bf124"
   },
   "baseline_evaluation": {
     "artifact_kind": "evaluation-summary",
@@ -171,23 +171,23 @@
         "profile_id": "default"
       },
       "report_mode": "full",
-      "suite_digest": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+      "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
       "waivers": []
     },
-    "runset_digest": "1e30bada1636559bf22d1639ee453bcda735dcdf5fb98075b41b4db2aa6ddf57",
-    "runset_id": "sensitivity-runset-baseline-da9b9c1a8b7d63523c74aef0",
-    "schema_version": "0.6.5",
+    "runset_digest": "46a7600d0d4884f1ec68600edde3c52da46b7ff1bb170ce0f74877835adcdffd",
+    "runset_id": "sensitivity-runset-baseline-7f4ed5b150fbbf7afa42a83e",
+    "schema_version": "0.6.6",
     "state": "pass"
   },
   "baseline_runset": {
     "artifact_kind": "run-set",
     "completion_status": "complete",
     "execution_mode": "fixture",
-    "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+    "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
     "privacy_profile_digest": "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843",
     "privacy_profile_id": "agent-assure/privacy-detectors/v3",
-    "protocol_digest": "0e9385a0b814b111832cf541595e8a5232e0e0c71757bde3cb8d98b1b9b3edec",
-    "protocol_id": "rag-sensitivity-d9ce94fd50dc0491022eaf44",
+    "protocol_digest": "8819ebd34bfc7af2c0ad1576673c8e5447bfea4c464b6f80a41fbe066690e20e",
+    "protocol_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19",
     "runs": [
       {
         "adapter_id": null,
@@ -199,14 +199,14 @@
             "artifact_kind": "claim-evidence-link",
             "claim_id": "claim-benefit-eligibility",
             "evidence_ref_id": "ref-governing-benefit-policy",
-            "schema_version": "0.6.5"
+            "schema_version": "0.6.6"
           }
         ],
         "claims": [
           {
             "artifact_kind": "claim-record",
             "claim_id": "claim-benefit-eligibility",
-            "schema_version": "0.6.5"
+            "schema_version": "0.6.6"
           }
         ],
         "cluster_id": null,
@@ -219,7 +219,7 @@
             "artifact_kind": "evidence-item",
             "content_digest": "39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13",
             "ref_id": "ref-governing-benefit-policy",
-            "schema_version": "0.6.5",
+            "schema_version": "0.6.6",
             "source_id": "synthetic-benefit-governing-policy"
           }
         ],
@@ -230,7 +230,7 @@
               "claim-benefit-eligibility"
             ],
             "ref_id": "ref-governing-benefit-policy",
-            "schema_version": "0.6.5",
+            "schema_version": "0.6.6",
             "source_id": "synthetic-benefit-governing-policy"
           }
         ],
@@ -238,7 +238,7 @@
         "execution_mode": "fixture",
         "human_review_performed": false,
         "human_review_required": false,
-        "input_summary": "request_digest=8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e; query_family=synthetic-benefit-eligibility; corpus_digest=0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+        "input_summary": "request_digest=8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e; query_family=synthetic-benefit-eligibility; corpus_digest=26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
         "latency_ms": null,
         "model": "deterministic-fixture-model-v1",
         "observation_id": null,
@@ -252,12 +252,12 @@
           "artifact_kind": "provenance",
           "code_digest": "3678ca2dc87bd9ed4306af91b4c7e22e12d8f63044a4544bff10d817fe65965c",
           "configuration_digest": "3d006eed7d9755fde1d5ef469d910a1df4b4ca0fcaebeddae035802fb3339835",
-          "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+          "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
           "model_identifier": "deterministic-fixture-model-v1",
-          "policy_bundle_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+          "policy_bundle_digest": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
           "prompt_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
-          "retrieval_corpus_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
-          "schema_version": "0.6.5",
+          "retrieval_corpus_digest": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
+          "schema_version": "0.6.6",
           "tool_schema_digest": "ab72f2449da6de27489c10fe35c6bc5e6431d3cede8f13eff0e769dfe52dc498"
         },
         "provider": "synthetic-fixture",
@@ -271,9 +271,9 @@
         "repetition_index": null,
         "resolved_model": "deterministic-fixture-model-v1",
         "retry_count": null,
-        "run_id": "sensitivity-run-baseline-da9b9c1a8b7d63523c74aef0",
+        "run_id": "sensitivity-run-baseline-7f4ed5b150fbbf7afa42a83e",
         "schedule_index": null,
-        "schema_version": "0.6.5",
+        "schema_version": "0.6.6",
         "source_group_id": null,
         "started_at_utc": null,
         "tools": [
@@ -284,10 +284,10 @@
         "tracestate": null
       }
     ],
-    "runset_id": "sensitivity-runset-baseline-da9b9c1a8b7d63523c74aef0",
-    "schema_version": "0.6.5",
+    "runset_id": "sensitivity-runset-baseline-7f4ed5b150fbbf7afa42a83e",
+    "schema_version": "0.6.6",
     "stop_reasons": [],
-    "suite_digest": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+    "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
     "suite_id": "evidence-sensitivity-responsive",
     "suite_version": "0.1.0"
   },
@@ -300,7 +300,7 @@
         "case_id": "synthetic-benefit-eligibility",
         "expectation_id": "synthetic-benefit-eligibility:expectation",
         "fixture_id": "synthetic-benefit-eligibility",
-        "schema_version": "0.6.5",
+        "schema_version": "0.6.6",
         "tags": [
           "evidence-sensitivity"
         ],
@@ -318,7 +318,7 @@
       ],
       "required_policy_ids": [],
       "runner_id": "rag_sensitivity.synthetic",
-      "schema_version": "0.6.5"
+      "schema_version": "0.6.6"
     },
     "resolved_expectations": [
       {
@@ -331,7 +331,7 @@
         "allowed_tools_override": false,
         "artifact_kind": "expectation",
         "case_id": "synthetic-benefit-eligibility",
-        "expectation_digest": "af6786ec02481e4ecb3a66a430879073ce6c5ee10222493a1564a81e9413bbd4",
+        "expectation_digest": "1bc395b4043845463763142bb8d54a2336271a57306c21339132bec3a474e76d",
         "expectation_id": "synthetic-benefit-eligibility:expectation",
         "expected_recommendation": null,
         "forbidden_outcomes": [],
@@ -344,10 +344,10 @@
           "ref-governing-benefit-policy"
         ],
         "required_human_review": false,
-        "schema_version": "0.6.5"
+        "schema_version": "0.6.6"
       }
     ],
-    "schema_version": "0.6.5",
+    "schema_version": "0.6.6",
     "source_digest": "119d1a925ba277ec268aa5b2ec976fbd0faee162bc80146c62ed87991d774864",
     "suite_id": "evidence-sensitivity-responsive",
     "suite_version": "0.1.0"
@@ -355,9 +355,9 @@
   "contract_id": "RAGSensitivityReport/v1",
   "contract_version": "1.0.0",
   "counterfactual_arm": {
-    "arm_id": "rag-sensitivity-d9ce94fd50dc0491022eaf44-counterfactual",
+    "arm_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19-counterfactual",
     "citation_presence_check": "pass",
-    "corpus_digest": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+    "corpus_digest": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
     "corpus_evidence": [
       {
         "content_digest": "0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6",
@@ -368,17 +368,17 @@
       }
     ],
     "corpus_id": "synthetic-policy-b",
-    "corpus_manifest_file_sha256": "b134566a99d32a7e775b1ca5d922af3d0182afc1a92ff453ec5a24eb6b5d7d9b",
-    "corpus_snapshot_digest": "89555a56b88293c9e71d9377fe1a582ca4c2080c91c5569c6dc9063c6b45c1ec",
+    "corpus_manifest_file_sha256": "9124a7d0a94f4d26eb17708f6f63a84e1baefd1b9d4d3494d250b4b795e68d31",
+    "corpus_snapshot_digest": "0b6a2ed94bd99ff670666087bc8f24f31c06a1f96c5d31884947be9051727186",
     "decision": "deny",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "8a6c4df8c68366e96af59b76c69fd03a5116950ff9ed1b0511e67f613456cad0",
+    "evaluation_summary_digest": "78a6c8ccdbba9584c7ad3592a45f02d4aa643fc03106db2cabc73a64a130787b",
     "evidence_link_present": true,
     "evidence_set_digest": "da73ac2f21ea72c33e81971bc0541d3a15abc3ed11b715d05c085c22daeda0fc",
     "expected_decision": "deny",
     "expected_decision_match": true,
     "expected_outcome": "denied",
-    "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+    "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
     "governing_evidence_supported": true,
     "linked_evidence": [
       {
@@ -404,8 +404,8 @@
     ],
     "retrieved_evidence_digest": "d82df4e654a5ecb3a05faf0ea0d7cb45a6b7bf473cd7d8a3c0327ca6ff2cb9a6",
     "role": "counterfactual",
-    "runset_digest": "cbf9a75db6abc2f5072b90a3b25fde0a7649b89bc893c2c0ac610ec82c27f552",
-    "runset_id": "sensitivity-runset-counterfactual-bdb2bb72e22a8a6aa70ed480"
+    "runset_digest": "531057436156fd2fc3dbc77f7709a450bfe2e0c2be071076c0627d11b8922b36",
+    "runset_id": "sensitivity-runset-counterfactual-ce07ec177d828de2ce0128c5"
   },
   "counterfactual_corpus_snapshot": {
     "artifact_kind": "rag-sensitivity-corpus-snapshot",
@@ -415,7 +415,7 @@
       "artifact_kind": "rag-sensitivity-corpus-manifest",
       "contract_id": "RAGSensitivityCorpusManifest/v1",
       "contract_version": "1.0.0",
-      "corpus_digest": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+      "corpus_digest": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
       "corpus_id": "synthetic-policy-b",
       "corpus_version": "1.0.0",
       "documents": [
@@ -429,11 +429,11 @@
       "retrieval_algorithm_id": "deterministic-term-overlap",
       "retrieval_algorithm_version": "1.0.0",
       "schema_name": "rag-sensitivity-corpus-manifest",
-      "schema_version": "0.6.5",
+      "schema_version": "0.6.6",
       "top_k": 1
     },
-    "corpus_manifest_file_sha256": "b134566a99d32a7e775b1ca5d922af3d0182afc1a92ff453ec5a24eb6b5d7d9b",
-    "corpus_manifest_utf8": "{\n  \"artifact_kind\": \"rag-sensitivity-corpus-manifest\",\n  \"contract_id\": \"RAGSensitivityCorpusManifest/v1\",\n  \"contract_version\": \"1.0.0\",\n  \"corpus_digest\": \"7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81\",\n  \"corpus_id\": \"synthetic-policy-b\",\n  \"corpus_version\": \"1.0.0\",\n  \"documents\": [\n    {\n      \"content_digest\": \"0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6\",\n      \"path\": \"governing-policy.json\",\n      \"source_id\": \"synthetic-benefit-governing-policy\"\n    }\n  ],\n  \"query_family_id\": \"synthetic-benefit-eligibility\",\n  \"retrieval_algorithm_id\": \"deterministic-term-overlap\",\n  \"retrieval_algorithm_version\": \"1.0.0\",\n  \"schema_name\": \"rag-sensitivity-corpus-manifest\",\n  \"schema_version\": \"0.6.5\",\n  \"top_k\": 1\n}\n",
+    "corpus_manifest_file_sha256": "9124a7d0a94f4d26eb17708f6f63a84e1baefd1b9d4d3494d250b4b795e68d31",
+    "corpus_manifest_utf8": "{\n  \"artifact_kind\": \"rag-sensitivity-corpus-manifest\",\n  \"contract_id\": \"RAGSensitivityCorpusManifest/v1\",\n  \"contract_version\": \"1.0.0\",\n  \"corpus_digest\": \"dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce\",\n  \"corpus_id\": \"synthetic-policy-b\",\n  \"corpus_version\": \"1.0.0\",\n  \"documents\": [\n    {\n      \"content_digest\": \"0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6\",\n      \"path\": \"governing-policy.json\",\n      \"source_id\": \"synthetic-benefit-governing-policy\"\n    }\n  ],\n  \"query_family_id\": \"synthetic-benefit-eligibility\",\n  \"retrieval_algorithm_id\": \"deterministic-term-overlap\",\n  \"retrieval_algorithm_version\": \"1.0.0\",\n  \"schema_name\": \"rag-sensitivity-corpus-manifest\",\n  \"schema_version\": \"0.6.6\",\n  \"top_k\": 1\n}\n",
     "documents": [
       {
         "content_utf8": "{\n  \"governing_decision\": \"deny\",\n  \"governing_outcome\": \"denied\",\n  \"ref_id\": \"ref-governing-benefit-policy\",\n  \"retrieval_terms\": [\n    \"benefit\",\n    \"governing\",\n    \"policy\",\n    \"synthetic\"\n  ],\n  \"safe_summary\": \"Synthetic Policy B authoritatively requires denial for this query family.\",\n  \"source_id\": \"synthetic-benefit-governing-policy\",\n  \"title\": \"Synthetic Benefit Policy B\"\n}\n",
@@ -459,8 +459,8 @@
       }
     ],
     "schema_name": "rag-sensitivity-corpus-snapshot",
-    "schema_version": "0.6.5",
-    "snapshot_digest": "89555a56b88293c9e71d9377fe1a582ca4c2080c91c5569c6dc9063c6b45c1ec"
+    "schema_version": "0.6.6",
+    "snapshot_digest": "0b6a2ed94bd99ff670666087bc8f24f31c06a1f96c5d31884947be9051727186"
   },
   "counterfactual_evaluation": {
     "artifact_kind": "evaluation-summary",
@@ -483,23 +483,23 @@
         "profile_id": "default"
       },
       "report_mode": "full",
-      "suite_digest": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+      "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
       "waivers": []
     },
-    "runset_digest": "cbf9a75db6abc2f5072b90a3b25fde0a7649b89bc893c2c0ac610ec82c27f552",
-    "runset_id": "sensitivity-runset-counterfactual-bdb2bb72e22a8a6aa70ed480",
-    "schema_version": "0.6.5",
+    "runset_digest": "531057436156fd2fc3dbc77f7709a450bfe2e0c2be071076c0627d11b8922b36",
+    "runset_id": "sensitivity-runset-counterfactual-ce07ec177d828de2ce0128c5",
+    "schema_version": "0.6.6",
     "state": "pass"
   },
   "counterfactual_runset": {
     "artifact_kind": "run-set",
     "completion_status": "complete",
     "execution_mode": "fixture",
-    "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+    "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
     "privacy_profile_digest": "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843",
     "privacy_profile_id": "agent-assure/privacy-detectors/v3",
-    "protocol_digest": "0e9385a0b814b111832cf541595e8a5232e0e0c71757bde3cb8d98b1b9b3edec",
-    "protocol_id": "rag-sensitivity-d9ce94fd50dc0491022eaf44",
+    "protocol_digest": "8819ebd34bfc7af2c0ad1576673c8e5447bfea4c464b6f80a41fbe066690e20e",
+    "protocol_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19",
     "runs": [
       {
         "adapter_id": null,
@@ -511,14 +511,14 @@
             "artifact_kind": "claim-evidence-link",
             "claim_id": "claim-benefit-eligibility",
             "evidence_ref_id": "ref-governing-benefit-policy",
-            "schema_version": "0.6.5"
+            "schema_version": "0.6.6"
           }
         ],
         "claims": [
           {
             "artifact_kind": "claim-record",
             "claim_id": "claim-benefit-eligibility",
-            "schema_version": "0.6.5"
+            "schema_version": "0.6.6"
           }
         ],
         "cluster_id": null,
@@ -531,7 +531,7 @@
             "artifact_kind": "evidence-item",
             "content_digest": "0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6",
             "ref_id": "ref-governing-benefit-policy",
-            "schema_version": "0.6.5",
+            "schema_version": "0.6.6",
             "source_id": "synthetic-benefit-governing-policy"
           }
         ],
@@ -542,7 +542,7 @@
               "claim-benefit-eligibility"
             ],
             "ref_id": "ref-governing-benefit-policy",
-            "schema_version": "0.6.5",
+            "schema_version": "0.6.6",
             "source_id": "synthetic-benefit-governing-policy"
           }
         ],
@@ -550,7 +550,7 @@
         "execution_mode": "fixture",
         "human_review_performed": false,
         "human_review_required": false,
-        "input_summary": "request_digest=8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e; query_family=synthetic-benefit-eligibility; corpus_digest=7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+        "input_summary": "request_digest=8da4857cfd203a6a91c33c8a4e5d8745534500ebc388669ef4701f5a5c8f550e; query_family=synthetic-benefit-eligibility; corpus_digest=dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
         "latency_ms": null,
         "model": "deterministic-fixture-model-v1",
         "observation_id": null,
@@ -564,12 +564,12 @@
           "artifact_kind": "provenance",
           "code_digest": "3678ca2dc87bd9ed4306af91b4c7e22e12d8f63044a4544bff10d817fe65965c",
           "configuration_digest": "3d006eed7d9755fde1d5ef469d910a1df4b4ca0fcaebeddae035802fb3339835",
-          "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+          "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
           "model_identifier": "deterministic-fixture-model-v1",
-          "policy_bundle_digest": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+          "policy_bundle_digest": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
           "prompt_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
-          "retrieval_corpus_digest": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
-          "schema_version": "0.6.5",
+          "retrieval_corpus_digest": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
+          "schema_version": "0.6.6",
           "tool_schema_digest": "ab72f2449da6de27489c10fe35c6bc5e6431d3cede8f13eff0e769dfe52dc498"
         },
         "provider": "synthetic-fixture",
@@ -583,9 +583,9 @@
         "repetition_index": null,
         "resolved_model": "deterministic-fixture-model-v1",
         "retry_count": null,
-        "run_id": "sensitivity-run-counterfactual-bdb2bb72e22a8a6aa70ed480",
+        "run_id": "sensitivity-run-counterfactual-ce07ec177d828de2ce0128c5",
         "schedule_index": null,
-        "schema_version": "0.6.5",
+        "schema_version": "0.6.6",
         "source_group_id": null,
         "started_at_utc": null,
         "tools": [
@@ -596,10 +596,10 @@
         "tracestate": null
       }
     ],
-    "runset_id": "sensitivity-runset-counterfactual-bdb2bb72e22a8a6aa70ed480",
-    "schema_version": "0.6.5",
+    "runset_id": "sensitivity-runset-counterfactual-ce07ec177d828de2ce0128c5",
+    "schema_version": "0.6.6",
     "stop_reasons": [],
-    "suite_digest": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+    "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
     "suite_id": "evidence-sensitivity-responsive",
     "suite_version": "0.1.0"
   },
@@ -682,11 +682,11 @@
       "The knowledge-authority contract correctly declares which contextual evidence governs the synthetic task.",
       "The committed fixture subject and lexical retriever are deterministic contract-test components, not measurements of a hosted model."
     ],
-    "baseline_corpus_digest": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+    "baseline_corpus_digest": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
     "baseline_corpus_document_catalog_digest": "df06ee8bf96869705e857b27659df0029f6e5d6d9984960ff3ca93f134854bcb",
-    "baseline_corpus_manifest_file_sha256": "f84828b85a0443f9d8cb88d5cbd320442a885688330a93fb57e7e212448f9ce7",
+    "baseline_corpus_manifest_file_sha256": "aef349b98235974b12c19503297713c18dd9aabd77ba83afa3eeb71266618d89",
     "baseline_corpus_query_family_id": "synthetic-benefit-eligibility",
-    "baseline_corpus_snapshot_digest": "1f17d6b774171ed8803ea3ff31c68fbb5d5ff6dbcf68012b21e75481e7132b6d",
+    "baseline_corpus_snapshot_digest": "fd9d082654d02eedc7e0eb1bd04162012430405db567fe1655e9dfb3d58bf124",
     "baseline_evidence_set_digest": "5e029cb06c362ab94f1d8d89e57037aa827fc2dfe4df1c94d6e7b5e4751774e6",
     "baseline_governing_evidence_digest": "39e0ed91e07ef56563b5f2f74422735196e6b7889081c603a3d2f443b895dc13",
     "baseline_governing_retrieval_identity_digest": "dafa54ea76f884dabf884e1ac39f76763168404201103a0f7b050d3d7d3c22e3",
@@ -708,9 +708,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "0764f9224779f6f07877f010ecf455773c7840fe498269830eecdb78b13676fc",
+          "baseline_value": "26978670fc947d73d73725b0eac700c8faeee0142900c23e4dbf07282466e25a",
           "basis": "arm_observed",
-          "counterfactual_value": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+          "counterfactual_value": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
           "dimension": "corpus_digest",
           "expected_equal": false,
           "state": "expected_difference"
@@ -732,9 +732,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+          "baseline_value": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
           "basis": "protocol_fixed",
-          "counterfactual_value": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+          "counterfactual_value": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
           "dimension": "fixture_manifest_digest",
           "expected_equal": true,
           "state": "controlled"
@@ -756,9 +756,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816",
+          "baseline_value": "187738466df6185fcad4f93d7cf0ff9c9c85a892396400099d3a374c0841bcd2",
           "basis": "protocol_fixed",
-          "counterfactual_value": "9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816",
+          "counterfactual_value": "187738466df6185fcad4f93d7cf0ff9c9c85a892396400099d3a374c0841bcd2",
           "dimension": "knowledge_contract_digest",
           "expected_equal": true,
           "state": "controlled"
@@ -788,9 +788,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "0.6.5",
+          "baseline_value": "0.6.6",
           "basis": "protocol_fixed",
-          "counterfactual_value": "0.6.5",
+          "counterfactual_value": "0.6.6",
           "dimension": "producer_version",
           "expected_equal": true,
           "state": "controlled"
@@ -844,9 +844,9 @@
           "state": "controlled"
         },
         {
-          "baseline_value": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+          "baseline_value": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
           "basis": "protocol_fixed",
-          "counterfactual_value": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+          "counterfactual_value": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
           "dimension": "suite_digest",
           "expected_equal": true,
           "state": "controlled"
@@ -871,11 +871,11 @@
       "confounding_dimensions": [],
       "only_declared_differences": true
     },
-    "counterfactual_corpus_digest": "7b029a4c7b099d04accb8bf9480008d4d8e01961a39aa1bdb3d92cc5e2626f81",
+    "counterfactual_corpus_digest": "dd808d46147a4a2f55e5608f0bab3721ff485752975dfa49b06d17d7660930ce",
     "counterfactual_corpus_document_catalog_digest": "df06ee8bf96869705e857b27659df0029f6e5d6d9984960ff3ca93f134854bcb",
-    "counterfactual_corpus_manifest_file_sha256": "b134566a99d32a7e775b1ca5d922af3d0182afc1a92ff453ec5a24eb6b5d7d9b",
+    "counterfactual_corpus_manifest_file_sha256": "9124a7d0a94f4d26eb17708f6f63a84e1baefd1b9d4d3494d250b4b795e68d31",
     "counterfactual_corpus_query_family_id": "synthetic-benefit-eligibility",
-    "counterfactual_corpus_snapshot_digest": "89555a56b88293c9e71d9377fe1a582ca4c2080c91c5569c6dc9063c6b45c1ec",
+    "counterfactual_corpus_snapshot_digest": "0b6a2ed94bd99ff670666087bc8f24f31c06a1f96c5d31884947be9051727186",
     "counterfactual_evidence_set_digest": "da73ac2f21ea72c33e81971bc0541d3a15abc3ed11b715d05c085c22daeda0fc",
     "counterfactual_governing_evidence_digest": "0a11b36c7bc440e7227ae9bc91d3e071fa0c4c06240c1c1c35635f3fd6a7e9f6",
     "counterfactual_governing_retrieval_identity_digest": "dafa54ea76f884dabf884e1ac39f76763168404201103a0f7b050d3d7d3c22e3",
@@ -894,21 +894,21 @@
         {
           "artifact_kind": "fixture-manifest-entry",
           "path": "fixtures/responsive/model_outputs/synthetic-benefit-eligibility.json",
-          "schema_version": "0.6.5",
+          "schema_version": "0.6.6",
           "sha256": "6f370d772c16b27cf1e2b7648c7a927ce46296607fc5db7f03159a0ed8a6bb06",
           "size_bytes": 621
         },
         {
           "artifact_kind": "fixture-manifest-entry",
           "path": "fixtures/responsive/requests/synthetic-benefit-eligibility.json",
-          "schema_version": "0.6.5",
+          "schema_version": "0.6.6",
           "sha256": "cf12fc3f86977ffce41c35a4c177b8c09483a97c93f66bc5992dab743d59a972",
           "size_bytes": 251
         },
         {
           "artifact_kind": "fixture-manifest-entry",
           "path": "fixtures/responsive/tool_outputs/synthetic-benefit-eligibility.json",
-          "schema_version": "0.6.5",
+          "schema_version": "0.6.6",
           "sha256": "b30d6005d31d6c7f225566c5308a48cba5ac5cc8b0f391acef1b10536b84f170",
           "size_bytes": 249
         }
@@ -916,11 +916,11 @@
       "fixture_roots": [
         "fixtures/responsive"
       ],
-      "schema_version": "0.6.5",
+      "schema_version": "0.6.6",
       "suite_id": "evidence-sensitivity-responsive",
       "suite_version": "0.1.0"
     },
-    "fixture_manifest_digest": "e93ce6d8258c80fd56f004cbb34a3186fe6ca6b02beddad082e17e18a6d6f359",
+    "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
     "fixture_snapshots": [
       {
         "content_utf8": "{\n  \"claim_id\": \"claim-benefit-eligibility\",\n  \"query\": \"Should this synthetic benefit request be approved or denied under the governing policy?\",\n  \"query_family_id\": \"synthetic-benefit-eligibility\",\n  \"request_id\": \"request-synthetic-benefit-001\"\n}\n",
@@ -944,7 +944,7 @@
         "size_bytes": 249
       }
     ],
-    "knowledge_contract_digest": "9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816",
+    "knowledge_contract_digest": "187738466df6185fcad4f93d7cf0ff9c9c85a892396400099d3a374c0841bcd2",
     "limitations": [
       "This deterministic synthetic detector contract test does not estimate real-model prevalence.",
       "Controlled evidence sensitivity is an observed response relation under declared conditions, not a causal guarantee.",
@@ -955,10 +955,10 @@
     ],
     "model_digest": "bc987bc3e4bd9475c7a04887537029f65e0cfafc29511974911eb99582b9be7c",
     "model_id": "deterministic-fixture-model-v1",
-    "producer_version": "0.6.5",
+    "producer_version": "0.6.6",
     "prompt_template_digest": "fdcd7641403825e9cfec862b3a47d203c335de53f333ddecc0d7f7bd2ea64ed9",
-    "protocol_digest": "0e9385a0b814b111832cf541595e8a5232e0e0c71757bde3cb8d98b1b9b3edec",
-    "protocol_id": "rag-sensitivity-d9ce94fd50dc0491022eaf44",
+    "protocol_digest": "8819ebd34bfc7af2c0ad1576673c8e5447bfea4c464b6f80a41fbe066690e20e",
+    "protocol_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19",
     "provenance_binding": "fixture_declared_unverified_digests",
     "provider": "synthetic-fixture",
     "query_digest": "81c610fe9830b111fe218d68247f5ed1af33ceb2190c0fca2f3719be415bbc7d",
@@ -974,7 +974,7 @@
     "retrieval_algorithm_version": "1.0.0",
     "retrieval_top_k": 1,
     "schema_name": "evidence-sensitivity-protocol",
-    "schema_version": "0.6.5",
+    "schema_version": "0.6.6",
     "subject_configuration": {
       "agent_implementation_digest": "3678ca2dc87bd9ed4306af91b4c7e22e12d8f63044a4544bff10d817fe65965c",
       "agent_implementation_id": "synthetic-responsive-agent-v1",
@@ -992,7 +992,7 @@
     "subject_configuration_digest": "3d006eed7d9755fde1d5ef469d910a1df4b4ca0fcaebeddae035802fb3339835",
     "subject_execution_scope": "declarative_fixture_harness_not_model_evidence_use",
     "subject_id": "responsive-policy-subject",
-    "suite_digest": "a96a7e32c50125b30ff768757cce01a121d11a65adb4b0fd5951ccfe6e6038fc",
+    "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
     "suite_id": "evidence-sensitivity-responsive",
     "synthetic_data_attestation": null,
     "synthetic_data_attestation_digest": null,
@@ -1011,10 +1011,10 @@
   "provenance_binding": "fixture_declared_unverified_digests",
   "raw_content_persistence": "exact_corpus_and_fixture_utf8_embedded",
   "reason_codes": [],
-  "report_digest": "c0d931d0887b468fde35746fae14f205661f16804d1ed6ca742836c5e62c5527",
-  "report_id": "evidence-sensitivity-0e9385a0b814b111832cf541",
+  "report_digest": "4233ec32ae7101b54166fc9a95b0121ffce2c4a402663974639ce10eb8914455",
+  "report_id": "evidence-sensitivity-8819ebd34bfc7af2c0ad1576",
   "schema_name": "evidence-sensitivity-report",
-  "schema_version": "0.6.5",
+  "schema_version": "0.6.6",
   "state": "responsive",
   "subject_execution_scope": "declarative_fixture_harness_not_model_evidence_use",
   "synthetic_data_attestation_digest": null,

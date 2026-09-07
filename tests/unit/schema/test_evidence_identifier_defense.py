@@ -222,6 +222,26 @@ def test_frozen_v061_expectation_retains_machine_identifier_defense() -> None:
         validate_artifact_payload(payload, "expectation")
 
 
+def test_v065_remains_in_machine_identifier_schema_generation() -> None:
+    """Advancing the writer must not drop the immediately prior contract."""
+
+    assert MACHINE_IDENTIFIER_SCHEMA_VERSIONS == (
+        "0.6.1",
+        "0.6.2",
+        "0.6.3",
+        "0.6.4",
+        "0.6.5",
+        "0.6.6",
+    )
+
+    model, payload = _evidence_ref_claim_payload(
+        "unsafe identifier with spaces",
+        "0.6.5",
+    )
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(model.model_json_schema(mode="validation")).validate(payload)
+
+
 def test_frozen_v064_machine_identifier_defense_is_independent_of_version_catalog() -> None:
     model, payload = _evidence_ref_claim_payload(
         "unsafe identifier with spaces",

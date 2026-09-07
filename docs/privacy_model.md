@@ -105,6 +105,18 @@ content from surviving solely because a field is structurally preserved.
 Run `started_at_utc` and `completed_at_utc` values are also bounded,
 calendar-valid RFC 3339 strings and remain subject to fail-closed sensitive
 content scanning even though clean timestamp structure is preserved.
+The v0.6.6 development writer applies the structural credential/URI detector
+to every non-exempt RunSet string, including `stop_reasons`; inputs accepted by
+older writers can therefore be rejected when they contain credential-shaped
+assignments, headers, or URI components. Compact suffix matching is limited to
+identifier-like names, so ordinary prose such as `Digital signature: valid`
+does not become a credential field merely because its final word is
+`signature`. The one structured exception is the exact canonical
+`case=...; subject_token|employee_token=<32 lowercase hex>; fixture=...`
+summary grammar. RunSet redaction and generic durable-payload validation share
+that same implementation and neutralize only the pseudonym assignment for the
+credential scan; malformed summaries and every remaining byte still fail
+closed normally.
 Evaluation similarly scans persisted run-record strings and emits
 verdict-bearing redaction findings for sensitive-looking content. Raw
 sensitive-looking values are still allowed at model construction so evaluation
@@ -190,6 +202,38 @@ disposition, cluster, endpoint, or source-record semantics. The packet's
 publication and retention boundary therefore includes those exact source
 snapshots; replay establishes consistency, not anonymity, confidentiality,
 authenticity, or permission to retain them.
+
+## Real-Model Study and External-Pilot Boundary
+
+The development real-model study manifest and report preserve only bounded
+condition identity, digests, structured counts/rates, exact interval
+parameters, cost/latency summaries, reason codes, and limitations. Its closed
+bundle additionally preserves the exact UTF-8 JSON preregistration record and
+the canonical human-review receipt. Both pass the same structural credential,
+PII, and redaction-idempotence boundary before publication, but operators must
+still make the source registration record non-sensitive. The
+publication policy fixes raw prompts, raw completions, and credentials to
+absent. The analyzer republishes the exact privacy-filtered source RunSets for
+replay, so all of the repeated-study linkability cautions above still apply.
+The study manifest also carries registration references, provider/model/API
+metadata, an execution window, and stable condition IDs; these values can be
+linkable even without raw model text.
+
+The external-pilot contract allows only a participant pseudonym, privacy-safe
+environment metadata, component versions, exact argv, environment-variable
+names, timestamps, exit codes, artifact digests, bounded friction summaries,
+and remediation references. It fixes raw input persistence, raw output
+persistence, credential-value persistence, and direct participant-identifier
+persistence to false. Do not place secret values in argv, artifact IDs,
+platform text, friction summaries, or limitations. The schema cannot detect
+all confidential repository names, business context, or indirect
+identifiers.
+
+Consent is separate from redaction. Public or aggregate pilot publication
+requires a digest-bound granted-consent record, while a private record does not
+grant publication rights. Schema validation and pattern scanning do not prove
+that the named participant consented, that a pseudonym is non-identifying, or
+that source-system retention is appropriate.
 
 ## Assurance Mutation Boundary
 

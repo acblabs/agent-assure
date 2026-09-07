@@ -27,6 +27,7 @@ from agent_assure.evaluation.evaluator import EvaluationReport, evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
+    MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
     load_json_bytes_bounded,
 )
 from agent_assure.mutation.campaign import build_core_catalog
@@ -677,10 +678,7 @@ def gate_evaluation_summary(
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind="evaluation-summary",
         )
-    if (
-        summary.schema_version in V063_CONTRACT_SCHEMA_VERSIONS
-        and summary.runset_digest is None
-    ):
+    if summary.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and summary.runset_digest is None:
         return GateDecision(
             exit_code=2,
             outcome=GateOutcome.invalid,
@@ -2285,7 +2283,12 @@ def _decision_for_state(
 
 def _load_runset(path: Path) -> RunSet:
     return project_validated_artifact_payload(
-        load_validated_artifact_payload(path, "run-set", label="RunSet JSON"),
+        load_validated_artifact_payload(
+            path,
+            "run-set",
+            max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+            label="RunSet JSON",
+        ),
         RunSet,
         kind="run-set",
     )

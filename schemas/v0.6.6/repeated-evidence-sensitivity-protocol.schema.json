@@ -1,0 +1,1601 @@
+{
+  "$defs": {
+    "BinaryPairedDesignPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "achieved_power": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Achieved Power",
+          "type": "string"
+        },
+        "achieved_type_i_error": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Achieved Type I Error",
+          "type": "string"
+        },
+        "adjusted_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Adjusted Alpha",
+          "type": "string"
+        },
+        "alternative_response_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Alternative Response Rate",
+          "type": "string"
+        },
+        "analysis_method": {
+          "const": "cluster_binary_exact",
+          "default": "cluster_binary_exact",
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "cluster_endpoint_aggregation": {
+          "const": "all_planned_pairs_expected_response",
+          "default": "all_planned_pairs_expected_response",
+          "title": "Cluster Endpoint Aggregation",
+          "type": "string"
+        },
+        "confirmatory_cluster_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Confirmatory Cluster Frame",
+          "type": "string"
+        },
+        "critical_cluster_responses": {
+          "minimum": 1,
+          "title": "Critical Cluster Responses",
+          "type": "integer"
+        },
+        "desired_power": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Desired Power",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints",
+          "default": "independent_exchangeable_binary_cluster_endpoints",
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "familywise_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "maximum_exclusion_rate": {
+          "default": "0.000000",
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Maximum Exclusion Rate",
+          "type": "string"
+        },
+        "minimum_detectable_difference": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Minimum Detectable Difference",
+          "type": "string"
+        },
+        "monte_carlo_diagnostic_threshold_clusters": {
+          "default": 20,
+          "maximum": 10000,
+          "minimum": 2,
+          "title": "Monte Carlo Diagnostic Threshold Clusters",
+          "type": "integer"
+        },
+        "monte_carlo_resamples": {
+          "default": 1000,
+          "maximum": 1000000,
+          "minimum": 1000,
+          "title": "Monte Carlo Resamples",
+          "type": "integer"
+        },
+        "non_analyzable_cluster_policy": {
+          "const": "score_zero",
+          "default": "score_zero",
+          "title": "Non Analyzable Cluster Policy",
+          "type": "string"
+        },
+        "null_response_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Null Response Rate",
+          "type": "string"
+        },
+        "planned_inferential_clusters": {
+          "maximum": 10000,
+          "minimum": 2,
+          "title": "Planned Inferential Clusters",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "familywise_alpha",
+        "adjusted_alpha",
+        "desired_power",
+        "null_response_rate",
+        "alternative_response_rate",
+        "minimum_detectable_difference",
+        "planned_inferential_clusters",
+        "critical_cluster_responses",
+        "achieved_type_i_error",
+        "achieved_power"
+      ],
+      "title": "BinaryPairedDesignPlan",
+      "type": "object"
+    },
+    "CaseClusterBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "cluster_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Cluster Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "cluster_id"
+      ],
+      "title": "CaseClusterBinding",
+      "type": "object"
+    },
+    "CouplingClassification": {
+      "enum": [
+        "fully_coupled",
+        "partially_coupled",
+        "nominally_paired",
+        "unpaired",
+        "unknown"
+      ],
+      "title": "CouplingClassification",
+      "type": "string"
+    },
+    "CouplingCondition": {
+      "enum": [
+        "case_identity",
+        "non_intervened_fixture_fields",
+        "tool_schema_digest",
+        "provider_configuration",
+        "governing_corpus_digest",
+        "provider_sampling_randomness",
+        "retrieval_randomness",
+        "tool_randomness",
+        "temporal_execution_order",
+        "deterministic_fixture_execution"
+      ],
+      "title": "CouplingCondition",
+      "type": "string"
+    },
+    "CouplingDescriptor": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "pairing_identity_verified": {
+                "const": false
+              }
+            },
+            "required": [
+              "pairing_identity_verified"
+            ]
+          },
+          "then": {
+            "properties": {
+              "classification": {
+                "const": "unpaired"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "pairing_identity_verified": {
+                "const": true
+              }
+            },
+            "required": [
+              "pairing_identity_verified"
+            ]
+          },
+          "then": {
+            "properties": {
+              "classification": {
+                "not": {
+                  "const": "unpaired"
+                }
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "case_identity"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "case_identity"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "case_identity"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "case_identity"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "case_identity"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "non_intervened_fixture_fields"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "non_intervened_fixture_fields"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "non_intervened_fixture_fields"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "non_intervened_fixture_fields"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "non_intervened_fixture_fields"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "tool_schema_digest"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "tool_schema_digest"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "tool_schema_digest"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "tool_schema_digest"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "tool_schema_digest"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "provider_configuration"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "provider_configuration"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "provider_configuration"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "provider_configuration"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "provider_configuration"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "governing_corpus_digest"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "governing_corpus_digest"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "governing_corpus_digest"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "governing_corpus_digest"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "governing_corpus_digest"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "provider_sampling_randomness"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "provider_sampling_randomness"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "provider_sampling_randomness"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "provider_sampling_randomness"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "provider_sampling_randomness"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "retrieval_randomness"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "retrieval_randomness"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "retrieval_randomness"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "retrieval_randomness"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "retrieval_randomness"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "tool_randomness"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "tool_randomness"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "tool_randomness"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "tool_randomness"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "tool_randomness"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "temporal_execution_order"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "temporal_execution_order"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "temporal_execution_order"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "temporal_execution_order"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "temporal_execution_order"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "deterministic_fixture_execution"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "deterministic_fixture_execution"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "deterministic_fixture_execution"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "deterministic_fixture_execution"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "deterministic_fixture_execution"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/CouplingClassification"
+        },
+        "intentionally_different": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Intentionally Different",
+          "type": "array"
+        },
+        "not_shared": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Not Shared",
+          "type": "array"
+        },
+        "pairing_identity_verified": {
+          "title": "Pairing Identity Verified",
+          "type": "boolean"
+        },
+        "provider_seed_sharing_evidence_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "const": null,
+          "default": null,
+          "title": "Provider Seed Sharing Evidence Digest"
+        },
+        "requested_provider_seed": {
+          "default": false,
+          "title": "Requested Provider Seed",
+          "type": "boolean"
+        },
+        "shared": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Shared",
+          "type": "array"
+        },
+        "stochastic_dimensions": {
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Stochastic Dimensions",
+          "type": "array"
+        },
+        "unknown": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Unknown",
+          "type": "array"
+        },
+        "variance_reduction_claim_permitted": {
+          "const": false,
+          "default": false,
+          "title": "Variance Reduction Claim Permitted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pairing_identity_verified",
+        "stochastic_dimensions",
+        "classification"
+      ],
+      "title": "CouplingDescriptor",
+      "type": "object"
+    },
+    "EvidenceSensitivityExpectedRelation": {
+      "enum": [
+        "decision_flip",
+        "decision_invariant"
+      ],
+      "title": "EvidenceSensitivityExpectedRelation",
+      "type": "string"
+    },
+    "RAGSensitivityAuthorityAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "corpus_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Corpus Digest",
+          "type": "string"
+        },
+        "expected_decision": {
+          "$ref": "#/$defs/RAGSensitivityDecision"
+        },
+        "expected_outcome": {
+          "$ref": "#/$defs/RAGSensitivityOutcome"
+        },
+        "governing_content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Governing Content Digest",
+          "type": "string"
+        },
+        "governing_ref_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Governing Ref Id",
+          "type": "string"
+        },
+        "governing_source_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Governing Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "corpus_digest",
+        "expected_decision",
+        "expected_outcome",
+        "governing_source_id",
+        "governing_ref_id",
+        "governing_content_digest",
+        "claim_id"
+      ],
+      "title": "RAGSensitivityAuthorityAssignment",
+      "type": "object"
+    },
+    "RAGSensitivityCaseAuthorityBinding": {
+      "additionalProperties": false,
+      "description": "Exact authority assignment pair for one explicitly covered case.",
+      "properties": {
+        "assignments": {
+          "items": {
+            "$ref": "#/$defs/RAGSensitivityAuthorityAssignment"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Assignments",
+          "type": "array"
+        },
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "expected_relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceSensitivityExpectedRelation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "query_family_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Query Family Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "query_family_id",
+        "assignments"
+      ],
+      "title": "RAGSensitivityCaseAuthorityBinding",
+      "type": "object"
+    },
+    "RAGSensitivityDecision": {
+      "enum": [
+        "approve",
+        "deny",
+        "escalate"
+      ],
+      "title": "RAGSensitivityDecision",
+      "type": "string"
+    },
+    "RAGSensitivityOutcome": {
+      "enum": [
+        "approved",
+        "denied",
+        "escalated"
+      ],
+      "title": "RAGSensitivityOutcome",
+      "type": "string"
+    },
+    "SensitivityArmBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "arm_id": {
+          "enum": [
+            "baseline_evidence",
+            "counterfactual_evidence"
+          ],
+          "title": "Arm Id",
+          "type": "string"
+        },
+        "case_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Case Manifest Digest",
+          "type": "string"
+        },
+        "configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Configuration Digest",
+          "type": "string"
+        },
+        "corpus_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Corpus Digest",
+          "type": "string"
+        },
+        "expected_outcome": {
+          "$ref": "#/$defs/RAGSensitivityOutcome"
+        },
+        "expected_recommendation": {
+          "$ref": "#/$defs/RAGSensitivityDecision"
+        },
+        "knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Knowledge Contract Digest",
+          "type": "string"
+        },
+        "pipeline_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "policy_bundle_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Policy Bundle Digest",
+          "type": "string"
+        },
+        "prompt_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompt Manifest Digest",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "requested_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Requested Model",
+          "type": "string"
+        },
+        "resolved_model": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Model"
+        },
+        "tool_schema_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Tool Schema Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "arm_id",
+        "configuration_digest",
+        "corpus_digest",
+        "expected_recommendation",
+        "expected_outcome",
+        "prompt_manifest_digest",
+        "case_manifest_digest",
+        "knowledge_contract_digest",
+        "provider",
+        "requested_model",
+        "adapter_id",
+        "pipeline_id",
+        "tool_schema_digest",
+        "policy_bundle_digest"
+      ],
+      "title": "SensitivityArmBinding",
+      "type": "object"
+    },
+    "SensitivityExecutionMode": {
+      "enum": [
+        "stochastic_live",
+        "deterministic_fixture"
+      ],
+      "title": "SensitivityExecutionMode",
+      "type": "string"
+    },
+    "SensitivityInterpretation": {
+      "enum": [
+        "confirmatory",
+        "exploratory"
+      ],
+      "title": "SensitivityInterpretation",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/repeated-evidence-sensitivity-protocol.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "execution_mode": {
+            "const": "stochastic_live"
+          },
+          "interpretation": {
+            "const": "confirmatory"
+          }
+        },
+        "required": [
+          "execution_mode",
+          "interpretation"
+        ]
+      },
+      "then": {
+        "properties": {
+          "baseline_arm": {
+            "properties": {
+              "adapter_id": {
+                "enum": [
+                  "openai-chat-completions"
+                ]
+              }
+            },
+            "required": [
+              "adapter_id"
+            ]
+          },
+          "case_authority_bindings": {
+            "minItems": 1
+          },
+          "counterfactual_arm": {
+            "properties": {
+              "adapter_id": {
+                "enum": [
+                  "openai-chat-completions"
+                ]
+              }
+            },
+            "required": [
+              "adapter_id"
+            ]
+          },
+          "coupling": {
+            "properties": {
+              "classification": {
+                "not": {
+                  "enum": [
+                    "unpaired",
+                    "unknown"
+                  ]
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "enum": [
+                      "provider_sampling_randomness",
+                      "temporal_execution_order"
+                    ]
+                  }
+                }
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        },
+        "required": [
+          "case_authority_bindings"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_mode": {
+            "const": "deterministic_fixture"
+          }
+        },
+        "required": [
+          "execution_mode"
+        ]
+      },
+      "then": {
+        "not": {
+          "required": [
+            "execution_attempt_id"
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_mode": {
+            "const": "stochastic_live"
+          }
+        },
+        "required": [
+          "execution_mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "coupling": {
+            "allOf": [
+              {
+                "properties": {
+                  "stochastic_dimensions": {
+                    "contains": {
+                      "const": "provider_sampling_randomness"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "stochastic_dimensions": {
+                    "contains": {
+                      "const": "temporal_execution_order"
+                    }
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "shared": {
+                    "not": {
+                      "contains": {
+                        "enum": [
+                          "provider_sampling_randomness",
+                          "temporal_execution_order"
+                        ]
+                      }
+                    }
+                  }
+                }
+              },
+              {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "intentionally_different": {
+                        "contains": {
+                          "const": "provider_sampling_randomness"
+                        }
+                      }
+                    },
+                    "required": [
+                      "intentionally_different"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "not_shared": {
+                        "contains": {
+                          "const": "provider_sampling_randomness"
+                        }
+                      }
+                    },
+                    "required": [
+                      "not_shared"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "unknown": {
+                        "contains": {
+                          "const": "provider_sampling_randomness"
+                        }
+                      }
+                    },
+                    "required": [
+                      "unknown"
+                    ]
+                  }
+                ]
+              },
+              {
+                "anyOf": [
+                  {
+                    "properties": {
+                      "intentionally_different": {
+                        "contains": {
+                          "const": "temporal_execution_order"
+                        }
+                      }
+                    },
+                    "required": [
+                      "intentionally_different"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "not_shared": {
+                        "contains": {
+                          "const": "temporal_execution_order"
+                        }
+                      }
+                    },
+                    "required": [
+                      "not_shared"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "unknown": {
+                        "contains": {
+                          "const": "temporal_execution_order"
+                        }
+                      }
+                    },
+                    "required": [
+                      "unknown"
+                    ]
+                  }
+                ]
+              }
+            ],
+            "required": [
+              "stochastic_dimensions"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "properties": {
+    "allowed_exclusion_reasons": {
+      "default": [],
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "title": "Allowed Exclusion Reasons",
+      "type": "array"
+    },
+    "arm_execution_order": {
+      "const": "baseline_then_counterfactual",
+      "default": "baseline_then_counterfactual",
+      "title": "Arm Execution Order",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "const": "repeated-evidence-sensitivity-protocol",
+      "default": "repeated-evidence-sensitivity-protocol",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "baseline_arm": {
+      "$ref": "#/$defs/SensitivityArmBinding"
+    },
+    "case_authority_bindings": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/RAGSensitivityCaseAuthorityBinding"
+      },
+      "maxItems": 10000,
+      "title": "Case Authority Bindings",
+      "type": "array"
+    },
+    "case_cluster_bindings": {
+      "items": {
+        "$ref": "#/$defs/CaseClusterBinding"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Case Cluster Bindings",
+      "type": "array"
+    },
+    "cluster_by": {
+      "default": "case_id",
+      "enum": [
+        "case_id",
+        "source_group_id"
+      ],
+      "title": "Cluster By",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "RepeatedEvidenceSensitivityProtocol/v1",
+      "default": "RepeatedEvidenceSensitivityProtocol/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "counterfactual_arm": {
+      "$ref": "#/$defs/SensitivityArmBinding"
+    },
+    "coupling": {
+      "$ref": "#/$defs/CouplingDescriptor"
+    },
+    "design": {
+      "$ref": "#/$defs/BinaryPairedDesignPlan"
+    },
+    "design_commitment_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Design Commitment Digest",
+      "type": "string"
+    },
+    "endpoint": {
+      "const": "expected_decision_response",
+      "default": "expected_decision_response",
+      "title": "Endpoint",
+      "type": "string"
+    },
+    "execution_attempt_id": {
+      "anyOf": [
+        {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Execution Attempt Id"
+    },
+    "execution_mode": {
+      "$ref": "#/$defs/SensitivityExecutionMode"
+    },
+    "expected_relation": {
+      "$ref": "#/$defs/EvidenceSensitivityExpectedRelation",
+      "default": "decision_flip"
+    },
+    "inferential_unit": {
+      "default": "case_id",
+      "enum": [
+        "case_id",
+        "source_group_id"
+      ],
+      "title": "Inferential Unit",
+      "type": "string"
+    },
+    "interpretation": {
+      "$ref": "#/$defs/SensitivityInterpretation"
+    },
+    "limitations": {
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "multiplicity_family": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Multiplicity Family",
+      "type": "string"
+    },
+    "multiplicity_family_size": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Multiplicity Family Size",
+      "type": "integer"
+    },
+    "multiplicity_method": {
+      "default": "single_endpoint",
+      "enum": [
+        "single_endpoint",
+        "bonferroni"
+      ],
+      "title": "Multiplicity Method",
+      "type": "string"
+    },
+    "pair_identity": {
+      "const": "case_id_repetition_index",
+      "default": "case_id_repetition_index",
+      "title": "Pair Identity",
+      "type": "string"
+    },
+    "planned_case_ids": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Planned Case Ids",
+      "type": "array"
+    },
+    "planned_cluster_ids": {
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Planned Cluster Ids",
+      "type": "array"
+    },
+    "planned_pairs": {
+      "maximum": 4096,
+      "minimum": 1,
+      "title": "Planned Pairs",
+      "type": "integer"
+    },
+    "protocol_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Protocol Digest",
+      "type": "string"
+    },
+    "protocol_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Protocol Id",
+      "type": "string"
+    },
+    "repetitions_per_arm": {
+      "minimum": 1,
+      "title": "Repetitions Per Arm",
+      "type": "integer"
+    },
+    "schema_name": {
+      "const": "repeated-evidence-sensitivity-protocol",
+      "default": "repeated-evidence-sensitivity-protocol",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "protocol_id",
+    "protocol_digest",
+    "design_commitment_digest",
+    "interpretation",
+    "execution_mode",
+    "baseline_arm",
+    "counterfactual_arm",
+    "planned_case_ids",
+    "planned_cluster_ids",
+    "case_cluster_bindings",
+    "repetitions_per_arm",
+    "planned_pairs",
+    "multiplicity_family",
+    "coupling",
+    "design",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RepeatedEvidenceSensitivityProtocol",
+  "type": "object"
+}

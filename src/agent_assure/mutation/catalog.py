@@ -156,6 +156,7 @@ _FROZEN_RUNSET_SCHEMA_PATHS = tuple(
         "0.6.2",
         "0.6.3",
         "0.6.4",
+        "0.6.5",
     )
 )
 
@@ -307,6 +308,7 @@ def _registered_operator(
             "0.6.3",
             "0.6.4",
             "0.6.5",
+            "0.6.6",
         ),
         preconditions=preconditions,
         permitted_changed_paths=tuple(sorted(permitted_changed_paths)),

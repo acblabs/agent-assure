@@ -146,6 +146,43 @@ a network-isolation boundary against hostile Python or native code.
 - Release evidence does not establish safety assurance, regulatory compliance,
   clinical validity, live model quality, or dependency vulnerability status.
 
+## Empirical Study and External-Pilot Boundary
+
+- Study finalization and config binding are no-dispatch operations. They do not
+  authorize provider use, network access, credential access, or budget spend.
+  Provider execution remains behind the existing explicit live-run consent and
+  configuration controls.
+- A study manifest's self-digest and declared registration evidence detect
+  mismatched content but are not signatures or independent timestamps. The
+  implementation does not contact a version-control host or append-only
+  registry to verify the declared reference, immutability, actor, or
+  registration time. The mandatory pre-execution receipt records explicit
+  human attestations for reference resolution, exact byte/digest agreement,
+  immutability, coverage, and time ordering; reviewer identity and remote truth
+  are still verified out of band.
+- Provider, requested/resolved model, API, SDK, region, adapter, and pipeline
+  identities are checked against persisted observations. They remain producer
+  and adapter claims, not remote-provider attestations. A compromised adapter
+  or provider can fabricate them.
+- Post-registration protocol, model, configuration, benchmark, decision-rule,
+  or execution-window drift invalidates confirmatory analysis. Digest binding
+  does not prove that unrecorded executions were not run or that one result was
+  not selected from repeated executions under identical commitments.
+- External-pilot records bind environment-control, input, command, artifact,
+  consent, friction, and remediation evidence. The schema checks their internal
+  relationships but cannot attest repository ownership, operator independence,
+  consent authority, or execution truth.
+- The publish gate verifies every file in one closed, bounded, link-free pilot
+  bundle, validates the tested wheel identity and supported schema contracts,
+  and requires a later human independence-review receipt bound to the exact
+  evidence and artifact manifest. The receipt deliberately records
+  out-of-band, non-machine-verified reviewer authentication; it is not a
+  signature and does not resist a hostile producer without separate
+  organizational signature/OIDC and approval controls.
+- A pre-candidate pilot is permanently marked learning/remediation-only and is
+  ineligible for clean-reproduction, exact-candidate, and CI-integration release
+  gates. Reusing its digest cannot upgrade that evidence class.
+
 ## Assurance Mutation Boundary
 
 - Built-in mutation operators are trusted package code identified by version,

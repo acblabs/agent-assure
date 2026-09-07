@@ -1,0 +1,168 @@
+{
+  "$defs": {
+    "StudyRegistrationMethod": {
+      "enum": [
+        "version_control_commit",
+        "append_only_registry",
+        "local_digest_commitment"
+      ],
+      "title": "StudyRegistrationMethod",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-registration-review.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Operator-attested review of the exact preregistration record bytes.",
+  "properties": {
+    "artifact_kind": {
+      "const": "real-model-study-registration-review",
+      "default": "real-model-study-registration-review",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "attestation_basis": {
+      "const": "human_operator_attestation",
+      "default": "human_operator_attestation",
+      "title": "Attestation Basis",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "StudyRegistrationReviewReceipt/v1",
+      "default": "StudyRegistrationReviewReceipt/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "pre_observation_ordering_confirmed": {
+      "const": true,
+      "title": "Pre Observation Ordering Confirmed",
+      "type": "boolean"
+    },
+    "receipt_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "registered_at_utc": {
+      "maxLength": 64,
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Registered At Utc",
+      "type": "string"
+    },
+    "registration_evidence_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Registration Evidence Sha256",
+      "type": "string"
+    },
+    "registration_method": {
+      "$ref": "#/$defs/StudyRegistrationMethod"
+    },
+    "registration_record_coverage_confirmed": {
+      "const": true,
+      "title": "Registration Record Coverage Confirmed",
+      "type": "boolean"
+    },
+    "registration_record_digest_match_confirmed": {
+      "const": true,
+      "title": "Registration Record Digest Match Confirmed",
+      "type": "boolean"
+    },
+    "registration_record_immutability_confirmed": {
+      "const": true,
+      "title": "Registration Record Immutability Confirmed",
+      "type": "boolean"
+    },
+    "registration_reference_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Registration Reference Id",
+      "type": "string"
+    },
+    "registration_reference_resolved": {
+      "const": true,
+      "title": "Registration Reference Resolved",
+      "type": "boolean"
+    },
+    "review_receipt_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Review Receipt Digest",
+      "type": "string"
+    },
+    "reviewed_at_utc": {
+      "maxLength": 64,
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Reviewed At Utc",
+      "type": "string"
+    },
+    "reviewer_identity_authentication": {
+      "const": "out_of_band_not_machine_verified",
+      "default": "out_of_band_not_machine_verified",
+      "title": "Reviewer Identity Authentication",
+      "type": "string"
+    },
+    "reviewer_pseudonym": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Reviewer Pseudonym",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "real-model-study-registration-review",
+      "default": "real-model-study-registration-review",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "study_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Study Id",
+      "type": "string"
+    },
+    "study_manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Study Manifest Digest",
+      "type": "string"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "review_receipt_digest",
+    "study_id",
+    "study_manifest_digest",
+    "registration_method",
+    "registration_reference_id",
+    "registration_evidence_sha256",
+    "registered_at_utc",
+    "reviewed_at_utc",
+    "reviewer_pseudonym",
+    "registration_record_coverage_confirmed",
+    "pre_observation_ordering_confirmed",
+    "registration_reference_resolved",
+    "registration_record_digest_match_confirmed",
+    "registration_record_immutability_confirmed",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "StudyRegistrationReviewReceipt",
+  "type": "object"
+}

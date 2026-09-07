@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from datetime import date, timedelta
+from inspect import signature
 from pathlib import Path
 
 import pytest
@@ -13,9 +14,11 @@ from agent_assure.evaluation.evaluator import (
     EvaluationReport,
     evaluate_runset,
     load_runset,
+    load_runset_with_size,
     runset_digest,
 )
 from agent_assure.fixtures.loader import compiled_suite_digest
+from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
 from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
 from agent_assure.policies.evidence import (
     claim_finding_target,
@@ -89,7 +92,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
     compiled, runset = _runset(BASELINE)
     report = evaluate_runset(compiled, runset)
 
-    assert report.schema_version == "0.6.5"
+    assert report.schema_version == "0.6.6"
     assert report.runset_digest == runset_digest(runset)
     assert report.candidate_vs_expectations.runset_digest == runset_digest(runset)
     payload = report.model_dump(mode="json")
@@ -105,7 +108,7 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
         condition
         for condition in report_schema["allOf"]
         if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("enum")
-        == ["0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"]
+        == ["0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"]
     )
     assert set(current_schema_condition["then"]["required"]) == {
         "runset_digest",
@@ -138,6 +141,17 @@ def test_load_runset_requires_explicit_current_wire_identity(tmp_path: Path) -> 
 
     with pytest.raises(ValueError, match="explicit identity fields before parsing"):
         load_runset(path)
+
+
+def test_explicit_runset_loaders_default_to_journal_bearing_limit() -> None:
+    assert (
+        signature(load_runset).parameters["max_bytes"].default
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
+    assert (
+        signature(load_runset_with_size).parameters["max_bytes"].default
+        == MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+    )
 
 
 def test_load_runset_enforces_frozen_legacy_shape(tmp_path: Path) -> None:

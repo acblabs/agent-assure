@@ -51,6 +51,7 @@ _CORE_RELEASE_ROLES_BY_SCHEMA_VERSION: dict[str, tuple[str, ...]] = {
     "0.6.3": CORE_RELEASE_ROLES,
     "0.6.4": CORE_RELEASE_ROLES,
     "0.6.5": CORE_RELEASE_ROLES,
+    "0.6.6": CORE_RELEASE_ROLES,
 }
 ManifestDigestMode = Literal["raw-sha256", "replay-stable-json-sha256", "not-replayed"]
 ROLE_DIGEST_MODES: dict[str, ReplayDigestMode] = {

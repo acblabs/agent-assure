@@ -2887,7 +2887,7 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
 
 
 def _write_stochastic_packet_inputs(root: Path) -> dict[str, Path]:
-    sufficiency, stochastic, sources = _stochastic_reports()
+    sufficiency, stochastic, sources = _stochastic_reports(journal_bound=True)
     evaluation = _stochastic_evaluation(sufficiency)
     paths = {
         "evaluation": root / "evaluation-summary.json",

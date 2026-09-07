@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import re
 import sys
+import tomllib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -8,6 +10,16 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 import scripts.check_docs_alignment as docs_alignment  # noqa: E402
+
+
+def test_external_pilot_observed_attempt_steps_are_contiguous() -> None:
+    guide = (ROOT / "docs" / "external_pilot.md").read_text(encoding="utf-8")
+    procedure = guide.split("After the external execution:\n\n", maxsplit=1)[1].split(
+        "\n\nThe builder rejects",
+        maxsplit=1,
+    )[0]
+
+    assert re.findall(r"(?m)^(\d+)\. ", procedure) == [str(index) for index in range(1, 8)]
 
 
 def test_forbidden_patterns_catch_affirmative_certify_claims() -> None:
@@ -64,15 +76,18 @@ def test_release_metadata_checkers_accept_current_files() -> None:
 
 def test_testpypi_runbook_pins_rc_and_stable_golden_regeneration_order() -> None:
     runbook = (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8")
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    stable_version = project["project"]["version"].split("rc", maxsplit=1)[0]
+    rc_version_text = f'project.version = "{stable_version}rc1"'
     candidate_start = runbook.index("## TestPyPI Candidate")
-    rc_version = runbook.index('project.version = "0.6.5rc1"', candidate_start)
+    rc_version = runbook.index(rc_version_text, candidate_start)
     rc_regeneration = runbook.index(
         "python scripts/update_golden.py --update-golden",
         rc_version,
     )
     rc_commit = runbook.index("commit\n   the regenerated RC goldens", rc_regeneration)
-    rc_release_check = runbook.index("make release-check", rc_commit)
-    stable_restore = runbook.index("restore the final package\nversion to `0.6.5`")
+    rc_release_check = runbook.index("make release-publish-check", rc_commit)
+    stable_restore = runbook.index(f"restore the final package\nversion to `{stable_version}`")
     stable_regeneration = runbook.index(
         "python scripts/update_golden.py --update-golden",
         stable_restore,
@@ -81,11 +96,16 @@ def test_testpypi_runbook_pins_rc_and_stable_golden_regeneration_order() -> None
         "commit the stable-version golden regeneration",
         stable_regeneration,
     )
-    stable_release_check = runbook.index("make release-check", stable_commit)
+    stable_release_check = runbook.index("make release-publish-check", stable_commit)
 
     assert rc_version < rc_regeneration < rc_commit < rc_release_check
     assert stable_restore < stable_regeneration < stable_commit < stable_release_check
-    assert "RC-generated sensitivity goldens must\nnot remain on the final tag" in runbook
+    assert "RC-generated sensitivity goldens must not remain on the final tag" in " ".join(
+        runbook.split()
+    )
+    assert f"v{stable_version} is currently untagged and unpublished" in runbook
+    assert "conditional on all empirical and release gates passing" in runbook
+    assert f"This runbook does not imply that v{stable_version} has shipped." in runbook
     schema_evolution = (ROOT / "docs" / "schema_evolution.md").read_text(encoding="utf-8")
     assert "`*.v0.6.3.*.json` goldens are byte-pinned" in schema_evolution
     assert "including `producer_version` and all derived self-digests" in schema_evolution
@@ -151,11 +171,13 @@ def test_finalize_docs_fail_closed_on_abrupt_partial_outputs() -> None:
     normalized = " ".join(cli_contract.split())
 
     assert "safe to retry after interruption" not in normalized
-    assert "A handled failure or abrupt process or host interruption" in normalized
+    assert "A handled failure is rolled back when identity-bound cleanup succeeds" in normalized
     assert "fails closed on a partial or differing entry" in normalized
     assert "operator must inspect and remove that entry before retrying" in normalized
     assert "persistent, rooted, single-link advisory lock files" in normalized
-    assert "never replaces or unlinks a final output name" in normalized
+    assert "never replaces a final output" in normalized
+    assert "never removes a pre-existing or concurrently substituted entry" in normalized
+    assert "not a single cross-file filesystem transaction" in normalized
 
 
 def test_publication_docs_state_cross_platform_deadline_and_host_boundary() -> None:

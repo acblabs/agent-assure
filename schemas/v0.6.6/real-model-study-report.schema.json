@@ -1,0 +1,5528 @@
+{
+  "$defs": {
+    "ArtifactDependency": {
+      "additionalProperties": false,
+      "properties": {
+        "edge_kind": {
+          "const": "depends_on",
+          "default": "depends_on",
+          "title": "Edge Kind",
+          "type": "string"
+        },
+        "target_artifact_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Target Artifact Id",
+          "type": "string"
+        },
+        "target_artifact_kind": {
+          "const": "statistical-sufficiency-report",
+          "default": "statistical-sufficiency-report",
+          "title": "Target Artifact Kind",
+          "type": "string"
+        },
+        "target_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Target Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_artifact_id",
+        "target_digest"
+      ],
+      "title": "ArtifactDependency",
+      "type": "object"
+    },
+    "BinaryPairedDesignPlan": {
+      "additionalProperties": false,
+      "properties": {
+        "achieved_power": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Achieved Power",
+          "type": "string"
+        },
+        "achieved_type_i_error": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Achieved Type I Error",
+          "type": "string"
+        },
+        "adjusted_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Adjusted Alpha",
+          "type": "string"
+        },
+        "alternative_response_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Alternative Response Rate",
+          "type": "string"
+        },
+        "analysis_method": {
+          "const": "cluster_binary_exact",
+          "default": "cluster_binary_exact",
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "cluster_endpoint_aggregation": {
+          "const": "all_planned_pairs_expected_response",
+          "default": "all_planned_pairs_expected_response",
+          "title": "Cluster Endpoint Aggregation",
+          "type": "string"
+        },
+        "confirmatory_cluster_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Confirmatory Cluster Frame",
+          "type": "string"
+        },
+        "critical_cluster_responses": {
+          "minimum": 1,
+          "title": "Critical Cluster Responses",
+          "type": "integer"
+        },
+        "desired_power": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Desired Power",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints",
+          "default": "independent_exchangeable_binary_cluster_endpoints",
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "familywise_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "maximum_exclusion_rate": {
+          "default": "0.000000",
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Maximum Exclusion Rate",
+          "type": "string"
+        },
+        "minimum_detectable_difference": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Minimum Detectable Difference",
+          "type": "string"
+        },
+        "monte_carlo_diagnostic_threshold_clusters": {
+          "default": 20,
+          "maximum": 10000,
+          "minimum": 2,
+          "title": "Monte Carlo Diagnostic Threshold Clusters",
+          "type": "integer"
+        },
+        "monte_carlo_resamples": {
+          "default": 1000,
+          "maximum": 1000000,
+          "minimum": 1000,
+          "title": "Monte Carlo Resamples",
+          "type": "integer"
+        },
+        "non_analyzable_cluster_policy": {
+          "const": "score_zero",
+          "default": "score_zero",
+          "title": "Non Analyzable Cluster Policy",
+          "type": "string"
+        },
+        "null_response_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Null Response Rate",
+          "type": "string"
+        },
+        "planned_inferential_clusters": {
+          "maximum": 10000,
+          "minimum": 2,
+          "title": "Planned Inferential Clusters",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "familywise_alpha",
+        "adjusted_alpha",
+        "desired_power",
+        "null_response_rate",
+        "alternative_response_rate",
+        "minimum_detectable_difference",
+        "planned_inferential_clusters",
+        "critical_cluster_responses",
+        "achieved_type_i_error",
+        "achieved_power"
+      ],
+      "title": "BinaryPairedDesignPlan",
+      "type": "object"
+    },
+    "CaseClusterBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "cluster_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Cluster Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "cluster_id"
+      ],
+      "title": "CaseClusterBinding",
+      "type": "object"
+    },
+    "ClusterBinomialAnalysisResult": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Adjusted Alpha",
+          "type": "string"
+        },
+        "analyzable_clusters": {
+          "minimum": 0,
+          "title": "Analyzable Clusters",
+          "type": "integer"
+        },
+        "cluster_endpoint_aggregation": {
+          "const": "all_planned_pairs_expected_response",
+          "default": "all_planned_pairs_expected_response",
+          "title": "Cluster Endpoint Aggregation",
+          "type": "string"
+        },
+        "compared_clusters": {
+          "minimum": 2,
+          "title": "Compared Clusters",
+          "type": "integer"
+        },
+        "confirmatory_cluster_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Confirmatory Cluster Frame",
+          "type": "string"
+        },
+        "exact_p_value": {
+          "const": true,
+          "default": true,
+          "title": "Exact P Value",
+          "type": "boolean"
+        },
+        "exact_p_value_expression": {
+          "$ref": "#/$defs/ExactBinomialTailExpression"
+        },
+        "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints",
+          "default": "independent_exchangeable_binary_cluster_endpoints",
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "gate_uses_exact_rejection_region": {
+          "const": true,
+          "default": true,
+          "title": "Gate Uses Exact Rejection Region",
+          "type": "boolean"
+        },
+        "included_pairs": {
+          "minimum": 0,
+          "title": "Included Pairs",
+          "type": "integer"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "method": {
+          "enum": [
+            "cluster_binomial_exact",
+            "cluster_binomial_exact_with_monte_carlo_diagnostic"
+          ],
+          "title": "Method",
+          "type": "string"
+        },
+        "monte_carlo_bitstream_id": {
+          "enum": [
+            "agent-assure/statistics/cluster-binomial/sha256-counter-msb/v1",
+            "not_used"
+          ],
+          "title": "Monte Carlo Bitstream Id",
+          "type": "string"
+        },
+        "monte_carlo_estimate": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Monte Carlo Estimate"
+        },
+        "monte_carlo_extreme_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Monte Carlo Extreme Count"
+        },
+        "monte_carlo_resamples": {
+          "minimum": 0,
+          "title": "Monte Carlo Resamples",
+          "type": "integer"
+        },
+        "monte_carlo_sampler_id": {
+          "enum": [
+            "uint20-rejection-denominator-1000000/v1",
+            "not_used"
+          ],
+          "title": "Monte Carlo Sampler Id",
+          "type": "string"
+        },
+        "monte_carlo_seed": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Monte Carlo Seed"
+        },
+        "non_analyzable_cluster_policy": {
+          "const": "score_zero",
+          "default": "score_zero",
+          "title": "Non Analyzable Cluster Policy",
+          "type": "string"
+        },
+        "non_analyzable_clusters_scored_zero": {
+          "minimum": 0,
+          "title": "Non Analyzable Clusters Scored Zero",
+          "type": "integer"
+        },
+        "p_value_upper_bound": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "P Value Upper Bound",
+          "type": "string"
+        },
+        "planned_cluster_difference_from_null": {
+          "pattern": "^-?(0|1)\\.[0-9]{6}$",
+          "title": "Planned Cluster Difference From Null",
+          "type": "string"
+        },
+        "planned_cluster_response_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Planned Cluster Response Rate",
+          "type": "string"
+        },
+        "responding_clusters": {
+          "minimum": 0,
+          "title": "Responding Clusters",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "method",
+        "compared_clusters",
+        "analyzable_clusters",
+        "non_analyzable_clusters_scored_zero",
+        "responding_clusters",
+        "included_pairs",
+        "planned_cluster_response_rate",
+        "planned_cluster_difference_from_null",
+        "exact_p_value_expression",
+        "p_value_upper_bound",
+        "adjusted_alpha",
+        "monte_carlo_resamples",
+        "monte_carlo_bitstream_id",
+        "monte_carlo_sampler_id",
+        "limitations"
+      ],
+      "title": "ClusterBinomialAnalysisResult",
+      "type": "object"
+    },
+    "CouplingClassification": {
+      "enum": [
+        "fully_coupled",
+        "partially_coupled",
+        "nominally_paired",
+        "unpaired",
+        "unknown"
+      ],
+      "title": "CouplingClassification",
+      "type": "string"
+    },
+    "CouplingCondition": {
+      "enum": [
+        "case_identity",
+        "non_intervened_fixture_fields",
+        "tool_schema_digest",
+        "provider_configuration",
+        "governing_corpus_digest",
+        "provider_sampling_randomness",
+        "retrieval_randomness",
+        "tool_randomness",
+        "temporal_execution_order",
+        "deterministic_fixture_execution"
+      ],
+      "title": "CouplingCondition",
+      "type": "string"
+    },
+    "CouplingDescriptor": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "pairing_identity_verified": {
+                "const": false
+              }
+            },
+            "required": [
+              "pairing_identity_verified"
+            ]
+          },
+          "then": {
+            "properties": {
+              "classification": {
+                "const": "unpaired"
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "pairing_identity_verified": {
+                "const": true
+              }
+            },
+            "required": [
+              "pairing_identity_verified"
+            ]
+          },
+          "then": {
+            "properties": {
+              "classification": {
+                "not": {
+                  "const": "unpaired"
+                }
+              }
+            },
+            "required": [
+              "classification"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "case_identity"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "case_identity"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "case_identity"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "case_identity"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "case_identity"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "non_intervened_fixture_fields"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "non_intervened_fixture_fields"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "non_intervened_fixture_fields"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "non_intervened_fixture_fields"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "non_intervened_fixture_fields"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "tool_schema_digest"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "tool_schema_digest"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "tool_schema_digest"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "tool_schema_digest"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "tool_schema_digest"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "provider_configuration"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "provider_configuration"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "provider_configuration"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "provider_configuration"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "provider_configuration"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "governing_corpus_digest"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "governing_corpus_digest"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "governing_corpus_digest"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "governing_corpus_digest"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "governing_corpus_digest"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "provider_sampling_randomness"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "provider_sampling_randomness"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "provider_sampling_randomness"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "provider_sampling_randomness"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "provider_sampling_randomness"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "retrieval_randomness"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "retrieval_randomness"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "retrieval_randomness"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "retrieval_randomness"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "retrieval_randomness"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "tool_randomness"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "tool_randomness"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "tool_randomness"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "tool_randomness"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "tool_randomness"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "temporal_execution_order"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "temporal_execution_order"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "temporal_execution_order"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "temporal_execution_order"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "temporal_execution_order"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "classification": {
+                "const": "fully_coupled"
+              },
+              "stochastic_dimensions": {
+                "contains": {
+                  "const": "deterministic_fixture_execution"
+                }
+              }
+            },
+            "required": [
+              "classification",
+              "stochastic_dimensions"
+            ]
+          },
+          "then": {
+            "properties": {
+              "intentionally_different": {
+                "not": {
+                  "contains": {
+                    "const": "deterministic_fixture_execution"
+                  }
+                }
+              },
+              "not_shared": {
+                "not": {
+                  "contains": {
+                    "const": "deterministic_fixture_execution"
+                  }
+                }
+              },
+              "shared": {
+                "contains": {
+                  "const": "deterministic_fixture_execution"
+                }
+              },
+              "unknown": {
+                "not": {
+                  "contains": {
+                    "const": "deterministic_fixture_execution"
+                  }
+                }
+              }
+            },
+            "required": [
+              "shared"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "classification": {
+          "$ref": "#/$defs/CouplingClassification"
+        },
+        "intentionally_different": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Intentionally Different",
+          "type": "array"
+        },
+        "not_shared": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Not Shared",
+          "type": "array"
+        },
+        "pairing_identity_verified": {
+          "title": "Pairing Identity Verified",
+          "type": "boolean"
+        },
+        "provider_seed_sharing_evidence_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "const": null,
+          "default": null,
+          "title": "Provider Seed Sharing Evidence Digest"
+        },
+        "requested_provider_seed": {
+          "default": false,
+          "title": "Requested Provider Seed",
+          "type": "boolean"
+        },
+        "shared": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Shared",
+          "type": "array"
+        },
+        "stochastic_dimensions": {
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Stochastic Dimensions",
+          "type": "array"
+        },
+        "unknown": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/CouplingCondition"
+          },
+          "maxItems": 64,
+          "title": "Unknown",
+          "type": "array"
+        },
+        "variance_reduction_claim_permitted": {
+          "const": false,
+          "default": false,
+          "title": "Variance Reduction Claim Permitted",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "pairing_identity_verified",
+        "stochastic_dimensions",
+        "classification"
+      ],
+      "title": "CouplingDescriptor",
+      "type": "object"
+    },
+    "EvidenceSensitivityExpectedRelation": {
+      "enum": [
+        "decision_flip",
+        "decision_invariant"
+      ],
+      "title": "EvidenceSensitivityExpectedRelation",
+      "type": "string"
+    },
+    "ExactBinomialTailExpression": {
+      "additionalProperties": false,
+      "description": "Compact, lossless representation of an exact binomial upper tail.",
+      "properties": {
+        "distribution": {
+          "const": "binomial",
+          "default": "binomial",
+          "title": "Distribution",
+          "type": "string"
+        },
+        "probability_denominator": {
+          "const": 1000000,
+          "default": 1000000,
+          "title": "Probability Denominator",
+          "type": "integer"
+        },
+        "probability_numerator": {
+          "maximum": 1000000,
+          "minimum": 0,
+          "title": "Probability Numerator",
+          "type": "integer"
+        },
+        "relation": {
+          "const": "successes_greater_than_or_equal",
+          "default": "successes_greater_than_or_equal",
+          "title": "Relation",
+          "type": "string"
+        },
+        "threshold": {
+          "maximum": 10000,
+          "minimum": 0,
+          "title": "Threshold",
+          "type": "integer"
+        },
+        "trials": {
+          "maximum": 10000,
+          "minimum": 2,
+          "title": "Trials",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "trials",
+        "threshold",
+        "probability_numerator"
+      ],
+      "title": "ExactBinomialTailExpression",
+      "type": "object"
+    },
+    "PairDisposition": {
+      "enum": [
+        "included",
+        "missing_both",
+        "missing_baseline",
+        "missing_counterfactual",
+        "excluded_baseline",
+        "excluded_counterfactual",
+        "excluded_both",
+        "invalid_baseline",
+        "invalid_counterfactual",
+        "invalid_both",
+        "identity_mismatch",
+        "undeclared_arm_difference"
+      ],
+      "title": "PairDisposition",
+      "type": "string"
+    },
+    "PairDispositionCount": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "disposition": {
+          "$ref": "#/$defs/PairDisposition"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Reason Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "disposition",
+        "reason_code",
+        "count"
+      ],
+      "title": "PairDispositionCount",
+      "type": "object"
+    },
+    "PairedSensitivityObservation": {
+      "additionalProperties": false,
+      "properties": {
+        "baseline_exclusion_reason": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Exclusion Reason"
+        },
+        "baseline_expected_outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RAGSensitivityOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "baseline_expected_recommendation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RAGSensitivityDecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "baseline_outcome": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Outcome"
+        },
+        "baseline_recommendation": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Recommendation"
+        },
+        "baseline_run_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Run Digest"
+        },
+        "baseline_run_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Baseline Run Id"
+        },
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "cluster_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Cluster Id",
+          "type": "string"
+        },
+        "counterfactual_exclusion_reason": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Counterfactual Exclusion Reason"
+        },
+        "counterfactual_expected_outcome": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RAGSensitivityOutcome"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "counterfactual_expected_recommendation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RAGSensitivityDecision"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "counterfactual_outcome": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Counterfactual Outcome"
+        },
+        "counterfactual_recommendation": {
+          "anyOf": [
+            {
+              "maxLength": 512,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Counterfactual Recommendation"
+        },
+        "counterfactual_run_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Counterfactual Run Digest"
+        },
+        "counterfactual_run_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Counterfactual Run Id"
+        },
+        "disposition": {
+          "$ref": "#/$defs/PairDisposition"
+        },
+        "disposition_reason": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Disposition Reason"
+        },
+        "endpoint_value": {
+          "anyOf": [
+            {
+              "enum": [
+                0,
+                1
+              ],
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Endpoint Value"
+        },
+        "expected_relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceSensitivityExpectedRelation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "repetition_index": {
+          "minimum": 0,
+          "title": "Repetition Index",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "case_id",
+        "repetition_index",
+        "cluster_id",
+        "disposition"
+      ],
+      "title": "PairedSensitivityObservation",
+      "type": "object"
+    },
+    "PrerequisiteCheckState": {
+      "enum": [
+        "satisfied",
+        "unmet",
+        "not_evaluated"
+      ],
+      "title": "PrerequisiteCheckState",
+      "type": "string"
+    },
+    "RAGSensitivityAuthorityAssignment": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Claim Id",
+          "type": "string"
+        },
+        "corpus_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Corpus Digest",
+          "type": "string"
+        },
+        "expected_decision": {
+          "$ref": "#/$defs/RAGSensitivityDecision"
+        },
+        "expected_outcome": {
+          "$ref": "#/$defs/RAGSensitivityOutcome"
+        },
+        "governing_content_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Governing Content Digest",
+          "type": "string"
+        },
+        "governing_ref_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Governing Ref Id",
+          "type": "string"
+        },
+        "governing_source_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Governing Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "corpus_digest",
+        "expected_decision",
+        "expected_outcome",
+        "governing_source_id",
+        "governing_ref_id",
+        "governing_content_digest",
+        "claim_id"
+      ],
+      "title": "RAGSensitivityAuthorityAssignment",
+      "type": "object"
+    },
+    "RAGSensitivityCaseAuthorityBinding": {
+      "additionalProperties": false,
+      "description": "Exact authority assignment pair for one explicitly covered case.",
+      "properties": {
+        "assignments": {
+          "items": {
+            "$ref": "#/$defs/RAGSensitivityAuthorityAssignment"
+          },
+          "maxItems": 2,
+          "minItems": 2,
+          "title": "Assignments",
+          "type": "array"
+        },
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "expected_relation": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/EvidenceSensitivityExpectedRelation"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "query_family_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Query Family Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "query_family_id",
+        "assignments"
+      ],
+      "title": "RAGSensitivityCaseAuthorityBinding",
+      "type": "object"
+    },
+    "RAGSensitivityDecision": {
+      "enum": [
+        "approve",
+        "deny",
+        "escalate"
+      ],
+      "title": "RAGSensitivityDecision",
+      "type": "string"
+    },
+    "RAGSensitivityOutcome": {
+      "enum": [
+        "approved",
+        "denied",
+        "escalated"
+      ],
+      "title": "RAGSensitivityOutcome",
+      "type": "string"
+    },
+    "RealModelStudyManifest": {
+      "additionalProperties": false,
+      "properties": {
+        "analysis_status": {
+          "$ref": "#/$defs/StudyAnalysisDeclaration",
+          "default": {
+            "exploratory_secondary_analyses_allowed": true,
+            "llm_judge_endpoint_permitted": false,
+            "pooling_permitted": false,
+            "primary": "confirmatory"
+          }
+        },
+        "artifact_kind": {
+          "const": "real-model-study-manifest",
+          "default": "real-model-study-manifest",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "benchmark_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Benchmark Digest",
+          "type": "string"
+        },
+        "benchmark_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Benchmark Id",
+          "type": "string"
+        },
+        "benchmark_version": {
+          "const": "0.2.0",
+          "default": "0.2.0",
+          "title": "Benchmark Version",
+          "type": "string"
+        },
+        "budget": {
+          "$ref": "#/$defs/StudyBudget"
+        },
+        "conditions": {
+          "items": {
+            "$ref": "#/$defs/StudyConditionBinding"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Conditions",
+          "type": "array"
+        },
+        "contract_id": {
+          "const": "RealModelStudyManifest/v1",
+          "default": "RealModelStudyManifest/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "execution_window": {
+          "$ref": "#/$defs/StudyExecutionWindow"
+        },
+        "hypothesis_decision_rule": {
+          "$ref": "#/$defs/StudyHypothesisDecisionRule"
+        },
+        "hypothesis_decision_rule_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Hypothesis Decision Rule Digest",
+          "type": "string"
+        },
+        "knowledge_contract": {
+          "$ref": "#/$defs/StudyKnowledgeContract",
+          "default": {
+            "authority_level": "authoritative",
+            "expected_behavior": "follow_governing_context",
+            "governing_source": "contextual_evidence"
+          }
+        },
+        "limitations": {
+          "items": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Manifest Digest",
+          "type": "string"
+        },
+        "primary_endpoint": {
+          "const": "direct_same_decision_inertia",
+          "default": "direct_same_decision_inertia",
+          "title": "Primary Endpoint",
+          "type": "string"
+        },
+        "protocol_set_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Set Digest",
+          "type": "string"
+        },
+        "publication": {
+          "$ref": "#/$defs/StudyPublicationPolicy",
+          "default": {
+            "publish_credentials": false,
+            "publish_privacy_filtered_runsets": true,
+            "publish_raw_completions": false,
+            "publish_raw_prompts": false,
+            "redact_raw_outputs": true
+          }
+        },
+        "registration": {
+          "$ref": "#/$defs/StudyRegistration"
+        },
+        "schema_name": {
+          "const": "real-model-study-manifest",
+          "default": "real-model-study-manifest",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "status": {
+          "const": "preregistered",
+          "default": "preregistered",
+          "title": "Status",
+          "type": "string"
+        },
+        "study_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Study Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "study_id",
+        "manifest_digest",
+        "registration",
+        "execution_window",
+        "benchmark_id",
+        "benchmark_digest",
+        "protocol_set_digest",
+        "conditions",
+        "hypothesis_decision_rule",
+        "hypothesis_decision_rule_digest",
+        "budget",
+        "limitations",
+        "artifact_kind",
+        "schema_version",
+        "schema_name",
+        "contract_id",
+        "contract_version"
+      ],
+      "title": "RealModelStudyManifest",
+      "type": "object"
+    },
+    "RepeatedEvidenceSensitivityProtocol": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "const": "stochastic_live"
+              },
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "execution_mode",
+              "interpretation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "baseline_arm": {
+                "properties": {
+                  "adapter_id": {
+                    "enum": [
+                      "openai-chat-completions"
+                    ]
+                  }
+                },
+                "required": [
+                  "adapter_id"
+                ]
+              },
+              "case_authority_bindings": {
+                "minItems": 1
+              },
+              "counterfactual_arm": {
+                "properties": {
+                  "adapter_id": {
+                    "enum": [
+                      "openai-chat-completions"
+                    ]
+                  }
+                },
+                "required": [
+                  "adapter_id"
+                ]
+              },
+              "coupling": {
+                "properties": {
+                  "classification": {
+                    "not": {
+                      "enum": [
+                        "unpaired",
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "unknown": {
+                    "not": {
+                      "contains": {
+                        "enum": [
+                          "provider_sampling_randomness",
+                          "temporal_execution_order"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "classification"
+                ]
+              }
+            },
+            "required": [
+              "case_authority_bindings"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "const": "deterministic_fixture"
+              }
+            },
+            "required": [
+              "execution_mode"
+            ]
+          },
+          "then": {
+            "not": {
+              "required": [
+                "execution_attempt_id"
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "const": "stochastic_live"
+              }
+            },
+            "required": [
+              "execution_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coupling": {
+                "allOf": [
+                  {
+                    "properties": {
+                      "stochastic_dimensions": {
+                        "contains": {
+                          "const": "provider_sampling_randomness"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "stochastic_dimensions": {
+                        "contains": {
+                          "const": "temporal_execution_order"
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "properties": {
+                      "shared": {
+                        "not": {
+                          "contains": {
+                            "enum": [
+                              "provider_sampling_randomness",
+                              "temporal_execution_order"
+                            ]
+                          }
+                        }
+                      }
+                    }
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "intentionally_different": {
+                            "contains": {
+                              "const": "provider_sampling_randomness"
+                            }
+                          }
+                        },
+                        "required": [
+                          "intentionally_different"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "not_shared": {
+                            "contains": {
+                              "const": "provider_sampling_randomness"
+                            }
+                          }
+                        },
+                        "required": [
+                          "not_shared"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "unknown": {
+                            "contains": {
+                              "const": "provider_sampling_randomness"
+                            }
+                          }
+                        },
+                        "required": [
+                          "unknown"
+                        ]
+                      }
+                    ]
+                  },
+                  {
+                    "anyOf": [
+                      {
+                        "properties": {
+                          "intentionally_different": {
+                            "contains": {
+                              "const": "temporal_execution_order"
+                            }
+                          }
+                        },
+                        "required": [
+                          "intentionally_different"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "not_shared": {
+                            "contains": {
+                              "const": "temporal_execution_order"
+                            }
+                          }
+                        },
+                        "required": [
+                          "not_shared"
+                        ]
+                      },
+                      {
+                        "properties": {
+                          "unknown": {
+                            "contains": {
+                              "const": "temporal_execution_order"
+                            }
+                          }
+                        },
+                        "required": [
+                          "unknown"
+                        ]
+                      }
+                    ]
+                  }
+                ],
+                "required": [
+                  "stochastic_dimensions"
+                ]
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "allowed_exclusion_reasons": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "title": "Allowed Exclusion Reasons",
+          "type": "array"
+        },
+        "arm_execution_order": {
+          "const": "baseline_then_counterfactual",
+          "default": "baseline_then_counterfactual",
+          "title": "Arm Execution Order",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "repeated-evidence-sensitivity-protocol",
+          "default": "repeated-evidence-sensitivity-protocol",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "baseline_arm": {
+          "$ref": "#/$defs/SensitivityArmBinding"
+        },
+        "case_authority_bindings": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RAGSensitivityCaseAuthorityBinding"
+          },
+          "maxItems": 10000,
+          "title": "Case Authority Bindings",
+          "type": "array"
+        },
+        "case_cluster_bindings": {
+          "items": {
+            "$ref": "#/$defs/CaseClusterBinding"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Case Cluster Bindings",
+          "type": "array"
+        },
+        "cluster_by": {
+          "default": "case_id",
+          "enum": [
+            "case_id",
+            "source_group_id"
+          ],
+          "title": "Cluster By",
+          "type": "string"
+        },
+        "contract_id": {
+          "const": "RepeatedEvidenceSensitivityProtocol/v1",
+          "default": "RepeatedEvidenceSensitivityProtocol/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "counterfactual_arm": {
+          "$ref": "#/$defs/SensitivityArmBinding"
+        },
+        "coupling": {
+          "$ref": "#/$defs/CouplingDescriptor"
+        },
+        "design": {
+          "$ref": "#/$defs/BinaryPairedDesignPlan"
+        },
+        "design_commitment_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Design Commitment Digest",
+          "type": "string"
+        },
+        "endpoint": {
+          "const": "expected_decision_response",
+          "default": "expected_decision_response",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "execution_attempt_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Attempt Id"
+        },
+        "execution_mode": {
+          "$ref": "#/$defs/SensitivityExecutionMode"
+        },
+        "expected_relation": {
+          "$ref": "#/$defs/EvidenceSensitivityExpectedRelation",
+          "default": "decision_flip"
+        },
+        "inferential_unit": {
+          "default": "case_id",
+          "enum": [
+            "case_id",
+            "source_group_id"
+          ],
+          "title": "Inferential Unit",
+          "type": "string"
+        },
+        "interpretation": {
+          "$ref": "#/$defs/SensitivityInterpretation"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "multiplicity_family": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Multiplicity Family",
+          "type": "string"
+        },
+        "multiplicity_family_size": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Multiplicity Family Size",
+          "type": "integer"
+        },
+        "multiplicity_method": {
+          "default": "single_endpoint",
+          "enum": [
+            "single_endpoint",
+            "bonferroni"
+          ],
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "pair_identity": {
+          "const": "case_id_repetition_index",
+          "default": "case_id_repetition_index",
+          "title": "Pair Identity",
+          "type": "string"
+        },
+        "planned_case_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Planned Case Ids",
+          "type": "array"
+        },
+        "planned_cluster_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 10000,
+          "minItems": 1,
+          "title": "Planned Cluster Ids",
+          "type": "array"
+        },
+        "planned_pairs": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Pairs",
+          "type": "integer"
+        },
+        "protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Digest",
+          "type": "string"
+        },
+        "protocol_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "repetitions_per_arm": {
+          "minimum": 1,
+          "title": "Repetitions Per Arm",
+          "type": "integer"
+        },
+        "schema_name": {
+          "const": "repeated-evidence-sensitivity-protocol",
+          "default": "repeated-evidence-sensitivity-protocol",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "protocol_id",
+        "protocol_digest",
+        "design_commitment_digest",
+        "interpretation",
+        "execution_mode",
+        "baseline_arm",
+        "counterfactual_arm",
+        "planned_case_ids",
+        "planned_cluster_ids",
+        "case_cluster_bindings",
+        "repetitions_per_arm",
+        "planned_pairs",
+        "multiplicity_family",
+        "coupling",
+        "design",
+        "limitations",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "RepeatedEvidenceSensitivityProtocol",
+      "type": "object"
+    },
+    "RunRecordArtifactDependency": {
+      "additionalProperties": false,
+      "properties": {
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "repetition_index": {
+          "minimum": 0,
+          "title": "Repetition Index",
+          "type": "integer"
+        },
+        "run_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Run Digest",
+          "type": "string"
+        },
+        "run_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Run Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "case_id",
+        "repetition_index",
+        "run_id",
+        "run_digest"
+      ],
+      "title": "RunRecordArtifactDependency",
+      "type": "object"
+    },
+    "RunSetArtifactDependency": {
+      "additionalProperties": false,
+      "properties": {
+        "arm_id": {
+          "enum": [
+            "baseline_evidence",
+            "counterfactual_evidence"
+          ],
+          "title": "Arm Id",
+          "type": "string"
+        },
+        "completion_status": {
+          "default": "complete",
+          "enum": [
+            "complete",
+            "incomplete"
+          ],
+          "title": "Completion Status",
+          "type": "string"
+        },
+        "evidence_sensitivity_design_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Evidence Sensitivity Design Digest",
+          "type": "string"
+        },
+        "execution_configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Execution Configuration Digest",
+          "type": "string"
+        },
+        "operational_protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Operational Protocol Digest",
+          "type": "string"
+        },
+        "operational_protocol_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Operational Protocol Id",
+          "type": "string"
+        },
+        "records": {
+          "items": {
+            "$ref": "#/$defs/RunRecordArtifactDependency"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Records",
+          "type": "array"
+        },
+        "runset_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Runset Digest",
+          "type": "string"
+        },
+        "runset_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Runset Id",
+          "type": "string"
+        },
+        "stop_reasons": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "title": "Stop Reasons",
+          "type": "array"
+        },
+        "study_manifest_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Study Manifest Digest"
+        }
+      },
+      "required": [
+        "arm_id",
+        "runset_id",
+        "runset_digest",
+        "execution_configuration_digest",
+        "operational_protocol_id",
+        "operational_protocol_digest",
+        "evidence_sensitivity_design_digest",
+        "records"
+      ],
+      "title": "RunSetArtifactDependency",
+      "type": "object"
+    },
+    "SensitivityArmBinding": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "arm_id": {
+          "enum": [
+            "baseline_evidence",
+            "counterfactual_evidence"
+          ],
+          "title": "Arm Id",
+          "type": "string"
+        },
+        "case_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Case Manifest Digest",
+          "type": "string"
+        },
+        "configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Configuration Digest",
+          "type": "string"
+        },
+        "corpus_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Corpus Digest",
+          "type": "string"
+        },
+        "expected_outcome": {
+          "$ref": "#/$defs/RAGSensitivityOutcome"
+        },
+        "expected_recommendation": {
+          "$ref": "#/$defs/RAGSensitivityDecision"
+        },
+        "knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Knowledge Contract Digest",
+          "type": "string"
+        },
+        "pipeline_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "policy_bundle_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Policy Bundle Digest",
+          "type": "string"
+        },
+        "prompt_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Prompt Manifest Digest",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "requested_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Requested Model",
+          "type": "string"
+        },
+        "resolved_model": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Model"
+        },
+        "tool_schema_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Tool Schema Digest",
+          "type": "string"
+        }
+      },
+      "required": [
+        "arm_id",
+        "configuration_digest",
+        "corpus_digest",
+        "expected_recommendation",
+        "expected_outcome",
+        "prompt_manifest_digest",
+        "case_manifest_digest",
+        "knowledge_contract_digest",
+        "provider",
+        "requested_model",
+        "adapter_id",
+        "pipeline_id",
+        "tool_schema_digest",
+        "policy_bundle_digest"
+      ],
+      "title": "SensitivityArmBinding",
+      "type": "object"
+    },
+    "SensitivityExecutionMode": {
+      "enum": [
+        "stochastic_live",
+        "deterministic_fixture"
+      ],
+      "title": "SensitivityExecutionMode",
+      "type": "string"
+    },
+    "SensitivityInterpretation": {
+      "enum": [
+        "confirmatory",
+        "exploratory"
+      ],
+      "title": "SensitivityInterpretation",
+      "type": "string"
+    },
+    "StatisticalSufficiencyReport": {
+      "additionalProperties": false,
+      "properties": {
+        "actual_clusters": {
+          "minimum": 0,
+          "title": "Actual Clusters",
+          "type": "integer"
+        },
+        "actual_pairs": {
+          "minimum": 0,
+          "title": "Actual Pairs",
+          "type": "integer"
+        },
+        "analysis": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ClusterBinomialAnalysisResult"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "analyzable_clusters": {
+          "minimum": 0,
+          "title": "Analyzable Clusters",
+          "type": "integer"
+        },
+        "artifact_kind": {
+          "const": "statistical-sufficiency-report",
+          "default": "statistical-sufficiency-report",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "contract_id": {
+          "const": "StatisticalSufficiencyReport/v1",
+          "default": "StatisticalSufficiencyReport/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "disposition_counts": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/PairDispositionCount"
+          },
+          "title": "Disposition Counts",
+          "type": "array"
+        },
+        "excluded_pairs": {
+          "minimum": 0,
+          "title": "Excluded Pairs",
+          "type": "integer"
+        },
+        "included_pairs": {
+          "minimum": 0,
+          "title": "Included Pairs",
+          "type": "integer"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "missing_pairs": {
+          "minimum": 0,
+          "title": "Missing Pairs",
+          "type": "integer"
+        },
+        "observations": {
+          "items": {
+            "$ref": "#/$defs/PairedSensitivityObservation"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Observations",
+          "type": "array"
+        },
+        "planned_clusters": {
+          "minimum": 1,
+          "title": "Planned Clusters",
+          "type": "integer"
+        },
+        "planned_pairs": {
+          "minimum": 1,
+          "title": "Planned Pairs",
+          "type": "integer"
+        },
+        "population_claim_permitted": {
+          "default": false,
+          "title": "Population Claim Permitted",
+          "type": "boolean"
+        },
+        "prerequisites": {
+          "items": {
+            "$ref": "#/$defs/SufficiencyPrerequisite"
+          },
+          "minItems": 1,
+          "title": "Prerequisites",
+          "type": "array"
+        },
+        "protocol": {
+          "$ref": "#/$defs/RepeatedEvidenceSensitivityProtocol"
+        },
+        "report_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Report Digest",
+          "type": "string"
+        },
+        "report_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "schema_name": {
+          "const": "statistical-sufficiency-report",
+          "default": "statistical-sufficiency-report",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_runsets": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/RunSetArtifactDependency"
+          },
+          "title": "Source Runsets",
+          "type": "array"
+        },
+        "state": {
+          "$ref": "#/$defs/SufficiencyState"
+        }
+      },
+      "required": [
+        "report_id",
+        "report_digest",
+        "protocol",
+        "observations",
+        "state",
+        "planned_pairs",
+        "actual_pairs",
+        "included_pairs",
+        "missing_pairs",
+        "excluded_pairs",
+        "planned_clusters",
+        "actual_clusters",
+        "analyzable_clusters",
+        "prerequisites",
+        "limitations",
+        "artifact_kind",
+        "schema_version",
+        "schema_name",
+        "contract_id",
+        "contract_version"
+      ],
+      "title": "StatisticalSufficiencyReport",
+      "type": "object"
+    },
+    "StochasticEvidenceSensitivityReport": {
+      "additionalProperties": false,
+      "properties": {
+        "artifact_kind": {
+          "const": "stochastic-evidence-sensitivity-report",
+          "default": "stochastic-evidence-sensitivity-report",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "contract_id": {
+          "const": "StochasticEvidenceSensitivityReport/v1",
+          "default": "StochasticEvidenceSensitivityReport/v1",
+          "title": "Contract Id",
+          "type": "string"
+        },
+        "contract_version": {
+          "const": "1.0.0",
+          "default": "1.0.0",
+          "title": "Contract Version",
+          "type": "string"
+        },
+        "dependency": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ArtifactDependency"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "endpoint": {
+          "const": "expected_decision_response",
+          "default": "expected_decision_response",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "estimated_response_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Response Rate"
+        },
+        "estimated_response_unit": {
+          "const": "independent_cluster",
+          "default": "independent_cluster",
+          "title": "Estimated Response Unit",
+          "type": "string"
+        },
+        "gate_effect": {
+          "$ref": "#/$defs/StochasticGateEffect"
+        },
+        "limitations": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Limitations",
+          "type": "array"
+        },
+        "observed_cluster_count": {
+          "minimum": 0,
+          "title": "Observed Cluster Count",
+          "type": "integer"
+        },
+        "observed_cluster_response_count": {
+          "minimum": 0,
+          "title": "Observed Cluster Response Count",
+          "type": "integer"
+        },
+        "observed_counterexample_count": {
+          "minimum": 0,
+          "title": "Observed Counterexample Count",
+          "type": "integer"
+        },
+        "observed_pair_count": {
+          "minimum": 0,
+          "title": "Observed Pair Count",
+          "type": "integer"
+        },
+        "observed_response_count": {
+          "minimum": 0,
+          "title": "Observed Response Count",
+          "type": "integer"
+        },
+        "population_claim": {
+          "default": "none",
+          "enum": [
+            "none",
+            "expected_decision_response_cluster_rate_above_null_supported",
+            "expected_decision_response_cluster_rate_above_null_not_supported"
+          ],
+          "title": "Population Claim",
+          "type": "string"
+        },
+        "protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Digest",
+          "type": "string"
+        },
+        "protocol_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "report_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Report Digest",
+          "type": "string"
+        },
+        "report_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Report Id",
+          "type": "string"
+        },
+        "schema_name": {
+          "const": "stochastic-evidence-sensitivity-report",
+          "default": "stochastic-evidence-sensitivity-report",
+          "title": "Schema Name",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/StochasticSensitivityState"
+        },
+        "sufficiency_report": {
+          "$ref": "#/$defs/StatisticalSufficiencyReport"
+        },
+        "verdict_bearing": {
+          "title": "Verdict Bearing",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "report_id",
+        "report_digest",
+        "protocol_id",
+        "protocol_digest",
+        "sufficiency_report",
+        "state",
+        "gate_effect",
+        "verdict_bearing",
+        "observed_pair_count",
+        "observed_response_count",
+        "observed_counterexample_count",
+        "observed_cluster_count",
+        "observed_cluster_response_count",
+        "limitations",
+        "artifact_kind",
+        "schema_version",
+        "schema_name",
+        "contract_id",
+        "contract_version"
+      ],
+      "title": "StochasticEvidenceSensitivityReport",
+      "type": "object"
+    },
+    "StochasticGateEffect": {
+      "enum": [
+        "pass",
+        "block",
+        "non_verdict"
+      ],
+      "title": "StochasticGateEffect",
+      "type": "string"
+    },
+    "StochasticSensitivityState": {
+      "enum": [
+        "pass",
+        "block",
+        "prerequisites_unmet",
+        "inconclusive"
+      ],
+      "title": "StochasticSensitivityState",
+      "type": "string"
+    },
+    "StudyAnalysisDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "exploratory_secondary_analyses_allowed": {
+          "default": true,
+          "title": "Exploratory Secondary Analyses Allowed",
+          "type": "boolean"
+        },
+        "llm_judge_endpoint_permitted": {
+          "const": false,
+          "default": false,
+          "title": "Llm Judge Endpoint Permitted",
+          "type": "boolean"
+        },
+        "pooling_permitted": {
+          "const": false,
+          "default": false,
+          "title": "Pooling Permitted",
+          "type": "boolean"
+        },
+        "primary": {
+          "const": "confirmatory",
+          "default": "confirmatory",
+          "title": "Primary",
+          "type": "string"
+        }
+      },
+      "title": "StudyAnalysisDeclaration",
+      "type": "object"
+    },
+    "StudyBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials_source": {
+          "const": "environment_variable_only",
+          "default": "environment_variable_only",
+          "title": "Credentials Source",
+          "type": "string"
+        },
+        "maximum_estimated_cost_microusd": {
+          "minimum": 0,
+          "title": "Maximum Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "persist_credential_digests": {
+          "const": false,
+          "default": false,
+          "title": "Persist Credential Digests",
+          "type": "boolean"
+        },
+        "persist_credentials": {
+          "const": false,
+          "default": false,
+          "title": "Persist Credentials",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "maximum_estimated_cost_microusd"
+      ],
+      "title": "StudyBudget",
+      "type": "object"
+    },
+    "StudyConditionAnalysisRole": {
+      "enum": [
+        "inertia_estimand",
+        "invariant_negative_control"
+      ],
+      "title": "StudyConditionAnalysisRole",
+      "type": "string"
+    },
+    "StudyConditionBinding": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "execution_attempt_id"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "execution_origin": {
+                "const": "real_provider"
+              }
+            },
+            "required": [
+              "execution_origin"
+            ]
+          },
+          "then": {
+            "required": [
+              "execution_attempt_id"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "adapter_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "analysis_role": {
+          "$ref": "#/$defs/StudyConditionAnalysisRole"
+        },
+        "baseline_configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Baseline Configuration Digest",
+          "type": "string"
+        },
+        "baseline_provider_input_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Baseline Provider Input Manifest Digest",
+          "type": "string"
+        },
+        "benchmark_case_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Benchmark Case Ids",
+          "type": "array"
+        },
+        "condition_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "counterfactual_configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Counterfactual Configuration Digest",
+          "type": "string"
+        },
+        "counterfactual_provider_input_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Counterfactual Provider Input Manifest Digest",
+          "type": "string"
+        },
+        "design_commitment_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Design Commitment Digest",
+          "type": "string"
+        },
+        "execution_attempt_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Attempt Id"
+        },
+        "execution_origin": {
+          "$ref": "#/$defs/StudyExecutionOrigin",
+          "default": "synthetic_fixture"
+        },
+        "expected_resolved_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Expected Resolved Model",
+          "type": "string"
+        },
+        "justification": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Justification",
+          "type": "string"
+        },
+        "knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Knowledge Contract Digest",
+          "type": "string"
+        },
+        "pipeline_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "planned_independent_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Planned Independent Clusters",
+          "type": "integer"
+        },
+        "planned_pairs": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Pairs",
+          "type": "integer"
+        },
+        "protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Digest",
+          "type": "string"
+        },
+        "protocol_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "provider_serving_fingerprint_policy": {
+          "const": "all_absent_or_complete_and_stable_across_model_matched_condition_group",
+          "default": "all_absent_or_complete_and_stable_across_model_matched_condition_group",
+          "title": "Provider Serving Fingerprint Policy",
+          "type": "string"
+        },
+        "requested_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Requested Model",
+          "type": "string"
+        },
+        "resolved_model_version_policy": {
+          "const": "dated_provider_snapshot_identifier",
+          "default": "dated_provider_snapshot_identifier",
+          "title": "Resolved Model Version Policy",
+          "type": "string"
+        },
+        "study_knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Study Knowledge Contract Digest",
+          "type": "string"
+        },
+        "task_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Task Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "condition_id",
+        "justification",
+        "analysis_role",
+        "task_ids",
+        "benchmark_case_ids",
+        "protocol_id",
+        "protocol_digest",
+        "design_commitment_digest",
+        "provider",
+        "requested_model",
+        "expected_resolved_model",
+        "adapter_id",
+        "pipeline_id",
+        "baseline_configuration_digest",
+        "counterfactual_configuration_digest",
+        "baseline_provider_input_manifest_digest",
+        "counterfactual_provider_input_manifest_digest",
+        "knowledge_contract_digest",
+        "study_knowledge_contract_digest",
+        "planned_pairs",
+        "planned_independent_clusters"
+      ],
+      "title": "StudyConditionBinding",
+      "type": "object"
+    },
+    "StudyConditionResult": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "not": {
+            "properties": {
+              "observed_execution_window": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "observed_execution_window"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "observed_execution_provenance": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "observed_execution_provenance"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_response_cluster_count": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_response_cluster_count"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_inertia_cluster_count": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_inertia_cluster_count"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_wrong_direction_cluster_count": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_wrong_direction_cluster_count"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_other_non_inertia_cluster_count": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_other_non_inertia_cluster_count"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_inertia_descriptive_breakdown": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_inertia_descriptive_breakdown"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_response_rate": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_response_rate"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_inertia_rate": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_inertia_rate"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "decision_inertia_interval": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "decision_inertia_interval"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "control_expected_stability_cluster_count": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "control_expected_stability_cluster_count"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "control_unexpected_change_cluster_count": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "control_unexpected_change_cluster_count"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "control_unexpected_change_rate": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "control_unexpected_change_rate"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "control_unexpected_change_interval": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "control_unexpected_change_interval"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "coupling": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "coupling"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "sufficiency_report": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "sufficiency_report"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "expected_response_diagnostic": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "expected_response_diagnostic"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "analyzed",
+                  "control_failed"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "observed_model_identities": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "coupling",
+              "sufficiency_report",
+              "expected_response_diagnostic",
+              "observed_execution_window",
+              "observed_execution_provenance"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "analyzed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "deviation_codes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_role": {
+                "const": "inertia_estimand"
+              },
+              "state": {
+                "enum": [
+                  "analyzed",
+                  "control_failed"
+                ]
+              }
+            },
+            "required": [
+              "state",
+              "analysis_role"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "control_expected_stability_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_interval"
+                  ]
+                }
+              ]
+            },
+            "required": [
+              "decision_response_cluster_count",
+              "decision_inertia_cluster_count",
+              "decision_wrong_direction_cluster_count",
+              "decision_other_non_inertia_cluster_count",
+              "decision_inertia_descriptive_breakdown",
+              "decision_response_rate",
+              "decision_inertia_rate",
+              "decision_inertia_interval"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_role": {
+                "const": "invariant_negative_control"
+              },
+              "state": {
+                "enum": [
+                  "analyzed",
+                  "control_failed"
+                ]
+              }
+            },
+            "required": [
+              "state",
+              "analysis_role"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "decision_response_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_wrong_direction_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_other_non_inertia_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_descriptive_breakdown"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_response_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_interval"
+                  ]
+                }
+              ]
+            },
+            "required": [
+              "control_expected_stability_cluster_count",
+              "control_unexpected_change_cluster_count",
+              "control_unexpected_change_rate",
+              "control_unexpected_change_interval"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "control_failed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_role": {
+                "const": "invariant_negative_control"
+              },
+              "deviation_codes": {
+                "contains": {
+                  "const": "invariant-control-violation-observed"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "enum": [
+                  "underpowered",
+                  "invalidated",
+                  "not_executed"
+                ]
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "decision_response_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_wrong_direction_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_other_non_inertia_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_descriptive_breakdown"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_response_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_interval"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_expected_stability_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_interval"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "underpowered"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "deviation_codes": {
+                "maxItems": 0
+              },
+              "observed_model_identities": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "coupling",
+              "sufficiency_report",
+              "expected_response_diagnostic",
+              "observed_execution_window",
+              "observed_execution_provenance"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "invalidated"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "sufficiency_report"
+                  ]
+                },
+                {
+                  "required": [
+                    "expected_response_diagnostic"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "deviation_codes": {
+                "minItems": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "not_executed"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "coupling"
+                  ]
+                },
+                {
+                  "required": [
+                    "sufficiency_report"
+                  ]
+                },
+                {
+                  "required": [
+                    "expected_response_diagnostic"
+                  ]
+                },
+                {
+                  "required": [
+                    "observed_execution_window"
+                  ]
+                },
+                {
+                  "required": [
+                    "observed_execution_provenance"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "actual_clusters": {
+                "const": 0
+              },
+              "actual_pairs": {
+                "const": 0
+              },
+              "analyzable_clusters": {
+                "const": 0
+              },
+              "deviation_codes": {
+                "minItems": 1
+              },
+              "excluded_pairs": {
+                "const": 0
+              },
+              "failure_summaries": {
+                "maxItems": 0
+              },
+              "included_pairs": {
+                "const": 0
+              },
+              "invalid_pairs": {
+                "const": 0
+              },
+              "observed_model_identities": {
+                "maxItems": 0
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "actual_clusters": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Actual Clusters",
+          "type": "integer"
+        },
+        "actual_pairs": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Actual Pairs",
+          "type": "integer"
+        },
+        "analysis_role": {
+          "$ref": "#/$defs/StudyConditionAnalysisRole"
+        },
+        "analyzable_clusters": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Analyzable Clusters",
+          "type": "integer"
+        },
+        "condition_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "control_expected_stability_cluster_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Control Expected Stability Cluster Count"
+        },
+        "control_unexpected_change_cluster_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Control Unexpected Change Cluster Count"
+        },
+        "control_unexpected_change_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyOneSidedInterval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "control_unexpected_change_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Control Unexpected Change Rate"
+        },
+        "coupling": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CouplingDescriptor"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decision_inertia_cluster_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Inertia Cluster Count"
+        },
+        "decision_inertia_descriptive_breakdown": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyDecisionInertiaDescriptiveBreakdown"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decision_inertia_interval": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyOneSidedInterval"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "decision_inertia_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Inertia Rate"
+        },
+        "decision_other_non_inertia_cluster_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Other Non Inertia Cluster Count"
+        },
+        "decision_response_cluster_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Response Cluster Count"
+        },
+        "decision_response_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Response Rate"
+        },
+        "decision_wrong_direction_cluster_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Decision Wrong Direction Cluster Count"
+        },
+        "design_commitment_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Design Commitment Digest",
+          "type": "string"
+        },
+        "deviation_codes": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 128,
+          "title": "Deviation Codes",
+          "type": "array"
+        },
+        "excluded_pairs": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Excluded Pairs",
+          "type": "integer"
+        },
+        "expected_response_diagnostic": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyExpectedResponseDiagnostic"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "failure_summaries": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StudyFailureSummary"
+          },
+          "maxItems": 128,
+          "title": "Failure Summaries",
+          "type": "array"
+        },
+        "included_pairs": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Included Pairs",
+          "type": "integer"
+        },
+        "invalid_pairs": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Invalid Pairs",
+          "type": "integer"
+        },
+        "missing_pairs": {
+          "maximum": 4096,
+          "minimum": 0,
+          "title": "Missing Pairs",
+          "type": "integer"
+        },
+        "observed_execution_provenance": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyObservedExecutionProvenance"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "observed_execution_window": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StudyExecutionWindow"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "observed_model_identities": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/StudyObservedModelIdentity"
+          },
+          "maxItems": 32,
+          "title": "Observed Model Identities",
+          "type": "array"
+        },
+        "operational_summary": {
+          "$ref": "#/$defs/StudyOperationalSummary"
+        },
+        "planned_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Planned Clusters",
+          "type": "integer"
+        },
+        "planned_pairs": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Pairs",
+          "type": "integer"
+        },
+        "protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Digest",
+          "type": "string"
+        },
+        "state": {
+          "$ref": "#/$defs/StudyConditionState"
+        },
+        "sufficiency_report": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/StatisticalSufficiencyReport"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "condition_id",
+        "state",
+        "analysis_role",
+        "protocol_digest",
+        "design_commitment_digest",
+        "planned_pairs",
+        "actual_pairs",
+        "included_pairs",
+        "missing_pairs",
+        "excluded_pairs",
+        "invalid_pairs",
+        "planned_clusters",
+        "actual_clusters",
+        "analyzable_clusters",
+        "operational_summary"
+      ],
+      "title": "StudyConditionResult",
+      "type": "object"
+    },
+    "StudyConditionState": {
+      "enum": [
+        "analyzed",
+        "control_failed",
+        "underpowered",
+        "invalidated",
+        "not_executed"
+      ],
+      "title": "StudyConditionState",
+      "type": "string"
+    },
+    "StudyDecisionInertiaDescriptiveBreakdown": {
+      "additionalProperties": false,
+      "description": "Non-inferential partition of the direct same-decision endpoint.",
+      "properties": {
+        "baseline_correct_same_decision_cluster_count": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Baseline Correct Same Decision Cluster Count",
+          "type": "integer"
+        },
+        "baseline_correct_same_decision_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Baseline Correct Same Decision Rate",
+          "type": "string"
+        },
+        "baseline_incorrect_same_decision_cluster_count": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Baseline Incorrect Same Decision Cluster Count",
+          "type": "integer"
+        },
+        "baseline_incorrect_same_decision_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Baseline Incorrect Same Decision Rate",
+          "type": "string"
+        },
+        "denominator": {
+          "const": "frozen_planned_clusters",
+          "default": "frozen_planned_clusters",
+          "title": "Denominator",
+          "type": "string"
+        },
+        "interpretation": {
+          "const": "descriptive_non_inferential_partition_of_direct_same_decision_inertia",
+          "default": "descriptive_non_inferential_partition_of_direct_same_decision_inertia",
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "mixed_baseline_correctness_same_decision_cluster_count": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Mixed Baseline Correctness Same Decision Cluster Count",
+          "type": "integer"
+        },
+        "mixed_baseline_correctness_same_decision_rate": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Mixed Baseline Correctness Same Decision Rate",
+          "type": "string"
+        },
+        "planned_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Planned Clusters",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "planned_clusters",
+        "baseline_correct_same_decision_cluster_count",
+        "baseline_incorrect_same_decision_cluster_count",
+        "mixed_baseline_correctness_same_decision_cluster_count",
+        "baseline_correct_same_decision_rate",
+        "baseline_incorrect_same_decision_rate",
+        "mixed_baseline_correctness_same_decision_rate"
+      ],
+      "title": "StudyDecisionInertiaDescriptiveBreakdown",
+      "type": "object"
+    },
+    "StudyExecutionOrigin": {
+      "enum": [
+        "real_provider",
+        "synthetic_fixture"
+      ],
+      "title": "StudyExecutionOrigin",
+      "type": "string"
+    },
+    "StudyExecutionWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "maxLength": 64,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "maxLength": 64,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "StudyExecutionWindow",
+      "type": "object"
+    },
+    "StudyExpectedResponseDiagnostic": {
+      "additionalProperties": false,
+      "description": "Neutral Sprint 7 projection of the relation-specific Sprint 6 report.",
+      "properties": {
+        "diagnostic_kind": {
+          "const": "sprint6_expected_response_replay",
+          "default": "sprint6_expected_response_replay",
+          "title": "Diagnostic Kind",
+          "type": "string"
+        },
+        "diagnostic_state": {
+          "enum": [
+            "expected_response_supported",
+            "expected_response_not_supported",
+            "prerequisites_unmet",
+            "inconclusive"
+          ],
+          "title": "Diagnostic State",
+          "type": "string"
+        },
+        "endpoint": {
+          "const": "expected_decision_response",
+          "default": "expected_decision_response",
+          "title": "Endpoint",
+          "type": "string"
+        },
+        "polarity_relative_to_sprint7_hypothesis": {
+          "enum": [
+            "inverse_signal_for_direct_same_decision_inertia",
+            "not_applicable_to_inertia_estimand_aligned_with_invariant_control"
+          ],
+          "title": "Polarity Relative To Sprint7 Hypothesis",
+          "type": "string"
+        },
+        "source_report": {
+          "$ref": "#/$defs/StochasticEvidenceSensitivityReport"
+        },
+        "sprint7_hypothesis_effect": {
+          "const": "non_verdict",
+          "default": "non_verdict",
+          "title": "Sprint7 Hypothesis Effect",
+          "type": "string"
+        }
+      },
+      "required": [
+        "diagnostic_state",
+        "polarity_relative_to_sprint7_hypothesis",
+        "source_report"
+      ],
+      "title": "StudyExpectedResponseDiagnostic",
+      "type": "object"
+    },
+    "StudyFailureSummary": {
+      "additionalProperties": false,
+      "properties": {
+        "count": {
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "example_case_ids": {
+          "default": [],
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 3,
+          "title": "Example Case Ids",
+          "type": "array"
+        },
+        "reason_code": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Reason Code",
+          "type": "string"
+        }
+      },
+      "required": [
+        "reason_code",
+        "count"
+      ],
+      "title": "StudyFailureSummary",
+      "type": "object"
+    },
+    "StudyHypothesisClassification": {
+      "enum": [
+        "supported",
+        "contradicted",
+        "inconclusive",
+        "not_measured"
+      ],
+      "title": "StudyHypothesisClassification",
+      "type": "string"
+    },
+    "StudyHypothesisDecisionRule": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_alpha_serialization": {
+          "const": "conservative_floor_6_decimal",
+          "default": "conservative_floor_6_decimal",
+          "title": "Adjusted Alpha Serialization",
+          "type": "string"
+        },
+        "contradicted_when": {
+          "const": "all_adjusted_upper_bounds_at_or_below_threshold",
+          "default": "all_adjusted_upper_bounds_at_or_below_threshold",
+          "title": "Contradicted When",
+          "type": "string"
+        },
+        "decision_boundary_rationale": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Decision Boundary Rationale",
+          "type": "string"
+        },
+        "derivation": {
+          "const": "direct_same_decision_rate_on_decision_flip_conditions",
+          "default": "direct_same_decision_rate_on_decision_flip_conditions",
+          "title": "Derivation",
+          "type": "string"
+        },
+        "directional_error_control": {
+          "const": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
+          "default": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
+          "title": "Directional Error Control",
+          "type": "string"
+        },
+        "estimand": {
+          "const": "decision_inertia_rate",
+          "default": "decision_inertia_rate",
+          "title": "Estimand",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints_within_condition",
+          "default": "independent_exchangeable_binary_cluster_endpoints_within_condition",
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "familywise_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "inconclusive_when": {
+          "const": "otherwise_after_valid_sufficient_execution",
+          "default": "otherwise_after_valid_sufficient_execution",
+          "title": "Inconclusive When",
+          "type": "string"
+        },
+        "independence_justification": {
+          "$ref": "#/$defs/StudyIndependenceJustification"
+        },
+        "inferential_unit": {
+          "const": "case_cluster",
+          "default": "case_cluster",
+          "title": "Inferential Unit",
+          "type": "string"
+        },
+        "interval_bound_serialization": {
+          "const": "conservative_outward_12_decimal",
+          "default": "conservative_outward_12_decimal",
+          "title": "Interval Bound Serialization",
+          "type": "string"
+        },
+        "interval_method": {
+          "const": "clopper_pearson_exact_one_sided",
+          "default": "clopper_pearson_exact_one_sided",
+          "title": "Interval Method",
+          "type": "string"
+        },
+        "invariant_control_gate": {
+          "const": "zero_observed_unexpected_arm_changes",
+          "default": "zero_observed_unexpected_arm_changes",
+          "title": "Invariant Control Gate",
+          "type": "string"
+        },
+        "materiality_threshold": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Materiality Threshold",
+          "type": "string"
+        },
+        "minimum_independent_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Minimum Independent Clusters",
+          "type": "integer"
+        },
+        "multiplicity_family_scope": {
+          "const": "target_task_model_conditions_only",
+          "default": "target_task_model_conditions_only",
+          "title": "Multiplicity Family Scope",
+          "type": "string"
+        },
+        "multiplicity_method": {
+          "const": "bonferroni",
+          "default": "bonferroni",
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "negative_control_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Negative Control Conditions",
+          "type": "array"
+        },
+        "sampling_frame": {
+          "const": "finite_frozen_conformance_frame",
+          "default": "finite_frozen_conformance_frame",
+          "title": "Sampling Frame",
+          "type": "string"
+        },
+        "supported_when": {
+          "const": "any_adjusted_lower_bound_above_threshold",
+          "default": "any_adjusted_lower_bound_above_threshold",
+          "title": "Supported When",
+          "type": "string"
+        },
+        "target_task_model_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Target Task Model Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "target_task_model_conditions",
+        "negative_control_conditions",
+        "minimum_independent_clusters",
+        "materiality_threshold",
+        "familywise_alpha",
+        "decision_boundary_rationale",
+        "independence_justification"
+      ],
+      "title": "StudyHypothesisDecisionRule",
+      "type": "object"
+    },
+    "StudyIndependenceJustification": {
+      "additionalProperties": false,
+      "description": "Structured author assertion; never machine proof of independence.",
+      "properties": {
+        "dependence_risks_and_mitigations": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Dependence Risks And Mitigations",
+          "type": "string"
+        },
+        "independence_basis": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Independence Basis",
+          "type": "string"
+        },
+        "inferential_unit_definition": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Inferential Unit Definition",
+          "type": "string"
+        },
+        "residual_scope_limitation": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Residual Scope Limitation",
+          "type": "string"
+        },
+        "software_verification_scope": {
+          "const": "structure_and_presence_only_not_independence_truth",
+          "default": "structure_and_presence_only_not_independence_truth",
+          "title": "Software Verification Scope",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/StudyIndependenceJustificationStatus"
+        }
+      },
+      "required": [
+        "status",
+        "inferential_unit_definition",
+        "independence_basis",
+        "dependence_risks_and_mitigations",
+        "residual_scope_limitation"
+      ],
+      "title": "StudyIndependenceJustification",
+      "type": "object"
+    },
+    "StudyIndependenceJustificationStatus": {
+      "enum": [
+        "unresolved_authoring_placeholder",
+        "author_asserted_design_basis_pending_qualified_review"
+      ],
+      "title": "StudyIndependenceJustificationStatus",
+      "type": "string"
+    },
+    "StudyKnowledgeContract": {
+      "additionalProperties": false,
+      "properties": {
+        "authority_level": {
+          "const": "authoritative",
+          "default": "authoritative",
+          "title": "Authority Level",
+          "type": "string"
+        },
+        "expected_behavior": {
+          "const": "follow_governing_context",
+          "default": "follow_governing_context",
+          "title": "Expected Behavior",
+          "type": "string"
+        },
+        "governing_source": {
+          "const": "contextual_evidence",
+          "default": "contextual_evidence",
+          "title": "Governing Source",
+          "type": "string"
+        }
+      },
+      "title": "StudyKnowledgeContract",
+      "type": "object"
+    },
+    "StudyObservedExecutionProvenance": {
+      "additionalProperties": false,
+      "description": "Digest-bound local evidence for how a study condition was executed.\n\nThis is a deterministic projection of the exact source RunSets and their\nprivacy-filtered records. It is intentionally evidence of the local runner\npath, not a cryptographic attestation from a remote provider.",
+      "properties": {
+        "adapter_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "title": "Adapter Ids",
+          "type": "array"
+        },
+        "approved_adapter_run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Approved Adapter Run Records",
+          "type": "integer"
+        },
+        "baseline_runset_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Baseline Runset Digest",
+          "type": "string"
+        },
+        "baseline_runset_id": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Baseline Runset Id",
+          "type": "string"
+        },
+        "binding_consistent_run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Binding Consistent Run Records",
+          "type": "integer"
+        },
+        "binding_consistent_runsets": {
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Binding Consistent Runsets",
+          "type": "integer"
+        },
+        "complete_runsets": {
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Complete Runsets",
+          "type": "integer"
+        },
+        "condition_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "counterfactual_runset_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Counterfactual Runset Digest",
+          "type": "string"
+        },
+        "counterfactual_runset_id": {
+          "maxLength": 1024,
+          "minLength": 1,
+          "title": "Counterfactual Runset Id",
+          "type": "string"
+        },
+        "declared_origin": {
+          "$ref": "#/$defs/StudyExecutionOrigin"
+        },
+        "distinct_provider_response_ids": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Distinct Provider Response Ids",
+          "type": "integer"
+        },
+        "distinct_provider_serving_fingerprints": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Distinct Provider Serving Fingerprints",
+          "type": "integer"
+        },
+        "execution_attempt_journal_verified": {
+          "title": "Execution Attempt Journal Verified",
+          "type": "boolean"
+        },
+        "included_run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Included Run Records",
+          "type": "integer"
+        },
+        "live_run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Live Run Records",
+          "type": "integer"
+        },
+        "live_runsets": {
+          "maximum": 2,
+          "minimum": 0,
+          "title": "Live Runsets",
+          "type": "integer"
+        },
+        "normal_termination_run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Normal Termination Run Records",
+          "type": "integer"
+        },
+        "observation_method": {
+          "const": "agent-assure-runset-dispatch-metadata/v1",
+          "default": "agent-assure-runset-dispatch-metadata/v1",
+          "title": "Observation Method",
+          "type": "string"
+        },
+        "observed_origin": {
+          "$ref": "#/$defs/StudyExecutionOrigin"
+        },
+        "planned_run_records": {
+          "maximum": 8192,
+          "minimum": 2,
+          "title": "Planned Run Records",
+          "type": "integer"
+        },
+        "provenance_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Provenance Digest",
+          "type": "string"
+        },
+        "provider_response_id_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Provider Response Id Records",
+          "type": "integer"
+        },
+        "provider_response_id_set_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Id Set Digest"
+        },
+        "provider_response_metadata_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Provider Response Metadata Records",
+          "type": "integer"
+        },
+        "provider_serving_fingerprint_policy": {
+          "const": "all_absent_or_complete_and_stable_across_condition",
+          "default": "all_absent_or_complete_and_stable_across_condition",
+          "title": "Provider Serving Fingerprint Policy",
+          "type": "string"
+        },
+        "provider_serving_fingerprint_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Provider Serving Fingerprint Records",
+          "type": "integer"
+        },
+        "provider_serving_fingerprint_set_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Serving Fingerprint Set Digest"
+        },
+        "run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Run Records",
+          "type": "integer"
+        },
+        "study_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Study Manifest Digest",
+          "type": "string"
+        },
+        "timing_complete_run_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Timing Complete Run Records",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "provenance_digest",
+        "condition_id",
+        "study_manifest_digest",
+        "declared_origin",
+        "observed_origin",
+        "baseline_runset_id",
+        "baseline_runset_digest",
+        "counterfactual_runset_id",
+        "counterfactual_runset_digest",
+        "planned_run_records",
+        "run_records",
+        "included_run_records",
+        "live_runsets",
+        "complete_runsets",
+        "binding_consistent_runsets",
+        "execution_attempt_journal_verified",
+        "live_run_records",
+        "approved_adapter_run_records",
+        "binding_consistent_run_records",
+        "timing_complete_run_records",
+        "provider_response_id_records",
+        "provider_response_metadata_records",
+        "provider_serving_fingerprint_records",
+        "distinct_provider_serving_fingerprints",
+        "normal_termination_run_records",
+        "distinct_provider_response_ids"
+      ],
+      "title": "StudyObservedExecutionProvenance",
+      "type": "object"
+    },
+    "StudyObservedModelIdentity": {
+      "additionalProperties": false,
+      "properties": {
+        "adapter_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "pipeline_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "provider_serving_fingerprint": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Serving Fingerprint"
+        },
+        "requested_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Requested Model",
+          "type": "string"
+        },
+        "resolved_model": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Resolved Model"
+        }
+      },
+      "required": [
+        "provider",
+        "requested_model",
+        "adapter_id",
+        "pipeline_id"
+      ],
+      "title": "StudyObservedModelIdentity",
+      "type": "object"
+    },
+    "StudyOneSidedInterval": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{12}$",
+          "title": "Adjusted Alpha",
+          "type": "string"
+        },
+        "family_size": {
+          "maximum": 64,
+          "minimum": 1,
+          "title": "Family Size",
+          "type": "integer"
+        },
+        "familywise_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "lower_bound": {
+          "pattern": "^(0|1)\\.[0-9]{12}$",
+          "title": "Lower Bound",
+          "type": "string"
+        },
+        "method": {
+          "const": "clopper_pearson_exact_one_sided",
+          "default": "clopper_pearson_exact_one_sided",
+          "title": "Method",
+          "type": "string"
+        },
+        "multiplicity_method": {
+          "const": "bonferroni",
+          "default": "bonferroni",
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "serialization": {
+          "const": "conservative_outward_12_decimal",
+          "default": "conservative_outward_12_decimal",
+          "title": "Serialization",
+          "type": "string"
+        },
+        "successes": {
+          "maximum": 1000,
+          "minimum": 0,
+          "title": "Successes",
+          "type": "integer"
+        },
+        "trials": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Trials",
+          "type": "integer"
+        },
+        "upper_bound": {
+          "pattern": "^(0|1)\\.[0-9]{12}$",
+          "title": "Upper Bound",
+          "type": "string"
+        }
+      },
+      "required": [
+        "familywise_alpha",
+        "family_size",
+        "adjusted_alpha",
+        "trials",
+        "successes",
+        "lower_bound",
+        "upper_bound"
+      ],
+      "title": "StudyOneSidedInterval",
+      "type": "object"
+    },
+    "StudyOperationalSummary": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "not": {
+            "properties": {
+              "total_estimated_cost_microusd": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "total_estimated_cost_microusd"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "total_cost_budget_committed_microusd": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "total_cost_budget_committed_microusd"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "total_latency_ms": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "total_latency_ms"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "minimum_latency_ms": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "minimum_latency_ms"
+            ]
+          }
+        },
+        {
+          "not": {
+            "properties": {
+              "maximum_latency_ms": {
+                "type": "null"
+              }
+            },
+            "required": [
+              "maximum_latency_ms"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "cost_budget_committed_records": {
+          "minimum": 0,
+          "title": "Cost Budget Committed Records",
+          "type": "integer"
+        },
+        "cost_reported_records": {
+          "minimum": 0,
+          "title": "Cost Reported Records",
+          "type": "integer"
+        },
+        "latency_reported_records": {
+          "minimum": 0,
+          "title": "Latency Reported Records",
+          "type": "integer"
+        },
+        "maximum_latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Maximum Latency Ms"
+        },
+        "minimum_latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Minimum Latency Ms"
+        },
+        "run_records": {
+          "minimum": 0,
+          "title": "Run Records",
+          "type": "integer"
+        },
+        "total_cost_budget_committed_microusd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Cost Budget Committed Microusd"
+        },
+        "total_estimated_cost_microusd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Estimated Cost Microusd"
+        },
+        "total_latency_ms": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Total Latency Ms"
+        }
+      },
+      "required": [
+        "run_records",
+        "cost_reported_records",
+        "cost_budget_committed_records",
+        "latency_reported_records"
+      ],
+      "title": "StudyOperationalSummary",
+      "type": "object"
+    },
+    "StudyPublicationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "publish_credentials": {
+          "const": false,
+          "default": false,
+          "title": "Publish Credentials",
+          "type": "boolean"
+        },
+        "publish_privacy_filtered_runsets": {
+          "const": true,
+          "default": true,
+          "title": "Publish Privacy Filtered Runsets",
+          "type": "boolean"
+        },
+        "publish_raw_completions": {
+          "const": false,
+          "default": false,
+          "title": "Publish Raw Completions",
+          "type": "boolean"
+        },
+        "publish_raw_prompts": {
+          "const": false,
+          "default": false,
+          "title": "Publish Raw Prompts",
+          "type": "boolean"
+        },
+        "redact_raw_outputs": {
+          "const": true,
+          "default": true,
+          "title": "Redact Raw Outputs",
+          "type": "boolean"
+        }
+      },
+      "title": "StudyPublicationPolicy",
+      "type": "object"
+    },
+    "StudyRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Evidence Digest",
+          "type": "string"
+        },
+        "immutable_record_claimed": {
+          "const": true,
+          "default": true,
+          "title": "Immutable Record Claimed",
+          "type": "boolean"
+        },
+        "method": {
+          "$ref": "#/$defs/StudyRegistrationMethod"
+        },
+        "reference_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Reference Id",
+          "type": "string"
+        },
+        "registered_at_utc": {
+          "maxLength": 64,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Registered At Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "reference_id",
+        "evidence_digest",
+        "registered_at_utc"
+      ],
+      "title": "StudyRegistration",
+      "type": "object"
+    },
+    "StudyRegistrationMethod": {
+      "enum": [
+        "version_control_commit",
+        "append_only_registry",
+        "local_digest_commitment"
+      ],
+      "title": "StudyRegistrationMethod",
+      "type": "string"
+    },
+    "SufficiencyPrerequisite": {
+      "additionalProperties": false,
+      "properties": {
+        "check_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Check Id",
+          "type": "string"
+        },
+        "reason_code": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Reason Code"
+        },
+        "state": {
+          "$ref": "#/$defs/PrerequisiteCheckState"
+        }
+      },
+      "required": [
+        "check_id",
+        "state"
+      ],
+      "title": "SufficiencyPrerequisite",
+      "type": "object"
+    },
+    "SufficiencyState": {
+      "enum": [
+        "satisfied",
+        "prerequisites_unmet",
+        "inconclusive"
+      ],
+      "title": "SufficiencyState",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-report.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "artifact_kind": {
+      "const": "real-model-study-report",
+      "default": "real-model-study-report",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "benchmark_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Benchmark Digest",
+      "type": "string"
+    },
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/StudyConditionResult"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Conditions",
+      "type": "array"
+    },
+    "confirmatory_conclusion_permitted": {
+      "const": false,
+      "default": false,
+      "title": "Confirmatory Conclusion Permitted",
+      "type": "boolean"
+    },
+    "contract_id": {
+      "const": "RealModelStudyReport/v1",
+      "default": "RealModelStudyReport/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "deviations": {
+      "default": [],
+      "items": {
+        "maxLength": 256,
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "type": "string"
+      },
+      "maxItems": 128,
+      "title": "Deviations",
+      "type": "array"
+    },
+    "drift_boundary": {
+      "maxLength": 4096,
+      "minLength": 1,
+      "title": "Drift Boundary",
+      "type": "string"
+    },
+    "hypothesis_classification": {
+      "$ref": "#/$defs/StudyHypothesisClassification"
+    },
+    "hypothesis_decision_rule_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Hypothesis Decision Rule Digest",
+      "type": "string"
+    },
+    "invariant_controls_satisfied": {
+      "title": "Invariant Controls Satisfied",
+      "type": "boolean"
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "manifest": {
+      "$ref": "#/$defs/RealModelStudyManifest"
+    },
+    "manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Manifest Digest",
+      "type": "string"
+    },
+    "protocol_set_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Protocol Set Digest",
+      "type": "string"
+    },
+    "protocol_valid": {
+      "title": "Protocol Valid",
+      "type": "boolean"
+    },
+    "publication_eligible": {
+      "const": false,
+      "default": false,
+      "title": "Publication Eligible",
+      "type": "boolean"
+    },
+    "registration_evidence_verification": {
+      "const": "closed_bundle_operator_review_required",
+      "default": "closed_bundle_operator_review_required",
+      "title": "Registration Evidence Verification",
+      "type": "string"
+    },
+    "registration_evidence_verified": {
+      "const": false,
+      "default": false,
+      "title": "Registration Evidence Verified",
+      "type": "boolean"
+    },
+    "registration_reviewer_identity_authentication": {
+      "const": "out_of_band_not_machine_verified",
+      "default": "out_of_band_not_machine_verified",
+      "title": "Registration Reviewer Identity Authentication",
+      "type": "string"
+    },
+    "report_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Report Digest",
+      "type": "string"
+    },
+    "report_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Report Id",
+      "type": "string"
+    },
+    "schema_name": {
+      "const": "real-model-study-report",
+      "default": "real-model-study-report",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "statistical_sufficiency_satisfied": {
+      "title": "Statistical Sufficiency Satisfied",
+      "type": "boolean"
+    },
+    "total_actual_pairs": {
+      "minimum": 0,
+      "title": "Total Actual Pairs",
+      "type": "integer"
+    },
+    "total_analyzable_clusters": {
+      "minimum": 0,
+      "title": "Total Analyzable Clusters",
+      "type": "integer"
+    },
+    "total_excluded_pairs": {
+      "minimum": 0,
+      "title": "Total Excluded Pairs",
+      "type": "integer"
+    },
+    "total_included_pairs": {
+      "minimum": 0,
+      "title": "Total Included Pairs",
+      "type": "integer"
+    },
+    "total_invalid_pairs": {
+      "minimum": 0,
+      "title": "Total Invalid Pairs",
+      "type": "integer"
+    },
+    "total_missing_pairs": {
+      "minimum": 0,
+      "title": "Total Missing Pairs",
+      "type": "integer"
+    },
+    "total_planned_clusters": {
+      "minimum": 2,
+      "title": "Total Planned Clusters",
+      "type": "integer"
+    },
+    "total_planned_pairs": {
+      "minimum": 1,
+      "title": "Total Planned Pairs",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "report_id",
+    "report_digest",
+    "manifest",
+    "manifest_digest",
+    "benchmark_digest",
+    "protocol_set_digest",
+    "hypothesis_decision_rule_digest",
+    "conditions",
+    "protocol_valid",
+    "statistical_sufficiency_satisfied",
+    "invariant_controls_satisfied",
+    "hypothesis_classification",
+    "total_planned_pairs",
+    "total_actual_pairs",
+    "total_included_pairs",
+    "total_missing_pairs",
+    "total_excluded_pairs",
+    "total_invalid_pairs",
+    "total_planned_clusters",
+    "total_analyzable_clusters",
+    "limitations",
+    "drift_boundary",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RealModelStudyReport",
+  "type": "object"
+}

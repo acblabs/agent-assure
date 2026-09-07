@@ -1,0 +1,865 @@
+{
+  "$defs": {
+    "StudyAnalysisDeclaration": {
+      "additionalProperties": false,
+      "properties": {
+        "exploratory_secondary_analyses_allowed": {
+          "default": true,
+          "title": "Exploratory Secondary Analyses Allowed",
+          "type": "boolean"
+        },
+        "llm_judge_endpoint_permitted": {
+          "const": false,
+          "default": false,
+          "title": "Llm Judge Endpoint Permitted",
+          "type": "boolean"
+        },
+        "pooling_permitted": {
+          "const": false,
+          "default": false,
+          "title": "Pooling Permitted",
+          "type": "boolean"
+        },
+        "primary": {
+          "const": "confirmatory",
+          "default": "confirmatory",
+          "title": "Primary",
+          "type": "string"
+        }
+      },
+      "title": "StudyAnalysisDeclaration",
+      "type": "object"
+    },
+    "StudyBudget": {
+      "additionalProperties": false,
+      "properties": {
+        "credentials_source": {
+          "const": "environment_variable_only",
+          "default": "environment_variable_only",
+          "title": "Credentials Source",
+          "type": "string"
+        },
+        "maximum_estimated_cost_microusd": {
+          "minimum": 0,
+          "title": "Maximum Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "persist_credential_digests": {
+          "const": false,
+          "default": false,
+          "title": "Persist Credential Digests",
+          "type": "boolean"
+        },
+        "persist_credentials": {
+          "const": false,
+          "default": false,
+          "title": "Persist Credentials",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "maximum_estimated_cost_microusd"
+      ],
+      "title": "StudyBudget",
+      "type": "object"
+    },
+    "StudyConditionAnalysisRole": {
+      "enum": [
+        "inertia_estimand",
+        "invariant_negative_control"
+      ],
+      "title": "StudyConditionAnalysisRole",
+      "type": "string"
+    },
+    "StudyConditionBinding": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "execution_attempt_id"
+                  ]
+                }
+              ]
+            }
+          },
+          "if": {
+            "properties": {
+              "execution_origin": {
+                "const": "real_provider"
+              }
+            },
+            "required": [
+              "execution_origin"
+            ]
+          },
+          "then": {
+            "required": [
+              "execution_attempt_id"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "adapter_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Adapter Id",
+          "type": "string"
+        },
+        "analysis_role": {
+          "$ref": "#/$defs/StudyConditionAnalysisRole"
+        },
+        "baseline_configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Baseline Configuration Digest",
+          "type": "string"
+        },
+        "baseline_provider_input_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Baseline Provider Input Manifest Digest",
+          "type": "string"
+        },
+        "benchmark_case_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Benchmark Case Ids",
+          "type": "array"
+        },
+        "condition_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "counterfactual_configuration_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Counterfactual Configuration Digest",
+          "type": "string"
+        },
+        "counterfactual_provider_input_manifest_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Counterfactual Provider Input Manifest Digest",
+          "type": "string"
+        },
+        "design_commitment_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Design Commitment Digest",
+          "type": "string"
+        },
+        "execution_attempt_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Attempt Id"
+        },
+        "execution_origin": {
+          "$ref": "#/$defs/StudyExecutionOrigin",
+          "default": "synthetic_fixture"
+        },
+        "expected_resolved_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Expected Resolved Model",
+          "type": "string"
+        },
+        "justification": {
+          "maxLength": 4096,
+          "minLength": 1,
+          "title": "Justification",
+          "type": "string"
+        },
+        "knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Knowledge Contract Digest",
+          "type": "string"
+        },
+        "pipeline_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Pipeline Id",
+          "type": "string"
+        },
+        "planned_independent_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Planned Independent Clusters",
+          "type": "integer"
+        },
+        "planned_pairs": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Pairs",
+          "type": "integer"
+        },
+        "protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Digest",
+          "type": "string"
+        },
+        "protocol_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "provider": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Provider",
+          "type": "string"
+        },
+        "provider_api_version": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Api Version"
+        },
+        "provider_region": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Region"
+        },
+        "provider_sdk": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Sdk"
+        },
+        "provider_serving_fingerprint_policy": {
+          "const": "all_absent_or_complete_and_stable_across_model_matched_condition_group",
+          "default": "all_absent_or_complete_and_stable_across_model_matched_condition_group",
+          "title": "Provider Serving Fingerprint Policy",
+          "type": "string"
+        },
+        "requested_model": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Requested Model",
+          "type": "string"
+        },
+        "resolved_model_version_policy": {
+          "const": "dated_provider_snapshot_identifier",
+          "default": "dated_provider_snapshot_identifier",
+          "title": "Resolved Model Version Policy",
+          "type": "string"
+        },
+        "study_knowledge_contract_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Study Knowledge Contract Digest",
+          "type": "string"
+        },
+        "task_ids": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 4096,
+          "minItems": 1,
+          "title": "Task Ids",
+          "type": "array"
+        }
+      },
+      "required": [
+        "condition_id",
+        "justification",
+        "analysis_role",
+        "task_ids",
+        "benchmark_case_ids",
+        "protocol_id",
+        "protocol_digest",
+        "design_commitment_digest",
+        "provider",
+        "requested_model",
+        "expected_resolved_model",
+        "adapter_id",
+        "pipeline_id",
+        "baseline_configuration_digest",
+        "counterfactual_configuration_digest",
+        "baseline_provider_input_manifest_digest",
+        "counterfactual_provider_input_manifest_digest",
+        "knowledge_contract_digest",
+        "study_knowledge_contract_digest",
+        "planned_pairs",
+        "planned_independent_clusters"
+      ],
+      "title": "StudyConditionBinding",
+      "type": "object"
+    },
+    "StudyExecutionOrigin": {
+      "enum": [
+        "real_provider",
+        "synthetic_fixture"
+      ],
+      "title": "StudyExecutionOrigin",
+      "type": "string"
+    },
+    "StudyExecutionWindow": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "maxLength": 64,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "End",
+          "type": "string"
+        },
+        "start": {
+          "maxLength": 64,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Start",
+          "type": "string"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "title": "StudyExecutionWindow",
+      "type": "object"
+    },
+    "StudyHypothesisDecisionRule": {
+      "additionalProperties": false,
+      "properties": {
+        "adjusted_alpha_serialization": {
+          "const": "conservative_floor_6_decimal",
+          "default": "conservative_floor_6_decimal",
+          "title": "Adjusted Alpha Serialization",
+          "type": "string"
+        },
+        "contradicted_when": {
+          "const": "all_adjusted_upper_bounds_at_or_below_threshold",
+          "default": "all_adjusted_upper_bounds_at_or_below_threshold",
+          "title": "Contradicted When",
+          "type": "string"
+        },
+        "decision_boundary_rationale": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Decision Boundary Rationale",
+          "type": "string"
+        },
+        "derivation": {
+          "const": "direct_same_decision_rate_on_decision_flip_conditions",
+          "default": "direct_same_decision_rate_on_decision_flip_conditions",
+          "title": "Derivation",
+          "type": "string"
+        },
+        "directional_error_control": {
+          "const": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
+          "default": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
+          "title": "Directional Error Control",
+          "type": "string"
+        },
+        "estimand": {
+          "const": "decision_inertia_rate",
+          "default": "decision_inertia_rate",
+          "title": "Estimand",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints_within_condition",
+          "default": "independent_exchangeable_binary_cluster_endpoints_within_condition",
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "familywise_alpha": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "inconclusive_when": {
+          "const": "otherwise_after_valid_sufficient_execution",
+          "default": "otherwise_after_valid_sufficient_execution",
+          "title": "Inconclusive When",
+          "type": "string"
+        },
+        "independence_justification": {
+          "$ref": "#/$defs/StudyIndependenceJustification"
+        },
+        "inferential_unit": {
+          "const": "case_cluster",
+          "default": "case_cluster",
+          "title": "Inferential Unit",
+          "type": "string"
+        },
+        "interval_bound_serialization": {
+          "const": "conservative_outward_12_decimal",
+          "default": "conservative_outward_12_decimal",
+          "title": "Interval Bound Serialization",
+          "type": "string"
+        },
+        "interval_method": {
+          "const": "clopper_pearson_exact_one_sided",
+          "default": "clopper_pearson_exact_one_sided",
+          "title": "Interval Method",
+          "type": "string"
+        },
+        "invariant_control_gate": {
+          "const": "zero_observed_unexpected_arm_changes",
+          "default": "zero_observed_unexpected_arm_changes",
+          "title": "Invariant Control Gate",
+          "type": "string"
+        },
+        "materiality_threshold": {
+          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "title": "Materiality Threshold",
+          "type": "string"
+        },
+        "minimum_independent_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Minimum Independent Clusters",
+          "type": "integer"
+        },
+        "multiplicity_family_scope": {
+          "const": "target_task_model_conditions_only",
+          "default": "target_task_model_conditions_only",
+          "title": "Multiplicity Family Scope",
+          "type": "string"
+        },
+        "multiplicity_method": {
+          "const": "bonferroni",
+          "default": "bonferroni",
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "negative_control_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Negative Control Conditions",
+          "type": "array"
+        },
+        "sampling_frame": {
+          "const": "finite_frozen_conformance_frame",
+          "default": "finite_frozen_conformance_frame",
+          "title": "Sampling Frame",
+          "type": "string"
+        },
+        "supported_when": {
+          "const": "any_adjusted_lower_bound_above_threshold",
+          "default": "any_adjusted_lower_bound_above_threshold",
+          "title": "Supported When",
+          "type": "string"
+        },
+        "target_task_model_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Target Task Model Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "target_task_model_conditions",
+        "negative_control_conditions",
+        "minimum_independent_clusters",
+        "materiality_threshold",
+        "familywise_alpha",
+        "decision_boundary_rationale",
+        "independence_justification"
+      ],
+      "title": "StudyHypothesisDecisionRule",
+      "type": "object"
+    },
+    "StudyIndependenceJustification": {
+      "additionalProperties": false,
+      "description": "Structured author assertion; never machine proof of independence.",
+      "properties": {
+        "dependence_risks_and_mitigations": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Dependence Risks And Mitigations",
+          "type": "string"
+        },
+        "independence_basis": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Independence Basis",
+          "type": "string"
+        },
+        "inferential_unit_definition": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Inferential Unit Definition",
+          "type": "string"
+        },
+        "residual_scope_limitation": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Residual Scope Limitation",
+          "type": "string"
+        },
+        "software_verification_scope": {
+          "const": "structure_and_presence_only_not_independence_truth",
+          "default": "structure_and_presence_only_not_independence_truth",
+          "title": "Software Verification Scope",
+          "type": "string"
+        },
+        "status": {
+          "$ref": "#/$defs/StudyIndependenceJustificationStatus"
+        }
+      },
+      "required": [
+        "status",
+        "inferential_unit_definition",
+        "independence_basis",
+        "dependence_risks_and_mitigations",
+        "residual_scope_limitation"
+      ],
+      "title": "StudyIndependenceJustification",
+      "type": "object"
+    },
+    "StudyIndependenceJustificationStatus": {
+      "enum": [
+        "unresolved_authoring_placeholder",
+        "author_asserted_design_basis_pending_qualified_review"
+      ],
+      "title": "StudyIndependenceJustificationStatus",
+      "type": "string"
+    },
+    "StudyKnowledgeContract": {
+      "additionalProperties": false,
+      "properties": {
+        "authority_level": {
+          "const": "authoritative",
+          "default": "authoritative",
+          "title": "Authority Level",
+          "type": "string"
+        },
+        "expected_behavior": {
+          "const": "follow_governing_context",
+          "default": "follow_governing_context",
+          "title": "Expected Behavior",
+          "type": "string"
+        },
+        "governing_source": {
+          "const": "contextual_evidence",
+          "default": "contextual_evidence",
+          "title": "Governing Source",
+          "type": "string"
+        }
+      },
+      "title": "StudyKnowledgeContract",
+      "type": "object"
+    },
+    "StudyPublicationPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "publish_credentials": {
+          "const": false,
+          "default": false,
+          "title": "Publish Credentials",
+          "type": "boolean"
+        },
+        "publish_privacy_filtered_runsets": {
+          "const": true,
+          "default": true,
+          "title": "Publish Privacy Filtered Runsets",
+          "type": "boolean"
+        },
+        "publish_raw_completions": {
+          "const": false,
+          "default": false,
+          "title": "Publish Raw Completions",
+          "type": "boolean"
+        },
+        "publish_raw_prompts": {
+          "const": false,
+          "default": false,
+          "title": "Publish Raw Prompts",
+          "type": "boolean"
+        },
+        "redact_raw_outputs": {
+          "const": true,
+          "default": true,
+          "title": "Redact Raw Outputs",
+          "type": "boolean"
+        }
+      },
+      "title": "StudyPublicationPolicy",
+      "type": "object"
+    },
+    "StudyRegistration": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Evidence Digest",
+          "type": "string"
+        },
+        "immutable_record_claimed": {
+          "const": true,
+          "default": true,
+          "title": "Immutable Record Claimed",
+          "type": "boolean"
+        },
+        "method": {
+          "$ref": "#/$defs/StudyRegistrationMethod"
+        },
+        "reference_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Reference Id",
+          "type": "string"
+        },
+        "registered_at_utc": {
+          "maxLength": 64,
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "title": "Registered At Utc",
+          "type": "string"
+        }
+      },
+      "required": [
+        "method",
+        "reference_id",
+        "evidence_digest",
+        "registered_at_utc"
+      ],
+      "title": "StudyRegistration",
+      "type": "object"
+    },
+    "StudyRegistrationMethod": {
+      "enum": [
+        "version_control_commit",
+        "append_only_registry",
+        "local_digest_commitment"
+      ],
+      "title": "StudyRegistrationMethod",
+      "type": "string"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "analysis_status": {
+      "$ref": "#/$defs/StudyAnalysisDeclaration",
+      "default": {
+        "exploratory_secondary_analyses_allowed": true,
+        "llm_judge_endpoint_permitted": false,
+        "pooling_permitted": false,
+        "primary": "confirmatory"
+      }
+    },
+    "artifact_kind": {
+      "const": "real-model-study-manifest",
+      "default": "real-model-study-manifest",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "benchmark_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Benchmark Digest",
+      "type": "string"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Benchmark Id",
+      "type": "string"
+    },
+    "benchmark_version": {
+      "const": "0.2.0",
+      "default": "0.2.0",
+      "title": "Benchmark Version",
+      "type": "string"
+    },
+    "budget": {
+      "$ref": "#/$defs/StudyBudget"
+    },
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/StudyConditionBinding"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Conditions",
+      "type": "array"
+    },
+    "contract_id": {
+      "const": "RealModelStudyManifest/v1",
+      "default": "RealModelStudyManifest/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "execution_window": {
+      "$ref": "#/$defs/StudyExecutionWindow"
+    },
+    "hypothesis_decision_rule": {
+      "$ref": "#/$defs/StudyHypothesisDecisionRule"
+    },
+    "hypothesis_decision_rule_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Hypothesis Decision Rule Digest",
+      "type": "string"
+    },
+    "knowledge_contract": {
+      "$ref": "#/$defs/StudyKnowledgeContract",
+      "default": {
+        "authority_level": "authoritative",
+        "expected_behavior": "follow_governing_context",
+        "governing_source": "contextual_evidence"
+      }
+    },
+    "limitations": {
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 32,
+      "minItems": 1,
+      "title": "Limitations",
+      "type": "array"
+    },
+    "manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Manifest Digest",
+      "type": "string"
+    },
+    "primary_endpoint": {
+      "const": "direct_same_decision_inertia",
+      "default": "direct_same_decision_inertia",
+      "title": "Primary Endpoint",
+      "type": "string"
+    },
+    "protocol_set_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Protocol Set Digest",
+      "type": "string"
+    },
+    "publication": {
+      "$ref": "#/$defs/StudyPublicationPolicy",
+      "default": {
+        "publish_credentials": false,
+        "publish_privacy_filtered_runsets": true,
+        "publish_raw_completions": false,
+        "publish_raw_prompts": false,
+        "redact_raw_outputs": true
+      }
+    },
+    "registration": {
+      "$ref": "#/$defs/StudyRegistration"
+    },
+    "schema_name": {
+      "const": "real-model-study-manifest",
+      "default": "real-model-study-manifest",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "status": {
+      "const": "preregistered",
+      "default": "preregistered",
+      "title": "Status",
+      "type": "string"
+    },
+    "study_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Study Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "study_id",
+    "manifest_digest",
+    "registration",
+    "execution_window",
+    "benchmark_id",
+    "benchmark_digest",
+    "protocol_set_digest",
+    "conditions",
+    "hypothesis_decision_rule",
+    "hypothesis_decision_rule_digest",
+    "budget",
+    "limitations",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "RealModelStudyManifest",
+  "type": "object"
+}

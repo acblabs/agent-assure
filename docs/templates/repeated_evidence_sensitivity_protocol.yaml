@@ -5,11 +5,15 @@
 # exact compiled suite, configs, prompts, corpora, authority, and adapter bytes,
 # then emits the protocol plus both design-committed live configs without dispatch.
 artifact_kind: repeated-evidence-sensitivity-protocol
-schema_version: 0.6.5
+schema_version: 0.6.6
 schema_name: repeated-evidence-sensitivity-protocol
 contract_id: RepeatedEvidenceSensitivityProtocol/v1
 contract_version: 1.0.0
 protocol_id: repeated-evidence-response-study-v1
+# Choose once before finalization. A durable journal beside the registered
+# protocol reserves this identity before the first provider request and blocks
+# accidental local replay while that protected registry entry is retained.
+execution_attempt_id: repeated-evidence-response-study-v1-attempt-01
 protocol_digest: "0000000000000000000000000000000000000000000000000000000000000000"
 design_commitment_digest: "0000000000000000000000000000000000000000000000000000000000000000"
 endpoint: expected_decision_response
@@ -269,7 +273,10 @@ design:
   null_response_rate: "0.500000"
   alternative_response_rate: "0.900000"
   minimum_detectable_difference: "0.400000"
-  maximum_exclusion_rate: "0.125000"
+  # Confirmatory real-model studies require zero exclusions: treating an
+  # excluded cluster as non-response would be anti-conservative for the
+  # complementary decision-inertia endpoint.
+  maximum_exclusion_rate: "0.000000"
   planned_inferential_clusters: 8
   critical_cluster_responses: 7
   achieved_type_i_error: "0.035157"

@@ -8,6 +8,7 @@ from jsonschema import Draft202012Validator
 from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
+from agent_assure.io_limits import MAX_PERSISTED_OBSERVATIONS
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_run_record_payload
 from agent_assure.schema.common import (
@@ -24,7 +25,13 @@ from agent_assure.schema.live import (
     LiveObservationResult,
 )
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord, EvidenceItem, EvidenceRef, RunSet
+from agent_assure.schema.run import (
+    MAX_LIVE_EXECUTION_ATTEMPT_EVENTS,
+    AgentRunRecord,
+    EvidenceItem,
+    EvidenceRef,
+    RunSet,
+)
 from agent_assure.schema.validation import validate_artifact_payload
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -269,7 +276,7 @@ def test_frozen_v060_runset_retains_legacy_unbounded_evidence_identifiers() -> N
 
 @pytest.mark.parametrize(
     "schema_version",
-    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"),
 )
 def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="cost_budget_committed_usd"):
@@ -286,7 +293,7 @@ def test_v06_live_mode_requires_committed_budget_fields(schema_version: str) -> 
 
 @pytest.mark.parametrize(
     "schema_version",
-    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"),
 )
 def test_v06_live_observations_require_pairing_identity(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="prompt, schedule, and randomization identity"):
@@ -306,7 +313,7 @@ def test_v06_live_observations_require_pairing_identity(schema_version: str) -> 
 
 @pytest.mark.parametrize(
     "schema_version",
-    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"),
 )
 def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> None:
     with pytest.raises(ValidationError, match="configuration_digest"):
@@ -326,7 +333,7 @@ def test_v06_drift_windows_require_configuration_digest(schema_version: str) -> 
 
 @pytest.mark.parametrize(
     "schema_version",
-    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5"),
+    ("0.6.0", "0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"),
 )
 def test_v06_drift_comparability_requires_configuration_match(
     schema_version: str,
@@ -384,6 +391,60 @@ def test_runset_is_first_class_schema() -> None:
         runs=(_record(),),
     )
     assert runset.artifact_kind == "run-set"
+
+
+def test_runset_record_count_is_bounded_in_models_and_exported_schemas() -> None:
+    record = _record()
+    fields = {
+        "artifact_kind": "run-set",
+        "runset_id": "runset-boundary",
+        "privacy_profile_id": PRIVACY_PROFILE_ID,
+        "privacy_profile_digest": PRIVACY_PROFILE_DIGEST,
+        "suite_id": "suite-001",
+        "suite_version": "0.1.0",
+        "suite_digest": "0" * 64,
+        "fixture_manifest_digest": "1" * 64,
+    }
+    accepted = RunSet(**fields, runs=(record,) * MAX_PERSISTED_OBSERVATIONS)
+    assert len(accepted.runs) == MAX_PERSISTED_OBSERVATIONS
+
+    with pytest.raises(ValidationError, match="at most 4096"):
+        RunSet(**fields, runs=(record,) * (MAX_PERSISTED_OBSERVATIONS + 1))
+
+    payload = accepted.model_dump(mode="json")
+    payload["runs"].append(record.model_dump(mode="json"))
+    writer_schema = writer_json_schema(RunSet)
+    assert writer_schema["properties"]["runs"]["maxItems"] == MAX_PERSISTED_OBSERVATIONS
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(writer_schema).validate(payload)
+
+    frozen_schema = json.loads(
+        (ROOT / "schemas" / "v0.6.6" / "run-set.schema.json").read_text(encoding="utf-8")
+    )
+    assert frozen_schema["properties"]["runs"]["maxItems"] == MAX_PERSISTED_OBSERVATIONS
+    assert (
+        frozen_schema["$defs"]["LiveExecutionAttemptJournal"]["properties"]["events"]["maxItems"]
+        == MAX_LIVE_EXECUTION_ATTEMPT_EVENTS
+    )
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(frozen_schema).validate(payload)
+
+
+def test_runset_record_resource_bound_also_applies_to_legacy_payloads() -> None:
+    record = _record(schema_version="0.6.2")
+
+    with pytest.raises(ValidationError, match="at most 4096"):
+        RunSet(
+            schema_version="0.6.2",
+            runset_id="legacy-runset-boundary",
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            suite_id="suite-001",
+            suite_version="0.1.0",
+            suite_digest="0" * 64,
+            fixture_manifest_digest="1" * 64,
+            runs=(record,) * (MAX_PERSISTED_OBSERVATIONS + 1),
+        )
 
 
 def test_current_runset_rejects_empty_graph_source_identity() -> None:

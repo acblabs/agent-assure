@@ -1,0 +1,43 @@
+# Authoring template for PilotInputManifest/v1. This is not persisted wire JSON:
+# configuration_digest and data_digest are intentionally omitted because
+# PilotInputManifest.build derives them from the canonical entries.
+#
+# Compute each content_sha256 from the exact immutable bytes supplied to the
+# recorded execution. Prefer PilotInputManifestEntry.from_content_bytes over
+# hand-entering a digest. Include every repeated --waiver separately and remove
+# any entry whose option is not present in the recorded workflow argv.
+artifact_kind: external-pilot-input-manifest
+schema_version: 0.6.6
+schema_name: external-pilot-input-manifest
+contract_id: PilotInputManifest/v1
+contract_version: 1.0.0
+workflow_id: controls-mutate
+entries:
+  # Entries use canonical (input_kind, option_name, option_value, entry_id)
+  # ordering. This example intentionally demonstrates a mixed configuration
+  # boundary: the suite is bundled while the waiver is non-bundled.
+  - entry_id: input-suite
+    input_kind: configuration
+    origin: bundled
+    option_name: suite
+    option_value: pilot-suite.yaml
+    content_sha256: "1111111111111111111111111111111111111111111111111111111111111111"
+    semantic_identity_kind: compiled_suite
+    semantic_identity_digest: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+  - entry_id: input-waiver
+    input_kind: configuration
+    origin: non_bundled
+    option_name: waiver
+    option_value: pilot-waiver.yaml
+    content_sha256: "2222222222222222222222222222222222222222222222222222222222222222"
+    # Every repeated waiver carries the same aggregate waiver-set digest.
+    semantic_identity_kind: waiver_set
+    semantic_identity_digest: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+  - entry_id: input-runset
+    input_kind: data
+    origin: non_bundled
+    option_name: runset
+    option_value: pilot-runset.json
+    content_sha256: "3333333333333333333333333333333333333333333333333333333333333333"
+    semantic_identity_kind: run_set
+    semantic_identity_digest: "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"

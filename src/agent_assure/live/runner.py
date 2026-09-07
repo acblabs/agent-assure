@@ -4,11 +4,12 @@ import hashlib
 import json
 import random
 import time
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
+from typing import Literal
 from uuid import uuid5
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
@@ -43,6 +44,11 @@ from agent_assure.live.config import (
     LiveRunConfig,
     live_sdk_identifier,
 )
+from agent_assure.live.identity import (
+    AGENT_ASSURE_EXECUTION_VERSION,
+    LIVE_ADAPTER_IMPLEMENTATION_ID,
+    LIVE_PROVIDER_REQUEST_ENVELOPE_ID,
+)
 from agent_assure.live.output_contract import (
     LiveOutputContractError,
     parse_live_structured_content,
@@ -69,6 +75,43 @@ from agent_assure.schema.sensitivity import (
 )
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
+
+LIVE_ACCOUNTING_UNAVAILABLE_STOP_REASONS = frozenset(
+    {"cost_accounting_unavailable", "token_accounting_unavailable"}
+)
+LIVE_TERMINAL_STOP_REASONS = frozenset(
+    {
+        *LIVE_ACCOUNTING_UNAVAILABLE_STOP_REASONS,
+        "cost_budget_exhausted_before_attempt",
+        "cost_budget_exceeded_after_response",
+        "generated_token_budget_exhausted_before_attempt",
+        "generated_token_budget_exceeded_after_response",
+        "rate_limit_budget_exhausted",
+        "token_budget_exhausted_before_attempt",
+        "token_budget_exceeded_after_response",
+    }
+)
+LIVE_RUNSET_STOP_REASONS_ALLOWING_UNISSUED_TAIL = frozenset(
+    {
+        *LIVE_TERMINAL_STOP_REASONS,
+        "budget_exhausted",
+        "generated_token_budget_exhausted",
+        "request_budget_exhausted",
+        "token_budget_exhausted",
+    }
+)
+LIVE_NEVER_ISSUED_EXCLUSION_REASONS = frozenset(
+    {
+        "budget_accounting_unavailable",
+        "budget_exhausted",
+        "cost_budget_exhausted_before_attempt",
+        "generated_token_budget_exhausted",
+        "generated_token_budget_exhausted_before_attempt",
+        "terminal_policy_stop",
+        "token_budget_exhausted",
+        "token_budget_exhausted_before_attempt",
+    }
+)
 
 
 class LiveBudgetExceededError(ValueError):
@@ -117,6 +160,25 @@ class _LiveAttemptState:
 
 
 @dataclass(frozen=True)
+class LiveAttemptNotification:
+    """Privacy-safe synchronous notification around one actual adapter call."""
+
+    phase: Literal["issued", "succeeded", "failed"]
+    request: LiveProviderRequest
+    adapter_attempt_index: int
+    provider_response_id: str | None = None
+    retryable: bool | None = None
+    rate_limited: bool | None = None
+
+
+LiveAttemptObserver = Callable[[LiveAttemptNotification], None]
+
+
+class LiveAttemptObserverError(RuntimeError):
+    """The durable pre/post-dispatch evidence boundary could not be recorded."""
+
+
+@dataclass(frozen=True)
 class LiveExecutionSnapshot:
     """Authoritative detached provider inputs captured before adapter dispatch.
 
@@ -149,8 +211,10 @@ class LiveExecutionSnapshot:
 
 
 def _snapshot_sha256(value: object, *, label: str) -> str:
-    if not isinstance(value, str) or len(value) != 64 or any(
-        character not in "0123456789abcdef" for character in value
+    if (
+        not isinstance(value, str)
+        or len(value) != 64
+        or any(character not in "0123456789abcdef" for character in value)
     ):
         raise ValueError(f"live execution snapshot {label} must be lowercase SHA-256")
     return value
@@ -300,9 +364,7 @@ def _validate_live_execution_snapshot(
             snapshot.knowledge_contract_file_content is not None
             or snapshot.knowledge_contract_file_sha256 is not None
         ):
-            raise ValueError(
-                "live execution snapshot has contract file content without a contract"
-            )
+            raise ValueError("live execution snapshot has contract file content without a contract")
         knowledge_contract_file_content = None
         knowledge_contract_file_sha256 = None
     else:
@@ -335,9 +397,7 @@ def _validate_live_execution_snapshot(
                 contract_file_payload
             )
         except (TypeError, UnicodeDecodeError, ValueError) as exc:
-            raise ValueError(
-                "live execution snapshot knowledge contract file is invalid"
-            ) from exc
+            raise ValueError("live execution snapshot knowledge contract file is invalid") from exc
         if contract_file_model != knowledge_contract:
             raise ValueError(
                 "live execution snapshot knowledge contract file does not match its model"
@@ -357,9 +417,7 @@ def _validate_live_execution_snapshot(
             raise ValueError("live execution snapshot case authority binding has an invalid type")
         try:
             validated_bindings.append(
-                RAGSensitivityCaseAuthorityBinding.model_validate(
-                    binding.model_dump(mode="json")
-                )
+                RAGSensitivityCaseAuthorityBinding.model_validate(binding.model_dump(mode="json"))
             )
         except (TypeError, ValueError) as exc:
             raise ValueError("live execution snapshot case authority binding is invalid") from exc
@@ -417,12 +475,8 @@ def _validate_live_execution_snapshot(
     )
     expects_governing_evidence = config.retrieval_corpus_dir is not None
     if expects_governing_evidence and not all(item is not None for item in governing_fields):
-        raise ValueError(
-            "live execution snapshot is missing its configured governing evidence"
-        )
-    if not expects_governing_evidence and any(
-        item is not None for item in governing_fields
-    ):
+        raise ValueError("live execution snapshot is missing its configured governing evidence")
+    if not expects_governing_evidence and any(item is not None for item in governing_fields):
         raise ValueError("live execution snapshot contains unexpected governing evidence")
 
     governing_evidence: str | None = None
@@ -431,9 +485,7 @@ def _validate_live_execution_snapshot(
     rendered_message_digest: str | None = None
     corpus_snapshot: RAGSensitivityCorpusSnapshot | None = None
     corpus_snapshot_digest: str | None = None
-    governing_documents: tuple[
-        tuple[str, str, str, object, object], ...
-    ] = ()
+    governing_documents: tuple[tuple[str, str, str, object, object], ...] = ()
     if expects_governing_evidence:
         if type(snapshot.corpus_snapshot) is not RAGSensitivityCorpusSnapshot:
             raise ValueError("live execution snapshot corpus snapshot has an invalid type")
@@ -526,9 +578,7 @@ def _validate_live_execution_snapshot(
                     "live execution snapshot governing evidence document source is invalid"
                 )
             try:
-                document_payload = RAGSensitivityDocumentPayload.model_validate(
-                    document["payload"]
-                )
+                document_payload = RAGSensitivityDocumentPayload.model_validate(document["payload"])
             except (TypeError, ValueError) as exc:
                 raise ValueError(
                     "live execution snapshot governing evidence document payload is invalid"
@@ -600,11 +650,7 @@ def _validate_live_execution_snapshot(
         assert corpus_digest is not None
         for binding in case_authority_bindings:
             assignment = next(
-                (
-                    item
-                    for item in binding.assignments
-                    if item.corpus_digest == corpus_digest
-                ),
+                (item for item in binding.assignments if item.corpus_digest == corpus_digest),
                 None,
             )
             if assignment is None:
@@ -668,6 +714,7 @@ def run_live_suite(
     config_dir: Path,
     trust: TrustedLiveExecution | None = None,
     execution_snapshot: LiveExecutionSnapshot | None = None,
+    attempt_observer: LiveAttemptObserver | None = None,
 ) -> RunSet:
     # Pydantic's model_copy(update=...) intentionally skips validation. Treat
     # this library API as the final execution boundary and reconstruct every
@@ -743,10 +790,9 @@ def run_live_suite(
         )
         trace_context = trace_context_for_seed(observation_id)
         if terminal_stop_reason is not None:
-            accounting_unavailable = terminal_stop_reason in {
-                "cost_accounting_unavailable",
-                "token_accounting_unavailable",
-            }
+            accounting_unavailable = (
+                terminal_stop_reason in LIVE_ACCOUNTING_UNAVAILABLE_STOP_REASONS
+            )
             runs.append(
                 _error_record(
                     compiled,
@@ -952,6 +998,7 @@ def run_live_suite(
         started = _utc_now()
         start = time.perf_counter()
         response: LiveProviderResponse | None = None
+        completed: str | None = None
         attempt_state = _LiveAttemptState()
         try:
             response = _complete_with_retries(
@@ -962,9 +1009,10 @@ def run_live_suite(
                 rate_limit_budget=rate_limit_budget,
                 attempt_state=attempt_state,
                 before_attempt=pace_attempt,
+                attempt_observer=attempt_observer,
             )
             latency_ms = monotonic_ms(start)
-            completed = _utc_now()
+            completed = completed or _completion_utc(started)
             response_total_tokens = _response_total_tokens(response)
             response_cost = Decimal(response.estimated_cost_usd)
             if not (
@@ -1036,22 +1084,14 @@ def run_live_suite(
                 trace_context=trace_context,
             )
         except Exception as exc:
+            if isinstance(exc, LiveAttemptObserverError):
+                raise
             emergency = emergency_from_exception(exc)
             if emergency is not None:
                 emergency_records.append(emergency)
             if isinstance(exc, LiveBudgetExceededError):
                 stop_reasons.add(exc.stop_reason)
-                if exc.stop_reason in {
-                    "cost_accounting_unavailable",
-                    "token_accounting_unavailable",
-                    "cost_budget_exhausted_before_attempt",
-                    "cost_budget_exceeded_after_response",
-                    "generated_token_budget_exhausted_before_attempt",
-                    "generated_token_budget_exceeded_after_response",
-                    "rate_limit_budget_exhausted",
-                    "token_budget_exhausted_before_attempt",
-                    "token_budget_exceeded_after_response",
-                }:
+                if exc.stop_reason in LIVE_TERMINAL_STOP_REASONS:
                     terminal_stop_reason = exc.stop_reason
             reason_code = (
                 ReasonCode.STRUCTURED_OUTPUT_INVALID
@@ -1065,14 +1105,13 @@ def run_live_suite(
                 if isinstance(exc, LiveOutputContractError)
                 else "live_budget_accounting_unavailable"
                 if isinstance(exc, LiveBudgetExceededError)
-                and exc.stop_reason
-                in {"cost_accounting_unavailable", "token_accounting_unavailable"}
+                and exc.stop_reason in LIVE_ACCOUNTING_UNAVAILABLE_STOP_REASONS
                 else "live_budget_exceeded_after_response"
                 if isinstance(exc, LiveBudgetExceededError)
                 else "live_adapter_error"
             )
             latency_ms = monotonic_ms(start)
-            completed = _utc_now()
+            completed = completed or _completion_utc(started)
             record = _error_record(
                 compiled,
                 config,
@@ -1115,6 +1154,7 @@ def run_live_suite(
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
         evidence_sensitivity_design_digest=(config.evidence_sensitivity_design_digest),
+        study_manifest_digest=config.study_manifest_digest,
         completion_status="incomplete" if stop_reasons else "complete",
         stop_reasons=tuple(sorted(stop_reasons)),
         emergency_records=tuple(emergency_records),
@@ -1199,6 +1239,9 @@ def _record_from_response(
             "provider_sdk": response.provider_sdk,
             "provider_region": response.provider_region,
             "provider_response_id": response.provider_response_id,
+            "provider_finish_reason": response.provider_finish_reason,
+            "provider_serving_fingerprint": response.provider_serving_fingerprint,
+            "provider_created_unix_seconds": response.provider_created_unix_seconds,
             "traceparent": trace_context.traceparent,
             "tracestate": trace_context.tracestate,
             "started_at_utc": started_at_utc,
@@ -1315,6 +1358,11 @@ def _error_record(
         provider_sdk=response.provider_sdk if response else _sdk_label(config),
         provider_region=response.provider_region if response else config.adapter.region,
         provider_response_id=response.provider_response_id if response else None,
+        provider_finish_reason=response.provider_finish_reason if response else None,
+        provider_serving_fingerprint=(response.provider_serving_fingerprint if response else None),
+        provider_created_unix_seconds=(
+            response.provider_created_unix_seconds if response else None
+        ),
         traceparent=trace_context.traceparent,
         tracestate=trace_context.tracestate,
         started_at_utc=started_at_utc,
@@ -1493,6 +1541,7 @@ def _complete_with_retries(
     rate_limit_budget: _LiveRateLimitBudget,
     attempt_state: _LiveAttemptState,
     before_attempt: Callable[[], None],
+    attempt_observer: LiveAttemptObserver | None = None,
 ) -> LiveProviderResponse:
     max_attempts = config.max_retries + 1
     last_exc: Exception | None = None
@@ -1500,17 +1549,37 @@ def _complete_with_retries(
         before_attempt()
         request_budget.consume()
         attempt_state.attempt_count += 1
+        _notify_attempt_observer(
+            attempt_observer,
+            LiveAttemptNotification(
+                phase="issued",
+                request=request,
+                adapter_attempt_index=attempt,
+            ),
+        )
         try:
             response = adapter.complete(request)
             if not isinstance(response, LiveProviderResponse):
                 raise TypeError("live adapter returned an invalid response object")
-            return LiveProviderResponse.model_validate(response.model_dump(mode="python"))
+            response = LiveProviderResponse.model_validate(response.model_dump(mode="python"))
         except Exception as exc:
+            rate_limited = _is_rate_limit_error(exc)
+            retryable = _is_retryable_error(exc)
+            _notify_attempt_observer(
+                attempt_observer,
+                LiveAttemptNotification(
+                    phase="failed",
+                    request=request,
+                    adapter_attempt_index=attempt,
+                    retryable=retryable,
+                    rate_limited=rate_limited,
+                ),
+            )
             last_exc = exc
-            if _is_rate_limit_error(exc):
+            if rate_limited:
                 attempt_state.rate_limit_events += 1
                 rate_limit_budget.record()
-            if not _is_retryable_error(exc):
+            if not retryable:
                 raise
             if attempt >= max_attempts:
                 break
@@ -1525,9 +1594,34 @@ def _complete_with_retries(
                 attempt_state.retry_count,
                 _retry_after_seconds(exc),
             )
+            continue
+        _notify_attempt_observer(
+            attempt_observer,
+            LiveAttemptNotification(
+                phase="succeeded",
+                request=request,
+                adapter_attempt_index=attempt,
+                provider_response_id=response.provider_response_id,
+            ),
+        )
+        return response
     if last_exc is None:
         raise RuntimeError("live adapter failed without an exception")
     raise last_exc
+
+
+def _notify_attempt_observer(
+    observer: LiveAttemptObserver | None,
+    notification: LiveAttemptNotification,
+) -> None:
+    if observer is None:
+        return
+    try:
+        observer(notification)
+    except Exception as exc:
+        raise LiveAttemptObserverError(
+            "durable execution attempt journal update failed; aborting provider execution"
+        ) from exc
 
 
 def _sleep_before_retry(
@@ -1704,6 +1798,7 @@ def _provenance(
         model_identifier=config.adapter.model,
         retrieval_corpus_digest=config.retrieval_corpus_digest,
         evidence_sensitivity_design_digest=(config.evidence_sensitivity_design_digest),
+        study_manifest_digest=config.study_manifest_digest,
     )
 
 
@@ -1713,11 +1808,18 @@ def _configuration_digest(
     snapshot: LiveExecutionSnapshot,
 ) -> str:
     config_payload = config.model_dump(mode="json")
-    # The design commitment binds this content-derived configuration digest.
-    # Excluding the back-link prevents a C -> D -> C cycle without weakening C.
+    # Higher-level commitments bind this content-derived configuration digest.
+    # Excluding their back-links prevents commitment cycles without weakening
+    # the digest of the executable configuration they bind.
     config_payload.pop("evidence_sensitivity_design_digest", None)
+    config_payload.pop("study_manifest_digest", None)
     return sha256_hexdigest(
         {
+            "execution_implementation": {
+                "agent_assure_version": AGENT_ASSURE_EXECUTION_VERSION,
+                "adapter_implementation_id": LIVE_ADAPTER_IMPLEMENTATION_ID,
+                "provider_request_envelope_id": LIVE_PROVIDER_REQUEST_ENVELOPE_ID,
+            },
             "suite_digest": sha256_hexdigest(compiled.model_dump(mode="json")),
             "live_run_config": config_payload,
             "prompt_digests": snapshot.prompt_digest_by_case(),
@@ -1899,9 +2001,7 @@ def prepare_live_execution_snapshot(
             governing_evidence=governing_evidence,
             governing_evidence_digest=governing_evidence_digest,
             rendered_governing_evidence_message=rendered_governing_evidence_message,
-            rendered_governing_evidence_message_digest=(
-                rendered_governing_evidence_message_digest
-            ),
+            rendered_governing_evidence_message_digest=(rendered_governing_evidence_message_digest),
             corpus_snapshot=corpus.snapshot if corpus is not None else None,
             corpus_snapshot_digest=(
                 corpus.snapshot.snapshot_digest if corpus is not None else None
@@ -1963,6 +2063,65 @@ def calculate_live_prompt_manifest_digest(
         else _validate_live_execution_snapshot(compiled, config, execution_snapshot)
     )
     return sha256_hexdigest({"prompt_digests": snapshot.prompt_digest_by_case()})
+
+
+def calculate_provider_input_manifest_digest(
+    provider_input_digest_by_case: Mapping[str, str],
+) -> str:
+    """Commit an exact case-keyed set of provider-input digests.
+
+    The per-case values are the digests persisted as ``Provenance.prompt_digest``.
+    They may include rendered governing evidence and knowledge-contract identity,
+    not only the raw case prompt. Canonical case ordering makes the commitment
+    independent of mapping insertion order.
+    """
+
+    entries = tuple(sorted(provider_input_digest_by_case.items()))
+    if not entries:
+        raise ValueError("provider-input manifest cannot be empty")
+    for case_id, digest in entries:
+        if not case_id:
+            raise ValueError("provider-input manifest case IDs cannot be empty")
+        _snapshot_sha256(digest, label=f"provider-input digest for {case_id}")
+    return sha256_hexdigest(
+        {
+            "purpose": "live-provider-input-manifest/v1",
+            "provider_input_digests": entries,
+        }
+    )
+
+
+def calculate_live_provider_input_manifest_digest(
+    compiled: CompiledSuite,
+    config: LiveRunConfig,
+    *,
+    config_dir: Path,
+    execution_snapshot: LiveExecutionSnapshot | None = None,
+) -> str:
+    """Commit the exact case-keyed provider inputs without provider dispatch."""
+
+    compiled = CompiledSuite.model_validate(compiled.model_dump(mode="json"))
+    config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
+    _validate_cases(compiled, config)
+    snapshot = (
+        prepare_live_execution_snapshot(compiled, config, config_dir=config_dir)
+        if execution_snapshot is None
+        else _validate_live_execution_snapshot(compiled, config, execution_snapshot)
+    )
+    return calculate_snapshot_provider_input_manifest_digest(snapshot)
+
+
+def calculate_snapshot_provider_input_manifest_digest(
+    snapshot: LiveExecutionSnapshot,
+) -> str:
+    """Commit provider inputs from a snapshot already validated by its caller."""
+
+    return calculate_provider_input_manifest_digest(
+        {
+            case_id: _provider_input_digest(prompt_digest, snapshot)
+            for case_id, prompt_digest in snapshot.prompt_digests
+        }
+    )
 
 
 def _render_governing_evidence(corpus: LoadedSensitivityCorpus) -> str:
@@ -2075,7 +2234,14 @@ def _observation_id(suite_id: str, variant_id: str, case_id: str, repetition_ind
 
 
 def _utc_now() -> str:
-    return datetime.now(UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
+    return datetime.now(UTC).isoformat(timespec="microseconds").replace("+00:00", "Z")
+
+
+def _completion_utc(started_at_utc: str) -> str:
+    observed = datetime.fromisoformat(_utc_now().replace("Z", "+00:00"))
+    started = datetime.fromisoformat(started_at_utc.replace("Z", "+00:00"))
+    completed = observed if observed > started else started + timedelta(microseconds=1)
+    return completed.isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
 def _sdk_label(config: LiveRunConfig) -> str | None:

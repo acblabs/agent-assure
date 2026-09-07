@@ -1,0 +1,421 @@
+# Authoring template only; it is not evidence that a study ran.
+# The canonical benchmark identity, digest, four strata, case frames, and
+# knowledge-contract digests below are executable defaults. Replace them only
+# when preregistering a different benchmark. Replace every provider, model,
+# protocol, configuration, registration, timestamp, and budget placeholder.
+# Omit the three derived digest fields: rag study finalize computes
+# manifest_digest, protocol_set_digest, and hypothesis_decision_rule_digest.
+artifact_kind: real-model-study-manifest
+schema_version: 0.6.6
+schema_name: real-model-study-manifest
+contract_id: RealModelStudyManifest/v1
+contract_version: 1.0.0
+study_id: replace-study-id
+status: preregistered
+registration:
+  # Safe drafting default. This method cannot permit confirmatory publication.
+  method: local_digest_commitment
+  reference_id: replace-registration-reference
+  evidence_digest: "b73ff0c930f34e427cac61a9180a7d5dee9e827757cd7cb4f6962ed4280adc72"
+  registered_at_utc: "2030-01-01T00:00:00Z"
+  immutable_record_claimed: true
+execution_window:
+  start: "2030-01-02T00:00:00Z"
+  end: "2030-01-03T00:00:00Z"
+benchmark_id: process-equivalence-authority-sensitivity
+benchmark_version: 0.2.0
+benchmark_digest: "9f734a3910933d92e5993e3e6f54ca23756146848d78e17317480f48ab54bb54"
+primary_endpoint: direct_same_decision_inertia
+knowledge_contract:
+  governing_source: contextual_evidence
+  authority_level: authoritative
+  expected_behavior: follow_governing_context
+analysis_status:
+  primary: confirmatory
+  exploratory_secondary_analyses_allowed: true
+  pooling_permitted: false
+  llm_judge_endpoint_permitted: false
+conditions:
+  # Four disjoint homogeneous frames are required because one repeated
+  # protocol binds exactly one relation and ordered decision orientation.
+  - condition_id: approve-invariant-condition
+    justification: >-
+      Negative-control measurement of the canonical approve-to-approve authority
+      stratum under the exact zero-unexpected-change gate. The 42 cases share one
+      task structure and score grid, so unique input digests do not make their
+      descriptive endpoints statistically independent.
+    analysis_role: invariant_negative_control
+    task_ids:
+      - synthetic-benefit-eligibility
+    benchmark_case_ids:
+      - synthetic-benefit-eligibility-001
+      - synthetic-benefit-eligibility-008
+      - synthetic-benefit-eligibility-011
+      - synthetic-benefit-eligibility-014
+      - synthetic-benefit-eligibility-017
+      - synthetic-benefit-eligibility-024
+      - synthetic-benefit-eligibility-027
+      - synthetic-benefit-eligibility-030
+      - synthetic-benefit-eligibility-033
+      - synthetic-benefit-eligibility-040
+      - synthetic-benefit-eligibility-043
+      - synthetic-benefit-eligibility-046
+      - synthetic-benefit-eligibility-049
+      - synthetic-benefit-eligibility-056
+      - synthetic-benefit-eligibility-059
+      - synthetic-benefit-eligibility-062
+      - synthetic-benefit-eligibility-065
+      - synthetic-benefit-eligibility-072
+      - synthetic-benefit-eligibility-075
+      - synthetic-benefit-eligibility-078
+      - synthetic-benefit-eligibility-081
+      - synthetic-benefit-eligibility-088
+      - synthetic-benefit-eligibility-091
+      - synthetic-benefit-eligibility-094
+      - synthetic-benefit-eligibility-097
+      - synthetic-benefit-eligibility-104
+      - synthetic-benefit-eligibility-107
+      - synthetic-benefit-eligibility-110
+      - synthetic-benefit-eligibility-113
+      - synthetic-benefit-eligibility-120
+      - synthetic-benefit-eligibility-123
+      - synthetic-benefit-eligibility-126
+      - synthetic-benefit-eligibility-129
+      - synthetic-benefit-eligibility-136
+      - synthetic-benefit-eligibility-139
+      - synthetic-benefit-eligibility-142
+      - synthetic-benefit-eligibility-145
+      - synthetic-benefit-eligibility-152
+      - synthetic-benefit-eligibility-155
+      - synthetic-benefit-eligibility-158
+      - synthetic-benefit-eligibility-161
+      - synthetic-benefit-eligibility-168
+    protocol_id: replace-approve-invariant-protocol
+    # When execution_origin is real_provider, add execution_attempt_id with
+    # the exact value frozen in this condition's registered protocol.
+    protocol_digest: "b7d19c77e9d297f518e57a5df5035b542d78dc722e279adda86c26e20b43c618"
+    design_commitment_digest: "9c61817e1ae8e80b5bb662225399ed9436e5eb391d735e2c81c3a9e104e009e5"
+    provider: replace-provider
+    requested_model: replace-requested-model
+    # Real-provider preregistration requires the provider's dated snapshot ID;
+    # a mutable/versionless alias is not a confirmatory resolved identity.
+    expected_resolved_model: replace-resolved-model-2000-01-01
+    provider_api_version: null
+    provider_sdk: null
+    provider_region: null
+    # Safe drafting default. Change to real_provider only for actual direct
+    # network-adapter execution with complete response metadata/unique IDs.
+    execution_origin: synthetic_fixture
+    adapter_id: replace-adapter
+    pipeline_id: replace-pipeline
+    baseline_configuration_digest: "1098c3ae9fe2884424f67e20a47877969da4dd442162e980e7d754e09d63c2bc"
+    counterfactual_configuration_digest: "47dc450a1d4c0ba580531c096aa87c401095b8fb0d9d2be4b716a90ba570a19f"
+    # Compute these from the exact prepared provider messages before registration.
+    baseline_provider_input_manifest_digest: "1111111111111111111111111111111111111111111111111111111111111111"
+    counterfactual_provider_input_manifest_digest: "2222222222222222222222222222222222222222222222222222222222222222"
+    knowledge_contract_digest: "b55331054accc0d5b9a6d7789f6bdd567c4bb71db3f6ff16aa5c7bc0d5b1917e"
+    study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
+    planned_pairs: 42
+    planned_independent_clusters: 42
+  - condition_id: approve-to-deny-condition
+    justification: >-
+      Confirmatory measurement of direct same-decision inertia in the canonical
+      approve-to-deny authority stratum. The 42 cases form a finite score-grid
+      conformance frame and are treated as independent exchangeable endpoints
+      only under the explicit shared-task and semantic-near-duplicate caveat.
+    analysis_role: inertia_estimand
+    task_ids:
+      - synthetic-benefit-eligibility
+    benchmark_case_ids:
+      - synthetic-benefit-eligibility-002
+      - synthetic-benefit-eligibility-005
+      - synthetic-benefit-eligibility-012
+      - synthetic-benefit-eligibility-015
+      - synthetic-benefit-eligibility-018
+      - synthetic-benefit-eligibility-021
+      - synthetic-benefit-eligibility-028
+      - synthetic-benefit-eligibility-031
+      - synthetic-benefit-eligibility-034
+      - synthetic-benefit-eligibility-037
+      - synthetic-benefit-eligibility-044
+      - synthetic-benefit-eligibility-047
+      - synthetic-benefit-eligibility-050
+      - synthetic-benefit-eligibility-053
+      - synthetic-benefit-eligibility-060
+      - synthetic-benefit-eligibility-063
+      - synthetic-benefit-eligibility-066
+      - synthetic-benefit-eligibility-069
+      - synthetic-benefit-eligibility-076
+      - synthetic-benefit-eligibility-079
+      - synthetic-benefit-eligibility-082
+      - synthetic-benefit-eligibility-085
+      - synthetic-benefit-eligibility-092
+      - synthetic-benefit-eligibility-095
+      - synthetic-benefit-eligibility-098
+      - synthetic-benefit-eligibility-101
+      - synthetic-benefit-eligibility-108
+      - synthetic-benefit-eligibility-111
+      - synthetic-benefit-eligibility-114
+      - synthetic-benefit-eligibility-117
+      - synthetic-benefit-eligibility-124
+      - synthetic-benefit-eligibility-127
+      - synthetic-benefit-eligibility-130
+      - synthetic-benefit-eligibility-133
+      - synthetic-benefit-eligibility-140
+      - synthetic-benefit-eligibility-143
+      - synthetic-benefit-eligibility-146
+      - synthetic-benefit-eligibility-149
+      - synthetic-benefit-eligibility-156
+      - synthetic-benefit-eligibility-159
+      - synthetic-benefit-eligibility-162
+      - synthetic-benefit-eligibility-165
+    protocol_id: replace-approve-to-deny-protocol
+    # When execution_origin is real_provider, add execution_attempt_id with
+    # the exact value frozen in this condition's registered protocol.
+    protocol_digest: "9209440f9292df0d3bf55d1f0fc64566cd5ce92f8fb9c37a2e9a73ab4ca10881"
+    design_commitment_digest: "eda07ff372e808281894f327b28503a2168d773244456c6dbf32fda6722982bd"
+    provider: replace-provider
+    requested_model: replace-requested-model
+    expected_resolved_model: replace-resolved-model-2000-01-01
+    provider_api_version: null
+    provider_sdk: null
+    provider_region: null
+    # Safe drafting default. Change to real_provider only for actual direct
+    # network-adapter execution with complete response metadata/unique IDs.
+    execution_origin: synthetic_fixture
+    adapter_id: replace-adapter
+    pipeline_id: replace-pipeline
+    baseline_configuration_digest: "358abafbda7f3a3c3a6621e689d3b124d72e532afc941732eaaaae9a61012b35"
+    counterfactual_configuration_digest: "004839a4b7f256550064376f7ae09f969b4fa1f202b9ddfdfd4ef9bca90eff03"
+    baseline_provider_input_manifest_digest: "3333333333333333333333333333333333333333333333333333333333333333"
+    counterfactual_provider_input_manifest_digest: "4444444444444444444444444444444444444444444444444444444444444444"
+    knowledge_contract_digest: "cc9c5a982bb6ad6422ec7636f25256b7c272d856f1d25ffa5ee2b0c022259a59"
+    study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
+    planned_pairs: 42
+    planned_independent_clusters: 42
+  - condition_id: deny-invariant-condition
+    justification: >-
+      Negative-control measurement of the canonical deny-to-deny authority
+      stratum under the exact zero-unexpected-change gate. The 42 cases share one
+      task structure and score grid, so unique input digests do not make their
+      descriptive endpoints statistically independent.
+    analysis_role: invariant_negative_control
+    task_ids:
+      - synthetic-benefit-eligibility
+    benchmark_case_ids:
+      - synthetic-benefit-eligibility-003
+      - synthetic-benefit-eligibility-006
+      - synthetic-benefit-eligibility-009
+      - synthetic-benefit-eligibility-016
+      - synthetic-benefit-eligibility-019
+      - synthetic-benefit-eligibility-022
+      - synthetic-benefit-eligibility-025
+      - synthetic-benefit-eligibility-032
+      - synthetic-benefit-eligibility-035
+      - synthetic-benefit-eligibility-038
+      - synthetic-benefit-eligibility-041
+      - synthetic-benefit-eligibility-048
+      - synthetic-benefit-eligibility-051
+      - synthetic-benefit-eligibility-054
+      - synthetic-benefit-eligibility-057
+      - synthetic-benefit-eligibility-064
+      - synthetic-benefit-eligibility-067
+      - synthetic-benefit-eligibility-070
+      - synthetic-benefit-eligibility-073
+      - synthetic-benefit-eligibility-080
+      - synthetic-benefit-eligibility-083
+      - synthetic-benefit-eligibility-086
+      - synthetic-benefit-eligibility-089
+      - synthetic-benefit-eligibility-096
+      - synthetic-benefit-eligibility-099
+      - synthetic-benefit-eligibility-102
+      - synthetic-benefit-eligibility-105
+      - synthetic-benefit-eligibility-112
+      - synthetic-benefit-eligibility-115
+      - synthetic-benefit-eligibility-118
+      - synthetic-benefit-eligibility-121
+      - synthetic-benefit-eligibility-128
+      - synthetic-benefit-eligibility-131
+      - synthetic-benefit-eligibility-134
+      - synthetic-benefit-eligibility-137
+      - synthetic-benefit-eligibility-144
+      - synthetic-benefit-eligibility-147
+      - synthetic-benefit-eligibility-150
+      - synthetic-benefit-eligibility-153
+      - synthetic-benefit-eligibility-160
+      - synthetic-benefit-eligibility-163
+      - synthetic-benefit-eligibility-166
+    protocol_id: replace-deny-invariant-protocol
+    # When execution_origin is real_provider, add execution_attempt_id with
+    # the exact value frozen in this condition's registered protocol.
+    protocol_digest: "d68b28b1c7efeef602b787bfa5fd63bf5ea1ba52369e1ac91f639e8fed4828fa"
+    design_commitment_digest: "ff893528c67f554e98b5da078541dce400f07604c1449b2e65afa8d7b6a4f8ca"
+    provider: replace-provider
+    requested_model: replace-requested-model
+    expected_resolved_model: replace-resolved-model-2000-01-01
+    provider_api_version: null
+    provider_sdk: null
+    provider_region: null
+    # Safe drafting default. Change to real_provider only for actual direct
+    # network-adapter execution with complete response metadata/unique IDs.
+    execution_origin: synthetic_fixture
+    adapter_id: replace-adapter
+    pipeline_id: replace-pipeline
+    baseline_configuration_digest: "1a5e25cc513f7197b3088f04a6ee275f9c7264f65fcf48ee90b9f2a8c4d83597"
+    counterfactual_configuration_digest: "1a8ad44503c528ddae0ffaf2794eb7f9d7438e0fd807af1047e5ca252abb0d61"
+    baseline_provider_input_manifest_digest: "5555555555555555555555555555555555555555555555555555555555555555"
+    counterfactual_provider_input_manifest_digest: "6666666666666666666666666666666666666666666666666666666666666666"
+    knowledge_contract_digest: "90809e34470e6bdc9ef00e7c8aee9a2f3c76e731b3c15a89dff52858f353b908"
+    study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
+    planned_pairs: 42
+    planned_independent_clusters: 42
+  - condition_id: deny-to-approve-condition
+    justification: >-
+      Confirmatory measurement of direct same-decision inertia in the canonical
+      deny-to-approve authority stratum. The 42 cases form a finite score-grid
+      conformance frame and are treated as independent exchangeable endpoints
+      only under the explicit shared-task and semantic-near-duplicate caveat.
+    analysis_role: inertia_estimand
+    task_ids:
+      - synthetic-benefit-eligibility
+    benchmark_case_ids:
+      - synthetic-benefit-eligibility-004
+      - synthetic-benefit-eligibility-007
+      - synthetic-benefit-eligibility-010
+      - synthetic-benefit-eligibility-013
+      - synthetic-benefit-eligibility-020
+      - synthetic-benefit-eligibility-023
+      - synthetic-benefit-eligibility-026
+      - synthetic-benefit-eligibility-029
+      - synthetic-benefit-eligibility-036
+      - synthetic-benefit-eligibility-039
+      - synthetic-benefit-eligibility-042
+      - synthetic-benefit-eligibility-045
+      - synthetic-benefit-eligibility-052
+      - synthetic-benefit-eligibility-055
+      - synthetic-benefit-eligibility-058
+      - synthetic-benefit-eligibility-061
+      - synthetic-benefit-eligibility-068
+      - synthetic-benefit-eligibility-071
+      - synthetic-benefit-eligibility-074
+      - synthetic-benefit-eligibility-077
+      - synthetic-benefit-eligibility-084
+      - synthetic-benefit-eligibility-087
+      - synthetic-benefit-eligibility-090
+      - synthetic-benefit-eligibility-093
+      - synthetic-benefit-eligibility-100
+      - synthetic-benefit-eligibility-103
+      - synthetic-benefit-eligibility-106
+      - synthetic-benefit-eligibility-109
+      - synthetic-benefit-eligibility-116
+      - synthetic-benefit-eligibility-119
+      - synthetic-benefit-eligibility-122
+      - synthetic-benefit-eligibility-125
+      - synthetic-benefit-eligibility-132
+      - synthetic-benefit-eligibility-135
+      - synthetic-benefit-eligibility-138
+      - synthetic-benefit-eligibility-141
+      - synthetic-benefit-eligibility-148
+      - synthetic-benefit-eligibility-151
+      - synthetic-benefit-eligibility-154
+      - synthetic-benefit-eligibility-157
+      - synthetic-benefit-eligibility-164
+      - synthetic-benefit-eligibility-167
+    protocol_id: replace-deny-to-approve-protocol
+    # When execution_origin is real_provider, add execution_attempt_id with
+    # the exact value frozen in this condition's registered protocol.
+    protocol_digest: "a58335c7368e21b82caf79bee7bd6119522b9cabbb724049a3ce3f00235c5ffd"
+    design_commitment_digest: "4bd156024abd3c07f468db35e2aa045e2aa8cb78c858e777c23c1cff51e8118b"
+    provider: replace-provider
+    requested_model: replace-requested-model
+    expected_resolved_model: replace-resolved-model-2000-01-01
+    provider_api_version: null
+    provider_sdk: null
+    provider_region: null
+    # Safe drafting default. Change to real_provider only for actual direct
+    # network-adapter execution with complete response metadata/unique IDs.
+    execution_origin: synthetic_fixture
+    adapter_id: replace-adapter
+    pipeline_id: replace-pipeline
+    baseline_configuration_digest: "9fac1518365680bf69e3ea23d1a3c0dac8a1d4d118a21846b0663dd220f4779c"
+    counterfactual_configuration_digest: "2264a515f118e71b8579d4ddd6d1d854cbe3110c318fd8f0d96f39848382a4e4"
+    baseline_provider_input_manifest_digest: "7777777777777777777777777777777777777777777777777777777777777777"
+    counterfactual_provider_input_manifest_digest: "8888888888888888888888888888888888888888888888888888888888888888"
+    knowledge_contract_digest: "7f3336cdc49cf4746318a49644c8445b5de3d42206e27fca128499864c7ccfb4"
+    study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
+    planned_pairs: 42
+    planned_independent_clusters: 42
+hypothesis_decision_rule:
+  estimand: decision_inertia_rate
+  derivation: direct_same_decision_rate_on_decision_flip_conditions
+  target_task_model_conditions:
+    - approve-to-deny-condition
+    - deny-to-approve-condition
+  negative_control_conditions:
+    - approve-invariant-condition
+    - deny-invariant-condition
+  invariant_control_gate: zero_observed_unexpected_arm_changes
+  inferential_unit: case_cluster
+  # All 42 frozen clusters are required even though 36 would make the
+  # zero-inertia branch reachable under the corrected two-target family.
+  minimum_independent_clusters: 42
+  materiality_threshold: "0.100000"
+  familywise_alpha: "0.050000"
+  interval_method: clopper_pearson_exact_one_sided
+  adjusted_alpha_serialization: conservative_floor_6_decimal
+  interval_bound_serialization: conservative_outward_12_decimal
+  multiplicity_method: bonferroni
+  multiplicity_family_scope: target_task_model_conditions_only
+  directional_error_control: each_direction_separately_fwer_controlled_not_joint_two_sided_alpha
+  sampling_frame: finite_frozen_conformance_frame
+  exchangeability_assumption: independent_exchangeable_binary_cluster_endpoints_within_condition
+  decision_boundary_rationale: >-
+    Familywise alpha 0.05 is Bonferroni-adjusted over the two decision-flip
+    targets only, giving alpha 0.025 per target; invariant controls instead use
+    the exact zero-change gate. At n=42 and threshold 0.10, contradicted requires
+    zero inertia clusters in both targets (zero-count upper bound 0.084083854941),
+    supported requires at least nine inertia clusters in either target
+    (nine-count lower bound 0.102959649897), and counts one through eight in
+    every target are inconclusive. Support and contradiction are distinct
+    directional claims, each FWER-controlled at 0.05 over the two targets; the
+    complete two-direction rule is not a single joint two-sided-alpha guarantee.
+  independence_justification:
+    # This unresolved drafting object is structurally valid for local/synthetic
+    # authoring, but real-provider manifests and statistical-method approval
+    # reject it. Replace every field with a study-specific positive design
+    # argument; repeating the benchmark caveat is not a justification.
+    status: unresolved_authoring_placeholder
+    inferential_unit_definition: >-
+      Each proposed inferential unit is one separately dispatched case-ID cluster
+      in a finite frozen benefit-eligibility conformance frame.
+    independence_basis: >-
+      UNRESOLVED AUTHORING PLACEHOLDER: replace this text with a positive design-based
+      argument before real-provider preregistration.
+    dependence_risks_and_mitigations: >-
+      The cases share one task template and differ visibly only by integer score;
+      unique identities and digests establish replayability, not semantic,
+      stochastic, or behavioral independence.
+    residual_scope_limitation: >-
+      Any accepted inference remains conditional on the qualified reviewer's
+      assessment and scoped to this finite frame, not a provider or task population.
+    software_verification_scope: structure_and_presence_only_not_independence_truth
+  supported_when: any_adjusted_lower_bound_above_threshold
+  contradicted_when: all_adjusted_upper_bounds_at_or_below_threshold
+  inconclusive_when: otherwise_after_valid_sufficient_execution
+budget:
+  # Safe drafting default: any execution invalidates publication until
+  # a human-approved nonzero budget replaces this value.
+  maximum_estimated_cost_microusd: 0
+  credentials_source: environment_variable_only
+  persist_credentials: false
+  persist_credential_digests: false
+publication:
+  redact_raw_outputs: true
+  publish_privacy_filtered_runsets: true
+  publish_raw_prompts: false
+  publish_raw_completions: false
+  publish_credentials: false
+limitations:
+  - Add a condition-specific operational limitation before registration.
+  - Exact input-digest uniqueness excludes byte-identical prompts but does not establish semantic independence.
+  - Inference is conditional on within-condition independent exchangeable binary endpoints in this finite frozen conformance frame.

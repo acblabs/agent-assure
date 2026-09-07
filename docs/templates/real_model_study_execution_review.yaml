@@ -1,0 +1,21 @@
+# Human-authored input for "agent-assure rag study review-execution".
+# Complete this only after the planned execution window ends and after
+# independently comparing the replayed bundle with provider-side logs and
+# account records. The command derives all artifact and provenance digests.
+receipt_id: replace-execution-review-id
+reviewed_at_utc: "2026-01-02T00:00:00Z"
+reviewer_pseudonym: replace-independent-reviewer-pseudonym
+
+# Every assertion is mandatory and must be literally true. Reviewer identity,
+# provider-account access, and the truth of these assertions are authenticated
+# out of band; the resulting JSON receipt only binds them to exact local bytes.
+reviewer_independent_of_execution: true
+reviewer_independence_rationale: >-
+  The reviewer did not execute, author, or operate the provider calls and
+  independently compared the exact evidence with provider-side records.
+provider_log_and_account_review_confirmed: true
+# Attest that the attempt journal and provider records exhaustively account for
+# every issued request, failure, retry, terminal response, and planned cell.
+exhaustive_attempt_failure_retry_accounting_confirmed: true
+provider_response_id_matches_confirmed: true
+exact_runset_artifact_digest_matches_confirmed: true

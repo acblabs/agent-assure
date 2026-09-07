@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.rag.repeated_sensitivity import build_paired_runset_dependencies
+from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.sensitivity import (
+    EvidenceSensitivityExpectedRelation,
     RAGSensitivityAuthorityAssignment,
     RAGSensitivityCaseAuthorityBinding,
 )
@@ -21,6 +25,8 @@ def build_case_authority_bindings(
     case_ids: tuple[str, ...],
     baseline: SensitivityArmBinding,
     counterfactual: SensitivityArmBinding,
+    *,
+    expected_relation: EvidenceSensitivityExpectedRelation | None = None,
 ) -> tuple[RAGSensitivityCaseAuthorityBinding, ...]:
     """Build exact two-arm authority fixtures for a frozen case frame."""
 
@@ -28,6 +34,7 @@ def build_case_authority_bindings(
         RAGSensitivityCaseAuthorityBinding(
             case_id=case_id,
             query_family_id="synthetic-query-family",
+            expected_relation=expected_relation,
             assignments=tuple(
                 sorted(
                     (
@@ -105,7 +112,7 @@ def materialize_stochastic_sources(
             run = AgentRunRecord(
                 run_id=run_id,
                 case_id=observation.case_id,
-                execution_mode="live",
+                execution_mode=ExecutionMode.live,
                 pipeline_id=binding.pipeline_id,
                 recommendation=recommendation,
                 outcome=outcome,
@@ -148,7 +155,9 @@ def materialize_stochastic_sources(
                 ),
             )
             runs.append(run)
-        completion_status = "complete" if len(runs) == protocol.planned_pairs else "incomplete"
+        completion_status: Literal["complete", "incomplete"] = (
+            "complete" if len(runs) == protocol.planned_pairs else "incomplete"
+        )
         source = RunSet(
             runset_id=f"{arm_id}-runset",
             privacy_profile_id=PRIVACY_PROFILE_ID,
@@ -157,7 +166,7 @@ def materialize_stochastic_sources(
             suite_version="1.0.0",
             suite_digest=sha256_hexdigest("synthetic-stochastic-suite"),
             fixture_manifest_digest=binding.configuration_digest,
-            execution_mode="live",
+            execution_mode=ExecutionMode.live,
             protocol_id="synthetic-operational-protocol",
             protocol_digest=sha256_hexdigest("synthetic-operational-protocol"),
             evidence_sensitivity_design_digest=protocol.design_commitment_digest,

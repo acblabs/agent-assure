@@ -1,6 +1,15 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import (
+    ROUND_DOWN,
+    Clamped,
+    Decimal,
+    Inexact,
+    Rounded,
+    Subnormal,
+    Underflow,
+    localcontext,
+)
 from types import SimpleNamespace
 
 import pytest
@@ -36,6 +45,26 @@ def test_decimal_primitives_share_report_formatting() -> None:
     assert signed_unit_decimal_string(Decimal("-1.2")) == "-1.000000"
     assert rate_string(1, 3) == "0.333333"
     assert mean_decimal((Decimal("0.1"), Decimal("0.2"))) == Decimal("0.15")
+
+
+def test_decimal_string_is_bounded_and_independent_of_ambient_context() -> None:
+    with localcontext() as context:
+        context.prec = 1
+        context.Emin = -5
+        context.Emax = 5
+        context.rounding = ROUND_DOWN
+        context.traps[Inexact] = True
+        context.traps[Rounded] = True
+        context.traps[Underflow] = True
+        context.traps[Subnormal] = True
+        context.traps[Clamped] = True
+        assert decimal_string(Decimal("1.2345655")) == "1.234566"
+        assert decimal_string(Decimal("1e-4090")) == "0.000000"
+
+    with pytest.raises(ValueError, match="must be finite"):
+        decimal_string(Decimal("NaN"))
+    with pytest.raises(ValueError, match="precision bound"):
+        decimal_string(Decimal((0, (1,) * 4_097, -4_097)))
 
 
 def test_rate_primitives_reject_zero_denominators() -> None:

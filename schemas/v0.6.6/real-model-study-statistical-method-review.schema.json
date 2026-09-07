@@ -1,0 +1,307 @@
+{
+  "$defs": {
+    "StudyConditionAnalysisRole": {
+      "enum": [
+        "inertia_estimand",
+        "invariant_negative_control"
+      ],
+      "title": "StudyConditionAnalysisRole",
+      "type": "string"
+    },
+    "StudyStatisticalMethodReviewCondition": {
+      "additionalProperties": false,
+      "description": "Exact preregistered condition design reviewed by a statistician.",
+      "properties": {
+        "analysis_role": {
+          "$ref": "#/$defs/StudyConditionAnalysisRole"
+        },
+        "condition_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Condition Id",
+          "type": "string"
+        },
+        "design_commitment_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Design Commitment Digest",
+          "type": "string"
+        },
+        "execution_attempt_id": {
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Execution Attempt Id"
+        },
+        "planned_independent_clusters": {
+          "maximum": 1000,
+          "minimum": 2,
+          "title": "Planned Independent Clusters",
+          "type": "integer"
+        },
+        "protocol_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Protocol Digest",
+          "type": "string"
+        },
+        "registered_protocol_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Registered Protocol Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "condition_id",
+        "analysis_role",
+        "protocol_digest",
+        "design_commitment_digest",
+        "registered_protocol_sha256",
+        "planned_independent_clusters"
+      ],
+      "title": "StudyStatisticalMethodReviewCondition",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-statistical-method-review.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Qualified independent approval of the exact preregistered study design.\n\nThe receipt cryptographically binds the local artifacts that were\nreviewed. Reviewer identity, qualifications, independence, and the truth\nof the review confirmations remain human attestations authenticated out\nof band.",
+  "properties": {
+    "approval_disposition": {
+      "const": "approved_for_preregistered_execution",
+      "default": "approved_for_preregistered_execution",
+      "title": "Approval Disposition",
+      "type": "string"
+    },
+    "artifact_kind": {
+      "const": "real-model-study-statistical-method-review",
+      "default": "real-model-study-statistical-method-review",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "attestation_basis": {
+      "const": "qualified_human_statistical_review",
+      "default": "qualified_human_statistical_review",
+      "title": "Attestation Basis",
+      "type": "string"
+    },
+    "benchmark_cluster_assignments_reviewed": {
+      "const": true,
+      "title": "Benchmark Cluster Assignments Reviewed",
+      "type": "boolean"
+    },
+    "benchmark_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Benchmark Digest",
+      "type": "string"
+    },
+    "benchmark_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Benchmark Sha256",
+      "type": "string"
+    },
+    "conditions": {
+      "items": {
+        "$ref": "#/$defs/StudyStatisticalMethodReviewCondition"
+      },
+      "maxItems": 64,
+      "minItems": 1,
+      "title": "Conditions",
+      "type": "array"
+    },
+    "contract_id": {
+      "const": "StudyStatisticalMethodReviewReceipt/v1",
+      "default": "StudyStatisticalMethodReviewReceipt/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "execution_window_start_utc": {
+      "maxLength": 64,
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Execution Window Start Utc",
+      "type": "string"
+    },
+    "hypothesis_decision_rule_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Hypothesis Decision Rule Digest",
+      "type": "string"
+    },
+    "independence_and_exchangeability_assumptions_reviewed": {
+      "const": true,
+      "title": "Independence And Exchangeability Assumptions Reviewed",
+      "type": "boolean"
+    },
+    "method_review_receipt_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Method Review Receipt Digest",
+      "type": "string"
+    },
+    "multiplicity_and_interval_method_reviewed": {
+      "const": true,
+      "title": "Multiplicity And Interval Method Reviewed",
+      "type": "boolean"
+    },
+    "negative_control_design_reviewed": {
+      "const": true,
+      "title": "Negative Control Design Reviewed",
+      "type": "boolean"
+    },
+    "power_and_decision_boundary_reachability_reviewed": {
+      "const": true,
+      "title": "Power And Decision Boundary Reachability Reviewed",
+      "type": "boolean"
+    },
+    "protocol_set_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Protocol Set Digest",
+      "type": "string"
+    },
+    "receipt_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Receipt Id",
+      "type": "string"
+    },
+    "registered_at_utc": {
+      "maxLength": 64,
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Registered At Utc",
+      "type": "string"
+    },
+    "reviewed_at_utc": {
+      "maxLength": 64,
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "title": "Reviewed At Utc",
+      "type": "string"
+    },
+    "reviewer_identity_authentication": {
+      "const": "out_of_band_not_machine_verified",
+      "default": "out_of_band_not_machine_verified",
+      "title": "Reviewer Identity Authentication",
+      "type": "string"
+    },
+    "reviewer_independence_rationale": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Reviewer Independence Rationale",
+      "type": "string"
+    },
+    "reviewer_independent_of_design_execution_and_analysis": {
+      "const": true,
+      "title": "Reviewer Independent Of Design Execution And Analysis",
+      "type": "boolean"
+    },
+    "reviewer_pseudonym": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Reviewer Pseudonym",
+      "type": "string"
+    },
+    "reviewer_qualification_basis": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Reviewer Qualification Basis",
+      "type": "string"
+    },
+    "reviewer_statistical_qualification_confirmed": {
+      "const": true,
+      "title": "Reviewer Statistical Qualification Confirmed",
+      "type": "boolean"
+    },
+    "sampling_frame_and_estimand_reviewed": {
+      "const": true,
+      "title": "Sampling Frame And Estimand Reviewed",
+      "type": "boolean"
+    },
+    "schema_name": {
+      "const": "real-model-study-statistical-method-review",
+      "default": "real-model-study-statistical-method-review",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "study_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Study Id",
+      "type": "string"
+    },
+    "study_manifest_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Study Manifest Digest",
+      "type": "string"
+    },
+    "study_manifest_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Study Manifest Sha256",
+      "type": "string"
+    },
+    "unresolved_methodological_concerns": {
+      "default": [],
+      "items": {
+        "maxLength": 4096,
+        "minLength": 1,
+        "type": "string"
+      },
+      "maxItems": 0,
+      "title": "Unresolved Methodological Concerns",
+      "type": "array"
+    }
+  },
+  "required": [
+    "receipt_id",
+    "method_review_receipt_digest",
+    "study_id",
+    "study_manifest_digest",
+    "study_manifest_sha256",
+    "benchmark_digest",
+    "benchmark_sha256",
+    "protocol_set_digest",
+    "hypothesis_decision_rule_digest",
+    "registered_at_utc",
+    "execution_window_start_utc",
+    "reviewed_at_utc",
+    "reviewer_pseudonym",
+    "reviewer_statistical_qualification_confirmed",
+    "reviewer_qualification_basis",
+    "reviewer_independent_of_design_execution_and_analysis",
+    "reviewer_independence_rationale",
+    "conditions",
+    "benchmark_cluster_assignments_reviewed",
+    "independence_and_exchangeability_assumptions_reviewed",
+    "sampling_frame_and_estimand_reviewed",
+    "multiplicity_and_interval_method_reviewed",
+    "power_and_decision_boundary_reachability_reviewed",
+    "negative_control_design_reviewed",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "StudyStatisticalMethodReviewReceipt",
+  "type": "object"
+}

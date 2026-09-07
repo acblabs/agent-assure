@@ -148,6 +148,23 @@ class LiveProviderResponse(StrictModel):
     provider_sdk: str | None = None
     provider_region: str | None = None
     provider_response_id: str | None = None
+    provider_finish_reason: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    provider_serving_fingerprint: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=256,
+        pattern=r"^[A-Za-z0-9._:-]+$",
+    )
+    provider_created_unix_seconds: int | None = Field(
+        default=None,
+        ge=0,
+        le=4_102_444_800,
+    )
     observation_status: str = Field(default="included", pattern=r"^(included|excluded)$")
     exclusion_reason: str | None = None
     prompt_tokens: int | None = Field(default=None, ge=0)
@@ -804,6 +821,14 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
     message = first.get("message")
     if not isinstance(message, dict) or not isinstance(message.get("content"), str):
         raise ValueError("provider choice did not contain message.content")
+    finish_reason = _optional_nonempty_string(first.get("finish_reason"))
+    if finish_reason is None:
+        raise ValueError("provider choice did not contain finish_reason")
+    finish_reason = _machine_metadata(
+        finish_reason,
+        field_name="finish_reason",
+        max_length=64,
+    )
     usage = payload.get("usage")
     prompt_tokens = _optional_int(usage.get("prompt_tokens")) if isinstance(usage, dict) else None
     completion_tokens = (
@@ -818,7 +843,25 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
         provider_api_version=config.api_version,
         provider_sdk=_sdk_label(config),
         provider_region=config.region,
-        provider_response_id=_optional_string(payload.get("id")),
+        provider_response_id=_optional_machine_metadata(
+            payload.get("id"),
+            field_name="id",
+            max_length=256,
+        ),
+        provider_finish_reason=finish_reason,
+        provider_serving_fingerprint=_optional_machine_metadata(
+            payload.get("system_fingerprint"),
+            field_name="system_fingerprint",
+            max_length=256,
+        ),
+        provider_created_unix_seconds=_optional_nonnegative_int(
+            payload.get("created"),
+            field_name="created",
+        ),
+        observation_status="included" if finish_reason == "stop" else "excluded",
+        exclusion_reason=(
+            None if finish_reason == "stop" else "provider-termination-not-normal"
+        ),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,
@@ -829,6 +872,38 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
             completion_tokens,
         ),
     )
+
+
+def _machine_metadata(value: str, *, field_name: str, max_length: int) -> str:
+    if not value or len(value) > max_length:
+        raise ValueError(f"provider {field_name} must be a bounded machine identifier")
+    if any(
+        character not in "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789._:-"
+        for character in value
+    ):
+        raise ValueError(f"provider {field_name} must be a bounded machine identifier")
+    return value
+
+
+def _optional_machine_metadata(
+    value: object,
+    *,
+    field_name: str,
+    max_length: int,
+) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"provider {field_name} must be a bounded machine identifier")
+    return _machine_metadata(value, field_name=field_name, max_length=max_length)
+
+
+def _optional_nonnegative_int(value: object, *, field_name: str) -> int | None:
+    if value is None:
+        return None
+    if type(value) is not int or not 0 <= value <= 4_102_444_800:
+        raise ValueError(f"provider {field_name} must be a non-negative integer")
+    return value
 
 
 def _estimate_cost(

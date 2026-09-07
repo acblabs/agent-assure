@@ -1,0 +1,178 @@
+{
+  "$defs": {
+    "ProcessEquivalenceBenchmarkCase": {
+      "additionalProperties": false,
+      "description": "Privacy-safe identity and digest binding for one benchmark input.\n\nThe descriptor intentionally has no free-text or result-bearing surface. The\nreferenced source and input can be resolved only by an execution environment\nthat already possesses the separately governed material.",
+      "properties": {
+        "authority_contract_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Authority Contract Id",
+          "type": "string"
+        },
+        "baseline_expected_decision": {
+          "enum": [
+            "approve",
+            "deny"
+          ],
+          "title": "Baseline Expected Decision",
+          "type": "string"
+        },
+        "case_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Case Id",
+          "type": "string"
+        },
+        "counterfactual_expected_decision": {
+          "enum": [
+            "approve",
+            "deny"
+          ],
+          "title": "Counterfactual Expected Decision",
+          "type": "string"
+        },
+        "expected_relation": {
+          "enum": [
+            "decision_flip",
+            "decision_invariant"
+          ],
+          "title": "Expected Relation",
+          "type": "string"
+        },
+        "input_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Input Digest",
+          "type": "string"
+        },
+        "query_family_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Query Family Id",
+          "type": "string"
+        },
+        "source_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Source Digest",
+          "type": "string"
+        },
+        "task_id": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Task Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "task_id",
+        "authority_contract_id",
+        "query_family_id",
+        "case_id",
+        "expected_relation",
+        "baseline_expected_decision",
+        "counterfactual_expected_decision",
+        "source_digest",
+        "input_digest"
+      ],
+      "title": "ProcessEquivalenceBenchmarkCase",
+      "type": "object"
+    }
+  },
+  "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/process-equivalence-benchmark.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "description": "Digest-bound Process-Equivalence Benchmark v0.2 input manifest.\n\nThis artifact catalogs inputs that may be used for real-model measurement;\nit neither records execution nor carries empirical result claims.",
+  "properties": {
+    "artifact_kind": {
+      "const": "process-equivalence-benchmark",
+      "default": "process-equivalence-benchmark",
+      "title": "Artifact Kind",
+      "type": "string"
+    },
+    "benchmark_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Benchmark Digest",
+      "type": "string"
+    },
+    "benchmark_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Benchmark Id",
+      "type": "string"
+    },
+    "benchmark_version": {
+      "const": "0.2.0",
+      "default": "0.2.0",
+      "title": "Benchmark Version",
+      "type": "string"
+    },
+    "cases": {
+      "items": {
+        "$ref": "#/$defs/ProcessEquivalenceBenchmarkCase"
+      },
+      "maxItems": 10000,
+      "minItems": 1,
+      "title": "Cases",
+      "type": "array"
+    },
+    "content_representation": {
+      "const": "identity_and_digest_bindings_only",
+      "default": "identity_and_digest_bindings_only",
+      "title": "Content Representation",
+      "type": "string"
+    },
+    "contract_id": {
+      "const": "ProcessEquivalenceBenchmark/v1",
+      "default": "ProcessEquivalenceBenchmark/v1",
+      "title": "Contract Id",
+      "type": "string"
+    },
+    "contract_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Contract Version",
+      "type": "string"
+    },
+    "data_classification": {
+      "const": "non_sensitive",
+      "default": "non_sensitive",
+      "title": "Data Classification",
+      "type": "string"
+    },
+    "real_model_measurement_compatible": {
+      "const": true,
+      "default": true,
+      "title": "Real Model Measurement Compatible",
+      "type": "boolean"
+    },
+    "schema_name": {
+      "const": "process-equivalence-benchmark",
+      "default": "process-equivalence-benchmark",
+      "title": "Schema Name",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "0.6.6",
+      "default": "0.6.6",
+      "title": "Schema Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "benchmark_digest",
+    "benchmark_id",
+    "cases",
+    "artifact_kind",
+    "schema_version",
+    "schema_name",
+    "contract_id",
+    "contract_version"
+  ],
+  "title": "ProcessEquivalenceBenchmarkManifest",
+  "type": "object"
+}

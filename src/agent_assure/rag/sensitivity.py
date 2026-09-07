@@ -84,10 +84,8 @@ from agent_assure.schema.sensitivity import (
 )
 from agent_assure.schema.suite import CompiledSuite, FixtureManifest
 from agent_assure.sensitivity_contract import (
-    BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES,
-    BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST,
-    BUNDLED_SENSITIVITY_SUITE_IDENTITIES,
     SENSITIVITY_EVALUATION_DATE,
+    bundled_sensitivity_identity_set,
 )
 
 CORPUS_MANIFEST_FILENAME = "corpus-manifest.json"
@@ -446,12 +444,14 @@ def _resolve_synthetic_data_provenance(
         baseline.manifest.corpus_digest: baseline.snapshot.snapshot_digest,
         counterfactual.manifest.corpus_digest: counterfactual.snapshot.snapshot_digest,
     }
+    identity_set = bundled_sensitivity_identity_set(authority_contract.schema_version)
     bundled = (
-        (suite_digest, fixture_manifest_digest) in BUNDLED_SENSITIVITY_SUITE_IDENTITIES
+        identity_set is not None
+        and (suite_digest, fixture_manifest_digest) in identity_set.suite_identities
         and authority_contract.knowledge_contract_digest
-        == BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST
+        == identity_set.knowledge_contract_digest
         and frozenset(corpus_snapshot_identities.items())
-        == BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES
+        == identity_set.corpus_snapshot_identities
     )
     if bundled:
         if attestation_path is not None:
