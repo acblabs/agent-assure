@@ -1,0 +1,14 @@
+# Copy this file to agent-assure-pilot/participant-waiver.yaml in your fork.
+# Replace every `replace-participant-pseudonym` occurrence with the same
+# pseudonym supplied to the capture workflow. Replace the rationale placeholder
+# with your own short, benign explanation of why you are running the pilot.
+# The fixed finding, digest, reason, and expiry make this a non-matching
+# configuration input; do not change those fields.
+waiver_id: "external-pilot-replace-participant-pseudonym"
+owner: "replace-participant-pseudonym"
+rationale: "replace-with-a-short-benign-participant-rationale"
+reason_code: FORBIDDEN_TOOL
+finding_id: pilot-nonmatching-finding
+artifact_digest: "0000000000000000000000000000000000000000000000000000000000000000"
+expires_on: "2099-12-31"
+reviewer: "replace-participant-pseudonym"

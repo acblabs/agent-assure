@@ -64,7 +64,7 @@ MAX_PILOT_WHEEL_MEMBERS = 4_096
 MAX_PILOT_WHEEL_EXPANDED_BYTES = 128 * 1024 * 1024
 MAX_PILOT_WHEEL_METADATA_BYTES = 1 * 1024 * 1024
 MAX_PILOT_WHEEL_COMPRESSED_TAGS = 64
-MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES = 100_000
+MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES = 500_000
 MAX_PILOT_WHEEL_PYTHON_MEMBER_BYTES = 2 * 1024 * 1024
 MAX_PILOT_WHEEL_PYTHON_MEMBER_LINES = 25_000
 MAX_PILOT_WHEEL_PYTHON_MEMBER_TOKENS = 200_000
@@ -224,6 +224,41 @@ def pilot_artifact_manifest_digest(
     )
 
 
+def validate_external_pilot_artifact_bytes(
+    artifact: PilotArtifactDigest,
+    data: bytes,
+    *,
+    implementation_id: str,
+    implementation_version: str,
+) -> Mapping[str, object] | None:
+    """Apply the publication verifier's byte-local checks to one artifact.
+
+    Inventory, aggregate-size, input-manifest, and cross-artifact bindings stay
+    with the closed-bundle verifier. This smaller surface lets capture tooling
+    fail before upload while reusing the exact digest, schema, privacy, and
+    tested-wheel rules used by the release gate.
+    """
+
+    if type(data) is not bytes:
+        raise TypeError("external pilot artifact validation requires immutable bytes")
+    if len(data) > MAX_PILOT_BUNDLE_ARTIFACT_BYTES:
+        raise ValueError("external pilot bundle artifact exceeds maximum supported size")
+    if hashlib.sha256(data).hexdigest() != artifact.sha256:
+        raise ValueError("external pilot bundle artifact digest mismatch")
+    if artifact.role is PilotArtifactRole.tested_distribution:
+        _validate_tested_distribution(
+            artifact,
+            data,
+            implementation_id=implementation_id,
+            implementation_version=implementation_version,
+        )
+    validated_payload = _validate_declared_schema_contract(artifact, data)
+    if artifact.role is PilotArtifactRole.assurance_output and validated_payload is None:
+        raise ValueError("external pilot assurance outputs require a supported schema contract")
+    _validate_privacy_safe_artifact(artifact, data)
+    return validated_payload
+
+
 def _load_validated_pilot_materials(
     bundle_root: Path,
     *,
@@ -329,16 +364,13 @@ def _load_validated_pilot_materials(
                 max_bytes=MAX_PILOT_BUNDLE_ARTIFACT_BYTES,
                 label="external pilot bundle artifact",
             )
-            if opened_files[-1].contents.sha256 != artifact.sha256:
-                raise ValueError("external pilot bundle artifact digest mismatch")
-            if artifact.role is PilotArtifactRole.tested_distribution:
-                _validate_tested_distribution(
-                    artifact,
-                    artifact_bytes,
-                    implementation_id=evidence.subject.implementation_id,
-                    implementation_version=evidence.subject.implementation_version,
-                )
-            elif artifact.role is PilotArtifactRole.input_manifest:
+            validated_payload = validate_external_pilot_artifact_bytes(
+                artifact,
+                artifact_bytes,
+                implementation_id=evidence.subject.implementation_id,
+                implementation_version=evidence.subject.implementation_version,
+            )
+            if artifact.role is PilotArtifactRole.input_manifest:
                 if input_manifest is not None:
                     raise ValueError("external pilot bundle contains multiple input manifests")
                 input_manifest = _validate_input_manifest(
@@ -346,14 +378,10 @@ def _load_validated_pilot_materials(
                     artifact_bytes,
                     evidence=evidence,
                 )
-            validated_payload = _validate_declared_schema_contract(artifact, artifact_bytes)
             if artifact.role is PilotArtifactRole.assurance_output:
-                if validated_payload is None:
-                    raise ValueError(
-                        "external pilot assurance outputs require a supported schema contract"
-                    )
+                if validated_payload is None:  # pragma: no cover - shared validator guards this
+                    raise RuntimeError("external pilot assurance output was not validated")
                 validated_output_payloads[artifact.artifact_id] = validated_payload
-            _validate_privacy_safe_artifact(artifact, artifact_bytes)
 
         if input_manifest is None:
             raise ValueError("external pilot bundle has no typed input manifest")
@@ -1299,4 +1327,5 @@ __all__ = [
     "load_external_pilot_review_inputs",
     "load_verified_external_pilot_bundle",
     "pilot_artifact_manifest_digest",
+    "validate_external_pilot_artifact_bytes",
 ]
