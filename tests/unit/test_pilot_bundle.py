@@ -19,10 +19,12 @@ from agent_assure.pilot_bundle import (
     load_external_pilot_review_inputs,
     load_verified_external_pilot_bundle,
     pilot_artifact_manifest_digest,
+    validate_external_pilot_artifact_bytes,
 )
 from agent_assure.schema.pilot import (
     ExternalPilotEvidence,
     ExternalPilotIndependenceReviewReceipt,
+    PilotArtifactContentScope,
     PilotArtifactDigest,
     PilotArtifactRole,
     PilotCommandExecution,
@@ -544,6 +546,50 @@ def test_arbitrary_bytes_cannot_claim_to_be_tested_distribution(tmp_path: Path) 
 
     with pytest.raises(ValueError, match="valid wheel"):
         _load(root)
+
+
+def test_shared_artifact_validator_applies_strong_wheel_privacy_rules() -> None:
+    wheel = _wheel_bytes(extra_members={"agent_assure/leaked.py": b'api_key = "hunter2-value"\n'})
+    artifact = PilotArtifactDigest(
+        artifact_id="artifact-distribution",
+        path=WHEEL_NAME,
+        role=PilotArtifactRole.tested_distribution,
+        sha256=hashlib.sha256(wheel).hexdigest(),
+        content_scope=PilotArtifactContentScope.distribution_binary,
+        schema_validated=False,
+        schema_contract=None,
+        producing_command_id=None,
+    )
+
+    with pytest.raises(ValueError, match="privacy review"):
+        validate_external_pilot_artifact_bytes(
+            artifact,
+            wheel,
+            implementation_id="agent-assure",
+            implementation_version="0.6.6",
+        )
+
+
+def test_shared_artifact_validator_applies_metadata_privacy_rules() -> None:
+    metadata = b"https://example.invalid/control?sig=x\n"
+    artifact = PilotArtifactDigest(
+        artifact_id="artifact-control",
+        path="control.txt",
+        role=PilotArtifactRole.environment_control_evidence,
+        sha256=hashlib.sha256(metadata).hexdigest(),
+        content_scope=PilotArtifactContentScope.metadata_only,
+        schema_validated=False,
+        schema_contract=None,
+        producing_command_id=None,
+    )
+
+    with pytest.raises(ValueError, match="privacy review"):
+        validate_external_pilot_artifact_bytes(
+            artifact,
+            metadata,
+            implementation_id="agent-assure",
+            implementation_version="0.6.6",
+        )
 
 
 def test_corrupt_wheel_member_fails_with_normalized_validation_error(

@@ -5,6 +5,13 @@ CI pilot record. The template in this documentation is deliberately
 `not_attempted` and does not establish adoption, independent use, or a release
 gate.
 
+Prospective participants can use the
+[two-stage, no-user-secret external pilot quickstart](external_pilot_quickstart.md).
+Release reviewers use the separate
+[external pilot reviewer guide](external_pilot_review.md). A descriptor may
+truthfully classify a run as an external attempt, but neither a workflow run
+nor an unreviewed candidate satisfies the repository publish gate.
+
 `ExternalPilotEvidence/v1` records whether another team could attempt one
 signature workflow in a real CI environment, what friction they encountered,
 and what remediation followed. It is learning evidence. It is not a customer
@@ -127,8 +134,10 @@ facts. After the external execution:
 6. use `attempt_status: completed` only when at least one
    `assurance_output` artifact is marked schema-valid under the exact contract
    produced by the recorded command: `AssuranceMutationCampaign/v1` for
-   catalog mutation, `AssuranceMutationResult/v1` for one-operator mutation,
-   or `RAGSensitivityReport/v1` for deterministic RAG sensitivity. Set its
+   catalog mutation or `RAGSensitivityReport/v1` for deterministic RAG
+   sensitivity. A one-operator `AssuranceMutationResult/v1` does not expose the
+   consumed suite identity and therefore cannot satisfy closed-bundle output
+   binding. Set the output's
    `producing_command_id` to that command; its exit code must be an
    evidence-bearing completion code (`0` or `1`), not a usage, collision,
    or runtime-failure code; and

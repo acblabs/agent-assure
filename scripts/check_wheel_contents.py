@@ -74,7 +74,7 @@ SDIST_SENSITIVE_FIXTURE_SHA256 = {
         "08eeed8dcd68fd1b7fc65ea7a4d2ce087dab774af9be1d4fb4d48029fb8ed6c5"
     ),
     "tests/unit/test_pilot_bundle.py": (
-        "45bd555e918f35f5ac8a592f7016f72e0fce390e9f7c7cf71d459f6a518ef8b4"
+        "d9c450b43e8400a7f657965bb10bc210b3e8fac866062bb684dccd77376e1570"
     ),
     "tests/unit/authoring/test_yaml_loader.py": (
         "ad351d179f95321c6f53a9bd3998295e96fad0086463d8c4d79297f6dd8e813f"

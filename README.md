@@ -402,6 +402,14 @@ standardized classifier to an RC and does not widen that surface.
 | Independently controlled CI learning pilot | [External pilot evidence](docs/external_pilot.md) | Untagged development contract; no qualifying pilot recorded |
 | OpenTelemetry context or export | [OpenTelemetry alignment](docs/otel_alignment.md) | Optional alignment only |
 
+Want to help with the still-unmet external evidence checkpoint? The
+[short external pilot quickstart](docs/external_pilot_quickstart.md) targets
+10–15 minutes of participant effort in a non-maintainer-controlled fork; CI
+runtime may be longer. It needs no participant-supplied model key, proprietary
+data, or repository secret. Interest or a workflow run is not evidence
+completion: capture, participant friction/finalization and prospective consent,
+and a byte-bound human review are all required for the pilot bundle.
+
 <details>
 <summary><strong>Experimental streaming semantics</strong></summary>
 

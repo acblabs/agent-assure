@@ -35,6 +35,8 @@ evidence link. The CI gate blocks that process regression as expected.
 - [RAG provenance demo](demo_rag.md)
 - [Preregistered real-model study](real_model_study.md)
 - [External CI pilot evidence](external_pilot.md)
+- [External pilot quickstart](external_pilot_quickstart.md)
+- [External pilot reviewer guide](external_pilot_review.md)
 - [Evidence diff](evidence_diff.md)
 - [Claim boundary](claim_boundary.md)
 
