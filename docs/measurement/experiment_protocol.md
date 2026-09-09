@@ -512,9 +512,12 @@ available. It must not use parallelism, account rotation, or region rotation to
 bypass limits. If rate-limit failures exceed the predeclared threshold, the run
 must stop cleanly and be marked incomplete or inconclusive.
 
-The implementation caps configured retry backoff at 300 seconds and rejects a
-provider `Retry-After` value above the configured maximum. Missing, malformed,
-negative, or unbounded delay values cannot create an indefinite sleep.
+The implementation caps configured retry backoff at 300 seconds. A malformed,
+negative, or over-ceiling provider `Retry-After` directive produces the typed
+`provider_retry_directive_rejected` terminal stop: no later study cell is
+dispatched, the RunSet is incomplete, and the untrusted directive value is not
+persisted in the error record. An absent directive uses the bounded configured
+backoff; no directive can create an indefinite sleep.
 
 The default live configuration treats the first rate-limit event as fatal unless
 `max_rate_limit_events` is explicitly raised. Protocols that intend to exercise

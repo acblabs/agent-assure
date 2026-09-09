@@ -8,7 +8,7 @@ from typing import Any
 
 import rfc8785
 
-PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v3"
+PRIVACY_PROFILE_ID = "agent-assure/privacy-detectors/v4"
 PRIVACY_REDACTION_TEXT = "[REDACTED]"
 # Privacy scanning is intentionally fail-closed above this per-scalar bound.  This
 # prevents a single JSON string from turning the backtracking regular-expression
@@ -76,7 +76,7 @@ PRIVACY_DETECTOR_DEFINITIONS: tuple[PrivacyDetectorDefinition, ...] = (
     ),
     PrivacyDetectorDefinition(
         "generic-secret-assignment",
-        r"\b(?:api[_-]?key|access[_-]?token|client[_-]?secret|private[_-]?key|secret|"
+        r"(?<![A-Za-z0-9])(?:api[_-]?key|access[_-]?token|client[_-]?secret|private[_-]?key|secret|"
         r"password|passwd|authorization)\s*[:=]\s*"
         r"['\"]?[^'\"\s,;]{8,}",
         ("IGNORECASE",),

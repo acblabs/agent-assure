@@ -32,8 +32,11 @@ controls.
 - The external-script live adapter intentionally executes configured host code
   with caller privileges. Only run it for trusted configs and trusted
   repositories.
-- Live adapters and providers are trusted producers of observation records; the
-  tool evaluates the records but does not attest provider behavior.
+- Live adapters and providers are trusted record producers. Structured fields
+  carry an origin label, but `instrumented_adapter` is still producer-attested,
+  not remote attestation. Direct model self-report and legacy unspecified live
+  fields cannot satisfy observation-grade tool, evidence, policy-result, or
+  human-review controls. The tool does not attest provider behavior.
 - Pattern redaction is a guardrail, not comprehensive DLP or PHI
   de-identification.
 - The bundled demo's Python `sitecustomize` network guard is advisory

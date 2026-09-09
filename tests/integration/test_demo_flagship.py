@@ -39,9 +39,7 @@ def test_flagship_demo_exits_zero_on_expected_process_regression(tmp_path: Path)
     assert summary["underlying_exit_code"] == 1
     assert summary["output_equivalence"] == "preserved"
     assert summary["expected_regression_caught"] is True
-    assert summary["blocking_reason_codes"] == [
-        ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value
-    ]
+    assert summary["blocking_reason_codes"] == [ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value]
 
     visible = cast(dict[str, Any], summary["visible_final_output"])
     assert visible["case_id"] == "shared-source-multi-claim"
@@ -85,9 +83,9 @@ def test_flagship_demo_exits_zero_on_expected_process_regression(tmp_path: Path)
     rendered_text = render_flagship_text(summary)
     assert "case: shared-source-multi-claim" in rendered_text
     assert "output equivalence: preserved" in rendered_text
-    expected_transcript = (
-        ROOT / "docs" / "assets" / "flagship_demo_transcript.txt"
-    ).read_text(encoding="utf-8")
+    expected_transcript = (ROOT / "docs" / "assets" / "flagship_demo_transcript.txt").read_text(
+        encoding="utf-8"
+    )
     assert rendered_text == expected_transcript.rstrip("\n")
     html = (out_dir / artifacts["evidence_diff_html"]).read_text(encoding="utf-8")
     assert THESIS_TITLE in html

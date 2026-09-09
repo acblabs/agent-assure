@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from agent_assure.policies.tools import evaluate_tool_allowlist
 from agent_assure.schema.common import ReasonCode
-from agent_assure.schema.run import AgentRunRecord
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
+)
 
 
 def test_tool_allowlist_none_disables_allowlist_check() -> None:
@@ -44,6 +48,32 @@ def test_forbidden_and_non_allowlisted_tool_emits_one_canonical_finding() -> Non
     assert len({result.finding_id for result in first}) == len(first)
     blocked = next(result for result in first if result.target == "tool:blocked-tool")
     assert blocked.message == "tool 'blocked-tool' is explicitly forbidden"
+
+
+def test_self_reported_forbidden_tool_remains_verdict_bearing() -> None:
+    payload = _run(tools=("blocked-tool",)).model_dump(mode="python")
+    payload.update(
+        {
+            "execution_mode": "live",
+            "observation_id": "obs-tools",
+            "repetition_index": 0,
+            "schedule_index": 0,
+            "cluster_id": "case-tools",
+            "adapter_id": "openai-chat-completions",
+            "cost_budget_committed_usd": "0.000000",
+            "generated_token_budget_committed": 0,
+            "total_token_budget_committed": 0,
+            "structured_field_origins": StructuredFieldOrigins.uniform(
+                StructuredFieldOrigin.model_self_report
+            ),
+        }
+    )
+    run = AgentRunRecord.model_validate(payload)
+
+    results = evaluate_tool_allowlist(run, forbidden_tools=("blocked-tool",))
+
+    assert len(results) == 1
+    assert results[0].reason_code is ReasonCode.FORBIDDEN_TOOL
 
 
 def _run(*, tools: tuple[str, ...]) -> AgentRunRecord:

@@ -2,6 +2,49 @@
 
 ## Unreleased
 
+- Added source-qualified structured fields to current `AgentRunRecord` writers.
+  Fixture and instrumented-adapter values retain their explicit producer trust
+  boundaries; legacy live and model-self-reported process values cannot satisfy
+  tool, evidence, policy, or human-review controls. Direct OpenAI-compatible
+  calls now use a digest-bound strict decision-only response contract, while
+  untrusted negative signals remain verdict-bearing.
+- Hardened live execution around billable failure modes: RFC 9110
+  `Retry-After` delay-seconds and HTTP-dates are handled explicitly, study-bound
+  configurations stop before dispatching later cells after malformed,
+  over-ceiling retry directives, or non-stop responses; response-format bytes
+  join request/configuration identity, and underscore-prefixed secret
+  assignments are covered by privacy profile v4.
+- Reworked the real-model study boundary into explicit
+  `confirmatory_independent_clusters` and
+  `fixed_frame_descriptive_conformance` scopes. Fixed-frame output is always
+  `not_measured`, renders no inferential interval or population claim, and can
+  never unlock the v0.6.6 empirical checkpoint. Qualified method review and
+  post-execution review now
+  bind independence/near-duplicate audits, private provider-log and account
+  evidence digests, response IDs, attempt accounting, and complete-stable or
+  provider-not-exposed serving-fingerprint status.
+- Hardened the external pilot with deliberate non-default friction choices,
+  actionable workflow diagnostics, exact run-attempt/workflow/public-input
+  review bindings, complete consent binding, and immutable planned-to-applied
+  remediation lineage. Until the validated source commit `S` and later trusted
+  workflow commit `W` exist, both workflows carry a zero-SHA sentinel and fail
+  immediately so issue #27 cannot consume a volunteer against stale bytes.
+- Added the top-level `study` command alias and help for the four core CLI
+  commands; made evidence-packet CI fail closed when efficacy is absent, with a
+  named non-assurance migration opt-out; added an efficacy-required
+  release-facing `ci gate` profile that is explicitly separate from publication
+  authorization; added a fail-closed five-shard Linux branch-coverage gate with
+  combined and pure-branch floors; expanded CODEOWNERS over v0.6.6 trust
+  surfaces; and made all four dependency locks carry an offline canonical
+  dependency-input freshness marker.
+- Made decimal canonicalization independent of ambient decimal precision,
+  rounding, and traps. Adopted repository-wide Ruff formatting and a full-tree
+  format gate in place of the previous single-file check.
+- Replaced validate-then-resolve output-directory publication with
+  filesystem-anchor traversal, retained directory handles/descriptors, and
+  boundary revalidation. Finalize and sensitivity publishers now fail closed on
+  path substitution; the documentation separately scopes the stronger Windows
+  handle-bound guarantee and POSIX name-operation limitations.
 - Advanced the development writer to schema version 0.6.6 and added
   self-digested contracts for a frozen real-model study manifest, a
   reproducible study report, operator-attested study-registration review

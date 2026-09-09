@@ -71,8 +71,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
         print(
-            "schema-immutability: skipped "
-            "(no protected final release tags are available locally)"
+            "schema-immutability: skipped (no protected final release tags are available locally)"
         )
         return 0
 
@@ -88,15 +87,12 @@ def main(argv: list[str] | None = None) -> int:
         current_versions = frozen_schema_versions(schema_root)
         if active_version not in current_versions:
             print(
-                "schema-immutability: active schema snapshot is missing: "
-                f"{active_version}",
+                f"schema-immutability: active schema snapshot is missing: {active_version}",
                 file=sys.stderr,
             )
             return 1
         missing_baselines = tuple(
-            version
-            for version in result.unprotected_versions
-            if version != active_version
+            version for version in result.unprotected_versions if version != active_version
         )
         if missing_baselines:
             print(
@@ -106,11 +102,7 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 1
 
-    unprotected = (
-        ", ".join(result.unprotected_versions)
-        if result.unprotected_versions
-        else "none"
-    )
+    unprotected = ", ".join(result.unprotected_versions) if result.unprotected_versions else "none"
     print(
         "schema-immutability: ok "
         f"({len(result.protected_releases)} release baselines; "
@@ -208,9 +200,7 @@ def check_tagged_schema_immutability(
             failures.append(tree_failure)
             continue
         if not tagged_files:
-            failures.append(
-                f"{tag} does not contain its mapped schema snapshot {relative_dir}"
-            )
+            failures.append(f"{tag} does not contain its mapped schema snapshot {relative_dir}")
             continue
 
         protected_releases.append(f"{tag} -> {schema_version}")
@@ -258,9 +248,7 @@ def _compare_tagged_schema(
             str(current_files[path]),
         )
         if hash_result.returncode != 0:
-            failures.append(
-                f"could not hash released schema {path}: {_stderr(hash_result)}"
-            )
+            failures.append(f"could not hash released schema {path}: {_stderr(hash_result)}")
             continue
         working_blob = hash_result.stdout.decode("ascii").strip()
         if working_blob != tagged_files[path]:

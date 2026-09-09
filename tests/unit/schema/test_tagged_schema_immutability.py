@@ -58,12 +58,9 @@ def test_tagged_schema_reports_changed_removed_and_added_files(tmp_path: Path) -
     )
 
     assert result.failures == (
-        "released schema removed since v0.5.0: "
-        "schemas/v0.5.0/removed.schema.json",
-        "released schema file added after v0.5.0: "
-        "schemas/v0.5.0/added.schema.json",
-        "released schema drift from v0.5.0: "
-        "schemas/v0.5.0/example.schema.json",
+        "released schema removed since v0.5.0: schemas/v0.5.0/removed.schema.json",
+        "released schema file added after v0.5.0: schemas/v0.5.0/added.schema.json",
+        "released schema drift from v0.5.0: schemas/v0.5.0/example.schema.json",
     )
 
 
@@ -189,10 +186,7 @@ def test_strict_mode_rejects_missing_historical_tag_baseline(
     )
 
     assert exit_code == 1
-    assert (
-        "released schema snapshots have no local tag baseline: v0.3.1"
-        in capsys.readouterr().err
-    )
+    assert "released schema snapshots have no local tag baseline: v0.3.1" in capsys.readouterr().err
 
 
 def test_ci_uses_full_history_and_strict_tag_enforcement() -> None:
@@ -202,9 +196,7 @@ def test_ci_uses_full_history_and_strict_tag_enforcement() -> None:
     )[0]
 
     assert "fetch-depth: 0" in job
-    assert (
-        "python scripts/check_tagged_schema_immutability.py --require-release-tags" in job
-    )
+    assert "python scripts/check_tagged_schema_immutability.py --require-release-tags" in job
 
 
 def _init_repo(tmp_path: Path, *, version: str) -> tuple[Path, Path]:

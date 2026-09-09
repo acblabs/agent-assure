@@ -12,6 +12,25 @@ if str(ROOT) not in sys.path:
 import scripts.check_claim_boundaries as claim_boundaries  # noqa: E402
 
 
+@pytest.mark.parametrize(
+    "relative_path",
+    (
+        "README.md",
+        "docs/claim_boundary.md",
+        "docs/what_this_measures.md",
+        "docs/measurement/process_assurance_vs_answer_quality_eval.md",
+        "docs/posts/output_equivalence_is_not_process_equivalence.md",
+    ),
+)
+def test_primary_claim_surfaces_do_not_call_unattested_fields_observed_process(
+    relative_path: str,
+) -> None:
+    text = (ROOT / relative_path).read_text(encoding="utf-8").casefold()
+
+    assert "observed process" not in text
+    assert "observable process" not in text
+
+
 def test_claim_boundary_rejects_iso_pass_language() -> None:
     violations = claim_boundaries.find_claim_boundary_violations(
         "ISO 42001: PASS",

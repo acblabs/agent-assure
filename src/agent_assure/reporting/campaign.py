@@ -42,12 +42,8 @@ from agent_assure.schema.validation import validate_artifact_payload
 
 MUTATION_CATALOG_FILENAME = "assurance-mutation-catalog.json"
 MUTATION_CAMPAIGN_FILENAME = "assurance-mutation-campaign.json"
-MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME = (
-    "mutation-campaign-generation-manifest.json"
-)
-MUTATION_CAMPAIGN_OUTPUT_LOCK_FILENAME = (
-    _mutation_reporting.MUTATION_OUTPUT_LOCK_FILENAME
-)
+MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME = "mutation-campaign-generation-manifest.json"
+MUTATION_CAMPAIGN_OUTPUT_LOCK_FILENAME = _mutation_reporting.MUTATION_OUTPUT_LOCK_FILENAME
 
 _GENERATION_MANIFEST_CONTRACT = "AssuranceMutationCampaignArtifactGeneration/v1"
 _TRANSACTION_PREFIX = ".agent-assure-mutation-campaign-txn-"
@@ -109,9 +105,7 @@ class _CampaignGenerationReader:
         contents = read_file_bounded(path, max_bytes=max_bytes, label=label)
         self._total_bytes += len(contents.data)
         if self._total_bytes > _MAX_CAMPAIGN_GENERATION_BYTES:
-            raise ValueError(
-                "mutation campaign generation exceeds maximum aggregate size"
-            )
+            raise ValueError("mutation campaign generation exceeds maximum aggregate size")
         self._contents[key] = contents
         return contents
 
@@ -125,9 +119,7 @@ def ensure_inputs_do_not_alias_mutation_campaign_output(
     protected_filenames = _all_protected_output_filenames()
     protected_filename_set = frozenset(protected_filenames)
     destination_identities = frozenset(
-        os.path.normcase(
-            os.path.abspath(Path(out_dir_identity) / filename)
-        )
+        os.path.normcase(os.path.abspath(Path(out_dir_identity) / filename))
         for filename in protected_filenames
     )
     existing_destinations = _existing_protected_output_paths(
@@ -137,12 +129,9 @@ def ensure_inputs_do_not_alias_mutation_campaign_output(
     for source_input in source_inputs:
         source_identity = _resolved_path_identity(source_input, strict=True)
         if source_identity in destination_identities or any(
-            _same_file(source_input, destination)
-            for destination in existing_destinations
+            _same_file(source_input, destination) for destination in existing_destinations
         ):
-            raise ValueError(
-                "mutation campaign input aliases a protected campaign output path"
-            )
+            raise ValueError("mutation campaign input aliases a protected campaign output path")
 
 
 def write_mutation_campaign_artifacts(
@@ -240,9 +229,7 @@ def write_mutation_campaign_artifacts(
                 operator_id=operator_id,
                 result=out_dir / result_filename,
                 evidence_descriptor=out_dir / descriptor_filename,
-                mutated_runset=(
-                    out_dir / mutated_filename if mutated_bytes is not None else None
-                ),
+                mutated_runset=(out_dir / mutated_filename if mutated_bytes is not None else None),
             )
         )
 
@@ -348,9 +335,10 @@ def _validate_mutation_campaign_artifact_generation_unlocked(
         "campaign_digest": campaign_digest,
         "artifacts": raw_artifacts,
     }
-    if manifest.get("generation_digest") != hashlib.sha256(
-        _canonical_json_bytes(projection)
-    ).hexdigest():
+    if (
+        manifest.get("generation_digest")
+        != hashlib.sha256(_canonical_json_bytes(projection)).hexdigest()
+    ):
         raise ValueError("mutation campaign generation manifest digest does not match")
 
     catalog_contents = reader.read(
@@ -383,8 +371,7 @@ def _validate_mutation_campaign_artifact_generation_unlocked(
 
     expected_specs = _specs_for_campaign(campaign)
     entries = tuple(
-        _parse_manifest_entry(raw_entry)
-        for raw_entry in cast(list[object], raw_artifacts)
+        _parse_manifest_entry(raw_entry) for raw_entry in cast(list[object], raw_artifacts)
     )
     if len(entries) != len(expected_specs):
         raise ValueError("mutation campaign generation manifest is incomplete")
@@ -420,9 +407,7 @@ def _validate_mutation_campaign_artifact_generation_unlocked(
                     f"committed mutation campaign artifact digest does not match: {filename}"
                 )
         elif digest is not None or _mutation_reporting._entry_exists(artifact_path):
-            raise ValueError(
-                f"mutation campaign artifact absence does not match: {filename}"
-            )
+            raise ValueError(f"mutation campaign artifact absence does not match: {filename}")
 
     expected_names = {
         normalized_generation_filename(expected.filename)
@@ -434,13 +419,9 @@ def _validate_mutation_campaign_artifact_generation_unlocked(
             _is_campaign_artifact_filename(child.name)
             and normalized_generation_filename(child.name) not in expected_names
             and normalized_generation_filename(child.name)
-            != normalized_generation_filename(
-                MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
-            )
+            != normalized_generation_filename(MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME)
         ):
-            raise ValueError(
-                f"unexpected mutation campaign artifact is present: {child.name}"
-            )
+            raise ValueError(f"unexpected mutation campaign artifact is present: {child.name}")
 
     operator_paths: list[MutationCampaignOperatorArtifactPaths] = []
     for index, campaign_entry in enumerate(campaign.operator_results):
@@ -566,32 +547,19 @@ def _validate_catalog_campaign_binding(
         or campaign.catalog_digest != catalog.catalog_digest
     ):
         raise ValueError("mutation campaign is not bound to the persisted catalog")
-    catalog_order = tuple(
-        item.descriptor.operator_id for item in catalog.operators
-    )
+    catalog_order = tuple(item.descriptor.operator_id for item in catalog.operators)
     if campaign.canonical_operator_order != catalog_order:
         raise ValueError("mutation campaign operator order does not match its catalog")
-    catalog_by_id = {
-        item.descriptor.operator_id: item
-        for item in catalog.operators
-    }
+    catalog_by_id = {item.descriptor.operator_id: item for item in catalog.operators}
     for entry in campaign.operator_results:
         catalog_operator = catalog_by_id.get(entry.operator_id)
         if catalog_operator is None:
-            raise ValueError(
-                "mutation campaign result references an operator outside its catalog"
-            )
+            raise ValueError("mutation campaign result references an operator outside its catalog")
         if entry.invariant_family != catalog_operator.invariant_family:
-            raise ValueError(
-                "mutation campaign invariant family does not match its catalog"
-            )
+            raise ValueError("mutation campaign invariant family does not match its catalog")
         descriptor = catalog_operator.descriptor
-        if entry.expected_detection_contract != (
-            descriptor.expected_detection_contract
-        ):
-            raise ValueError(
-                "mutation campaign expected detector does not match its catalog"
-            )
+        if entry.expected_detection_contract != (descriptor.expected_detection_contract):
+            raise ValueError("mutation campaign expected detector does not match its catalog")
         result = entry.result
         if (
             result.operator_version != descriptor.operator_version
@@ -612,10 +580,7 @@ def _validate_result_descriptor_coherence(
     suite_digest: str,
     generated_at: str | None = None,
 ) -> None:
-    if not any(
-        dependency.digest == result.result_digest
-        for dependency in descriptor.dependencies
-    ):
+    if not any(dependency.digest == result.result_digest for dependency in descriptor.dependencies):
         raise ValueError("campaign evidence descriptor does not depend on its result")
     if descriptor.subject.digest != result.source_digest:
         raise ValueError("campaign evidence descriptor is bound to another source")
@@ -693,9 +658,7 @@ def _generation_manifest_bytes(
     return _canonical_json_bytes(
         {
             **projection,
-            "generation_digest": hashlib.sha256(
-                _canonical_json_bytes(projection)
-            ).hexdigest(),
+            "generation_digest": hashlib.sha256(_canonical_json_bytes(projection)).hexdigest(),
         }
     )
 
@@ -730,26 +693,18 @@ def _replace_output_generation(
     source_inputs: tuple[Path, ...],
 ) -> None:
     current_names = {
-        child.name
-        for child in out_dir.iterdir()
-        if _is_campaign_artifact_filename(child.name)
+        child.name for child in out_dir.iterdir() if _is_campaign_artifact_filename(child.name)
     }
     complete_generation = {
-        filename: generation.get(filename)
-        for filename in sorted(current_names | set(generation))
+        filename: generation.get(filename) for filename in sorted(current_names | set(generation))
     }
-    transaction_dir = Path(
-        tempfile.mkdtemp(prefix=_TRANSACTION_PREFIX, dir=out_dir)
-    )
+    transaction_dir = Path(tempfile.mkdtemp(prefix=_TRANSACTION_PREFIX, dir=out_dir))
     staged = {
         filename: transaction_dir / f"new-{filename}"
         for filename, content in complete_generation.items()
         if content is not None
     }
-    backups = {
-        filename: transaction_dir / f"old-{filename}"
-        for filename in complete_generation
-    }
+    backups = {filename: transaction_dir / f"old-{filename}" for filename in complete_generation}
     preserve_recovery_material = False
     try:
         for filename, stage_path in staged.items():
@@ -783,14 +738,12 @@ def _replace_output_generation(
                 *(
                     item
                     for item in staged.items()
-                    if item[0]
-                    != MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
+                    if item[0] != MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
                 ),
                 *(
                     item
                     for item in staged.items()
-                    if item[0]
-                    == MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
+                    if item[0] == MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
                 ),
             )
             for filename, stage_path in commit_order:
@@ -897,13 +850,9 @@ def _ensure_campaign_output_directory_safe(out_dir: Path) -> str:
     try:
         resolved = out_dir.resolve(strict=False)
     except RuntimeError as exc:
-        raise ValueError(
-            "mutation campaign output directory cannot be safely resolved"
-        ) from exc
+        raise ValueError("mutation campaign output directory cannot be safely resolved") from exc
     if resolved == Path(resolved.anchor):
-        raise ValueError(
-            "mutation campaign output directory must not be a filesystem root"
-        )
+        raise ValueError("mutation campaign output directory must not be a filesystem root")
     return os.path.normcase(os.path.abspath(resolved))
 
 
@@ -911,9 +860,7 @@ def _existing_protected_output_paths(
     out_dir: Path,
     protected_filenames: frozenset[str],
 ) -> tuple[Path, ...]:
-    canonical_by_casefold = {
-        filename.casefold(): filename for filename in protected_filenames
-    }
+    canonical_by_casefold = {filename.casefold(): filename for filename in protected_filenames}
     try:
         existing: list[Path] = []
         with os.scandir(out_dir) as entries:
@@ -924,15 +871,12 @@ def _existing_protected_output_paths(
                         for filename in sorted(protected_filenames)
                         if _mutation_reporting._entry_exists(out_dir / filename)
                     )
-                canonical_filename = canonical_by_casefold.get(
-                    entry.name.casefold()
-                )
+                canonical_filename = canonical_by_casefold.get(entry.name.casefold())
                 if canonical_filename is None:
                     continue
                 canonical_path = out_dir / canonical_filename
-                if (
-                    entry.name == canonical_filename
-                    or _mutation_reporting._entry_exists(canonical_path)
+                if entry.name == canonical_filename or _mutation_reporting._entry_exists(
+                    canonical_path
                 ):
                     existing.append(canonical_path)
         return tuple(sorted(set(existing), key=lambda entry: entry.name))
@@ -944,9 +888,7 @@ def _resolved_path_identity(path: Path, *, strict: bool) -> str:
     try:
         resolved = path.resolve(strict=strict)
     except RuntimeError as exc:
-        raise ValueError(
-            "mutation campaign artifact path cannot be safely resolved"
-        ) from exc
+        raise ValueError("mutation campaign artifact path cannot be safely resolved") from exc
     return os.path.normcase(os.path.abspath(resolved))
 
 

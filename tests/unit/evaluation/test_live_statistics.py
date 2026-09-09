@@ -48,7 +48,11 @@ from agent_assure.schema.live import (
 )
 from agent_assure.schema.privacy import PrivacyProfileDigest, PrivacyProfileId
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
+)
 from agent_assure.schema.run import RunSet as RunSetModel
 from agent_assure.schema.suite import CompiledSuite
 
@@ -272,6 +276,9 @@ def test_live_statistics_rejects_heterogeneous_execution_arm_identity() -> None:
             "model": "other-model",
             "adapter_id": "other-adapter",
             "pipeline_id": "candidate-b",
+            "structured_field_origins": StructuredFieldOrigins.uniform(
+                StructuredFieldOrigin.instrumented_adapter
+            ),
             "provenance": _record(
                 repetition_index=1,
                 linked=True,
@@ -2962,6 +2969,9 @@ def _record(
             ],
             "human_review_required": human_review_required,
             "human_review_performed": human_review_performed,
+            "structured_field_origins": StructuredFieldOrigins.uniform(
+                StructuredFieldOrigin.fixture
+            ).model_dump(mode="json"),
             "provenance": Provenance(
                 artifact_kind="provenance",
                 prompt_digest="3" * 64,

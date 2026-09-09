@@ -40,9 +40,7 @@ _TARGET_CONTROL_IMPLEMENTATION_FUNCTIONS = {
     "valid_record_required": "_runs_by_case",
     "runset_completion_required": "_runset_status_results",
 }
-_SEMVER_PATTERN = re.compile(
-    r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:rc([1-9]\d*))?$"
-)
+_SEMVER_PATTERN = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(?:rc([1-9]\d*))?$")
 _GIT_COMMIT_PATTERN = re.compile(r"^(?:git:)?[a-f0-9]{40}$")
 
 
@@ -58,9 +56,7 @@ def release_provenance_failures(
     try:
         expected_release_precedence = _semver_precedence(expected_release)
     except ValueError:
-        raise ValueError(
-            f"invalid expected release version: {expected_release!r}"
-        ) from None
+        raise ValueError(f"invalid expected release version: {expected_release!r}") from None
     failures: list[str] = []
     source_cache: dict[tuple[str, str], bytes] = {}
 
@@ -86,9 +82,7 @@ def release_provenance_failures(
             failures.append(f"{prefix} has no introduction release")
         else:
             try:
-                introduction_precedence = _semver_precedence(
-                    provenance.introduced_in_release
-                )
+                introduction_precedence = _semver_precedence(provenance.introduced_in_release)
             except ValueError:
                 failures.append(f"{prefix} has an invalid introduction release")
             else:
@@ -130,8 +124,7 @@ def release_provenance_failures(
                     ancestor=target.first_seen_commit,
                     descendant=immutable_commit,
                     relationship=(
-                        "first-seen commit is not an ancestor of the operator "
-                        "introduction commit"
+                        "first-seen commit is not an ancestor of the operator introduction commit"
                     ),
                     checker=ancestry_checker,
                 )
@@ -248,14 +241,8 @@ def _node_declares_control_id(node: ast.AST, control_id: str) -> bool:
         truth = _static_truth_value(node.test)
         return (
             _node_declares_control_id(node.test, control_id)
-            or (
-                truth is not False
-                and _statements_declare_control_id(node.body, control_id)
-            )
-            or (
-                truth is not True
-                and _statements_declare_control_id(node.orelse, control_id)
-            )
+            or (truth is not False and _statements_declare_control_id(node.body, control_id))
+            or (truth is not True and _statements_declare_control_id(node.orelse, control_id))
         )
     if isinstance(node, ast.IfExp):
         truth = _static_truth_value(node.test)
@@ -268,10 +255,7 @@ def _node_declares_control_id(node: ast.AST, control_id: str) -> bool:
         truth = _static_truth_value(node.test)
         return (
             _node_declares_control_id(node.test, control_id)
-            or (
-                truth is not False
-                and _statements_declare_control_id(node.body, control_id)
-            )
+            or (truth is not False and _statements_declare_control_id(node.body, control_id))
             or _statements_declare_control_id(node.orelse, control_id)
         )
     if isinstance(node, ast.BoolOp):
@@ -290,9 +274,7 @@ def _node_declares_control_id(node: ast.AST, control_id: str) -> bool:
                 return True
         elif isinstance(value, list):
             statements = tuple(item for item in value if isinstance(item, ast.stmt))
-            if field_name in {"body", "orelse", "finalbody"} and len(
-                statements
-            ) == len(value):
+            if field_name in {"body", "orelse", "finalbody"} and len(statements) == len(value):
                 if _statements_declare_control_id(statements, control_id):
                     return True
             elif _nodes_declare_control_id(
@@ -388,8 +370,7 @@ def _introduction_snapshot_failure(
     """
     prefix = f"operator {provenance.operator_id!r}"
     components_by_path = {
-        component.relative_path: component
-        for component in provenance.introduction_components
+        component.relative_path: component for component in provenance.introduction_components
     }
     for relative_path in _INTRODUCTION_BINDING_PATHS:
         if relative_path not in components_by_path:
@@ -399,23 +380,17 @@ def _introduction_snapshot_failure(
     try:
         snapshot_source = source_loader(immutable_commit, _INTRODUCTION_SNAPSHOT_PATH)
     except Exception:
-        return (
-            f"{prefix} authored introduction snapshot is unavailable at the "
-            "introduction commit"
-        )
+        return f"{prefix} authored introduction snapshot is unavailable at the introduction commit"
     try:
         authored_components = introduction_components_from_source(
             provenance.operator_id,
             snapshot_source,
         )
     except CatalogIntegrityError:
-        return (
-            f"{prefix} authored introduction snapshot is invalid at the introduction commit"
-        )
+        return f"{prefix} authored introduction snapshot is invalid at the introduction commit"
     if authored_components != provenance.introduction_components:
         return (
-            f"{prefix} introduction components do not match the snapshot authored "
-            "at introduction"
+            f"{prefix} introduction components do not match the snapshot authored at introduction"
         )
 
     binding_order = {path: index for index, path in enumerate(_INTRODUCTION_BINDING_PATHS)}
@@ -433,10 +408,7 @@ def _introduction_snapshot_failure(
             source = source_loader(immutable_commit, component.relative_path)
         except Exception:
             return f"{component_prefix} source is unavailable at the introduction commit"
-        if (
-            implementation_component_sha256(component.relative_path, source)
-            != component.sha256
-        ):
+        if implementation_component_sha256(component.relative_path, source) != component.sha256:
             return f"{component_prefix} digest does not match the introduction commit"
     return None
 

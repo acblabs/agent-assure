@@ -119,9 +119,7 @@ class MutationEvaluatorBinding:
         if _MACHINE_ID.fullmatch(self.method_id) is None:
             raise ValueError("mutation evaluator method_id must be a machine identifier")
         if _PACKAGE_RELEASE_VERSION.fullmatch(self.implementation_version) is None:
-            raise ValueError(
-                "mutation evaluator implementation_version must be X.Y.Z or X.Y.ZrcN"
-            )
+            raise ValueError("mutation evaluator implementation_version must be X.Y.Z or X.Y.ZrcN")
         if (
             _DIGEST.fullmatch(self.implementation_digest) is None
             or self.implementation_digest == _UNKNOWN_DIGEST
@@ -680,9 +678,7 @@ def execute_mutation(
             evaluator_binding=binding,
             generated_at=generated_at,
             diagnostic_code="operator_output_not_canonical",
-            limitation=(
-                "The operator output did not preserve the canonical RunSet projection."
-            ),
+            limitation=("The operator output did not preserve the canonical RunSet projection."),
         )
     candidate_payload = projected_candidate
     try:
@@ -1046,10 +1042,7 @@ def _is_exact_synthetic_privacy_challenge(
     if not isinstance(run_payload, Mapping):
         return False
     output_summary = run_payload.get("output_summary")
-    if (
-        not isinstance(output_summary, str)
-        or output_summary != SYNTHETIC_SENSITIVE_SUMMARY
-    ):
+    if not isinstance(output_summary, str) or output_summary != SYNTHETIC_SENSITIVE_SUMMARY:
         return False
 
     privacy_probe = deepcopy(dict(candidate_payload))

@@ -54,8 +54,7 @@ _USAGE_SEGMENT_JSON_SCHEMA_EXTRA: dict[str, Any] = {
             "then": {
                 "not": {
                     "anyOf": [
-                        {"required": [field_name]}
-                        for field_name in _USAGE_SEGMENT_V043_FIELDS
+                        {"required": [field_name]} for field_name in _USAGE_SEGMENT_V043_FIELDS
                     ]
                 }
             },
@@ -72,7 +71,7 @@ _USAGE_SEGMENT_JSON_SCHEMA_EXTRA: dict[str, Any] = {
                     "limitations": {"minItems": 1},
                 },
             },
-        }
+        },
     ]
 }
 _USAGE_LEDGER_JSON_SCHEMA_EXTRA: dict[str, Any] = {
@@ -97,8 +96,7 @@ _USAGE_SUMMARY_JSON_SCHEMA_EXTRA: dict[str, Any] = {
             "then": {
                 "not": {
                     "anyOf": [
-                        {"required": [field_name]}
-                        for field_name in _USAGE_SUMMARY_V043_FIELDS
+                        {"required": [field_name]} for field_name in _USAGE_SUMMARY_V043_FIELDS
                     ]
                 }
             },
@@ -342,8 +340,7 @@ def summarize_usage_segments(segments: tuple[UsageSegment, ...]) -> UsageSummary
             f"{field}={count}" for field, count in sorted(missingness.items())
         )
         limitations.append(
-            "Usage summary sums known fields only; missing segment fields: "
-            f"{missing_fields}."
+            f"Usage summary sums known fields only; missing segment fields: {missing_fields}."
         )
     cost = _sum_cost(segments)
     limitations.extend(cost.limitations)
@@ -382,9 +379,7 @@ def validate_usage_summary_consistency(
         if not (summary.schema_version == "0.3.1" and field in _USAGE_SUMMARY_V043_FIELDS)
     )
     mismatched_fields = [
-        field
-        for field in value_fields
-        if getattr(summary, field) != getattr(expected, field)
+        field for field in value_fields if getattr(summary, field) != getattr(expected, field)
     ]
     missing_limitations = sorted(set(expected.limitations) - set(summary.limitations))
     if mismatched_fields or missing_limitations:
@@ -408,9 +403,7 @@ def usage_container_json_schema_extra(*field_paths: str | UsageFieldPath) -> dic
                 },
                 "then": {
                     "not": {
-                        "anyOf": [
-                            _usage_field_path_required_schema(path) for path in normalized
-                        ]
+                        "anyOf": [_usage_field_path_required_schema(path) for path in normalized]
                     }
                 },
             }
@@ -481,8 +474,7 @@ class UsageSummaryDelta(PersistedArtifact):
     @model_validator(mode="after")
     def _validate_versioned_fields(self) -> UsageSummaryDelta:
         if self.schema_version == "0.3.1" and any(
-            field_name in self.model_fields_set
-            for field_name in _USAGE_SUMMARY_DELTA_V043_FIELDS
+            field_name in self.model_fields_set for field_name in _USAGE_SUMMARY_DELTA_V043_FIELDS
         ):
             raise ValueError("basis-point usage deltas require schema_version 0.4.3")
         if self.estimated_cost_microusd_delta is not None and self.currency != "USD":
@@ -590,19 +582,12 @@ def _sum_cost(segments: tuple[UsageSegment, ...]) -> _CostAggregation:
             None,
             [_INCOMPLETE_COST_PROVENANCE_LIMITATION],
         )
-    cost_basis_ids = tuple(
-        sorted({cast(str, segment.cost_basis) for segment in cost_segments})
-    )
+    cost_basis_ids = tuple(sorted({cast(str, segment.cost_basis) for segment in cost_segments}))
     pricing_snapshot_ids = tuple(
         sorted({cast(str, segment.pricing_snapshot_id) for segment in cost_segments})
     )
     pricing_snapshot_digests = tuple(
-        sorted(
-            {
-                cast(DigestHex, segment.pricing_snapshot_digest)
-                for segment in cost_segments
-            }
-        )
+        sorted({cast(DigestHex, segment.pricing_snapshot_digest) for segment in cost_segments})
     )
     if len(cost_basis_ids) != 1:
         return _CostAggregation(
@@ -622,10 +607,7 @@ def _sum_cost(segments: tuple[UsageSegment, ...]) -> _CostAggregation:
             (),
             (),
             None,
-            [
-                "Declared estimated cost was not aggregated because pricing snapshot "
-                "IDs differ."
-            ],
+            ["Declared estimated cost was not aggregated because pricing snapshot IDs differ."],
         )
     if len(pricing_snapshot_digests) != 1:
         return _CostAggregation(
@@ -635,10 +617,7 @@ def _sum_cost(segments: tuple[UsageSegment, ...]) -> _CostAggregation:
             (),
             (),
             None,
-            [
-                "Declared estimated cost was not aggregated because pricing snapshot "
-                "digests differ."
-            ],
+            ["Declared estimated cost was not aggregated because pricing snapshot digests differ."],
         )
     cost_observation_count, count_limitations = _cost_observation_count(cost_segments)
     return _CostAggregation(
@@ -709,9 +688,7 @@ def _usage_field_path_is_present(root: object, path: UsageFieldPath) -> bool:
     if first == _ARRAY_ITEM_STEP:
         if isinstance(root, Sequence) and not isinstance(root, str | bytes | bytearray):
             sequence = cast(Sequence[object], root)
-            return any(
-                _usage_field_path_is_present(item, tuple(remaining)) for item in sequence
-            )
+            return any(_usage_field_path_is_present(item, tuple(remaining)) for item in sequence)
         return False
     value = _field_value(root, first)
     if not remaining:

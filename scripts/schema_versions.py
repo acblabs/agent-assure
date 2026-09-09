@@ -115,8 +115,7 @@ def schema_packaging_failures(
     for source, target in sorted(actual.items()):
         if source not in expected:
             failures.append(
-                "stale schema force-include: "
-                f"{source!r} = {target!r} in {_display_path(pyproject)}"
+                f"stale schema force-include: {source!r} = {target!r} in {_display_path(pyproject)}"
             )
     return failures
 

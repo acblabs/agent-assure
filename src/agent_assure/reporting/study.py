@@ -354,6 +354,7 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
 
     registration = report.manifest.registration
     rule = report.manifest.hypothesis_decision_rule
+    inferential_statistics_applicable = report.inferential_statistics_applicable
     lines = [
         "# Real-model study report",
         "",
@@ -370,10 +371,16 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
             "- Hypothesis classification: "
             f"{markdown_code_span(report.hypothesis_classification.value)}"
         ),
+        (f"- Inference scope: {markdown_code_span(rule.inference_scope.value)}"),
+        (f"- Inferential statistics applicable: {str(inferential_statistics_applicable).lower()}"),
         f"- Protocol valid: {str(report.protocol_valid).lower()}",
         (
-            "- Statistical sufficiency satisfied: "
-            f"{str(report.statistical_sufficiency_satisfied).lower()}"
+            (
+                "- Statistical sufficiency satisfied: "
+                if inferential_statistics_applicable
+                else "- Frame completeness satisfied: "
+            )
+            + f"{str(report.statistical_sufficiency_satisfied).lower()}"
         ),
         (
             "- Invariant negative controls satisfied: "
@@ -400,6 +407,15 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
         "The result is scoped to the frozen tasks, authority contracts, provider/model "
         "identities, configurations, protocols, and execution window. It is not a "
         "provider-wide, causal, safety, or compliance claim.",
+        *(
+            (
+                "This study is explicitly downscoped to fixed-frame descriptive "
+                "conformance. Rates describe only the committed frame; hypothesis "
+                "classification and independent-cluster inference are prohibited.",
+            )
+            if rule.inference_scope.value == "fixed_frame_descriptive_conformance"
+            else ()
+        ),
         (
             "The primary inertia endpoint is a direct same-decision measure on "
             "decision-flip conditions. A contradicted inertia hypothesis can include "
@@ -434,31 +450,48 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
             + ", ".join(markdown_code_span(item) for item in rule.negative_control_conditions)
         ),
         f"- Invariant control gate: {markdown_code_span(rule.invariant_control_gate)}",
-        f"- Inferential unit: {markdown_code_span(rule.inferential_unit)}",
-        (f"- Materiality threshold: {markdown_code_span(rule.materiality_threshold)}"),
-        f"- Familywise alpha: {markdown_code_span(rule.familywise_alpha)}",
-        (
-            "- Directional error control: "
-            f"{markdown_code_span(rule.directional_error_control)}. Support and "
-            "contradiction are each FWER-controlled over target conditions; the "
-            "combined rule is not a single joint two-sided-alpha guarantee."
-        ),
-        (
-            "- Multiplicity / interval: "
-            f"{markdown_code_span(rule.multiplicity_method)} / "
-            f"{markdown_code_span(rule.interval_method)}"
-        ),
-        (
-            "- Minimum independent clusters: "
-            f"{markdown_code_span(str(rule.minimum_independent_clusters))}"
-        ),
-        (
-            "- Independence justification status: "
-            f"{markdown_code_span(rule.independence_justification.status.value)}"
-        ),
-        (
-            "- Independence software-verification scope: "
-            f"{markdown_code_span(rule.independence_justification.software_verification_scope)}"
+        *(
+            (
+                f"- Inferential unit: {markdown_code_span(rule.inferential_unit)}",
+                (f"- Materiality threshold: {markdown_code_span(rule.materiality_threshold)}"),
+                f"- Familywise alpha: {markdown_code_span(rule.familywise_alpha)}",
+                (
+                    "- Directional error control: "
+                    f"{markdown_code_span(rule.directional_error_control)}. Support and "
+                    "contradiction are each FWER-controlled over target conditions; the "
+                    "combined rule is not a single joint two-sided-alpha guarantee."
+                ),
+                (
+                    "- Multiplicity / interval: "
+                    f"{markdown_code_span(rule.multiplicity_method)} / "
+                    f"{markdown_code_span(rule.interval_method)}"
+                ),
+                (
+                    "- Minimum independent clusters: "
+                    f"{markdown_code_span(str(rule.minimum_independent_clusters))}"
+                ),
+                (
+                    "- Independence justification status: "
+                    f"{markdown_code_span(rule.independence_justification.status.value)}"
+                ),
+                (
+                    "- Independence software-verification scope: "
+                    f"{markdown_code_span(rule.independence_justification.software_verification_scope)}"
+                ),
+            )
+            if inferential_statistics_applicable
+            else (
+                "- Inferential decision rule: inactive for fixed-frame descriptive scope",
+                (
+                    "- Frame-dependence status: "
+                    f"{markdown_code_span(rule.independence_justification.status.value)}"
+                ),
+                (
+                    "- Scope limitation: rates and counts apply only to the exact "
+                    "committed frame; no interval or population-generalization claim "
+                    "is rendered."
+                ),
+            )
         ),
         "",
         "## Conditions",
@@ -515,8 +548,12 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                     f"{result.excluded_pairs}/{result.invalid_pairs}"
                 ),
                 (
-                    "- Clusters (planned/analyzable): "
-                    f"{result.planned_clusters}/{result.analyzable_clusters}"
+                    (
+                        "- Clusters (planned/analyzable): "
+                        if inferential_statistics_applicable
+                        else "- Frame clusters (committed/complete): "
+                    )
+                    + f"{result.planned_clusters}/{result.analyzable_clusters}"
                 ),
                 (
                     f"- Coupling: {markdown_code_span(result.coupling.classification.value)}"
@@ -605,8 +642,12 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
             )
         if result.sufficiency_report is not None:
             lines.append(
-                "- Statistical sufficiency state: "
-                f"{markdown_code_span(result.sufficiency_report.state.value)}"
+                (
+                    "- Statistical sufficiency state: "
+                    if inferential_statistics_applicable
+                    else "- Frame completeness state: "
+                )
+                + f"{markdown_code_span(result.sufficiency_report.state.value)}"
             )
         if result.expected_response_diagnostic is not None:
             diagnostic = result.expected_response_diagnostic
@@ -674,10 +715,14 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                         "baseline expected recommendation and outcome; descriptive "
                         "only, not external truth."
                     ),
-                    (
-                        "- Adjusted one-sided inertia interval: "
-                        f"[{markdown_code_span(interval.lower_bound)}, "
-                        f"{markdown_code_span(interval.upper_bound)}]"
+                    *(
+                        (
+                            "- Adjusted one-sided inertia interval: "
+                            f"[{markdown_code_span(interval.lower_bound)}, "
+                            f"{markdown_code_span(interval.upper_bound)}]",
+                        )
+                        if inferential_statistics_applicable
+                        else ()
                     ),
                 ]
             )
@@ -694,10 +739,14 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                         "- Invariant control unexpected-change rate: "
                         f"{markdown_code_span(result.control_unexpected_change_rate)}"
                     ),
-                    (
-                        "- Adjusted one-sided unexpected-change interval: "
-                        f"[{markdown_code_span(interval.lower_bound)}, "
-                        f"{markdown_code_span(interval.upper_bound)}]"
+                    *(
+                        (
+                            "- Adjusted one-sided unexpected-change interval: "
+                            f"[{markdown_code_span(interval.lower_bound)}, "
+                            f"{markdown_code_span(interval.upper_bound)}]",
+                        )
+                        if inferential_statistics_applicable
+                        else ()
                     ),
                     (
                         "- Invariant control gate: "

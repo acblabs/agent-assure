@@ -48,12 +48,25 @@ def _write_bundle(
             reviewed_at_utc="2025-01-15T00:00:00Z",
             reviewer_pseudonym="independent-synthetic-statistician",
             reviewer_statistical_qualification_confirmed=True,
+            reviewer_qualification_basis_types=("professional_statistical_practice",),
+            reviewer_qualification_evidence_digest="0123456789abcdef" * 4,
             reviewer_qualification_basis=(
                 "Training and applied experience in clustered exact binomial inference."
             ),
             reviewer_independent_of_design_execution_and_analysis=True,
             reviewer_independence_rationale=(
                 "The test reviewer did not design, execute, or analyze this study."
+            ),
+            independence_design_basis_reviewed_and_accepted=True,
+            independence_acceptance_rationale=(
+                "Independent audit review supports the synthetic generator's separate "
+                "cluster construction for this bounded deterministic test design."
+            ),
+            semantic_near_duplicate_audit_reviewed=True,
+            semantic_near_duplicate_pseudoreplication_rejected=True,
+            semantic_near_duplicate_review_rationale=(
+                "Every synthetic cluster was compared and the audit found no unhandled "
+                "semantic duplicate counted as a separate unit."
             ),
             benchmark_cluster_assignments_reviewed=True,
             independence_and_exchangeability_assumptions_reviewed=True,
@@ -79,10 +92,23 @@ def _write_bundle(
             reviewer_independence_rationale=(
                 "The deterministic test reviewer did not operate the provider execution."
             ),
+            provider_log_review_scope=(
+                "The reviewer inspected every synthetic provider log event across the full "
+                "registered execution window and all request classes."
+            ),
+            provider_log_evidence_digest="1234567890abcdef" * 4,
+            provider_account_review_scope=(
+                "The reviewer reconciled the synthetic account usage ledger for the full "
+                "execution window against every dispatched request."
+            ),
+            provider_account_evidence_digest="abcdef0123456789" * 4,
             provider_log_and_account_review_confirmed=True,
+            provider_log_time_window_coverage_confirmed=True,
+            provider_account_usage_reconciled=True,
             exhaustive_attempt_failure_retry_accounting_confirmed=True,
             provider_response_id_matches_confirmed=True,
             exact_runset_artifact_digest_matches_confirmed=True,
+            provider_serving_fingerprint_availability_reviewed=True,
         )
         if should_review
         else None

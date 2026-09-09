@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import ROUND_UP, Decimal, Inexact, Rounded, localcontext
 
 import pytest
 
@@ -27,6 +27,20 @@ def test_large_decimal_normalization_does_not_depend_on_default_context_precisio
     assert normalize_decimal(value) == "123456789012345678901234567890.123456"
     carry = Decimal("999999999999999999999999999999.9999996")
     assert normalize_decimal(carry) == "1000000000000000000000000000000.000000"
+
+
+def test_decimal_normalization_does_not_inherit_rounding_or_traps() -> None:
+    value = Decimal("1.2345665")
+    expected = "1.234566"
+
+    with localcontext() as context:
+        context.prec = 3
+        context.rounding = ROUND_UP
+        context.traps[Inexact] = True
+        context.traps[Rounded] = True
+
+        assert normalize_decimal(value) == expected
+        assert sha256_hexdigest({"value": value}) == sha256_hexdigest({"value": Decimal(expected)})
 
 
 def test_decomposed_unicode_fails_with_reason_code() -> None:

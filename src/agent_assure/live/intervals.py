@@ -100,9 +100,7 @@ def difference_t_interval(
     center = Decimal(str(mean(differences)))
     if len(differences) == 1:
         return center, Decimal("-1"), Decimal("1"), 1
-    variance = sum((value - center) ** 2 for value in differences) / Decimal(
-        len(differences) - 1
-    )
+    variance = sum((value - center) ** 2 for value in differences) / Decimal(len(differences) - 1)
     standard_error = (variance / Decimal(len(differences))).sqrt()
     if standard_error == 0:
         return center, center, center, len(differences)
@@ -223,8 +221,6 @@ def wilson_score_interval(
     denominator = Decimal("1") + z2 / n
     center = (p + z2 / (Decimal("2") * n)) / denominator
     half_width = (
-        z
-        * ((p * (Decimal("1") - p) / n + z2 / (Decimal("4") * n * n)).sqrt())
-        / denominator
+        z * ((p * (Decimal("1") - p) / n + z2 / (Decimal("4") * n * n)).sqrt()) / denominator
     )
     return max(Decimal("0"), center - half_width), min(Decimal("1"), center + half_width)

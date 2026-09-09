@@ -13,7 +13,6 @@ from typing import cast
 
 from pydantic import BaseModel
 
-from agent_assure.artifact_io import ensure_unlinked_directory
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
@@ -34,6 +33,7 @@ from agent_assure.rooted_io import (
     RootedDirectoryDescriptor,
     acquire_publication_lock,
     claim_rooted_directory,
+    open_or_create_rooted_directory_from_filesystem_root,
     open_rooted_directory,
     release_publication_lock,
     retry_windows_sharing_violation,
@@ -364,24 +364,11 @@ def publish_generation(
     if any(len(payload) > byte_limits[name] for name, payload in payloads.items()):
         raise ValueError("repeated sensitivity artifact exceeds the maximum supported size")
 
-    parent = ensure_unlinked_directory(target.parent)
-    parent_metadata = os.lstat(parent)
-    with open_rooted_directory(
-        parent,
-        ".",
+    with open_or_create_rooted_directory_from_filesystem_root(
+        target.parent,
         label="repeated sensitivity output parent",
     ) as parent_lease:
-        if (parent_lease.device, parent_lease.inode) != (
-            parent_metadata.st_dev,
-            parent_metadata.st_ino,
-        ):
-            raise OSError("repeated sensitivity output parent changed while opening")
-        _require_directory_identity(
-            parent_lease.path,
-            device=parent_lease.device,
-            inode=parent_lease.inode,
-            label="repeated sensitivity output parent",
-        )
+        parent_lease.revalidate_path(label="repeated sensitivity output parent")
         with _best_effort_publication_lock(parent_lease, target.name):
             existing = _existing_generation_with_transient_share_retry(
                 parent_lease,
@@ -719,20 +706,10 @@ def _install_staged_generation_no_replace(
 
 
 def _after_generation_commit(parent: RootedDirectoryDescriptor) -> None:
-    _require_directory_identity(
-        parent.path,
-        device=parent.device,
-        inode=parent.inode,
-        label="repeated sensitivity output parent",
-    )
+    parent.revalidate_path(label="repeated sensitivity output parent")
     if os.name != "nt" and parent.descriptor is not None:
         os.fsync(parent.descriptor)
-    _require_directory_identity(
-        parent.path,
-        device=parent.device,
-        inode=parent.inode,
-        label="repeated sensitivity output parent",
-    )
+    parent.revalidate_path(label="repeated sensitivity output parent")
 
 
 def _validate_output_target(out_dir: Path) -> Path:
@@ -772,12 +749,7 @@ def _existing_generation(
     artifact_max_bytes: Mapping[str, int] | None = None,
 ) -> dict[str, str] | None:
     byte_limits = _publication_byte_limits(expected_filenames, artifact_max_bytes)
-    _require_directory_identity(
-        parent.path,
-        device=parent.device,
-        inode=parent.inode,
-        label="repeated sensitivity output parent",
-    )
+    parent.revalidate_path(label="repeated sensitivity output parent")
     try:
         lease = open_rooted_directory(
             parent.path,
@@ -785,12 +757,7 @@ def _existing_generation(
             label="existing repeated sensitivity output",
         )
     except FileNotFoundError:
-        _require_directory_identity(
-            parent.path,
-            device=parent.device,
-            inode=parent.inode,
-            label="repeated sensitivity output parent",
-        )
+        parent.revalidate_path(label="repeated sensitivity output parent")
         return None
     except (OSError, ValueError) as exc:
         raise RepeatedSensitivityOutputConflictError(
@@ -843,12 +810,7 @@ def _existing_generation(
                     raise ValueError("destination inventory changed during verification")
                 for opened in opened_files:
                     opened.revalidate()
-                _require_directory_identity(
-                    parent.path,
-                    device=parent.device,
-                    inode=parent.inode,
-                    label="repeated sensitivity output parent",
-                )
+                parent.revalidate_path(label="repeated sensitivity output parent")
                 _require_claimed_output_identity(
                     parent.path / out_dir.name,
                     device=lease.device,
@@ -867,12 +829,7 @@ def _existing_generation(
         raise RepeatedSensitivityOutputConflictError(
             "existing repeated sensitivity output cannot be safely verified"
         ) from exc
-    _require_directory_identity(
-        parent.path,
-        device=parent.device,
-        inode=parent.inode,
-        label="repeated sensitivity output parent",
-    )
+    parent.revalidate_path(label="repeated sensitivity output parent")
     if set(names) != set(expected_filenames):
         return {}
     return {name: observed[name] for name in expected_filenames}

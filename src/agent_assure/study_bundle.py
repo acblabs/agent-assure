@@ -29,6 +29,7 @@ from agent_assure.schema.study import (
     StudyExecutionOrigin,
     StudyExecutionReviewReceipt,
     StudyHypothesisClassification,
+    StudyInferenceScope,
     StudyObservedExecutionProvenance,
     StudyRegistrationMethod,
     StudyRegistrationReviewReceipt,
@@ -98,7 +99,7 @@ class ValidatedStudyBundle:
 
     @property
     def is_publication_ready(self) -> bool:
-        """Return trusted study-only eligibility after exact bundle replay."""
+        """Return trusted confirmatory eligibility after exact bundle replay."""
 
         return bool(
             self.is_mechanically_verified
@@ -118,6 +119,51 @@ class ValidatedStudyBundle:
             and self.report.invariant_controls_satisfied
             and self.report.hypothesis_classification
             is not StudyHypothesisClassification.not_measured
+            and self.manifest.hypothesis_decision_rule.inference_scope
+            is StudyInferenceScope.confirmatory_independent_clusters
+            and all(
+                binding.execution_origin is StudyExecutionOrigin.real_provider
+                and result.observed_execution_provenance is not None
+                and result.observed_execution_provenance.observed_origin
+                is StudyExecutionOrigin.real_provider
+                and result.operational_summary.latency_reported_records
+                == result.operational_summary.run_records
+                for binding, result in zip(
+                    self.manifest.conditions,
+                    self.report.conditions,
+                    strict=True,
+                )
+            )
+        )
+
+    @property
+    def is_scoped_descriptive_publication_ready(self) -> bool:
+        """Return eligibility to publish only fixed-frame descriptive findings.
+
+        This deliberately does not satisfy the Sprint 7 confirmatory checkpoint.
+        It exists so an honest downscope has a machine-readable, replayed output
+        path without being relabeled as independent-cluster evidence.
+        """
+
+        return bool(
+            self.is_mechanically_verified
+            and self.registration_evidence_verified
+            and self.statistical_method_review_verified
+            and self.statistical_method_review_receipt is not None
+            and self.execution_review_verified
+            and self.execution_review_receipt is not None
+            and self.registration_record_sha256 == self.manifest.registration.evidence_digest
+            and self.manifest.registration.method
+            in {
+                StudyRegistrationMethod.version_control_commit,
+                StudyRegistrationMethod.append_only_registry,
+            }
+            and self.manifest.hypothesis_decision_rule.inference_scope
+            is StudyInferenceScope.fixed_frame_descriptive_conformance
+            and self.report.protocol_valid
+            and self.report.statistical_sufficiency_satisfied
+            and self.report.invariant_controls_satisfied
+            and self.report.hypothesis_classification is StudyHypothesisClassification.not_measured
             and all(
                 binding.execution_origin is StudyExecutionOrigin.real_provider
                 and result.observed_execution_provenance is not None

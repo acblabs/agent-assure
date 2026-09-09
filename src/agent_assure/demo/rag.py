@@ -189,6 +189,7 @@ def run_rag_demo(out_dir: Path, *, clean: bool) -> dict[str, object]:
                 str(baseline_runset_path),
                 "--out-dir",
                 str(ci_report_dir),
+                "--allow-missing-efficacy-for-migration",
             ],
             out_dir=root,
             expected_exit_codes={1},
@@ -199,7 +200,12 @@ def run_rag_demo(out_dir: Path, *, clean: bool) -> dict[str, object]:
     command_results.append(
         run_cli_command(
             name="ci-gate-packet",
-            args=["ci", "gate", str(packet_path)],
+            args=[
+                "ci",
+                "gate",
+                str(packet_path),
+                "--allow-missing-efficacy-for-migration",
+            ],
             out_dir=root,
             expected_exit_codes={1},
             cwd=root,
@@ -550,12 +556,8 @@ def _build_summary(
             "framing": "fixture_author_declared_metamorphic_family",
             "decision_measurement_scope": "canonical_case_only",
             "semantic_equivalence_proven": False,
-            "baseline": [
-                evaluation.report_payload() for evaluation in baseline_counterfactual
-            ],
-            "candidate": [
-                evaluation.report_payload() for evaluation in candidate_counterfactual
-            ],
+            "baseline": [evaluation.report_payload() for evaluation in baseline_counterfactual],
+            "candidate": [evaluation.report_payload() for evaluation in candidate_counterfactual],
         },
         "artifacts": {
             "summary": artifact_path(root / "demo-summary.json", root=root),

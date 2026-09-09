@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Iterator, Mapping, Sequence
+from typing import Literal
 from urllib.parse import quote
 
 import pytest
@@ -35,6 +36,7 @@ from agent_assure.schema.pilot import (
     PilotRemediationDisposition,
     PilotRemediationReference,
     PilotSubject,
+    PilotWorkflowRunReview,
     pilot_workflow_input_arguments,
 )
 
@@ -1138,6 +1140,48 @@ def test_assurance_output_producer_reference_must_resolve() -> None:
         )
 
 
+def _workflow_run(stage: Literal["capture", "finalize"]) -> PilotWorkflowRunReview:
+    if stage == "capture":
+        inputs = {
+            "attest_independent_non_maintainer": "true",
+            "consent_to_temporary_actions_storage": "true",
+            "participant_pseudonym": "participant-001",
+        }
+        run_id = "4004"
+        head = "a" * 40
+        workflow_hash = "d" * 64
+    else:
+        inputs = {
+            "capture_run_attempt": "1",
+            "capture_run_id": "4004",
+            "friction_assessment": "friction_observed",
+            "friction_category": "diagnostics",
+            "grant_privacy_filtered_publication": "true",
+            "prior_candidate_evidence_digest": "f" * 64,
+            "reattest_independent_non_maintainer": "true",
+            "remediation_disposition": "applied",
+            "remediation_source_revision": "d" * 40,
+        }
+        run_id = "5005"
+        head = "b" * 40
+        workflow_hash = "e" * 64
+    return PilotWorkflowRunReview.build(
+        stage=stage,
+        run_url=f"https://github.com/example/agent-assure/actions/runs/{run_id}/attempts/1",
+        run_attempt=1,
+        run_head_sha=head,
+        trusted_workflow_revision="c" * 40,
+        execution_source_revision="9" * 40,
+        workflow_path=f".github/workflows/external-pilot-{stage}.yml",
+        run_head_workflow_sha256=workflow_hash,
+        trusted_workflow_sha256=workflow_hash,
+        workflow_bytes_match_trusted_revision=True,
+        public_inputs=tuple(
+            {"name": name, "value": value} for name, value in sorted(inputs.items())
+        ),
+    )
+
+
 def _review_receipt(**overrides: object) -> ExternalPilotIndependenceReviewReceipt:
     values: dict[str, object] = {
         "receipt_id": "pilot-review-001",
@@ -1148,6 +1192,16 @@ def _review_receipt(**overrides: object) -> ExternalPilotIndependenceReviewRecei
         "artifact_manifest_digest": "3" * 64,
         "environment_control_evidence_artifact_id": "artifact-control",
         "environment_control_evidence_sha256": "4" * 64,
+        "publication_consent_artifact_id": "artifact-consent",
+        "publication_consent_sha256": "5" * 64,
+        "pilot_execution_source_revision": "9" * 40,
+        "pilot_friction_assessment": "friction_observed",
+        "pilot_friction_categories": ("diagnostics",),
+        "pilot_remediation_dispositions": ("applied",),
+        "pilot_remediation_source_revision": "d" * 40,
+        "prior_planned_candidate_evidence_digest": "f" * 64,
+        "capture_workflow_run": _workflow_run("capture"),
+        "finalize_workflow_run": _workflow_run("finalize"),
         "expected_release_line": "0.6.6",
         "reviewer_pseudonym": "release-reviewer-001",
         "manual_approval_is_trust_root": True,
@@ -1162,12 +1216,118 @@ def _review_receipt(**overrides: object) -> ExternalPilotIndependenceReviewRecei
         "execution_time_input_content_digests_reviewed": True,
         "input_semantic_identities_reviewed": True,
         "complete_bundle_publication_consent_reviewed": True,
+        "run_head_shas_reviewed": True,
+        "workflow_run_urls_reviewed": True,
+        "trusted_workflow_bytes_reviewed": True,
+        "execution_source_pins_reviewed": True,
+        "public_workflow_inputs_reviewed": True,
+        "friction_and_remediation_disposition_reviewed": True,
+        "friction_category_and_remediation_bindings_reviewed": True,
         "privacy_boundary_reviewed": True,
         "review_outcome": "approved_for_empirical_checkpoint",
         "reviewed_at": "2026-09-02T10:00:00Z",
     }
     values.update(overrides)
     return ExternalPilotIndependenceReviewReceipt.build(**values)
+
+
+def test_workflow_run_review_binds_exact_trusted_bytes_and_complete_public_inputs() -> None:
+    reviewed = _workflow_run("capture")
+
+    assert reviewed.run_id == "4004"
+    assert reviewed.run_attempt == 1
+    assert reviewed.repository == "example/agent-assure"
+    assert len(reviewed.public_inputs_sha256) == 64
+
+    mismatched = reviewed.model_dump(mode="python")
+    mismatched.pop("public_inputs_sha256")
+    mismatched["trusted_workflow_sha256"] = "0" * 64
+    with pytest.raises(ValidationError, match="must match the trusted workflow bytes"):
+        PilotWorkflowRunReview.build(**mismatched)
+
+    incomplete = reviewed.model_dump(mode="python")
+    incomplete.pop("public_inputs_sha256")
+    incomplete["public_inputs"] = incomplete["public_inputs"][:-1]
+    with pytest.raises(ValidationError, match="exactly cover the reviewed stage"):
+        PilotWorkflowRunReview.build(**incomplete)
+
+    unscoped_url = reviewed.model_dump(mode="python")
+    unscoped_url.pop("public_inputs_sha256")
+    unscoped_url["run_url"] = "https://github.com/example/agent-assure/actions/runs/4004"
+    with pytest.raises(ValidationError, match="attempt-specific"):
+        PilotWorkflowRunReview.build(**unscoped_url)
+
+    wrong_attempt = reviewed.model_dump(mode="python")
+    wrong_attempt.pop("public_inputs_sha256")
+    wrong_attempt["run_attempt"] = 2
+    with pytest.raises(ValidationError, match="attempt must match"):
+        PilotWorkflowRunReview.build(**wrong_attempt)
+
+
+def test_review_receipt_rejects_cross_fork_or_misbound_run_inputs() -> None:
+    other_fork = _workflow_run("finalize").model_dump(mode="python")
+    other_fork.pop("public_inputs_sha256")
+    other_fork["run_url"] = "https://github.com/other/agent-assure/actions/runs/5005/attempts/1"
+    with pytest.raises(ValidationError, match="same fork"):
+        _review_receipt(finalize_workflow_run=PilotWorkflowRunReview.build(**other_fork))
+
+    wrong_capture = _workflow_run("finalize").model_dump(mode="python")
+    wrong_capture.pop("public_inputs_sha256")
+    wrong_capture["public_inputs"] = tuple(
+        {
+            "name": candidate["name"],
+            "value": "9999" if candidate["name"] == "capture_run_id" else candidate["value"],
+        }
+        for candidate in wrong_capture["public_inputs"]
+    )
+    with pytest.raises(ValidationError, match="do not bind the capture run URL"):
+        _review_receipt(finalize_workflow_run=PilotWorkflowRunReview.build(**wrong_capture))
+
+    wrong_attempt_input = _workflow_run("finalize").model_dump(mode="python")
+    wrong_attempt_input.pop("public_inputs_sha256")
+    wrong_attempt_input["public_inputs"] = tuple(
+        {
+            "name": candidate["name"],
+            "value": ("2" if candidate["name"] == "capture_run_attempt" else candidate["value"]),
+        }
+        for candidate in wrong_attempt_input["public_inputs"]
+    )
+    with pytest.raises(ValidationError, match="do not bind the capture run attempt"):
+        _review_receipt(finalize_workflow_run=PilotWorkflowRunReview.build(**wrong_attempt_input))
+
+    wrong_category = _workflow_run("finalize").model_dump(mode="python")
+    wrong_category.pop("public_inputs_sha256")
+    wrong_category["public_inputs"] = tuple(
+        {
+            "name": candidate["name"],
+            "value": "runtime" if candidate["name"] == "friction_category" else candidate["value"],
+        }
+        for candidate in wrong_category["public_inputs"]
+    )
+    with pytest.raises(ValidationError, match="friction category does not match"):
+        _review_receipt(finalize_workflow_run=PilotWorkflowRunReview.build(**wrong_category))
+
+    wrong_source = _workflow_run("finalize").model_dump(mode="python")
+    wrong_source.pop("public_inputs_sha256")
+    wrong_source["execution_source_revision"] = "8" * 40
+    with pytest.raises(ValidationError, match="execution-source pins must match"):
+        _review_receipt(finalize_workflow_run=PilotWorkflowRunReview.build(**wrong_source))
+
+    wrong_remediation = _workflow_run("finalize").model_dump(mode="python")
+    wrong_remediation.pop("public_inputs_sha256")
+    wrong_remediation["public_inputs"] = tuple(
+        {
+            "name": candidate["name"],
+            "value": (
+                "e" * 40
+                if candidate["name"] == "remediation_source_revision"
+                else candidate["value"]
+            ),
+        }
+        for candidate in wrong_remediation["public_inputs"]
+    )
+    with pytest.raises(ValidationError, match="applied-remediation inputs do not match"):
+        _review_receipt(finalize_workflow_run=PilotWorkflowRunReview.build(**wrong_remediation))
 
 
 def test_pilot_review_receipt_makes_operator_attested_trust_boundary_explicit() -> None:

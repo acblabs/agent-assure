@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from typing import Any
 
 from pydantic import Field
@@ -16,15 +18,55 @@ from agent_assure.schema.run import (
     PolicyResult,
 )
 
+OPENAI_DECISION_OUTPUT_CONTRACT_ID = "agent-assure/openai-decision-output/v1"
+
+
+def openai_decision_response_format() -> dict[str, Any]:
+    schema: dict[str, Any] = {
+        "type": "object",
+        "additionalProperties": False,
+        # Keep provider-side strict Structured Outputs to its most portable
+        # subset. Pydantic applies non-empty and maximum-length constraints
+        # after receipt.
+        "properties": {
+            "recommendation": {"type": "string"},
+            "outcome": {"type": "string"},
+            "output_summary": {"type": "string"},
+        },
+        "required": ["recommendation", "outcome", "output_summary"],
+    }
+    return {
+        "type": "json_schema",
+        "json_schema": {
+            "name": "agent_assure_decision_v1",
+            "strict": True,
+            "schema": schema,
+        },
+    }
+
+
+OPENAI_DECISION_RESPONSE_FORMAT_JSON = json.dumps(
+    openai_decision_response_format(),
+    ensure_ascii=True,
+    separators=(",", ":"),
+    sort_keys=True,
+)
+OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST = hashlib.sha256(
+    OPENAI_DECISION_RESPONSE_FORMAT_JSON.encode("utf-8")
+).hexdigest()
+
 
 class LiveOutputContractError(ValueError):
     pass
 
 
-class LiveStructuredRecord(StrictModel):
-    recommendation: str = Field(max_length=MAX_LABEL_CHARS)
-    outcome: str = Field(max_length=MAX_LABEL_CHARS)
-    output_summary: str = Field(max_length=MAX_SUMMARY_CHARS)
+class LiveDecisionRecord(StrictModel):
+    recommendation: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    outcome: str = Field(min_length=1, max_length=MAX_LABEL_CHARS)
+    output_summary: str = Field(min_length=1, max_length=MAX_SUMMARY_CHARS)
+
+
+class LiveStructuredRecord(LiveDecisionRecord):
     tools: tuple[str, ...] = ()
     evidence_refs: tuple[EvidenceRef, ...] = ()
     evidence_items: tuple[EvidenceItem, ...] = ()
@@ -56,6 +98,14 @@ def parse_live_structured_content(content: str) -> LiveStructuredRecord:
         raise LiveOutputContractError(
             "live structured output failed the AgentRunRecord producer contract"
         ) from exc
+
+
+def parse_live_decision_content(content: str) -> LiveDecisionRecord:
+    payload = _parse_json_object(content)
+    try:
+        return LiveDecisionRecord.model_validate(payload)
+    except Exception as exc:
+        raise LiveOutputContractError("live decision output contract failed") from exc
 
 
 def validate_live_structured_content(content: str) -> None:

@@ -566,7 +566,10 @@ def test_packet_build_load_and_gate_reject_contradictory_candidate_runset_digest
         load_evidence_packet(packet_path)
 
     unchecked = valid_packet.model_copy(update={"comparison": contradictory})
-    decision = gate_evidence_packet(unchecked)
+    decision = gate_evidence_packet(
+        unchecked,
+        allow_missing_efficacy_for_migration=True,
+    )
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
     assert "candidate_runset_digest" in decision.message
@@ -675,7 +678,15 @@ def test_packet_build_cli_writes_digested_packet_and_ci_gate_fails_it(tmp_path: 
     assert (tmp_path / "dependency-inventory.json").exists()
     assert (tmp_path / "release-artifact-manifest.json").exists()
 
-    gate = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    gate = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
     assert gate.exit_code == 1, gate.output
 
 
@@ -730,6 +741,7 @@ def test_packet_build_cli_publishes_and_gates_stochastic_evidence_end_to_end(
             "--artifact-root",
             str(tmp_path),
             "--require-stochastic-evidence-sensitivity",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
     assert gated.exit_code == 0, gated.output
@@ -2190,16 +2202,29 @@ def test_packet_build_and_trusted_gate_reject_summary_file_tampering(
     packet = load_evidence_packet(packet_path)
 
     _write_json(evaluation_path, replacement.model_dump(mode="json"))
-    tampered_file = gate_evidence_packet(packet, artifact_root=tmp_path)
+    tampered_file = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
     standalone_tampered_file = RUNNER.invoke(
         app,
-        ["ci", "gate", str(packet_path)],
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
     )
     _write_json(evaluation_path, evaluation.model_dump(mode="json"))
     nested_tamper = packet.model_copy(
         update={"evaluation": packet.evaluation.model_copy(update={"runset_id": "forged"})}
     )
-    tampered_nested = gate_evidence_packet(nested_tamper, artifact_root=tmp_path)
+    tampered_nested = gate_evidence_packet(
+        nested_tamper,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert tampered_file.exit_code == 2
     assert tampered_file.outcome is GateOutcome.invalid
@@ -2220,7 +2245,11 @@ def test_packet_build_and_trusted_gate_reject_summary_file_tampering(
     unsafe_manifest = packet.release_manifest.model_copy(update={"artifacts": unsafe_artifacts})
     unsafe_packet = packet.model_copy(update={"release_manifest": unsafe_manifest})
 
-    unsafe_path = gate_evidence_packet(unsafe_packet, artifact_root=tmp_path)
+    unsafe_path = gate_evidence_packet(
+        unsafe_packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert unsafe_path.exit_code == 2
     assert unsafe_path.outcome is GateOutcome.invalid
@@ -2279,6 +2308,7 @@ def test_trusted_gate_rejects_nested_difference_that_redaction_would_mask(
             str(packet_path),
             "--artifact-root",
             str(tmp_path),
+            "--allow-missing-efficacy-for-migration",
         ],
     )
 
@@ -2453,6 +2483,7 @@ def test_packet_build_cli_carries_authenticated_evidence_sensitivity(
             str(packet_path),
             "--artifact-root",
             str(tmp_path),
+            "--allow-missing-efficacy-for-migration",
         ],
     )
     assert gated.exit_code == 0, gated.output
@@ -2539,6 +2570,7 @@ def test_cli_comparison_of_sensitivity_runsets_packet_builds_end_to_end(
             str(packet_path),
             "--artifact-root",
             str(tmp_path),
+            "--allow-missing-efficacy-for-migration",
         ],
     )
     assert gate_result.exit_code == 0, gate_result.output
@@ -2602,7 +2634,10 @@ def test_packet_and_ci_reject_comparison_that_contradicts_embedded_sensitivity()
         )
 
     unchecked = packet.model_copy(update={"comparison": contradictory})
-    decision = gate_evidence_packet(unchecked)
+    decision = gate_evidence_packet(
+        unchecked,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.exit_code == 2
     assert decision.outcome is GateOutcome.invalid
@@ -2657,7 +2692,10 @@ def test_evidence_insensitive_packet_blocks_ci_gate_and_cannot_be_silently_requi
         ),
     )
 
-    decision = gate_evidence_packet(packet)
+    decision = gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert artifacts.report.state is EvidenceSensitivityState.evidence_insensitive
     assert decision.outcome is GateOutcome.fail
@@ -2669,11 +2707,18 @@ def test_evidence_insensitive_packet_blocks_ci_gate_and_cannot_be_silently_requi
         artifacts.counterfactual_evaluation,
         artifact_digests=(PacketArtifactDigest(role="evaluation-summary", sha256="a" * 64),),
     )
-    assert gate_evidence_packet(stripped).outcome is GateOutcome.pass_
+    assert (
+        gate_evidence_packet(
+            stripped,
+            allow_missing_efficacy_for_migration=True,
+        ).outcome
+        is GateOutcome.pass_
+    )
 
     required = gate_evidence_packet(
         stripped,
         require_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
     assert required.outcome is GateOutcome.invalid
     assert required.exit_code == 2
@@ -2688,6 +2733,7 @@ def test_evidence_insensitive_packet_blocks_ci_gate_and_cannot_be_silently_requi
             "gate",
             str(stripped_path),
             "--require-evidence-sensitivity",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
     assert cli_required.exit_code == 2
@@ -2727,7 +2773,8 @@ def test_sensitivity_gates_revalidate_model_copy_tampering() -> None:
 
     direct_decision = gate_evidence_sensitivity_report(forged_report)
     packet_decision = gate_evidence_packet(
-        packet.model_copy(update={"evidence_sensitivity": forged_report})
+        packet.model_copy(update={"evidence_sensitivity": forged_report}),
+        allow_missing_efficacy_for_migration=True,
     )
 
     for decision in (direct_decision, packet_decision):
@@ -2847,12 +2894,20 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
     )
 
     direct = gate_evidence_sensitivity_report(artifacts.report)
-    packet_default = gate_evidence_packet(packet)
+    packet_default = gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
     packet_allowed = gate_evidence_packet(
         packet,
         allow_sensitivity_non_verdict=True,
+        allow_missing_efficacy_for_migration=True,
     )
-    packet_strict = gate_evidence_packet(packet, fail_on_not_evaluated=True)
+    packet_strict = gate_evidence_packet(
+        packet,
+        fail_on_not_evaluated=True,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert artifacts.report.state is EvidenceSensitivityState.confounded
     assert artifacts.counterfactual_evaluation.state is GateState.pass_
@@ -2870,7 +2925,15 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
 
     packet_path = tmp_path / "confounded-packet.json"
     _write_json(packet_path, packet.model_dump(mode="json"))
-    cli_default = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    cli_default = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
     cli_allowed = RUNNER.invoke(
         app,
         [
@@ -2878,6 +2941,7 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
             "gate",
             str(packet_path),
             "--allow-sensitivity-non-verdict",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
     assert cli_default.exit_code == 2

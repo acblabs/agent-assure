@@ -21,11 +21,19 @@ on:
 permissions:
   contents: read
 
+env:
+  SOURCE_DATE_EPOCH: "1783036800"
+
 jobs:
   capture:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Refuse an unfinalized execution-source pin
+        shell: bash
+        run: |
+          echo "::error title=External pilot unavailable::The trusted v0.6.6 execution-source commit has not been created and pinned yet. Do not recruit or dispatch this workflow."
+          exit 2
       - name: Require a participant-controlled direct fork
         shell: bash
         env:
@@ -37,18 +45,29 @@ jobs:
           TRIGGERING_ACTOR: ${{ github.triggering_actor }}
         run: |
           set -euo pipefail
-          test "${CONTROL_ATTESTED}" = "true"
-          test "${TEMPORARY_STORAGE_CONSENT_GRANTED}" = "true"
-          test "${TRIGGERING_ACTOR}" = "${ACTOR}"
-          test "${REPOSITORY_OWNER,,}" != "acblabs"
-          gh api \
+          fail() {
+            echo "::error title=External pilot eligibility::$1"
+            exit 2
+          }
+          [[ -n "${ACTOR}" ]] || fail "GitHub did not supply the workflow actor."
+          [[ "${CONTROL_ATTESTED}" = "true" ]] || fail \
+            "Attest non-maintainer control only if the statement is true."
+          [[ "${TEMPORARY_STORAGE_CONSENT_GRANTED}" = "true" ]] || fail \
+            "Consent to temporary Actions storage is required for Stage 1; otherwise stop."
+          [[ "${TRIGGERING_ACTOR}" = "${ACTOR}" ]] || fail \
+            "Only the original actor may run or rerun this pilot."
+          [[ "${REPOSITORY_OWNER,,}" != "acblabs" ]] || fail \
+            "Run this workflow only in a participant-controlled fork."
+          if ! gh api \
             --method GET \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
             "/repos/${GITHUB_REPOSITORY}" \
             | jq -e \
               '(.fork == true) and (.parent.full_name == "acblabs/agent-assure")' \
-              >/dev/null
+              >/dev/null; then
+            fail "GitHub could not verify a direct fork of acblabs/agent-assure."
+          fi
 
       - name: Check out the participant fork and committed input
         # actions/checkout@v4
@@ -57,12 +76,12 @@ jobs:
           path: participant-repository
           persist-credentials: false
 
-      - name: Check out the current upstream pre-candidate source
+      - name: Check out the immutable upstream execution source
         # actions/checkout@v4
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           repository: acblabs/agent-assure
-          ref: d5c3a3f7508be5a8c1ab11c1be4a1bf8bd9e4651
+          ref: 0000000000000000000000000000000000000000
           path: agent-assure-source
           fetch-depth: 1
           persist-credentials: false
@@ -96,7 +115,10 @@ jobs:
             --wheel-dir "${RUNNER_TEMP}/pilot-dist" ./agent-assure-source
           shopt -s nullglob
           wheels=("${RUNNER_TEMP}"/pilot-dist/agent_assure-*.whl)
-          test "${#wheels[@]}" -eq 1
+          if [[ "${#wheels[@]}" -ne 1 ]]; then
+            echo "::error title=External pilot build::Expected exactly one Agent Assure wheel; found ${#wheels[@]}."
+            exit 2
+          fi
           "${RUNNER_TEMP}/pilot-venv/bin/python" -m pip install \
             --disable-pip-version-check \
             --no-deps \

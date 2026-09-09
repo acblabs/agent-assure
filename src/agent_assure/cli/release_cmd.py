@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Annotated, Literal
 
 import typer
-from pydantic import Field, ValidationError
+from pydantic import Field, ValidationError, field_validator
 from rich.console import Console
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
@@ -36,13 +36,33 @@ from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import (
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     MachineIdentifier,
+    coerce_tuple,
 )
-from agent_assure.schema.pilot import ExternalPilotEvidence
+from agent_assure.schema.pilot import ExternalPilotEvidence, PilotWorkflowDispatchInput
 
 app = typer.Typer(help="Release evidence utilities.")
 pilot_app = typer.Typer(help="Finalize externally operated pilot evidence.")
 app.add_typer(pilot_app, name="pilot")
 console = Console()
+
+
+class _PilotWorkflowRunTemplate(StrictModel):
+    stage: Literal["capture", "finalize"]
+    run_url: str = Field(min_length=1, max_length=512)
+    run_attempt: int = Field(ge=1)
+    run_head_sha: str = Field(pattern=r"^[a-f0-9]{40}$")
+    trusted_workflow_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
+    execution_source_revision: str = Field(pattern=r"^[a-f0-9]{40}$")
+    workflow_path: str = Field(min_length=1, max_length=255)
+    run_head_workflow_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    trusted_workflow_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
+    workflow_bytes_match_trusted_revision: Literal[True]
+    public_inputs: tuple[PilotWorkflowDispatchInput, ...] = Field(min_length=1, max_length=32)
+
+    @field_validator("public_inputs", mode="before")
+    @classmethod
+    def _coerce_public_inputs(cls, value: object) -> object:
+        return coerce_tuple(value)
 
 
 class _PilotReviewTemplate(StrictModel):
@@ -58,6 +78,15 @@ class _PilotReviewTemplate(StrictModel):
     execution_time_input_content_digests_reviewed: Literal[True]
     input_semantic_identities_reviewed: Literal[True]
     complete_bundle_publication_consent_reviewed: Literal[True]
+    capture_workflow_run: _PilotWorkflowRunTemplate
+    finalize_workflow_run: _PilotWorkflowRunTemplate
+    run_head_shas_reviewed: Literal[True]
+    workflow_run_urls_reviewed: Literal[True]
+    trusted_workflow_bytes_reviewed: Literal[True]
+    execution_source_pins_reviewed: Literal[True]
+    public_workflow_inputs_reviewed: Literal[True]
+    friction_and_remediation_disposition_reviewed: Literal[True]
+    friction_category_and_remediation_bindings_reviewed: Literal[True]
     privacy_boundary_reviewed: Literal[True]
     review_outcome: Literal["approved_for_empirical_checkpoint"]
     reviewed_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)

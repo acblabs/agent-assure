@@ -204,9 +204,7 @@ def test_budget_stop_result_omits_declared_replacement_that_is_already_equal() -
     assert execution.result.changed_paths == ("/completion_status",)
     assert execution.mutated_payload is not None
     assert execution.mutated_payload["completion_status"] == "incomplete"
-    assert execution.mutated_payload["stop_reasons"] == [
-        SYNTHETIC_BUDGET_STOP_REASON
-    ]
+    assert execution.mutated_payload["stop_reasons"] == [SYNTHETIC_BUDGET_STOP_REASON]
     assert structural_changed_paths(source_payload, execution.mutated_payload) == (
         "/completion_status",
     )
@@ -233,9 +231,7 @@ def test_budget_stop_permits_same_length_stop_reason_replacement() -> None:
         "/stop_reasons/0",
     )
     assert execution.mutated_payload is not None
-    assert execution.mutated_payload["stop_reasons"] == [
-        SYNTHETIC_BUDGET_STOP_REASON
-    ]
+    assert execution.mutated_payload["stop_reasons"] == [SYNTHETIC_BUDGET_STOP_REASON]
     assert source_payload == source_before
 
 
@@ -259,9 +255,7 @@ def test_structural_changed_paths_is_type_sensitive_collapsed_and_escaped() -> N
         "/shape",
         "/typed",
     )
-    assert structural_changed_paths({"stable": 1}, {"added": 2, "stable": 1}) == (
-        "",
-    )
+    assert structural_changed_paths({"stable": 1}, {"added": 2, "stable": 1}) == ("",)
     assert structural_changed_paths([1], [1, 2]) == ("",)
     assert structural_changed_paths(["before"], ["after"]) == ("/0",)
 
@@ -1660,18 +1654,14 @@ def test_invalid_operator_output_diagnostics_preserve_failure_stage(
         _payload: Mapping[str, object],
     ) -> tuple[MutationTarget, ...]:
         return (
-                MutationTarget(
-                    identity=f"invalid-output-{failure_kind}",
-                    expected_finding_target=(
-                        "output_summary"
-                        if failure_kind == "noncanonical"
-                        else "claim:claim-case-a"
-                    ),
+            MutationTarget(
+                identity=f"invalid-output-{failure_kind}",
+                expected_finding_target=(
+                    "output_summary" if failure_kind == "noncanonical" else "claim:claim-case-a"
+                ),
                 changes=(() if failure_kind == "materialization" else (change,)),
                 materialize_changes=(
-                    fail_materialization
-                    if failure_kind == "materialization"
-                    else None
+                    fail_materialization if failure_kind == "materialization" else None
                 ),
             ),
         )

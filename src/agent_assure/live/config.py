@@ -334,6 +334,7 @@ class LiveRunConfig(StrictModel):
     max_cost_per_observation_usd: str = Field(default="0.000000", pattern=USD_PATTERN)
     max_generated_tokens: int | None = Field(default=None, ge=1)
     max_total_tokens: int | None = Field(default=None, ge=1)
+    fail_fast_on_excluded_response: bool = False
     max_retries: int = Field(default=2, ge=0, le=MAX_LIVE_RETRIES)
     retry_initial_backoff_seconds: str = Field(default="1.000000", pattern=DECIMAL_PATTERN)
     retry_max_backoff_seconds: str = Field(default="8.000000", pattern=DECIMAL_PATTERN)

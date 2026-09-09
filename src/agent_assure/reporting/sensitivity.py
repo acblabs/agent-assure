@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, cast
 
 from pydantic import BaseModel
 
-from agent_assure.artifact_io import ensure_unlinked_directory
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.fixtures.loader import compiled_suite_digest
@@ -47,7 +46,9 @@ from agent_assure.rooted_io import (
     RootedDirectoryDescriptor,
     acquire_publication_lock,
     claim_rooted_directory,
+    open_or_create_rooted_directory_from_filesystem_root,
     open_rooted_directory,
+    open_rooted_directory_from_filesystem_root,
     release_publication_lock,
     retry_windows_sharing_violation,
 )
@@ -165,12 +166,7 @@ class _PinnedExistingSensitivityGeneration:
             )
         for opened in self.files:
             opened.revalidate()
-        _require_directory_identity(
-            self.lease.path,
-            device=self.lease.device,
-            inode=self.lease.inode,
-            label="existing evidence sensitivity output",
-        )
+        self.lease.revalidate_path(label="existing evidence sensitivity output")
 
     def close(self) -> None:
         try:
@@ -182,25 +178,30 @@ class _PinnedExistingSensitivityGeneration:
 
 def ensure_sensitivity_output_namespace(out_dir: Path) -> None:
     """Reject mixed artifact generations before sensitivity publication."""
-    if not out_dir.exists():
+    try:
+        lease = open_rooted_directory_from_filesystem_root(
+            out_dir,
+            label="sensitivity output directory",
+        )
+    except FileNotFoundError:
         return
-    ensure_unlinked_directory(out_dir)
-    allowed = {os.path.normcase(name) for name in SENSITIVITY_OUTPUT_FILENAMES}
-    with os.scandir(out_dir) as entries:
-        for index, entry in enumerate(entries):
-            if index >= _SENSITIVITY_OUTPUT_SCAN_LIMIT:
-                raise ValueError(
-                    "sensitivity output directory contains too many entries to validate"
-                )
-            if os.path.normcase(entry.name) not in allowed:
+    with lease:
+        names = lease.entry_names(
+            max_entries=_SENSITIVITY_OUTPUT_SCAN_LIMIT,
+            label="sensitivity output directory",
+        )
+        allowed = {os.path.normcase(name) for name in SENSITIVITY_OUTPUT_FILENAMES}
+        for name in names:
+            if os.path.normcase(name) not in allowed:
                 raise ValueError(
                     "sensitivity output directory contains a foreign artifact namespace"
                 )
-            metadata = entry.stat(follow_symlinks=False)
+            metadata = lease.stat_entry_no_follow(name)
             if metadata_is_reparse(metadata) or not metadata_is_regular_file(metadata):
                 raise ValueError(
                     "sensitivity output directory contains a non-regular artifact entry"
                 )
+        lease.revalidate_path(label="sensitivity output directory")
 
 
 def write_sensitivity_execution_artifacts(
@@ -318,25 +319,13 @@ def _publish_sensitivity_generation(
     if any(len(payload) > MAX_ARTIFACT_JSON_BYTES for payload in payloads.values()):
         raise ValueError("evidence sensitivity artifact exceeds maximum supported size")
 
-    parent = ensure_unlinked_directory(target.parent)
-    parent_metadata = os.lstat(parent)
-    with open_rooted_directory(
-        parent,
-        ".",
+    with open_or_create_rooted_directory_from_filesystem_root(
+        target.parent,
         label="sensitivity output parent",
     ) as parent_lease:
-        if (parent_lease.device, parent_lease.inode) != (
-            parent_metadata.st_dev,
-            parent_metadata.st_ino,
-        ):
-            raise OSError("sensitivity output parent changed while opening")
+        parent_lease.revalidate_path(label="sensitivity output parent")
         with _best_effort_sensitivity_publication_lock(parent_lease, target.name):
-            _require_directory_identity(
-                parent_lease.path,
-                device=parent_lease.device,
-                inode=parent_lease.inode,
-                label="sensitivity output parent",
-            )
+            parent_lease.revalidate_path(label="sensitivity output parent")
             existing = _open_existing_sensitivity_generation_with_transient_share_retry(
                 parent_lease,
                 target,
@@ -1061,20 +1050,10 @@ def _fsync_staged_sensitivity_generation(claim: RootedDirectoryClaim) -> None:
 
 
 def _after_sensitivity_generation_commit(parent: RootedDirectoryDescriptor) -> None:
-    _require_directory_identity(
-        parent.path,
-        device=parent.device,
-        inode=parent.inode,
-        label="sensitivity output parent",
-    )
+    parent.revalidate_path(label="sensitivity output parent")
     if os.name != "nt" and parent.descriptor is not None:
         os.fsync(parent.descriptor)
-    _require_directory_identity(
-        parent.path,
-        device=parent.device,
-        inode=parent.inode,
-        label="sensitivity output parent",
-    )
+    parent.revalidate_path(label="sensitivity output parent")
 
 
 def _require_directory_identity(

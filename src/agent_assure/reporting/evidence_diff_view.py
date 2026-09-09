@@ -226,9 +226,7 @@ def _validate_evidence_diff_inputs(
         ):
             errors.append("packet.comparison does not match comparison summary")
     if errors:
-        raise ValueError(
-            "evidence-diff artifact inputs are inconsistent: " + "; ".join(errors)
-        )
+        raise ValueError("evidence-diff artifact inputs are inconsistent: " + "; ".join(errors))
 
 
 def _require_equal(
@@ -269,8 +267,7 @@ def _require_state_equal(
 ) -> None:
     if left_value != right_value:
         errors.append(
-            f"{left_label}={left_value.value!r} does not match "
-            f"{right_label}={right_value.value!r}"
+            f"{left_label}={left_value.value!r} does not match {right_label}={right_value.value!r}"
         )
 
 
@@ -324,10 +321,7 @@ def _candidate_summary(
 ) -> EvaluationSummary:
     if candidate_summary is not None:
         return candidate_summary
-    if (
-        packet is not None
-        and packet.evaluation.runset_id == comparison_summary.candidate_runset_id
-    ):
+    if packet is not None and packet.evaluation.runset_id == comparison_summary.candidate_runset_id:
         return packet.evaluation
     return EvaluationSummary(
         runset_id=comparison_summary.candidate_runset_id,
@@ -417,9 +411,7 @@ def _process_affected_summary(
     affected_case_ids = {
         finding.case_id for finding in candidate_summary.findings if finding.case_id
     }
-    unscoped_finding_count = sum(
-        1 for finding in candidate_summary.findings if not finding.case_id
-    )
+    unscoped_finding_count = sum(1 for finding in candidate_summary.findings if not finding.case_id)
     affected_case_ids.update(diff.case_id for diff in missing_links)
     total_cases = len(
         {run.case_id for run in baseline.runs} | {run.case_id for run in candidate.runs}
@@ -444,15 +436,9 @@ def _process_finding_scope_phrase(summary: ProcessAffectedSummary) -> str:
             f"finding{'' if unscoped == 1 else 's'}"
         )
     if affected:
-        return (
-            f"across {affected} process-affected case"
-            f"{'' if affected == 1 else 's'}"
-        )
+        return f"across {affected} process-affected case{'' if affected == 1 else 's'}"
     if unscoped:
-        return (
-            f"without case IDs ({unscoped} unscoped finding"
-            f"{'' if unscoped == 1 else 's'})"
-        )
+        return f"without case IDs ({unscoped} unscoped finding{'' if unscoped == 1 else 's'})"
     return "without process-affected case IDs"
 
 

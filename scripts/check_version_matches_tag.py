@@ -61,8 +61,7 @@ def main(argv: list[str] | None = None) -> int:
         )
     if not expected_schema_dir.is_dir():
         failures.append(
-            "frozen schema directory missing for release version: "
-            f"{expected_schema_dir}"
+            f"frozen schema directory missing for release version: {expected_schema_dir}"
         )
     if failures:
         for failure in failures:

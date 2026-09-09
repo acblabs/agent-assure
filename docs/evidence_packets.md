@@ -193,12 +193,14 @@ model, and graph-projection checks. Two valid trees are ambiguous and fail
 closed; no valid tree surfaces the binding failure. `--artifact-root` selects
 one verifier-trusted root exclusively.
 
-Presence is controlled by verifier-owned policy. `--require-efficacy` makes an
-efficacy-free packet invalid, and `--efficacy-policy` implies that requirement.
-Otherwise an efficacy-free packet remains eligible for ordinary
-evaluation/comparison gating but explicitly reports
-`efficacy_evidence=absent`, `efficacy_verification=not_requested`, and
-`efficacy_required=false`; it does not claim an efficacy check occurred.
+Evidence-packet gates require efficacy by default; `--require-efficacy`
+remains an explicit restatement, and `--efficacy-policy` supplies the
+verifier-owned policy. An efficacy-free packet is invalid and reports
+`efficacy_evidence=absent`, `efficacy_verification=strict`, and
+`efficacy_required=true`. The only opt-out,
+`--allow-missing-efficacy-for-migration`, is confined to temporary
+non-assurance migration, cannot be combined with a verifier policy or release
+profile, and labels its output accordingly.
 `--require-evidence-sensitivity` independently makes a sensitivity-free packet
 invalid. Use that option in release automation whenever sensitivity is required;
 a generic evaluation/comparison packet cannot safely infer that an omitted

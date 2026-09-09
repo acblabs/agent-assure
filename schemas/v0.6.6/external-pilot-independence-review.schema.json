@@ -1,4 +1,155 @@
 {
+  "$defs": {
+    "PilotFrictionAssessmentState": {
+      "enum": [
+        "friction_observed",
+        "no_friction_observed",
+        "not_assessed"
+      ],
+      "title": "PilotFrictionAssessmentState",
+      "type": "string"
+    },
+    "PilotFrictionCategory": {
+      "enum": [
+        "installation",
+        "configuration",
+        "diagnostics",
+        "continuous_integration",
+        "runtime",
+        "documentation",
+        "other"
+      ],
+      "title": "PilotFrictionCategory",
+      "type": "string"
+    },
+    "PilotRemediationDisposition": {
+      "enum": [
+        "applied",
+        "planned",
+        "deferred",
+        "no_change_required"
+      ],
+      "title": "PilotRemediationDisposition",
+      "type": "string"
+    },
+    "PilotWorkflowDispatchInput": {
+      "additionalProperties": false,
+      "description": "One public, non-secret workflow-dispatch input reviewed from a run record.",
+      "properties": {
+        "name": {
+          "maxLength": 256,
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "title": "Name",
+          "type": "string"
+        },
+        "value": {
+          "maxLength": 2048,
+          "minLength": 1,
+          "pattern": "^[^\\x00\\r\\n]+$",
+          "title": "Value",
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "value"
+      ],
+      "title": "PilotWorkflowDispatchInput",
+      "type": "object"
+    },
+    "PilotWorkflowRunReview": {
+      "additionalProperties": false,
+      "description": "Human-reviewed binding between one Actions run and trusted workflow bytes.",
+      "properties": {
+        "execution_source_revision": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Execution Source Revision",
+          "type": "string"
+        },
+        "public_inputs": {
+          "items": {
+            "$ref": "#/$defs/PilotWorkflowDispatchInput"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Public Inputs",
+          "type": "array"
+        },
+        "public_inputs_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Public Inputs Sha256",
+          "type": "string"
+        },
+        "run_attempt": {
+          "minimum": 1,
+          "title": "Run Attempt",
+          "type": "integer"
+        },
+        "run_head_sha": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Run Head Sha",
+          "type": "string"
+        },
+        "run_head_workflow_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Run Head Workflow Sha256",
+          "type": "string"
+        },
+        "run_url": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Run Url",
+          "type": "string"
+        },
+        "stage": {
+          "enum": [
+            "capture",
+            "finalize"
+          ],
+          "title": "Stage",
+          "type": "string"
+        },
+        "trusted_workflow_revision": {
+          "pattern": "^[a-f0-9]{40}$",
+          "title": "Trusted Workflow Revision",
+          "type": "string"
+        },
+        "trusted_workflow_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Trusted Workflow Sha256",
+          "type": "string"
+        },
+        "workflow_bytes_match_trusted_revision": {
+          "const": true,
+          "title": "Workflow Bytes Match Trusted Revision",
+          "type": "boolean"
+        },
+        "workflow_path": {
+          "maxLength": 255,
+          "minLength": 1,
+          "title": "Workflow Path",
+          "type": "string"
+        }
+      },
+      "required": [
+        "stage",
+        "run_url",
+        "run_attempt",
+        "run_head_sha",
+        "trusted_workflow_revision",
+        "execution_source_revision",
+        "workflow_path",
+        "run_head_workflow_sha256",
+        "trusted_workflow_sha256",
+        "workflow_bytes_match_trusted_revision",
+        "public_inputs",
+        "public_inputs_sha256"
+      ],
+      "title": "PilotWorkflowRunReview",
+      "type": "object"
+    }
+  },
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/external-pilot-independence-review.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
@@ -19,6 +170,9 @@
       "pattern": "^[a-f0-9]{64}$",
       "title": "Artifact Manifest Digest",
       "type": "string"
+    },
+    "capture_workflow_run": {
+      "$ref": "#/$defs/PilotWorkflowRunReview"
     },
     "command_input_bindings_reviewed": {
       "const": true,
@@ -59,6 +213,11 @@
       "title": "Environment Control Evidence Sha256",
       "type": "string"
     },
+    "execution_source_pins_reviewed": {
+      "const": true,
+      "title": "Execution Source Pins Reviewed",
+      "type": "boolean"
+    },
     "execution_time_input_content_digests_reviewed": {
       "const": true,
       "title": "Execution Time Input Content Digests Reviewed",
@@ -68,6 +227,19 @@
       "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
       "title": "Expected Release Line",
       "type": "string"
+    },
+    "finalize_workflow_run": {
+      "$ref": "#/$defs/PilotWorkflowRunReview"
+    },
+    "friction_and_remediation_disposition_reviewed": {
+      "const": true,
+      "title": "Friction And Remediation Disposition Reviewed",
+      "type": "boolean"
+    },
+    "friction_category_and_remediation_bindings_reviewed": {
+      "const": true,
+      "title": "Friction Category And Remediation Bindings Reviewed",
+      "type": "boolean"
     },
     "input_semantic_identities_reviewed": {
       "const": true,
@@ -89,6 +261,22 @@
       "title": "Pilot Evidence File Sha256",
       "type": "string"
     },
+    "pilot_execution_source_revision": {
+      "pattern": "^[a-f0-9]{40}$",
+      "title": "Pilot Execution Source Revision",
+      "type": "string"
+    },
+    "pilot_friction_assessment": {
+      "$ref": "#/$defs/PilotFrictionAssessmentState"
+    },
+    "pilot_friction_categories": {
+      "items": {
+        "$ref": "#/$defs/PilotFrictionCategory"
+      },
+      "maxItems": 128,
+      "title": "Pilot Friction Categories",
+      "type": "array"
+    },
     "pilot_id": {
       "maxLength": 256,
       "minLength": 1,
@@ -103,10 +291,59 @@
       "title": "Pilot Participant Pseudonym",
       "type": "string"
     },
+    "pilot_remediation_dispositions": {
+      "items": {
+        "$ref": "#/$defs/PilotRemediationDisposition"
+      },
+      "maxItems": 128,
+      "title": "Pilot Remediation Dispositions",
+      "type": "array"
+    },
+    "pilot_remediation_source_revision": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{40}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Pilot Remediation Source Revision"
+    },
+    "prior_planned_candidate_evidence_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "title": "Prior Planned Candidate Evidence Digest"
+    },
     "privacy_boundary_reviewed": {
       "const": true,
       "title": "Privacy Boundary Reviewed",
       "type": "boolean"
+    },
+    "public_workflow_inputs_reviewed": {
+      "const": true,
+      "title": "Public Workflow Inputs Reviewed",
+      "type": "boolean"
+    },
+    "publication_consent_artifact_id": {
+      "maxLength": 256,
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "title": "Publication Consent Artifact Id",
+      "type": "string"
+    },
+    "publication_consent_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Publication Consent Sha256",
+      "type": "string"
     },
     "receipt_id": {
       "maxLength": 256,
@@ -160,6 +397,11 @@
       "title": "Reviewer Pseudonym",
       "type": "string"
     },
+    "run_head_shas_reviewed": {
+      "const": true,
+      "title": "Run Head Shas Reviewed",
+      "type": "boolean"
+    },
     "schema_name": {
       "const": "external-pilot-independence-review",
       "default": "external-pilot-independence-review",
@@ -176,6 +418,16 @@
       "const": true,
       "title": "Tested Distribution Provenance Reviewed",
       "type": "boolean"
+    },
+    "trusted_workflow_bytes_reviewed": {
+      "const": true,
+      "title": "Trusted Workflow Bytes Reviewed",
+      "type": "boolean"
+    },
+    "workflow_run_urls_reviewed": {
+      "const": true,
+      "title": "Workflow Run Urls Reviewed",
+      "type": "boolean"
     }
   },
   "required": [
@@ -188,6 +440,16 @@
     "artifact_manifest_digest",
     "environment_control_evidence_artifact_id",
     "environment_control_evidence_sha256",
+    "publication_consent_artifact_id",
+    "publication_consent_sha256",
+    "pilot_execution_source_revision",
+    "pilot_friction_assessment",
+    "pilot_friction_categories",
+    "pilot_remediation_dispositions",
+    "pilot_remediation_source_revision",
+    "prior_planned_candidate_evidence_digest",
+    "capture_workflow_run",
+    "finalize_workflow_run",
     "expected_release_line",
     "reviewer_pseudonym",
     "manual_approval_is_trust_root",
@@ -200,6 +462,13 @@
     "execution_time_input_content_digests_reviewed",
     "input_semantic_identities_reviewed",
     "complete_bundle_publication_consent_reviewed",
+    "run_head_shas_reviewed",
+    "workflow_run_urls_reviewed",
+    "trusted_workflow_bytes_reviewed",
+    "execution_source_pins_reviewed",
+    "public_workflow_inputs_reviewed",
+    "friction_and_remediation_disposition_reviewed",
+    "friction_category_and_remediation_bindings_reviewed",
     "privacy_boundary_reviewed",
     "review_outcome",
     "reviewed_at",

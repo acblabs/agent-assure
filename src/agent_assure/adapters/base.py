@@ -21,6 +21,8 @@ from agent_assure.schema.run import (
     ClaimRecord,
     EvidenceItem,
     EvidenceRef,
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
 )
 from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary
 from agent_assure.usage.aggregation import aggregate_usage_segments
@@ -146,10 +148,7 @@ class FrameworkRunProjection(StrictModel):
     def _coerce_evidence_claim_map(cls, value: object) -> object:
         if not isinstance(value, Mapping):
             return value
-        return {
-            str(ref_id): _coerce_string_tuple(claim_ids)
-            for ref_id, claim_ids in value.items()
-        }
+        return {str(ref_id): _coerce_string_tuple(claim_ids) for ref_id, claim_ids in value.items()}
 
     @field_validator("evidence_source_map", "evidence_content_digest_map", mode="before")
     @classmethod
@@ -272,6 +271,12 @@ def build_run_record_from_observations(
             if observed_human_review_performed is not None
             else projection.human_review_performed
         ),
+        # This is producer provenance, not independent attestation. Framework
+        # events and caller-supplied projection data are mediated by the
+        # instrumented adapter contract rather than generated model JSON.
+        structured_field_origins=StructuredFieldOrigins.uniform(
+            StructuredFieldOrigin.instrumented_adapter
+        ),
         usage_ledger=usage_ledger,
         usage_summary=usage_summary,
         provenance=Provenance(
@@ -315,9 +320,7 @@ def validate_no_raw_payload_keys(payload: Mapping[str, object], *, owner: str) -
         if len(key_text) > MAX_PRIVACY_FILTERED_KEY_CHARS:
             raise ValueError(f"{owner} contains an overlong mapping key")
         if _PRIVACY_FILTERED_KEY_PATTERN.fullmatch(key_text) is None:
-            raise ValueError(
-                f"{owner} mapping keys must use compact ASCII attribute-key syntax"
-            )
+            raise ValueError(f"{owner} mapping keys must use compact ASCII attribute-key syntax")
         if contains_sensitive_value(key_text):
             raise ValueError(f"{owner} contains a sensitive-looking mapping key")
         if _looks_like_raw_payload_key(key_text):
@@ -469,13 +472,10 @@ def _evidence_items(
 
 def _claim_records(evidence_claim_map: Mapping[str, tuple[str, ...]]) -> tuple[ClaimRecord, ...]:
     claim_ids = _ordered_unique(
-        claim_id
-        for claim_ids in evidence_claim_map.values()
-        for claim_id in claim_ids
+        claim_id for claim_ids in evidence_claim_map.values() for claim_id in claim_ids
     )
     return tuple(
-        ClaimRecord(artifact_kind="claim-record", claim_id=claim_id)
-        for claim_id in claim_ids
+        ClaimRecord(artifact_kind="claim-record", claim_id=claim_id) for claim_id in claim_ids
     )
 
 

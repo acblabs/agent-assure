@@ -11,6 +11,7 @@ from agent_assure.adapters import (
     LangGraphAdapter,
     build_run_record_from_observations,
 )
+from agent_assure.schema import StructuredFieldOrigin
 
 RAW_PROMPT = "Employee E-7788 raw reimbursement prompt with receipt R-44119"
 RAW_TOOL_ARGS = '{"employee_id":"E-7788","receipt_id":"R-44119"}'
@@ -90,6 +91,10 @@ def test_langgraph_adapter_ignores_raw_event_payloads_and_attaches_usage() -> No
     assert run.usage_ledger.segments[0].run_id == "run-lg-001"
     assert run.usage_ledger.segments[0].case_id == "case-001"
     assert run.usage_summary.total_tokens == 20
+    assert run.structured_field_origins is not None
+    assert {*run.structured_field_origins.model_dump(mode="python").values()} == {
+        StructuredFieldOrigin.instrumented_adapter
+    }
 
 
 def test_build_run_record_uses_observed_decision_not_projection() -> None:

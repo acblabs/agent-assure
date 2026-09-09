@@ -41,7 +41,12 @@ from agent_assure.schema.pilot import (
 )
 from tests.unit.mutation.test_campaign import _campaign as _mutation_campaign
 from tests.unit.mutation.test_campaign import _fixture as _mutation_fixture
-from tests.unit.schema.test_pilot_evidence import _artifacts, _external_evidence, _values
+from tests.unit.schema.test_pilot_evidence import (
+    _artifacts,
+    _external_evidence,
+    _values,
+    _workflow_run,
+)
 
 EVIDENCE_NAME = "external-pilot-evidence.json"
 RECEIPT_NAME = "external-pilot-independence-review.json"
@@ -157,11 +162,26 @@ def _write_bundle(
             data = distribution_bytes if distribution_bytes is not None else _wheel_bytes()
         else:
             path = f"{source.artifact_id}.json"
+            default_data = (
+                _json_bytes(
+                    {
+                        "artifact_kind": "external-pilot-remediation-record",
+                        "contract_id": "ExternalPilotRemediationRecord/v1",
+                        "pilot_id": values["pilot_id"],
+                        "friction_category": "diagnostics",
+                        "disposition": "applied",
+                        "remediation_source_revision": "d" * 40,
+                        "prior_planned_candidate_evidence_digest": "f" * 64,
+                    }
+                )
+                if source.role is PilotArtifactRole.remediation_record
+                else _json_bytes({"artifact_id": source.artifact_id, "state": "recorded"})
+            )
             data = content_overrides.get(
                 source.artifact_id,
                 input_manifest_bytes
                 if source.role is PilotArtifactRole.input_manifest
-                else _json_bytes({"artifact_id": source.artifact_id, "state": "recorded"}),
+                else default_data,
             )
         contract = contract_overrides.get(source.artifact_id, source.schema_contract)
         artifact = PilotArtifactDigest(
@@ -194,9 +214,12 @@ def _write_bundle(
         PilotRemediationReference,
     )
     assert isinstance(publication, PilotPublication)
+    consent_id = publication.consent_artifact_id
+    assert consent_id is not None
     values["subject"] = PilotSubject.model_validate(
         {
             **subject.model_dump(mode="json"),
+            "source_revision": "9" * 40,
             "distribution_digest": artifact_by_id[subject.distribution_artifact_id].sha256,
         }
     )
@@ -220,6 +243,7 @@ def _write_bundle(
         PilotCommandExecution.model_validate(
             {
                 **commands[0].model_dump(mode="json"),
+                "implementation_source_revision": "9" * 40,
                 "tested_distribution_digest": artifact_by_id[
                     commands[0].tested_distribution_artifact_id
                 ].sha256,
@@ -260,6 +284,20 @@ def _write_bundle(
         "artifact_manifest_digest": pilot_artifact_manifest_digest(evidence.artifacts),
         "environment_control_evidence_artifact_id": control_id,
         "environment_control_evidence_sha256": artifact_by_id[control_id].sha256,
+        "publication_consent_artifact_id": consent_id,
+        "publication_consent_sha256": artifact_by_id[consent_id].sha256,
+        "pilot_execution_source_revision": "9" * 40,
+        "pilot_friction_assessment": evidence.friction_assessment,
+        "pilot_friction_categories": tuple(
+            finding.category for finding in evidence.friction_findings
+        ),
+        "pilot_remediation_dispositions": tuple(
+            remediation.disposition for remediation in evidence.remediations
+        ),
+        "pilot_remediation_source_revision": "d" * 40,
+        "prior_planned_candidate_evidence_digest": "f" * 64,
+        "capture_workflow_run": _workflow_run("capture"),
+        "finalize_workflow_run": _workflow_run("finalize"),
         "expected_release_line": "0.6.6",
         "reviewer_pseudonym": "release-reviewer-001",
         "manual_approval_is_trust_root": True,
@@ -274,6 +312,13 @@ def _write_bundle(
         "execution_time_input_content_digests_reviewed": True,
         "input_semantic_identities_reviewed": True,
         "complete_bundle_publication_consent_reviewed": True,
+        "run_head_shas_reviewed": True,
+        "workflow_run_urls_reviewed": True,
+        "trusted_workflow_bytes_reviewed": True,
+        "execution_source_pins_reviewed": True,
+        "public_workflow_inputs_reviewed": True,
+        "friction_and_remediation_disposition_reviewed": True,
+        "friction_category_and_remediation_bindings_reviewed": True,
         "privacy_boundary_reviewed": True,
         "review_outcome": "approved_for_empirical_checkpoint",
         "reviewed_at": "2026-09-02T10:00:00Z",
@@ -342,6 +387,15 @@ def test_review_inputs_are_factory_only_and_derive_exact_receipt_bindings(
         execution_time_input_content_digests_reviewed=True,
         input_semantic_identities_reviewed=True,
         complete_bundle_publication_consent_reviewed=True,
+        capture_workflow_run=expected_receipt.capture_workflow_run,
+        finalize_workflow_run=expected_receipt.finalize_workflow_run,
+        run_head_shas_reviewed=True,
+        workflow_run_urls_reviewed=True,
+        trusted_workflow_bytes_reviewed=True,
+        execution_source_pins_reviewed=True,
+        public_workflow_inputs_reviewed=True,
+        friction_and_remediation_disposition_reviewed=True,
+        friction_category_and_remediation_bindings_reviewed=True,
         privacy_boundary_reviewed=True,
         review_outcome="approved_for_empirical_checkpoint",
         reviewed_at=expected_receipt.reviewed_at,
@@ -349,6 +403,12 @@ def test_review_inputs_are_factory_only_and_derive_exact_receipt_bindings(
 
     assert review_inputs.is_mechanically_verified is True
     assert review_inputs.evidence == evidence
+    assert review_inputs.remediation_source_revision == "d" * 40
+    assert review_inputs.prior_planned_candidate_evidence_digest == "f" * 64
+    assert receipt.pilot_execution_source_revision == evidence.subject.source_revision
+    assert receipt.pilot_friction_categories == tuple(
+        finding.category for finding in evidence.friction_findings
+    )
     assert receipt == expected_receipt
 
 
@@ -370,6 +430,15 @@ def test_review_receipt_builder_rejects_unissued_inputs() -> None:
             execution_time_input_content_digests_reviewed=True,
             input_semantic_identities_reviewed=True,
             complete_bundle_publication_consent_reviewed=True,
+            capture_workflow_run=_workflow_run("capture"),
+            finalize_workflow_run=_workflow_run("finalize"),
+            run_head_shas_reviewed=True,
+            workflow_run_urls_reviewed=True,
+            trusted_workflow_bytes_reviewed=True,
+            execution_source_pins_reviewed=True,
+            public_workflow_inputs_reviewed=True,
+            friction_and_remediation_disposition_reviewed=True,
+            friction_category_and_remediation_bindings_reviewed=True,
             privacy_boundary_reviewed=True,
             review_outcome="approved_for_empirical_checkpoint",
             reviewed_at="2026-09-02T10:00:00Z",
@@ -1002,6 +1071,56 @@ def test_single_mutation_result_fails_closed_when_suite_identity_is_unexposed() 
         )
 
 
+def test_remediation_record_source_and_prior_digest_are_bound_to_the_receipt(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "bundle"
+    _write_bundle(
+        root,
+        artifact_content_overrides={
+            "artifact-remediation": _json_bytes(
+                {
+                    "artifact_kind": "external-pilot-remediation-record",
+                    "contract_id": "ExternalPilotRemediationRecord/v1",
+                    "pilot_id": "external-controls-pilot-001",
+                    "friction_category": "diagnostics",
+                    "disposition": "applied",
+                    "remediation_source_revision": "e" * 40,
+                    "prior_planned_candidate_evidence_digest": "a" * 64,
+                }
+            )
+        },
+    )
+
+    with pytest.raises(ValueError, match="does not bind the exact bundle"):
+        _load(root)
+
+
+def test_remediation_record_category_is_bound_to_its_friction_finding(
+    tmp_path: Path,
+) -> None:
+    root = tmp_path / "bundle"
+    _write_bundle(
+        root,
+        artifact_content_overrides={
+            "artifact-remediation": _json_bytes(
+                {
+                    "artifact_kind": "external-pilot-remediation-record",
+                    "contract_id": "ExternalPilotRemediationRecord/v1",
+                    "pilot_id": "external-controls-pilot-001",
+                    "friction_category": "runtime",
+                    "disposition": "applied",
+                    "remediation_source_revision": "d" * 40,
+                    "prior_planned_candidate_evidence_digest": "f" * 64,
+                }
+            )
+        },
+    )
+
+    with pytest.raises(ValueError, match="category does not match its finding"):
+        _load(root)
+
+
 @pytest.mark.parametrize(
     "receipt_overrides",
     (
@@ -1009,6 +1128,7 @@ def test_single_mutation_result_fails_closed_when_suite_identity_is_unexposed() 
         {"expected_release_line": "0.6.5"},
         {"artifact_manifest_digest": "f" * 64},
         {"environment_control_evidence_sha256": "e" * 64},
+        {"publication_consent_sha256": "d" * 64},
         {"reviewed_at": "2026-08-31T23:59:59Z"},
     ),
 )

@@ -45,7 +45,5 @@ def _redacted_stack_digest(exc: BaseException | None, fallback: str) -> str:
     if exc is None:
         stack_text = fallback
     else:
-        stack_text = "".join(
-            traceback.format_exception(type(exc), exc, exc.__traceback__)
-        )
+        stack_text = "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
     return hashlib.sha256(redact_text(stack_text).encode("utf-8")).hexdigest()

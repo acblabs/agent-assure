@@ -19,12 +19,7 @@ def test_prior_auth_variants_share_identical_fixture_manifest() -> None:
     compiled = compile_suite(SUITE)
     manifest_digest = fixture_manifest_digest(build_fixture_manifest(compiled, SUITE.parent))
     runsets = [
-        run_suite(compiled, load_variant_config(variant), SUITE.parent)
-        for variant in VARIANTS
+        run_suite(compiled, load_variant_config(variant), SUITE.parent) for variant in VARIANTS
     ]
-    observed = {
-        run.provenance.fixture_manifest_digest
-        for runset in runsets
-        for run in runset.runs
-    }
+    observed = {run.provenance.fixture_manifest_digest for runset in runsets for run in runset.runs}
     assert observed == {manifest_digest}

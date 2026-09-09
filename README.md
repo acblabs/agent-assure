@@ -4,10 +4,13 @@
 
 **Same approval. Missing evidence link. Configured CI gate blocked.**
 
-`agent-assure` catches declared, observable process regressions in agent
-releases that final-answer-only checks can miss. It turns privacy-filtered run
-evidence into reproducible comparisons, reviewer-facing artifacts, portable
-evidence packets, and ordinary CI gate signals.
+`agent-assure` catches regressions in declared, structured process evidence that
+final-answer-only checks can miss. It turns privacy-filtered run records into
+reproducible comparisons, reviewer-facing artifacts, portable evidence packets,
+and ordinary CI gate signals. Evidence strength follows its recorded origin:
+fixture values are authored test inputs, instrumented-adapter values remain
+producer-attested, and direct model responses do not independently prove that a
+tool, evidence lookup, policy check, or human review occurred.
 
 **Local-first · offline flagship demo · versioned artifacts · CI-native · no
 hosted control plane required**
@@ -186,7 +189,7 @@ governance systems teams already use.
 
 | Layer | Primary question | Relationship to `agent-assure` |
 | --- | --- | --- |
-| **Output and agent evals** | Does the answer, trajectory, tool use, or component meet its quality criteria? | Adds checks for declared, observable process expectations. |
+| **Output and agent evals** | Does the answer, trajectory, tool use, or component meet its quality criteria? | Adds source-aware checks for declared process-evidence expectations. |
 | **Observability and tracing** | What happened during execution? | Consumes versioned, privacy-filtered evidence; it is not a telemetry backend. |
 | **Runtime guardrails** | What must change or stop during a request? | Evaluates at release time; it is not runtime enforcement. |
 | **Governance and GRC systems** | Which policies, approvals, and accountabilities apply? | Supplies review evidence; it is not a system of record and does not determine compliance. |
@@ -199,7 +202,7 @@ plane.
 ## How it works
 
 ```text
-Declare → Observe (privacy-filtered) → Evaluate
+Declare → Capture from a declared source (privacy-filtered) → Evaluate
         → Compare (when equivalent) → Packet → Gate
 ```
 
@@ -269,14 +272,26 @@ Only deterministic `caught` and `survived` campaign outcomes may contribute a
 control-efficacy verdict. An applicable critical threat with no completed
 challenge emits `CRITICAL_THREAT_UNCOVERED` and requires review under the
 default profile. Required and critical survivors, invalid/error outcomes, and
-required non-verdict outcomes are always blocking. Efficacy-aware `ci gate`
-uses strict verification by default when efficacy evidence is present; pass a
-verifier-owned controls-mutation YAML with `--efficacy-policy`. That option
-also requires the evidence to be present, while `--require-efficacy` provides a
-separate presence requirement. Strict CI accepts only complete, all-caught,
+required non-verdict outcomes are always blocking. Evidence-packet `ci gate`
+requires control-efficacy evidence by default and uses strict verification when
+it is present; pass a verifier-owned controls-mutation YAML with
+`--efficacy-policy`. `--require-efficacy` remains as an explicit restatement
+for existing automation. Strict CI accepts only complete, all-caught,
 all-applicable-challenged evidence and pins the catalog, selected and required
-operators, and threat manifest. Use `--allow-advisory-efficacy` only for an
-explicit review flow.
+operators, and threat manifest. The conspicuous
+`--allow-missing-efficacy-for-migration` escape hatch is only for temporary
+non-assurance migration and records that weaker profile. Use
+`--allow-advisory-efficacy` only for an explicit review flow with evidence
+present.
+
+For an efficacy-bearing release claim, `ci gate --release-profile` additionally
+requires an evidence packet, a verifier-owned `--efficacy-policy`, present
+efficacy evidence, and blocking warning/not-evaluated handling. It rejects the
+advisory and compatibility weakening flags. This is a CI efficacy profile, not
+publication authorization. `make release-publish-check` runs that strict
+profile against the separately staged release efficacy packet and verifier
+policy before the empirical-readiness and engineering release checks; all are
+necessary, and none alone authorizes publication.
 
 The packaged offline demonstration exercises both a strong and deliberately
 weakened assurance control, then verifies that an unrelated failure cannot
@@ -309,8 +324,9 @@ producer contract.
 
 The integration contract has three parts:
 
-1. Declare observable process expectations in YAML.
-2. Produce versioned run records from fixtures or privacy-filtered observations.
+1. Declare structured process-evidence expectations in YAML.
+2. Produce versioned run records from fixtures or privacy-filtered adapters with
+   explicit field origins.
 3. Evaluate the candidate, compare equivalent baseline evidence when available,
    and gate the resulting evidence packet.
 
@@ -368,8 +384,16 @@ jobs:
 ```
 
 `full` produces the complete review artifacts; `fail-fast` gives shorter
-blocking feedback. The configured gate follows declared expectations and
-policies, the selected gate profile, and explicit strictness flags.
+blocking feedback. The published v0.6.5 action shown above predates the
+efficacy-required default and is a fixture smoke example, not evidence of
+control efficacy. After v0.6.6 or a later version is published, move both pins
+together. Its composite action fails closed because it does not construct
+control-efficacy evidence; fixture-only, evaluation-only migration jobs must
+explicitly set `allow-missing-efficacy-for-migration: "true"`. An assurance
+workflow must instead construct an efficacy-bearing packet and gate it with a
+separate verifier-owned policy. The configured gate follows declared
+expectations and policies, the selected gate profile, and explicit strictness
+flags.
 The composite action uploads only the packet, its privacy-filtered assurance
 evidence graph, manifest, summaries, and CI diagnostics by default. Set
 `upload-full-artifacts: "true"` only when the workflow is approved to retain
@@ -380,7 +404,9 @@ days.
 
 ## Integrations and maturity
 
-**Current maturity: Release Candidate (RC, `v0.6.5`).**
+**Current published release: `v0.6.5` on GitHub and PyPI. This checkout is the
+unreleased `0.6.6` candidate and must not be described or installed as a
+published release until the empirical publish gate passes.**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
 `AgentRunRecord` producer contract are the primary integration surface.

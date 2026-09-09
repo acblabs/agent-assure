@@ -60,9 +60,7 @@ _CAMPAIGN_SOURCE_PROJECTION_ERROR_MESSAGE = (
 _CAMPAIGN_SOURCE_PRIVACY_ERROR_MESSAGE = (
     "mutation campaign source failed the bound privacy-detector profile"
 )
-_CAMPAIGN_SOURCE_MUTATION_MESSAGE = (
-    "mutation campaign source changed during isolated execution"
-)
+_CAMPAIGN_SOURCE_MUTATION_MESSAGE = "mutation campaign source changed during isolated execution"
 
 
 class MutationCampaignSourceError(ValueError):
@@ -87,13 +85,8 @@ def build_core_catalog(
         raise ValueError("the core mutation catalog cannot be empty")
     if len(set(operator_ids)) != len(operator_ids):
         raise ValueError("the core mutation catalog contains duplicate operator IDs")
-    if (
-        len(canonical) != CORE_MUTATION_OPERATOR_COUNT
-        or operator_ids != CORE_MUTATION_OPERATOR_IDS
-    ):
-        raise ValueError(
-            "core/v1 must contain exactly the registered core operator IDs"
-        )
+    if len(canonical) != CORE_MUTATION_OPERATOR_COUNT or operator_ids != CORE_MUTATION_OPERATOR_IDS:
+        raise ValueError("core/v1 must contain exactly the registered core operator IDs")
     if any(not item.stable for item in canonical):
         raise ValueError("the core mutation catalog contains a non-stable operator")
     return AssuranceMutationCatalog.build(
@@ -130,17 +123,13 @@ def execute_mutation_campaign(
 ) -> MutationCampaignExecution:
     """Execute a deterministic catalog selection without mutation composition."""
     if seed < 0 or seed > RFC8785_SAFE_INTEGER_MAX:
-        raise ValueError(
-            f"mutation seed must be between 0 and {RFC8785_SAFE_INTEGER_MAX}"
-        )
+        raise ValueError(f"mutation seed must be between 0 and {RFC8785_SAFE_INTEGER_MAX}")
     if not isinstance(mode, MutationCampaignMode):
         mode = MutationCampaignMode(mode)
 
     source, source_digest = _prepare_campaign_source(source_payload)
     resolved_operators = (
-        tuple(catalog_operators)
-        if catalog_operators is not None
-        else registered_operators()
+        tuple(catalog_operators) if catalog_operators is not None else registered_operators()
     )
     catalog = build_core_catalog(resolved_operators)
     selected = _select_operators(
@@ -191,9 +180,7 @@ def execute_mutation_campaign(
         mode=mode,
         completion=completion,
         campaign_seed=seed,
-        canonical_operator_order=tuple(
-            item.descriptor.operator_id for item in catalog.operators
-        ),
+        canonical_operator_order=tuple(item.descriptor.operator_id for item in catalog.operators),
         selected_operator_order=selected_ids,
         executed_operator_order=executed_ids,
         pending_operator_order=pending_ids,
@@ -221,17 +208,13 @@ def _prepare_campaign_source(
     try:
         _, projected_source = validated_runset_projection(copied_source)
     except (RecursionError, TypeError, ValueError):
-        raise MutationCampaignSourceError(
-            _CAMPAIGN_SOURCE_PROJECTION_ERROR_MESSAGE
-        ) from None
+        raise MutationCampaignSourceError(_CAMPAIGN_SOURCE_PROJECTION_ERROR_MESSAGE) from None
 
     try:
         assert_runset_payload_safe_for_persistence(copied_source)
         assert_runset_payload_safe_for_persistence(projected_source)
     except (RecursionError, TypeError, ValueError):
-        raise MutationCampaignSourceError(
-            _CAMPAIGN_SOURCE_PRIVACY_ERROR_MESSAGE
-        ) from None
+        raise MutationCampaignSourceError(_CAMPAIGN_SOURCE_PRIVACY_ERROR_MESSAGE) from None
 
     try:
         source_digest = sha256_hexdigest(projected_source)
@@ -263,10 +246,7 @@ def _is_strict_json_value(value: object) -> bool:
     if isinstance(value, list) and type(value) is list:
         return all(_is_strict_json_value(item) for item in value)
     if isinstance(value, dict) and type(value) is dict:
-        return all(
-            type(key) is str and _is_strict_json_value(item)
-            for key, item in value.items()
-        )
+        return all(type(key) is str and _is_strict_json_value(item) for key, item in value.items())
     return False
 
 
@@ -303,20 +283,12 @@ def _select_operators(
     canonical_ids = tuple(item.descriptor.operator_id for item in catalog.operators)
     unknown_operators = sorted(set(operator_ids) - set(canonical_ids))
     if unknown_operators:
-        raise ValueError(
-            "unknown mutation operator filter: " + ", ".join(unknown_operators)
-        )
+        raise ValueError("unknown mutation operator filter: " + ", ".join(unknown_operators))
     known_families = {item.invariant_family for item in operators}
     unknown_families = sorted(set(invariant_families) - known_families)
     if unknown_families:
-        raise ValueError(
-            "unknown invariant-family filter: " + ", ".join(unknown_families)
-        )
-    known_threats = {
-        threat_id
-        for item in operators
-        for threat_id in item.threat_source_references
-    }
+        raise ValueError("unknown invariant-family filter: " + ", ".join(unknown_families))
+    known_threats = {threat_id for item in operators for threat_id in item.threat_source_references}
     unknown_threats = sorted(set(threat_ids) - known_threats)
     if unknown_threats:
         raise ValueError("unknown threat-ID filter: " + ", ".join(unknown_threats))
@@ -328,15 +300,10 @@ def _select_operators(
         by_id[operator_id]
         for operator_id in canonical_ids
         if (not operator_filter or operator_id in operator_filter)
-        and (
-            not family_filter
-            or by_id[operator_id].invariant_family in family_filter
-        )
+        and (not family_filter or by_id[operator_id].invariant_family in family_filter)
         and (
             not threat_filter
-            or threat_filter.intersection(
-                by_id[operator_id].threat_source_references
-            )
+            or threat_filter.intersection(by_id[operator_id].threat_source_references)
         )
     )
     if not selected:

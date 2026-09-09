@@ -476,7 +476,8 @@ def gate_artifact(
     fail_on_not_evaluated: bool = False,
     verifier_efficacy_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
-    require_efficacy: bool = False,
+    require_efficacy: bool | None = None,
+    allow_missing_efficacy_for_migration: bool = False,
     require_evidence_sensitivity: bool = False,
     require_stochastic_evidence_sensitivity: bool = False,
     allow_sensitivity_non_verdict: bool = False,
@@ -484,15 +485,17 @@ def gate_artifact(
 ) -> GateDecision:
     """Gate one artifact with strict efficacy verification as the library default.
 
-    Strict efficacy controls verification strength when efficacy evidence is
-    present. Presence requirements are verifier-owned: requiring efficacy or
-    evidence sensitivity prevents a producer from gaining a passing result by
-    removing the corresponding evidence. Controlled sensitivity retains its
-    explicit non-verdict override. Present stochastic evidence also fails
-    closed on non-verdict results unless that same override is explicit;
-    requiring it additionally turns non-verdict states into policy failures.
+    Evidence packets require efficacy evidence by default. The explicitly
+    named migration override is confined to packets and must not be used for an
+    assurance claim. Strict efficacy controls verification strength when
+    efficacy evidence is present. Controlled sensitivity retains its explicit
+    non-verdict override. Present stochastic evidence also fails closed on
+    non-verdict results unless that same override is explicit; requiring it
+    additionally turns non-verdict states into policy failures.
     """
     if not isinstance(artifact, EvidencePacket):
+        if allow_missing_efficacy_for_migration:
+            return _unexpected_missing_efficacy_migration_option_decision(artifact.artifact_kind)
         if artifact_root is not None:
             return _unexpected_artifact_root_decision(artifact.artifact_kind)
         if stochastic_source_runsets is not None:
@@ -506,7 +509,7 @@ def gate_artifact(
         if allow_legacy_unbound_comparison and not isinstance(artifact, ComparisonSummary):
             return _unexpected_legacy_comparison_option_decision(artifact.artifact_kind)
     if isinstance(artifact, EvaluationSummary):
-        if verifier_efficacy_policy is not None or require_efficacy:
+        if verifier_efficacy_policy is not None or require_efficacy is True:
             return _unexpected_efficacy_options_decision(
                 artifact.artifact_kind,
                 strict_efficacy=strict_efficacy,
@@ -517,7 +520,7 @@ def gate_artifact(
             fail_on_not_evaluated=fail_on_not_evaluated,
         )
     if isinstance(artifact, ComparisonSummary):
-        if verifier_efficacy_policy is not None or require_efficacy:
+        if verifier_efficacy_policy is not None or require_efficacy is True:
             return _unexpected_efficacy_options_decision(
                 artifact.artifact_kind,
                 strict_efficacy=strict_efficacy,
@@ -535,7 +538,7 @@ def gate_artifact(
             fail_on_not_evaluated=fail_on_not_evaluated,
             verifier_policy=verifier_efficacy_policy,
             strict_efficacy=strict_efficacy,
-            require_efficacy=require_efficacy,
+            require_efficacy=bool(require_efficacy),
         )
     return gate_evidence_packet(
         artifact,
@@ -546,6 +549,7 @@ def gate_artifact(
         verifier_policy=verifier_efficacy_policy,
         strict_efficacy=strict_efficacy,
         require_efficacy=require_efficacy,
+        allow_missing_efficacy_for_migration=allow_missing_efficacy_for_migration,
         require_evidence_sensitivity=require_evidence_sensitivity,
         require_stochastic_evidence_sensitivity=(require_stochastic_evidence_sensitivity),
         allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
@@ -568,6 +572,23 @@ def _unexpected_efficacy_options_decision(
         evidence=EfficacyEvidenceState.not_applicable,
         verification=_efficacy_mode(strict_efficacy),
         required=True,
+        artifact_kind=artifact_kind,
+    )
+
+
+def _unexpected_missing_efficacy_migration_option_decision(
+    artifact_kind: str,
+) -> GateDecision:
+    return _efficacy_gate_decision(
+        exit_code=2,
+        outcome=GateOutcome.invalid,
+        message=(
+            "ci gate invalid: allow_missing_efficacy_for_migration is valid only "
+            "for an evidence packet without control-efficacy evidence"
+        ),
+        evidence=EfficacyEvidenceState.not_applicable,
+        verification=EfficacyVerificationMode.not_requested,
+        required=False,
         artifact_kind=artifact_kind,
     )
 
@@ -819,17 +840,20 @@ def gate_evidence_packet(
     fail_on_not_evaluated: bool = False,
     verifier_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
-    require_efficacy: bool = False,
+    require_efficacy: bool | None = None,
+    allow_missing_efficacy_for_migration: bool = False,
     require_evidence_sensitivity: bool = False,
     require_stochastic_evidence_sensitivity: bool = False,
     allow_sensitivity_non_verdict: bool = False,
     allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
-    """Gate a packet, rejecting legacy ID-only comparison binding by default.
+    """Gate a packet, requiring efficacy and rejecting legacy binding by default.
 
     ``allow_legacy_unbound_comparison`` is a compatibility escape hatch for
     already validated legacy packets; it does not bypass model revalidation or
     any exact-file, manifest, graph, efficacy, or sensitivity binding check.
+    The allow_missing_efficacy_for_migration flag is a non-assurance migration
+    escape hatch and is the only supported way to accept missing efficacy.
     """
     try:
         packet = EvidencePacket.model_validate(packet.model_dump(mode="json", warnings="error"))
@@ -841,6 +865,37 @@ def gate_evidence_packet(
             reason_code=ReasonCode.POLICY_FAILED,
             artifact_kind="evidence-packet",
         )
+    if allow_missing_efficacy_for_migration:
+        if require_efficacy is True or verifier_policy is not None:
+            return _efficacy_gate_decision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=(
+                    "ci gate invalid: the missing-efficacy migration override cannot "
+                    "be combined with a required or verifier-owned efficacy policy"
+                ),
+                evidence=(
+                    EfficacyEvidenceState.present
+                    if packet.control_efficacy is not None
+                    else EfficacyEvidenceState.absent
+                ),
+                verification=EfficacyVerificationMode.not_requested,
+                required=True,
+                artifact_kind=packet.artifact_kind,
+            )
+        if packet.control_efficacy is not None:
+            return _efficacy_gate_decision(
+                exit_code=2,
+                outcome=GateOutcome.invalid,
+                message=(
+                    "ci gate invalid: the missing-efficacy migration override is unused "
+                    "because the evidence packet already carries control-efficacy evidence"
+                ),
+                evidence=EfficacyEvidenceState.present,
+                verification=_efficacy_mode(strict_efficacy),
+                required=False,
+                artifact_kind=packet.artifact_kind,
+            )
     if packet.release_manifest is not None and artifact_root is None:
         return GateDecision(
             exit_code=2,
@@ -993,7 +1048,7 @@ def gate_evidence_packet(
                     artifact_kind=packet.artifact_kind,
                 )
             )
-    efficacy_required = require_efficacy or verifier_policy is not None
+    efficacy_required = not allow_missing_efficacy_for_migration
     efficacy_decision: GateDecision | None = None
     decisions = [
         gate_evaluation_summary(
@@ -1465,7 +1520,8 @@ def _missing_packet_efficacy_decision(
         message=(
             "ci gate invalid: evidence-packet "
             f"{packet.packet_id} has no control-efficacy evidence; it is required "
-            "by verifier policy or --require-efficacy"
+            "by the default evidence-packet gate; only the explicitly named "
+            "non-assurance migration override may accept absence"
         ),
         evidence=EfficacyEvidenceState.absent,
         verification=_efficacy_mode(strict_efficacy),
@@ -2021,6 +2077,7 @@ def run_ci(
     today: date | None = None,
     project_root: Path | None = None,
     source_input_paths: tuple[Path, ...] = (),
+    allow_missing_efficacy_for_migration: bool = False,
 ) -> CiRunResult:
     _ensure_ci_output_directory_safe(out_dir)
     input_paths = tuple(
@@ -2145,9 +2202,12 @@ def run_ci(
     packet_decision = gate_evidence_packet(
         load_evidence_packet(packet_path),
         artifact_root=artifact_root,
+        allow_missing_efficacy_for_migration=allow_missing_efficacy_for_migration,
     )
-    if packet_decision.outcome is GateOutcome.invalid or (
-        decision.exit_code == 0 and packet_decision.exit_code != 0
+    if (
+        packet_decision.outcome is GateOutcome.invalid
+        or (decision.exit_code == 0 and packet_decision.exit_code != 0)
+        or allow_missing_efficacy_for_migration
     ):
         decision = packet_decision
     report_paths.extend(
@@ -2162,7 +2222,11 @@ def run_ci(
     diagnostics_path = None
     if decision.exit_code:
         reason_code = decision.reason_code
-        if reason_code is ReasonCode.POLICY_FAILED and candidate_report.failed_controls:
+        if (
+            reason_code is ReasonCode.POLICY_FAILED
+            and decision.outcome is not GateOutcome.invalid
+            and candidate_report.failed_controls
+        ):
             reason_code = candidate_report.failed_controls[0].reason_code
         diagnostics_path = out_dir / "ci-diagnostics.json"
         decision = GateDecision(
@@ -2173,6 +2237,9 @@ def run_ci(
             artifact_kind=decision.artifact_kind,
             artifact_path=str(packet_path),
             validator=decision.validator,
+            efficacy_evidence=decision.efficacy_evidence,
+            efficacy_verification=decision.efficacy_verification,
+            efficacy_required=decision.efficacy_required,
         )
         write_diagnostics(decision, diagnostics_path, report_paths=tuple(report_paths))
     return CiRunResult(

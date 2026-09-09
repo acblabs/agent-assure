@@ -20,6 +20,8 @@ from agent_assure.schema.pilot import (
 from agent_assure.schema.study import (
     RealModelStudyReport,
     StudyExecutionOrigin,
+    StudyInferenceScope,
+    StudyProviderFingerprintReviewStatus,
 )
 from agent_assure.study_bundle import ValidatedStudyBundle
 
@@ -56,6 +58,13 @@ class EmpiricalReadinessAssessment:
     study_registration_evidence_verified: bool
     study_statistical_method_review_verified: bool
     study_execution_review_verified: bool
+    study_execution_provider_records_review_attested: bool
+    study_provider_fingerprint_coverage_complete: bool
+    study_provider_fingerprint_absence_acknowledged: bool
+    study_inference_scope: StudyInferenceScope | None
+    study_inferential_statistics_applicable: bool
+    study_scoped_descriptive_publication_ready: bool
+    study_confirmatory_inference_satisfied: bool
     study_evidence_satisfied: bool
     study_real_provider_origin_satisfied: bool
     canonical_benchmark_satisfied: bool
@@ -135,6 +144,43 @@ def assess_empirical_readiness(
         and study_bundle.statistical_method_review_verified
         and study_bundle.statistical_method_review_receipt is not None
     )
+    execution_provider_records_reviewed = bool(
+        execution_review_ok
+        and study_bundle is not None
+        and study_bundle.execution_review_receipt is not None
+        and study_bundle.execution_review_receipt.provider_log_and_account_review_confirmed
+        and study_bundle.execution_review_receipt.provider_log_time_window_coverage_confirmed
+        and study_bundle.execution_review_receipt.provider_account_usage_reconciled
+    )
+    fingerprint_complete = bool(
+        execution_review_ok
+        and study_bundle is not None
+        and study_bundle.execution_review_receipt is not None
+        and all(
+            condition.provider_serving_fingerprint_status
+            is StudyProviderFingerprintReviewStatus.complete_and_stable
+            for condition in study_bundle.execution_review_receipt.conditions
+        )
+    )
+    fingerprint_absence_acknowledged = bool(
+        execution_review_ok
+        and study_bundle is not None
+        and study_bundle.execution_review_receipt is not None
+        and study_bundle.execution_review_receipt.provider_serving_fingerprint_absence_acknowledged
+    )
+    inference_scope = (
+        study_bundle.manifest.hypothesis_decision_rule.inference_scope
+        if study_bundle is not None
+        else None
+    )
+    scoped_descriptive_ok = bool(
+        study_bundle is not None and study_bundle.is_scoped_descriptive_publication_ready
+    )
+    confirmatory_inference_ok = bool(
+        study_bundle is not None
+        and inference_scope is StudyInferenceScope.confirmatory_independent_clusters
+        and study_bundle.is_publication_ready
+    )
     real_provider_ok = bool(
         report is not None
         and all(
@@ -190,6 +236,8 @@ def assess_empirical_readiness(
         reasons.append("real-model-study-execution-review-not-verified")
     if not statistical_method_review_ok:
         reasons.append("real-model-study-statistical-method-review-not-verified")
+    if scoped_descriptive_ok and not confirmatory_inference_ok:
+        reasons.append("real-model-study-fixed-frame-descriptive-only")
     if not study_ok:
         reasons.append("real-model-study-not-satisfied")
     if report is not None and not real_provider_ok:
@@ -228,6 +276,15 @@ def assess_empirical_readiness(
         study_registration_evidence_verified=registration_ok,
         study_statistical_method_review_verified=statistical_method_review_ok,
         study_execution_review_verified=execution_review_ok,
+        study_execution_provider_records_review_attested=execution_provider_records_reviewed,
+        study_provider_fingerprint_coverage_complete=fingerprint_complete,
+        study_provider_fingerprint_absence_acknowledged=fingerprint_absence_acknowledged,
+        study_inference_scope=inference_scope,
+        study_inferential_statistics_applicable=bool(
+            report is not None and report.inferential_statistics_applicable
+        ),
+        study_scoped_descriptive_publication_ready=scoped_descriptive_ok,
+        study_confirmatory_inference_satisfied=confirmatory_inference_ok,
         study_evidence_satisfied=study_ok,
         study_real_provider_origin_satisfied=real_provider_ok,
         canonical_benchmark_satisfied=benchmark_ok,

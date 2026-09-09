@@ -143,6 +143,17 @@ exclude = [
 addopts = "-q --disable-socket"
 testpaths = ["tests"]
 
+[tool.coverage.run]
+branch = true
+source = ["agent_assure"]
+relative_files = true
+
+[tool.coverage.report]
+fail_under = 80
+precision = 2
+show_missing = true
+skip_covered = true
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

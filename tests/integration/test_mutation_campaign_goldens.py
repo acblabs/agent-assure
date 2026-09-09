@@ -121,9 +121,7 @@ def _campaign_summary(
             "contract_version": campaign.contract_version,
             "producer_version": campaign.producer_version,
             "source_artifact_kind": campaign.source_artifact_kind,
-            "semantic_projection_contract": (
-                "assurance-mutation-campaign/runtime-neutral/v1"
-            ),
+            "semantic_projection_contract": ("assurance-mutation-campaign/runtime-neutral/v1"),
             "semantic_projection_digest": sha256_hexdigest(semantic_projection),
             "excluded_runtime_bound_fields": [
                 "campaign_digest",
@@ -148,13 +146,10 @@ def _campaign_summary(
                 "independence_class": entry.result.independence_class.value,
                 "changed_paths": list(entry.result.changed_paths),
                 "observed_findings": [
-                    finding.model_dump(mode="json")
-                    for finding in entry.result.observed_findings
+                    finding.model_dump(mode="json") for finding in entry.result.observed_findings
                 ],
                 "matched_finding_ids": list(entry.result.matched_finding_ids),
-                "prohibited_substitute_finding_ids": list(
-                    entry.prohibited_substitute_finding_ids
-                ),
+                "prohibited_substitute_finding_ids": list(entry.prohibited_substitute_finding_ids),
                 "diagnostic": {
                     "code": entry.result.diagnostic_code,
                     "exception_class": entry.result.diagnostic_exception_class,
@@ -170,18 +165,12 @@ def _campaign_summary(
                     "expected_detection_contract_digest": (
                         entry.result.expected_detection_contract_digest
                     ),
-                    "expected_finding_target_digest": (
-                        entry.result.expected_finding_target_digest
-                    ),
+                    "expected_finding_target_digest": (entry.result.expected_finding_target_digest),
                 },
                 "evaluator_semantics": {
                     "method_id": entry.result.evaluator_method_id,
-                    "implementation_version": (
-                        entry.result.evaluator_implementation_version
-                    ),
-                    "evaluation_basis": (
-                        entry.result.evaluator_evaluation_basis.value
-                    ),
+                    "implementation_version": (entry.result.evaluator_implementation_version),
+                    "evaluation_basis": (entry.result.evaluator_evaluation_basis.value),
                     "protocol_digest": entry.result.evaluator_protocol_digest,
                     "population_id": entry.result.evaluator_population_id,
                     "gate_profile_id": entry.result.gate_profile_id,
@@ -196,15 +185,11 @@ def _campaign_summary(
                     ),
                     "required_any_of": [
                         _selector_summary(selector)
-                        for selector in (
-                            entry.expected_detection_contract.required_findings.any_of
-                        )
+                        for selector in (entry.expected_detection_contract.required_findings.any_of)
                     ],
                     "prohibited_substitutes": [
                         _selector_summary(selector)
-                        for selector in (
-                            entry.expected_detection_contract.prohibited_substitutes
-                        )
+                        for selector in (entry.expected_detection_contract.prohibited_substitutes)
                     ],
                     "expected_gate_effect": (
                         entry.expected_detection_contract.expected_gate_effect.value

@@ -249,12 +249,11 @@ def _status_icon(tone: str) -> str:
 def _hero_meta(verdict: ReportVerdict, title: str) -> str:
     return (
         '<div class="hero-meta">'
-        '<span>Gate classification</span>'
-        f'<strong>{_h(verdict.headline)}</strong>'
-        '<span>Core thesis</span>'
-        f'<strong>{_h(THESIS_TITLE)}</strong>'
-        "</div>"
-        + _report_label(title)
+        "<span>Gate classification</span>"
+        f"<strong>{_h(verdict.headline)}</strong>"
+        "<span>Core thesis</span>"
+        f"<strong>{_h(THESIS_TITLE)}</strong>"
+        "</div>" + _report_label(title)
     )
 
 
@@ -341,8 +340,7 @@ def _decision_delta_value(baseline: RunSet, candidate: RunSet) -> str:
     if not pairs:
         return "not evaluated"
     changed = sum(
-        int(base.recommendation != cand.recommendation)
-        + int(base.outcome != cand.outcome)
+        int(base.recommendation != cand.recommendation) + int(base.outcome != cand.outcome)
         for base, cand in pairs
     )
     noun = "field" if changed == 1 else "fields"
@@ -443,9 +441,7 @@ def _verdict_section(
     affected_summary: ProcessAffectedSummary,
 ) -> str:
     headline = _hero_headline(verdict, visible_state, ci_gate_result, missing_links)
-    gate_value = (
-        "blocked as designed" if ci_gate_result == "blocked" else ci_gate_result
-    )
+    gate_value = "blocked as designed" if ci_gate_result == "blocked" else ci_gate_result
     finding = _primary_finding(candidate_summary)
     subheading = _hero_subheading(visible_state, missing_links)
     evidence_state = _evidence_invariant_state(missing_links, process_state)
@@ -510,7 +506,7 @@ def _key_finding_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> 
             (
                 '<section class="key-finding key-finding-clear" aria-labelledby="key-finding">',
                 '<h2 id="key-finding">Key Finding</h2>',
-                '<p>No material claim link regression was detected.</p>',
+                "<p>No material claim link regression was detected.</p>",
                 "</section>",
             )
         )
@@ -545,8 +541,7 @@ def _key_finding_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> 
 
 def _claim_boundary_section() -> str:
     limitation_lines = "\n\n".join(
-        f"<p>{_h(sentence)}</p>"
-        for sentence in (*CLAIM_BOUNDARY_SENTENCES, DISPLAY_SAFETY_NOTE)
+        f"<p>{_h(sentence)}</p>" for sentence in (*CLAIM_BOUNDARY_SENTENCES, DISPLAY_SAFETY_NOTE)
     )
     return "\n".join(
         (
@@ -619,7 +614,7 @@ def _process_diff_section(
                 '<p class="eyebrow">The diff that matters</p>',
                 '<h2 id="process-evidence-diff">Process Evidence Diff</h2>',
                 (
-                    "<p class=\"section-lede\">"
+                    '<p class="section-lede">'
                     "Same final approval, different governed path. Agent Assure compares "
                     "the process evidence around the decision, not just the visible answer."
                     "</p>"
@@ -627,7 +622,7 @@ def _process_diff_section(
                 _evidence_link_diagram(missing_links, ci_gate_state="candidate blocked"),
                 _key_finding_section(missing_links),
                 (
-                    "<p class=\"section-note\">"
+                    '<p class="section-note">'
                     "Process-affected cases are sourced from candidate findings and missing "
                     "material-claim evidence links, not from preserved decision fields."
                     f"{_unscoped_finding_note(affected_summary)}"
@@ -995,9 +990,8 @@ def _retrieval_corpus_digest_html(baseline: RunSet, candidate: RunSet) -> str | 
         _retrieval_corpus_digest_change_item(case_id, baseline_digest, candidate_digest)
         for case_id, baseline_digest, candidate_digest in changed
     )
-    return (
-        '<span class="state-bad">changed</span><br>'
-        + _summarized_html_items(values, empty="none")
+    return '<span class="state-bad">changed</span><br>' + _summarized_html_items(
+        values, empty="none"
     )
 
 
@@ -1085,8 +1079,7 @@ def _artifact_paths_section(artifact_paths: Mapping[str, PathValue] | None) -> s
 def _artifact_digests_section(packet: EvidencePacket | None) -> str:
     rows = "\n".join(_artifact_digest_rows(packet))
     body = rows or (
-        '<tr><td colspan="3" class="empty">'
-        "No packet artifact digests were provided.</td></tr>"
+        '<tr><td colspan="3" class="empty">No packet artifact digests were provided.</td></tr>'
     )
     return "\n".join(
         (
@@ -1101,32 +1094,6 @@ def _artifact_digests_section(packet: EvidencePacket | None) -> str:
             "</section>",
         )
     )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 def _process_scope_value(summary: ProcessAffectedSummary) -> str:
@@ -1147,15 +1114,11 @@ def _process_scope_note(summary: ProcessAffectedSummary) -> str:
                 f"link{'' if summary.baseline_link_count == 1 else 's'}"
             )
         count = summary.missing_link_count
-        parts.append(
-            f"{count} missing material-claim link{'' if count == 1 else 's'}{baseline}"
-        )
+        parts.append(f"{count} missing material-claim link{'' if count == 1 else 's'}{baseline}")
     if summary.unscoped_finding_count:
         count = summary.unscoped_finding_count
         parts.append(f"{count} finding{'' if count == 1 else 's'} without case ID")
     return "; ".join(parts)
-
-
 
 
 def _unscoped_finding_note(summary: ProcessAffectedSummary) -> str:
@@ -1530,18 +1493,6 @@ def _artifact_digest_row(role: str, path: str, sha256: str) -> str:
     )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
 def _claim_ids(run: AgentRunRecord) -> tuple[str, ...]:
     claims = {claim.claim_id for claim in run.claims}
     claims.update(_linked_claim_evidence(run))
@@ -1561,10 +1512,6 @@ def _case_coverage(baseline: RunSet, candidate: RunSet) -> str:
     if extra:
         parts.append("extra candidate cases: " + ", ".join(extra))
     return "; ".join(parts)
-
-
-
-
 
 
 def _missing_link_summary(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> str:
@@ -1708,8 +1655,7 @@ def _truncate_value(value: str) -> str:
     if len(normalized) <= MAX_INLINE_VALUE_CHARS:
         return normalized
     boundary = max(
-        normalized.rfind(separator, 0, MAX_INLINE_VALUE_CHARS)
-        for separator in (" ", ";", ",")
+        normalized.rfind(separator, 0, MAX_INLINE_VALUE_CHARS) for separator in (" ", ";", ",")
     )
     if boundary >= MAX_INLINE_VALUE_CHARS // 2:
         return normalized[:boundary].rstrip() + " ..."

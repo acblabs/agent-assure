@@ -166,6 +166,7 @@ def run_flagship_demo(out_dir: Path, *, clean: bool) -> dict[str, object]:
                 str(baseline_runset_path),
                 "--out-dir",
                 str(ci_report_dir),
+                "--allow-missing-efficacy-for-migration",
             ],
             out_dir=root,
             expected_exit_codes={1},
@@ -176,7 +177,12 @@ def run_flagship_demo(out_dir: Path, *, clean: bool) -> dict[str, object]:
     command_results.append(
         run_cli_command(
             name="ci-gate-packet",
-            args=["ci", "gate", str(packet_path)],
+            args=[
+                "ci",
+                "gate",
+                str(packet_path),
+                "--allow-missing-efficacy-for-migration",
+            ],
             out_dir=root,
             expected_exit_codes={1},
             cwd=root,

@@ -263,12 +263,8 @@ def emit_span_plans(
     config: OTelExportConfig,
 ) -> OTelExportResult:
     if len(plans) > MAX_OTEL_SPANS_PER_EXPORT:
-        raise ValueError(
-            f"OpenTelemetry export exceeds span limit of {MAX_OTEL_SPANS_PER_EXPORT}"
-        )
-    validated_plans = tuple(
-        SpanPlan.model_validate(plan.model_dump(mode="json")) for plan in plans
-    )
+        raise ValueError(f"OpenTelemetry export exceeds span limit of {MAX_OTEL_SPANS_PER_EXPORT}")
+    validated_plans = tuple(SpanPlan.model_validate(plan.model_dump(mode="json")) for plan in plans)
     for plan in validated_plans:
         assert_span_plan_safe_for_export(plan)
     validated_config = OTelExportConfig.model_validate(config.model_dump(mode="json"))
@@ -303,9 +299,7 @@ def emit_span_plans(
     except Exception as exc:
         emission_error = exc
     try:
-        flushed = provider.force_flush(
-            timeout_millis=validated_config.timeout_seconds * 1_000
-        )
+        flushed = provider.force_flush(timeout_millis=validated_config.timeout_seconds * 1_000)
         if flushed is not True:
             processor.record_provider_failure("force_flush")
     except Exception:

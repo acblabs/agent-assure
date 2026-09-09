@@ -34,6 +34,7 @@ def evidence_from_tool_output(payload: dict[str, object]) -> tuple[EvidenceAssoc
         )
     return tuple(associations)
 
+
 def evidence_refs_from_associations(
     evidence: tuple[EvidenceAssociation, ...],
 ) -> tuple[EvidenceRef, ...]:
@@ -84,19 +85,14 @@ def claim_records_from_associations(
 ) -> tuple[ClaimRecord, ...]:
     claim_ids = sorted({claim_id for item in evidence for claim_id in item.claim_ids})
     return tuple(
-        ClaimRecord(artifact_kind="claim-record", claim_id=claim_id)
-        for claim_id in claim_ids
+        ClaimRecord(artifact_kind="claim-record", claim_id=claim_id) for claim_id in claim_ids
     )
 
 
 def claim_links_from_associations(
     evidence: tuple[EvidenceAssociation, ...],
 ) -> tuple[ClaimEvidenceLink, ...]:
-    links = {
-        (claim_id, item.ref_id)
-        for item in evidence
-        for claim_id in item.claim_ids
-    }
+    links = {(claim_id, item.ref_id) for item in evidence for claim_id in item.claim_ids}
     return tuple(
         ClaimEvidenceLink(
             artifact_kind="claim-evidence-link",

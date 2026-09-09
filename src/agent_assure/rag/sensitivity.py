@@ -448,10 +448,8 @@ def _resolve_synthetic_data_provenance(
     bundled = (
         identity_set is not None
         and (suite_digest, fixture_manifest_digest) in identity_set.suite_identities
-        and authority_contract.knowledge_contract_digest
-        == identity_set.knowledge_contract_digest
-        and frozenset(corpus_snapshot_identities.items())
-        == identity_set.corpus_snapshot_identities
+        and authority_contract.knowledge_contract_digest == identity_set.knowledge_contract_digest
+        and frozenset(corpus_snapshot_identities.items()) == identity_set.corpus_snapshot_identities
     )
     if bundled:
         if attestation_path is not None:

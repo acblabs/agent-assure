@@ -3,7 +3,7 @@ from __future__ import annotations
 from agent_assure.policies.base import ControlResult
 from agent_assure.schema.common import GateState, ReasonCode, Severity
 from agent_assure.schema.expectation import Expectation
-from agent_assure.schema.run import AgentRunRecord
+from agent_assure.schema.run import AgentRunRecord, structured_field_is_control_eligible
 
 
 def evaluate_human_review_requirement(
@@ -12,7 +12,13 @@ def evaluate_human_review_requirement(
 ) -> tuple[ControlResult, ...]:
     if not expectation.required_human_review:
         return ()
-    if not run.human_review_required:
+    review_required = run.human_review_required and structured_field_is_control_eligible(
+        run, "human_review_required"
+    )
+    review_performed = run.human_review_performed and structured_field_is_control_eligible(
+        run, "human_review_performed"
+    )
+    if not review_required:
         return (
             ControlResult(
                 control_id="human_review_required",
@@ -24,7 +30,7 @@ def evaluate_human_review_requirement(
                 message="case expectation requires the result to route to human review",
             ),
         )
-    if run.human_review_performed:
+    if review_performed:
         return ()
     return (
         ControlResult(

@@ -109,9 +109,7 @@ class LangGraphAdapter:
                         evidence_refs=_string_sequence(
                             _metadata_value(agent_metadata, "evidence_refs")
                         ),
-                        redaction_state=_string(
-                            _metadata_value(agent_metadata, "redaction_state")
-                        ),
+                        redaction_state=_string(_metadata_value(agent_metadata, "redaction_state")),
                         usage_segment=_usage_segment(agent_metadata),
                         span_context=_span_context(event, agent_metadata),
                         privacy_filtered_attributes=_string_mapping(
@@ -276,10 +274,7 @@ def _string_mapping(value: object) -> dict[str, str]:
         return {}
     if not all(isinstance(item, str) for item in value.values()):
         raise TypeError("LangGraph string mapping metadata must contain only string values")
-    return {
-        str(key): item
-        for key, item in value.items()
-    }
+    return {str(key): item for key, item in value.items()}
 
 
 def _string_key_mapping(value: Mapping[Any, Any]) -> dict[str, object]:

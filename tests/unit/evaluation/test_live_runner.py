@@ -8,6 +8,8 @@ import urllib.error
 import urllib.request
 from collections.abc import Callable
 from dataclasses import replace
+from datetime import UTC, datetime
+from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 from urllib.parse import quote
@@ -51,14 +53,21 @@ from agent_assure.live.config import (
     load_live_run_config,
 )
 from agent_assure.live.output_contract import (
+    OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
+    OPENAI_DECISION_OUTPUT_CONTRACT_ID,
+    OPENAI_DECISION_RESPONSE_FORMAT_JSON,
     LiveOutputContractError,
+    openai_decision_response_format,
+    parse_live_decision_content,
     parse_live_structured_content,
 )
 from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.live.runner import (
+    LiveRetryDirectiveError,
     _is_rate_limit_error,
     _is_retryable_error,
     _pace_request,
+    _retry_after_seconds,
     _token_reservation,
     prepare_live_execution_snapshot,
     run_live_suite,
@@ -75,6 +84,14 @@ from agent_assure.schema.sensitivity import (
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
+
+
+def _decision_contract_request_fields() -> dict[str, str]:
+    return {
+        "structured_output_contract_id": OPENAI_DECISION_OUTPUT_CONTRACT_ID,
+        "structured_output_contract_digest": OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
+        "provider_response_format_json": OPENAI_DECISION_RESPONSE_FORMAT_JSON,
+    }
 
 
 def _compiled_with_query_family(
@@ -369,6 +386,43 @@ def test_rate_limit_detection_uses_status_or_retry_after_metadata() -> None:
     assert _is_rate_limit_error(StatusCodeError("too many requests"))
     assert _is_rate_limit_error(RetryAfterError("provider backoff requested"))
     assert not _is_rate_limit_error(RuntimeError("generated accurately"))
+
+
+def test_retry_after_accepts_delay_seconds_and_http_date() -> None:
+    class ProviderError(Exception):
+        def __init__(self, value: str) -> None:
+            super().__init__("rate limited")
+            self.headers = {"Retry-After": value}
+
+    now = datetime(2026, 9, 8, 12, 0, 0, tzinfo=UTC)
+
+    assert _retry_after_seconds(ProviderError("17"), now_utc=now) == Decimal(17)
+    assert _retry_after_seconds(
+        ProviderError("Tue, 08 Sep 2026 12:00:37 GMT"),
+        now_utc=now,
+    ) == Decimal(37)
+    assert _retry_after_seconds(
+        ProviderError("Tue, 08 Sep 2026 11:59:59 GMT"),
+        now_utc=now,
+    ) == Decimal(0)
+
+
+def test_retry_after_rejects_invalid_or_ambiguous_values() -> None:
+    class ProviderError(Exception):
+        def __init__(self, value: str) -> None:
+            super().__init__("rate limited")
+            self.headers = {"Retry-After": value}
+
+    now = datetime(2026, 9, 8, 12, 0, 0, tzinfo=UTC)
+
+    for value in ("", "1.5", "not-a-date"):
+        with pytest.raises(LiveRetryDirectiveError, match="Retry-After"):
+            _retry_after_seconds(ProviderError(value), now_utc=now)
+    with pytest.raises(ValueError, match="timezone-aware"):
+        _retry_after_seconds(
+            ProviderError("Tue, 08 Sep 2026 12:00:37 GMT"),
+            now_utc=now.replace(tzinfo=None),
+        )
 
 
 def test_retryability_is_limited_to_declared_transient_failures() -> None:
@@ -2102,7 +2156,90 @@ def test_malformed_billable_response_is_charged_before_parsing(tmp_path: Path) -
     assert runset.runs[0].estimated_cost_usd == "0.600000"
     assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.STRUCTURED_OUTPUT_INVALID,)
     assert runset.runs[1].exclusion_reason == "budget_exhausted"
-    assert runset.stop_reasons == ("budget_exhausted",)
+    assert runset.stop_reasons == ("budget_exhausted", "structured_output_invalid")
+
+
+@pytest.mark.parametrize(
+    ("response_kind", "expected_stop_reason", "first_exclusion_reason"),
+    (
+        ("non_stop", "provider_response_excluded", "provider-termination-not-normal"),
+        ("malformed", "structured_output_invalid", "structured-output-invalid"),
+    ),
+)
+def test_fail_fast_excluded_response_stops_unissued_tail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    response_kind: str,
+    expected_stop_reason: str,
+    first_exclusion_reason: str,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    responses = tmp_path / "responses.jsonl"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    responses.write_text("", encoding="utf-8")
+    payload = _protocol_payload(compiled)
+    payload.update(
+        {
+            "planned_observations": 2,
+            "planned_repetitions": 2,
+            "planned_observations_per_cluster": "2.000000",
+            "design_effect": "1.200000",
+            "planned_effective_n": "1.666667",
+            "max_requests": 2,
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(payload)
+    config = _static_config(
+        prompt,
+        responses,
+        protocol,
+        sha256_hexdigest(protocol),
+    ).model_copy(update={"fail_fast_on_excluded_response": True})
+
+    class ExcludedAdapter:
+        adapter_id = "static-jsonl"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            self.calls += 1
+            if response_kind == "malformed":
+                return LiveProviderResponse(
+                    content="not json",
+                    provider="static-provider",
+                    model="static-model",
+                    estimated_cost_usd="0.000000",
+                    estimated_cost_source="adapter_reported",
+                )
+            return LiveProviderResponse(
+                content=json.dumps(
+                    {
+                        "recommendation": "approve",
+                        "outcome": "approved",
+                        "output_summary": "truncated provider response",
+                    }
+                ),
+                provider="static-provider",
+                model="static-model",
+                provider_finish_reason="length",
+                observation_status="excluded",
+                exclusion_reason="provider-termination-not-normal",
+                estimated_cost_usd="0.000000",
+                estimated_cost_source="adapter_reported",
+            )
+
+    adapter = ExcludedAdapter()
+    monkeypatch.setattr(live_runner, "build_adapter", lambda *_args, **_kwargs: adapter)
+
+    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert adapter.calls == 1
+    assert runset.completion_status == "incomplete"
+    assert runset.stop_reasons == (expected_stop_reason,)
+    assert runset.runs[0].exclusion_reason == first_exclusion_reason
+    assert runset.runs[1].exclusion_reason == "terminal_policy_stop"
 
 
 def test_max_requests_counts_retry_attempts(
@@ -2479,6 +2616,96 @@ def test_rate_limit_budget_is_run_wide_and_stops_later_observations(
     assert runset.runs[0].rate_limit_events == 1
     assert runset.runs[1].exclusion_reason == "terminal_policy_stop"
     assert runset.stop_reasons == ("rate_limit_budget_exhausted",)
+
+
+@pytest.mark.parametrize(
+    "retry_after",
+    (
+        "Fri, 08 Sep 2099 12:00:37 GMT",
+        "invalid-private-retry-directive",
+    ),
+)
+def test_rejected_retry_after_is_value_free_and_stops_unissued_tail(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    retry_after: str,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    payload = _protocol_payload(compiled)
+    payload.update(
+        {
+            "planned_observations": 2,
+            "planned_repetitions": 2,
+            "planned_observations_per_cluster": "2.000000",
+            "design_effect": "1.200000",
+            "planned_effective_n": "1.666667",
+            "max_requests": 4,
+            "max_retries": 1,
+            "max_rate_limit_events": 2,
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(payload)
+    config = LiveRunConfig(
+        variant_id="retry-directive-live",
+        pipeline_id="expense-live",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="fake",
+            provider="fake-provider",
+            model="fake-model",
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        repetitions=2,
+        max_requests=4,
+        max_total_cost_usd=protocol.max_total_cost_usd,
+        max_cost_per_observation_usd=protocol.max_cost_per_observation_usd,
+        max_retries=1,
+        max_rate_limit_events=2,
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+    )
+
+    class RetryAfterError(RuntimeError):
+        status_code = 429
+
+        def __init__(self) -> None:
+            super().__init__("provider supplied private retry metadata")
+            self.headers = {"Retry-After": retry_after}
+
+    class RetryAfterAdapter:
+        adapter_id = "fake"
+
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            self.calls += 1
+            raise RetryAfterError
+
+    adapter = RetryAfterAdapter()
+    monkeypatch.setattr(live_runner, "build_adapter", lambda *_args, **_kwargs: adapter)
+
+    runset = run_live_suite(compiled, config, protocol=protocol, config_dir=tmp_path)
+
+    assert adapter.calls == 1
+    assert runset.completion_status == "incomplete"
+    assert runset.stop_reasons == ("provider_retry_directive_rejected",)
+    assert runset.runs[0].attempt_count == 1
+    assert runset.runs[0].retry_count == 0
+    assert runset.runs[0].rate_limit_events == 1
+    assert runset.runs[0].exclusion_reason == "provider_retry_directive_rejected"
+    assert runset.runs[0].policy_results[0].reason_codes == (ReasonCode.POLICY_FAILED,)
+    assert runset.runs[1].exclusion_reason == "terminal_policy_stop"
+    assert retry_after not in runset.model_dump_json()
 
 
 def test_network_per_attempt_cost_ceiling_breach_stops_later_observations(
@@ -3073,6 +3300,8 @@ def test_provider_input_digest_does_not_claim_phantom_governing_messages(
 
     assert snapshot.governing_evidence is None
     assert snapshot.rendered_governing_evidence_message is None
+    assert snapshot.structured_output_contract_id == OPENAI_DECISION_OUTPUT_CONTRACT_ID
+    assert snapshot.structured_output_contract_digest == OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST
     assert live_runner._provider_input_digest(prompt_digest, snapshot) == sha256_hexdigest(
         {
             "message_sequence": (
@@ -3080,6 +3309,11 @@ def test_provider_input_digest_does_not_claim_phantom_governing_messages(
                     "role": "user",
                     "content_kind": "case_prompt",
                     "content_digest": prompt_digest,
+                },
+                {
+                    "role": "response_format",
+                    "contract_id": OPENAI_DECISION_OUTPUT_CONTRACT_ID,
+                    "content_sha256": OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
                 },
             ),
             "knowledge_contract_digest": contract.knowledge_contract_digest,
@@ -3624,6 +3858,7 @@ def test_openai_adapter_keeps_adversarial_governing_evidence_out_of_system_role(
             prompt="Decide this case.",
             provider="openai",
             model="gpt-4o",
+            **_decision_contract_request_fields(),
             governing_evidence=evidence,
             governing_evidence_digest=sha256(evidence.encode("utf-8")).hexdigest(),
             knowledge_contract_digest="a" * 64,
@@ -3632,6 +3867,7 @@ def test_openai_adapter_keeps_adversarial_governing_evidence_out_of_system_role(
 
     body = captured["body"]
     assert isinstance(body, dict)
+    assert body["response_format"] == openai_decision_response_format()
     messages = body["messages"]
     assert isinstance(messages, list)
     assert len(messages) == 3
@@ -3692,6 +3928,46 @@ def test_openai_provider_response_is_size_bounded() -> None:
 
     with pytest.raises(ValueError, match="provider response exceeded"):
         _read_provider_response(OversizedResponse())
+
+
+def test_openai_decision_response_schema_uses_portable_strict_subset() -> None:
+    response_format = openai_decision_response_format()
+    assert response_format["type"] == "json_schema"
+    contract = response_format["json_schema"]
+    assert contract["strict"] is True
+    schema = contract["schema"]
+    assert schema["additionalProperties"] is False
+    assert schema["required"] == ["recommendation", "outcome", "output_summary"]
+    assert schema["properties"] == {
+        "recommendation": {"type": "string"},
+        "outcome": {"type": "string"},
+        "output_summary": {"type": "string"},
+    }
+
+    with pytest.raises(LiveOutputContractError):
+        parse_live_decision_content(
+            json.dumps(
+                {
+                    "recommendation": "",
+                    "outcome": "approved",
+                    "output_summary": "decision",
+                }
+            )
+        )
+
+
+def test_openai_decision_contract_rejects_model_reported_process_fields() -> None:
+    content = json.dumps(
+        {
+            "recommendation": "approve",
+            "outcome": "approved",
+            "output_summary": "decision",
+            "human_review_performed": True,
+        }
+    )
+
+    with pytest.raises(LiveOutputContractError):
+        parse_live_decision_content(content)
 
 
 def test_live_structured_output_rejects_oversized_summary() -> None:

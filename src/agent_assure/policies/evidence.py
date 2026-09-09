@@ -6,7 +6,7 @@ import unicodedata
 from agent_assure.policies.base import ControlResult
 from agent_assure.schema.common import GateState, ReasonCode, Severity
 from agent_assure.schema.expectation import Expectation
-from agent_assure.schema.run import AgentRunRecord
+from agent_assure.schema.run import AgentRunRecord, structured_field_is_control_eligible
 
 
 def evaluate_required_evidence(
@@ -34,11 +34,12 @@ def evaluate_material_claim_evidence(
     expectation: Expectation,
 ) -> tuple[ControlResult, ...]:
     complete_evidence = _observed_evidence_refs(run) & _observed_evidence_items(run)
-    linked_claims = {
-        link.claim_id
-        for link in run.claim_evidence_links
-        if link.evidence_ref_id in complete_evidence
-    }
+    links = (
+        run.claim_evidence_links
+        if structured_field_is_control_eligible(run, "claim_evidence_links")
+        else ()
+    )
+    linked_claims = {link.claim_id for link in links if link.evidence_ref_id in complete_evidence}
     return tuple(
         ControlResult(
             control_id="material_claims_have_evidence",
@@ -67,12 +68,17 @@ def evaluate_evidence_provenance_identity(
     carry only a domain-separated digest of the reference ID so caller-controlled
     identifiers and source values are not copied into reports.
     """
+    # A coherent untrusted graph cannot satisfy required-evidence controls, but
+    # contradictions within a self-reported graph remain conservative negative
+    # signals and must not disappear when origin trust is reduced.
+    refs = run.evidence_refs
+    items = run.evidence_items
     ref_sources: dict[str, set[str]] = {}
-    for ref in run.evidence_refs:
+    for ref in refs:
         ref_sources.setdefault(ref.ref_id, set()).add(ref.source_id)
     item_sources: dict[str, set[str]] = {}
     item_content_identities: dict[tuple[str, str], set[str]] = {}
-    for item in run.evidence_items:
+    for item in items:
         item_sources.setdefault(item.ref_id, set()).add(item.source_id)
         item_content_identities.setdefault((item.ref_id, item.source_id), set()).add(
             item.content_digest
@@ -139,8 +145,12 @@ def _is_meaningful_evidence_identifier(value: str) -> bool:
 
 
 def _observed_evidence_refs(run: AgentRunRecord) -> set[str]:
+    if not structured_field_is_control_eligible(run, "evidence_refs"):
+        return set()
     return {ref.ref_id for ref in run.evidence_refs}
 
 
 def _observed_evidence_items(run: AgentRunRecord) -> set[str]:
+    if not structured_field_is_control_eligible(run, "evidence_items"):
+        return set()
     return {item.ref_id for item in run.evidence_items}

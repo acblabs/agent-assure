@@ -34,9 +34,7 @@ class ProcessEquivalenceBenchmarkCase(FrozenStrictModel):
 
     @model_validator(mode="after")
     def _validate_expected_relation(self) -> Self:
-        decisions_match = (
-            self.baseline_expected_decision == self.counterfactual_expected_decision
-        )
+        decisions_match = self.baseline_expected_decision == self.counterfactual_expected_decision
         if decisions_match != (self.expected_relation == "decision_invariant"):
             raise ValueError("benchmark expected relation contradicts its directional decisions")
         return self
@@ -104,18 +102,14 @@ class ProcessEquivalenceBenchmarkManifest(SelfDigestedArtifact):
             for case in self.cases
             if case.expected_relation == "decision_flip"
         }
-        if not {("approve", "deny"), ("deny", "approve")}.issubset(
-            directional_paths
-        ):
+        if not {("approve", "deny"), ("deny", "approve")}.issubset(directional_paths):
             raise ValueError("benchmark must cover both directional decision-flip paths")
         invariant_paths = {
             (case.baseline_expected_decision, case.counterfactual_expected_decision)
             for case in self.cases
             if case.expected_relation == "decision_invariant"
         }
-        if not {("approve", "approve"), ("deny", "deny")}.issubset(
-            invariant_paths
-        ):
+        if not {("approve", "approve"), ("deny", "deny")}.issubset(invariant_paths):
             raise ValueError(
                 "benchmark must cover both directional decision-invariant control paths"
             )

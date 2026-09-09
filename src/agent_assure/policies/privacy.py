@@ -43,9 +43,7 @@ def _iter_sensitive_strings(value: Any, path: str = "") -> Iterator[tuple[str, s
     if isinstance(value, Mapping):
         for index, (key, item) in enumerate(value.items()):
             key_text = str(key)
-            unsafe_key = contains_sensitive_value(key_text) or _contains_control_character(
-                key_text
-            )
+            unsafe_key = contains_sensitive_value(key_text) or _contains_control_character(key_text)
             if unsafe_key:
                 key_path = f"{path or '$'}[{index}].<mapping-key>"
                 yield key_path, key_text

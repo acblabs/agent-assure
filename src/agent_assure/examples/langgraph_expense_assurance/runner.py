@@ -245,11 +245,7 @@ def _intake_node(state: ExpenseGraphState) -> ExpenseGraphState:
 
 
 def _policy_lookup_node(state: ExpenseGraphState) -> ExpenseGraphState:
-    evidence_refs = (
-        ()
-        if state["variant"] == "candidate_missing_evidence"
-        else (EVIDENCE_REF,)
-    )
+    evidence_refs = () if state["variant"] == "candidate_missing_evidence" else (EVIDENCE_REF,)
     return {
         "agent_assure": _metadata(
             state,

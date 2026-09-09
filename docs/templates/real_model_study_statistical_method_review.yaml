@@ -5,20 +5,36 @@ receipt_id: replace-statistical-method-review-id
 reviewed_at_utc: "2026-01-01T12:00:00Z"
 reviewer_pseudonym: replace-independent-statistical-reviewer-pseudonym
 
-# Every assertion is mandatory and must be literally true. Reviewer identity,
-# qualifications, independence, and the truth of these assertions are
-# authenticated out of band; the JSON receipt binds them to exact local bytes.
-reviewer_statistical_qualification_confirmed: true
+# Every assertion deliberately starts false. The command rejects this untouched
+# template; change each assertion to true only after personally verifying it.
+# Reviewer identity, qualifications, independence, and the truth of these
+# assertions are authenticated out of band; the JSON receipt binds them to exact
+# local bytes.
+reviewer_statistical_qualification_confirmed: false
+reviewer_qualification_basis_types:
+  - professional_statistical_practice
+# SHA-256 of the qualification evidence reviewed out of band. The repeated-zero
+# sentinel is rejected; replace it without publishing private credential bytes.
+reviewer_qualification_evidence_digest: "0000000000000000000000000000000000000000000000000000000000000000"
 reviewer_qualification_basis: >-
   The reviewer has training and applied experience in preregistered binomial
   inference, clustered study design, multiplicity control, and power analysis.
-reviewer_independent_of_design_execution_and_analysis: true
+reviewer_independent_of_design_execution_and_analysis: false
 reviewer_independence_rationale: >-
   The reviewer did not author the study design, construct the benchmark,
   execute provider calls, select observations, or perform the final analysis.
-benchmark_cluster_assignments_reviewed: true
-independence_and_exchangeability_assumptions_reviewed: true
-sampling_frame_and_estimand_reviewed: true
-multiplicity_and_interval_method_reviewed: true
-power_and_decision_boundary_reachability_reviewed: true
-negative_control_design_reviewed: true
+independence_design_basis_reviewed_and_accepted: false
+independence_acceptance_rationale: >-
+  TODO: replace with why the manifest's enumerated design basis supports its
+  declared scope, citing the audit and actual unit-construction mechanism.
+semantic_near_duplicate_audit_reviewed: false
+semantic_near_duplicate_pseudoreplication_rejected: false
+semantic_near_duplicate_review_rationale: >-
+  TODO: replace with how semantic near-duplicates were detected and either
+  collapsed or excluded, or why dependence requires fixed-frame scope.
+benchmark_cluster_assignments_reviewed: false
+independence_and_exchangeability_assumptions_reviewed: false
+sampling_frame_and_estimand_reviewed: false
+multiplicity_and_interval_method_reviewed: false
+power_and_decision_boundary_reachability_reviewed: false
+negative_control_design_reviewed: false

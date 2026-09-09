@@ -84,6 +84,37 @@ against the real SDK and exporter. Its pytest policy converts every skip into a
 failure. Missing or incompatible optional dependencies therefore cannot turn
 those contract tests into a successful skip.
 
+## Source freshness and controlled regeneration
+
+Each checked-in Python lock carries a
+`source-dependency-input-sha256` header. The digest covers a canonical
+projection of only the dependency-resolution inputs in `pyproject.toml`:
+`build-system.requires`, `project.requires-python`, `project.dependencies`, and
+`project.optional-dependencies`. Unrelated formatter, coverage, or tool
+configuration changes therefore do not stale every lock. Run the offline check
+with:
+
+```bash
+python scripts/check_dependency_lock_freshness.py
+```
+
+The unit regression runs under the normal `make check` test suite. A declared
+dependency or supported-Python change without a corresponding marker refresh
+fails repository checks. The marker is a review aid, not proof that a resolver
+produced the lock: reviewers must still inspect the resolved diff, generator
+identity, hashes, platform/Python targets, hash-required installs, audits, and
+release reproduction evidence.
+
+Dependabot may propose changes to declared Python dependencies, but it does not
+reliably regenerate these project-specific `pip-compile` and `uv` hash locks
+across their distinct Python and platform targets. Agent Assure therefore does
+not let a bot rewrite and commit transitive lock output automatically. The
+strongest safe partial automation is advisory discovery plus the offline source
+freshness failure; a maintainer performs the documented controlled regeneration
+commands and reviews the resulting lock diffs. This deliberate limitation
+avoids presenting an unaudited resolver rewrite as an approved dependency
+update.
+
 ## Automated security monitoring
 
 Dependabot checks both Python and GitHub Actions dependencies weekly. The

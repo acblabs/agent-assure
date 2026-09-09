@@ -299,7 +299,7 @@ identities.
 
 ## AgentRunRecord Producer Contract
 
-Current contract ID: `agent-run-record-producer-contract/v1`.
+Current contract ID: `agent-run-record-producer-contract/v2`.
 
 External producers of `AgentRunRecord` artifacts must populate
 `claim_evidence_links` for every material claim they intend to satisfy. Each
@@ -310,6 +310,22 @@ not satisfy `material_claims_have_evidence`.
 This contract is behavioral, not merely syntactic. A record can validate
 against an accepted legacy schema version such as `0.2.0` and still fail
 deterministic evaluation if it omits explicit material claim-evidence links.
+
+Version 2 additionally requires current producers to declare the provenance of
+recommendation, outcome, summary, tool, evidence, claim, policy-result, and
+human-review fields through `structured_field_origins`. `fixture`,
+`instrumented_adapter`, `model_self_report`, `runner_observed`, and
+`legacy_unspecified` are deliberately distinct. Direct model self-report is
+accepted for decision/output evaluation but cannot establish that a tool,
+evidence lookup, policy evaluation, or human review occurred. An instrumented
+adapter remains a trusted producer boundary, not an independent attestation.
+
+The v1 compatibility rule is explicit: omitted origins on fixture records are
+interpreted as authored fixture input; omitted origins on live records become
+`legacy_unspecified` and cannot satisfy process controls. Untrusted failures,
+warnings, not-evaluated results, forbidden tools, and contradictory evidence
+remain conservative negative signals, so reducing source trust cannot improve
+a verdict.
 
 ## Live-Capable Schema Additions
 

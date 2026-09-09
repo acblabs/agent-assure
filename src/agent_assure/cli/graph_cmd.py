@@ -26,9 +26,7 @@ def validate(
         loaded = load_evidence_graph(graph)
     except (OSError, UnicodeError, ValueError) as exc:
         raise typer.BadParameter("assurance evidence graph validation failed") from exc
-    typer.echo(
-        f"valid assurance-evidence-graph {loaded.contract_id} {loaded.graph_digest}"
-    )
+    typer.echo(f"valid assurance-evidence-graph {loaded.contract_id} {loaded.graph_digest}")
 
 
 @app.command("digest")

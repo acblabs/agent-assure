@@ -20,8 +20,7 @@ def test_evidence_normalization_candidate_loses_secondary_claim_link() -> None:
     baseline = _case_run(BASELINE, EDGE_CASE_ID)
     candidate = _case_run(EVIDENCE_CANDIDATE, EDGE_CASE_ID)
     assert (
-        baseline.provenance.fixture_manifest_digest
-        == candidate.provenance.fixture_manifest_digest
+        baseline.provenance.fixture_manifest_digest == candidate.provenance.fixture_manifest_digest
     )
     assert baseline.recommendation == candidate.recommendation == "approve"
     assert baseline.outcome == candidate.outcome == "approve"
@@ -106,9 +105,7 @@ def _evidence_claims_by_ref(run: AgentRunRecord) -> dict[str, tuple[str, ...]]:
 def _missing_material_claims(run: AgentRunRecord, expectation: Expectation) -> tuple[str, ...]:
     evidence_refs = {item.ref_id for item in run.evidence_items}
     observed = {
-        link.claim_id
-        for link in run.claim_evidence_links
-        if link.evidence_ref_id in evidence_refs
+        link.claim_id for link in run.claim_evidence_links if link.evidence_ref_id in evidence_refs
     }
     return tuple(
         claim_id for claim_id in expectation.material_claim_ids if claim_id not in observed
@@ -119,8 +116,7 @@ def _ordinary_evidence_case_ids(compiled: CompiledSuite) -> set[str]:
     return {
         case.case_id
         for case in compiled.cases
-        if case.case_id != EDGE_CASE_ID
-        and "evidence-linking" not in case.tags
+        if case.case_id != EDGE_CASE_ID and "evidence-linking" not in case.tags
     }
 
 

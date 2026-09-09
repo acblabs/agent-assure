@@ -71,6 +71,7 @@ from agent_assure.schema.study import (
     StudyExpectedResponseDiagnostic,
     StudyFailureSummary,
     StudyHypothesisClassification,
+    StudyInferenceScope,
     StudyObservedExecutionProvenance,
     StudyObservedModelIdentity,
     StudyOneSidedInterval,
@@ -485,6 +486,11 @@ def bind_study_manifest_to_live_config(
     existing = config.study_manifest_digest
     if existing is not None and existing != manifest.manifest_digest:
         raise ValueError("live configuration is already bound to another study manifest")
+    if not config.fail_fast_on_excluded_response:
+        raise ValueError(
+            "live study config must set fail_fast_on_excluded_response=true before "
+            "preregistration and dispatch"
+        )
     bound = LiveRunConfig.model_validate(
         {**config.model_dump(mode="json"), "study_manifest_digest": manifest.manifest_digest}
     )
@@ -636,7 +642,10 @@ def analyze_real_model_study(
     )
     classification = (
         _classify(manifest, results)
-        if sufficient and invariant_controls_satisfied
+        if sufficient
+        and invariant_controls_satisfied
+        and manifest.hypothesis_decision_rule.inference_scope
+        is StudyInferenceScope.confirmatory_independent_clusters
         else StudyHypothesisClassification.not_measured
     )
     # A report can replay the analysis, but cannot authenticate the external
@@ -653,6 +662,10 @@ def analyze_real_model_study(
         protocol_set_digest=manifest.protocol_set_digest,
         hypothesis_decision_rule_digest=manifest.hypothesis_decision_rule_digest,
         conditions=results,
+        inferential_statistics_applicable=(
+            manifest.hypothesis_decision_rule.inference_scope
+            is StudyInferenceScope.confirmatory_independent_clusters
+        ),
         protocol_valid=protocol_valid,
         statistical_sufficiency_satisfied=sufficient,
         invariant_controls_satisfied=invariant_controls_satisfied,

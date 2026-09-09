@@ -124,8 +124,7 @@ def test_flagship_showcase_sequence_matches_public_demo(tmp_path: Path) -> None:
     assert finding["reason_code"] == ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value
     assert finding["state"] == GateState.fail.value
     assert (
-        finding["message"]
-        == "fixture-declared material claim has no paired reference and "
+        finding["message"] == "fixture-declared material claim has no paired reference and "
         "content-addressed evidence item link"
     )
     assert comparison_summary["classification"] == ComparisonClassification.new_failure.value

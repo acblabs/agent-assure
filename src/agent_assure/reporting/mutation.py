@@ -227,9 +227,7 @@ def _validate_mutation_artifact_generation_unlocked(
                 raise ValueError(f"committed mutation artifact is missing: {filename}") from exc
             generation_bytes += len(contents.data)
             if generation_bytes > _MAX_SINGLE_GENERATION_BYTES:
-                raise ValueError(
-                    "mutation artifact generation exceeds maximum aggregate size"
-                )
+                raise ValueError("mutation artifact generation exceeds maximum aggregate size")
             if contents.sha256 != digest:
                 raise ValueError(f"committed mutation artifact digest does not match: {filename}")
         elif digest is not None or _entry_exists(path):

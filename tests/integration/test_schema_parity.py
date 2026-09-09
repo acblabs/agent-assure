@@ -736,9 +736,7 @@ def _legacy_container_usage_payloads() -> tuple[tuple[str, dict[str, object]], .
             "evaluation-report",
             _legacy_evaluation_report_payload(
                 None,
-                candidate_vs_expectations=_evaluation_summary_payload(
-                    usage_summary=usage_summary
-                ),
+                candidate_vs_expectations=_evaluation_summary_payload(usage_summary=usage_summary),
             ),
         ),
         ("comparison-report", _legacy_comparison_report_payload(usage_delta=usage_delta)),

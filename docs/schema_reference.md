@@ -154,6 +154,24 @@ inferred from the comparison. Comparison JSON publication validates the
 privacy-filtered report and summary against the active writer schemas before
 creating either output file.
 
+Current `agent-run-record` writers can attach one `structured_field_origins`
+object covering recommendation, outcome, summary, tools, evidence references
+and items, claims and links, policy results, and human-review flags. The origin
+vocabulary is `fixture`, `instrumented_adapter`, `model_self_report`,
+`runner_observed`, and `legacy_unspecified`. Current first-party runners always
+emit the object. For compatible older artifacts, omission is projected as
+`fixture` only when `execution_mode=fixture`; omission on a live record remains
+`legacy_unspecified`.
+
+Control eligibility is source-aware. Fixture and instrumented-adapter fields
+can satisfy declared controls within their documented producer trust boundary;
+model-self-reported and legacy-unspecified process fields cannot. Direct
+OpenAI-compatible calls use a strict, decision-only response contract, so the
+model cannot populate process fields. Runner-observed provenance is valid only
+for the runner's excluded runtime-error record shape. Untrusted positive policy
+results are ignored, while negative policy states, forbidden-tool reports, and
+evidence contradictions remain verdict-bearing.
+
 Every v0.6 live `agent-run-record` also requires
 `cost_budget_committed_usd`, `generated_token_budget_committed`, and
 `total_token_budget_committed`. These fields record conservative amounts
@@ -463,9 +481,13 @@ Six persisted roots are introduced on the v0.6.6 development writer surface:
 - `external-pilot-independence-review` is
   `ExternalPilotIndependenceReviewReceipt/v1`. Its
   `review_receipt_digest` binds the exact pilot logical/raw evidence,
-  canonical full artifact manifest, environment-control artifact, expected
-  release line, distinct reviewer, completed human review checklist, and
-  review time. It is explicitly operator-attested with reviewer identity
+  canonical full artifact manifest, environment-control and consent artifacts,
+  derived friction category and remediation state (including applied source and
+  prior-candidate bindings), expected release line, exact attempt-specific
+  Actions run URLs, attempts, and heads, trusted workflow revision and byte
+  hashes, the execution-source SHA embedded in those bytes, complete public
+  dispatch inputs and their canonical checksums, distinct reviewer, completed
+  human review checklist, and review time. It is explicitly operator-attested with reviewer identity
   authenticated out of band rather than by this JSON contract.
 
 The real-model study and external-pilot contracts are documented in
@@ -777,10 +799,10 @@ describe that cluster-centered estimate and are not required to bracket the
 pooled rate under unequal cluster sizes.
 
 External `AgentRunRecord` producers must also follow
-`agent-run-record-producer-contract/v1`, documented in
+`agent-run-record-producer-contract/v2`, documented in
 `docs/schema_evolution.md`. In particular, material claim coverage is satisfied
 only by explicit `claim_evidence_links` that point to present evidence
-references.
+references, and process-control eligibility depends on declared field origin.
 
 Usage schema roots started as an additive v0.3.1 release surface and are
 extended in v0.4.3 for declared pricing snapshots and basis-point deltas.

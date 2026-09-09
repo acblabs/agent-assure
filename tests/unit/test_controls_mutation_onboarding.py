@@ -87,7 +87,7 @@ def test_facade_preserves_public_type_identity_and_scaffold_bytes() -> None:
         ),
         "runset.json": (
             3610,
-            "7f5f983071dda418b572cf092dc8a8eb3fa8fca7741f4627ec9ab675a7641af0",
+            "7b18a72462b2ce8fba13bccc1b96a9b3a1b5eb41ebe94adb56e32aec0e93869e",
         ),
         "threat-applicability.yaml": (
             685,

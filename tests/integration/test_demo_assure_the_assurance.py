@@ -189,9 +189,7 @@ def test_assure_the_assurance_demo_is_offline_portable_and_rejects_substitution(
     assert persisted_packet.release_manifest is not None
     assert packet_summary_files_binding_error(persisted_packet, artifact_root=out) is None
     assert artifacts["release_artifact_manifest"] == "release-artifact-manifest.json"
-    assert packet["release_manifest"] == _json(
-        out / artifacts["release_artifact_manifest"]
-    )
+    assert packet["release_manifest"] == _json(out / artifacts["release_artifact_manifest"])
     config_digest = next(
         item
         for item in cast(list[dict[str, Any]], packet["artifact_digests"])
@@ -215,14 +213,10 @@ def test_assure_the_assurance_demo_is_offline_portable_and_rejects_substitution(
     assert "the unrelated failure did not count as a kill" in reviewer
     assert "Matched normative finding count: `0`" in reviewer
     assert f"Packet-bound graph digest: {graph['graph_digest']}." in reviewer
-    assert (
-        f"Mutation-enriched graph digest: {mutation_graph['graph_digest']}."
-        in reviewer
-    )
+    assert f"Mutation-enriched graph digest: {mutation_graph['graph_digest']}." in reviewer
     assert (
         "Mutation-enriched nodes / edges: "
-        f"{len(mutation_graph['nodes'])} / {len(mutation_graph['edges'])}."
-        in reviewer
+        f"{len(mutation_graph['nodes'])} / {len(mutation_graph['edges'])}." in reviewer
     )
     assert "Contradictions and limitations remain first-class findings." in reviewer
     assert "http://" not in reviewer.lower()

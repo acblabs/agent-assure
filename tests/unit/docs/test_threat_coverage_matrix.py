@@ -94,9 +94,7 @@ def test_evaluated_controls_have_mitre_atlas_crosswalks() -> None:
 
 def test_documented_controls_cover_built_in_control_vocabulary() -> None:
     matrix = _load_matrix()
-    documented_control_ids = {
-        cast(dict[str, Any], control)["id"] for control in matrix["controls"]
-    }
+    documented_control_ids = {cast(dict[str, Any], control)["id"] for control in matrix["controls"]}
 
     assert set(BUILT_IN_CONTROL_IDS) <= documented_control_ids
 
@@ -153,9 +151,7 @@ def test_uncovered_items_preserve_atlas_relevant_gaps() -> None:
         == "not_applicable"
     )
     assert (
-        uncovered["context-discovery-and-stakeholder-impact-mapping"]["mitre_atlas"][
-            "techniques"
-        ]
+        uncovered["context-discovery-and-stakeholder-impact-mapping"]["mitre_atlas"]["techniques"]
         == []
     )
     assert (
@@ -183,8 +179,7 @@ def test_mitre_atlas_crosswalk_doc_matches_yaml_source_of_truth() -> None:
     assert f"- Artifact modified date: `{snapshot['artifact_modified_date']}`" in doc
     assert f"- Format version: `{snapshot['format_version']}`" in doc
     assert (
-        "The release date comes from the ATLAS manifest entry for release "
-        f"`{snapshot['release']}`."
+        f"The release date comes from the ATLAS manifest entry for release `{snapshot['release']}`."
     ) in doc
     assert "Tactics and techniques are listed as control-level unions." in doc
     assert "partially evaluated for one local boundary while remaining a gap" in normalized_doc
@@ -248,9 +243,9 @@ def _assert_valid_atlas_references(
     for tactic in tactics:
         assert tactic in atlas_ids["tactics"], f"{owner} references unknown ATLAS tactic {tactic}"
     for technique in techniques:
-        assert (
-            technique in atlas_ids["techniques"]
-        ), f"{owner} references unknown ATLAS technique {technique}"
+        assert technique in atlas_ids["techniques"], (
+            f"{owner} references unknown ATLAS technique {technique}"
+        )
 
 
 def _format_control_row(control: dict[str, Any], atlas_ids: dict[str, Any]) -> str:

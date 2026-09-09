@@ -107,11 +107,13 @@ def test_stochastic_packet_gate_fails_closed_on_present_nonverdict_evidence(
     default = gate_evidence_packet(
         packet,
         stochastic_source_runsets=source_runsets,
+        allow_missing_efficacy_for_migration=True,
     )
     required = gate_evidence_packet(
         packet,
         stochastic_source_runsets=source_runsets,
         require_stochastic_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert default.outcome is default_outcome
@@ -131,11 +133,13 @@ def test_stochastic_packet_gate_fails_closed_on_present_nonverdict_evidence(
             packet,
             stochastic_source_runsets=source_runsets,
             allow_sensitivity_non_verdict=True,
+            allow_missing_efficacy_for_migration=True,
         )
         strict_default = gate_evidence_packet(
             packet,
             stochastic_source_runsets=source_runsets,
             fail_on_not_evaluated=True,
+            allow_missing_efficacy_for_migration=True,
         )
         assert allowed.outcome is GateOutcome.not_evaluated
         assert allowed.exit_code == 0
@@ -154,10 +158,17 @@ def test_required_stochastic_evidence_rejects_absence_and_nonpacket_use() -> Non
         artifact_digests=(_evaluation_digest(),),
     )
 
-    assert gate_evidence_packet(packet).outcome is GateOutcome.pass_
+    assert (
+        gate_evidence_packet(
+            packet,
+            allow_missing_efficacy_for_migration=True,
+        ).outcome
+        is GateOutcome.pass_
+    )
     missing = gate_evidence_packet(
         packet,
         require_stochastic_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
     nonpacket = gate_artifact(
         evaluation,
@@ -175,19 +186,28 @@ def test_required_stochastic_evidence_rejects_absence_and_nonpacket_use() -> Non
 def test_stochastic_packet_gate_requires_and_recomputes_exact_source_runsets() -> None:
     packet, source_runsets = _packet_fixture("pass")
 
-    missing = gate_evidence_packet(packet)
-    generic_missing = gate_artifact(packet)
+    missing = gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
+    generic_missing = gate_artifact(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
     exact = gate_evidence_packet(
         packet,
         stochastic_source_runsets=source_runsets,
+        allow_missing_efficacy_for_migration=True,
     )
     generic_exact = gate_artifact(
         packet,
         stochastic_source_runsets=source_runsets,
+        allow_missing_efficacy_for_migration=True,
     )
     swapped = gate_evidence_packet(
         packet,
         stochastic_source_runsets=(source_runsets[1], source_runsets[0]),
+        allow_missing_efficacy_for_migration=True,
     )
     candidate_payload = source_runsets[1].model_dump(mode="json")
     candidate_payload["runs"][0]["output_summary"] = "privacy-safe tampered decision"
@@ -195,10 +215,12 @@ def test_stochastic_packet_gate_requires_and_recomputes_exact_source_runsets() -
     tampered = gate_evidence_packet(
         packet,
         stochastic_source_runsets=(source_runsets[0], tampered_candidate),
+        allow_missing_efficacy_for_migration=True,
     )
     one_arm = gate_evidence_packet(
         packet,
         stochastic_source_runsets=(source_runsets[0],),  # type: ignore[arg-type]
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert missing.outcome is GateOutcome.invalid
@@ -282,6 +304,7 @@ def test_forged_record_membership_cannot_pass_against_exact_source_runsets() -> 
     decision = gate_evidence_packet(
         forged_packet,
         stochastic_source_runsets=source_runsets,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert forged_packet.stochastic_evidence_sensitivity is not None
@@ -298,6 +321,7 @@ def test_forged_observation_semantics_fail_for_explicit_and_persisted_sources(
     explicit = gate_evidence_packet(
         forged_packet,
         stochastic_source_runsets=source_runsets,
+        allow_missing_efficacy_for_migration=True,
     )
     _, persisted_packet = _write_packet_fixture_bundle(
         tmp_path,
@@ -308,6 +332,7 @@ def test_forged_observation_semantics_fail_for_explicit_and_persisted_sources(
     persisted = gate_evidence_packet(
         persisted_packet,
         artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert forged_packet.stochastic_evidence_sensitivity is not None
@@ -335,10 +360,24 @@ def test_ci_gate_flag_enforces_stochastic_pass(
 ) -> None:
     packet_path = _write_packet_bundle(tmp_path, mode)
 
-    default = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    default = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
     required = RUNNER.invoke(
         app,
-        ["ci", "gate", str(packet_path), REQUIRE_FLAG],
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            REQUIRE_FLAG,
+            "--allow-missing-efficacy-for-migration",
+        ],
     )
 
     assert default.exit_code == default_exit_code, default.output
@@ -351,6 +390,7 @@ def test_ci_gate_flag_enforces_stochastic_pass(
                 "gate",
                 str(packet_path),
                 "--allow-sensitivity-non-verdict",
+                "--allow-missing-efficacy-for-migration",
             ],
         )
         assert allowed.exit_code == 0, allowed.output
@@ -390,7 +430,10 @@ def test_default_gate_still_rejects_structurally_tampered_stochastic_report() ->
     )
     unchecked = packet.model_copy(update={"stochastic_evidence_sensitivity": tampered})
 
-    decision = gate_evidence_packet(unchecked)
+    decision = gate_evidence_packet(
+        unchecked,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
@@ -415,6 +458,7 @@ def test_required_ci_gate_rejects_model_copy_stochastic_subject_bypass(
     decision = gate_evidence_packet(
         unchecked,
         require_stochastic_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert decision.outcome is GateOutcome.invalid
@@ -449,6 +493,7 @@ def test_required_ci_gate_rejects_model_copy_configuration_bypass() -> None:
     decision = gate_evidence_packet(
         unchecked,
         require_stochastic_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert decision.outcome is GateOutcome.invalid

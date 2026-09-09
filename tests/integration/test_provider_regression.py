@@ -19,8 +19,7 @@ def test_provider_policy_candidate_lets_runtime_defaults_shadow_policy_bundle() 
     baseline = _run_forbidden_provider(BASELINE)
     candidate = _run_forbidden_provider(PROVIDER_CANDIDATE)
     assert (
-        baseline.provenance.fixture_manifest_digest
-        == candidate.provenance.fixture_manifest_digest
+        baseline.provenance.fixture_manifest_digest == candidate.provenance.fixture_manifest_digest
     )
     assert baseline.outcome == "escalate"
     assert baseline_config.behavior.provider_policy_precedence == "policy_over_runtime"

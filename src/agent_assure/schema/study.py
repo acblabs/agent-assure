@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from datetime import date
 from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal, InvalidOperation
 from enum import StrEnum
-from re import finditer
+from re import findall, finditer
 from typing import Annotated, Any, Literal, Self
 
 from pydantic import ConfigDict, Field, ValidationInfo, model_validator
@@ -49,6 +49,9 @@ MAX_STUDY_DEVIATIONS = 128
 MAX_STUDY_LIMITATIONS = 64
 MAX_FAILURE_EXAMPLES = 3
 MAX_STUDY_OBSERVED_MODEL_IDENTITIES = 32
+_PLACEHOLDER_REVIEW_TOKENS = frozenset(
+    {"lorem", "placeholder", "replace", "tbd", "todo", "unresolved"}
+)
 UNRESOLVED_INDEPENDENCE_BASIS = (
     "UNRESOLVED AUTHORING PLACEHOLDER: replace this text with a positive "
     "design-based argument before real-provider preregistration."
@@ -62,6 +65,39 @@ Timestamp = Annotated[
 ]
 BoundedStudyText = Annotated[str, Field(min_length=1, max_length=4_096)]
 SubstantiveStudyText = Annotated[str, Field(min_length=32, max_length=4_096)]
+
+
+def _validator_field_name(info: ValidationInfo) -> str:
+    """Return the field name for a field validator without weakening typing."""
+
+    if info.field_name is None:
+        raise RuntimeError("study field validator requires a named model field")
+    return info.field_name
+
+
+def _require_substantive_non_placeholder_text(value: str, *, field_name: str) -> str:
+    """Reject normalized-but-placeholder prose in human trust-root fields."""
+
+    if value != value.strip() or not any(character.isalnum() for character in value):
+        raise ValueError(f"{field_name} must be substantive normalized text")
+    normalized_tokens = {token.lower() for token in findall(r"[A-Za-z]+", value)}
+    rejected = tuple(sorted(normalized_tokens & _PLACEHOLDER_REVIEW_TOKENS))
+    if rejected:
+        raise ValueError(
+            f"{field_name} contains unresolved authoring token(s): " + ", ".join(rejected)
+        )
+    if len(normalized_tokens) < 6:
+        raise ValueError(f"{field_name} must contain a specific positive basis")
+    return value
+
+
+def _require_non_placeholder_digest(value: str, *, field_name: str) -> str:
+    """Reject obvious repeated-character stand-ins in human evidence commitments."""
+
+    if len(set(value.lower())) < 8:
+        raise ValueError(f"{field_name} must commit to actual evidence bytes")
+    return value
+
 
 _CONDITION_OPTIONAL_EVIDENCE_FIELDS = (
     "observed_execution_window",
@@ -547,6 +583,11 @@ class StudyExecutionOrigin(StrEnum):
     synthetic_fixture = "synthetic_fixture"
 
 
+class StudyProviderFingerprintReviewStatus(StrEnum):
+    complete_and_stable = "complete_and_stable"
+    not_exposed_by_provider = "not_exposed_by_provider"
+
+
 class StudyRegistration(FrozenStrictModel):
     method: StudyRegistrationMethod
     reference_id: MachineIdentifier
@@ -648,6 +689,29 @@ class StudyExecutionReviewCondition(FrozenStrictModel):
     counterfactual_runset_sha256: DigestHex
     observed_provenance_digest: DigestHex
     provider_response_id_set_digest: DigestHex
+    provider_response_records: int = Field(ge=1, le=2 * MAX_STUDY_TASKS)
+    provider_serving_fingerprint_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
+    provider_serving_fingerprint_status: StudyProviderFingerprintReviewStatus
+
+    @field_validator("provider_serving_fingerprint_status", mode="before")
+    @classmethod
+    def _coerce_fingerprint_status(
+        cls,
+        value: object,
+    ) -> StudyProviderFingerprintReviewStatus:
+        return coerce_enum(StudyProviderFingerprintReviewStatus, value)
+
+    @model_validator(mode="after")
+    def _validate_fingerprint_coverage(self) -> Self:
+        expected_records = (
+            self.provider_response_records
+            if self.provider_serving_fingerprint_status
+            is StudyProviderFingerprintReviewStatus.complete_and_stable
+            else 0
+        )
+        if self.provider_serving_fingerprint_records != expected_records:
+            raise ValueError("fingerprint review status must match response-record coverage")
+        return self
 
 
 class StudyExecutionReviewReceipt(SelfDigestedArtifact):
@@ -674,14 +738,22 @@ class StudyExecutionReviewReceipt(SelfDigestedArtifact):
     reviewer_pseudonym: MachineIdentifier
     reviewer_independent_of_execution: Literal[True]
     reviewer_independence_rationale: BoundedStudyText
+    provider_log_review_scope: SubstantiveStudyText
+    provider_log_evidence_digest: DigestHex
+    provider_account_review_scope: SubstantiveStudyText
+    provider_account_evidence_digest: DigestHex
     conditions: tuple[StudyExecutionReviewCondition, ...] = Field(
         min_length=1,
         max_length=MAX_STUDY_CONDITIONS,
     )
     provider_log_and_account_review_confirmed: Literal[True]
+    provider_log_time_window_coverage_confirmed: Literal[True]
+    provider_account_usage_reconciled: Literal[True]
     exhaustive_attempt_failure_retry_accounting_confirmed: Literal[True]
     provider_response_id_matches_confirmed: Literal[True]
     exact_runset_artifact_digest_matches_confirmed: Literal[True]
+    provider_serving_fingerprint_availability_reviewed: Literal[True]
+    provider_serving_fingerprint_absence_acknowledged: bool
     attestation_basis: Literal["human_operator_attestation"] = "human_operator_attestation"
     reviewer_identity_authentication: Literal["out_of_band_not_machine_verified"] = (
         "out_of_band_not_machine_verified"
@@ -692,11 +764,40 @@ class StudyExecutionReviewReceipt(SelfDigestedArtifact):
     def _coerce_conditions(cls, value: object) -> object:
         return coerce_tuple(value)
 
+    @field_validator(
+        "reviewer_independence_rationale",
+        "provider_log_review_scope",
+        "provider_account_review_scope",
+    )
+    @classmethod
+    def _validate_review_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_substantive_non_placeholder_text(
+            value,
+            field_name=_validator_field_name(info),
+        )
+
+    @field_validator("provider_log_evidence_digest", "provider_account_evidence_digest")
+    @classmethod
+    def _validate_review_evidence_digest(cls, value: str, info: ValidationInfo) -> str:
+        return _require_non_placeholder_digest(
+            value,
+            field_name=_validator_field_name(info),
+        )
+
     @model_validator(mode="after")
     def _validate_review(self) -> Self:
         condition_ids = tuple(item.condition_id for item in self.conditions)
         if condition_ids != tuple(sorted(set(condition_ids))):
             raise ValueError("execution review conditions must be unique and sorted")
+        fingerprint_absent = any(
+            item.provider_serving_fingerprint_status
+            is StudyProviderFingerprintReviewStatus.not_exposed_by_provider
+            for item in self.conditions
+        )
+        if self.provider_serving_fingerprint_absence_acknowledged is not fingerprint_absent:
+            raise ValueError(
+                "fingerprint-absence acknowledgement must derive from reviewed conditions"
+            )
         execution_end = parse_rfc3339_timestamp(
             self.execution_window_end_utc,
             field_name="execution_review.execution_window_end_utc",
@@ -728,6 +829,18 @@ class StudyStatisticalMethodReviewCondition(FrozenStrictModel):
     @classmethod
     def _coerce_analysis_role(cls, value: object) -> StudyConditionAnalysisRole:
         return coerce_enum(StudyConditionAnalysisRole, value)
+
+
+class StudyReviewerQualificationBasisType(StrEnum):
+    graduate_statistics_training = "graduate_statistics_training"
+    professional_statistical_practice = "professional_statistical_practice"
+    peer_reviewed_methodology_authorship = "peer_reviewed_methodology_authorship"
+    documented_equivalent = "documented_equivalent"
+
+
+class StudyMethodReviewApprovalDisposition(StrEnum):
+    approved_confirmatory_independent_clusters = "approved_confirmatory_independent_clusters"
+    approved_fixed_frame_descriptive_conformance = "approved_fixed_frame_descriptive_conformance"
 
 
 class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
@@ -766,9 +879,23 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     reviewed_at_utc: Timestamp
     reviewer_pseudonym: MachineIdentifier
     reviewer_statistical_qualification_confirmed: Literal[True]
+    reviewer_qualification_basis_types: tuple[StudyReviewerQualificationBasisType, ...] = Field(
+        min_length=1,
+        max_length=4,
+    )
+    reviewer_qualification_evidence_digest: DigestHex
     reviewer_qualification_basis: SubstantiveStudyText
     reviewer_independent_of_design_execution_and_analysis: Literal[True]
     reviewer_independence_rationale: SubstantiveStudyText
+    approved_inference_scope: StudyInferenceScope
+    independence_design_basis: StudyIndependenceDesignBasis
+    independence_audit_artifact_sha256: DigestHex
+    independence_design_basis_reviewed_and_accepted: Literal[True]
+    independence_acceptance_rationale: SubstantiveStudyText
+    semantic_near_duplicate_disposition: StudySemanticNearDuplicateDisposition
+    semantic_near_duplicate_audit_reviewed: Literal[True]
+    semantic_near_duplicate_pseudoreplication_rejected: Literal[True]
+    semantic_near_duplicate_review_rationale: SubstantiveStudyText
     conditions: tuple[StudyStatisticalMethodReviewCondition, ...] = Field(
         min_length=1,
         max_length=MAX_STUDY_CONDITIONS,
@@ -779,9 +906,7 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     multiplicity_and_interval_method_reviewed: Literal[True]
     power_and_decision_boundary_reachability_reviewed: Literal[True]
     negative_control_design_reviewed: Literal[True]
-    approval_disposition: Literal["approved_for_preregistered_execution"] = (
-        "approved_for_preregistered_execution"
-    )
+    approval_disposition: StudyMethodReviewApprovalDisposition
     unresolved_methodological_concerns: tuple[BoundedStudyText, ...] = Field(
         default=(),
         max_length=0,
@@ -793,23 +918,102 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
         "out_of_band_not_machine_verified"
     )
 
-    @field_validator("conditions", "unresolved_methodological_concerns", mode="before")
+    @field_validator(
+        "conditions",
+        "reviewer_qualification_basis_types",
+        "unresolved_methodological_concerns",
+        mode="before",
+    )
     @classmethod
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
 
-    @field_validator("reviewer_qualification_basis", "reviewer_independence_rationale")
+    @field_validator("reviewer_qualification_basis_types", mode="before")
+    @classmethod
+    def _coerce_qualification_basis_types(cls, value: object) -> object:
+        values = coerce_tuple(value)
+        if not isinstance(values, tuple):
+            return values
+        return tuple(coerce_enum(StudyReviewerQualificationBasisType, item) for item in values)
+
+    @field_validator("approved_inference_scope", mode="before")
+    @classmethod
+    def _coerce_approved_scope(cls, value: object) -> StudyInferenceScope:
+        return coerce_enum(StudyInferenceScope, value)
+
+    @field_validator("independence_design_basis", mode="before")
+    @classmethod
+    def _coerce_independence_design_basis(
+        cls,
+        value: object,
+    ) -> StudyIndependenceDesignBasis:
+        return coerce_enum(StudyIndependenceDesignBasis, value)
+
+    @field_validator("semantic_near_duplicate_disposition", mode="before")
+    @classmethod
+    def _coerce_near_duplicate_disposition(
+        cls,
+        value: object,
+    ) -> StudySemanticNearDuplicateDisposition:
+        return coerce_enum(StudySemanticNearDuplicateDisposition, value)
+
+    @field_validator("approval_disposition", mode="before")
+    @classmethod
+    def _coerce_approval_disposition(
+        cls,
+        value: object,
+    ) -> StudyMethodReviewApprovalDisposition:
+        return coerce_enum(StudyMethodReviewApprovalDisposition, value)
+
+    @field_validator(
+        "reviewer_qualification_basis",
+        "reviewer_independence_rationale",
+        "independence_acceptance_rationale",
+        "semantic_near_duplicate_review_rationale",
+    )
     @classmethod
     def _validate_substantive_review_text(cls, value: str, info: ValidationInfo) -> str:
-        if value != value.strip() or not any(character.isalnum() for character in value):
-            raise ValueError(f"{info.field_name} must be substantive normalized text")
-        return value
+        return _require_substantive_non_placeholder_text(
+            value,
+            field_name=_validator_field_name(info),
+        )
+
+    @field_validator(
+        "reviewer_qualification_evidence_digest",
+        "independence_audit_artifact_sha256",
+    )
+    @classmethod
+    def _validate_review_evidence_digest(cls, value: str, info: ValidationInfo) -> str:
+        return _require_non_placeholder_digest(
+            value,
+            field_name=_validator_field_name(info),
+        )
 
     @model_validator(mode="after")
     def _validate_review(self) -> Self:
+        if self.reviewer_qualification_basis_types != tuple(
+            sorted(set(self.reviewer_qualification_basis_types), key=lambda item: item.value)
+        ):
+            raise ValueError("reviewer qualification basis types must be unique and sorted")
         condition_ids = tuple(item.condition_id for item in self.conditions)
         if condition_ids != tuple(sorted(set(condition_ids))):
             raise ValueError("statistical-method review conditions must be unique and sorted")
+        expected_disposition = (
+            StudyMethodReviewApprovalDisposition.approved_confirmatory_independent_clusters
+            if self.approved_inference_scope
+            is StudyInferenceScope.confirmatory_independent_clusters
+            else StudyMethodReviewApprovalDisposition.approved_fixed_frame_descriptive_conformance
+        )
+        if self.approval_disposition is not expected_disposition:
+            raise ValueError("method-review approval must match the approved inference scope")
+        fixed_frame = (
+            self.semantic_near_duplicate_disposition
+            is StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
+        )
+        if fixed_frame is (
+            self.approved_inference_scope is StudyInferenceScope.confirmatory_independent_clusters
+        ):
+            raise ValueError("near-duplicate disposition must match the approved inference scope")
         registered = parse_rfc3339_timestamp(
             self.registered_at_utc,
             field_name="statistical_method_review.registered_at_utc",
@@ -860,11 +1064,21 @@ def calculate_study_knowledge_contract_digest(contract: StudyKnowledgeContract) 
     )
 
 
+class StudyInferenceScope(StrEnum):
+    confirmatory_independent_clusters = "confirmatory_independent_clusters"
+    fixed_frame_descriptive_conformance = "fixed_frame_descriptive_conformance"
+
+
 class StudyAnalysisDeclaration(FrozenStrictModel):
-    primary: Literal["confirmatory"] = "confirmatory"
+    primary: StudyInferenceScope = StudyInferenceScope.confirmatory_independent_clusters
     exploratory_secondary_analyses_allowed: bool = True
     pooling_permitted: Literal[False] = False
     llm_judge_endpoint_permitted: Literal[False] = False
+
+    @field_validator("primary", mode="before")
+    @classmethod
+    def _coerce_primary(cls, value: object) -> StudyInferenceScope:
+        return coerce_enum(StudyInferenceScope, value)
 
 
 class StudyIndependenceJustificationStatus(StrEnum):
@@ -872,12 +1086,35 @@ class StudyIndependenceJustificationStatus(StrEnum):
     author_asserted_design_basis_pending_qualified_review = (
         "author_asserted_design_basis_pending_qualified_review"
     )
+    fixed_frame_dependence_acknowledged = "fixed_frame_dependence_acknowledged"
+
+
+class StudyIndependenceDesignBasis(StrEnum):
+    unresolved = "unresolved"
+    randomized_independent_sampling = "randomized_independent_sampling"
+    independently_generated_task_clusters = "independently_generated_task_clusters"
+    externally_validated_exchangeable_clusters = "externally_validated_exchangeable_clusters"
+    shared_template_parameter_grid = "shared_template_parameter_grid"
+
+
+class StudySemanticNearDuplicateDisposition(StrEnum):
+    unresolved = "unresolved"
+    none_detected_by_digest_bound_audit = "none_detected_by_digest_bound_audit"
+    collapsed_to_independent_clusters = "collapsed_to_independent_clusters"
+    excluded_before_preregistration = "excluded_before_preregistration"
+    fixed_frame_descriptive_only = "fixed_frame_descriptive_only"
 
 
 class StudyIndependenceJustification(FrozenStrictModel):
     """Structured author assertion; never machine proof of independence."""
 
     status: StudyIndependenceJustificationStatus
+    design_basis: StudyIndependenceDesignBasis
+    semantic_near_duplicate_disposition: StudySemanticNearDuplicateDisposition
+    independence_audit_artifact_sha256: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     inferential_unit_definition: SubstantiveStudyText
     independence_basis: SubstantiveStudyText
     dependence_risks_and_mitigations: SubstantiveStudyText
@@ -891,6 +1128,29 @@ class StudyIndependenceJustification(FrozenStrictModel):
     def _coerce_status(cls, value: object) -> StudyIndependenceJustificationStatus:
         return coerce_enum(StudyIndependenceJustificationStatus, value)
 
+    @field_validator("design_basis", mode="before")
+    @classmethod
+    def _coerce_design_basis(cls, value: object) -> StudyIndependenceDesignBasis:
+        return coerce_enum(StudyIndependenceDesignBasis, value)
+
+    @field_validator("semantic_near_duplicate_disposition", mode="before")
+    @classmethod
+    def _coerce_duplicate_disposition(
+        cls,
+        value: object,
+    ) -> StudySemanticNearDuplicateDisposition:
+        return coerce_enum(StudySemanticNearDuplicateDisposition, value)
+
+    @field_validator("independence_audit_artifact_sha256")
+    @classmethod
+    def _validate_independence_audit_digest(cls, value: str | None) -> str | None:
+        if value is None:
+            return value
+        return _require_non_placeholder_digest(
+            value,
+            field_name="independence_audit_artifact_sha256",
+        )
+
     @field_validator(
         "inferential_unit_definition",
         "independence_basis",
@@ -899,9 +1159,12 @@ class StudyIndependenceJustification(FrozenStrictModel):
     )
     @classmethod
     def _validate_text(cls, value: str, info: ValidationInfo) -> str:
-        if value != value.strip() or not any(character.isalnum() for character in value):
-            raise ValueError(f"{info.field_name} must be substantive normalized text")
-        return value
+        if value == UNRESOLVED_INDEPENDENCE_BASIS:
+            return value
+        return _require_substantive_non_placeholder_text(
+            value,
+            field_name=_validator_field_name(info),
+        )
 
     @model_validator(mode="after")
     def _validate_status(self) -> Self:
@@ -913,6 +1176,40 @@ class StudyIndependenceJustification(FrozenStrictModel):
                 "unresolved independence status and the canonical authoring placeholder "
                 "must be used together"
             )
+        if is_unresolved:
+            if (
+                self.design_basis is not StudyIndependenceDesignBasis.unresolved
+                or self.semantic_near_duplicate_disposition
+                is not StudySemanticNearDuplicateDisposition.unresolved
+                or self.independence_audit_artifact_sha256 is not None
+            ):
+                raise ValueError(
+                    "unresolved independence status requires unresolved structured audit fields"
+                )
+            return self
+        if self.independence_audit_artifact_sha256 is None:
+            raise ValueError("resolved independence scope requires a digest-bound audit artifact")
+        if self.status is StudyIndependenceJustificationStatus.fixed_frame_dependence_acknowledged:
+            if (
+                self.design_basis is not StudyIndependenceDesignBasis.shared_template_parameter_grid
+                or self.semantic_near_duplicate_disposition
+                is not StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
+            ):
+                raise ValueError(
+                    "fixed-frame downscope must acknowledge the shared-template parameter grid"
+                )
+            return self
+        if self.design_basis in {
+            StudyIndependenceDesignBasis.unresolved,
+            StudyIndependenceDesignBasis.shared_template_parameter_grid,
+        }:
+            raise ValueError("confirmatory independence requires a positive non-grid design basis")
+        if self.semantic_near_duplicate_disposition not in {
+            StudySemanticNearDuplicateDisposition.none_detected_by_digest_bound_audit,
+            StudySemanticNearDuplicateDisposition.collapsed_to_independent_clusters,
+            StudySemanticNearDuplicateDisposition.excluded_before_preregistration,
+        }:
+            raise ValueError("confirmatory independence requires resolved near-duplicate handling")
         return self
 
 
@@ -933,6 +1230,7 @@ def require_resolved_independence_justification(
 
 class StudyHypothesisDecisionRule(FrozenStrictModel):
     estimand: Literal["decision_inertia_rate"] = "decision_inertia_rate"
+    inference_scope: StudyInferenceScope = StudyInferenceScope.confirmatory_independent_clusters
     derivation: Literal["direct_same_decision_rate_on_decision_flip_conditions"] = (
         "direct_same_decision_rate_on_decision_flip_conditions"
     )
@@ -967,7 +1265,8 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
     ] = "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha"
     sampling_frame: Literal["finite_frozen_conformance_frame"] = "finite_frozen_conformance_frame"
     exchangeability_assumption: Literal[
-        "independent_exchangeable_binary_cluster_endpoints_within_condition"
+        "independent_exchangeable_binary_cluster_endpoints_within_condition",
+        "not_assumed_fixed_frame_descriptive_only",
     ] = "independent_exchangeable_binary_cluster_endpoints_within_condition"
     decision_boundary_rationale: SubstantiveStudyText
     independence_justification: StudyIndependenceJustification
@@ -990,6 +1289,11 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
     def _coerce_targets(cls, value: object) -> object:
         return coerce_tuple(value)
 
+    @field_validator("inference_scope", mode="before")
+    @classmethod
+    def _coerce_inference_scope(cls, value: object) -> StudyInferenceScope:
+        return coerce_enum(StudyInferenceScope, value)
+
     @field_validator("decision_boundary_rationale")
     @classmethod
     def _validate_substantive_rationale(cls, value: str, info: ValidationInfo) -> str:
@@ -1008,6 +1312,20 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
                 raise ValueError(f"{field_name} must be unique and sorted")
         if set(self.target_task_model_conditions) & set(self.negative_control_conditions):
             raise ValueError("inertia targets and negative controls must be disjoint")
+        confirmatory = self.inference_scope is StudyInferenceScope.confirmatory_independent_clusters
+        expected_exchangeability = (
+            "independent_exchangeable_binary_cluster_endpoints_within_condition"
+            if confirmatory
+            else "not_assumed_fixed_frame_descriptive_only"
+        )
+        if self.exchangeability_assumption != expected_exchangeability:
+            raise ValueError("exchangeability assumption must match the declared inference scope")
+        fixed_frame = (
+            self.independence_justification.status
+            is StudyIndependenceJustificationStatus.fixed_frame_dependence_acknowledged
+        )
+        if fixed_frame is confirmatory:
+            raise ValueError("independence justification must match the declared inference scope")
         threshold = Decimal(self.materiality_threshold)
         alpha = Decimal(self.familywise_alpha)
         if not Decimal("0") <= threshold < Decimal("1"):
@@ -1318,6 +1636,8 @@ class RealModelStudyManifest(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_manifest(self) -> Self:
+        if self.analysis_status.primary is not self.hypothesis_decision_rule.inference_scope:
+            raise ValueError("analysis declaration must match the hypothesis inference scope")
         condition_ids = tuple(item.condition_id for item in self.conditions)
         if condition_ids != tuple(sorted(set(condition_ids))):
             raise ValueError("study conditions must be unique and sorted by condition_id")
@@ -2346,6 +2666,7 @@ class RealModelStudyReport(SelfDigestedArtifact):
         min_length=1,
         max_length=MAX_STUDY_CONDITIONS,
     )
+    inferential_statistics_applicable: bool
     protocol_valid: bool
     statistical_sufficiency_satisfied: bool
     invariant_controls_satisfied: bool
@@ -2425,6 +2746,14 @@ class RealModelStudyReport(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_report(self) -> Self:
+        expected_inferential_applicability = (
+            self.manifest.hypothesis_decision_rule.inference_scope
+            is StudyInferenceScope.confirmatory_independent_clusters
+        )
+        if self.inferential_statistics_applicable is not expected_inferential_applicability:
+            raise ValueError(
+                "inferential_statistics_applicable must derive from the manifest scope"
+            )
         if self.report_id != f"{self.manifest.study_id}/report":
             raise ValueError("study report_id must derive from study_id")
         if (
@@ -2752,7 +3081,12 @@ class RealModelStudyReport(SelfDigestedArtifact):
             raise ValueError(
                 "invariant control validity must derive from every negative-control condition"
             )
-        if sufficient and invariant_controls_satisfied:
+        if (
+            sufficient
+            and invariant_controls_satisfied
+            and self.manifest.hypothesis_decision_rule.inference_scope
+            is StudyInferenceScope.confirmatory_independent_clusters
+        ):
             threshold = Decimal(self.manifest.hypothesis_decision_rule.materiality_threshold)
             intervals = tuple(
                 item.decision_inertia_interval
@@ -2817,17 +3151,23 @@ __all__ = [
     "StudyExpectedResponseDiagnostic",
     "StudyHypothesisClassification",
     "StudyHypothesisDecisionRule",
+    "StudyInferenceScope",
+    "StudyIndependenceDesignBasis",
     "StudyIndependenceJustification",
     "StudyIndependenceJustificationStatus",
+    "StudyMethodReviewApprovalDisposition",
     "StudyKnowledgeContract",
     "StudyObservedModelIdentity",
     "StudyObservedExecutionProvenance",
     "StudyOneSidedInterval",
     "StudyOperationalSummary",
     "StudyPublicationPolicy",
+    "StudyProviderFingerprintReviewStatus",
     "StudyRegistration",
     "StudyRegistrationReviewReceipt",
     "StudyRegistrationMethod",
+    "StudyReviewerQualificationBasisType",
+    "StudySemanticNearDuplicateDisposition",
     "calculate_hypothesis_decision_rule_digest",
     "derive_study_cluster_endpoint_counts",
     "derive_study_inertia_descriptive_counts",

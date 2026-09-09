@@ -153,9 +153,7 @@ class GoogleADKAdapter:
                         evidence_refs=_string_sequence(
                             _metadata_value(agent_metadata, "evidence_refs")
                         ),
-                        redaction_state=_string(
-                            _metadata_value(agent_metadata, "redaction_state")
-                        ),
+                        redaction_state=_string(_metadata_value(agent_metadata, "redaction_state")),
                         usage_segment=_usage_segment(agent_metadata),
                         span_context=_span_context(event, agent_metadata),
                         privacy_filtered_attributes=_string_mapping(

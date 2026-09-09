@@ -477,10 +477,7 @@ def _preserves_scalar_value(
     return (
         isinstance(key, str)
         and isinstance(item, str)
-        and (
-            key in preserve_keys
-            or (is_digest_field_name(key) and is_sha256_hex_digest(item))
-        )
+        and (key in preserve_keys or (is_digest_field_name(key) and is_sha256_hex_digest(item)))
     )
 
 

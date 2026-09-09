@@ -11,6 +11,13 @@ from pydantic import ValidationError
 from agent_assure.io_limits import MAX_PERSISTED_OBSERVATIONS
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.privacy.redaction import redact_run_record_payload
+from agent_assure.schema import (
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
+    control_eligible_process_projection,
+    structured_field_is_control_eligible,
+    structured_field_origin,
+)
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_MAX_CHARS,
     MACHINE_IDENTIFIER_SCHEMA_VERSION,
@@ -142,6 +149,64 @@ def test_live_mode_is_schema_recognized() -> None:
         total_token_budget_committed=0,
     )
     assert record.execution_mode is ExecutionMode.live
+
+
+def test_structured_field_origin_public_contract_preserves_legacy_artifact_identity() -> None:
+    fixture_record = _record(tools=("fixture-tool",))
+    dumped = fixture_record.model_dump(mode="json")
+
+    assert "structured_field_origins" not in dumped
+    assert structured_field_origin(fixture_record, "tools") is StructuredFieldOrigin.fixture
+    assert structured_field_is_control_eligible(fixture_record, "tools")
+
+    legacy_live = _live_record().model_copy(
+        update={
+            "tools": ("reported-tool",),
+            "evidence_refs": (EvidenceRef(ref_id="ref-a", source_id="source-a"),),
+        }
+    )
+    assert structured_field_origin(legacy_live, "tools") is StructuredFieldOrigin.legacy_unspecified
+    assert not structured_field_is_control_eligible(legacy_live, "evidence_refs")
+    projection = control_eligible_process_projection(legacy_live)
+    assert projection.tools == ("reported-tool",)
+    assert projection.evidence_refs == ()
+
+
+def test_structured_field_origin_coherence_is_adapter_specific() -> None:
+    origins = StructuredFieldOrigins.uniform(StructuredFieldOrigin.model_self_report)
+    common_live_fields = {
+        "execution_mode": "live",
+        "observation_id": "obs-origin",
+        "repetition_index": 0,
+        "schedule_index": 0,
+        "cluster_id": "case-001",
+        "cost_budget_committed_usd": "0.000000",
+        "generated_token_budget_committed": 0,
+        "total_token_budget_committed": 0,
+        "structured_field_origins": origins,
+    }
+
+    record = _record(
+        **common_live_fields,
+        adapter_id="openai-chat-completions",
+    )
+    assert record.structured_field_origins == origins
+
+    with pytest.raises(ValidationError, match="origins conflict"):
+        _record(
+            **common_live_fields,
+            adapter_id="static-jsonl",
+        )
+
+    relabeled = dict(common_live_fields)
+    relabeled["structured_field_origins"] = StructuredFieldOrigins.uniform(
+        StructuredFieldOrigin.runner_observed
+    )
+    with pytest.raises(ValidationError, match="runner-generated error records"):
+        _record(
+            **relabeled,
+            adapter_id="openai-chat-completions",
+        )
 
 
 @pytest.mark.parametrize("model", (EvidenceRef, EvidenceItem))

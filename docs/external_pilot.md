@@ -173,6 +173,17 @@ finding-linked remediation is `applied` and targets `onboarding`,
 no-change-required, documentation-only, integration-only, or `other`
 remediations remain recordable, but do not satisfy that readiness projection.
 
+The pinned two-stage kit exposes only `planned` and `applied` for an observed
+friction finding. A planned candidate is immutable. After a relevant upstream
+change lands, the same participant may rerun finalization against the unchanged
+capture, grant fresh consent, and bind both the later upstream remediation
+revision and the prior planned candidate's evidence digest. The workflow
+requires that revision to be a later upstream descendant of the tested source;
+the reviewer still inspects whether the bytes actually address the finding.
+This new candidate records an applied learning response but does not claim the
+old execution tested the fix. A claim that the fix removed friction requires a
+fresh attempt after an intentional trusted source repin.
+
 The purpose is an auditable learning loop:
 
 ```text
@@ -347,8 +358,13 @@ requires `subject.implementation_id: agent-assure` and compares the base
 release of `subject.implementation_version` with the expected release line.
 Thus `0.6.6rc1` and `0.6.6` both bind to the `0.6.6` line, while another base
 version fails with a distinct blocker. The independence-review receipt binds
-that same base line. The Make release path supplies its `EXPECTED_RELEASE`
-explicitly.
+that same base line plus the consent artifact; the exact friction category and
+remediation state, including applied-remediation source and prior-candidate
+bindings; attempt-specific capture/finalization run URLs, positive attempts,
+and run-head SHAs; the immutable trusted workflow revision; matching hashes of
+the run-head and trusted workflow bytes; the execution-source SHA embedded in
+those bytes; and the complete public dispatch inputs with canonical checksums.
+The Make release path supplies its `EXPECTED_RELEASE` explicitly.
 
 `subject.source_revision`, `distribution_artifact_id`, and
 `distribution_digest` remain exact bindings to the pre-candidate code and

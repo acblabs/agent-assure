@@ -13,10 +13,12 @@ The fixture path focuses on assurance for governance controls: expectations,
 evidence links, provider/tool boundaries, redaction, escalation, human review,
 runtime failures, fixture equivalence, provenance diffing, and CI/report gates.
 
-`required_human_review` checks that a run preserved the declared route to human
-review and observed performed review. Setting `human_review_performed=true`
-alone does not satisfy the deterministic control; the route flag must also be
-present.
+`required_human_review` checks that an eligible source preserved the declared
+route to human review and supplied performed-review evidence. Setting
+`human_review_performed=true` alone does not satisfy the deterministic control;
+the route flag and control-eligible producer origins must also be present.
+Fixture flags remain authored test inputs, and instrumented-adapter flags remain
+producer declarations rather than proof that an external review occurred.
 
 This scope does not establish safety assurance, prove regulatory compliance,
 validate clinical workflows, assess provider quality, or provide production
@@ -253,12 +255,15 @@ the specific risk flags for external-script execution, network egress, or host
 environment propagation; these flags are an operator acknowledgement, not
 isolation.
 
-Live adapters are trusted record producers. A static JSONL file, external
-script, or network provider controls the structured observation it returns,
-including recommendations, outcomes, evidence links, claims, tool names, review
-flags, and summaries. Live producer-supplied failing policy results are
-verdict-bearing, but agent-assure does not attest adapter code or provider
-responses.
+Live adapters remain trusted record producers. Records distinguish authored
+fixtures, direct model self-report, instrumented-adapter fields, and
+framework-observed runner failures. The direct OpenAI-compatible adapter accepts
+only the structured decision tuple and summary as model self-report; it cannot
+claim tools, evidence graphs, policy results, or human-review performance.
+Static and external-script adapters may supply richer instrumented fields, but
+those remain producer-attested rather than independently verified. Legacy live
+records with unspecified origins fail closed for observation-grade process
+controls. Agent Assure does not attest adapter code or provider responses.
 
 A live RunSet is one bounded JSON artifact rather than a streaming log. Live
 and repeated-sensitivity plans therefore reject more than 4,096 observations
@@ -492,6 +497,13 @@ target first, race or damage private stages, exhaust filesystem capacity, or
 continuously mutate directory contents. The controls preserve fail-closed
 integrity and avoid making predictable recovery metadata an additional denial
 primitive; output-parent authorization and isolation remain operator duties.
+POSIX descriptor-relative reads remain pinned, but POSIX rename and unlink
+operate on directory-entry names after identity validation. They therefore do
+not claim handle-bound mutation against a principal that can concurrently
+rename entries in the same parent. Windows rename and deletion use verified
+native handles. Filesystem-anchor walks and final lexical revalidation prevent a
+checked symlink, junction, or renamed parent from being promoted into a new root
+of trust.
 
 The process-equivalence reproduction index is not a benchmark, leaderboard, or
 population study. Its required strata reproduce known synthetic detector

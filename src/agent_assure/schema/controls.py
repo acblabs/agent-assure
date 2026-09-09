@@ -49,9 +49,7 @@ class ControlEvidenceRef(PersistedArtifact):
 
 
 class ControlConditionEvaluation(PersistedArtifact):
-    artifact_kind: Literal["control-condition-evaluation"] = (
-        "control-condition-evaluation"
-    )
+    artifact_kind: Literal["control-condition-evaluation"] = "control-condition-evaluation"
     rule_id: str = Field(min_length=1)
     signal: str = Field(min_length=1)
     condition: str | None = Field(default=None, exclude_if=lambda value: value is None)

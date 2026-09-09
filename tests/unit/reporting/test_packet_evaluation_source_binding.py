@@ -44,7 +44,11 @@ def test_manifest_bound_candidate_and_suite_reproduce_nested_evaluation(
     packet = _write_bound_packet(tmp_path, suite, candidate, evaluation)
 
     assert packet_summary_files_binding_error(packet, artifact_root=tmp_path) is None
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
     assert decision.outcome is GateOutcome.pass_
     assert decision.exit_code == 0
 
@@ -72,7 +76,11 @@ def test_gate_rejects_candidate_substitution_even_when_summary_digest_is_rebound
         forged_subject,
     )
 
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
@@ -97,7 +105,11 @@ def test_gate_rejects_unauthenticated_fail_to_warn_rewrite(
     )
     packet = _write_bound_packet(tmp_path, suite, candidate, forged)
 
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
@@ -131,7 +143,11 @@ def test_gate_rejects_suite_substitution_after_all_advertised_digests_are_reboun
         forged_requirement_set,
     )
 
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
@@ -155,7 +171,14 @@ def test_manifest_bound_comparison_matches_both_exact_source_runsets(
     )
 
     assert packet_summary_files_binding_error(packet, artifact_root=tmp_path) is None
-    assert gate_evidence_packet(packet, artifact_root=tmp_path).outcome is not GateOutcome.invalid
+    assert (
+        gate_evidence_packet(
+            packet,
+            artifact_root=tmp_path,
+            allow_missing_efficacy_for_migration=True,
+        ).outcome
+        is not GateOutcome.invalid
+    )
 
 
 def test_gate_rejects_rebound_baseline_substitution_from_comparison_sources(
@@ -181,7 +204,11 @@ def test_gate_rejects_rebound_baseline_substitution_from_comparison_sources(
         comparison=forged,
     )
 
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
@@ -202,7 +229,11 @@ def test_gate_rejects_baseline_source_role_without_nested_comparison(
         baseline=candidate,
     )
 
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert "baseline-runset requires a nested comparison" in decision.message
@@ -225,7 +256,11 @@ def test_gate_rejects_comparison_sources_without_baseline_role(
         advertise_baseline=False,
     )
 
-    decision = gate_evidence_packet(packet, artifact_root=tmp_path)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.invalid
     assert "requires a baseline-runset" in decision.message
@@ -249,8 +284,14 @@ def test_library_gate_requires_root_for_manifest_bearing_packet(tmp_path: Path) 
     evaluation = evaluate_runset(suite, candidate).candidate_vs_expectations
     packet = _write_bound_packet(tmp_path, suite, candidate, evaluation)
 
-    direct = gate_evidence_packet(packet)
-    routed = gate_artifact(packet)
+    direct = gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
+    routed = gate_artifact(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     for decision in (direct, routed):
         assert decision.outcome is GateOutcome.invalid
@@ -322,9 +363,7 @@ def _write_bound_packet(
             sha256=evaluation_sha256,
         )
     ]
-    include_baseline = (
-        baseline is not None if advertise_baseline is None else advertise_baseline
-    )
+    include_baseline = baseline is not None if advertise_baseline is None else advertise_baseline
     if include_baseline:
         assert baseline is not None
         baseline_path = root / "baseline.runset.json"

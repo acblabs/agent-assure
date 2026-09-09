@@ -698,6 +698,48 @@ def test_finalize_publication_rolls_back_owned_outputs_without_touching_collisio
     assert not third.exists()
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX parent-swap regression")
+def test_finalize_publication_rejects_parent_swap_after_anchored_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_parent = tmp_path / "requested-parent"
+    moved_parent = tmp_path / "moved-parent"
+    outside_parent = tmp_path / "outside-parent"
+    requested_parent.mkdir()
+    outside_parent.mkdir()
+    output = requested_parent / "finalized.json"
+    original_open = publication_module.open_or_create_rooted_directory_from_filesystem_root
+    swapped = False
+
+    def swap_after_acquisition(
+        directory: Path,
+        *,
+        label: str,
+        mode: int = 0o700,
+    ) -> RootedDirectoryDescriptor:
+        nonlocal swapped
+        lease = original_open(directory, label=label, mode=mode)
+        if directory == requested_parent and not swapped:
+            requested_parent.rename(moved_parent)
+            requested_parent.symlink_to(outside_parent, target_is_directory=True)
+            swapped = True
+        return lease
+
+    monkeypatch.setattr(
+        publication_module,
+        "open_or_create_rooted_directory_from_filesystem_root",
+        swap_after_acquisition,
+    )
+
+    with pytest.raises((OSError, ValueError), match="finalize output parent"):
+        publication_module.publish_finalize_outputs(((output, "validated\n", "finalized output"),))
+
+    assert swapped
+    assert not (outside_parent / output.name).exists()
+    assert not (moved_parent / output.name).exists()
+
+
 def test_finalize_publication_serializes_partially_overlapping_output_sets(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

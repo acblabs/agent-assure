@@ -14,9 +14,7 @@ def test_release_and_evidence_workflows_pin_one_exact_runtime() -> None:
         ".github/workflows/release.yml",
     ):
         text = (ROOT / relative_path).read_text(encoding="utf-8")
-        assert (
-            f'PYTHON_VERSION: "{CANONICAL_EVIDENCE_PYTHON}"' in text
-        ), relative_path
+        assert f'PYTHON_VERSION: "{CANONICAL_EVIDENCE_PYTHON}"' in text, relative_path
 
 
 def test_dependency_locking_names_the_canonical_evidence_runtime() -> None:

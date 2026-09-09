@@ -1,5 +1,9 @@
 name: docs
-on: [push, pull_request]
+on:
+  push:
+    paths-ignore:
+      - "agent-assure-pilot/**"
+  pull_request:
 
 permissions:
   contents: read

@@ -226,9 +226,7 @@ class ThreatApplicabilityManifest(SelfDigestedArtifact):
     _digest_field = "manifest_digest"
 
     artifact_kind: Literal["threat-applicability-manifest"] = "threat-applicability-manifest"
-    schema_version: Literal["0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"] = (
-        EFFICACY_SCHEMA_VERSION
-    )
+    schema_version: Literal["0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"] = EFFICACY_SCHEMA_VERSION
     schema_name: Literal["threat-applicability-manifest"] = "threat-applicability-manifest"
     contract_id: Literal["ThreatApplicabilityManifest/v1"] = "ThreatApplicabilityManifest/v1"
     contract_version: Literal["1.0.0"] = "1.0.0"
@@ -439,9 +437,7 @@ class ControlEfficacyReport(SelfDigestedArtifact):
     _digest_field = "report_digest"
 
     artifact_kind: Literal["control-efficacy-report"] = "control-efficacy-report"
-    schema_version: Literal["0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"] = (
-        EFFICACY_SCHEMA_VERSION
-    )
+    schema_version: Literal["0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"] = EFFICACY_SCHEMA_VERSION
     schema_name: Literal["control-efficacy-report"] = "control-efficacy-report"
     contract_id: Literal["ControlEfficacyReport/v1"] = "ControlEfficacyReport/v1"
     contract_version: Literal["1.0.0"] = "1.0.0"

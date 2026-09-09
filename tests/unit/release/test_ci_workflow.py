@@ -562,9 +562,7 @@ def test_release_tag_recovery_revalidates_and_dispatches_idempotently() -> None:
 
     assert "- resume-tag" in workflow
     assert "inputs.operation == 'resume-tag'" in build
-    assert (
-        "inputs.operation == 'prepare-tag' && inputs.source-sha || github.ref }}" in build
-    )
+    assert "inputs.operation == 'prepare-tag' && inputs.source-sha || github.ref }}" in build
     assert (
         "(inputs.operation == 'prepare-tag' || inputs.operation == 'resume-tag') "
         "&& inputs.source-sha" not in build
@@ -651,9 +649,7 @@ def test_every_standard_tag_route_requires_protected_attempt_provenance_before_s
     provenance = workflow.split("  verify-release-tag-provenance:\n", maxsplit=1)[1].split(
         "  sign:\n", maxsplit=1
     )[0]
-    sign = workflow.split("  sign:\n", maxsplit=1)[1].split(
-        "  verify-signatures:\n", maxsplit=1
-    )[0]
+    sign = workflow.split("  sign:\n", maxsplit=1)[1].split("  verify-signatures:\n", maxsplit=1)[0]
 
     assert "authorization-run-id:" in workflow
     assert "authorization-run-attempt:" in workflow
@@ -664,16 +660,14 @@ def test_every_standard_tag_route_requires_protected_attempt_provenance_before_s
     assert "actions/checkout" not in provenance
     assert "startsWith(github.ref, 'refs/tags/v')" in provenance
     assert "AUTHORIZATION_RUN_ID: ${{ inputs.authorization-run-id }}" in provenance
-    assert (
-        "AUTHORIZATION_RUN_ATTEMPT: ${{ inputs.authorization-run-attempt }}" in provenance
-    )
+    assert "AUTHORIZATION_RUN_ATTEMPT: ${{ inputs.authorization-run-attempt }}" in provenance
     assert 'test "${GITHUB_REF}" = "refs/tags/${RELEASE_TAG}"' in provenance
     assert 'select(.object.type == "tag") | .object.sha' in provenance
     assert 'preflight_run_id="${preflight_identity%%;*}"' in provenance
     assert 'preflight_run_attempt="${preflight_identity#*; attempt }"' in provenance
     assert provenance.count("actions/runs/${preflight_run_id}/attempts/") == 2
     assert provenance.count("actions/runs/${AUTHORIZATION_RUN_ID}/attempts/") == 2
-    assert ".status == \"completed\" and .conclusion == \"success\"" in provenance
+    assert '.status == "completed" and .conclusion == "success"' in provenance
     assert "successful_job($build_name)" in provenance
     assert "successful_job($reproduce_name)" in provenance
     assert "Create immutable SHA-bound annotated release tag" in provenance
@@ -871,6 +865,32 @@ def test_composite_action_uploads_minimal_reports_by_default() -> None:
     assert "baseline.runset.json" not in minimal
     assert "path: ${{ inputs.out-dir }}" not in minimal
     assert "retention-days: ${{ inputs.retention-days }}" in minimal
+
+
+def test_composite_action_requires_explicit_non_assurance_efficacy_migration() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+
+    migration_input = action.split(
+        "  allow-missing-efficacy-for-migration:\n",
+        maxsplit=1,
+    )[1].split("  upload-name:\n", maxsplit=1)[0]
+    evaluate = action.split("    - name: Evaluate and gate\n", maxsplit=1)[1].split(
+        "    - name: Upload minimal reports\n",
+        maxsplit=1,
+    )[0]
+
+    assert 'default: "false"' in migration_input
+    assert "non-assurance migration profile" in migration_input
+    assert (
+        "AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY: "
+        "${{ inputs.allow-missing-efficacy-for-migration }}"
+    ) in evaluate
+    assert "true|false) ;;" in evaluate
+    assert "allow-missing-efficacy-for-migration must be true or false" in evaluate
+    assert 'if [ "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" = "true" ]; then' in evaluate
+    assert "args+=(--allow-missing-efficacy-for-migration)" in evaluate
 
 
 def test_composite_action_refuses_root_and_linked_output_directories() -> None:

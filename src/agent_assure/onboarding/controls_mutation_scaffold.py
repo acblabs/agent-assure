@@ -395,9 +395,7 @@ def _path_matches_created_file(
     try:
         metadata = os.lstat(created.path)
         pinned_metadata = (
-            os.fstat(created.pin_descriptor)
-            if created.pin_descriptor is not None
-            else metadata
+            os.fstat(created.pin_descriptor) if created.pin_descriptor is not None else metadata
         )
     except OSError:
         return False

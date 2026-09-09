@@ -429,6 +429,13 @@ class RootedDirectoryDescriptor:
         self._require_open(label=label)
         return _lease_entry_names(self, max_entries=max_entries, label=label)
 
+    def revalidate_path(self, *, label: str) -> None:
+        """Require the original lexical path to still name this pinned directory."""
+        self._require_open(label=label)
+        with open_rooted_directory_from_filesystem_root(self.path, label=label) as current:
+            if (current.device, current.inode) != (self.device, self.inode):
+                raise OSError(f"{label} directory path changed")
+
     def read_file_bounded(
         self,
         name: str | Path,
@@ -1031,6 +1038,45 @@ def open_rooted_directory(
     if os.name == "nt":
         return _open_windows_rooted_directory(root, parts, label=label)
     return _open_posix_rooted_directory(root, parts, label=label)
+
+
+def open_rooted_directory_from_filesystem_root(
+    directory: Path,
+    *,
+    label: str,
+) -> RootedDirectoryDescriptor:
+    """Lease an existing absolute directory from a stable filesystem anchor."""
+    root, parts = _filesystem_rooted_directory_parts(directory)
+    relative = Path(*parts) if parts else Path(".")
+    return open_rooted_directory(root, relative, label=label)
+
+
+def open_or_create_rooted_directory_from_filesystem_root(
+    directory: Path,
+    *,
+    label: str,
+    mode: int = 0o700,
+) -> RootedDirectoryDescriptor:
+    """Create missing components and lease a directory from its filesystem anchor.
+
+    Creation and traversal stay relative to already-pinned parents. No checked
+    mutable subdirectory is resolved and promoted into a new root of trust.
+    """
+    _validate_creation_mode(mode)
+    root, parts = _filesystem_rooted_directory_parts(directory)
+    if os.name == "nt":
+        return _open_or_create_windows_rooted_directory(
+            root,
+            parts,
+            label=label,
+            mode=mode,
+        )
+    return _open_or_create_posix_rooted_directory(
+        root,
+        parts,
+        label=label,
+        mode=mode,
+    )
 
 
 def _lease_entry_names(
@@ -2544,6 +2590,100 @@ def _claim_windows_rooted_directory(
         _windows_close_handle(parent_handle)
 
 
+def _open_or_create_posix_rooted_directory(
+    root: Path,
+    parts: tuple[str, ...],
+    *,
+    label: str,
+    mode: int,
+) -> RootedDirectoryDescriptor:
+    if not hasattr(os, "O_DIRECTORY") or not hasattr(os, "O_NOFOLLOW"):
+        raise OSError("race-resistant rooted directory creation is unavailable on this platform")
+    root_path = Path(os.path.abspath(root))
+    display_path = root_path.joinpath(*parts)
+    root_before = os.lstat(root_path)
+    _require_directory(root_before, path=root_path, label=f"{label} root")
+    no_follow = cast(int, vars(os)["O_NOFOLLOW"])
+    directory_flags = os.O_RDONLY | os.O_DIRECTORY | no_follow
+    directory_flags |= getattr(os, "O_CLOEXEC", 0)
+    directory_flags |= getattr(os, "O_NONBLOCK", 0)
+    directories: list[int] = []
+    components: list[_PosixDirectoryComponent] = []
+    try:
+        root_descriptor = os.open(root_path, directory_flags)
+        directories.append(root_descriptor)
+        pinned_root = os.fstat(root_descriptor)
+        _require_directory(pinned_root, path=root_path, label=f"{label} root")
+        _require_same_object(root_before, pinned_root, path=root_path, label=f"{label} root")
+        parent_descriptor = root_descriptor
+        current_path = root_path
+        for name in parts:
+            current_path = current_path / name
+            created = False
+            try:
+                before_open = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            except FileNotFoundError:
+                # A collision is deliberately terminal for this attempt. A
+                # retry may adopt the winner only through a complete anchored
+                # walk; this call never trusts a check-then-create race winner.
+                os.mkdir(name, mode=mode, dir_fd=parent_descriptor)
+                created = True
+                before_open = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            _require_directory(before_open, path=current_path, label=f"{label} path")
+            if created:
+                get_effective_uid = getattr(os, "geteuid", None)
+                wrong_owner = (
+                    get_effective_uid is not None and before_open.st_uid != get_effective_uid()
+                )
+                granted_portable_bits = stat.S_IMODE(before_open.st_mode) & 0o777
+                if wrong_owner or granted_portable_bits & ~mode:
+                    raise OSError(f"{label} created directory permissions changed: {current_path}")
+            descriptor = os.open(name, directory_flags, dir_fd=parent_descriptor)
+            directories.append(descriptor)
+            opened = os.fstat(descriptor)
+            _require_directory(opened, path=current_path, label=f"{label} path")
+            _require_same_object(
+                before_open,
+                opened,
+                path=current_path,
+                label=f"{label} path",
+            )
+            current = os.stat(name, dir_fd=parent_descriptor, follow_symlinks=False)
+            _require_directory(current, path=current_path, label=f"{label} path")
+            _require_same_object(opened, current, path=current_path, label=f"{label} path")
+            components.append(
+                _PosixDirectoryComponent(
+                    parent_descriptor=parent_descriptor,
+                    name=name,
+                    metadata=opened,
+                    path=current_path,
+                )
+            )
+            parent_descriptor = descriptor
+        _revalidate_posix_directories(
+            root_path,
+            pinned_root,
+            tuple(components),
+            label=label,
+        )
+        target_descriptor = directories[-1]
+        target_metadata = os.fstat(target_descriptor)
+        keepalive = tuple(directories[:-1])
+        directories.clear()
+        return RootedDirectoryDescriptor(
+            descriptor=target_descriptor,
+            path=display_path,
+            device=target_metadata.st_dev,
+            inode=target_metadata.st_ino,
+            root_device=pinned_root.st_dev,
+            root_inode=pinned_root.st_ino,
+            posix_directory_descriptors=keepalive,
+        )
+    finally:
+        for descriptor in reversed(directories):
+            _close_descriptor(descriptor)
+
+
 def _open_posix_rooted_directory(
     root: Path,
     parts: tuple[str, ...],
@@ -2615,6 +2755,198 @@ def _open_posix_rooted_directory(
     finally:
         for descriptor in reversed(directories):
             _close_descriptor(descriptor)
+
+
+def _open_or_create_windows_rooted_directory(
+    root: Path,
+    parts: tuple[str, ...],
+    *,
+    label: str,
+    mode: int,
+) -> RootedDirectoryDescriptor:
+    root_path = Path(os.path.abspath(root))
+    display_path = root_path.joinpath(*parts)
+    directory_handles: list[int] = []
+    security_descriptor: int | None = None
+    try:
+        root_handle = _windows_open_handle(root_path, directory=True)
+        directory_handles.append(root_handle)
+        root_identity = _windows_handle_identity(root_handle)
+        _windows_require_directory(root_identity, path=root_path, label=f"{label} root")
+        root_final_path = _windows_final_path(root_handle)
+        root_metadata = _windows_fstat_handle(root_handle)
+        _require_directory(root_metadata, path=root_path, label=f"{label} root")
+        components: list[_WindowsPathComponent] = []
+        parent_handle = root_handle
+        current_path = root_path
+        for name in parts:
+            current_path = current_path / name
+            try:
+                handle = _windows_open_relative_handle(
+                    parent_handle,
+                    name,
+                    desired_access=(
+                        _WINDOWS_FILE_LIST_DIRECTORY
+                        | _WINDOWS_FILE_READ_ATTRIBUTES
+                        | _WINDOWS_SYNCHRONIZE
+                    ),
+                    share_access=_WINDOWS_FILE_SHARE_READ | _WINDOWS_FILE_SHARE_WRITE,
+                    create_disposition=_WINDOWS_FILE_OPEN,
+                    create_options=(
+                        _WINDOWS_FILE_DIRECTORY_FILE
+                        | _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT
+                        | _WINDOWS_FILE_OPEN_REPARSE_POINT
+                    ),
+                    file_attributes=0,
+                )
+            except FileNotFoundError:
+                if mode != 0o700:
+                    raise OSError(
+                        "Windows rooted directory creation requires owner-only mode 0o700"
+                    ) from None
+                mutation_parent = _windows_reopen_directory_for_mutation(parent_handle)
+                created_handle: int | None = None
+                durable_handle: int | None = None
+                try:
+                    try:
+                        security_descriptor = _windows_owner_only_security_descriptor()
+                        created_handle = _windows_open_relative_handle(
+                            mutation_parent,
+                            name,
+                            desired_access=(
+                                _WINDOWS_FILE_LIST_DIRECTORY
+                                | _WINDOWS_FILE_ADD_FILE
+                                | _WINDOWS_FILE_ADD_SUBDIRECTORY
+                                | _WINDOWS_FILE_READ_ATTRIBUTES
+                                | _WINDOWS_FILE_WRITE_ATTRIBUTES
+                                | _WINDOWS_READ_CONTROL
+                                | _WINDOWS_DELETE
+                                | _WINDOWS_SYNCHRONIZE
+                            ),
+                            share_access=(
+                                _WINDOWS_FILE_SHARE_READ
+                                | _WINDOWS_FILE_SHARE_WRITE
+                                | _WINDOWS_FILE_SHARE_DELETE
+                            ),
+                            create_disposition=_WINDOWS_FILE_CREATE,
+                            create_options=(
+                                _WINDOWS_FILE_DIRECTORY_FILE
+                                | _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT
+                                | _WINDOWS_FILE_OPEN_REPARSE_POINT
+                            ),
+                            file_attributes=_WINDOWS_FILE_ATTRIBUTE_DIRECTORY,
+                            require_created=True,
+                            security_descriptor=security_descriptor,
+                        )
+                    finally:
+                        created_security_descriptor = security_descriptor
+                        security_descriptor = None
+                        _windows_local_free(created_security_descriptor)
+
+                    _windows_require_owner_only_dacl(created_handle)
+                    created_identity = _windows_handle_identity(created_handle)
+                    _windows_require_directory(
+                        created_identity,
+                        path=current_path,
+                        label=f"{label} path",
+                    )
+                    durable_handle = _windows_open_relative_handle(
+                        mutation_parent,
+                        name,
+                        desired_access=(
+                            _WINDOWS_FILE_LIST_DIRECTORY
+                            | _WINDOWS_FILE_READ_ATTRIBUTES
+                            | _WINDOWS_SYNCHRONIZE
+                        ),
+                        share_access=(
+                            _WINDOWS_FILE_SHARE_READ
+                            | _WINDOWS_FILE_SHARE_WRITE
+                            | _WINDOWS_FILE_SHARE_DELETE
+                        ),
+                        create_disposition=_WINDOWS_FILE_OPEN,
+                        create_options=(
+                            _WINDOWS_FILE_DIRECTORY_FILE
+                            | _WINDOWS_FILE_SYNCHRONOUS_IO_NONALERT
+                            | _WINDOWS_FILE_OPEN_REPARSE_POINT
+                        ),
+                        file_attributes=0,
+                    )
+                    durable_identity = _windows_handle_identity(durable_handle)
+                    _windows_require_same_directory_object(
+                        created_identity,
+                        durable_identity,
+                        path=current_path,
+                        label=f"{label} path",
+                    )
+                    handle = durable_handle
+                    durable_handle = None
+                except BaseException as exc:
+                    cleanup_error: OSError | None = None
+                    if created_handle is not None:
+                        try:
+                            _windows_set_delete_disposition(
+                                created_handle,
+                                expected_identity=_windows_handle_identity(created_handle),
+                            )
+                        except OSError as cleanup_exc:
+                            cleanup_error = cleanup_exc
+                    if cleanup_error is not None:
+                        raise OSError(
+                            f"{label} directory creation failed and cleanup was incomplete"
+                        ) from exc
+                    raise
+                finally:
+                    try:
+                        _windows_close_handle(durable_handle)
+                    finally:
+                        try:
+                            _windows_close_handle(created_handle)
+                        finally:
+                            _windows_close_handle(mutation_parent)
+            directory_handles.append(handle)
+            identity = _windows_handle_identity(handle)
+            _windows_require_directory(identity, path=current_path, label=f"{label} path")
+            final_path = _windows_final_path(handle)
+            _windows_require_within_root(
+                root_final_path,
+                final_path,
+                path=current_path,
+                label=label,
+            )
+            components.append(_WindowsPathComponent(current_path, identity, final_path))
+            parent_handle = handle
+        _revalidate_windows_directories(
+            root_path,
+            root_identity,
+            root_final_path,
+            tuple(components),
+            label=label,
+        )
+        target_handle = directory_handles[-1]
+        target_identity = components[-1].identity if components else root_identity
+        target_metadata = _windows_fstat_handle(target_handle)
+        _require_directory(target_metadata, path=display_path, label=label)
+        if target_metadata.st_ino != target_identity.file_index:
+            raise ValueError(f"{label} path changed while it was being opened: {display_path}")
+        result = RootedDirectoryDescriptor(
+            descriptor=None,
+            path=display_path,
+            device=target_metadata.st_dev,
+            inode=target_metadata.st_ino,
+            root_device=root_metadata.st_dev,
+            root_inode=root_metadata.st_ino,
+            windows_directory_handles=tuple(directory_handles),
+        )
+        directory_handles.clear()
+        return result
+    finally:
+        pending_security_descriptor = security_descriptor
+        security_descriptor = None
+        try:
+            _windows_local_free(pending_security_descriptor)
+        finally:
+            for handle in reversed(directory_handles):
+                _windows_close_handle(handle)
 
 
 def _open_windows_rooted_directory(
@@ -3039,6 +3371,17 @@ def portable_relative_path_parts(relative_path: str | Path) -> tuple[str, ...]:
     for part in raw_parts:
         _require_portable_windows_segment(part)
     return tuple(raw_parts)
+
+
+def _filesystem_rooted_directory_parts(directory: Path) -> tuple[Path, tuple[str, ...]]:
+    absolute = Path(os.path.abspath(directory))
+    if not absolute.anchor:
+        raise ValueError("rooted directory path must have a filesystem root")
+    root = Path(absolute.anchor)
+    relative = absolute.relative_to(root)
+    if not relative.parts:
+        return root, ()
+    return root, portable_relative_path_parts(relative)
 
 
 def _portable_single_component(name: str | Path, *, label: str) -> str:

@@ -114,6 +114,7 @@ CONSENT_RECORD_FILENAME = "publication-consent.json"
 _EXPECTED_PARENT_REPOSITORY = "acblabs/agent-assure"
 _EXPECTED_MAINTAINER_OWNER = "acblabs"
 _FULL_GIT_REVISION = re.compile(r"^[a-f0-9]{40}$")
+_FULL_SHA256 = re.compile(r"^[a-f0-9]{64}$")
 _POSITIVE_INTEGER = re.compile(r"^[1-9][0-9]*$")
 _PARTICIPANT_PSEUDONYM = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,63}$")
 _PARTICIPANT_INPUT_PREFIX = "agent-assure-pilot/"
@@ -547,6 +548,9 @@ def finalize_external_pilot_capture(
     friction_category: PilotFrictionCategory | str,
     publication_consent_granted: bool,
     non_maintainer_control_attested: bool,
+    remediation_disposition: PilotRemediationDisposition | str | None = None,
+    remediation_source_revision: str | None = None,
+    prior_candidate_evidence_digest: str | None = None,
     environment: Mapping[str, str] | None = None,
 ) -> ExternalPilotEvidence:
     """Add participant-observed friction and consent, then verify a closed bundle."""
@@ -575,9 +579,49 @@ def finalize_external_pilot_capture(
     _require_new_directory_target(bundle_root, label="external pilot candidate bundle")
 
     assessment = PilotFrictionAssessmentState(friction_assessment)
-    category = PilotFrictionCategory(friction_category)
+    category: PilotFrictionCategory | None = None
+    disposition: PilotRemediationDisposition | None = None
     if assessment is PilotFrictionAssessmentState.not_assessed:
         raise ValueError("external pilot finalization requires an assessed friction state")
+    if assessment is PilotFrictionAssessmentState.no_friction_observed:
+        if str(friction_category) not in {"not_applicable", "other"}:
+            raise ValueError("no-friction finalization requires a not-applicable category")
+        if any(
+            value is not None
+            for value in (
+                remediation_disposition,
+                remediation_source_revision,
+                prior_candidate_evidence_digest,
+            )
+        ):
+            raise ValueError("no-friction finalization cannot claim remediation state")
+    else:
+        category = PilotFrictionCategory(friction_category)
+        disposition = PilotRemediationDisposition(remediation_disposition or "planned")
+        if disposition not in {
+            PilotRemediationDisposition.planned,
+            PilotRemediationDisposition.applied,
+        }:
+            raise ValueError("observed friction remediation must be planned or applied")
+        if disposition is PilotRemediationDisposition.planned:
+            if (
+                remediation_source_revision is not None
+                or prior_candidate_evidence_digest is not None
+            ):
+                raise ValueError("planned remediation cannot claim applied revision bindings")
+        else:
+            if (
+                remediation_source_revision is None
+                or _FULL_GIT_REVISION.fullmatch(remediation_source_revision) is None
+            ):
+                raise ValueError("applied remediation requires one full lowercase Git commit")
+            if remediation_source_revision == expected_source_revision:
+                raise ValueError("applied remediation must postdate the tested source revision")
+            if (
+                prior_candidate_evidence_digest is None
+                or _FULL_SHA256.fullmatch(prior_candidate_evidence_digest) is None
+            ):
+                raise ValueError("applied remediation requires the prior planned candidate digest")
     if (
         assessment is PilotFrictionAssessmentState.no_friction_observed
         and capture.command.exit_code not in {0, 1}
@@ -604,7 +648,7 @@ def finalize_external_pilot_capture(
             "participant_pseudonym": capture.participant_pseudonym,
             "opaque_pilot_binding": capture.opaque_pilot_binding,
             "assessment": assessment.value,
-            "category": category.value if assessment.value == "friction_observed" else None,
+            "category": category.value if category is not None else None,
             "command_exit_code": capture.command.exit_code,
             "assessment_method": "post_attempt_participant_workflow_dispatch",
             "assessed_at": finalized_at,
@@ -624,6 +668,9 @@ def finalize_external_pilot_capture(
     friction_findings: tuple[PilotFrictionFinding, ...] = ()
     remediations: tuple[PilotRemediationReference, ...] = ()
     if assessment is PilotFrictionAssessmentState.friction_observed:
+        if category is None or disposition is None:  # pragma: no cover - guarded above
+            raise RuntimeError("validated friction remediation state is unavailable")
+        remediation_applied = disposition is PilotRemediationDisposition.applied
         remediation_bytes = _json_bytes(
             {
                 "artifact_kind": "external-pilot-remediation-record",
@@ -632,10 +679,19 @@ def finalize_external_pilot_capture(
                 "opaque_pilot_binding": capture.opaque_pilot_binding,
                 "friction_category": category.value,
                 "area": "onboarding",
-                "disposition": "planned",
+                "disposition": disposition.value,
+                "remediation_source_revision": (
+                    remediation_source_revision if remediation_applied else None
+                ),
+                "prior_planned_candidate_evidence_digest": (
+                    prior_candidate_evidence_digest if remediation_applied else None
+                ),
                 "statement": (
-                    "Maintainer follow-up is required; this record does not assert that a "
-                    "remediation was applied."
+                    "A later upstream remediation and the prior immutable planned candidate "
+                    "are bound here for independent review."
+                    if remediation_applied
+                    else "Maintainer follow-up is required; this record does not assert that "
+                    "a remediation was applied."
                 ),
                 "recorded_at": finalized_at,
             }
@@ -661,7 +717,7 @@ def finalize_external_pilot_capture(
             PilotRemediationReference(
                 remediation_id="participant-friction-follow-up",
                 areas=(PilotRemediationArea.onboarding,),
-                disposition=PilotRemediationDisposition.planned,
+                disposition=disposition,
                 remediation_artifact_id="artifact-remediation",
                 remediation_digest=remediation_artifact.sha256,
             ),
@@ -1091,6 +1147,7 @@ def _validate_benign_participant_waiver(
         )
     if (
         not isinstance(rationale, str)
+        or not rationale
         or rationale == _PARTICIPANT_RATIONALE_PLACEHOLDER
         or rationale != rationale.strip()
         or not rationale.isprintable()
@@ -1319,9 +1376,15 @@ def _parser() -> argparse.ArgumentParser:
     )
     finalize.add_argument(
         "--friction-category",
-        choices=tuple(item.value for item in PilotFrictionCategory),
-        default="other",
+        choices=("not_applicable", *(item.value for item in PilotFrictionCategory)),
+        required=True,
     )
+    finalize.add_argument(
+        "--remediation-disposition",
+        choices=("planned", "applied"),
+    )
+    finalize.add_argument("--remediation-source-revision")
+    finalize.add_argument("--prior-candidate-evidence-digest")
     finalize.add_argument("--publication-consent-granted", action="store_true")
     finalize.add_argument("--non-maintainer-control-attested", action="store_true")
     return parser
@@ -1353,6 +1416,9 @@ def main(argv: Sequence[str] | None = None) -> int:
                 capture_run_attempt=args.capture_run_attempt,
                 friction_assessment=args.friction_assessment,
                 friction_category=args.friction_category,
+                remediation_disposition=args.remediation_disposition,
+                remediation_source_revision=args.remediation_source_revision,
+                prior_candidate_evidence_digest=args.prior_candidate_evidence_digest,
                 publication_consent_granted=args.publication_consent_granted,
                 non_maintainer_control_attested=args.non_maintainer_control_attested,
             )

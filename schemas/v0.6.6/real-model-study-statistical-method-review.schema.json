@@ -8,6 +8,54 @@
       "title": "StudyConditionAnalysisRole",
       "type": "string"
     },
+    "StudyIndependenceDesignBasis": {
+      "enum": [
+        "unresolved",
+        "randomized_independent_sampling",
+        "independently_generated_task_clusters",
+        "externally_validated_exchangeable_clusters",
+        "shared_template_parameter_grid"
+      ],
+      "title": "StudyIndependenceDesignBasis",
+      "type": "string"
+    },
+    "StudyInferenceScope": {
+      "enum": [
+        "confirmatory_independent_clusters",
+        "fixed_frame_descriptive_conformance"
+      ],
+      "title": "StudyInferenceScope",
+      "type": "string"
+    },
+    "StudyMethodReviewApprovalDisposition": {
+      "enum": [
+        "approved_confirmatory_independent_clusters",
+        "approved_fixed_frame_descriptive_conformance"
+      ],
+      "title": "StudyMethodReviewApprovalDisposition",
+      "type": "string"
+    },
+    "StudyReviewerQualificationBasisType": {
+      "enum": [
+        "graduate_statistics_training",
+        "professional_statistical_practice",
+        "peer_reviewed_methodology_authorship",
+        "documented_equivalent"
+      ],
+      "title": "StudyReviewerQualificationBasisType",
+      "type": "string"
+    },
+    "StudySemanticNearDuplicateDisposition": {
+      "enum": [
+        "unresolved",
+        "none_detected_by_digest_bound_audit",
+        "collapsed_to_independent_clusters",
+        "excluded_before_preregistration",
+        "fixed_frame_descriptive_only"
+      ],
+      "title": "StudySemanticNearDuplicateDisposition",
+      "type": "string"
+    },
     "StudyStatisticalMethodReviewCondition": {
       "additionalProperties": false,
       "description": "Exact preregistered condition design reviewed by a statistician.",
@@ -77,10 +125,10 @@
   "description": "Qualified independent approval of the exact preregistered study design.\n\nThe receipt cryptographically binds the local artifacts that were\nreviewed. Reviewer identity, qualifications, independence, and the truth\nof the review confirmations remain human attestations authenticated out\nof band.",
   "properties": {
     "approval_disposition": {
-      "const": "approved_for_preregistered_execution",
-      "default": "approved_for_preregistered_execution",
-      "title": "Approval Disposition",
-      "type": "string"
+      "$ref": "#/$defs/StudyMethodReviewApprovalDisposition"
+    },
+    "approved_inference_scope": {
+      "$ref": "#/$defs/StudyInferenceScope"
     },
     "artifact_kind": {
       "const": "real-model-study-statistical-method-review",
@@ -141,9 +189,28 @@
       "title": "Hypothesis Decision Rule Digest",
       "type": "string"
     },
+    "independence_acceptance_rationale": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Independence Acceptance Rationale",
+      "type": "string"
+    },
     "independence_and_exchangeability_assumptions_reviewed": {
       "const": true,
       "title": "Independence And Exchangeability Assumptions Reviewed",
+      "type": "boolean"
+    },
+    "independence_audit_artifact_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Independence Audit Artifact Sha256",
+      "type": "string"
+    },
+    "independence_design_basis": {
+      "$ref": "#/$defs/StudyIndependenceDesignBasis"
+    },
+    "independence_design_basis_reviewed_and_accepted": {
+      "const": true,
+      "title": "Independence Design Basis Reviewed And Accepted",
       "type": "boolean"
     },
     "method_review_receipt_digest": {
@@ -220,6 +287,20 @@
       "title": "Reviewer Qualification Basis",
       "type": "string"
     },
+    "reviewer_qualification_basis_types": {
+      "items": {
+        "$ref": "#/$defs/StudyReviewerQualificationBasisType"
+      },
+      "maxItems": 4,
+      "minItems": 1,
+      "title": "Reviewer Qualification Basis Types",
+      "type": "array"
+    },
+    "reviewer_qualification_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Reviewer Qualification Evidence Digest",
+      "type": "string"
+    },
     "reviewer_statistical_qualification_confirmed": {
       "const": true,
       "title": "Reviewer Statistical Qualification Confirmed",
@@ -240,6 +321,25 @@
       "const": "0.6.6",
       "default": "0.6.6",
       "title": "Schema Version",
+      "type": "string"
+    },
+    "semantic_near_duplicate_audit_reviewed": {
+      "const": true,
+      "title": "Semantic Near Duplicate Audit Reviewed",
+      "type": "boolean"
+    },
+    "semantic_near_duplicate_disposition": {
+      "$ref": "#/$defs/StudySemanticNearDuplicateDisposition"
+    },
+    "semantic_near_duplicate_pseudoreplication_rejected": {
+      "const": true,
+      "title": "Semantic Near Duplicate Pseudoreplication Rejected",
+      "type": "boolean"
+    },
+    "semantic_near_duplicate_review_rationale": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Semantic Near Duplicate Review Rationale",
       "type": "string"
     },
     "study_id": {
@@ -286,9 +386,20 @@
     "reviewed_at_utc",
     "reviewer_pseudonym",
     "reviewer_statistical_qualification_confirmed",
+    "reviewer_qualification_basis_types",
+    "reviewer_qualification_evidence_digest",
     "reviewer_qualification_basis",
     "reviewer_independent_of_design_execution_and_analysis",
     "reviewer_independence_rationale",
+    "approved_inference_scope",
+    "independence_design_basis",
+    "independence_audit_artifact_sha256",
+    "independence_design_basis_reviewed_and_accepted",
+    "independence_acceptance_rationale",
+    "semantic_near_duplicate_disposition",
+    "semantic_near_duplicate_audit_reviewed",
+    "semantic_near_duplicate_pseudoreplication_rejected",
+    "semantic_near_duplicate_review_rationale",
     "conditions",
     "benchmark_cluster_assignments_reviewed",
     "independence_and_exchangeability_assumptions_reviewed",
@@ -296,6 +407,7 @@
     "multiplicity_and_interval_method_reviewed",
     "power_and_decision_boundary_reachability_reviewed",
     "negative_control_design_reviewed",
+    "approval_disposition",
     "artifact_kind",
     "schema_version",
     "schema_name",

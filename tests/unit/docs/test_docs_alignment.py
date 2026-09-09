@@ -176,7 +176,10 @@ def test_finalize_docs_fail_closed_on_abrupt_partial_outputs() -> None:
     assert "operator must inspect and remove that entry before retrying" in normalized
     assert "persistent, rooted, single-link advisory lock files" in normalized
     assert "never replaces a final output" in normalized
-    assert "never removes a pre-existing or concurrently substituted entry" in normalized
+    assert "never removes a pre-existing or concurrently substituted entry" not in normalized
+    assert "Windows deletion remains bound to the verified handle" in normalized
+    assert "validation and `unlinkat` are separate pathname operations" in normalized
+    assert "rather than a guarantee against a principal" in normalized
     assert "not a single cross-file filesystem transaction" in normalized
 
 

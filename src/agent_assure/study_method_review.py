@@ -13,6 +13,9 @@ from agent_assure.schema.stochastic_sensitivity import RepeatedEvidenceSensitivi
 from agent_assure.schema.study import (
     RealModelStudyManifest,
     StudyExecutionOrigin,
+    StudyInferenceScope,
+    StudyMethodReviewApprovalDisposition,
+    StudyReviewerQualificationBasisType,
     StudyStatisticalMethodReviewCondition,
     StudyStatisticalMethodReviewReceipt,
     require_resolved_independence_justification,
@@ -39,9 +42,16 @@ def build_study_statistical_method_review_receipt(
     reviewed_at_utc: str,
     reviewer_pseudonym: str,
     reviewer_statistical_qualification_confirmed: Literal[True],
+    reviewer_qualification_basis_types: tuple[StudyReviewerQualificationBasisType, ...],
+    reviewer_qualification_evidence_digest: str,
     reviewer_qualification_basis: str,
     reviewer_independent_of_design_execution_and_analysis: Literal[True],
     reviewer_independence_rationale: str,
+    independence_design_basis_reviewed_and_accepted: Literal[True],
+    independence_acceptance_rationale: str,
+    semantic_near_duplicate_audit_reviewed: Literal[True],
+    semantic_near_duplicate_pseudoreplication_rejected: Literal[True],
+    semantic_near_duplicate_review_rationale: str,
     benchmark_cluster_assignments_reviewed: Literal[True],
     independence_and_exchangeability_assumptions_reviewed: Literal[True],
     sampling_frame_and_estimand_reviewed: Literal[True],
@@ -51,6 +61,17 @@ def build_study_statistical_method_review_receipt(
 ) -> StudyStatisticalMethodReviewReceipt:
     """Build a self-digested approval bound to the exact registered design."""
 
+    justification = manifest.hypothesis_decision_rule.independence_justification
+    require_resolved_independence_justification(justification)
+    inference_scope = manifest.hypothesis_decision_rule.inference_scope
+    audit_digest = justification.independence_audit_artifact_sha256
+    if audit_digest is None:
+        raise ValueError("statistical-method review requires a digest-bound independence audit")
+    approval_disposition = (
+        StudyMethodReviewApprovalDisposition.approved_confirmatory_independent_clusters
+        if inference_scope is StudyInferenceScope.confirmatory_independent_clusters
+        else StudyMethodReviewApprovalDisposition.approved_fixed_frame_descriptive_conformance
+    )
     receipt = StudyStatisticalMethodReviewReceipt.build(
         receipt_id=receipt_id,
         study_id=manifest.study_id,
@@ -65,11 +86,26 @@ def build_study_statistical_method_review_receipt(
         reviewed_at_utc=reviewed_at_utc,
         reviewer_pseudonym=reviewer_pseudonym,
         reviewer_statistical_qualification_confirmed=(reviewer_statistical_qualification_confirmed),
+        reviewer_qualification_basis_types=reviewer_qualification_basis_types,
+        reviewer_qualification_evidence_digest=reviewer_qualification_evidence_digest,
         reviewer_qualification_basis=reviewer_qualification_basis,
         reviewer_independent_of_design_execution_and_analysis=(
             reviewer_independent_of_design_execution_and_analysis
         ),
         reviewer_independence_rationale=reviewer_independence_rationale,
+        approved_inference_scope=inference_scope,
+        independence_design_basis=justification.design_basis,
+        independence_audit_artifact_sha256=audit_digest,
+        independence_design_basis_reviewed_and_accepted=(
+            independence_design_basis_reviewed_and_accepted
+        ),
+        independence_acceptance_rationale=independence_acceptance_rationale,
+        semantic_near_duplicate_disposition=(justification.semantic_near_duplicate_disposition),
+        semantic_near_duplicate_audit_reviewed=semantic_near_duplicate_audit_reviewed,
+        semantic_near_duplicate_pseudoreplication_rejected=(
+            semantic_near_duplicate_pseudoreplication_rejected
+        ),
+        semantic_near_duplicate_review_rationale=semantic_near_duplicate_review_rationale,
         conditions=_expected_conditions(manifest=manifest, protocols=protocols),
         benchmark_cluster_assignments_reviewed=benchmark_cluster_assignments_reviewed,
         independence_and_exchangeability_assumptions_reviewed=(
@@ -81,6 +117,7 @@ def build_study_statistical_method_review_receipt(
             power_and_decision_boundary_reachability_reviewed
         ),
         negative_control_design_reviewed=negative_control_design_reviewed,
+        approval_disposition=approval_disposition,
     )
     validate_study_statistical_method_review(
         manifest=manifest,
@@ -132,6 +169,27 @@ def validate_study_statistical_method_review(
     require_resolved_independence_justification(
         manifest.hypothesis_decision_rule.independence_justification
     )
+    justification = manifest.hypothesis_decision_rule.independence_justification
+    audit_digest = justification.independence_audit_artifact_sha256
+    if audit_digest is None:
+        raise ValueError("statistical-method review requires a digest-bound independence audit")
+    expected_approval_disposition = (
+        StudyMethodReviewApprovalDisposition.approved_confirmatory_independent_clusters
+        if manifest.hypothesis_decision_rule.inference_scope
+        is StudyInferenceScope.confirmatory_independent_clusters
+        else StudyMethodReviewApprovalDisposition.approved_fixed_frame_descriptive_conformance
+    )
+    if receipt.independence_acceptance_rationale == justification.independence_basis:
+        raise ValueError(
+            "qualified review rationale must add independent analysis, not copy the author basis"
+        )
+    if (
+        receipt.semantic_near_duplicate_review_rationale
+        == justification.dependence_risks_and_mitigations
+    ):
+        raise ValueError(
+            "near-duplicate review rationale must add independent analysis, not copy author prose"
+        )
     validate_study_manifest_inputs(manifest, benchmark, protocols)
     expected_conditions = _expected_conditions(
         manifest=manifest,
@@ -162,6 +220,11 @@ def validate_study_statistical_method_review(
         receipt.hypothesis_decision_rule_digest,
         receipt.registered_at_utc,
         receipt.execution_window_start_utc,
+        receipt.approved_inference_scope,
+        receipt.independence_design_basis,
+        receipt.independence_audit_artifact_sha256,
+        receipt.semantic_near_duplicate_disposition,
+        receipt.approval_disposition,
         receipt.conditions,
     ) != (
         manifest.study_id,
@@ -173,6 +236,11 @@ def validate_study_statistical_method_review(
         manifest.hypothesis_decision_rule_digest,
         manifest.registration.registered_at_utc,
         manifest.execution_window.start,
+        manifest.hypothesis_decision_rule.inference_scope,
+        justification.design_basis,
+        audit_digest,
+        justification.semantic_near_duplicate_disposition,
+        expected_approval_disposition,
         expected_conditions,
     ):
         raise ValueError(

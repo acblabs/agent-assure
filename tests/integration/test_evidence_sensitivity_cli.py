@@ -48,6 +48,7 @@ from agent_assure.reporting.sensitivity import (
     render_sensitivity_html,
     write_sensitivity_execution_artifacts,
 )
+from agent_assure.rooted_io import RootedDirectoryDescriptor
 from agent_assure.schema.common import GateState
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.release import ReleaseArtifactManifest
@@ -175,6 +176,7 @@ def test_responsive_subject_emits_a_verdict_bearing_pass_and_renderings(
         packet,
         artifact_root=out,
         require_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
     assert packet_decision.outcome is GateOutcome.pass_
     assert packet_decision.exit_code == 0
@@ -257,6 +259,7 @@ def test_evidence_inertial_subject_blocks_while_citations_and_evaluations_pass(
         load_evidence_packet(out / "evidence-packet.json"),
         artifact_root=out,
         require_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
     assert packet_decision.outcome is GateOutcome.fail
     assert packet_decision.exit_code == 1
@@ -301,6 +304,7 @@ def test_evidence_reversed_subject_blocks_on_wrong_decision_flip(
         load_evidence_packet(out / "evidence-packet.json"),
         artifact_root=out,
         require_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
     assert packet_decision.outcome is GateOutcome.fail
     assert packet_decision.exit_code == 1
@@ -654,6 +658,7 @@ def test_undeclared_retrieval_difference_is_confounded_and_non_verdict_bearing(
         load_evidence_packet(out / "evidence-packet.json"),
         artifact_root=out,
         require_evidence_sensitivity=True,
+        allow_missing_efficacy_for_migration=True,
     )
     assert packet_decision.outcome is GateOutcome.invalid
     assert packet_decision.exit_code == 2
@@ -1136,6 +1141,57 @@ def test_bundle_publisher_rejects_staged_symlink_swap_without_touching_foreign_b
     assert captured_claim.closed
     assert first_created.path.is_symlink()
     assert foreign.read_bytes() == foreign_bytes
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX parent-swap regression")
+def test_bundle_publisher_rejects_parent_swap_after_anchored_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = execute_sensitivity_experiment(
+        suite_path=EXAMPLE / "responsive_suite.yaml",
+        baseline_corpus_dir=EXAMPLE / "corpora" / "policy_a",
+        counterfactual_corpus_dir=EXAMPLE / "corpora" / "policy_b",
+        knowledge_contract_path=EXAMPLE / "knowledge-contract.yaml",
+        expected_relation=EvidenceSensitivityExpectedRelation.decision_flip,
+    )
+    requested_parent = tmp_path / "requested-parent"
+    moved_parent = tmp_path / "moved-parent"
+    outside_parent = tmp_path / "outside-parent"
+    requested_parent.mkdir()
+    outside_parent.mkdir()
+    out = requested_parent / "evidence"
+    original_open = (
+        sensitivity_reporting_module.open_or_create_rooted_directory_from_filesystem_root
+    )
+    swapped = False
+
+    def swap_after_acquisition(
+        directory: Path,
+        *,
+        label: str,
+        mode: int = 0o700,
+    ) -> RootedDirectoryDescriptor:
+        nonlocal swapped
+        lease = original_open(directory, label=label, mode=mode)
+        if directory == requested_parent and not swapped:
+            requested_parent.rename(moved_parent)
+            requested_parent.symlink_to(outside_parent, target_is_directory=True)
+            swapped = True
+        return lease
+
+    monkeypatch.setattr(
+        sensitivity_reporting_module,
+        "open_or_create_rooted_directory_from_filesystem_root",
+        swap_after_acquisition,
+    )
+
+    with pytest.raises((OSError, ValueError), match="sensitivity output parent"):
+        write_sensitivity_execution_artifacts(artifacts, out)
+
+    assert swapped
+    assert not (outside_parent / out.name).exists()
+    assert not (moved_parent / out.name).exists()
 
 
 def test_bundle_publisher_ignores_planted_stage_and_lock_entries_without_parent_scan(
@@ -1658,7 +1714,11 @@ def test_packet_gate_rejects_corruption_of_any_manifest_bound_sidecar(
     (out / "baseline.runset.json").write_text("{}\n", encoding="utf-8")
 
     binding_error = packet_summary_files_binding_error(packet, artifact_root=out)
-    decision = gate_evidence_packet(packet, artifact_root=out)
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=out,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert binding_error is not None
     assert "baseline-runset source file digest does not match" in binding_error

@@ -14,10 +14,22 @@ This project is not a compliance attestation. Safety review remains a separate
 human and organizational responsibility.
 
 The project does not replace legal, regulatory, clinical, provider-quality,
-model-quality, or business-impact review. It reports observed process facts:
-which expectations were evaluated, which findings were observed, which
+model-quality, or business-impact review. It reports local artifact and
+evaluator facts: which structured fields a declared producer supplied, which
+expectations were evaluated, which findings the evaluator derived, which
 artifacts were produced, and which gate state followed from the configured
-rules.
+rules. A field being present does not by itself prove that the corresponding
+external tool call, evidence access, policy check, or human review occurred.
+
+Current first-party runners declare source information for every structured
+field they write. Fixture fields are authored test inputs.
+`instrumented_adapter` fields are producer-declared observations whose truth
+still depends on the adapter trust boundary. `model_self_report` and legacy
+live fields are not control-eligible process evidence and cannot satisfy
+controls that require captured tools, evidence graphs, policy results, or
+human-review performance. For compatibility, an older fixture record without
+origins is interpreted as fixture input; an older live record without origins
+is `legacy_unspecified` and fails closed for process controls.
 
 The untagged development surface can also produce a preregistered real-model
 study report and a pre-candidate external-pilot evidence record. This
@@ -28,7 +40,8 @@ configurations, execution window, registration, decision rule, and statistical
 sufficiency state. A standalone study report is never publication
 authorization: that state requires exact replay of the closed bundle, including
 the raw registration record, its pre-execution human review receipt, and
-RunSet-bound observed-execution provenance.
+RunSet-bound runner-observed dispatch provenance plus provider-reported
+structured decisions.
 
 Preferred release-facing language:
 
@@ -38,7 +51,7 @@ Preferred release-facing language:
 - control coverage;
 - measured usage delta;
 - declared estimated cost evidence;
-- observed process regression;
+- source-qualified process-evidence regression;
 - local evidence packet;
 - CI-gate signal;
 - evidence-carrying agent release;

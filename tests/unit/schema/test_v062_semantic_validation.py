@@ -40,8 +40,7 @@ def test_frozen_v062_threat_manifest_replays_relational_validation() -> None:
     payload = manifest.model_dump(mode="json")
 
     assert (
-        validate_artifact_payload(payload, "threat-applicability-manifest")
-        == "frozen-jsonschema"
+        validate_artifact_payload(payload, "threat-applicability-manifest") == "frozen-jsonschema"
     )
 
     payload["present_control_ids"] = list(reversed(payload["present_control_ids"]))
@@ -79,10 +78,7 @@ def test_frozen_v062_control_efficacy_report_replays_relational_validation() -> 
     )
     payload = legacy_report.model_dump(mode="json")
 
-    assert (
-        validate_artifact_payload(payload, "control-efficacy-report")
-        == "frozen-jsonschema"
-    )
+    assert validate_artifact_payload(payload, "control-efficacy-report") == "frozen-jsonschema"
 
     payload["caught_operator_count"] += 1
     _rehash(payload, "report_digest")
@@ -100,8 +96,6 @@ def _rehash(payload: dict[str, object], digest_field: str) -> None:
 
 def _frozen_validator(artifact_kind: str) -> Draft202012Validator:
     schema = json.loads(
-        (
-            ROOT / "schemas" / "v0.6.2" / f"{artifact_kind}.schema.json"
-        ).read_text(encoding="utf-8")
+        (ROOT / "schemas" / "v0.6.2" / f"{artifact_kind}.schema.json").read_text(encoding="utf-8")
     )
     return Draft202012Validator(schema)

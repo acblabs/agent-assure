@@ -62,10 +62,10 @@ REVIEWED_BINARY_ASSET_SHA256 = {
 # restores the normal scan until a reviewer updates this inventory.
 SDIST_SENSITIVE_FIXTURE_SHA256 = {
     "tests/integration/test_controls_mutate_cli.py": (
-        "0548fc9f0b5f2c6337a437400174c99dbd73a5e836a1e2b2f9c5b34b05526f5a"
+        "d0a0aee9223bc8b5f9265c067503a5d8d3d09514a746b0e49b3ee6ff352e0d88"
     ),
     "tests/integration/test_external_pilot_cli.py": (
-        "516045453990d9bc9912e537670d7f3409254128ef2201408b0562cb67efa42c"
+        "6e50cdfa2c61db48af26a26a88b0b0eeeba1a331e9f2022ac9d7c1b140f104ef"
     ),
     "tests/integration/test_stream_cli.py": (
         "676ae69422330a62a867c20fa57bdc08887304f05bcb90ba9fe528ebc0d5f716"
@@ -74,31 +74,31 @@ SDIST_SENSITIVE_FIXTURE_SHA256 = {
         "08eeed8dcd68fd1b7fc65ea7a4d2ce087dab774af9be1d4fb4d48029fb8ed6c5"
     ),
     "tests/unit/test_pilot_bundle.py": (
-        "d9c450b43e8400a7f657965bb10bc210b3e8fac866062bb684dccd77376e1570"
+        "b946151c70c5f663159ff64b9041ceb6518501a85b1a9e15cd1a0991c26e7f25"
     ),
     "tests/unit/authoring/test_yaml_loader.py": (
         "ad351d179f95321c6f53a9bd3998295e96fad0086463d8c4d79297f6dd8e813f"
     ),
     "tests/unit/evaluation/test_live_runner.py": (
-        "52cc7f5ac77d60c8150cfbc70b70e846a4b1e4d206ed004e7955b5b96a81ecf0"
+        "c774dfe721366adde1b0a60419ca7ee00d47d80eeba5c8d4c317f750b9d628c9"
     ),
     "tests/unit/mutation/test_campaign.py": (
         "00675c6263cd18e6e24f7969f755347426b0a022ef66a1b9a007dfce028d9b59"
     ),
     "tests/unit/mutation/test_execution.py": (
-        "2137d59e1ae1078455afad586edbb8fe5b17ee8dfc924c49b307a45f4491ce85"
+        "69a3709521e446f653aef91566164a645ea7ff0253b2fe8cedd8fab734d36b8a"
     ),
     "tests/unit/privacy/test_hmac_and_redaction.py": (
-        "0fab0e1372db920c0aa670cd6e8735526d07a264f081a602445bc950439182d4"
+        "9b2859b46a44f11b8f5d35b505e54a3e774091e6b5871e52043d5961dfd06305"
     ),
     "tests/unit/rag/test_repeated_live_workflow.py": (
         "9297fd8250cd6e774254b68142aae202342a4b7c5432bfd3b6873c0366e0c3c6"
     ),
     "tests/unit/release/test_wheel_content_checks.py": (
-        "ccfb4cf2dfe16c85f274477535af1d55649b357e28b8e69a1f50d26f21ab8312"
+        "019c1c63bdbde6fd8805d3dd7086b9f109884afa55b3a926961affa73219e85e"
     ),
     "tests/unit/schema/test_pilot_evidence.py": (
-        "8ff25b5e57c682307418f70d200eda19c19ad7ecefee96a99abd26b44974c037"
+        "84f1b653d1aad95ba89d2f45ce824e47f8d1036ca3738a40c82db84b303938f1"
     ),
 }
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400

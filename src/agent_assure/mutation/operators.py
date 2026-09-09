@@ -15,8 +15,7 @@ from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
 SYNTHETIC_SENSITIVE_SUMMARY = (
-    "agent-assure synthetic privacy challenge; "
-    "patient: SYNTHETIC-REDACTION-SENTINEL"
+    "agent-assure synthetic privacy challenge; patient: SYNTHETIC-REDACTION-SENTINEL"
 )
 SYNTHETIC_BUDGET_STOP_REASON = "agent-assure.synthetic-budget-stop"
 _SYNTHETIC_EVIDENCE_SOURCE_ID = "agent-assure.synthetic-skewed-evidence-source"
@@ -228,20 +227,14 @@ def skew_evidence_source_identity_targets(
             raise ValueError("typed and raw evidence-ref ordering differ")
         item_ref_ids = {item.ref_id for item in run.evidence_items}
         for ref_index, ref in enumerate(run.evidence_refs):
-            if (
-                ref.ref_id not in item_ref_ids
-                or sources_by_ref.get(ref.ref_id) != {ref.source_id}
-            ):
+            if ref.ref_id not in item_ref_ids or sources_by_ref.get(ref.ref_id) != {ref.source_id}:
                 continue
             raw_ref = raw_refs[ref_index]
             if not isinstance(raw_ref, Mapping):
                 raise ValueError("validated evidence refs must be objects")
             targets.append(
                 MutationTarget(
-                    identity=(
-                        f"{run.case_id}\0{run.run_id}\0{ref.ref_id}\0"
-                        f"{ref_index:08d}"
-                    ),
+                    identity=(f"{run.case_id}\0{run.run_id}\0{ref.ref_id}\0{ref_index:08d}"),
                     expected_finding_target=evidence_ref_finding_target(ref.ref_id),
                     changes=(
                         PayloadChange(
@@ -307,8 +300,7 @@ class _ReplayRunMaterializer:
         return (
             PayloadChange(
                 path="/runs",
-                value=deepcopy(raw_runs)
-                + [deepcopy(_raw_run(raw_runs, self.run_index))],
+                value=deepcopy(raw_runs) + [deepcopy(_raw_run(raw_runs, self.run_index))],
             ),
         )
 

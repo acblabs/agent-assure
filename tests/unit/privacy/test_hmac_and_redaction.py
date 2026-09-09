@@ -53,7 +53,7 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     assert manifest["profile_id"] == PRIVACY_PROFILE_ID
     assert PRIVACY_PROFILE_DIGEST == hashlib.sha256(rfc8785.dumps(manifest)).hexdigest()
     assert PRIVACY_PROFILE_DIGEST == (
-        "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843"
+        "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6"
     )
     assert manifest["unicode_scan_normalization"] == "NFKC"
     assert manifest["unicode_category_c_action"].startswith("remove-with-")
@@ -96,6 +96,20 @@ def test_privacy_profile_digest_pins_canonical_detector_semantics() -> None:
     }
     assert markers_by_detector["email-address"] == ["@"]
     assert markers_by_detector["payment-card-like-number"] == []
+
+
+@pytest.mark.parametrize(
+    "assignment",
+    (
+        "openai_api_key=abcdefgh",
+        "OPENAI_API_KEY=abcdefgh",
+        "service_client_secret=abcdefgh",
+    ),
+)
+def test_generic_secret_assignment_detects_underscore_prefixed_names(
+    assignment: str,
+) -> None:
+    assert contains_sensitive_value(assignment)
 
 
 def test_privacy_profile_manifest_identity_changes_with_required_markers(

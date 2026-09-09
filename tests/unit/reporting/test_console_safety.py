@@ -11,8 +11,7 @@ from agent_assure.schema.common import GateState, ReasonCode
 
 def test_console_text_redacts_and_renders_untrusted_text_literally() -> None:
     rendered = _console_text(
-        "[bold red]literal[/]\x1b[31m\nspoof\u202e alice@example.com "
-        "second@example\x00.com"
+        "[bold red]literal[/]\x1b[31m\nspoof\u202e alice@example.com second@example\x00.com"
     )
 
     assert "[bold red]literal[/]" in rendered.plain
@@ -32,9 +31,7 @@ def test_findings_table_cannot_inject_rich_markup_or_terminal_controls() -> None
         state=GateState.fail,
         message="contact alice@example.com",
     )
-    report = SimpleNamespace(
-        candidate_vs_expectations=SimpleNamespace(findings=(finding,))
-    )
+    report = SimpleNamespace(candidate_vs_expectations=SimpleNamespace(findings=(finding,)))
     stream = StringIO()
     console = Console(
         file=stream,

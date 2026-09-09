@@ -206,8 +206,7 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
         f"- Baseline pass rate: `{report.baseline_pass_rate.rate}`",
         f"- Candidate pass rate: `{report.candidate_pass_rate.rate}`",
         f"- Pass-rate difference: `{report.pass_rate_difference}`",
-        f"- Difference interval: `{report.difference_ci_lower}` to "
-        f"`{report.difference_ci_upper}`",
+        f"- Difference interval: `{report.difference_ci_lower}` to `{report.difference_ci_upper}`",
         f"- Non-inferiority margin: `{report.non_inferiority_margin}`",
         "",
         "## Operational Deltas",

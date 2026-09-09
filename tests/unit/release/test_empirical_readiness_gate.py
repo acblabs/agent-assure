@@ -10,6 +10,7 @@ from types import SimpleNamespace
 import pytest
 
 import scripts.check_empirical_readiness as readiness_gate
+from agent_assure.schema.study import StudyInferenceScope
 from agent_assure.study.readiness import EmpiricalReadinessAssessment
 from tests.unit.schema.test_pilot_evidence import _external_evidence
 from tests.unit.test_pilot_bundle import (
@@ -80,6 +81,13 @@ def _stub_validated_evidence(
         study_registration_evidence_verified=True,
         study_statistical_method_review_verified=checkpoint_ready,
         study_execution_review_verified=checkpoint_ready,
+        study_execution_provider_records_review_attested=checkpoint_ready,
+        study_provider_fingerprint_coverage_complete=checkpoint_ready,
+        study_provider_fingerprint_absence_acknowledged=False,
+        study_inference_scope=StudyInferenceScope.confirmatory_independent_clusters,
+        study_inferential_statistics_applicable=checkpoint_ready,
+        study_scoped_descriptive_publication_ready=False,
+        study_confirmatory_inference_satisfied=checkpoint_ready,
         study_evidence_satisfied=checkpoint_ready,
         study_real_provider_origin_satisfied=checkpoint_ready,
         canonical_benchmark_satisfied=checkpoint_ready,
@@ -116,13 +124,25 @@ def _stub_validated_evidence(
     return study_digest, pilot_digest
 
 
-def test_publish_gate_orders_empirical_readiness_before_release_work() -> None:
+def test_publish_gate_orders_efficacy_and_empirical_readiness_before_release_work() -> None:
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
     assert (
-        "release-publish-check: empirical-readiness\n"
+        "release-publish-check:\n"
+        "\t$(MAKE) release-control-efficacy-check\n"
+        '\t$(MAKE) empirical-readiness EXPECTED_RELEASE="$(EXPECTED_RELEASE)"\n'
         '\t$(MAKE) release-check EXPECTED_RELEASE="$(EXPECTED_RELEASE)"'
     ) in makefile
+    efficacy_command = (
+        'ci gate "$(RELEASE_EFFICACY_PACKET)" '
+        '--artifact-root "$(RELEASE_EFFICACY_ARTIFACT_ROOT)" '
+        '--release-profile --efficacy-policy "$(RELEASE_EFFICACY_POLICY)"'
+    )
+    assert efficacy_command in makefile
+    assert makefile.index("$(MAKE) release-control-efficacy-check") < makefile.index(
+        "$(MAKE) empirical-readiness"
+    )
+    assert makefile.index("$(MAKE) empirical-readiness") < makefile.index("$(MAKE) release-check")
     assert '--benchmark "examples/process_equivalence_benchmark_v0_2/benchmark.json"' in makefile
     assert '--study-bundle-root "$(EMPIRICAL_STUDY_BUNDLE_ROOT)"' in makefile
     assert '--external-pilot-bundle-root "$(EXTERNAL_PILOT_BUNDLE_ROOT)"' in makefile
@@ -139,6 +159,15 @@ def test_publish_workflows_pin_the_closed_empirical_bundle_layouts() -> None:
         assert (
             "EXTERNAL_PILOT_REVIEW_RECEIPT: external-pilot-independence-review.json"
         ) in workflow
+        assert (
+            "RELEASE_EFFICACY_PACKET: "
+            "evidence/empirical/release-control-efficacy/evidence-packet.json"
+        ) in workflow
+        assert (
+            "RELEASE_EFFICACY_POLICY: "
+            "evidence/empirical/release-control-efficacy/controls-mutation.yaml"
+        ) in workflow
+        assert "RELEASE_EFFICACY_ARTIFACT_ROOT: ." in workflow
 
 
 def test_committed_canonical_benchmark_matches_packaged_mirror_exactly() -> None:
@@ -249,6 +278,13 @@ def test_empirical_readiness_gate_accepts_only_valid_ready_artifacts(
     )
     assert result["study_execution_review_receipt_digest"] == "8" * 64
     assert result["study_execution_review_state"] == "operator_attested"
+    assert result["study_execution_provider_records_review_attested"] is True
+    assert result["study_provider_fingerprint_coverage_complete"] is True
+    assert result["study_provider_fingerprint_absence_acknowledged"] is False
+    assert result["study_inference_scope"] == "confirmatory_independent_clusters"
+    assert result["study_inferential_statistics_applicable"] is True
+    assert result["study_scoped_descriptive_publication_ready"] is False
+    assert result["study_confirmatory_inference_satisfied"] is True
     assert (
         result["study_execution_reviewer_identity_authentication"]
         == "out_of_band_not_machine_verified"

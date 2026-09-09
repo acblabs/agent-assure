@@ -15,10 +15,11 @@ enough for governed agentic workflows. Reviewers often care about the route as
 well as the destination: which sources were linked, which tools were called,
 which policy checks fired, and which provenance was preserved.
 
-## Observable process controls
+## Source-qualified process controls
 
-`agent-assure` focuses on declared, observable controls. In fixture mode, those
-controls include material claim evidence links, expected outputs,
+`agent-assure` focuses on declared controls carried by structured records. In
+fixture mode, those authored test inputs include material claim evidence links,
+expected outputs,
 provider/tool boundaries, privacy-filtered summaries, review routing, fixture
 equivalence, and artifact digests.
 
@@ -53,6 +54,7 @@ replay or inspect the local evidence path.
 This project is not a compliance attestation. Safety review remains a separate
 human and organizational responsibility.
 
-`agent-assure` supports review of observed process evidence. It does not
-replace legal, regulatory, clinical, provider-quality, model-quality, or
-business-impact review.
+`agent-assure` supports review of source-qualified structured process evidence.
+It does not treat direct model self-report as proof that process events occurred,
+and it does not replace legal, regulatory, clinical, provider-quality,
+model-quality, or business-impact review.

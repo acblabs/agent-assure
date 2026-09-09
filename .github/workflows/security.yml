@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+    paths-ignore:
+      - "agent-assure-pilot/**"
   schedule:
     - cron: "23 11 * * 1"
   workflow_dispatch:

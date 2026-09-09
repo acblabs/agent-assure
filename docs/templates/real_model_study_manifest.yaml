@@ -31,7 +31,7 @@ knowledge_contract:
   authority_level: authoritative
   expected_behavior: follow_governing_context
 analysis_status:
-  primary: confirmatory
+  primary: confirmatory_independent_clusters
   exploratory_secondary_analyses_allowed: true
   pooling_permitted: false
   llm_judge_endpoint_permitted: false
@@ -346,6 +346,7 @@ conditions:
     planned_pairs: 42
     planned_independent_clusters: 42
 hypothesis_decision_rule:
+  inference_scope: confirmatory_independent_clusters
   estimand: decision_inertia_rate
   derivation: direct_same_decision_rate_on_decision_flip_conditions
   target_task_model_conditions:
@@ -385,6 +386,8 @@ hypothesis_decision_rule:
     # reject it. Replace every field with a study-specific positive design
     # argument; repeating the benchmark caveat is not a justification.
     status: unresolved_authoring_placeholder
+    design_basis: unresolved
+    semantic_near_duplicate_disposition: unresolved
     inferential_unit_definition: >-
       Each proposed inferential unit is one separately dispatched case-ID cluster
       in a finite frozen benefit-eligibility conformance frame.

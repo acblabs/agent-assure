@@ -261,9 +261,7 @@ def _existing_release_artifacts(out: Path, *, artifact_prefix: str) -> tuple[Rel
         ("comparison-report", out / "reports" / "comparison-report.json"),
     )
     return tuple(
-        release_artifact(role, path, project_root=ROOT)
-        for role, path in paths
-        if path.exists()
+        release_artifact(role, path, project_root=ROOT) for role, path in paths if path.exists()
     )
 
 

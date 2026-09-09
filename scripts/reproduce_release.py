@@ -208,6 +208,7 @@ def release_commands(
                 "full",
                 "--today",
                 release_today,
+                "--allow-missing-efficacy-for-migration",
             ],
             expected_exit=1,
         ),
@@ -276,9 +277,7 @@ def _require_release_input_path(value: str, *, field_name: str) -> None:
     try:
         resolved.relative_to(resolved_root)
     except ValueError as exc:
-        raise ValueError(
-            f"{field_name} must stay under the repository root: {resolved}"
-        ) from exc
+        raise ValueError(f"{field_name} must stay under the repository root: {resolved}") from exc
 
 
 def release_artifacts(out: Path, *, artifact_prefix: str) -> tuple[tuple[str, Path], ...]:

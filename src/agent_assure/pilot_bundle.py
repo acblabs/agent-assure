@@ -44,11 +44,14 @@ from agent_assure.schema.pilot import (
     ExternalPilotIndependenceReviewReceipt,
     PilotArtifactDigest,
     PilotArtifactRole,
+    PilotFrictionCategory,
     PilotInputIdentityKind,
     PilotInputKind,
     PilotInputManifest,
     PilotInputManifestEntry,
     PilotInputOrigin,
+    PilotRemediationDisposition,
+    PilotWorkflowRunReview,
     pilot_workflow_input_arguments,
 )
 from agent_assure.schema.validation import (
@@ -94,6 +97,14 @@ _VERIFIED_BUNDLE_MARKER = object()
 _VERIFIED_REVIEW_INPUTS_MARKER = object()
 
 
+@dataclass(frozen=True, slots=True)
+class _ValidatedPilotRemediationRecord:
+    friction_category: PilotFrictionCategory
+    disposition: PilotRemediationDisposition
+    remediation_source_revision: str | None
+    prior_planned_candidate_evidence_digest: str | None
+
+
 @dataclass(frozen=True, slots=True, init=False)
 class ValidatedExternalPilotReviewInputs:
     """Pinned, closed pilot evidence issued for human-review finalization."""
@@ -103,6 +114,10 @@ class ValidatedExternalPilotReviewInputs:
     artifact_manifest_digest: str
     environment_control_evidence_artifact_id: str
     environment_control_evidence_sha256: str
+    publication_consent_artifact_id: str
+    publication_consent_sha256: str
+    remediation_source_revision: str | None
+    prior_planned_candidate_evidence_digest: str | None
     total_bytes: int
     _verification_marker: object = field(repr=False, compare=False)
 
@@ -125,6 +140,10 @@ class ValidatedExternalPilotReviewInputs:
         artifact_manifest_digest: str,
         environment_control_evidence_artifact_id: str,
         environment_control_evidence_sha256: str,
+        publication_consent_artifact_id: str,
+        publication_consent_sha256: str,
+        remediation_source_revision: str | None,
+        prior_planned_candidate_evidence_digest: str | None,
         total_bytes: int,
     ) -> ValidatedExternalPilotReviewInputs:
         instance = object.__new__(cls)
@@ -145,6 +164,22 @@ class ValidatedExternalPilotReviewInputs:
             "environment_control_evidence_sha256",
             environment_control_evidence_sha256,
         )
+        object.__setattr__(
+            instance,
+            "publication_consent_artifact_id",
+            publication_consent_artifact_id,
+        )
+        object.__setattr__(instance, "publication_consent_sha256", publication_consent_sha256)
+        object.__setattr__(
+            instance,
+            "remediation_source_revision",
+            remediation_source_revision,
+        )
+        object.__setattr__(
+            instance,
+            "prior_planned_candidate_evidence_digest",
+            prior_planned_candidate_evidence_digest,
+        )
         object.__setattr__(instance, "total_bytes", total_bytes)
         object.__setattr__(
             instance,
@@ -160,6 +195,7 @@ class _ValidatedPilotMaterials:
     evidence_file_sha256: str
     artifact_manifest_digest: str
     artifact_by_id: Mapping[str, PilotArtifactDigest]
+    remediation_records: Mapping[str, _ValidatedPilotRemediationRecord]
     review_receipt: ExternalPilotIndependenceReviewReceipt | None
     total_bytes: int
 
@@ -257,6 +293,81 @@ def validate_external_pilot_artifact_bytes(
         raise ValueError("external pilot assurance outputs require a supported schema contract")
     _validate_privacy_safe_artifact(artifact, data)
     return validated_payload
+
+
+def _validate_pilot_remediation_record(
+    data: bytes,
+    *,
+    evidence: ExternalPilotEvidence,
+) -> _ValidatedPilotRemediationRecord:
+    payload = load_json_bytes_bounded(
+        data,
+        max_bytes=MAX_PILOT_BUNDLE_ARTIFACT_BYTES,
+        label="external pilot remediation record",
+    )
+    if (
+        payload.get("artifact_kind") != "external-pilot-remediation-record"
+        or payload.get("contract_id") != "ExternalPilotRemediationRecord/v1"
+        or payload.get("pilot_id") != evidence.pilot_id
+    ):
+        raise ValueError("external pilot remediation record identity does not match the evidence")
+    raw_category = payload.get("friction_category")
+    raw_disposition = payload.get("disposition")
+    if not isinstance(raw_category, str) or not isinstance(raw_disposition, str):
+        raise ValueError(
+            "external pilot remediation record has an unsupported category or disposition"
+        )
+    try:
+        category = PilotFrictionCategory(raw_category)
+        disposition = PilotRemediationDisposition(raw_disposition)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(
+            "external pilot remediation record has an unsupported category or disposition"
+        ) from exc
+    source_revision = payload.get("remediation_source_revision")
+    prior_digest = payload.get("prior_planned_candidate_evidence_digest")
+    if disposition is PilotRemediationDisposition.applied:
+        if (
+            not isinstance(source_revision, str)
+            or re.fullmatch(r"[a-f0-9]{40}", source_revision) is None
+            or not isinstance(prior_digest, str)
+            or re.fullmatch(r"[a-f0-9]{64}", prior_digest) is None
+        ):
+            raise ValueError(
+                "applied pilot remediation record requires canonical source and prior digest"
+            )
+    elif source_revision is not None or prior_digest is not None:
+        raise ValueError(
+            "non-applied pilot remediation record cannot claim source or prior-candidate bindings"
+        )
+    return _ValidatedPilotRemediationRecord(
+        friction_category=category,
+        disposition=disposition,
+        remediation_source_revision=source_revision,
+        prior_planned_candidate_evidence_digest=prior_digest,
+    )
+
+
+def _validate_pilot_remediation_bindings(
+    evidence: ExternalPilotEvidence,
+    records: Mapping[str, _ValidatedPilotRemediationRecord],
+) -> None:
+    expected_artifact_ids = {
+        remediation.remediation_artifact_id for remediation in evidence.remediations
+    }
+    if set(records) != expected_artifact_ids:
+        raise ValueError("pilot remediation record inventory does not match the evidence")
+    for remediation in evidence.remediations:
+        record = records[remediation.remediation_artifact_id]
+        if record.disposition is not remediation.disposition:
+            raise ValueError("pilot remediation record disposition does not match the evidence")
+        finding_categories = {
+            finding.category
+            for finding in evidence.friction_findings
+            if remediation.remediation_id in finding.remediation_ids
+        }
+        if finding_categories != {record.friction_category}:
+            raise ValueError("pilot remediation record category does not match its finding")
 
 
 def _load_validated_pilot_materials(
@@ -358,6 +469,7 @@ def _load_validated_pilot_materials(
         artifact_by_id = {artifact.artifact_id: artifact for artifact in evidence.artifacts}
         input_manifest: PilotInputManifest | None = None
         validated_output_payloads: dict[str, Mapping[str, object]] = {}
+        remediation_records: dict[str, _ValidatedPilotRemediationRecord] = {}
         for artifact in evidence.artifacts:
             artifact_bytes = read_child(
                 artifact.path,
@@ -382,6 +494,11 @@ def _load_validated_pilot_materials(
                 if validated_payload is None:  # pragma: no cover - shared validator guards this
                     raise RuntimeError("external pilot assurance output was not validated")
                 validated_output_payloads[artifact.artifact_id] = validated_payload
+            if artifact.role is PilotArtifactRole.remediation_record:
+                remediation_records[artifact.artifact_id] = _validate_pilot_remediation_record(
+                    artifact_bytes,
+                    evidence=evidence,
+                )
 
         if input_manifest is None:
             raise ValueError("external pilot bundle has no typed input manifest")
@@ -391,6 +508,7 @@ def _load_validated_pilot_materials(
             input_manifest,
             validated_output_payloads,
         )
+        _validate_pilot_remediation_bindings(evidence, remediation_records)
 
         manifest_digest = pilot_artifact_manifest_digest(evidence.artifacts)
         receipt = None
@@ -422,6 +540,7 @@ def _load_validated_pilot_materials(
                 pilot_evidence_file_sha256=evidence_file_sha256,
                 artifact_manifest_digest=manifest_digest,
                 artifact_by_id=artifact_by_id,
+                remediation_records=remediation_records,
                 expected_release=(expected_release or evidence.subject.implementation_version),
             )
 
@@ -438,6 +557,7 @@ def _load_validated_pilot_materials(
         evidence_file_sha256=evidence_file_sha256,
         artifact_manifest_digest=manifest_digest,
         artifact_by_id=artifact_by_id,
+        remediation_records=remediation_records,
         review_receipt=receipt,
         total_bytes=total_bytes,
     )
@@ -473,14 +593,47 @@ def load_external_pilot_review_inputs(
     control_artifact = materials.artifact_by_id.get(control_id)
     if control_artifact is None:  # pragma: no cover - evidence validation guards this
         raise ValueError("external pilot environment-control artifact is unavailable")
+    consent_id = evidence.publication.consent_artifact_id
+    if consent_id is None:
+        raise ValueError("external pilot bundle has no publication-consent evidence")
+    consent_artifact = materials.artifact_by_id.get(consent_id)
+    if consent_artifact is None:  # pragma: no cover - evidence validation guards this
+        raise ValueError("external pilot publication-consent artifact is unavailable")
+    if len(evidence.remediations) > 1:
+        raise ValueError("the external pilot workflow review path supports at most one remediation")
+    remediation_record = (
+        None
+        if not evidence.remediations
+        else materials.remediation_records[evidence.remediations[0].remediation_artifact_id]
+    )
     return ValidatedExternalPilotReviewInputs._from_verified_bytes(
         evidence=evidence,
         pilot_evidence_file_sha256=materials.evidence_file_sha256,
         artifact_manifest_digest=materials.artifact_manifest_digest,
         environment_control_evidence_artifact_id=control_id,
         environment_control_evidence_sha256=control_artifact.sha256,
+        publication_consent_artifact_id=consent_id,
+        publication_consent_sha256=consent_artifact.sha256,
+        remediation_source_revision=(
+            None if remediation_record is None else remediation_record.remediation_source_revision
+        ),
+        prior_planned_candidate_evidence_digest=(
+            None
+            if remediation_record is None
+            else remediation_record.prior_planned_candidate_evidence_digest
+        ),
         total_bytes=materials.total_bytes,
     )
+
+
+def _build_pilot_workflow_run_review(
+    value: Mapping[str, object] | PilotWorkflowRunReview,
+) -> PilotWorkflowRunReview:
+    if isinstance(value, PilotWorkflowRunReview):
+        return value
+    if not isinstance(value, Mapping):
+        raise TypeError("pilot workflow run review must be an authored mapping")
+    return PilotWorkflowRunReview.build(**dict(value))
 
 
 def build_external_pilot_review_receipt(
@@ -498,6 +651,15 @@ def build_external_pilot_review_receipt(
     execution_time_input_content_digests_reviewed: bool,
     input_semantic_identities_reviewed: bool,
     complete_bundle_publication_consent_reviewed: bool,
+    capture_workflow_run: Mapping[str, object] | PilotWorkflowRunReview,
+    finalize_workflow_run: Mapping[str, object] | PilotWorkflowRunReview,
+    run_head_shas_reviewed: bool,
+    workflow_run_urls_reviewed: bool,
+    trusted_workflow_bytes_reviewed: bool,
+    execution_source_pins_reviewed: bool,
+    public_workflow_inputs_reviewed: bool,
+    friction_and_remediation_disposition_reviewed: bool,
+    friction_category_and_remediation_bindings_reviewed: bool,
     privacy_boundary_reviewed: bool,
     review_outcome: str,
     reviewed_at: str,
@@ -510,6 +672,8 @@ def build_external_pilot_review_receipt(
     ):
         raise TypeError("pilot review receipt construction requires validated review inputs")
     evidence = review_inputs.evidence
+    capture_run = _build_pilot_workflow_run_review(capture_workflow_run)
+    finalize_run = _build_pilot_workflow_run_review(finalize_workflow_run)
     receipt = ExternalPilotIndependenceReviewReceipt.build(
         receipt_id=receipt_id,
         pilot_id=evidence.pilot_id,
@@ -521,6 +685,18 @@ def build_external_pilot_review_receipt(
             review_inputs.environment_control_evidence_artifact_id
         ),
         environment_control_evidence_sha256=(review_inputs.environment_control_evidence_sha256),
+        publication_consent_artifact_id=review_inputs.publication_consent_artifact_id,
+        publication_consent_sha256=review_inputs.publication_consent_sha256,
+        pilot_execution_source_revision=evidence.subject.source_revision,
+        pilot_friction_assessment=evidence.friction_assessment,
+        pilot_friction_categories=tuple(item.category for item in evidence.friction_findings),
+        pilot_remediation_dispositions=tuple(item.disposition for item in evidence.remediations),
+        pilot_remediation_source_revision=review_inputs.remediation_source_revision,
+        prior_planned_candidate_evidence_digest=(
+            review_inputs.prior_planned_candidate_evidence_digest
+        ),
+        capture_workflow_run=capture_run,
+        finalize_workflow_run=finalize_run,
         expected_release_line=_release_base(evidence.subject.implementation_version),
         reviewer_pseudonym=reviewer_pseudonym,
         manual_approval_is_trust_root=manual_approval_is_trust_root,
@@ -535,6 +711,17 @@ def build_external_pilot_review_receipt(
         ),
         input_semantic_identities_reviewed=input_semantic_identities_reviewed,
         complete_bundle_publication_consent_reviewed=(complete_bundle_publication_consent_reviewed),
+        run_head_shas_reviewed=run_head_shas_reviewed,
+        workflow_run_urls_reviewed=workflow_run_urls_reviewed,
+        trusted_workflow_bytes_reviewed=trusted_workflow_bytes_reviewed,
+        execution_source_pins_reviewed=execution_source_pins_reviewed,
+        public_workflow_inputs_reviewed=public_workflow_inputs_reviewed,
+        friction_and_remediation_disposition_reviewed=(
+            friction_and_remediation_disposition_reviewed
+        ),
+        friction_category_and_remediation_bindings_reviewed=(
+            friction_category_and_remediation_bindings_reviewed
+        ),
         privacy_boundary_reviewed=privacy_boundary_reviewed,
         review_outcome=review_outcome,
         reviewed_at=reviewed_at,
@@ -1278,6 +1465,7 @@ def _validate_review_binding(
     pilot_evidence_file_sha256: str,
     artifact_manifest_digest: str,
     artifact_by_id: Mapping[str, PilotArtifactDigest],
+    remediation_records: Mapping[str, _ValidatedPilotRemediationRecord],
     expected_release: str,
 ) -> None:
     if _release_base(evidence.subject.implementation_version) != _release_base(expected_release):
@@ -1288,6 +1476,19 @@ def _validate_review_binding(
     control_artifact = artifact_by_id.get(control_id)
     if control_artifact is None:
         raise ValueError("external pilot environment-control artifact is unavailable")
+    consent_id = evidence.publication.consent_artifact_id
+    if consent_id is None:
+        raise ValueError("external pilot bundle has no publication-consent evidence")
+    consent_artifact = artifact_by_id.get(consent_id)
+    if consent_artifact is None:
+        raise ValueError("external pilot publication-consent artifact is unavailable")
+    if len(evidence.remediations) > 1:
+        raise ValueError("the external pilot workflow review path supports at most one remediation")
+    remediation_record = (
+        None
+        if not evidence.remediations
+        else remediation_records[evidence.remediations[0].remediation_artifact_id]
+    )
     if (
         receipt.pilot_id != evidence.pilot_id
         or receipt.pilot_participant_pseudonym != evidence.participant_pseudonym
@@ -1296,6 +1497,22 @@ def _validate_review_binding(
         or receipt.artifact_manifest_digest != artifact_manifest_digest
         or receipt.environment_control_evidence_artifact_id != control_id
         or receipt.environment_control_evidence_sha256 != control_artifact.sha256
+        or receipt.publication_consent_artifact_id != consent_id
+        or receipt.publication_consent_sha256 != consent_artifact.sha256
+        or receipt.pilot_execution_source_revision != evidence.subject.source_revision
+        or receipt.pilot_friction_assessment is not evidence.friction_assessment
+        or receipt.pilot_friction_categories
+        != tuple(item.category for item in evidence.friction_findings)
+        or receipt.pilot_remediation_dispositions
+        != tuple(item.disposition for item in evidence.remediations)
+        or receipt.pilot_remediation_source_revision
+        != (None if remediation_record is None else remediation_record.remediation_source_revision)
+        or receipt.prior_planned_candidate_evidence_digest
+        != (
+            None
+            if remediation_record is None
+            else remediation_record.prior_planned_candidate_evidence_digest
+        )
         or receipt.expected_release_line != _release_base(expected_release)
     ):
         raise ValueError("external pilot independence review does not bind the exact bundle")

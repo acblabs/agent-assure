@@ -19,6 +19,10 @@ inputs:
     description: Report mode passed to agent-assure ci.
     required: false
     default: full
+  allow-missing-efficacy-for-migration:
+    description: Explicitly allow evaluation-only CI without control-efficacy evidence; this is a non-assurance migration profile.
+    required: false
+    default: "false"
   upload-name:
     description: GitHub artifact upload name.
     required: false
@@ -155,11 +159,19 @@ runs:
     - name: Evaluate and gate
       shell: bash
       env:
+        AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY: ${{ inputs.allow-missing-efficacy-for-migration }}
         AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
         AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
         AGENT_ASSURE_ACTION_REPORT_MODE: ${{ inputs.report-mode }}
       run: |
         set -euo pipefail
+        case "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" in
+          true|false) ;;
+          *)
+            echo "allow-missing-efficacy-for-migration must be true or false" >&2
+            exit 2
+            ;;
+        esac
         args=(
           agent-assure ci "${AGENT_ASSURE_ACTION_OUT_DIR}/candidate.runset.json"
           --suite "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json"
@@ -168,6 +180,9 @@ runs:
         )
         if [ -n "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" ]; then
           args+=(--baseline "${AGENT_ASSURE_ACTION_OUT_DIR}/baseline.runset.json")
+        fi
+        if [ "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" = "true" ]; then
+          args+=(--allow-missing-efficacy-for-migration)
         fi
         "${args[@]}"
     - name: Upload minimal reports

@@ -22,7 +22,13 @@ from agent_assure.schema.common import (
     ReasonCode,
     Severity,
 )
-from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    PolicyResult,
+    RunSet,
+    control_eligible_process_projection,
+    structured_field_is_control_eligible,
+)
 
 
 def evaluate_runset_controls(
@@ -71,6 +77,7 @@ def evaluate_case(
     required_policy_ids: tuple[str, ...] = (),
 ) -> tuple[ControlResult, ...]:
     expectation = case_expectation.expectation
+    process_run = control_eligible_process_projection(run)
     results: list[ControlResult] = []
     if expectation.allowed_tools_override:
         effective_allowed_tools: tuple[str, ...] | None = expectation.allowed_tools
@@ -84,32 +91,36 @@ def evaluate_case(
     results.extend(runtime.evaluate_runtime_success(run))
     results.extend(
         _evaluate_persisted_policy_results(
-            run,
+            process_run,
             case_expectation=case_expectation,
             required_policy_ids=required_policy_ids,
         )
     )
     results.extend(
         evaluate_required_policy_results_for_run(
-            run,
+            process_run,
             required_policy_ids,
             case_expectation=case_expectation,
         )
     )
     results.extend(output_schema.evaluate_structured_output(run))
-    results.extend(evidence.evaluate_required_evidence(run, expectation))
-    results.extend(evidence.evaluate_material_claim_evidence(run, expectation))
+    results.extend(evidence.evaluate_required_evidence(process_run, expectation))
+    results.extend(evidence.evaluate_material_claim_evidence(process_run, expectation))
     results.extend(evidence.evaluate_evidence_provenance_identity(run))
     results.extend(
         tools.evaluate_tool_allowlist(
-            run,
+            process_run,
             allowed_tools=effective_allowed_tools,
             forbidden_tools=expectation.forbidden_tools,
         )
     )
-    results.extend(human_review.evaluate_human_review_requirement(run, expectation))
-    results.extend(providers.evaluate_provider_boundary(run, case_expectation.case, expectation))
-    results.extend(injection.evaluate_prompt_boundary(run, case_expectation.case, expectation))
+    results.extend(human_review.evaluate_human_review_requirement(process_run, expectation))
+    results.extend(
+        providers.evaluate_provider_boundary(process_run, case_expectation.case, expectation)
+    )
+    results.extend(
+        injection.evaluate_prompt_boundary(process_run, case_expectation.case, expectation)
+    )
     results.extend(privacy.evaluate_redaction(run))
     return tuple(results)
 
@@ -122,6 +133,8 @@ def _evaluate_persisted_policy_results(
 ) -> tuple[ControlResult, ...]:
     results: list[ControlResult] = []
     required = set(required_policy_ids)
+    # Persisted non-pass results remain verdict-bearing even when their origin
+    # is not trustworthy enough to establish that a policy actually passed.
     for policy_result in run.policy_results:
         if policy_result.policy_id in required:
             continue
@@ -156,6 +169,7 @@ def evaluate_required_policy_results_for_run(
     results: list[ControlResult] = []
     if not required_policy_ids:
         return ()
+    policy_results_are_eligible = structured_field_is_control_eligible(run, "policy_results")
 
     for policy_id in required_policy_ids:
         observed = tuple(
@@ -163,7 +177,27 @@ def evaluate_required_policy_results_for_run(
             for policy_result in run.policy_results
             if policy_result.policy_id == policy_id
         )
-        if not observed:
+        if not policy_results_are_eligible:
+            results.append(
+                ControlResult(
+                    control_id="required_policy_evaluated",
+                    case_id=run.case_id,
+                    state=GateState.fail,
+                    reason_code=ReasonCode.POLICY_FAILED,
+                    severity=Severity.error,
+                    target=policy_id,
+                    message=(
+                        f"required policy {policy_id!r} has no control-eligible "
+                        f"evaluation for case {run.case_id!r}"
+                    ),
+                )
+            )
+            observed = tuple(
+                policy_result
+                for policy_result in observed
+                if policy_result.state not in {GateState.pass_, GateState.not_evaluated}
+            )
+        elif not observed:
             results.append(
                 ControlResult(
                     control_id="required_policy_evaluated",

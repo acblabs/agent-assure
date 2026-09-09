@@ -47,9 +47,10 @@ The development package additionally exposes non-stable surfaces:
   `RealModelStudyManifest/v1`, `StudyRegistrationReviewReceipt/v1`,
   `StudyStatisticalMethodReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
   and `RealModelStudyReport/v1` contracts
-  plus the no-dispatch `agent-assure rag study input-commitment`, `finalize`,
+  plus the no-dispatch `agent-assure study input-commitment`, `finalize`,
   `review-registration`, `review-execution`, and `bind-config` commands and
-  the replay-only `rag study analyze` command; and
+  the replay-only `study analyze` command; the historical `rag study` route is
+  retained as a compatibility alias; and
 - untagged development `ExternalPilotEvidence/v1` and
   `ExternalPilotIndependenceReviewReceipt/v1`: a pre-candidate,
   learning/remediation-only bundle descriptor plus explicit operator-attested
@@ -80,13 +81,16 @@ for development but are not yet a stable plugin API.
 The programmatic helpers in `agent_assure.ci` remain a development integration
 surface. `gate_artifact`, `gate_evidence_packet`, and
 `gate_control_efficacy_report` default `strict_efficacy` to `True`, matching the
-CLI when efficacy evidence is present. All three default `require_efficacy` to
-`False`; supplying a verifier efficacy policy implies required evidence.
-Callers that require an
-efficacy claim must either pass `require_efficacy=True` or supply that policy.
-Their `GateDecision` records `efficacy_evidence`, `efficacy_verification`, and
-`efficacy_required`, so optional absence is represented as `absent`,
-`not_requested`, and `false` rather than as a strict efficacy pass.
+CLI when efficacy evidence is present. `gate_evidence_packet`, and
+`gate_artifact` when routing an evidence packet, require efficacy evidence by
+default. Standalone evaluation/comparison gates remain unaffected, and a
+verifier efficacy policy still implies required evidence. The only supported
+absence opt-out is
+`allow_missing_efficacy_for_migration=True`; it is rejected for non-packets,
+packets already carrying efficacy, verifier-policy gates, and release-profile
+use. Its passing decision is explicitly non-assurance migration output.
+`GateDecision` always records `efficacy_evidence`,
+`efficacy_verification`, and `efficacy_required`.
 
 `gate_artifact` and `gate_evidence_packet` also accept verifier-owned
 `require_evidence_sensitivity`. Use it whenever report presence is part of the
@@ -101,10 +105,12 @@ use the persisted artifact kinds and documented CLI rather than importing
 operator implementation internals.
 
 External producers of `AgentRunRecord` artifacts should also treat
-`agent-run-record-producer-contract/v1` as part of the integration surface. The
+`agent-run-record-producer-contract/v2` as part of the integration surface. The
 contract is documented in `docs/schema_evolution.md` and
-`docs/expectation_authoring.md`; it requires explicit material
-claim-evidence links that point to present evidence items.
+`docs/expectation_authoring.md`; it requires explicit structured-field origins
+and material claim-evidence links that point to present evidence items. The v1
+compatibility projection treats omitted live origins as untrusted rather than
+inventing observation provenance.
 
 The evidence-carrying release contracts and their compatibility boundaries are
 documented in `docs/evidence_carrying_releases.md`.

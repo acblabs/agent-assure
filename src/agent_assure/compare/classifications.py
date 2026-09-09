@@ -14,14 +14,10 @@ def choose_comparison_classification(
     candidate_state: GateState,
 ) -> ComparisonClassification:
     """Classify a comparison after fixture equivalence has already passed."""
-    if (
-        baseline_state is GateState.not_evaluated
-        or candidate_state is GateState.not_evaluated
-    ):
+    if baseline_state is GateState.not_evaluated or candidate_state is GateState.not_evaluated:
         return ComparisonClassification.not_evaluated
     if any(
-        change.classification is ComparisonClassification.new_failure
-        for change in control_changes
+        change.classification is ComparisonClassification.new_failure for change in control_changes
     ):
         return ComparisonClassification.new_failure
     if any(

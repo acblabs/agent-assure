@@ -46,6 +46,8 @@ from agent_assure.schema.run import (
     EvidenceRef,
     PolicyResult,
     RunSet,
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
 )
 from agent_assure.schema.suite import CompiledSuite
 
@@ -344,6 +346,66 @@ def test_persisted_policy_result_failure_is_verdict_bearing() -> None:
         if finding.control_id == "policy_result:adapter.injected_policy"
     )
     assert finding.reason_code is ReasonCode.POLICY_FAILED
+
+
+@pytest.mark.parametrize(
+    "signal_state",
+    (GateState.fail, GateState.warn, GateState.not_evaluated),
+)
+def test_reducing_policy_origin_trust_never_erases_nonpass_signal(
+    signal_state: GateState,
+) -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    signal = PolicyResult(
+        artifact_kind="policy-result",
+        policy_id="self_reported.negative",
+        state=signal_state,
+        reason_codes=(ReasonCode.POLICY_FAILED,),
+        severity=Severity.warning,
+        message="untrusted negative signal",
+    )
+    trusted = first_run.model_copy(update={"policy_results": (*first_run.policy_results, signal)})
+    trusted_report = evaluate_runset(
+        compiled,
+        runset.model_copy(update={"runs": (trusted, *runset.runs[1:])}),
+    )
+
+    untrusted_payload = trusted.model_dump(mode="python")
+    untrusted_payload.update(
+        {
+            "execution_mode": "live",
+            "observation_id": "obs-untrusted-policy",
+            "repetition_index": 0,
+            "schedule_index": 0,
+            "cluster_id": trusted.case_id,
+            "adapter_id": "openai-chat-completions",
+            "cost_budget_committed_usd": "0.000000",
+            "generated_token_budget_committed": 0,
+            "total_token_budget_committed": 0,
+            "structured_field_origins": StructuredFieldOrigins.uniform(
+                StructuredFieldOrigin.model_self_report
+            ),
+        }
+    )
+    untrusted = AgentRunRecord.model_validate(untrusted_payload)
+    untrusted_report = evaluate_runset(
+        compiled,
+        runset.model_copy(update={"runs": (untrusted, *runset.runs[1:])}),
+    )
+
+    assert trusted_report.candidate_vs_expectations.state is not GateState.pass_
+    assert untrusted_report.candidate_vs_expectations.state is not GateState.pass_
+    finding = next(
+        finding
+        for finding in untrusted_report.candidate_vs_expectations.findings
+        if finding.control_id == "policy_result:self_reported.negative"
+    )
+    assert finding.state is signal_state
+    assert any(
+        finding.control_id == "required_policy_evaluated" and finding.case_id == untrusted.case_id
+        for finding in untrusted_report.candidate_vs_expectations.findings
+    )
 
 
 def test_fixture_policy_result_failure_is_verdict_bearing() -> None:

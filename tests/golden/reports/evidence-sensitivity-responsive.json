@@ -60,7 +60,7 @@
     "corpus_snapshot_digest": "fd9d082654d02eedc7e0eb1bd04162012430405db567fe1655e9dfb3d58bf124",
     "decision": "approve",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "075bb114b4c4e0b7c913035d1821fd5fe4e915298b9c619746796f322886a37d",
+    "evaluation_summary_digest": "19fcc8ad8bdd32b2f81e12222d34af08d0dacdc7018204bf2460d5d7ee899f6c",
     "evidence_link_present": true,
     "evidence_set_digest": "5e029cb06c362ab94f1d8d89e57037aa827fc2dfe4df1c94d6e7b5e4751774e6",
     "expected_decision": "approve",
@@ -92,7 +92,7 @@
     ],
     "retrieved_evidence_digest": "0a4a0d857f018386405242bab1f863a373c1dee9aa7b0db48343edfad9a498c5",
     "role": "baseline",
-    "runset_digest": "46a7600d0d4884f1ec68600edde3c52da46b7ff1bb170ce0f74877835adcdffd",
+    "runset_digest": "21b6626cf0e97747d889fa40b0a32a4789f55a7a3436311c4cf6c83177e6e4c7",
     "runset_id": "sensitivity-runset-baseline-7f4ed5b150fbbf7afa42a83e"
   },
   "baseline_corpus_snapshot": {
@@ -154,8 +154,8 @@
     "artifact_kind": "evaluation-summary",
     "environment": null,
     "findings": [],
-    "privacy_profile_digest": "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v3",
+    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
     "replay_context": {
       "evaluation_date": "2026-01-01",
       "gate_profile": {
@@ -174,7 +174,7 @@
       "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
       "waivers": []
     },
-    "runset_digest": "46a7600d0d4884f1ec68600edde3c52da46b7ff1bb170ce0f74877835adcdffd",
+    "runset_digest": "21b6626cf0e97747d889fa40b0a32a4789f55a7a3436311c4cf6c83177e6e4c7",
     "runset_id": "sensitivity-runset-baseline-7f4ed5b150fbbf7afa42a83e",
     "schema_version": "0.6.6",
     "state": "pass"
@@ -184,8 +184,8 @@
     "completion_status": "complete",
     "execution_mode": "fixture",
     "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
-    "privacy_profile_digest": "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v3",
+    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
     "protocol_digest": "8819ebd34bfc7af2c0ad1576673c8e5447bfea4c464b6f80a41fbe066690e20e",
     "protocol_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19",
     "runs": [
@@ -372,7 +372,7 @@
     "corpus_snapshot_digest": "0b6a2ed94bd99ff670666087bc8f24f31c06a1f96c5d31884947be9051727186",
     "decision": "deny",
     "evaluation_state": "pass",
-    "evaluation_summary_digest": "78a6c8ccdbba9584c7ad3592a45f02d4aa643fc03106db2cabc73a64a130787b",
+    "evaluation_summary_digest": "d5960f1e855477d8e0c1fb9e0105e7a5bec1c765d66956b565eadd2baa19faf2",
     "evidence_link_present": true,
     "evidence_set_digest": "da73ac2f21ea72c33e81971bc0541d3a15abc3ed11b715d05c085c22daeda0fc",
     "expected_decision": "deny",
@@ -404,7 +404,7 @@
     ],
     "retrieved_evidence_digest": "d82df4e654a5ecb3a05faf0ea0d7cb45a6b7bf473cd7d8a3c0327ca6ff2cb9a6",
     "role": "counterfactual",
-    "runset_digest": "531057436156fd2fc3dbc77f7709a450bfe2e0c2be071076c0627d11b8922b36",
+    "runset_digest": "23734794479245ab4ee65e3e6680af32cfbaa85d22ba33de67a80c13d69d36dd",
     "runset_id": "sensitivity-runset-counterfactual-ce07ec177d828de2ce0128c5"
   },
   "counterfactual_corpus_snapshot": {
@@ -466,8 +466,8 @@
     "artifact_kind": "evaluation-summary",
     "environment": null,
     "findings": [],
-    "privacy_profile_digest": "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v3",
+    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
     "replay_context": {
       "evaluation_date": "2026-01-01",
       "gate_profile": {
@@ -486,7 +486,7 @@
       "suite_digest": "ee4f04ad7ca51e420e0d1b92bfe5a010d2b95b5096137af0f4b1fbb8bad9b5a4",
       "waivers": []
     },
-    "runset_digest": "531057436156fd2fc3dbc77f7709a450bfe2e0c2be071076c0627d11b8922b36",
+    "runset_digest": "23734794479245ab4ee65e3e6680af32cfbaa85d22ba33de67a80c13d69d36dd",
     "runset_id": "sensitivity-runset-counterfactual-ce07ec177d828de2ce0128c5",
     "schema_version": "0.6.6",
     "state": "pass"
@@ -496,8 +496,8 @@
     "completion_status": "complete",
     "execution_mode": "fixture",
     "fixture_manifest_digest": "ab359d460343f9171df67154bdd0345741c2d61ad9df961be572f82e31a3ab76",
-    "privacy_profile_digest": "1ceb8eb648ff0dd4bd07b5cd706571bfce17d0f3d2695535ed69e6049f916843",
-    "privacy_profile_id": "agent-assure/privacy-detectors/v3",
+    "privacy_profile_digest": "b1e0ccbdd45a7e1e458616a970e70f76411307eb0f26ed7adf80f5cced7058e6",
+    "privacy_profile_id": "agent-assure/privacy-detectors/v4",
     "protocol_digest": "8819ebd34bfc7af2c0ad1576673c8e5447bfea4c464b6f80a41fbe066690e20e",
     "protocol_id": "rag-sensitivity-83ba9ac216dd18d5ff371b19",
     "runs": [
@@ -1011,7 +1011,7 @@
   "provenance_binding": "fixture_declared_unverified_digests",
   "raw_content_persistence": "exact_corpus_and_fixture_utf8_embedded",
   "reason_codes": [],
-  "report_digest": "4233ec32ae7101b54166fc9a95b0121ffce2c4a402663974639ce10eb8914455",
+  "report_digest": "65febb729e93966f7fb4708576c7fa71bce3ec4116b65fb4d42cedacda251712",
   "report_id": "evidence-sensitivity-8819ebd34bfc7af2c0ad1576",
   "schema_name": "evidence-sensitivity-report",
   "schema_version": "0.6.6",

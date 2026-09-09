@@ -42,7 +42,7 @@ from agent_assure.reporting.text_safety import sanitize_display_text
 from agent_assure.rooted_io import portable_relative_path_parts
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
-from agent_assure.schema.common import MachineIdentifier, coerce_tuple
+from agent_assure.schema.common import DigestHex, MachineIdentifier, coerce_enum, coerce_tuple
 from agent_assure.schema.stochastic_sensitivity import (
     RepeatedEvidenceSensitivityProtocol,
 )
@@ -50,6 +50,7 @@ from agent_assure.schema.study import (
     RealModelStudyManifest,
     StudyExecutionReviewReceipt,
     StudyRegistrationReviewReceipt,
+    StudyReviewerQualificationBasisType,
     StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.schema.validation import (
@@ -161,10 +162,17 @@ class _StudyExecutionReviewTemplate(StrictModel):
     reviewer_pseudonym: MachineIdentifier
     reviewer_independent_of_execution: Literal[True]
     reviewer_independence_rationale: str = Field(min_length=1, max_length=4_096)
+    provider_log_review_scope: str = Field(min_length=32, max_length=4_096)
+    provider_log_evidence_digest: DigestHex
+    provider_account_review_scope: str = Field(min_length=32, max_length=4_096)
+    provider_account_evidence_digest: DigestHex
     provider_log_and_account_review_confirmed: Literal[True]
+    provider_log_time_window_coverage_confirmed: Literal[True]
+    provider_account_usage_reconciled: Literal[True]
     exhaustive_attempt_failure_retry_accounting_confirmed: Literal[True]
     provider_response_id_matches_confirmed: Literal[True]
     exact_runset_artifact_digest_matches_confirmed: Literal[True]
+    provider_serving_fingerprint_availability_reviewed: Literal[True]
 
 
 class _StudyStatisticalMethodReviewTemplate(StrictModel):
@@ -172,15 +180,33 @@ class _StudyStatisticalMethodReviewTemplate(StrictModel):
     reviewed_at_utc: str = Field(min_length=1, max_length=64)
     reviewer_pseudonym: MachineIdentifier
     reviewer_statistical_qualification_confirmed: Literal[True]
+    reviewer_qualification_basis_types: tuple[StudyReviewerQualificationBasisType, ...] = Field(
+        min_length=1,
+        max_length=4,
+    )
+    reviewer_qualification_evidence_digest: DigestHex
     reviewer_qualification_basis: str = Field(min_length=32, max_length=4_096)
     reviewer_independent_of_design_execution_and_analysis: Literal[True]
     reviewer_independence_rationale: str = Field(min_length=32, max_length=4_096)
+    independence_design_basis_reviewed_and_accepted: Literal[True]
+    independence_acceptance_rationale: str = Field(min_length=32, max_length=4_096)
+    semantic_near_duplicate_audit_reviewed: Literal[True]
+    semantic_near_duplicate_pseudoreplication_rejected: Literal[True]
+    semantic_near_duplicate_review_rationale: str = Field(min_length=32, max_length=4_096)
     benchmark_cluster_assignments_reviewed: Literal[True]
     independence_and_exchangeability_assumptions_reviewed: Literal[True]
     sampling_frame_and_estimand_reviewed: Literal[True]
     multiplicity_and_interval_method_reviewed: Literal[True]
     power_and_decision_boundary_reachability_reviewed: Literal[True]
     negative_control_design_reviewed: Literal[True]
+
+    @field_validator("reviewer_qualification_basis_types", mode="before")
+    @classmethod
+    def _coerce_qualification_basis_types(cls, value: object) -> object:
+        values = coerce_tuple(value)
+        if not isinstance(values, tuple):
+            return values
+        return tuple(coerce_enum(StudyReviewerQualificationBasisType, item) for item in values)
 
 
 @app.callback()

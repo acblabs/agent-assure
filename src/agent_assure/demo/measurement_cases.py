@@ -182,6 +182,7 @@ def run_measurement_cases_demo(out_dir: Path, *, clean: bool) -> dict[str, objec
                 str(baseline_runset_path),
                 "--out-dir",
                 str(ci_report_dir),
+                "--allow-missing-efficacy-for-migration",
             ],
             out_dir=root,
             expected_exit_codes={1},
@@ -192,7 +193,12 @@ def run_measurement_cases_demo(out_dir: Path, *, clean: bool) -> dict[str, objec
     command_results.append(
         run_cli_command(
             name="ci-gate-packet",
-            args=["ci", "gate", str(packet_path)],
+            args=[
+                "ci",
+                "gate",
+                str(packet_path),
+                "--allow-missing-efficacy-for-migration",
+            ],
             out_dir=root,
             expected_exit_codes={1},
             cwd=root,
@@ -467,8 +473,7 @@ def _expected_regressions_caught(
             ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
             target=claim_finding_target("claim-policy-support"),
         )
-        and _case_visible_output(cases_by_id, "same-output-human-review-bypassed")
-        == "preserved"
+        and _case_visible_output(cases_by_id, "same-output-human-review-bypassed") == "preserved"
         and "provider/model" in _case_changed_fields(cases_by_id, "same-output-provider-boundary")
         and "human review" in _case_changed_fields(cases_by_id, "same-output-provider-boundary")
         and _case_has_finding(
@@ -477,8 +482,7 @@ def _expected_regressions_caught(
             ReasonCode.FORBIDDEN_PROVIDER,
             target="provider:alternate-process-provider",
         )
-        and "human review"
-        in _case_changed_fields(cases_by_id, "same-output-human-review-bypassed")
+        and "human review" in _case_changed_fields(cases_by_id, "same-output-human-review-bypassed")
         and _case_has_finding(
             cases_by_id,
             "same-output-human-review-bypassed",
@@ -489,8 +493,7 @@ def _expected_regressions_caught(
         in _case_changed_fields(cases_by_id, "same-output-evidence-source-changed")
         and "operational counters" in _case_changed_fields(cases_by_id, "same-output-retry-storm")
         and "measured usage" in _case_changed_fields(cases_by_id, "same-output-usage-cost-delta")
-        and _case_visible_output(cases_by_id, "different-output-no-process-regression")
-        == "changed"
+        and _case_visible_output(cases_by_id, "different-output-no-process-regression") == "changed"
         and _case_changed_fields(cases_by_id, "different-output-no-process-regression") == []
         and usage_delta is not None
         and usage_delta.comparison_state == "observed"

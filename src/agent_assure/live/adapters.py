@@ -38,7 +38,13 @@ from agent_assure.live.config import (
     normalize_endpoint_host,
     resolve_endpoint_host,
 )
-from agent_assure.live.output_contract import validate_live_structured_content
+from agent_assure.live.output_contract import (
+    OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
+    OPENAI_DECISION_OUTPUT_CONTRACT_ID,
+    OPENAI_DECISION_RESPONSE_FORMAT_JSON,
+    openai_decision_response_format,
+    validate_live_structured_content,
+)
 from agent_assure.live.paths import resolve_live_config_path
 from agent_assure.rooted_io import BoundedFileDescriptor
 from agent_assure.runner.subprocess_harness import (
@@ -100,6 +106,9 @@ class LiveProviderRequest(StrictModel):
     rendered_governing_evidence_message: str | None = None
     governing_evidence_renderer_id: str | None = None
     knowledge_contract_digest: DigestHex | None = None
+    structured_output_contract_id: str | None = None
+    structured_output_contract_digest: DigestHex | None = None
+    provider_response_format_json: str | None = None
     allow_case_only_static_response: bool = False
     traceparent: str | None = None
     tracestate: str | None = None
@@ -136,6 +145,24 @@ class LiveProviderRequest(StrictModel):
                 )
         elif self.governing_evidence_renderer_id is not None:
             raise ValueError("governing_evidence_renderer_id requires a rendered governing message")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_structured_output_contract(self) -> Self:
+        values = (
+            self.structured_output_contract_id,
+            self.structured_output_contract_digest,
+            self.provider_response_format_json,
+        )
+        if any(value is not None for value in values) != all(value is not None for value in values):
+            raise ValueError("structured output contract fields must be supplied together")
+        if self.provider_response_format_json is None:
+            return self
+        actual_digest = hashlib.sha256(
+            self.provider_response_format_json.encode("utf-8")
+        ).hexdigest()
+        if actual_digest != self.structured_output_contract_digest:
+            raise ValueError("structured output contract digest does not match exact bytes")
         return self
 
 
@@ -224,6 +251,16 @@ def _governing_evidence_message(request: LiveProviderRequest) -> str:
     )
 
 
+def _openai_bound_response_format(request: LiveProviderRequest) -> dict[str, Any]:
+    if request.structured_output_contract_id != OPENAI_DECISION_OUTPUT_CONTRACT_ID:
+        raise ValueError("OpenAI request lacks the exact decision contract ID")
+    if request.structured_output_contract_digest != OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST:
+        raise ValueError("OpenAI request lacks the exact decision contract digest")
+    if request.provider_response_format_json != OPENAI_DECISION_RESPONSE_FORMAT_JSON:
+        raise ValueError("OpenAI request response_format bytes do not match the decision contract")
+    return openai_decision_response_format()
+
+
 def render_governing_evidence_message(
     *,
     governing_evidence: str,
@@ -254,15 +291,19 @@ def render_governing_evidence_message(
 
 def live_provider_input_text(request: LiveProviderRequest) -> str:
     """Return all provider-bound text used for conservative token accounting."""
+    response_contract = (
+        ""
+        if request.provider_response_format_json is None
+        else "\n" + request.provider_response_format_json
+    )
     if request.governing_evidence is None:
-        return request.prompt
+        return request.prompt + response_contract
     # Account for all three provider messages. This is not a prompt renderer;
     # role separation is preserved by the adapter below.
-    return (
-        f"{_governing_evidence_message(request)}\n"
-        f"{request.governing_evidence}\n"
-        f"{request.prompt}"
+    provider_text = (
+        f"{_governing_evidence_message(request)}\n{request.governing_evidence}\n{request.prompt}"
     )
+    return provider_text + response_contract
 
 
 class _NoRedirectHandler(urllib.request.HTTPRedirectHandler):
@@ -477,6 +518,7 @@ class OpenAIChatCompletionsAdapter:
             "messages": messages,
             "temperature": float(Decimal(self._config.temperature)),
         }
+        body["response_format"] = _openai_bound_response_format(request)
         if self._config.max_output_tokens is not None:
             body["max_tokens"] = self._config.max_output_tokens
         headers = {"Content-Type": "application/json"}
@@ -859,9 +901,7 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
             field_name="created",
         ),
         observation_status="included" if finish_reason == "stop" else "excluded",
-        exclusion_reason=(
-            None if finish_reason == "stop" else "provider-termination-not-normal"
-        ),
+        exclusion_reason=(None if finish_reason == "stop" else "provider-termination-not-normal"),
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,

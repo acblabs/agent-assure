@@ -35,9 +35,7 @@ def control_finding_id(
         ensure_ascii=False,
         separators=(",", ":"),
     ).encode("utf-8")
-    digest = hashlib.sha256(
-        b"agent-assure/control-finding/v2\x00" + stable_key
-    ).hexdigest()
+    digest = hashlib.sha256(b"agent-assure/control-finding/v2\x00" + stable_key).hexdigest()
     return f"finding-{digest}"
 
 
@@ -109,8 +107,7 @@ class GateProfile(StrictModel):
         if result.state is not GateState.fail:
             return False
         return (
-            result.severity in self.fail_severities
-            or result.reason_code in self.fail_reason_codes
+            result.severity in self.fail_severities or result.reason_code in self.fail_reason_codes
         )
 
 
@@ -182,9 +179,7 @@ def apply_waivers_with_dispositions(
     today: date,
 ) -> WaiverApplication:
     if len(waivers) > MAX_WAIVER_DISPOSITIONS:
-        raise ValueError(
-            f"waiver count exceeds disposition limit {MAX_WAIVER_DISPOSITIONS}"
-        )
+        raise ValueError(f"waiver count exceeds disposition limit {MAX_WAIVER_DISPOSITIONS}")
     adjusted: list[ControlResult] = []
     adjusted.extend(
         ControlResult(
@@ -260,9 +255,7 @@ def _waiver_disposition(
         )
         if not finding_matches:
             status = WaiverDispositionStatus.unmatched_finding
-        elif not any(
-            result.reason_code is waiver.reason_code for result in finding_matches
-        ):
+        elif not any(result.reason_code is waiver.reason_code for result in finding_matches):
             status = WaiverDispositionStatus.unmatched_reason
         else:
             status = WaiverDispositionStatus.matched

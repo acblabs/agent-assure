@@ -192,13 +192,42 @@ For advisory `ci gate`, `--fail-on-warn` turns review findings such as
 blocking regardless of advisory profile settings. `--fail-on-not-evaluated`
 checks both independent semantic dimensions.
 
-Efficacy evidence presence and verification strength are independent. CLI and
-programmatic gates default to strict verification when efficacy evidence is
-present. `--require-efficacy` separately requires an evidence packet to carry
-that evidence; `--efficacy-policy` implies the same presence requirement. An
-optional packet without efficacy evidence is not treated as strictly verified:
-its decision records `efficacy_evidence=absent`,
-`efficacy_verification=not_requested`, and `efficacy_required=false`.
+Efficacy evidence presence and verification strength are independent.
+Evidence-packet CLI and programmatic gates require efficacy by default and use
+strict verification when it is present. `--require-efficacy` remains an
+explicit restatement for existing automation, while `--efficacy-policy`
+supplies the separately trusted verifier policy. A packet without efficacy is
+invalid by default and records `efficacy_evidence=absent`,
+`efficacy_verification=strict`, and `efficacy_required=true`.
+
+The only missing-efficacy escape hatch is
+`--allow-missing-efficacy-for-migration` (or the equivalently named
+programmatic argument). It is limited to an evidence packet that actually lacks
+efficacy, cannot be combined with a verifier policy, an explicit requirement,
+or the release profile, and labels the result
+`policy_profile=non-assurance-migration`. It exists only to migrate legacy
+packet consumers; its successful result is not efficacy assurance and must not
+be used for a release claim.
+
+For an efficacy-bearing release claim, use the fail-closed release-facing CI
+efficacy profile:
+
+```bash
+agent-assure ci gate reports/evidence-packet.json \
+  --release-profile \
+  --efficacy-policy assurance-controls/controls-mutation.yaml
+```
+
+This profile accepts only evidence packets, requires present efficacy evidence
+and a verifier-owned controls-mutation YAML, makes warnings and not-evaluated
+findings blocking, and rejects advisory, non-verdict, and legacy-comparison
+weakening flags. It is the only `ci gate` profile suitable for an
+efficacy-bearing release claim. It does not authorize publication.
+`make release-publish-check` first applies this profile to the separately
+staged packet and verifier-owned policy under
+`evidence/empirical/release-control-efficacy/`, then runs empirical readiness
+and the engineering release checks. Absence of either staged input fails
+closed.
 
 Strict verification requires `--efficacy-policy` pointing to a separately
 trusted controls-mutation YAML and returns `0` only for

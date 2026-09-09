@@ -4,6 +4,7 @@ import errno
 import hashlib
 import importlib
 import os
+import stat
 import subprocess
 import sys
 from pathlib import Path
@@ -773,6 +774,50 @@ def test_rooted_directory_lease_pins_nested_directory_and_root(tmp_path: Path) -
 
     with open_directory_at(root, ".", label="external script cwd") as root_lease:
         assert root_lease.path == root.absolute()
+
+
+def test_filesystem_anchor_creator_builds_and_revalidates_nested_directory(
+    tmp_path: Path,
+) -> None:
+    requested = tmp_path / "created-parent" / "nested-output"
+
+    with rooted_io.open_or_create_rooted_directory_from_filesystem_root(
+        requested,
+        label="created output parent",
+    ) as lease:
+        assert lease.path == Path(os.path.abspath(requested))
+        assert requested.is_dir()
+        lease.revalidate_path(label="created output parent")
+        descriptor = lease.open_regular_file_exclusive("artifact.json")
+        try:
+            assert os.write(descriptor, b"anchored") == len(b"anchored")
+        finally:
+            os.close(descriptor)
+
+    assert (requested / "artifact.json").read_bytes() == b"anchored"
+    if os.name != "nt":
+        assert stat.S_IMODE(os.stat(requested).st_mode) & 0o077 == 0
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX lexical-revalidation regression")
+def test_filesystem_anchor_lease_rejects_lexical_parent_swap(tmp_path: Path) -> None:
+    requested = tmp_path / "requested-parent"
+    moved = tmp_path / "moved-parent"
+    outside = tmp_path / "outside-parent"
+    requested.mkdir()
+    outside.mkdir()
+
+    with rooted_io.open_or_create_rooted_directory_from_filesystem_root(
+        requested,
+        label="output parent",
+    ) as lease:
+        requested.rename(moved)
+        requested.symlink_to(outside, target_is_directory=True)
+        with pytest.raises((OSError, ValueError), match="output parent"):
+            lease.revalidate_path(label="output parent")
+
+    assert not tuple(outside.iterdir())
+    assert not tuple(moved.iterdir())
 
 
 @pytest.mark.skipif(os.name == "nt", reason="POSIX root replacement regression")

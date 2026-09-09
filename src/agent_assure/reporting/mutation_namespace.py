@@ -43,9 +43,7 @@ def is_single_generation_filename(filename: str) -> bool:
 
 def is_campaign_generation_filename(filename: str) -> bool:
     normalized = normalized_generation_filename(filename)
-    if normalized in {
-        normalized_generation_filename(item) for item in _CAMPAIGN_GLOBAL_FILENAMES
-    }:
+    if normalized in {normalized_generation_filename(item) for item in _CAMPAIGN_GLOBAL_FILENAMES}:
         return True
     match = _CAMPAIGN_OPERATOR_PATTERN.fullmatch(normalized)
     return match is not None
@@ -58,9 +56,7 @@ def assert_generation_namespace_exclusive(
 ) -> None:
     """Reject a directory containing artifacts from the other generation type."""
     foreign = (
-        is_campaign_generation_filename
-        if namespace == "single"
-        else is_single_generation_filename
+        is_campaign_generation_filename if namespace == "single" else is_single_generation_filename
     )
     with os.scandir(out_dir) as entries:
         for index, entry in enumerate(entries):
@@ -71,6 +67,5 @@ def assert_generation_namespace_exclusive(
                 )
             if foreign(entry.name):
                 raise ValueError(
-                    "mutation output directory mixes single and campaign "
-                    "generation namespaces"
+                    "mutation output directory mixes single and campaign generation namespaces"
                 )

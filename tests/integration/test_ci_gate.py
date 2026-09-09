@@ -237,10 +237,24 @@ def test_ci_gate_legacy_unbound_comparison_requires_explicit_compatibility(
     comparison_path = tmp_path / "legacy-comparison.json"
     _write_json(comparison_path, packet.comparison.model_dump(mode="json"))
 
-    rejected = RUNNER.invoke(app, ["ci", "gate", str(path)])
+    rejected = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
     allowed = RUNNER.invoke(
         app,
-        ["ci", "gate", str(path), "--allow-legacy-unbound-comparison"],
+        [
+            "ci",
+            "gate",
+            str(path),
+            "--allow-legacy-unbound-comparison",
+            "--allow-missing-efficacy-for-migration",
+        ],
     )
     standalone_rejected = RUNNER.invoke(app, ["ci", "gate", str(comparison_path)])
     standalone_allowed = RUNNER.invoke(
@@ -272,9 +286,7 @@ def test_legacy_unbound_comparison_option_is_rejected_outside_ci_gate() -> None:
     )
 
     assert result.exit_code == 2
-    assert "--allow-legacy-unbound-comparison is only valid with ci gate" in unstyle(
-        result.output
-    )
+    assert "--allow-legacy-unbound-comparison is only valid with ci gate" in unstyle(result.output)
 
 
 def test_ci_gate_rejects_unused_legacy_unbound_comparison_override(tmp_path: Path) -> None:
@@ -404,10 +416,25 @@ def test_ci_gate_text_sanitizes_terminal_controls_but_json_preserves_values(
     path = tmp_path / "hostile-packet.json"
     _write_json(path, packet.model_dump(mode="json"))
 
-    text_result = RUNNER.invoke(app, ["ci", "gate", str(path)])
+    text_result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
     json_result = RUNNER.invoke(
         app,
-        ["ci", "gate", str(path), "--format", "json"],
+        [
+            "ci",
+            "gate",
+            str(path),
+            "--format",
+            "json",
+            "--allow-missing-efficacy-for-migration",
+        ],
     )
 
     assert text_result.exit_code == 0, text_result.output
@@ -447,7 +474,15 @@ def test_ci_gate_infers_packet_local_producer_root_inside_git(tmp_path: Path) ->
     assert produced.exit_code == 0, produced.output
     _init_git_repo(repo)
 
-    result = RUNNER.invoke(app, ["ci", "gate", str(out / "evidence-packet.json")])
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(out / "evidence-packet.json"),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
 
@@ -462,7 +497,15 @@ def test_ci_gate_falls_back_to_legacy_repo_relative_manifest_root(tmp_path: Path
     )
     _init_git_repo(repo)
 
-    result = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
 
     assert result.exit_code == 0, result.output
 
@@ -480,10 +523,25 @@ def test_ci_gate_rejects_ambiguous_inferred_roots_and_honors_explicit_root(
     )
     _init_git_repo(repo)
 
-    ambiguous = RUNNER.invoke(app, ["ci", "gate", str(packet_path)])
+    ambiguous = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
     explicit = RUNNER.invoke(
         app,
-        ["ci", "gate", str(packet_path), "--artifact-root", str(packet_dir)],
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--artifact-root",
+            str(packet_dir),
+            "--allow-missing-efficacy-for-migration",
+        ],
     )
 
     assert ambiguous.exit_code == 2, ambiguous.output
@@ -509,6 +567,7 @@ def test_ci_command_writes_reports_packet_manifest_and_diagnostics(tmp_path: Pat
             str(out_dir),
             "--report-mode",
             "full",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
 
@@ -584,6 +643,7 @@ def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
         baseline_path,
         suite_path=compiled_path,
         out_dir=out_dir,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert swapped
@@ -615,6 +675,7 @@ def test_ci_packet_publication_rolls_back_graph_and_packet_on_late_failure(
             baseline_path,
             suite_path=compiled_path,
             out_dir=out_dir,
+            allow_missing_efficacy_for_migration=True,
         )
 
     for filename in (
@@ -626,9 +687,9 @@ def test_ci_packet_publication_rolls_back_graph_and_packet_on_late_failure(
         assert not (out_dir / filename).exists()
 
 
-def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Path) -> None:
+def test_full_ci_fails_closed_when_generated_packet_lacks_efficacy(tmp_path: Path) -> None:
     compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
-    out_dir = tmp_path / "passing-ci-report"
+    out_dir = tmp_path / "default-missing-efficacy"
 
     result = RUNNER.invoke(
         app,
@@ -644,6 +705,36 @@ def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Pa
         ],
     )
 
+    assert result.exit_code == 2, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "invalid"
+    assert decision["efficacy_evidence"] == "absent"
+    assert decision["efficacy_verification"] == "strict"
+    assert decision["efficacy_required"] is True
+    assert "default evidence-packet gate" in decision["message"]
+
+
+def test_successful_non_assurance_full_ci_json_exposes_structural_decision(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "passing-ci-report"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(baseline_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+            "--format",
+            "json",
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
+
     assert result.exit_code == 0, result.output
     decision = json.loads(result.output)
     assert decision["outcome"] == "pass"
@@ -651,6 +742,7 @@ def test_successful_full_ci_json_output_exposes_structural_decision(tmp_path: Pa
     assert decision["artifact_kind"] == "evidence-packet"
     assert decision["artifact_path"] == str(out_dir / "evidence-packet.json")
     assert decision["reason_code"] is None
+    assert "policy_profile=non-assurance-migration" in decision["message"]
 
 
 def test_run_ci_publishes_exact_replay_context_for_active_waiver(
@@ -684,6 +776,7 @@ def test_run_ci_publishes_exact_replay_context_for_active_waiver(
         out_dir=out_dir,
         waivers=(waiver,),
         today=today,
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert result.decision.outcome.value != "invalid"
@@ -725,6 +818,7 @@ def test_run_ci_publishes_exact_replay_context_for_custom_gate_profile(
         out_dir=out_dir,
         gate_profile=profile,
         today=date(2026, 8, 27),
+        allow_missing_efficacy_for_migration=True,
     )
 
     assert result.decision.outcome.value != "invalid"
@@ -760,6 +854,7 @@ def test_ci_command_removes_outputs_that_are_stale_for_the_next_run(
             str(out_dir),
             "--report-mode",
             "full",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
     assert failing.exit_code == 1, failing.output
@@ -777,6 +872,7 @@ def test_ci_command_removes_outputs_that_are_stale_for_the_next_run(
             str(out_dir),
             "--report-mode",
             "full",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
 
@@ -923,6 +1019,7 @@ def test_demo_markers_do_not_affect_core_commands(tmp_path: Path, env_var: str) 
             str(tmp_path / f"ci-report-with-demo-env-{slug}"),
             "--report-mode",
             "full",
+            "--allow-missing-efficacy-for-migration",
         ],
         env=env,
     )
@@ -996,6 +1093,7 @@ def test_core_commands_accept_out_dir_outside_cwd(tmp_path: Path) -> None:
             str(ci_out),
             "--report-mode",
             "full",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
 
@@ -1075,6 +1173,7 @@ def test_ci_fail_fast_stops_before_comparison_after_candidate_blocker(tmp_path: 
             str(out_dir),
             "--report-mode",
             "fail-fast",
+            "--allow-missing-efficacy-for-migration",
         ],
     )
 

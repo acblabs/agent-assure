@@ -31,11 +31,5 @@ def test_deprecated_bundled_identity_imports_alias_the_current_writer() -> None:
 
     assert identity_set is not None
     assert BUNDLED_SENSITIVITY_SUITE_IDENTITIES is identity_set.suite_identities
-    assert (
-        BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST
-        == identity_set.knowledge_contract_digest
-    )
-    assert (
-        BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES
-        is identity_set.corpus_snapshot_identities
-    )
+    assert BUNDLED_SENSITIVITY_KNOWLEDGE_CONTRACT_DIGEST == identity_set.knowledge_contract_digest
+    assert BUNDLED_SENSITIVITY_CORPUS_SNAPSHOT_IDENTITIES is identity_set.corpus_snapshot_identities

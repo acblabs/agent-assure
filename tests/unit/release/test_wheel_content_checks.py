@@ -99,14 +99,10 @@ def test_required_archive_paths_include_every_v030_schema(tmp_path: Path) -> Non
             f"{fixture_kind}/synthetic-benefit-eligibility.json"
         ) in required
     assert "agent_assure/examples/process_equivalence_reproduction_index.json" in required
-    assert (
-        "agent_assure/examples/process_equivalence_benchmark_v0_2/benchmark.json"
-        in required
-    )
+    assert "agent_assure/examples/process_equivalence_benchmark_v0_2/benchmark.json" in required
     assert (
         "agent_assure/examples/process_equivalence_benchmark_v0_2/"
-        "inputs/synthetic-benefit-eligibility-008.json"
-        in required
+        "inputs/synthetic-benefit-eligibility-008.json" in required
     )
 
 
@@ -453,10 +449,7 @@ def test_required_sdist_paths_cover_installed_sources_and_resources() -> None:
 
     assert "src/agent_assure/rag/sensitivity.py" in required
     assert "src/agent_assure/examples/process_equivalence_reproduction_index.json" in required
-    assert (
-        "src/agent_assure/examples/process_equivalence_benchmark_v0_2/benchmark.json"
-        in required
-    )
+    assert "src/agent_assure/examples/process_equivalence_benchmark_v0_2/benchmark.json" in required
     assert "src/agent_assure/schema_resources/__init__.py" in required
     assert "schemas/__init__.py" not in required
     assert "schemas/v0.6.4/evidence-sensitivity-report.schema.json" in required
@@ -843,9 +836,7 @@ def test_sdist_metadata_cannot_carry_unscanned_bytes(
 ) -> None:
     sdist = tmp_path / "agent_assure-0.6.4.tar.gz"
     global_headers = (
-        {"comment": "sk-proj-abcdefghijklmnopqrstuvwxyz"}
-        if metadata_kind == "global-pax"
-        else None
+        {"comment": "sk-proj-abcdefghijklmnopqrstuvwxyz"} if metadata_kind == "global-pax" else None
     )
     with tarfile.open(
         sdist,

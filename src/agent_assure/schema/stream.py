@@ -119,9 +119,7 @@ class StreamEventRecord(PersistedArtifact):
         if self.observation.run_id != self.run_id:
             raise ValueError("stream event observation.run_id must match run_id")
         if self.observation.sequence_number != self.sequence_number:
-            raise ValueError(
-                "stream event observation.sequence_number must match sequence_number"
-            )
+            raise ValueError("stream event observation.sequence_number must match sequence_number")
         if (
             self.case_id is not None
             and self.observation.case_id is not None
@@ -148,9 +146,7 @@ class StreamDuplicateSummary(PersistedArtifact):
 
 
 class StreamIngestionDiagnostics(PersistedArtifact):
-    artifact_kind: Literal["stream-ingestion-diagnostics"] = (
-        "stream-ingestion-diagnostics"
-    )
+    artifact_kind: Literal["stream-ingestion-diagnostics"] = "stream-ingestion-diagnostics"
     stream_id: StreamRequiredLabel
     sequence_contract: StreamSequenceContract
     source_event_count: int = Field(ge=0)

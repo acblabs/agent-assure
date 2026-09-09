@@ -21,10 +21,8 @@
           "type": "boolean"
         },
         "primary": {
-          "const": "confirmatory",
-          "default": "confirmatory",
-          "title": "Primary",
-          "type": "string"
+          "$ref": "#/$defs/StudyInferenceScope",
+          "default": "confirmatory_independent_clusters"
         }
       },
       "title": "StudyAnalysisDeclaration",
@@ -412,8 +410,11 @@
           "type": "string"
         },
         "exchangeability_assumption": {
-          "const": "independent_exchangeable_binary_cluster_endpoints_within_condition",
           "default": "independent_exchangeable_binary_cluster_endpoints_within_condition",
+          "enum": [
+            "independent_exchangeable_binary_cluster_endpoints_within_condition",
+            "not_assumed_fixed_frame_descriptive_only"
+          ],
           "title": "Exchangeability Assumption",
           "type": "string"
         },
@@ -430,6 +431,10 @@
         },
         "independence_justification": {
           "$ref": "#/$defs/StudyIndependenceJustification"
+        },
+        "inference_scope": {
+          "$ref": "#/$defs/StudyInferenceScope",
+          "default": "confirmatory_independent_clusters"
         },
         "inferential_unit": {
           "const": "case_cluster",
@@ -527,6 +532,17 @@
       "title": "StudyHypothesisDecisionRule",
       "type": "object"
     },
+    "StudyIndependenceDesignBasis": {
+      "enum": [
+        "unresolved",
+        "randomized_independent_sampling",
+        "independently_generated_task_clusters",
+        "externally_validated_exchangeable_clusters",
+        "shared_template_parameter_grid"
+      ],
+      "title": "StudyIndependenceDesignBasis",
+      "type": "string"
+    },
     "StudyIndependenceJustification": {
       "additionalProperties": false,
       "description": "Structured author assertion; never machine proof of independence.",
@@ -536,6 +552,22 @@
           "minLength": 32,
           "title": "Dependence Risks And Mitigations",
           "type": "string"
+        },
+        "design_basis": {
+          "$ref": "#/$defs/StudyIndependenceDesignBasis"
+        },
+        "independence_audit_artifact_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Independence Audit Artifact Sha256"
         },
         "independence_basis": {
           "maxLength": 4096,
@@ -555,6 +587,9 @@
           "title": "Residual Scope Limitation",
           "type": "string"
         },
+        "semantic_near_duplicate_disposition": {
+          "$ref": "#/$defs/StudySemanticNearDuplicateDisposition"
+        },
         "software_verification_scope": {
           "const": "structure_and_presence_only_not_independence_truth",
           "default": "structure_and_presence_only_not_independence_truth",
@@ -567,6 +602,8 @@
       },
       "required": [
         "status",
+        "design_basis",
+        "semantic_near_duplicate_disposition",
         "inferential_unit_definition",
         "independence_basis",
         "dependence_risks_and_mitigations",
@@ -578,9 +615,18 @@
     "StudyIndependenceJustificationStatus": {
       "enum": [
         "unresolved_authoring_placeholder",
-        "author_asserted_design_basis_pending_qualified_review"
+        "author_asserted_design_basis_pending_qualified_review",
+        "fixed_frame_dependence_acknowledged"
       ],
       "title": "StudyIndependenceJustificationStatus",
+      "type": "string"
+    },
+    "StudyInferenceScope": {
+      "enum": [
+        "confirmatory_independent_clusters",
+        "fixed_frame_descriptive_conformance"
+      ],
+      "title": "StudyInferenceScope",
       "type": "string"
     },
     "StudyKnowledgeContract": {
@@ -693,6 +739,17 @@
       ],
       "title": "StudyRegistrationMethod",
       "type": "string"
+    },
+    "StudySemanticNearDuplicateDisposition": {
+      "enum": [
+        "unresolved",
+        "none_detected_by_digest_bound_audit",
+        "collapsed_to_independent_clusters",
+        "excluded_before_preregistration",
+        "fixed_frame_descriptive_only"
+      ],
+      "title": "StudySemanticNearDuplicateDisposition",
+      "type": "string"
     }
   },
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-manifest.schema.json",
@@ -705,7 +762,7 @@
         "exploratory_secondary_analyses_allowed": true,
         "llm_judge_endpoint_permitted": false,
         "pooling_permitted": false,
-        "primary": "confirmatory"
+        "primary": "confirmatory_independent_clusters"
       }
     },
     "artifact_kind": {

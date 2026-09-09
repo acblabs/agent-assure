@@ -153,13 +153,16 @@ def test_git_output_disables_repository_execution_hooks_and_unsafe_environment(
     monkeypatch.setenv("git_config_count", "1")
     monkeypatch.setenv("gIt_CoNfIg_KeY_0", "core.hooksPath")
 
-    assert artifact_io.git_output(
-        tmp_path,
-        "status",
-        "--porcelain=v1",
-        "--untracked-files=all",
-        allow_empty=True,
-    ) == ""
+    assert (
+        artifact_io.git_output(
+            tmp_path,
+            "status",
+            "--porcelain=v1",
+            "--untracked-files=all",
+            allow_empty=True,
+        )
+        == ""
+    )
 
     command = captured["args"]
     assert isinstance(command, list)
@@ -242,10 +245,7 @@ def test_collect_environment_records_a_clean_tree_as_false(
     ) -> str | None:
         if args == ("rev-parse", "HEAD"):
             return "a" * 40
-        if (
-            args == ("status", "--porcelain=v1", "--untracked-files=all")
-            and allow_empty
-        ):
+        if args == ("status", "--porcelain=v1", "--untracked-files=all") and allow_empty:
             return ""
         return None
 

@@ -10,10 +10,7 @@ def prefixed_usage_summary_lines(
     prefix: str,
     summary: UsageSummary | None,
 ) -> list[str]:
-    return [
-        line.replace("- ", f"- {prefix} ", 1)
-        for line in usage_summary_lines(summary)
-    ]
+    return [line.replace("- ", f"- {prefix} ", 1) for line in usage_summary_lines(summary)]
 
 
 def usage_summary_lines(summary: UsageSummary | None) -> list[str]:
@@ -26,10 +23,7 @@ def usage_summary_lines(summary: UsageSummary | None) -> list[str]:
         f"- latency ms: `{observed_int(summary.total_latency_ms)}`",
         _estimated_cost_line(summary),
     ]
-    if (
-        summary.estimated_cost_microusd is not None
-        and summary.cost_observation_count is not None
-    ):
+    if summary.estimated_cost_microusd is not None and summary.cost_observation_count is not None:
         cost_per_observation_value = cost_per_observation(
             summary.estimated_cost_microusd,
             summary.cost_observation_count,

@@ -6,16 +6,33 @@ receipt_id: replace-execution-review-id
 reviewed_at_utc: "2026-01-02T00:00:00Z"
 reviewer_pseudonym: replace-independent-reviewer-pseudonym
 
-# Every assertion is mandatory and must be literally true. Reviewer identity,
-# provider-account access, and the truth of these assertions are authenticated
-# out of band; the resulting JSON receipt only binds them to exact local bytes.
-reviewer_independent_of_execution: true
+# Every assertion deliberately starts false. The command rejects this untouched
+# template; change each assertion to true only after personally verifying it.
+# Reviewer identity, provider-account access, and the truth of these assertions
+# are authenticated out of band; the resulting JSON receipt only binds them to
+# exact local bytes.
+reviewer_independent_of_execution: false
 reviewer_independence_rationale: >-
   The reviewer did not execute, author, or operate the provider calls and
   independently compared the exact evidence with provider-side records.
-provider_log_and_account_review_confirmed: true
+provider_log_review_scope: >-
+  TODO: replace with the provider log export, account, execution window, request
+  classes, and response fields inspected without publishing secret values.
+# SHA-256 of the private provider-log export reviewed out of band. Repeated
+# character sentinels are rejected by the receipt schema.
+provider_log_evidence_digest: "0000000000000000000000000000000000000000000000000000000000000000"
+provider_account_review_scope: >-
+  TODO: replace with the provider usage or billing ledger, account scope, time
+  window, and reconciliation method used for the independent inspection.
+provider_account_evidence_digest: "0000000000000000000000000000000000000000000000000000000000000000"
+provider_log_and_account_review_confirmed: false
+provider_log_time_window_coverage_confirmed: false
+provider_account_usage_reconciled: false
 # Attest that the attempt journal and provider records exhaustively account for
 # every issued request, failure, retry, terminal response, and planned cell.
-exhaustive_attempt_failure_retry_accounting_confirmed: true
-provider_response_id_matches_confirmed: true
-exact_runset_artifact_digest_matches_confirmed: true
+exhaustive_attempt_failure_retry_accounting_confirmed: false
+provider_response_id_matches_confirmed: false
+exact_runset_artifact_digest_matches_confirmed: false
+# Fingerprints may be absent because a provider did not expose them; the built
+# receipt derives and visibly records that absence instead of silently passing.
+provider_serving_fingerprint_availability_reviewed: false

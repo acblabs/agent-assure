@@ -56,6 +56,12 @@ directory before package upload. For the v0.6.6 package release, the active
 schema is `0.6.6` and the candidate schema directory is `schemas/v0.6.6` until
 the matching tag freezes it.
 
+The `coverage-gate` status is a separate canonical Ubuntu/Python 3.11 lane. It
+requires all five exact coverage shards, combines only their named databases,
+and enforces both 80% combined statement/branch coverage and 65% pure branch
+coverage. It is a regression floor, not evidence of universal behavior or
+security coverage.
+
 ## Owner Setup
 
 Complete this setup before the first TestPyPI publish attempt:
@@ -74,8 +80,12 @@ Complete this setup before the first TestPyPI publish attempt:
    immediately before GitHub Release creation and requires the resulting commit
    to equal the signed workflow SHA; tag rules remain defense in depth against
    the unavoidable interval between that check and GitHub's release-create API.
-6. Restrict environment deployment branches/tags to the intended release refs.
-7. Do not store PyPI API tokens unless Trusted Publishing is unavailable.
+6. Protect the default branch with required CODEOWNER review and the aggregate
+   `coverage-gate` status. Do not require individual coverage shards in place of
+   the aggregate: the aggregate is the fail-closed check for complete shard
+   success and exact artifact inventory.
+7. Restrict environment deployment branches/tags to the intended release refs.
+8. Do not store PyPI API tokens unless Trusted Publishing is unavailable.
 
 ## Credential Timing
 
@@ -157,10 +167,26 @@ not authorize publication. Every TestPyPI or tagged-release path must instead
 run the ordered publish gate:
 
 ```bash
-make release-publish-check EXPECTED_RELEASE=0.6.6rc1 EMPIRICAL_STUDY_BUNDLE_ROOT=evidence/empirical/real-model-study EXTERNAL_PILOT_BUNDLE_ROOT=evidence/empirical/external-pilot EXTERNAL_PILOT_EVIDENCE=external-pilot-evidence.json EXTERNAL_PILOT_REVIEW_RECEIPT=external-pilot-independence-review.json
+make release-publish-check \
+  EXPECTED_RELEASE=0.6.6rc1 \
+  RELEASE_EFFICACY_PACKET=evidence/empirical/release-control-efficacy/evidence-packet.json \
+  RELEASE_EFFICACY_POLICY=evidence/empirical/release-control-efficacy/controls-mutation.yaml \
+  RELEASE_EFFICACY_ARTIFACT_ROOT=. \
+  EMPIRICAL_STUDY_BUNDLE_ROOT=evidence/empirical/real-model-study \
+  EXTERNAL_PILOT_BUNDLE_ROOT=evidence/empirical/external-pilot \
+  EXTERNAL_PILOT_EVIDENCE=external-pilot-evidence.json \
+  EXTERNAL_PILOT_REVIEW_RECEIPT=external-pilot-independence-review.json
 ```
 
-That target validates the exact self-digested study report, the pilot evidence
+The target first gates the separately staged release control-efficacy packet
+with `--release-profile` and the verifier-owned controls-mutation policy.
+Both paths are mandatory and absence fails closed. Regenerate the campaign and
+packet in trusted CI from pinned inputs before staging them: schema and digest
+verification does not independently prove that the recorded mutations ran.
+This bounded detector check is necessary for an efficacy-bearing release claim,
+but is not publication authorization.
+
+The target then validates the exact self-digested study report, the pilot evidence
 descriptor, a separately persisted human independence-review receipt, every
 referenced pilot artifact byte, and the fixed
 committed Process-Equivalence Benchmark v0.2. The Make target does not expose a
@@ -416,8 +442,9 @@ gh workflow run release.yml --ref main \
 
 Do not create or push `v0.6.6` manually. The pre-tag run checks that the SHA is
 a full commit ID on the default branch, the stable version and collateral match,
-the tag does not already exist, the worktree is clean, the empirical checkpoint
-passes, and a fresh job reproduces every future signing input. Only then does
+the tag does not already exist, the worktree is clean, the strict release
+efficacy and empirical checkpoints pass, and a fresh job reproduces every
+future signing input. Only then does
 the separately protected `release-tag` job create one annotated tag bound to
 that SHA. Because tag creation with `GITHUB_TOKEN` does not recursively trigger
 a push workflow, the job explicitly dispatches `release.yml` at the new tag.

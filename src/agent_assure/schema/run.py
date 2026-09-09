@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from enum import StrEnum
 from typing import Literal
 
 from pydantic import ConfigDict, Field, model_validator
@@ -218,6 +219,54 @@ class ClaimEvidenceLink(PersistedArtifact):
                 field_name="evidence_ref_id",
             )
         return self
+
+
+# Producer provenance only: instrumented_adapter is a trusted declaration, not
+# independent attestation of the adapter or its upstream system.
+class StructuredFieldOrigin(StrEnum):
+    fixture = "fixture"
+    runner_observed = "runner_observed"
+    instrumented_adapter = "instrumented_adapter"
+    model_self_report = "model_self_report"
+    legacy_unspecified = "legacy_unspecified"
+
+
+StructuredFieldName = Literal[
+    "recommendation",
+    "outcome",
+    "output_summary",
+    "tools",
+    "evidence_refs",
+    "evidence_items",
+    "claims",
+    "claim_evidence_links",
+    "policy_results",
+    "human_review_required",
+    "human_review_performed",
+]
+
+
+class StructuredFieldOrigins(FrozenStrictModel):
+    recommendation: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    outcome: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    output_summary: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    tools: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    evidence_refs: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    evidence_items: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    claims: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    claim_evidence_links: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    policy_results: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    human_review_required: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+    human_review_performed: StructuredFieldOrigin = StructuredFieldOrigin.legacy_unspecified
+
+    @classmethod
+    def uniform(cls, origin: StructuredFieldOrigin) -> StructuredFieldOrigins:
+        return cls.model_validate({field_name: origin for field_name in cls.model_fields})
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def _coerce_origins(cls, value: object) -> StructuredFieldOrigin:
+        return coerce_enum(StructuredFieldOrigin, value)
 
 
 class PolicyResult(PersistedArtifact):
@@ -518,6 +567,10 @@ class AgentRunRecord(PersistedArtifact):
     policy_results: tuple[PolicyResult, ...] = ()
     human_review_required: bool = False
     human_review_performed: bool = False
+    structured_field_origins: StructuredFieldOrigins | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     usage_ledger: UsageLedger | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
@@ -615,6 +668,58 @@ class AgentRunRecord(PersistedArtifact):
         return self
 
     @model_validator(mode="after")
+    def _validate_structured_field_origin_coherence(self) -> AgentRunRecord:
+        if self.structured_field_origins is None:
+            return self
+        origins = set(self.structured_field_origins.model_dump(mode="python").values())
+        if StructuredFieldOrigin.runner_observed in origins:
+            if origins != {StructuredFieldOrigin.runner_observed}:
+                raise ValueError("runner-observed error records require uniform field origins")
+            runtime_policy_is_valid = (
+                len(self.policy_results) == 1
+                and self.policy_results[0].policy_id == "runtime.live"
+                and self.policy_results[0].state is GateState.fail
+                and self.policy_results[0].severity is Severity.blocker
+            )
+            process_fields_are_empty = not any(
+                (
+                    self.tools,
+                    self.evidence_refs,
+                    self.evidence_items,
+                    self.claims,
+                    self.claim_evidence_links,
+                    self.human_review_required,
+                    self.human_review_performed,
+                )
+            )
+            if not (
+                self.execution_mode is ExecutionMode.live
+                and self.observation_status == "excluded"
+                and self.recommendation == "error"
+                and self.outcome in {"excluded", "runtime_error"}
+                and runtime_policy_is_valid
+                and process_fields_are_empty
+            ):
+                raise ValueError(
+                    "runner-observed origins are reserved for runner-generated error records"
+                )
+            return self
+        allowed: set[StructuredFieldOrigin] = set()
+        if self.execution_mode is ExecutionMode.fixture:
+            allowed.add(StructuredFieldOrigin.fixture)
+            allowed.add(StructuredFieldOrigin.instrumented_adapter)
+        else:
+            adapter_origin = {
+                "static-jsonl": StructuredFieldOrigin.fixture,
+                "openai-chat-completions": StructuredFieldOrigin.model_self_report,
+                "external-script": StructuredFieldOrigin.instrumented_adapter,
+            }.get(self.adapter_id or "", StructuredFieldOrigin.instrumented_adapter)
+            allowed.add(adapter_origin)
+        if not origins <= allowed:
+            raise ValueError("structured field origins conflict with execution mode or adapter")
+        return self
+
+    @model_validator(mode="after")
     def _validate_live_metadata(self) -> AgentRunRecord:
         validate_usage_field_paths_schema_version(
             self.schema_version,
@@ -695,6 +800,82 @@ class AgentRunRecord(PersistedArtifact):
         if self.observation_status == "excluded" and not self.exclusion_reason:
             raise ValueError("excluded live run records require exclusion_reason")
         return self
+
+
+def structured_field_origin(
+    run: AgentRunRecord,
+    field_name: StructuredFieldName,
+) -> StructuredFieldOrigin:
+    origins = run.structured_field_origins
+    declared = (
+        StructuredFieldOrigin.legacy_unspecified
+        if origins is None
+        else getattr(origins, field_name)
+    )
+    if declared is not StructuredFieldOrigin.legacy_unspecified:
+        return declared
+    if run.execution_mode is ExecutionMode.fixture:
+        return StructuredFieldOrigin.fixture
+    return StructuredFieldOrigin.legacy_unspecified
+
+
+_CONTROL_ELIGIBLE_STRUCTURED_ORIGINS = frozenset(
+    {
+        StructuredFieldOrigin.fixture,
+        StructuredFieldOrigin.runner_observed,
+        StructuredFieldOrigin.instrumented_adapter,
+    }
+)
+
+
+def structured_field_is_control_eligible(
+    run: AgentRunRecord,
+    field_name: StructuredFieldName,
+) -> bool:
+    return structured_field_origin(run, field_name) in _CONTROL_ELIGIBLE_STRUCTURED_ORIGINS
+
+
+_PROCESS_SEQUENCE_FIELDS: tuple[StructuredFieldName, ...] = (
+    "tools",
+    "evidence_refs",
+    "evidence_items",
+    "claims",
+    "claim_evidence_links",
+    "policy_results",
+)
+_PROCESS_BOOLEAN_FIELDS: tuple[StructuredFieldName, ...] = (
+    "human_review_required",
+    "human_review_performed",
+)
+
+
+def control_eligible_process_projection(run: AgentRunRecord) -> AgentRunRecord:
+    updates: dict[str, object] = {}
+    for field_name in _PROCESS_SEQUENCE_FIELDS:
+        if structured_field_is_control_eligible(run, field_name):
+            continue
+        if field_name == "tools":
+            # A self-reported forbidden tool remains a conservative negative
+            # signal; tool presence is never used as affirmative proof here.
+            continue
+        if field_name == "policy_results":
+            # Untrusted passes cannot satisfy a policy, but reducing provenance
+            # trust must not erase pre-existing fail/warn/not-evaluated signals.
+            updates[field_name] = tuple(
+                result for result in run.policy_results if result.state is not GateState.pass_
+            )
+            continue
+        if not structured_field_is_control_eligible(run, field_name):
+            updates[field_name] = ()
+    for field_name in _PROCESS_BOOLEAN_FIELDS:
+        if structured_field_is_control_eligible(run, field_name):
+            continue
+        if field_name == "human_review_required" and run.human_review_required:
+            # An untrusted requirement can still make the outcome stricter.
+            continue
+        if not structured_field_is_control_eligible(run, field_name):
+            updates[field_name] = False
+    return run.model_copy(update=updates)
 
 
 class RunSet(PersistedArtifact):

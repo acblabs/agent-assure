@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import unicodedata
-from decimal import Decimal, localcontext
+from decimal import ROUND_HALF_EVEN, Context, Decimal, localcontext
 from math import isfinite
 from typing import Any
 
@@ -25,8 +25,15 @@ def normalize_decimal(value: Decimal | str) -> str:
         raise CanonicalizationError(ReasonCode.NON_FINITE_NUMBER, "decimal quantum is not finite")
     fractional_places = abs(quantum_exponent)
     integer_digits = max(decimal.adjusted() + 1, 1)
-    with localcontext() as context:
-        context.prec = max(context.prec, integer_digits + fractional_places + 1)
+    # Canonical bytes must not inherit process-global Decimal rounding or trap
+    # settings. The extra digit admits a carry into the integer part when the
+    # discarded fraction rounds upward.
+    with localcontext(
+        Context(
+            prec=integer_digits + fractional_places + 1,
+            rounding=ROUND_HALF_EVEN,
+        )
+    ):
         return format(decimal.quantize(DECIMAL_QUANTUM), "f")
 
 

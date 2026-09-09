@@ -1,11 +1,22 @@
 # External Pilot Quickstart
 
+> **Maintainer deployment status:** the checked-in pilot workflows currently
+> contain a zero execution-source sentinel and stop immediately. Do not recruit
+> or dispatch them. First create and validate the implementation source commit
+> `S`; then, in a later trusted workflow/docs commit `W`, pin both workflows to
+> `S` and remove the refusal step. Recruit only from `W`.
+
 This is a two-stage GitHub Actions pilot for one person who is not an
 `acblabs/agent-assure` maintainer. Target participant effort is 10–15 minutes;
 the CI jobs may run longer. It uses the deterministic offline controls-mutation
 workflow. No participant-supplied model/provider API key, proprietary data,
 repository secret, or maintainer access is needed. GitHub supplies its normal
 short-lived, read-only workflow token.
+
+The public PyPI/GitHub release remains `0.6.5`. This workflow evaluates an
+unreleased `0.6.6` pre-candidate built from the exact execution-source revision
+named below; it must not be described as a published release or release
+candidate.
 
 The result is privacy-filtered onboarding-learning evidence. It is not an
 endorsement, adoption claim, customer testimonial, third-party audit, safety or
@@ -20,11 +31,17 @@ You qualify as the operator only when all of these are true:
 - you are not an Agent Assure maintainer;
 - you control the fork and its Actions settings;
 - no `acblabs` maintainer configures, dispatches, or operates either run; and
-- you can use one pseudonym and commit one benign participant-authored input.
+- you can use one pseudonym and commit one benign participant-authored input;
+  and
+- you use the workflow's pinned `ubuntu-24.04` GitHub-hosted runner. Self-hosted
+  runners are not eligible for this pilot.
 
 GitHub hosting and a fork do not prove independence by themselves. A later
 reviewer checks repository control out of band. `acblabs` may perform that
 review only if it did not operate or alter your pilot.
+
+If you clone the repository locally on Windows, use a short checkout root such
+as `C:\pilot\agent-assure`; deep checkout paths can exceed legacy Git path limits.
 
 Do not use your GitHub name as the pseudonym. A pseudonym reduces direct
 identification; it is not anonymity. The kit rejects exact matches to the
@@ -72,8 +89,13 @@ will not run unless you explicitly consent to the temporary handoff storage.
    temporary-storage scope only if you consent to it, then attest environment
    control only if that statement is true.
 
-The capture workflow builds the immutable upstream `0.6.6` source revision
-pinned in the workflow,
+The recruitment handoff names two immutable revisions. The
+`TRUSTED_WORKFLOW_REVISION` identifies the upstream workflow and documentation
+bytes you must copy and run. The distinct `EXECUTION_SOURCE_REVISION`, pinned
+inside those workflow bytes, identifies the upstream unreleased `0.6.6`
+pre-candidate source used to build the tested wheel. A workflow revision cannot
+generally equal the source revision it embeds. The capture workflow builds that
+immutable execution source,
 runs one exact catalog-based `controls mutate` command, and uploads a 14-day
 artifact named `external-pilot-capture-<run-id>-<attempt>`. Record the numeric
 run ID and attempt number from the run page.
@@ -95,10 +117,12 @@ account. Supply the capture run ID and attempt number.
 
 - Select `no_friction_observed` only if installation, configuration,
   diagnostics, CI execution, runtime, and the instructions caused no material
-  onboarding friction.
-- Otherwise select `friction_observed` and its primary category. The candidate
-  will honestly record a planned onboarding remediation and remain gated until
-  an applicable remediation is actually applied and reviewed.
+  onboarding friction. Select `not_applicable` for both category and
+  remediation; leave both revision fields as `none`.
+- Otherwise select `friction_observed` and its primary category. For the first
+  finalization select `planned` and leave both revision fields as `none`. The
+  candidate remains gated until an applicable remediation is actually applied
+  and independently reviewed.
 - Re-attest environment control only if the original statement remains true.
 - Grant publication only if you prospectively authorize the outcome-dependent
   privacy-filtered scope below: the evidence descriptor, the later byte-bound
@@ -111,8 +135,35 @@ account. Supply the capture run ID and attempt number.
   random opaque binding, so possession of both stages permits correlation.
   The committed-input digests can also be matched to the public fork's waiver
   bytes.
-- Declining is allowed. Stop after Stage 1 or leave the publication box
-  unchecked; Stage 2 then produces no public candidate.
+- Declining is allowed: do not dispatch Stage 2. If you opened Stage 2 by
+  mistake, leave publication unchecked; the run then fails closed with a red
+  diagnostic and produces no public candidate.
+
+The first item in each choice list is `select_one_required`; it is deliberately
+invalid so the UI cannot silently record a substantive answer. If Stage 2
+rejects an input, its `::error` annotation explains which choice or attestation
+must be corrected. Never select a statement that is not true merely to make the
+job green.
+
+### If reported friction is later remediated
+
+Do not edit the planned candidate. After an upstream fix is committed, rerun
+Stage 2 from the same fork/account against the unchanged Stage-1 capture:
+
+1. keep `friction_observed` and the original category;
+2. select `applied`;
+3. enter the full lowercase upstream remediation commit SHA; and
+4. enter the `pilot_evidence_digest` from the prior planned candidate.
+
+The workflow verifies that the remediation commit is a later upstream
+descendant of the tested execution source. It then creates a new candidate with
+a remediation record binding that commit and the prior immutable candidate,
+and asks for publication consent again for the new bytes. The reviewer must
+inspect both candidates and confirm that the referenced change actually
+addresses the reported friction. This route records applied project learning;
+it does not claim the old execution tested the fix. To demonstrate that the fix
+removed the friction, perform a fresh Stage-1/Stage-2 attempt after the trusted
+workflow is intentionally repinned to a new green execution source.
 
 For a completed, no-friction attempt, the candidate inventory is:
 
@@ -128,8 +179,10 @@ For a completed, no-friction attempt, the candidate inventory is:
 - `publication-consent.json`.
 
 A non-completing attempt omits the campaign output. An observed-friction
-candidate adds `remediation-record.json`. The consent record enumerates the
-actual inventory, including itself, before the evidence descriptor is built.
+candidate adds `remediation-record.json`; an applied re-finalization also binds
+the prior candidate digest and later remediation revision. The consent record
+enumerates the actual inventory, including itself, before the evidence
+descriptor is built.
 
 The second run uploads a mechanically verified, closed pre-review candidate
 named `external-pilot-candidate-<capture-run-id>-<attempt>`. Its descriptor may

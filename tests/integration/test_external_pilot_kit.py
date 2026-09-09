@@ -4,7 +4,9 @@ import json
 import os
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -264,6 +266,87 @@ def test_failed_attempt_requires_observed_friction_and_records_planned_follow_up
     assert evidence.remediations[0].disposition is PilotRemediationDisposition.planned
 
 
+def test_applied_remediation_refinalizes_without_mutating_the_planned_candidate(
+    tmp_path: Path,
+    built_wheel: Path,
+) -> None:
+    capture_root, _capture_record = _capture(tmp_path, built_wheel)
+    planned_root = tmp_path / "planned-candidate"
+    planned = finalize_external_pilot_capture(
+        capture_root=capture_root,
+        bundle_root=planned_root,
+        expected_source_revision=SOURCE_REVISION,
+        capture_run_id="4004",
+        capture_run_attempt="1",
+        friction_assessment="friction_observed",
+        friction_category="documentation",
+        remediation_disposition="planned",
+        publication_consent_granted=True,
+        non_maintainer_control_attested=True,
+        environment=_ci_environment(run_id="5005"),
+    )
+    planned_bytes = {path.name: path.read_bytes() for path in planned_root.iterdir()}
+
+    applied_root = tmp_path / "applied-candidate"
+    applied = finalize_external_pilot_capture(
+        capture_root=capture_root,
+        bundle_root=applied_root,
+        expected_source_revision=SOURCE_REVISION,
+        capture_run_id="4004",
+        capture_run_attempt="1",
+        friction_assessment="friction_observed",
+        friction_category="documentation",
+        remediation_disposition="applied",
+        remediation_source_revision="b" * 40,
+        prior_candidate_evidence_digest=planned.pilot_evidence_digest,
+        publication_consent_granted=True,
+        non_maintainer_control_attested=True,
+        environment=_ci_environment(run_id="6006"),
+    )
+
+    assert applied.remediations[0].disposition is PilotRemediationDisposition.applied
+    remediation = json.loads((applied_root / "remediation-record.json").read_text("utf-8"))
+    assert remediation["remediation_source_revision"] == "b" * 40
+    assert remediation["prior_planned_candidate_evidence_digest"] == (planned.pilot_evidence_digest)
+    assert {path.name: path.read_bytes() for path in planned_root.iterdir()} == planned_bytes
+
+
+@pytest.mark.parametrize(
+    ("source_revision", "prior_digest", "message"),
+    (
+        (None, "f" * 64, "full lowercase Git commit"),
+        ("b" * 40, None, "prior planned candidate digest"),
+        (SOURCE_REVISION, "f" * 64, "postdate the tested source"),
+    ),
+)
+def test_applied_remediation_requires_complete_non_self_referential_bindings(
+    tmp_path: Path,
+    built_wheel: Path,
+    source_revision: str | None,
+    prior_digest: str | None,
+    message: str,
+) -> None:
+    capture_root, _capture_record = _capture(tmp_path, built_wheel)
+
+    with pytest.raises(ValueError, match=message):
+        finalize_external_pilot_capture(
+            capture_root=capture_root,
+            bundle_root=tmp_path / "invalid-applied-candidate",
+            expected_source_revision=SOURCE_REVISION,
+            capture_run_id="4004",
+            capture_run_attempt="1",
+            friction_assessment="friction_observed",
+            friction_category="documentation",
+            remediation_disposition="applied",
+            remediation_source_revision=source_revision,
+            prior_candidate_evidence_digest=prior_digest,
+            publication_consent_granted=True,
+            non_maintainer_control_attested=True,
+            environment=_ci_environment(run_id="5005"),
+        )
+    assert not (tmp_path / "invalid-applied-candidate").exists()
+
+
 def test_finalization_fails_closed_without_consent_or_the_same_actor(
     tmp_path: Path,
     built_wheel: Path,
@@ -444,6 +527,7 @@ def test_capture_rejects_a_pseudonym_equal_to_a_known_ci_identifier(
 @pytest.mark.parametrize(
     "rationale",
     (
+        "   ",
         "replace-with-a-short-benign-participant-rationale",
         "x" * 257,
     ),
@@ -455,6 +539,25 @@ def test_capture_requires_a_bounded_participant_authored_rationale(
 ) -> None:
     with pytest.raises(ValueError, match="rationale must be participant-authored"):
         _capture(tmp_path, built_wheel, rationale=rationale)
+
+
+def test_benign_participant_waiver_validator_rejects_an_empty_rationale() -> None:
+    waiver = SimpleNamespace(
+        waiver_id="external-pilot-participant-001",
+        owner="participant-001",
+        reviewer="participant-001",
+        reason_code=SimpleNamespace(value="FORBIDDEN_TOOL"),
+        finding_id="pilot-nonmatching-finding",
+        artifact_digest="0" * 64,
+        expires_on=date(2099, 12, 31),
+        rationale="",
+    )
+
+    with pytest.raises(ValueError, match="rationale must be participant-authored"):
+        pilot_kit._validate_benign_participant_waiver(
+            (waiver,),
+            participant_pseudonym="participant-001",
+        )
 
 
 def test_capture_requires_the_exact_fixed_benign_waiver_boundary(

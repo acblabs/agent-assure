@@ -7,7 +7,13 @@ ROOT = Path(__file__).resolve().parents[3]
 CAPTURE = ROOT / ".github" / "workflows" / "external-pilot-capture.yml"
 FINALIZE = ROOT / ".github" / "workflows" / "external-pilot-finalize.yml"
 KIT = ROOT / "src" / "agent_assure" / "external_pilot_kit.py"
+CI_WORKFLOWS = tuple(
+    ROOT / ".github" / "workflows" / name for name in ("ci.yml", "docs.yml", "security.yml")
+)
 VOLUNTEER_ISSUE = ROOT / "docs" / "templates" / "external_pilot_volunteer_issue.md"
+REVIEW_TEMPLATE = ROOT / "docs" / "templates" / "external_pilot_independence_review.yaml"
+CODEOWNERS = ROOT / ".github" / "CODEOWNERS"
+RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 ZERO_REVISION = "0" * 40
 UPSTREAM_REF = re.compile(r"repository: acblabs/agent-assure\n\s+ref: ([0-9a-f]{40})")
 PINNED_ACTIONS = {
@@ -49,8 +55,9 @@ def test_external_pilot_workflows_are_manual_least_privilege_and_use_only_automa
         assert '(.fork == true) and (.parent.full_name == "acblabs/agent-assure")' in workflow
         assert "ACTOR: ${{ github.actor }}" in workflow
         assert "TRIGGERING_ACTOR: ${{ github.triggering_actor }}" in workflow
-        assert 'test "${TRIGGERING_ACTOR}" = "${ACTOR}"' in workflow
-        assert 'test "${REPOSITORY_OWNER,,}" != "acblabs"' in workflow
+        assert '[[ "${TRIGGERING_ACTOR}" = "${ACTOR}" ]]' in workflow
+        assert '[[ "${REPOSITORY_OWNER,,}" != "acblabs" ]]' in workflow
+        assert "::error title=External pilot" in workflow
         assert "AGENT_ASSURE_PILOT_PARENT_REPOSITORY: acblabs/agent-assure" in workflow
         assert "runs-on: ubuntu-24.04" in workflow
         assert 'python-version: "3.11.14"' in workflow
@@ -109,16 +116,34 @@ def test_external_pilot_workflows_pin_actions_and_upload_explicit_inventories() 
     )
 
 
-def test_external_pilot_workflows_share_a_replaced_immutable_upstream_revision() -> None:
+def test_external_pilot_workflows_fail_closed_until_the_source_commit_is_pinned() -> None:
     capture = CAPTURE.read_text(encoding="utf-8")
     finalize = FINALIZE.read_text(encoding="utf-8")
 
     capture_revision = _upstream_revision(capture)
     finalize_revision = _upstream_revision(finalize)
-    assert capture_revision == finalize_revision
-    assert capture_revision != ZERO_REVISION
+    assert capture_revision == finalize_revision == ZERO_REVISION
+    for workflow in (capture, finalize):
+        assert workflow.count("Refuse an unfinalized execution-source pin") == 1
+        assert "External pilot unavailable" in workflow
+        assert "Do not recruit or dispatch this workflow." in workflow
+        assert workflow.index("Refuse an unfinalized execution-source pin") < workflow.index(
+            "uses: actions/"
+        )
     assert "ref: main" not in capture
     assert "ref: main" not in finalize
+
+
+def test_external_pilot_build_epoch_matches_the_release_build_epoch() -> None:
+    release = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+    capture = CAPTURE.read_text(encoding="utf-8")
+    finalize = FINALIZE.read_text(encoding="utf-8")
+    epoch = re.search(r'SOURCE_DATE_EPOCH: "([0-9]+)"', release)
+
+    assert epoch is not None
+    expected = f'SOURCE_DATE_EPOCH: "{epoch.group(1)}"'
+    assert expected in capture
+    assert expected in finalize
 
 
 def test_volunteer_issue_requires_an_immutable_trusted_workflow_revision() -> None:
@@ -126,6 +151,61 @@ def test_volunteer_issue_requires_an_immutable_trusted_workflow_revision() -> No
 
     assert "blob/main" not in issue
     assert "blob/TRUSTED_WORKFLOW_REVISION/docs/external_pilot_quickstart.md" in issue
+    assert "do not post this issue" in issue
+    assert "zero execution-source sentinel/refusal step" in issue
+
+
+def test_pilot_integrity_surfaces_have_precise_codeowners() -> None:
+    codeowners = CODEOWNERS.read_text(encoding="utf-8")
+
+    for pattern in (
+        "/src/agent_assure/cli/release_cmd.py @acblabs",
+        "/src/agent_assure/external_pilot_kit.py @acblabs",
+        "/src/agent_assure/pilot_bundle.py @acblabs",
+        "/src/agent_assure/schema/pilot.py @acblabs",
+        "/docs/external_pilot*.md @acblabs",
+        "/docs/templates/external_pilot* @acblabs",
+    ):
+        assert pattern in codeowners
+
+
+def test_reviewer_template_requires_deliberate_attestations() -> None:
+    template = REVIEW_TEMPLATE.read_text(encoding="utf-8")
+
+    attestation_fields = (
+        "manual_approval_is_trust_root",
+        "reviewer_independent_of_pilot_execution",
+        "environment_control_evidence_reviewed",
+        "artifact_inventory_reviewed",
+        "tested_distribution_provenance_reviewed",
+        "command_input_bindings_reviewed",
+        "execution_time_input_content_digests_reviewed",
+        "input_semantic_identities_reviewed",
+        "complete_bundle_publication_consent_reviewed",
+        "workflow_bytes_match_trusted_revision",
+        "run_head_shas_reviewed",
+        "workflow_run_urls_reviewed",
+        "trusted_workflow_bytes_reviewed",
+        "execution_source_pins_reviewed",
+        "public_workflow_inputs_reviewed",
+        "friction_and_remediation_disposition_reviewed",
+        "friction_category_and_remediation_bindings_reviewed",
+        "privacy_boundary_reviewed",
+    )
+    for field in attestation_fields:
+        assert f"{field}: true" not in template
+        assert f"{field}: false" in template
+    assert "review_outcome: replace-after-review" in template
+
+
+def test_pilot_only_pushes_skip_unrelated_jobs_without_weakening_pr_or_schedule() -> None:
+    workflows = {path.name: path.read_text(encoding="utf-8") for path in CI_WORKFLOWS}
+
+    for workflow in workflows.values():
+        assert 'paths-ignore:\n      - "agent-assure-pilot/**"' in workflow
+        assert "pull_request:" in workflow
+    assert "schedule:" in workflows["security.yml"]
+    assert "workflow_dispatch:" in workflows["security.yml"]
 
 
 def test_capture_requires_informed_temporary_storage_consent() -> None:
@@ -142,13 +222,26 @@ def test_capture_requires_informed_temporary_storage_consent() -> None:
     assert (
         "TEMPORARY_STORAGE_CONSENT_GRANTED: ${{ inputs.consent_to_temporary_actions_storage }}"
     ) in capture
-    assert 'test "${TEMPORARY_STORAGE_CONSENT_GRANTED}" = "true"' in capture
+    assert '[[ "${TEMPORARY_STORAGE_CONSENT_GRANTED}" = "true" ]]' in capture
     assert "--temporary-storage-consent-granted" in capture
     assert capture.count("retention-days: 14") == 1
     assert (
         "I authorize documented prospective publication, 14-day fork storage/read "
         "access, and input-digest/opaque correlation"
     ) in finalize
+
+
+def test_finalization_uses_neutral_choices_and_a_bound_applied_remediation_transition() -> None:
+    finalize = FINALIZE.read_text(encoding="utf-8")
+
+    assert finalize.count("- select_one_required") == 3
+    assert "- not_applicable" in finalize
+    assert "remediation_source_revision:" in finalize
+    assert "prior_candidate_evidence_digest:" in finalize
+    assert "/compare/${EXPECTED_SOURCE_REVISION}...${REMEDIATION_SOURCE_REVISION}" in finalize
+    assert '--remediation-disposition "${REMEDIATION_DISPOSITION}"' in finalize
+    assert '--remediation-source-revision "${REMEDIATION_SOURCE_REVISION}"' in finalize
+    assert '--prior-candidate-evidence-digest "${PRIOR_CANDIDATE_EVIDENCE_DIGEST}"' in finalize
 
 
 def test_external_pilot_uses_clean_locked_isolated_environments() -> None:

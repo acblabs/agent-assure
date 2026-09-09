@@ -45,6 +45,7 @@ from tests.unit.study.test_real_model_study import (
     _manifest,
     _rebind_evidence_to_manifest,
 )
+from tests.unit.study.test_study_semantic_hardening import _fixed_frame_manifest
 
 
 def _ready_inputs() -> tuple[
@@ -69,20 +70,40 @@ def _verified_study(
     actual_manifest = manifest or fixture.manifest  # type: ignore[attr-defined]
     actual_report = report or _analyze(fixture)  # type: ignore[arg-type]
     actual_evidence = evidence or fixture.evidence_by_condition  # type: ignore[attr-defined]
+    fixed_frame = (
+        actual_manifest.hypothesis_decision_rule.inference_scope.value
+        == "fixed_frame_descriptive_conformance"
+    )
+    independence_acceptance_rationale = (
+        "Independent audit review confirms the shared-template parameter grid cannot "
+        "support independent-cluster inference and requires descriptive scope."
+        if fixed_frame
+        else "Independent audit review supports the synthetic generator's separate "
+        "cluster construction for this bounded deterministic test design."
+    )
+    near_duplicate_review_rationale = (
+        "The digest-bound audit identified shared-template semantic dependence and "
+        "the approved fixed-frame downscope prevents pseudoreplicated inference."
+        if fixed_frame
+        else "Every synthetic cluster was compared and the audit found no unhandled "
+        "semantic duplicate counted as a separate unit."
+    )
     execution_review_receipt = None
     statistical_method_review_receipt = None
     if include_statistical_method_review and all(
         binding.execution_origin is StudyExecutionOrigin.real_provider
-        for binding in fixture.manifest.conditions
+        for binding in actual_manifest.conditions
     ):
         statistical_method_review_receipt = build_study_statistical_method_review_receipt(
-            manifest=fixture.manifest,
+            manifest=actual_manifest,
             benchmark=fixture.benchmark,
             protocols=fixture.protocols,
             receipt_id="synthetic-statistical-method-review",
             reviewed_at_utc="2025-01-15T00:00:00Z",
             reviewer_pseudonym="independent-synthetic-statistician",
             reviewer_statistical_qualification_confirmed=True,
+            reviewer_qualification_basis_types=("professional_statistical_practice",),
+            reviewer_qualification_evidence_digest="0123456789abcdef" * 4,
             reviewer_qualification_basis=(
                 "Training and applied experience in clustered exact binomial inference."
             ),
@@ -90,6 +111,11 @@ def _verified_study(
             reviewer_independence_rationale=(
                 "The test reviewer did not design, execute, or analyze this study."
             ),
+            independence_design_basis_reviewed_and_accepted=True,
+            independence_acceptance_rationale=independence_acceptance_rationale,
+            semantic_near_duplicate_audit_reviewed=True,
+            semantic_near_duplicate_pseudoreplication_rejected=True,
+            semantic_near_duplicate_review_rationale=near_duplicate_review_rationale,
             benchmark_cluster_assignments_reviewed=True,
             independence_and_exchangeability_assumptions_reviewed=True,
             sampling_frame_and_estimand_reviewed=True,
@@ -99,14 +125,14 @@ def _verified_study(
         )
     if include_execution_review and all(
         binding.execution_origin is StudyExecutionOrigin.real_provider
-        for binding in fixture.manifest.conditions
+        for binding in actual_manifest.conditions
     ):
         execution_review_receipt = build_study_execution_review_receipt(
-            manifest=fixture.manifest,
+            manifest=actual_manifest,
             benchmark=fixture.benchmark,
             protocols=fixture.protocols,
-            report=_analyze(fixture),
-            evidence=fixture.evidence_by_condition,
+            report=actual_report,
+            evidence=actual_evidence,
             receipt_id="synthetic-execution-review",
             reviewed_at_utc="2025-04-01T00:00:00Z",
             reviewer_pseudonym="independent-synthetic-reviewer",
@@ -114,10 +140,23 @@ def _verified_study(
             reviewer_independence_rationale=(
                 "The deterministic test reviewer did not operate the provider execution."
             ),
+            provider_log_review_scope=(
+                "The reviewer inspected every synthetic provider log event across the full "
+                "registered execution window and all request classes."
+            ),
+            provider_log_evidence_digest="1234567890abcdef" * 4,
+            provider_account_review_scope=(
+                "The reviewer reconciled the synthetic account usage ledger for the full "
+                "execution window against every dispatched request."
+            ),
+            provider_account_evidence_digest="abcdef0123456789" * 4,
             provider_log_and_account_review_confirmed=True,
+            provider_log_time_window_coverage_confirmed=True,
+            provider_account_usage_reconciled=True,
             exhaustive_attempt_failure_retry_accounting_confirmed=True,
             provider_response_id_matches_confirmed=True,
             exact_runset_artifact_digest_matches_confirmed=True,
+            provider_serving_fingerprint_availability_reviewed=True,
         )
     return ValidatedStudyBundle._from_verified_bytes(
         manifest=actual_manifest,
@@ -233,6 +272,42 @@ def test_publication_eligible_study_and_external_attempt_satisfy_checkpoint_only
     assert assessment.checkpoint_ready is True
     assert assessment.blocking_reasons == ()
     _assert_later_release_gates_closed(assessment)
+
+
+def test_fixed_frame_descriptive_bundle_can_never_satisfy_sprint7_checkpoint() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    manifest = _fixed_frame_manifest(fixture)
+    evidence = _rebind_evidence_to_manifest(fixture, manifest)
+    report = analyze_real_model_study(
+        manifest=manifest,
+        benchmark=fixture.benchmark,
+        protocols=fixture.protocols,
+        evidence=evidence,
+    )
+    bundle = _verified_study(
+        fixture,
+        manifest=manifest,
+        report=report,
+        evidence=evidence,
+    )
+
+    assert bundle.is_scoped_descriptive_publication_ready is True
+    assert bundle.is_publication_ready is False
+
+    assessment = assess_empirical_readiness(
+        bundle,
+        _verified_pilot(_external_evidence()),
+        fixture.benchmark,
+    )
+
+    assert assessment.study_inference_scope == "fixed_frame_descriptive_conformance"
+    assert assessment.study_inferential_statistics_applicable is False
+    assert assessment.study_scoped_descriptive_publication_ready is True
+    assert assessment.study_confirmatory_inference_satisfied is False
+    assert assessment.study_evidence_satisfied is False
+    assert assessment.checkpoint_ready is False
+    assert "real-model-study-fixed-frame-descriptive-only" in assessment.blocking_reasons
+    assert "real-model-study-not-satisfied" in assessment.blocking_reasons
 
 
 @pytest.mark.parametrize(

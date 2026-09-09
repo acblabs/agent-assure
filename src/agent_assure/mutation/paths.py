@@ -144,9 +144,7 @@ def _collect_structural_changed_paths(
         if len(source) != len(candidate):
             changed.append(pointer)
             return
-        for index, (source_item, candidate_item) in enumerate(
-            zip(source, candidate, strict=True)
-        ):
+        for index, (source_item, candidate_item) in enumerate(zip(source, candidate, strict=True)):
             _collect_structural_changed_paths(
                 source_item,
                 candidate_item,

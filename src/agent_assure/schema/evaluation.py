@@ -121,9 +121,7 @@ class EvaluationGateProfileContext(FrozenStrictModel):
     @model_validator(mode="after")
     def _require_fail_filter(self) -> EvaluationGateProfileContext:
         if not self.fail_severities and not self.fail_reason_codes:
-            raise ValueError(
-                "evaluation replay gate profile requires at least one fail filter"
-            )
+            raise ValueError("evaluation replay gate profile requires at least one fail filter")
         return self
 
 
@@ -291,9 +289,7 @@ class EvaluationSummary(PersistedArtifact):
         if self.schema_version in V063_CONTRACT_SCHEMA_VERSIONS and not self.runset_id:
             raise ValueError("current evaluation summaries require a non-empty runset_id")
         if self.schema_version == SCHEMA_VERSION and self.runset_digest is None:
-            raise ValueError(
-                "current evaluation summaries require an authenticated runset_digest"
-            )
+            raise ValueError("current evaluation summaries require an authenticated runset_digest")
         return self
 
     @model_validator(mode="after")

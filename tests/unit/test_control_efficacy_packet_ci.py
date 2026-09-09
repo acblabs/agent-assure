@@ -890,16 +890,24 @@ def test_legacy_comparison_packet_requires_explicit_unbound_compatibility() -> N
     assert evaluation.runset_digest != authenticated_comparison.candidate_runset_digest
     assert downgraded_comparison.candidate_runset_digest is None
 
-    default_direct = ci_module.gate_evidence_packet(packet)
-    default_routed = gate_artifact(packet)
+    default_direct = ci_module.gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
+    default_routed = gate_artifact(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
     standalone_default = ci_module.gate_comparison_summary(downgraded_comparison)
     allowed_direct = ci_module.gate_evidence_packet(
         packet,
         allow_legacy_unbound_comparison=True,
+        allow_missing_efficacy_for_migration=True,
     )
     allowed_routed = gate_artifact(
         packet,
         allow_legacy_unbound_comparison=True,
+        allow_missing_efficacy_for_migration=True,
     )
     standalone_allowed = ci_module.gate_comparison_summary(
         downgraded_comparison,
@@ -935,14 +943,17 @@ def test_legacy_unbound_override_must_be_consumed_by_the_target() -> None:
         ci_module.gate_evidence_packet(
             no_comparison,
             allow_legacy_unbound_comparison=True,
+            allow_missing_efficacy_for_migration=True,
         ),
         gate_artifact(
             no_comparison,
             allow_legacy_unbound_comparison=True,
+            allow_missing_efficacy_for_migration=True,
         ),
         ci_module.gate_evidence_packet(
             bound_comparison,
             allow_legacy_unbound_comparison=True,
+            allow_missing_efficacy_for_migration=True,
         ),
         ci_module.gate_comparison_summary(
             comparison,
@@ -985,7 +996,10 @@ def test_packet_preserves_not_evaluated_outcome() -> None:
     )
     packet = _build_packet(evaluation)
 
-    decision = gate_artifact(packet)
+    decision = gate_artifact(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.exit_code == 0
     assert decision.outcome is GateOutcome.not_evaluated
@@ -1021,7 +1035,10 @@ def test_packet_aggregation_routes_explicit_outcomes_without_parsing_messages(
         lambda *_args, **_kwargs: component,
     )
 
-    decision = ci_module.gate_evidence_packet(packet)
+    decision = ci_module.gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is outcome
     assert decision.exit_code == exit_code
@@ -1064,7 +1081,10 @@ def test_packet_aggregation_preserves_review_over_not_evaluated_precedence(
         lambda *_args, **_kwargs: review,
     )
 
-    decision = ci_module.gate_evidence_packet(packet)
+    decision = ci_module.gate_evidence_packet(
+        packet,
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert decision.outcome is GateOutcome.review
     assert decision.exit_code == 0
@@ -1292,7 +1312,10 @@ def test_coherent_v061_packet_remains_loadable_writable_and_gateable(
     output = tmp_path / "round-tripped-evidence-packet.json"
     write_evidence_packet(legacy_packet, output)
     reloaded = load_evidence_packet(output)
-    gate = gate_artifact(load_gate_artifact(output))
+    gate = gate_artifact(
+        load_gate_artifact(output),
+        allow_missing_efficacy_for_migration=True,
+    )
 
     assert legacy_packet.schema_version == "0.6.1"
     assert legacy_packet.evaluation.schema_version == "0.6.1"

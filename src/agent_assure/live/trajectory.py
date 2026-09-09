@@ -32,15 +32,18 @@ from agent_assure.schema.live import (
     TrajectoryState,
     TrajectoryTransitionSummary,
 )
-from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    RunSet,
+    control_eligible_process_projection,
+)
 from agent_assure.schema.runtime import EmergencyProcessRecord
 
 _TrajectoryStatus = Literal["valid", "exploratory", "invalid"]
 _APPROVAL_OUTCOMES = {"approve", "approved", "approval"}
 _BASE_LIMITATIONS = (
     "trajectory analysis is derived from privacy-filtered structured artifacts",
-    "trajectory and event-process outputs are review signals and are not "
-    "release-verdict gates",
+    "trajectory and event-process outputs are review signals and are not release-verdict gates",
     "path coverage over observed records is not proof that unsafe paths are impossible",
     "burst-window screens are exploratory reliability diagnostics until event-volume "
     "prerequisites and external review support stronger use",
@@ -56,6 +59,7 @@ def build_live_trajectory_report(
     _verify_binding(runset, evaluation_report, protocol)
     plan = protocol.trajectory_analysis_plan or _default_trajectory_plan()
     emergency_by_observation, emergency_by_run = _emergency_indexes(runset.emergency_records)
+    process_runs = tuple(control_eligible_process_projection(run) for run in runset.runs)
     paths = tuple(
         _path_summary(
             run,
@@ -65,12 +69,12 @@ def build_live_trajectory_report(
                 *emergency_by_run.get(run.run_id, ()),
             ),
         )
-        for run, observation in zip(runset.runs, evaluation_report.observations, strict=True)
+        for run, observation in zip(process_runs, evaluation_report.observations, strict=True)
     )
     transitions = _transition_summaries(paths, plan=plan)
-    invariants = _invariant_results(plan, runset.runs, evaluation_report.observations, paths)
+    invariants = _invariant_results(plan, process_runs, evaluation_report.observations, paths)
     history_dependent_checks = _history_dependent_checks(
-        runset.runs,
+        process_runs,
         evaluation_report.observations,
         paths,
     )
@@ -80,14 +84,17 @@ def build_live_trajectory_report(
         plan=plan,
     )
     status = _trajectory_status(plan, paths, transitions, invariants, event_processes)
-    report_id = "live-trajectory-" + sha256_hexdigest(
-        {
-            "protocol_digest": sha256_hexdigest(protocol),
-            "trajectory_plan": plan,
-            "runset_id": runset.runset_id,
-            "evaluation_runset_id": evaluation_report.runset_id,
-        }
-    )[:16]
+    report_id = (
+        "live-trajectory-"
+        + sha256_hexdigest(
+            {
+                "protocol_digest": sha256_hexdigest(protocol),
+                "trajectory_plan": plan,
+                "runset_id": runset.runset_id,
+                "evaluation_runset_id": evaluation_report.runset_id,
+            }
+        )[:16]
+    )
     transition_status = _transition_assumption_status(plan, paths)
     limitations = list(_BASE_LIMITATIONS)
     if transition_status != "met":
@@ -183,15 +190,10 @@ def _verify_binding(
         raise ValueError("trajectory report requires the RunSet used by the evaluation report")
     if runset.suite_id != report.suite_id or runset.suite_version != report.suite_version:
         raise ValueError("trajectory RunSet and live evaluation report reference different suites")
-    if (
-        runset.suite_digest != protocol.suite_digest
-        or report.suite_digest != protocol.suite_digest
-    ):
+    if runset.suite_digest != protocol.suite_digest or report.suite_digest != protocol.suite_digest:
         raise ValueError("trajectory suite_digest binding does not match protocol")
     if report.configuration_digest != runset.fixture_manifest_digest:
-        raise ValueError(
-            "trajectory evaluation report configuration_digest does not match RunSet"
-        )
+        raise ValueError("trajectory evaluation report configuration_digest does not match RunSet")
     if runset.protocol_id != protocol.protocol_id or runset.protocol_digest != protocol_digest:
         raise ValueError("trajectory RunSet protocol binding does not match protocol")
     if report.protocol_id != protocol.protocol_id or report.protocol_digest != protocol_digest:
@@ -352,9 +354,7 @@ def _invariant_result(
     state = GateState.not_evaluated
     if affected and status != "invalid":
         state = (
-            GateState.fail
-            if invariant.category == "governance_control_failure"
-            else GateState.warn
+            GateState.fail if invariant.category == "governance_control_failure" else GateState.warn
         )
     return TrajectoryInvariantResult(
         artifact_kind="trajectory-invariant-result",
@@ -437,8 +437,7 @@ def _history_dependent_checks(
         _history_dependent_check(
             check_id="retry-provider-history",
             dependency=(
-                "retry events depend on prior provider-call attempts, not only current "
-                "state"
+                "retry events depend on prior provider-call attempts, not only current state"
             ),
             affected=retry_affected,
             evaluated=len(paths),
@@ -586,9 +585,7 @@ def _event_process_summary(
         observation_window_seconds=(
             decimal_string(window_seconds) if window_seconds is not None else None
         ),
-        mean_interarrival_seconds=(
-            decimal_string(mean_gap) if mean_gap is not None else None
-        ),
+        mean_interarrival_seconds=(decimal_string(mean_gap) if mean_gap is not None else None),
         max_events_in_burst_window=max_burst,
         burst_window_seconds=plan.burst_window_seconds,
         burst_signal=burst_signal,
@@ -734,10 +731,7 @@ def _has_ordered_timestamps(started: str | None, completed: str | None) -> bool:
 def _mean_gap_seconds(values: tuple[datetime, ...]) -> Decimal | None:
     if len(values) < 2:
         return None
-    gaps = tuple(
-        Decimal(str((right - left).total_seconds()))
-        for left, right in pairwise(values)
-    )
+    gaps = tuple(Decimal(str((right - left).total_seconds())) for left, right in pairwise(values))
     if not gaps:
         return None
     return mean_decimal(gaps)

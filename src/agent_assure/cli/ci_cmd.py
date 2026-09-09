@@ -58,6 +58,17 @@ def ci(
         ReportMode,
         typer.Option("--report-mode", help="Report all findings or stop after the first blocker."),
     ] = "full",
+    release_profile: Annotated[
+        bool,
+        typer.Option(
+            "--release-profile",
+            help=(
+                "Apply the release-facing CI efficacy policy only (not publication "
+                "authorization): evidence packet only, verifier-owned policy required, "
+                "strict efficacy, and warnings/not-evaluated findings block."
+            ),
+        ),
+    ] = False,
     waiver: Annotated[
         list[Path] | None,
         typer.Option("--waiver", exists=True, readable=True, help="Waiver JSON or YAML file."),
@@ -95,8 +106,18 @@ def ci(
         typer.Option(
             "--require-efficacy",
             help=(
-                "Require an evidence packet to carry control-efficacy evidence. "
-                "Supplying --efficacy-policy implies this requirement."
+                "Explicitly restate the default evidence-packet efficacy requirement. "
+                "Supplying --efficacy-policy also requires the evidence."
+            ),
+        ),
+    ] = False,
+    allow_missing_efficacy_for_migration: Annotated[
+        bool,
+        typer.Option(
+            "--allow-missing-efficacy-for-migration",
+            help=(
+                "Allow an evidence packet without efficacy only for a temporary, "
+                "non-assurance migration; the decision records the weaker profile."
             ),
         ),
     ] = False,
@@ -155,7 +176,34 @@ def ci(
     if output_format not in {"text", "json"}:
         raise typer.BadParameter("--format must be text or json")
     argv = tuple(args or ())
-    if argv and argv[0] == "gate":
+    is_gate = bool(argv and argv[0] == "gate")
+    if allow_missing_efficacy_for_migration:
+        if release_profile or require_efficacy or efficacy_policy is not None:
+            raise typer.BadParameter(
+                "--allow-missing-efficacy-for-migration cannot be combined with "
+                "--release-profile, --require-efficacy, or --efficacy-policy"
+            )
+    if release_profile:
+        if not is_gate:
+            raise typer.BadParameter("--release-profile is only valid with ci gate")
+        if efficacy_policy is None:
+            raise typer.BadParameter("--release-profile requires --efficacy-policy")
+        if not strict_efficacy:
+            raise typer.BadParameter(
+                "--release-profile cannot be combined with --allow-advisory-efficacy"
+            )
+        if allow_sensitivity_non_verdict:
+            raise typer.BadParameter(
+                "--release-profile cannot be combined with --allow-sensitivity-non-verdict"
+            )
+        if allow_legacy_unbound_comparison:
+            raise typer.BadParameter(
+                "--release-profile cannot be combined with --allow-legacy-unbound-comparison"
+            )
+        fail_on_warn = True
+        fail_on_not_evaluated = True
+        require_efficacy = True
+    if is_gate:
         _gate_existing_artifact(
             argv,
             fail_on_warn=fail_on_warn,
@@ -163,12 +211,14 @@ def ci(
             efficacy_policy=efficacy_policy,
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
+            allow_missing_efficacy_for_migration=(allow_missing_efficacy_for_migration),
             require_evidence_sensitivity=require_evidence_sensitivity,
             require_stochastic_evidence_sensitivity=(require_stochastic_evidence_sensitivity),
             allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
             allow_legacy_unbound_comparison=allow_legacy_unbound_comparison,
             output_format=output_format,
             artifact_root=artifact_root,
+            release_profile=release_profile,
         )
         return
     if artifact_root is not None:
@@ -221,6 +271,7 @@ def ci(
             waivers=load_waivers(waiver_paths),
             today=parse_cli_date(today),
             source_input_paths=waiver_paths,
+            allow_missing_efficacy_for_migration=(allow_missing_efficacy_for_migration),
         )
     except (OSError, ValueError) as exc:
         if output_format == "json":
@@ -233,6 +284,14 @@ def ci(
         result.decision,
         artifact_kind=result.decision.artifact_kind or "evidence-packet",
         artifact_path=result.decision.artifact_path or str(result.packet_path),
+        message=(
+            result.decision.message
+            + (
+                " policy_profile=non-assurance-migration"
+                if allow_missing_efficacy_for_migration
+                else ""
+            )
+        ),
     )
     _emit_decision(
         decision,
@@ -291,12 +350,14 @@ def _gate_existing_artifact(
     efficacy_policy: Path | None,
     strict_efficacy: bool,
     require_efficacy: bool,
+    allow_missing_efficacy_for_migration: bool,
     require_evidence_sensitivity: bool,
     require_stochastic_evidence_sensitivity: bool,
     allow_sensitivity_non_verdict: bool,
     allow_legacy_unbound_comparison: bool,
     output_format: str,
     artifact_root: Path | None,
+    release_profile: bool,
 ) -> None:
     if len(argv) != 2:
         raise typer.BadParameter("ci gate requires SUMMARY_OR_PACKET_JSON")
@@ -322,6 +383,18 @@ def _gate_existing_artifact(
             else None
         )
         loaded_artifact = load_gate_artifact(artifact)
+        if release_profile and not isinstance(loaded_artifact, EvidencePacket):
+            raise ValueError("--release-profile requires an evidence packet")
+        if allow_missing_efficacy_for_migration:
+            if not isinstance(loaded_artifact, EvidencePacket):
+                raise ValueError(
+                    "--allow-missing-efficacy-for-migration requires an evidence packet"
+                )
+            if loaded_artifact.control_efficacy is not None:
+                raise ValueError(
+                    "--allow-missing-efficacy-for-migration is unused because the "
+                    "evidence packet already carries control-efficacy evidence"
+                )
         trusted_artifact_root = None
         if isinstance(loaded_artifact, EvidencePacket):
             if loaded_artifact.release_manifest is not None:
@@ -341,7 +414,8 @@ def _gate_existing_artifact(
             fail_on_not_evaluated=fail_on_not_evaluated,
             verifier_efficacy_policy=verifier_policy,
             strict_efficacy=strict_efficacy,
-            require_efficacy=require_efficacy,
+            require_efficacy=True if require_efficacy else None,
+            allow_missing_efficacy_for_migration=(allow_missing_efficacy_for_migration),
             require_evidence_sensitivity=require_evidence_sensitivity,
             require_stochastic_evidence_sensitivity=(require_stochastic_evidence_sensitivity),
             allow_sensitivity_non_verdict=allow_sensitivity_non_verdict,
@@ -356,10 +430,20 @@ def _gate_existing_artifact(
                 require_efficacy=require_efficacy or efficacy_policy is not None,
             )
         raise typer.BadParameter(sanitize_display_text(exc)) from exc
+    policy_profile_suffix = (
+        " policy_profile=release"
+        if release_profile
+        else (
+            " policy_profile=non-assurance-migration"
+            if allow_missing_efficacy_for_migration
+            else ""
+        )
+    )
     decision = replace(
         decision,
         artifact_kind=decision.artifact_kind or loaded_artifact.artifact_kind,
         artifact_path=decision.artifact_path or str(artifact),
+        message=f"{decision.message}{policy_profile_suffix}",
     )
     _emit_decision(decision, output_format=output_format)
     if decision.exit_code:

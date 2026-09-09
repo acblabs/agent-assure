@@ -264,12 +264,8 @@ def _synthetic_adk_events(
                         node_name="review_agent",
                         review_route=review_route,
                         privacy_filtered_attributes={
-                            "human_review_required": (
-                                _observed_human_review_required(variant)
-                            ),
-                            "human_review_performed": (
-                                _observed_human_review_performed(variant)
-                            ),
+                            "human_review_required": (_observed_human_review_required(variant)),
+                            "human_review_performed": (_observed_human_review_performed(variant)),
                         },
                     )
                 }

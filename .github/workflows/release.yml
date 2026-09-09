@@ -58,6 +58,9 @@ env:
   EXTERNAL_PILOT_BUNDLE_ROOT: evidence/empirical/external-pilot
   EXTERNAL_PILOT_EVIDENCE: external-pilot-evidence.json
   EXTERNAL_PILOT_REVIEW_RECEIPT: external-pilot-independence-review.json
+  RELEASE_EFFICACY_PACKET: evidence/empirical/release-control-efficacy/evidence-packet.json
+  RELEASE_EFFICACY_POLICY: evidence/empirical/release-control-efficacy/controls-mutation.yaml
+  RELEASE_EFFICACY_ARTIFACT_ROOT: .
 
 jobs:
   build:

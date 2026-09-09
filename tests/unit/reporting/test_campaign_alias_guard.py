@@ -183,16 +183,12 @@ def test_campaign_alias_guard_resolves_output_once_and_compares_only_existing(
         out,
     )
 
-    expected_protected_count = (
-        4 + (3 * campaign_reporting.CAMPAIGN_OPERATOR_FILENAME_INDEX_LIMIT)
-    )
+    expected_protected_count = 4 + (3 * campaign_reporting.CAMPAIGN_OPERATOR_FILENAME_INDEX_LIMIT)
     assert len(protected_filenames) == expected_protected_count
     assert "operator-255-mutated-runset.json" in protected_filenames
     assert resolved_calls == [(source, True) for source in sources]
     assert existing_path_calls == [(out, frozenset(protected_filenames))]
-    assert same_file_calls == [
-        (source, existing_destination) for source in sources
-    ]
+    assert same_file_calls == [(source, existing_destination) for source in sources]
 
 
 def test_existing_protected_paths_falls_back_to_fixed_lstat_after_scan_bound(
@@ -201,15 +197,11 @@ def test_existing_protected_paths_falls_back_to_fixed_lstat_after_scan_bound(
 ) -> None:
     out = tmp_path / "out"
     out.mkdir()
-    protected_filenames = frozenset(
-        campaign_reporting._all_protected_output_filenames()
-    )
+    protected_filenames = frozenset(campaign_reporting._all_protected_output_filenames())
     stale_filename = "operator-255-mutated-runset.json"
     entries = tuple(
         SimpleNamespace(name=f"unrelated-{index:04d}")
-        for index in range(
-            campaign_reporting._ALIAS_GUARD_DIRECTORY_SCAN_LIMIT + 1
-        )
+        for index in range(campaign_reporting._ALIAS_GUARD_DIRECTORY_SCAN_LIMIT + 1)
     )
     lstat_calls: list[Path] = []
 
@@ -234,8 +226,6 @@ def test_existing_protected_paths_falls_back_to_fixed_lstat_after_scan_bound(
     )
 
     assert existing == (out / stale_filename,)
-    expected_protected_count = (
-        4 + (3 * campaign_reporting.CAMPAIGN_OPERATOR_FILENAME_INDEX_LIMIT)
-    )
+    expected_protected_count = 4 + (3 * campaign_reporting.CAMPAIGN_OPERATOR_FILENAME_INDEX_LIMIT)
     assert len(lstat_calls) == expected_protected_count
     assert {path.name for path in lstat_calls} == protected_filenames

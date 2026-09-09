@@ -547,6 +547,68 @@
       "title": "Severity",
       "type": "string"
     },
+    "StructuredFieldOrigin": {
+      "enum": [
+        "fixture",
+        "runner_observed",
+        "instrumented_adapter",
+        "model_self_report",
+        "legacy_unspecified"
+      ],
+      "title": "StructuredFieldOrigin",
+      "type": "string"
+    },
+    "StructuredFieldOrigins": {
+      "additionalProperties": false,
+      "properties": {
+        "claim_evidence_links": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "claims": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "evidence_items": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "evidence_refs": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "human_review_performed": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "human_review_required": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "outcome": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "output_summary": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "policy_results": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "recommendation": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        },
+        "tools": {
+          "$ref": "#/$defs/StructuredFieldOrigin",
+          "default": "legacy_unspecified"
+        }
+      },
+      "title": "StructuredFieldOrigins",
+      "type": "object"
+    },
     "UsageLedger": {
       "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. JSON Schema validates shape and non-negative counts.",
       "additionalProperties": false,
@@ -2053,6 +2115,17 @@
       ],
       "default": null,
       "title": "Started At Utc"
+    },
+    "structured_field_origins": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StructuredFieldOrigins"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "tools": {
       "default": [],

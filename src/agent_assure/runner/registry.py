@@ -41,9 +41,7 @@ def get_runner(runner_id: str) -> RunnerCallable:
             return _RUNNER_REGISTRY[runner_id]
         except KeyError as exc:
             known = ", ".join(sorted(_RUNNER_REGISTRY)) or "<none>"
-            raise KeyError(
-                f"unknown runner_id {runner_id!r}; registered runners: {known}"
-            ) from exc
+            raise KeyError(f"unknown runner_id {runner_id!r}; registered runners: {known}") from exc
 
 
 def registered_runner_ids() -> tuple[str, ...]:

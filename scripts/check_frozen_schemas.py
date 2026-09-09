@@ -75,11 +75,7 @@ def compare_schema_dirs(expected_dir: Path, actual_dir: Path) -> list[str]:
 
 
 def _schema_files(root: Path) -> set[Path]:
-    return {
-        path.relative_to(root)
-        for path in root.rglob("*.schema.json")
-        if path.is_file()
-    }
+    return {path.relative_to(root) for path in root.rglob("*.schema.json") if path.is_file()}
 
 
 def _resolve_path(path: Path) -> Path:

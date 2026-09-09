@@ -7,7 +7,8 @@ import time
 from collections.abc import Callable, Iterator, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
+from email.utils import parsedate_to_datetime
 from pathlib import Path
 from typing import Literal
 from uuid import uuid5
@@ -50,7 +51,12 @@ from agent_assure.live.identity import (
     LIVE_PROVIDER_REQUEST_ENVELOPE_ID,
 )
 from agent_assure.live.output_contract import (
+    OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
+    OPENAI_DECISION_OUTPUT_CONTRACT_ID,
+    OPENAI_DECISION_RESPONSE_FORMAT_JSON,
     LiveOutputContractError,
+    LiveStructuredRecord,
+    parse_live_decision_content,
     parse_live_structured_content,
 )
 from agent_assure.live.paths import resolve_live_config_path
@@ -63,7 +69,13 @@ from agent_assure.runner.subprocess_harness import emergency_from_exception
 from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.provenance import Provenance
-from agent_assure.schema.run import AgentRunRecord, PolicyResult, RunSet
+from agent_assure.schema.run import (
+    AgentRunRecord,
+    PolicyResult,
+    RunSet,
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
+)
 from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.sensitivity import (
     MAX_SENSITIVITY_DOCUMENTS,
@@ -86,6 +98,7 @@ LIVE_TERMINAL_STOP_REASONS = frozenset(
         "cost_budget_exceeded_after_response",
         "generated_token_budget_exhausted_before_attempt",
         "generated_token_budget_exceeded_after_response",
+        "provider_retry_directive_rejected",
         "rate_limit_budget_exhausted",
         "token_budget_exhausted_before_attempt",
         "token_budget_exceeded_after_response",
@@ -96,6 +109,8 @@ LIVE_RUNSET_STOP_REASONS_ALLOWING_UNISSUED_TAIL = frozenset(
         *LIVE_TERMINAL_STOP_REASONS,
         "budget_exhausted",
         "generated_token_budget_exhausted",
+        "provider_response_excluded",
+        "structured_output_invalid",
         "request_budget_exhausted",
         "token_budget_exhausted",
     }
@@ -118,6 +133,12 @@ class LiveBudgetExceededError(ValueError):
     def __init__(self, stop_reason: str, message: str) -> None:
         super().__init__(message)
         self.stop_reason = stop_reason
+
+
+class LiveRetryDirectiveError(ValueError):
+    """A provider retry directive that cannot be followed within the frozen policy."""
+
+    stop_reason = "provider_retry_directive_rejected"
 
 
 @dataclass
@@ -202,12 +223,27 @@ class LiveExecutionSnapshot:
     case_authority_bindings: tuple[RAGSensitivityCaseAuthorityBinding, ...]
     case_authority_manifest_digest: str | None
     adapter_resource: LiveAdapterResourceSnapshot | None
+    structured_output_contract_id: str | None = None
+    structured_output_contract_digest: str | None = None
+    provider_response_format_json: str | None = None
 
     def prompt_by_case(self) -> dict[str, str]:
         return dict(self.prompts)
 
     def prompt_digest_by_case(self) -> dict[str, str]:
         return dict(self.prompt_digests)
+
+
+def _structured_output_contract(
+    config: LiveRunConfig,
+) -> tuple[str | None, str | None, str | None]:
+    if config.adapter.adapter_id != "openai-chat-completions":
+        return None, None, None
+    return (
+        OPENAI_DECISION_OUTPUT_CONTRACT_ID,
+        OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
+        OPENAI_DECISION_RESPONSE_FORMAT_JSON,
+    )
 
 
 def _snapshot_sha256(value: object, *, label: str) -> str:
@@ -337,6 +373,14 @@ def _validate_live_execution_snapshot(
         _snapshot_sha256(prompt_digest, label="prompt digest")
     if prompt_digests != tuple(expected_prompt_digests):
         raise ValueError("live execution snapshot prompt digest does not match exact prompt bytes")
+
+    actual_output_contract = (
+        snapshot.structured_output_contract_id,
+        snapshot.structured_output_contract_digest,
+        snapshot.provider_response_format_json,
+    )
+    if actual_output_contract != _structured_output_contract(config):
+        raise ValueError("live execution snapshot structured output contract mismatches adapter")
 
     knowledge_contract: RAGSensitivityKnowledgeContract | None = None
     if snapshot.knowledge_contract is not None:
@@ -685,6 +729,9 @@ def _validate_live_execution_snapshot(
         case_authority_bindings=case_authority_bindings,
         case_authority_manifest_digest=case_authority_manifest_digest,
         adapter_resource=adapter_resource,
+        structured_output_contract_id=snapshot.structured_output_contract_id,
+        structured_output_contract_digest=snapshot.structured_output_contract_digest,
+        provider_response_format_json=snapshot.provider_response_format_json,
     )
 
 
@@ -928,6 +975,9 @@ def run_live_suite(
                 if snapshot.knowledge_contract is not None
                 else config.knowledge_contract_digest
             ),
+            structured_output_contract_id=snapshot.structured_output_contract_id,
+            structured_output_contract_digest=snapshot.structured_output_contract_digest,
+            provider_response_format_json=snapshot.provider_response_format_json,
             allow_case_only_static_response=config.repetitions == 1,
             traceparent=trace_context.traceparent,
             tracestate=trace_context.tracestate,
@@ -1083,6 +1133,10 @@ def run_live_suite(
                 latency_ms=latency_ms,
                 trace_context=trace_context,
             )
+            if response.observation_status == "excluded":
+                stop_reasons.add("provider_response_excluded")
+                if config.fail_fast_on_excluded_response:
+                    terminal_stop_reason = "provider_response_excluded"
         except Exception as exc:
             if isinstance(exc, LiveAttemptObserverError):
                 raise
@@ -1093,11 +1147,18 @@ def run_live_suite(
                 stop_reasons.add(exc.stop_reason)
                 if exc.stop_reason in LIVE_TERMINAL_STOP_REASONS:
                     terminal_stop_reason = exc.stop_reason
+            if isinstance(exc, LiveRetryDirectiveError):
+                stop_reasons.add(exc.stop_reason)
+                terminal_stop_reason = exc.stop_reason
+            if isinstance(exc, LiveOutputContractError):
+                stop_reasons.add("structured_output_invalid")
+                if config.fail_fast_on_excluded_response:
+                    terminal_stop_reason = "structured_output_invalid"
             reason_code = (
                 ReasonCode.STRUCTURED_OUTPUT_INVALID
                 if isinstance(exc, LiveOutputContractError)
                 else ReasonCode.POLICY_FAILED
-                if isinstance(exc, LiveBudgetExceededError)
+                if isinstance(exc, (LiveBudgetExceededError, LiveRetryDirectiveError))
                 else ReasonCode.RUNTIME_FAILED
             )
             category = (
@@ -1108,6 +1169,8 @@ def run_live_suite(
                 and exc.stop_reason in LIVE_ACCOUNTING_UNAVAILABLE_STOP_REASONS
                 else "live_budget_exceeded_after_response"
                 if isinstance(exc, LiveBudgetExceededError)
+                else "live_provider_retry_directive_rejected"
+                if isinstance(exc, LiveRetryDirectiveError)
                 else "live_adapter_error"
             )
             latency_ms = monotonic_ms(start)
@@ -1132,7 +1195,9 @@ def run_live_suite(
                 trace_context=trace_context,
                 response=response,
                 exclusion_reason=(
-                    exc.stop_reason if isinstance(exc, LiveBudgetExceededError) else None
+                    exc.stop_reason
+                    if isinstance(exc, (LiveBudgetExceededError, LiveRetryDirectiveError))
+                    else None
                 ),
                 cost_budget_committed_usd=observation_committed_cost,
                 generated_token_budget_committed=(observation_committed_generated_tokens),
@@ -1162,6 +1227,21 @@ def run_live_suite(
     )
 
 
+def _uniform_structured_field_origins(
+    origin: StructuredFieldOrigin,
+) -> StructuredFieldOrigins:
+    return StructuredFieldOrigins.uniform(origin)
+
+
+def _adapter_structured_field_origins(adapter_id: str) -> StructuredFieldOrigins:
+    origin = {
+        "static-jsonl": StructuredFieldOrigin.fixture,
+        "openai-chat-completions": StructuredFieldOrigin.model_self_report,
+        "external-script": StructuredFieldOrigin.instrumented_adapter,
+    }.get(adapter_id, StructuredFieldOrigin.instrumented_adapter)
+    return _uniform_structured_field_origins(origin)
+
+
 def _record_from_response(
     compiled: CompiledSuite,
     config: LiveRunConfig,
@@ -1184,7 +1264,16 @@ def _record_from_response(
     latency_ms: int,
     trace_context: RuntimeTraceContext,
 ) -> AgentRunRecord:
-    payload = parse_live_structured_content(response.content)
+    if config.adapter.adapter_id == "openai-chat-completions":
+        decision = parse_live_decision_content(response.content)
+        payload = LiveStructuredRecord(
+            recommendation=decision.recommendation,
+            outcome=decision.outcome,
+            output_summary=decision.output_summary,
+        )
+    else:
+        payload = parse_live_structured_content(response.content)
+    field_origins = _adapter_structured_field_origins(config.adapter.adapter_id)
     blocking_policy_failure = any(
         result.state is GateState.fail and result.severity is Severity.blocker
         for result in payload.policy_results
@@ -1267,6 +1356,7 @@ def _record_from_response(
             "policy_results": payload.policy_results,
             "human_review_required": payload.human_review_required,
             "human_review_performed": payload.human_review_performed,
+            "structured_field_origins": field_origins.model_dump(mode="json"),
             "provenance": _provenance(
                 config,
                 configuration_digest,
@@ -1380,6 +1470,9 @@ def _error_record(
         cost_budget_committed_usd=_cost_string(cost_budget_committed_usd),
         generated_token_budget_committed=generated_token_budget_committed,
         total_token_budget_committed=total_token_budget_committed,
+        structured_field_origins=_uniform_structured_field_origins(
+            StructuredFieldOrigin.runner_observed
+        ),
         policy_results=(
             PolicyResult(
                 artifact_kind="policy-result",
@@ -1588,12 +1681,13 @@ def _complete_with_retries(
                     "request_budget_exhausted",
                     "configured max_requests was exhausted before a retry",
                 ) from exc
-            attempt_state.retry_count += 1
+            next_retry_count = attempt_state.retry_count + 1
             _sleep_before_retry(
                 config,
-                attempt_state.retry_count,
+                next_retry_count,
                 _retry_after_seconds(exc),
             )
+            attempt_state.retry_count = next_retry_count
             continue
         _notify_attempt_observer(
             attempt_observer,
@@ -1635,9 +1729,14 @@ def _sleep_before_retry(
         raise RuntimeError("configured retry backoff exceeds the hard safety limit")
     if retry_after_seconds is not None:
         if retry_after_seconds < 0:
-            raise RuntimeError("provider Retry-After must not be negative")
+            raise LiveRetryDirectiveError(
+                "provider Retry-After metadata is invalid; live execution stopped before retry"
+            )
         if retry_after_seconds > maximum:
-            raise RuntimeError("provider Retry-After exceeds configured retry_max_backoff_seconds")
+            raise LiveRetryDirectiveError(
+                "provider Retry-After exceeds the configured retry ceiling; "
+                "live execution stopped before retry"
+            )
         seconds = retry_after_seconds
     else:
         seconds = min(maximum, initial * (Decimal(2) ** max(retry_count - 1, 0)))
@@ -1645,7 +1744,11 @@ def _sleep_before_retry(
         time.sleep(float(seconds))
 
 
-def _retry_after_seconds(exc: Exception) -> Decimal | None:
+def _retry_after_seconds(
+    exc: Exception,
+    *,
+    now_utc: datetime | None = None,
+) -> Decimal | None:
     value = getattr(exc, "retry_after_seconds", None)
     if value is None:
         headers = getattr(exc, "headers", None)
@@ -1655,13 +1758,43 @@ def _retry_after_seconds(exc: Exception) -> Decimal | None:
         if raw is None:
             return None
         value = raw
-    text = str(value)
-    if len(text) > 32:
-        raise RuntimeError("provider Retry-After value exceeds the supported length")
-    try:
+    text = str(value).strip()
+    if len(text) > 128:
+        raise LiveRetryDirectiveError(
+            "provider Retry-After metadata is invalid; live execution stopped before retry"
+        )
+    if not text:
+        raise LiveRetryDirectiveError(
+            "provider Retry-After metadata is invalid; live execution stopped before retry"
+        )
+    if text.isascii() and text.isdigit():
         return Decimal(text)
-    except (InvalidOperation, ValueError) as parse_error:
-        raise RuntimeError("provider Retry-After value is not a decimal delay") from parse_error
+    return _retry_after_http_date_delay(text, now_utc=now_utc)
+
+
+def _retry_after_http_date_delay(
+    value: str,
+    *,
+    now_utc: datetime | None,
+) -> Decimal:
+    try:
+        target = parsedate_to_datetime(value)
+    except (OverflowError, TypeError, ValueError) as exc:
+        raise LiveRetryDirectiveError(
+            "provider Retry-After metadata is invalid; live execution stopped before retry"
+        ) from exc
+    if target.tzinfo is None:
+        raise LiveRetryDirectiveError(
+            "provider Retry-After metadata is invalid; live execution stopped before retry"
+        )
+    current = datetime.now(UTC) if now_utc is None else now_utc
+    if current.tzinfo is None:
+        raise ValueError("Retry-After reference time must be timezone-aware")
+    delta = target.astimezone(UTC) - current.astimezone(UTC)
+    if delta.total_seconds() <= 0:
+        return Decimal(0)
+    whole_seconds = delta.days * 86_400 + delta.seconds
+    return Decimal(whole_seconds) + Decimal(delta.microseconds) / Decimal(1_000_000)
 
 
 def _pace_request(
@@ -1829,6 +1962,15 @@ def _configuration_digest(
                     if snapshot.adapter_resource is not None
                     else None
                 ),
+                "structured_output_contract_id": snapshot.structured_output_contract_id,
+                "structured_output_contract_digest": (snapshot.structured_output_contract_digest),
+                "provider_response_format_sha256": (
+                    hashlib.sha256(
+                        snapshot.provider_response_format_json.encode("utf-8")
+                    ).hexdigest()
+                    if snapshot.provider_response_format_json is not None
+                    else None
+                ),
                 "corpus_snapshot_digest": snapshot.corpus_snapshot_digest,
                 "governing_evidence_sha256": snapshot.governing_evidence_digest,
                 "governing_evidence_renderer_id": (
@@ -1992,6 +2134,9 @@ def prepare_live_execution_snapshot(
             rendered_governing_evidence_message.encode("utf-8")
         ).hexdigest()
 
+    output_contract_id, output_contract_digest, response_format_json = _structured_output_contract(
+        config
+    )
     return _validate_live_execution_snapshot(
         compiled,
         config,
@@ -2012,6 +2157,9 @@ def prepare_live_execution_snapshot(
             case_authority_bindings=case_authority_bindings,
             case_authority_manifest_digest=case_authority_manifest_digest,
             adapter_resource=snapshot_live_adapter_resource(config.adapter, base_dir=config_dir),
+            structured_output_contract_id=output_contract_id,
+            structured_output_contract_digest=output_contract_digest,
+            provider_response_format_json=response_format_json,
         ),
     )
 
@@ -2166,7 +2314,11 @@ def _provider_input_digest(
         item is not None for item in governing_fields
     ):
         raise ValueError("governing evidence provider-input snapshot is incomplete")
-    if snapshot.governing_evidence is None and knowledge_contract_digest is None:
+    if (
+        snapshot.governing_evidence is None
+        and knowledge_contract_digest is None
+        and snapshot.structured_output_contract_digest is None
+    ):
         return prompt_digest
 
     message_sequence: list[dict[str, str]] = []
@@ -2194,6 +2346,23 @@ def _provider_input_digest(
             "content_digest": prompt_digest,
         }
     )
+    response_format_binding: dict[str, str] | None = None
+    if snapshot.structured_output_contract_digest is not None:
+        if (
+            snapshot.structured_output_contract_id is None
+            or snapshot.provider_response_format_json is None
+        ):
+            raise ValueError("structured output digest requires its exact contract inputs")
+        response_format_binding = {
+            "contract_id": snapshot.structured_output_contract_id,
+            "content_sha256": snapshot.structured_output_contract_digest,
+        }
+        message_sequence.append(
+            {
+                "role": "response_format",
+                **response_format_binding,
+            }
+        )
     return sha256_hexdigest(
         {
             "message_sequence": tuple(message_sequence),

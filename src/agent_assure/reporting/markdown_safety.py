@@ -16,11 +16,7 @@ def markdown_text(value: object) -> str:
 def markdown_code(value: object) -> str:
     """Redact text for inline code spans without allowing span breakout."""
     text = sanitize_display_text(value)
-    return (
-        text.replace("`", "'")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-    )
+    return text.replace("`", "'").replace("<", "&lt;").replace(">", "&gt;")
 
 
 def markdown_code_span(value: object) -> str:

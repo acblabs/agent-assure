@@ -45,8 +45,7 @@ def test_sbom_is_deterministic_and_hashes_distribution_files(tmp_path: Path) -> 
     assert isinstance(components, list)
     assert any(component.get("purl") == "pkg:pypi/typer@0.12.0" for component in components)
     assert not any(
-        component.get("purl") == "pkg:pypi/agent-assure@0.1.0"
-        for component in components
+        component.get("purl") == "pkg:pypi/agent-assure@0.1.0" for component in components
     )
     file_component = next(component for component in components if component.get("type") == "file")
     assert file_component["name"] == wheel.name

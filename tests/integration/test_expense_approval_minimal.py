@@ -69,7 +69,7 @@ def test_expense_example_compiles_and_runs_through_cli(tmp_path: Path) -> None:
             str(compiled_path),
             "--manifest",
             str(manifest_path),
-        ]
+        ],
     )
     assert compile_result.exit_code == 0
 
@@ -85,7 +85,7 @@ def test_expense_example_compiles_and_runs_through_cli(tmp_path: Path) -> None:
             str(manifest_path),
             "--out",
             str(runset_path),
-        ]
+        ],
     )
     assert run_result.exit_code == 0
     runset = RunSet.model_validate_json(runset_path.read_text(encoding="utf-8"))

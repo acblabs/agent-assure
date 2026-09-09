@@ -17,8 +17,8 @@ Current commands:
 - `agent-assure controls efficacy [--config CONTROLS_MUTATION_YAML] [--campaign CAMPAIGN_DIR] [--allow-external-campaign] [--out REPORT_DIR]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
-- `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
-- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--require-efficacy] [--require-evidence-sensitivity] [--require-stochastic-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--allow-missing-efficacy-for-migration] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--release-profile] [--require-efficacy] [--allow-missing-efficacy-for-migration] [--require-evidence-sensitivity] [--require-stochastic-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
 - `agent-assure demo assure-the-assurance [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure demo evidence-sensitivity [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure rag sensitivity --suite SUITE_YAML --baseline-corpus DIR --counterfactual-corpus DIR --knowledge-contract CONTRACT_YAML --expected-relation decision_flip --out DIR [--synthetic-data-attestation ATTESTATION_JSON]`
@@ -32,6 +32,8 @@ Current commands:
 - `agent-assure rag study review-execution --bundle STUDY_PRE_REVIEW_BUNDLE_DIR --template EXECUTION_REVIEW_TEMPLATE_JSON_OR_YAML --out EXECUTION_REVIEW_RECEIPT_JSON`
 - `agent-assure rag study bind-config --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --condition-id CONDITION_ID --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_LIVE_CONFIG --baseline-config-out BASELINE_STUDY_BOUND_JSON --counterfactual-config-out COUNTERFACTUAL_STUDY_BOUND_JSON`
 - `agent-assure rag study analyze --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --evidence STUDY_EVIDENCE_DESCRIPTOR_JSON_OR_YAML --out STUDY_PUBLICATION_DIR`
+- `agent-assure study ...` exposes the same study command group at top level;
+  `agent-assure rag study ...` remains a compatibility alias.
 - `agent-assure live adapters`
 - `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
@@ -150,15 +152,21 @@ acquired by that invocation and fails before output preflight or creation.
 All existing outputs are then preflighted, an exact existing output is accepted,
 and any different content fails before an absent output is created. Absent
 outputs are exclusively created through pinned parent directories. The command
-never replaces a final output. On a recoverable failure it removes only entries
-that the current locked invocation created and whose pinned device/inode identity
-still matches; it never removes a pre-existing or concurrently substituted
-entry. Completed invocations are convergent and idempotent. Before reporting success on POSIX,
-the command syncs every unique parent directory in which it created a final
-name. Windows has no directory-sync operation in this path; file handles are
-flushed, while final-name durability remains subject to Windows filesystem and
-host guarantees. A handled failure is rolled back when identity-bound cleanup
-succeeds. An abrupt process or host interruption during an in-place write can
+never replaces a final output. Parent directories are opened or created by
+walking every lexical component from the filesystem anchor; a checked mutable
+subdirectory is never resolved and promoted into a trust root. The complete
+path binding is revalidated before mutation and before success. On a
+recoverable failure, cleanup verifies the invocation-owned device/inode before
+requesting removal. Windows deletion remains bound to the verified handle. On
+POSIX, validation and `unlinkat` are separate pathname operations, so this is a
+fail-closed check for compliant locked writers rather than a guarantee against
+a principal that can concurrently rename entries in the output parent.
+Completed invocations are convergent and idempotent. Before reporting success
+on POSIX, the command syncs every unique parent directory in which it created a
+final name. Windows has no directory-sync operation in this path; file handles
+are flushed, while final-name durability remains subject to Windows filesystem
+and host guarantees. A handled failure is rolled back when identity-bound
+cleanup succeeds. An abrupt process or host interruption during an in-place write can
 leave an exclusively created output complete or partially written. A retry accepts byte-exact completed
 outputs but fails closed on a partial or differing entry; an operator must
 inspect and remove that entry before retrying. The three-file operation is not a
@@ -565,15 +573,35 @@ effects. Critical uncovered threats emit `CRITICAL_THREAT_UNCOVERED` and map to
 exits `1`; invalid configuration, manifest, campaign, or binding input exits
 `2`; pass and review-only decisions exit `0` after writing both report files.
 
-Efficacy-aware CLI and programmatic gates use strict verification by default
-when control-efficacy evidence is present. Evidence presence is a separate
-requirement: `--require-efficacy` makes a missing efficacy section in an
-evidence packet invalid with exit `2`, and supplying `--efficacy-policy`
-implicitly requires that evidence. Without either presence requirement, a
-packet with no efficacy section is gated on its evaluation and comparison
-evidence and explicitly records `efficacy_evidence=absent`,
-`efficacy_verification=not_requested`, and `efficacy_required=false`; it does
-not claim an efficacy check occurred.
+Evidence-packet CLI and programmatic gates require control-efficacy evidence by
+default and use strict verification when it is present. A missing efficacy
+section is invalid with exit `2`; `--require-efficacy` remains an explicit
+restatement for existing automation, and `--efficacy-policy` supplies the
+separately trusted verification policy. The invalid decision records
+`efficacy_evidence=absent`, `efficacy_verification=strict`, and
+`efficacy_required=true`.
+
+`--allow-missing-efficacy-for-migration` is the only absence opt-out. It
+accepts only an evidence packet that lacks efficacy, cannot be combined with
+`--require-efficacy`, `--efficacy-policy`, or `--release-profile`, and
+records `efficacy_verification=not_requested`,
+`efficacy_required=false`, and
+`policy_profile=non-assurance-migration`. It is a temporary compatibility
+path, not an assurance gate or release input. The option is rejected when
+efficacy is already present so it cannot become an inert permanent flag.
+
+`ci gate --release-profile` is the release-facing CI efficacy profile. It
+accepts only an evidence packet, requires a verifier-owned controls-mutation
+YAML through `--efficacy-policy`, requires efficacy evidence to be present,
+enforces strict efficacy verification, and makes warnings and not-evaluated
+findings blocking. It rejects `--allow-advisory-efficacy`,
+`--allow-sensitivity-non-verdict`, and
+`--allow-legacy-unbound-comparison`. The profile is the only `ci gate` profile
+suitable for an efficacy-bearing release claim. It is not publication
+authorization. `make release-publish-check` applies the profile to the staged
+release-control-efficacy packet and verifier policy first, then separately runs
+empirical readiness and engineering release checks. Missing staged inputs fail
+closed; satisfying the efficacy profile alone does not authorize publication.
 
 Evidence-sensitivity presence is independently verifier-owned.
 `--require-evidence-sensitivity` makes a packet without the report invalid
@@ -734,7 +762,15 @@ match. `--strict` instead returns the underlying blocking packet-gate exit.
 
 `ci` evaluates a candidate RunSet, optionally compares it with a baseline, writes
 reports, builds a packet, writes a dependency inventory and release manifest,
-then gates the result. `--report-mode full` writes all deterministic findings.
+then gates the result. Its generated packet does not synthesize control-efficacy
+evidence, so the default packet gate returns invalid exit `2`. Existing
+evaluation-only automation may explicitly pass
+`--allow-missing-efficacy-for-migration`; the resulting decision is labeled
+`policy_profile=non-assurance-migration` and is not evidence for an assurance
+or release claim. Assurance automation must independently build and attach a
+control-efficacy report, then use `ci gate` with a verifier-owned
+`--efficacy-policy`; publishing uses the stricter `--release-profile`.
+`--report-mode full` writes all deterministic findings.
 `--report-mode fail-fast` emits only the first blocking candidate finding and
 stops before comparison; it consumes an already-created deterministic RunSet and
 does not short-circuit fixture execution. The report metrics continue to reflect
@@ -1001,7 +1037,9 @@ rate-limit counters, usage summaries, and ordered span-plan events from the
 stream artifact without persisting raw prompts, raw tool arguments, raw token
 chunks, or unredacted model output. A candidate can therefore keep the same
 final recommendation and outcome while failing on a removed evidence link,
-bypassed review route, or other observable process regression. Retry bursts and
+bypassed review route, or other source-recorded process regression. Stream
+producers remain a trust boundary; field presence does not independently attest
+the corresponding runtime event. Retry bursts and
 usage changes are surfaced as measured review evidence by default; they become
 blocking only when the suite or selected policy declares a blocking expectation.
 In v0.5.0, stream span plans are flat per-run span plans. Source `span_id` and

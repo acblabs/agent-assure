@@ -18,14 +18,13 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from agent_assure.artifact_io import ensure_unlinked_directory
 from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES
 from agent_assure.live.config import LiveRunConfig
 from agent_assure.rooted_io import (
     PinnedDirectoryFile,
     RootedDirectoryDescriptor,
     acquire_publication_lock,
-    open_rooted_directory,
+    open_or_create_rooted_directory_from_filesystem_root,
     release_publication_lock,
 )
 
@@ -164,31 +163,32 @@ def publish_finalize_outputs(
     try:
         for path, text, label in outputs:
             payload = text.encode("utf-8")
-            parent = ensure_unlinked_directory(path.parent).resolve(strict=True)
+            parent = Path(os.path.abspath(path.parent))
             parent_key = os.path.normcase(os.path.abspath(parent))
             lease = parent_leases.get(parent_key)
             if lease is None:
-                lease = open_rooted_directory(
+                lease = open_or_create_rooted_directory_from_filesystem_root(
                     parent,
-                    ".",
                     label="finalize output parent",
                 )
+                lease.revalidate_path(label="finalize output parent")
                 parent_leases[parent_key] = lease
             prepared.append((path, payload, label, lease, path.name))
 
         lock_lease = None
         if lock_root is not None:
-            resolved_lock_root = ensure_unlinked_directory(lock_root).resolve(strict=True)
-            lock_root_key = os.path.normcase(os.path.abspath(resolved_lock_root))
+            rooted_lock_path = Path(os.path.abspath(lock_root))
+            lock_root_key = os.path.normcase(os.path.abspath(rooted_lock_path))
             lock_lease = parent_leases.get(lock_root_key)
             if lock_lease is None:
-                lock_lease = open_rooted_directory(
-                    resolved_lock_root,
-                    ".",
+                lock_lease = open_or_create_rooted_directory_from_filesystem_root(
+                    rooted_lock_path,
                     label="finalize output lock parent",
                 )
+                lock_lease.revalidate_path(label="finalize output lock parent")
                 parent_leases[lock_root_key] = lock_lease
 
+        _revalidate_finalize_parent_leases(parent_leases)
         output_locks = _acquire_finalize_output_locks(
             prepared,
             lock_lease=lock_lease,
@@ -197,6 +197,7 @@ def publish_finalize_outputs(
         absent: list[tuple[Path, bytes, str, RootedDirectoryDescriptor, str]] = []
         for item in prepared:
             _path, payload, label, lease, name = item
+            lease.revalidate_path(label="finalize output parent")
             try:
                 opened = lease.open_file_bounded(
                     name,
@@ -212,6 +213,7 @@ def publish_finalize_outputs(
                     raise ValueError(f"{label} output already exists with different content")
 
         for _path, payload, label, lease, name in absent:
+            lease.revalidate_path(label="finalize output parent")
             descriptor, metadata = lease.open_regular_file_exclusive_with_metadata(
                 name,
                 mode=0o600,
@@ -232,6 +234,7 @@ def publish_finalize_outputs(
 
         created_by_entry = {(id(item.lease), item.name): item for item in created}
         for _path, payload, label, lease, name in prepared:
+            lease.revalidate_path(label="finalize output parent")
             matched_output = created_by_entry.get((id(lease), name))
             if matched_output is not None:
                 _verify_created_finalize_output(matched_output, payload, label=label)
@@ -252,6 +255,7 @@ def publish_finalize_outputs(
             if matched_output is not None:
                 _verify_created_finalize_output(matched_output, payload, label=label)
         _fsync_finalize_output_parents(created)
+        _revalidate_finalize_parent_leases(parent_leases)
         completed = True
     except BaseException as exc:
         rollback_errors = _rollback_created_finalize_outputs(created)
@@ -309,6 +313,7 @@ def _fsync_finalize_output_parents(created: list[_CreatedFinalizeOutput]) -> Non
         descriptor = output.lease.descriptor
         if descriptor is None:
             raise OSError("finalize output parent descriptor is unavailable")
+        output.lease.revalidate_path(label="finalize output parent")
         metadata = os.fstat(descriptor)
         if not stat.S_ISDIR(metadata.st_mode) or (metadata.st_dev, metadata.st_ino) != (
             output.lease.device,
@@ -316,7 +321,15 @@ def _fsync_finalize_output_parents(created: list[_CreatedFinalizeOutput]) -> Non
         ):
             raise OSError("finalize output parent identity changed before durability sync")
         os.fsync(descriptor)
+        output.lease.revalidate_path(label="finalize output parent")
         fsynced_leases.add(lease_key)
+
+
+def _revalidate_finalize_parent_leases(
+    parent_leases: dict[str, RootedDirectoryDescriptor],
+) -> None:
+    for lease in parent_leases.values():
+        lease.revalidate_path(label="finalize output parent")
 
 
 def _acquire_finalize_output_locks(

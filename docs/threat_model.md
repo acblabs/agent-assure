@@ -22,10 +22,13 @@ a network-isolation boundary against hostile Python or native code.
 - Fixture mode is deterministic and offline. The runner constructs records from
   local fixtures and recomputes built-in controls during evaluation.
 - Live mode treats the configured adapter, static JSONL file, external script,
-  or network provider as a trusted producer of observation data. A compromised
-  producer can still fabricate recommendations, evidence links, claims, tools,
-  review flags, and summaries, but live producer-supplied failing policy results
-  are verdict-bearing during evaluation.
+  or network provider as a trusted record producer. Every structured field has a
+  declared origin. A compromised instrumented adapter can still fabricate its
+  producer-attested fields; the origin label is not remote attestation. Direct
+  model output is limited to self-reported recommendation, outcome, and summary
+  fields and cannot satisfy observation-grade tool, evidence, policy-result, or
+  human-review controls. Legacy live fields with unspecified origin also fail
+  closed for those controls.
 - Live artifacts may include host wall-clock timestamps, measured latency,
   scheduling jitter, provider response identifiers, and emergency-record timing.
   They are operational evidence, not byte-replay-stable fixture artifacts.
@@ -172,6 +175,15 @@ a network-isolation boundary against hostile Python or native code.
   consent, friction, and remediation evidence. The schema checks their internal
   relationships but cannot attest repository ownership, operator independence,
   consent authority, or execution truth.
+- A fork owner can edit either pilot workflow before dispatch. A GitHub-hosted
+  runner, direct-fork check, pinned action, or read-only token does not make
+  fork workflow bytes trustworthy and does not sandbox participant-authored
+  workflow changes. Qualification therefore requires the later reviewer to
+  derive each run-head SHA, byte-compare that run's workflow blob with the
+  corresponding file at the named immutable upstream workflow revision, and
+  bind both hashes, both run URLs, and every public dispatch input into the
+  review receipt. A byte mismatch invalidates the pilot; workflow self-checks
+  are usability controls, not a defense against a hostile fork owner.
 - The publish gate verifies every file in one closed, bounded, link-free pilot
   bundle, validates the tested wheel identity and supported schema contracts,
   and requires a later human independence-review receipt bound to the exact
@@ -212,12 +224,13 @@ a network-isolation boundary against hostile Python or native code.
   outcomes have block-only policy fields. Report validation prevents internal
   arithmetic or binding contradictions; it does not establish that the
   authored threat scope is complete or correctly classified.
-- Efficacy-aware CLI and programmatic gates default to strict verification when
-  efficacy evidence is present. Presence is verifier-controlled separately:
-  `--require-efficacy` requires a packet to contain efficacy evidence and an
-  external verifier policy implies that requirement. Optional absence is
-  reported as `efficacy_evidence=absent` and
-  `efficacy_verification=not_requested`, never as a strict efficacy pass.
+- Evidence-packet CLI and programmatic gates require efficacy by default and
+  use strict verification when it is present. Missing evidence is invalid and
+  reported as `efficacy_evidence=absent`,
+  `efficacy_verification=strict`, and `efficacy_required=true`.
+  `--allow-missing-efficacy-for-migration` is the only absence opt-out; it is
+  explicitly non-assurance, cannot weaken a verifier or release policy, and is
+  rejected once efficacy is present.
 - Strict verification requires a verifier-owned controls-mutation YAML. The
   verifier policy pins the installed catalog digest, exact selected and
   required operator sets, and the separately loaded threat-manifest digest.

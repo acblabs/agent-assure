@@ -12,9 +12,10 @@ prose, call a model, use embeddings, or infer whether an undeclared claim is
 material.
 
 Adapters or external `AgentRunRecord` producers must follow
-`agent-run-record-producer-contract/v1`: emit explicit `claim_evidence_links`
-for every material claim they intend to satisfy, and point each link to a
-present `evidence_items[].ref_id` in the same run record.
+`agent-run-record-producer-contract/v2`: declare structured field origins, emit
+explicit `claim_evidence_links` for every material claim they intend to
+satisfy, and point each link to a present `evidence_items[].ref_id` in the same
+run record.
 `evidence_refs[].claim_ids` alone is display/compatibility context and is not
 an evaluator contract.
 

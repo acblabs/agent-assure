@@ -38,9 +38,7 @@ def test_rag_demo_exits_zero_on_expected_retrieval_regression(tmp_path: Path) ->
     assert summary["thesis"] == RAG_THESIS_TITLE
     assert summary["output_equivalence"] == "preserved"
     assert summary["expected_regression_caught"] is True
-    assert summary["blocking_reason_codes"] == [
-        ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value
-    ]
+    assert summary["blocking_reason_codes"] == [ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value]
 
     visible = cast(dict[str, Any], summary["visible_final_output"])
     assert visible["case_id"] == "rag-pt-duration"
@@ -53,9 +51,9 @@ def test_rag_demo_exits_zero_on_expected_retrieval_regression(tmp_path: Path) ->
         "policy:acme-health:pt-coverage:duration-limit"
     ]
     assert process["retrieval_corpus_digest_state"] == "unchanged"
-    assert process["baseline_retrieval_corpus_digest"] == process[
-        "candidate_retrieval_corpus_digest"
-    ]
+    assert (
+        process["baseline_retrieval_corpus_digest"] == process["candidate_retrieval_corpus_digest"]
+    )
     assert process["baseline_state"] == GateState.pass_.value
     assert process["candidate_state"] == GateState.fail.value
     assert process["classification"] == ComparisonClassification.new_failure.value
@@ -91,18 +89,23 @@ def test_rag_demo_exits_zero_on_expected_retrieval_regression(tmp_path: Path) ->
     assert candidate_family["canonical_decision_matches_family_expectation"] is True
     assert candidate_family["preserved_required_source_support"] is False
     assert candidate_family["preserved_material_claim_support"] is False
-    assert candidate_family["escalated_variants"] == [
-        "rag-pt-duration-three-months-pt"
-    ]
-    assert candidate_family["retrieval_jaccard_bps_by_variant"][
-        "rag-pt-duration-three-months-pt"
-    ] == 5000
-    assert candidate_family["required_source_support_preserved_by_variant"][
-        "rag-pt-duration-three-months-pt"
-    ] is False
-    assert candidate_family["required_material_claim_support_preserved_by_variant"][
-        "rag-pt-duration-three-months-pt"
-    ] is False
+    assert candidate_family["escalated_variants"] == ["rag-pt-duration-three-months-pt"]
+    assert (
+        candidate_family["retrieval_jaccard_bps_by_variant"]["rag-pt-duration-three-months-pt"]
+        == 5000
+    )
+    assert (
+        candidate_family["required_source_support_preserved_by_variant"][
+            "rag-pt-duration-three-months-pt"
+        ]
+        is False
+    )
+    assert (
+        candidate_family["required_material_claim_support_preserved_by_variant"][
+            "rag-pt-duration-three-months-pt"
+        ]
+        is False
+    )
     assert "Can this patient receive three months" not in json.dumps(counterfactual)
 
     command_exits = {

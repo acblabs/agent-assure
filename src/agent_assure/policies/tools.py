@@ -14,6 +14,9 @@ def evaluate_tool_allowlist(
     forbidden = set(forbidden_tools)
     allowed = None if allowed_tools is None else set(allowed_tools)
     results: list[ControlResult] = []
+    # Tool presence is used only as a negative signal. Even an untrusted
+    # self-report of a forbidden tool must not disappear when provenance trust
+    # is reduced; absence is never treated as proof that no tool was called.
     for tool in sorted(set(run.tools)):
         if tool in forbidden:
             message = f"tool {tool!r} is explicitly forbidden"

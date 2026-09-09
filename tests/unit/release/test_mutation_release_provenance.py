@@ -157,8 +157,7 @@ def test_each_sprint2_operator_carries_immutable_introduction_provenance() -> No
     sprint2_provenance = tuple(
         item.descriptor.provenance
         for item in registered_operators()
-        if item.descriptor.provenance.introduced_at_commit
-        == _SPRINT2_INTRODUCTION_COMMIT
+        if item.descriptor.provenance.introduced_at_commit == _SPRINT2_INTRODUCTION_COMMIT
     )
     assert tuple(provenance.operator_id for provenance in sprint2_provenance) == (
         "inject-synthetic-sensitive-summary",
@@ -540,30 +539,30 @@ def test_release_validation_rejects_first_seen_source_without_control_declaratio
             id="nonliteral",
         ),
         pytest.param(
-            b'def evaluate_human_review_requirement():\n    return ()\n\n'
+            b"def evaluate_human_review_requirement():\n    return ()\n\n"
             b'decoy(control_id="human_review_required")\n',
             "is not declared by an exact ControlResult control_id keyword literal in "
             "mapped function 'evaluate_human_review_requirement' at the first-seen commit",
             id="decoy-call",
         ),
         pytest.param(
-            b'def evaluate_human_review_requirement():\n    return ()\n\n'
-            b'def unrelated():\n    return ControlResult('
+            b"def evaluate_human_review_requirement():\n    return ()\n\n"
+            b"def unrelated():\n    return ControlResult("
             b'control_id="human_review_required")\n',
             "is not declared by an exact ControlResult control_id keyword literal in "
             "mapped function 'evaluate_human_review_requirement' at the first-seen commit",
             id="wrong-function",
         ),
         pytest.param(
-            b'def evaluate_human_review_requirement():\n    if False:\n'
+            b"def evaluate_human_review_requirement():\n    if False:\n"
             b'        return ControlResult(control_id="human_review_required")\n'
-            b'    return ()\n',
+            b"    return ()\n",
             "is not declared by an exact ControlResult control_id keyword literal in "
             "mapped function 'evaluate_human_review_requirement' at the first-seen commit",
             id="dead-branch",
         ),
         pytest.param(
-            b'def evaluate_human_review_requirement():\n    return ()\n'
+            b"def evaluate_human_review_requirement():\n    return ()\n"
             b'    ControlResult(control_id="human_review_required")\n',
             "is not declared by an exact ControlResult control_id keyword literal in "
             "mapped function 'evaluate_human_review_requirement' at the first-seen commit",

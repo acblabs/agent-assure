@@ -17,7 +17,7 @@ from agent_assure.schema.pilot import (
     PilotArtifactRole,
     PilotInputManifest,
 )
-from tests.unit.schema.test_pilot_evidence import _values
+from tests.unit.schema.test_pilot_evidence import _values, _workflow_run
 from tests.unit.test_pilot_bundle import (
     EVIDENCE_NAME,
     RECEIPT_NAME,
@@ -53,6 +53,10 @@ def _write_review_template(
     rationale: str = "The reviewer did not execute or author the recorded pilot.",
     extra: dict[str, object] | None = None,
 ) -> None:
+    capture_run = _workflow_run("capture").model_dump(mode="json")
+    finalize_run = _workflow_run("finalize").model_dump(mode="json")
+    capture_run.pop("public_inputs_sha256")
+    finalize_run.pop("public_inputs_sha256")
     values: dict[str, object] = {
         "receipt_id": "pilot-review-001",
         "reviewer_pseudonym": reviewer,
@@ -69,6 +73,15 @@ def _write_review_template(
         "execution_time_input_content_digests_reviewed": True,
         "input_semantic_identities_reviewed": True,
         "complete_bundle_publication_consent_reviewed": True,
+        "capture_workflow_run": capture_run,
+        "finalize_workflow_run": finalize_run,
+        "run_head_shas_reviewed": True,
+        "workflow_run_urls_reviewed": True,
+        "trusted_workflow_bytes_reviewed": True,
+        "execution_source_pins_reviewed": True,
+        "public_workflow_inputs_reviewed": True,
+        "friction_and_remediation_disposition_reviewed": True,
+        "friction_category_and_remediation_bindings_reviewed": True,
     }
     values.update(extra or {})
     _write_json(path, values)
@@ -189,7 +202,9 @@ def test_pilot_finalize_refuses_an_explicit_lock_above_the_working_directory(
     assert not any(path.name.startswith(".agent-assure-finalize-") for path in tmp_path.iterdir())
 
 
-def test_documented_pilot_templates_are_directly_accepted(tmp_path: Path) -> None:
+def test_documented_evidence_templates_work_but_review_template_requires_action(
+    tmp_path: Path,
+) -> None:
     evidence_output = tmp_path / "template-evidence.json"
     evidence_result = RUNNER.invoke(
         app,
@@ -222,7 +237,9 @@ def test_documented_pilot_templates_are_directly_accepted(tmp_path: Path) -> Non
 
     assert evidence_result.exit_code == 0, evidence_result.output
     assert ExternalPilotEvidence.model_validate_json(evidence_output.read_bytes())
-    assert review_result.exit_code == 0, review_result.output
+    assert review_result.exit_code == 2
+    assert "Input should be True" in review_result.output
+    assert not (root / RECEIPT_NAME).exists()
     assert input_manifest.contract_id == "PilotInputManifest/v1"
 
 

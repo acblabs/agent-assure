@@ -191,8 +191,7 @@ def _write_version_files(
     )
     package_init = tmp_path / "__init__.py"
     package_init.write_text(
-        f"__version__ = {package_version!r}\n"
-        f"SCHEMA_VERSION = {package_schema_version!r}\n",
+        f"__version__ = {package_version!r}\nSCHEMA_VERSION = {package_schema_version!r}\n",
         encoding="utf-8",
     )
     schema_base = tmp_path / "base.py"

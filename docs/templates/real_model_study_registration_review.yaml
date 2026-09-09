@@ -5,12 +5,13 @@ receipt_id: replace-registration-review-id
 reviewed_at_utc: "2026-01-01T00:00:00Z"
 reviewer_pseudonym: replace-reviewer-pseudonym
 
-# Every assertion is mandatory and must be literally true. For a
+# Every assertion deliberately starts false. The command rejects this untouched
+# template; change an assertion to true only after personally verifying it. For a
 # version_control_commit or append_only_registry registration, the reviewer is
 # attesting that the external locator resolved, its exact bytes matched the
 # manifest digest, and its immutability properties were checked.
-registration_record_coverage_confirmed: true
-pre_observation_ordering_confirmed: true
-registration_reference_resolved: true
-registration_record_digest_match_confirmed: true
-registration_record_immutability_confirmed: true
+registration_record_coverage_confirmed: false
+pre_observation_ordering_confirmed: false
+registration_reference_resolved: false
+registration_record_digest_match_confirmed: false
+registration_record_immutability_confirmed: false

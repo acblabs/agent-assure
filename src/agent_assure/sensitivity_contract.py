@@ -129,9 +129,7 @@ _V065_BUNDLED_SENSITIVITY_IDENTITIES: Final = BundledSensitivityIdentitySet(
     # This is the immutable digest shipped by the v0.6.5 writer. Do not
     # alias it through the current public constant: bundled identities may
     # intentionally evolve between writer versions.
-    knowledge_contract_digest=(
-        "9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816"
-    ),
+    knowledge_contract_digest=("9058dfb027d0b7f5f2dcf37d81420ec729fdc4fe753e921fb2f596e6dba2f816"),
     corpus_snapshot_identities=frozenset(
         {
             (

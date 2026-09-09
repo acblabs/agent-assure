@@ -56,45 +56,33 @@ def test_measurement_cases_demo_runs_offline_without_benchmark_claims(tmp_path: 
         for case in cast(list[dict[str, Any]], summary["cases"])
     }
     assert cases["same-output-missing-evidence"]["visible_output"] == "preserved"
-    assert "claim-evidence links" in cases["same-output-missing-evidence"][
-        "changed_process_fields"
-    ]
+    assert "claim-evidence links" in cases["same-output-missing-evidence"]["changed_process_fields"]
     assert _case_has_finding(
         cases,
         "same-output-missing-evidence",
         ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
         target=claim_finding_target("claim-policy-support"),
     )
-    assert "provider/model" in cases["same-output-provider-boundary"][
-        "changed_process_fields"
-    ]
-    assert "human review" in cases["same-output-provider-boundary"][
-        "changed_process_fields"
-    ]
+    assert "provider/model" in cases["same-output-provider-boundary"]["changed_process_fields"]
+    assert "human review" in cases["same-output-provider-boundary"]["changed_process_fields"]
     assert _case_has_finding(
         cases,
         "same-output-provider-boundary",
         ReasonCode.FORBIDDEN_PROVIDER,
         target="provider:alternate-process-provider",
     )
-    assert "human review" in cases["same-output-human-review-bypassed"][
-        "changed_process_fields"
-    ]
+    assert "human review" in cases["same-output-human-review-bypassed"]["changed_process_fields"]
     assert _case_has_finding(
         cases,
         "same-output-human-review-bypassed",
         ReasonCode.REQUIRED_HUMAN_REVIEW_ABSENT,
         target="human_review_required",
     )
-    assert "evidence sources" in cases["same-output-evidence-source-changed"][
-        "changed_process_fields"
-    ]
-    assert "operational counters" in cases["same-output-retry-storm"][
-        "changed_process_fields"
-    ]
-    assert "measured usage" in cases["same-output-usage-cost-delta"][
-        "changed_process_fields"
-    ]
+    assert (
+        "evidence sources" in cases["same-output-evidence-source-changed"]["changed_process_fields"]
+    )
+    assert "operational counters" in cases["same-output-retry-storm"]["changed_process_fields"]
+    assert "measured usage" in cases["same-output-usage-cost-delta"]["changed_process_fields"]
     assert cases["different-output-no-process-regression"]["visible_output"] == "changed"
     assert cases["different-output-no-process-regression"]["changed_process_fields"] == []
 

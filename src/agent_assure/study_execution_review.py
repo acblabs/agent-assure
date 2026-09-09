@@ -19,6 +19,7 @@ from agent_assure.schema.study import (
     StudyExecutionReviewCondition,
     StudyExecutionReviewReceipt,
     StudyObservedExecutionProvenance,
+    StudyProviderFingerprintReviewStatus,
 )
 from agent_assure.study_artifact_serialization import (
     published_model_json_bytes,
@@ -48,13 +49,26 @@ def build_study_execution_review_receipt(
     reviewer_pseudonym: str,
     reviewer_independent_of_execution: Literal[True],
     reviewer_independence_rationale: str,
+    provider_log_review_scope: str,
+    provider_log_evidence_digest: str,
+    provider_account_review_scope: str,
+    provider_account_evidence_digest: str,
     provider_log_and_account_review_confirmed: Literal[True],
+    provider_log_time_window_coverage_confirmed: Literal[True],
+    provider_account_usage_reconciled: Literal[True],
     exhaustive_attempt_failure_retry_accounting_confirmed: Literal[True],
     provider_response_id_matches_confirmed: Literal[True],
     exact_runset_artifact_digest_matches_confirmed: Literal[True],
+    provider_serving_fingerprint_availability_reviewed: Literal[True],
 ) -> StudyExecutionReviewReceipt:
     """Build a self-digested receipt from exact canonical study artifacts."""
 
+    conditions = _expected_conditions(
+        manifest=manifest,
+        protocols=protocols,
+        report=report,
+        evidence=evidence,
+    )
     receipt = StudyExecutionReviewReceipt.build(
         receipt_id=receipt_id,
         study_id=manifest.study_id,
@@ -67,19 +81,28 @@ def build_study_execution_review_receipt(
         reviewer_pseudonym=reviewer_pseudonym,
         reviewer_independent_of_execution=reviewer_independent_of_execution,
         reviewer_independence_rationale=reviewer_independence_rationale,
-        conditions=_expected_conditions(
-            manifest=manifest,
-            protocols=protocols,
-            report=report,
-            evidence=evidence,
-        ),
+        provider_log_review_scope=provider_log_review_scope,
+        provider_log_evidence_digest=provider_log_evidence_digest,
+        provider_account_review_scope=provider_account_review_scope,
+        provider_account_evidence_digest=provider_account_evidence_digest,
+        conditions=conditions,
         provider_log_and_account_review_confirmed=(provider_log_and_account_review_confirmed),
+        provider_log_time_window_coverage_confirmed=(provider_log_time_window_coverage_confirmed),
+        provider_account_usage_reconciled=provider_account_usage_reconciled,
         exhaustive_attempt_failure_retry_accounting_confirmed=(
             exhaustive_attempt_failure_retry_accounting_confirmed
         ),
         provider_response_id_matches_confirmed=provider_response_id_matches_confirmed,
         exact_runset_artifact_digest_matches_confirmed=(
             exact_runset_artifact_digest_matches_confirmed
+        ),
+        provider_serving_fingerprint_availability_reviewed=(
+            provider_serving_fingerprint_availability_reviewed
+        ),
+        provider_serving_fingerprint_absence_acknowledged=any(
+            condition.provider_serving_fingerprint_status
+            is StudyProviderFingerprintReviewStatus.not_exposed_by_provider
+            for condition in conditions
         ),
     )
     validate_study_execution_review(
@@ -323,6 +346,15 @@ def _expected_conditions(
                 counterfactual_runset_sha256=sha256(counterfactual_bytes).hexdigest(),
                 observed_provenance_digest=provenance.provenance_digest,
                 provider_response_id_set_digest=(provenance.provider_response_id_set_digest),
+                provider_response_records=provenance.provider_response_id_records,
+                provider_serving_fingerprint_records=(
+                    provenance.provider_serving_fingerprint_records
+                ),
+                provider_serving_fingerprint_status=(
+                    StudyProviderFingerprintReviewStatus.complete_and_stable
+                    if provenance.provider_serving_fingerprint_records == provenance.run_records
+                    else StudyProviderFingerprintReviewStatus.not_exposed_by_provider
+                ),
             )
         )
     return tuple(expected)

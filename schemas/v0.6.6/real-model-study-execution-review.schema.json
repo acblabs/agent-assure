@@ -68,6 +68,21 @@
           "pattern": "^[a-f0-9]{64}$",
           "title": "Provider Response Id Set Digest",
           "type": "string"
+        },
+        "provider_response_records": {
+          "maximum": 8192,
+          "minimum": 1,
+          "title": "Provider Response Records",
+          "type": "integer"
+        },
+        "provider_serving_fingerprint_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Provider Serving Fingerprint Records",
+          "type": "integer"
+        },
+        "provider_serving_fingerprint_status": {
+          "$ref": "#/$defs/StudyProviderFingerprintReviewStatus"
         }
       },
       "required": [
@@ -81,10 +96,21 @@
         "counterfactual_runset_id",
         "counterfactual_runset_sha256",
         "observed_provenance_digest",
-        "provider_response_id_set_digest"
+        "provider_response_id_set_digest",
+        "provider_response_records",
+        "provider_serving_fingerprint_records",
+        "provider_serving_fingerprint_status"
       ],
       "title": "StudyExecutionReviewCondition",
       "type": "object"
+    },
+    "StudyProviderFingerprintReviewStatus": {
+      "enum": [
+        "complete_and_stable",
+        "not_exposed_by_provider"
+      ],
+      "title": "StudyProviderFingerprintReviewStatus",
+      "type": "string"
     }
   },
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-execution-review.schema.json",
@@ -146,14 +172,55 @@
       "title": "Exhaustive Attempt Failure Retry Accounting Confirmed",
       "type": "boolean"
     },
+    "provider_account_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Provider Account Evidence Digest",
+      "type": "string"
+    },
+    "provider_account_review_scope": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Provider Account Review Scope",
+      "type": "string"
+    },
+    "provider_account_usage_reconciled": {
+      "const": true,
+      "title": "Provider Account Usage Reconciled",
+      "type": "boolean"
+    },
     "provider_log_and_account_review_confirmed": {
       "const": true,
       "title": "Provider Log And Account Review Confirmed",
       "type": "boolean"
     },
+    "provider_log_evidence_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Provider Log Evidence Digest",
+      "type": "string"
+    },
+    "provider_log_review_scope": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Provider Log Review Scope",
+      "type": "string"
+    },
+    "provider_log_time_window_coverage_confirmed": {
+      "const": true,
+      "title": "Provider Log Time Window Coverage Confirmed",
+      "type": "boolean"
+    },
     "provider_response_id_matches_confirmed": {
       "const": true,
       "title": "Provider Response Id Matches Confirmed",
+      "type": "boolean"
+    },
+    "provider_serving_fingerprint_absence_acknowledged": {
+      "title": "Provider Serving Fingerprint Absence Acknowledged",
+      "type": "boolean"
+    },
+    "provider_serving_fingerprint_availability_reviewed": {
+      "const": true,
+      "title": "Provider Serving Fingerprint Availability Reviewed",
       "type": "boolean"
     },
     "receipt_id": {
@@ -246,11 +313,19 @@
     "reviewer_pseudonym",
     "reviewer_independent_of_execution",
     "reviewer_independence_rationale",
+    "provider_log_review_scope",
+    "provider_log_evidence_digest",
+    "provider_account_review_scope",
+    "provider_account_evidence_digest",
     "conditions",
     "provider_log_and_account_review_confirmed",
+    "provider_log_time_window_coverage_confirmed",
+    "provider_account_usage_reconciled",
     "exhaustive_attempt_failure_retry_accounting_confirmed",
     "provider_response_id_matches_confirmed",
     "exact_runset_artifact_digest_matches_confirmed",
+    "provider_serving_fingerprint_availability_reviewed",
+    "provider_serving_fingerprint_absence_acknowledged",
     "artifact_kind",
     "schema_version",
     "schema_name",

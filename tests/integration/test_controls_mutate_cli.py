@@ -103,9 +103,7 @@ def test_controls_mutate_help_states_exact_fail_fast_boundary() -> None:
         ["controls", "mutate", "--help"],
         terminal_width=240,
     )
-    normalized = " ".join(
-        result.output.replace("│", " ").replace("|", " ").split()
-    )
+    normalized = " ".join(result.output.replace("│", " ").replace("|", " ").split())
 
     normalized = " ".join(unstyle(normalized).split())
 
@@ -130,14 +128,10 @@ def test_controls_mutate_campaign_persists_a_valid_digest_bound_generation(
     paths = validate_mutation_campaign_artifact_generation(out)
     assert paths.catalog == out / MUTATION_CATALOG_FILENAME
     assert paths.campaign == out / MUTATION_CAMPAIGN_FILENAME
-    assert paths.generation_manifest == (
-        out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
-    )
+    assert paths.generation_manifest == (out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME)
     assert len(paths.operator_artifacts) == 1
     assert paths.operator_artifacts[0].operator_id == _OPERATOR
-    assert validate_artifact(paths.catalog, "assurance-mutation-catalog") == (
-        "pydantic+jsonschema"
-    )
+    assert validate_artifact(paths.catalog, "assurance-mutation-catalog") == ("pydantic+jsonschema")
     assert validate_artifact(paths.campaign, "assurance-mutation-campaign") == (
         "pydantic+jsonschema"
     )
@@ -176,8 +170,7 @@ def test_controls_mutate_campaign_reports_mixed_states_and_exact_scope(
         "state=inapplicable applicability=inapplicable"
     )
     caught_line = (
-        "mutation operator result: "
-        f"operator_id={_OPERATOR} state=caught applicability=applicable"
+        f"mutation operator result: operator_id={_OPERATOR} state=caught applicability=applicable"
     )
     assert inapplicable_line in normalized
     assert caught_line in normalized
@@ -187,8 +180,7 @@ def test_controls_mutate_campaign_reports_mixed_states_and_exact_scope(
         "invalid_operator=0, invalid_subject=0, execution_error=0"
     ) in normalized
     assert (
-        "mutation campaign applicability counts: applicable=1, inapplicable=1, "
-        "not_evaluated=0"
+        "mutation campaign applicability counts: applicable=1, inapplicable=1, not_evaluated=0"
     ) in normalized
     assert (
         "caught entries support only their exact fixture transformations "
@@ -316,8 +308,7 @@ def test_controls_mutate_campaign_rejects_schema_invalid_source_without_artifact
     assert result.exit_code == 2
     normalized_output = " ".join(result.output.split())
     assert (
-        "invalid mutation input: mutation campaign source failed RunSet "
-        "validation and projection"
+        "invalid mutation input: mutation campaign source failed RunSet validation and projection"
     ) in normalized_output
     assert sensitive_value not in result.output
     assert files.runset.read_bytes() == source_bytes
@@ -341,8 +332,7 @@ def test_controls_mutate_campaign_rejects_sensitive_source_without_artifacts(
     assert result.exit_code == 2
     normalized_output = " ".join(result.output.split())
     assert (
-        "invalid mutation input: mutation campaign source failed the bound "
-        "privacy-detector profile"
+        "invalid mutation input: mutation campaign source failed the bound privacy-detector profile"
     ) in normalized_output
     assert sensitive_value not in result.output
     assert files.runset.read_bytes() == source_bytes
@@ -522,9 +512,7 @@ def test_single_and_campaign_validators_reject_mixed_namespaces(
 
     single_out = tmp_path / "mixed-single-validator"
     write_mutation_artifacts(single_execution, single_out)
-    (single_out / "operator-999-mutated-runset.json").write_bytes(
-        b"foreign campaign lookalike"
-    )
+    (single_out / "operator-999-mutated-runset.json").write_bytes(b"foreign campaign lookalike")
     with pytest.raises(ValueError, match="mixes single and campaign"):
         validate_mutation_artifact_generation(single_out)
 
@@ -624,8 +612,8 @@ def test_generation_validators_enforce_per_file_and_aggregate_bounds(
     campaign_out = tmp_path / "bounded-campaign-generation"
     write_mutation_campaign_artifacts(campaign_execution, campaign_out)
     campaign_manifest_size = (
-        campaign_out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME
-    ).stat().st_size
+        (campaign_out / MUTATION_CAMPAIGN_GENERATION_MANIFEST_FILENAME).stat().st_size
+    )
     with monkeypatch.context() as bounded_campaign:
         bounded_campaign.setattr(
             campaign_reporting,
@@ -1377,10 +1365,7 @@ def test_concurrent_writers_publish_only_complete_serialized_generations(
         result = _read_object(paths.result)
         descriptor = _read_object(paths.evidence_descriptor)
         dependencies = cast(list[dict[str, object]], descriptor["dependencies"])
-        assert any(
-            dependency["digest"] == result["result_digest"]
-            for dependency in dependencies
-        )
+        assert any(dependency["digest"] == result["result_digest"] for dependency in dependencies)
 
 
 def test_generation_manifest_fails_closed_on_partial_or_crash_torn_output(
@@ -1543,11 +1528,7 @@ def _invoke_campaign(
     seed: int = 17,
     extra_args: tuple[str, ...] = (),
 ) -> Result:
-    operator_args = [
-        argument
-        for operator in operators
-        for argument in ("--operator", operator)
-    ]
+    operator_args = [argument for operator in operators for argument in ("--operator", operator)]
     return _RUNNER.invoke(
         app,
         [

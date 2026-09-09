@@ -27,6 +27,9 @@ any checklist value, verify:
   workflow at the finalization run's head revision each byte-match the
   corresponding file at the trusted upstream workflow revision named in the
   recruitment handoff;
+- every public `workflow_dispatch` input shown by each run is copied exactly
+  into the receipt, including `none` and `not_applicable` sentinels, and the
+  receipt's derived input-map checksums are retained;
 - the private capture's `participant_repository_revision` exactly equals the
   capture run's actual head revision;
 - the upstream source revision and wheel provenance match the exact captured
@@ -40,7 +43,10 @@ any checklist value, verify:
   optional campaign output agree;
 - the flat directory contains only the evidence descriptor and every declared
   artifact;
-- friction and any remediation state are truthful;
+- friction and any remediation state are truthful; for an applied
+  re-finalization, verify the prior planned candidate digest, confirm the
+  remediation revision is a later upstream descendant of the tested source,
+  and inspect whether its bytes actually address the recorded friction;
 - no raw input, raw command stream, credential value, direct participant
   identifier, or confidential content entered the candidate; and
 - the consent record explicitly covers the evidence descriptor, the receipt
@@ -79,12 +85,39 @@ Use this trusted environment for the commands below. The loader validates the
 candidate wheel structurally and byte-binds it without importing or executing
 code from that wheel.
 
+On Windows, prefer a short checkout root such as `C:\review\agent-assure` so
+legacy Git path-length settings do not interfere with byte review.
+
 ## Create the Receipt
 
 Keep the review template outside the candidate directory. Copy
 `docs/templates/external_pilot_independence_review.yaml`, replace every
 placeholder, and set `reviewed_at` no earlier than the evidence `recorded_at`.
-Assert a boolean only after completing that check.
+Its attestations deliberately start false and its outcome is invalid; change a
+boolean to true and approve the outcome only after completing that check.
+
+Populate both `capture_workflow_run` and `finalize_workflow_run` from their
+specific run attempts. Use each attempt-specific URL ending in `/attempts/N`,
+record the same positive `run_attempt`, and confirm the finalization input
+`capture_run_attempt` identifies the reviewed capture attempt. Hash the workflow
+blob at each run head and at the named `TRUSTED_WORKFLOW_REVISION`; do not hash
+a working-tree copy with altered line endings. For example:
+
+```bash
+git -C participant-fork show <capture-head>:.github/workflows/external-pilot-capture.yml | sha256sum
+git -C reviewer-source show <trusted-workflow-revision>:.github/workflows/external-pilot-capture.yml | sha256sum
+```
+
+Repeat for the finalization workflow. The receipt builder derives a canonical
+SHA-256 over each exact, sorted public-input mapping and rejects missing,
+duplicate, extra, or incoherent inputs. For each run, copy the full lowercase
+`EXECUTION_SOURCE_REVISION` embedded in the reviewed trusted workflow bytes into
+`execution_source_revision`; both values must match the candidate evidence
+subject revision. It also binds the consent artifact, friction state and exact
+category directly from candidate bytes. For an applied remediation, the
+finalization inputs for the later source revision and prior planned-candidate
+digest must match the digest-bound remediation-record bytes; planned and
+no-friction candidates must retain `none`.
 
 From the candidate's parent directory, run:
 
@@ -103,7 +136,9 @@ python -c "from pathlib import Path; from agent_assure.pilot_bundle import load_
 ```
 
 Do not edit participant artifacts. Any changed byte invalidates the descriptor
-or receipt; obtain a new candidate instead. After exact verification, the
+or receipt; obtain a new candidate instead. A remediation re-finalization is a
+new, separately consented candidate and never replaces the prior planned
+candidate. After exact verification, the
 consented directory may be copied unchanged to
 `evidence/empirical/external-pilot/`. The real-model-study bundle remains a
 separate release prerequisite.

@@ -63,6 +63,7 @@ from agent_assure.schema.study import (
     StudyExecutionWindow,
     StudyHypothesisClassification,
     StudyHypothesisDecisionRule,
+    StudyIndependenceDesignBasis,
     StudyIndependenceJustification,
     StudyIndependenceJustificationStatus,
     StudyKnowledgeContract,
@@ -70,6 +71,7 @@ from agent_assure.schema.study import (
     StudyRegistration,
     StudyRegistrationMethod,
     StudyRegistrationReviewReceipt,
+    StudySemanticNearDuplicateDisposition,
     calculate_study_knowledge_contract_digest,
 )
 from agent_assure.schema.suite import CompiledSuite
@@ -378,9 +380,13 @@ def _manifest(
             ),
             independence_justification=StudyIndependenceJustification(
                 status=(
-                    StudyIndependenceJustificationStatus
-                    .author_asserted_design_basis_pending_qualified_review
+                    StudyIndependenceJustificationStatus.author_asserted_design_basis_pending_qualified_review
                 ),
+                design_basis=(StudyIndependenceDesignBasis.independently_generated_task_clusters),
+                semantic_near_duplicate_disposition=(
+                    StudySemanticNearDuplicateDisposition.none_detected_by_digest_bound_audit
+                ),
+                independence_audit_artifact_sha256=_digest("synthetic-fixture-independence-audit"),
                 inferential_unit_definition=(
                     "Each synthetic inferential unit is one separately dispatched case-ID "
                     "cluster in the finite frozen unit-test frame."
@@ -540,6 +546,13 @@ def _bind_runset_to_manifest(
         rebound_runs.append(AgentRunRecord.model_validate(run))
     payload["runs"] = rebound_runs
     payload["study_manifest_digest"] = manifest.manifest_digest
+    if payload.get("execution_attempt_journal") is not None:
+        journal_payload = dict(payload["execution_attempt_journal"])
+        journal_payload.pop("journal_digest")
+        journal_payload["study_manifest_digest"] = manifest.manifest_digest
+        journal = LiveExecutionAttemptJournal.build(**journal_payload)
+        payload["execution_attempt_journal_digest"] = journal.journal_digest
+        payload["execution_attempt_journal"] = journal.model_dump(mode="json")
     return RunSet.model_validate(payload)
 
 
@@ -1148,7 +1161,10 @@ def test_study_rejects_benchmark_direction_that_disagrees_with_protocol_arms() -
         )
 
 
-@pytest.mark.parametrize("tampered_field", (None, "input_digest", "source_digest"))
+@pytest.mark.parametrize(
+    "tampered_field",
+    (None, "input_digest", "source_digest", "fail_fast_on_excluded_response"),
+)
 def test_live_binding_uses_one_snapshot_and_binds_exact_benchmark_bytes(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -1218,6 +1234,7 @@ def test_live_binding_uses_one_snapshot_and_binds_exact_benchmark_bytes(
             for case_id in case_ids
         ),
         max_requests=len(case_ids),
+        fail_fast_on_excluded_response=(tampered_field != "fail_fast_on_excluded_response"),
     )
     snapshot = LiveExecutionSnapshot(
         prompts=tuple((case_id, prompts[case_id]) for case_id in case_ids),
@@ -1280,8 +1297,9 @@ def test_live_binding_uses_one_snapshot_and_binds_exact_benchmark_bytes(
     else:
         with pytest.raises(ValueError, match=tampered_field):
             call()
-    assert prepared == [snapshot]
-    assert prebound == [snapshot]
+    expected_snapshots = [] if tampered_field == "fail_fast_on_excluded_response" else [snapshot]
+    assert prepared == expected_snapshots
+    assert prebound == expected_snapshots
 
 
 @pytest.mark.parametrize(

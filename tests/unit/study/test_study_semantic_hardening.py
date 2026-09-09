@@ -11,15 +11,19 @@ from agent_assure.schema.stochastic_sensitivity import CaseClusterBinding
 from agent_assure.schema.study import (
     UNRESOLVED_INDEPENDENCE_BASIS,
     RealModelStudyReport,
+    StudyAnalysisDeclaration,
     StudyConditionBinding,
     StudyConditionResult,
     StudyConditionState,
     StudyExpectedResponseDiagnostic,
     StudyHypothesisClassification,
     StudyHypothesisDecisionRule,
+    StudyIndependenceDesignBasis,
     StudyIndependenceJustification,
     StudyIndependenceJustificationStatus,
+    StudyInferenceScope,
     StudyObservedExecutionProvenance,
+    StudySemanticNearDuplicateDisposition,
 )
 from agent_assure.study.analysis import (
     StudyConditionEvidence,
@@ -33,6 +37,7 @@ from tests.unit.study.test_real_model_study import (
     _analyze,
     _condition_evidence,
     _fixture,
+    _rebind_evidence_to_manifest,
     _rebuild_manifest,
     _replace_runset_records,
 )
@@ -141,6 +146,8 @@ def _analyze_with_condition_fingerprints(
 def _unresolved_independence() -> StudyIndependenceJustification:
     return StudyIndependenceJustification(
         status=StudyIndependenceJustificationStatus.unresolved_authoring_placeholder,
+        design_basis=StudyIndependenceDesignBasis.unresolved,
+        semantic_near_duplicate_disposition=(StudySemanticNearDuplicateDisposition.unresolved),
         inferential_unit_definition=(
             "Each proposed inferential unit is one separately dispatched case-ID "
             "cluster in a finite frozen conformance frame."
@@ -155,6 +162,100 @@ def _unresolved_independence() -> StudyIndependenceJustification:
             "and scoped to the exact finite frame."
         ),
     )
+
+
+def _fixed_frame_manifest(fixture: StudyFixture):  # type: ignore[no-untyped-def]
+    rule_payload = fixture.manifest.hypothesis_decision_rule.model_dump(mode="json")
+    rule_payload.update(
+        {
+            "inference_scope": "fixed_frame_descriptive_conformance",
+            "exchangeability_assumption": "not_assumed_fixed_frame_descriptive_only",
+            "independence_justification": StudyIndependenceJustification(
+                status=(StudyIndependenceJustificationStatus.fixed_frame_dependence_acknowledged),
+                design_basis=StudyIndependenceDesignBasis.shared_template_parameter_grid,
+                semantic_near_duplicate_disposition=(
+                    StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
+                ),
+                independence_audit_artifact_sha256="0123456789abcdef" * 4,
+                inferential_unit_definition=(
+                    "Each reported unit is a committed case cluster in this exact finite "
+                    "synthetic conformance frame, without a population-sampling claim."
+                ),
+                independence_basis=(
+                    "The cases form a shared-template parameter grid, so the design does "
+                    "not claim independent exchangeable behavioral units."
+                ),
+                dependence_risks_and_mitigations=(
+                    "Shared task structure and adjacent parameters can induce correlated "
+                    "behavior; the analysis therefore reports only fixed-frame rates."
+                ),
+                residual_scope_limitation=(
+                    "Results describe only these exact committed cases and provider calls, "
+                    "with no prevalence or population generalization."
+                ),
+            ).model_dump(mode="json"),
+        }
+    )
+    return _rebuild_manifest(
+        fixture.manifest,
+        analysis_status=StudyAnalysisDeclaration(
+            primary=StudyInferenceScope.fixed_frame_descriptive_conformance
+        ),
+        hypothesis_decision_rule=StudyHypothesisDecisionRule.model_validate(rule_payload),
+    )
+
+
+def test_fixed_frame_downscope_is_analyzable_but_never_classified() -> None:
+    fixture = _fixture()
+    manifest = _fixed_frame_manifest(fixture)
+    evidence = _rebind_evidence_to_manifest(fixture, manifest)
+
+    report = analyze_real_model_study(
+        manifest=manifest,
+        benchmark=fixture.benchmark,
+        protocols=fixture.protocols,
+        evidence=evidence,
+    )
+
+    assert report.protocol_valid is True
+    assert report.inferential_statistics_applicable is False
+    assert report.statistical_sufficiency_satisfied is True
+    assert report.invariant_controls_satisfied is True
+    assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert all(
+        result.decision_inertia_rate is not None
+        for result in report.conditions
+        if result.analysis_role.value == "inertia_estimand"
+    )
+
+    markdown = render_real_model_study_markdown(report)
+    assert "Inferential statistics applicable: false" in markdown
+    assert "Frame completeness satisfied: true" in markdown
+    assert "Inferential decision rule: inactive" in markdown
+    assert "Frame clusters (committed/complete)" in markdown
+    assert "Statistical sufficiency" not in markdown
+    assert "Inferential unit:" not in markdown
+    assert "Materiality threshold:" not in markdown
+    assert "Familywise alpha:" not in markdown
+    assert "Minimum independent clusters:" not in markdown
+    assert "Adjusted one-sided inertia interval:" not in markdown
+    assert "Adjusted one-sided unexpected-change interval:" not in markdown
+
+
+def test_confirmatory_scope_rejects_shared_template_grid_as_independence_basis() -> None:
+    fixture = _fixture()
+    payload = fixture.manifest.hypothesis_decision_rule.independence_justification.model_dump(
+        mode="json"
+    )
+    payload.update(
+        {
+            "design_basis": "shared_template_parameter_grid",
+            "semantic_near_duplicate_disposition": "fixed_frame_descriptive_only",
+        }
+    )
+
+    with pytest.raises(ValidationError, match="confirmatory independence"):
+        StudyIndependenceJustification.model_validate(payload)
 
 
 def test_inertia_breakdown_is_descriptive_exact_and_published() -> None:
@@ -364,6 +465,8 @@ def test_statistical_method_review_rejects_unresolved_synthetic_manifest() -> No
             reviewed_at_utc="2025-01-03T00:00:00Z",
             reviewer_pseudonym="independent-statistical-reviewer",
             reviewer_statistical_qualification_confirmed=True,
+            reviewer_qualification_basis_types=("professional_statistical_practice",),
+            reviewer_qualification_evidence_digest="0123456789abcdef" * 4,
             reviewer_qualification_basis=(
                 "The reviewer has documented statistical design and exact "
                 "binomial-inference qualifications."
@@ -372,6 +475,17 @@ def test_statistical_method_review_rejects_unresolved_synthetic_manifest() -> No
             reviewer_independence_rationale=(
                 "The reviewer did not design, execute, analyze, or sponsor this "
                 "synthetic validation study."
+            ),
+            independence_design_basis_reviewed_and_accepted=True,
+            independence_acceptance_rationale=(
+                "Independent review would need to accept a concrete cluster-construction "
+                "basis before confirmatory provider execution."
+            ),
+            semantic_near_duplicate_audit_reviewed=True,
+            semantic_near_duplicate_pseudoreplication_rejected=True,
+            semantic_near_duplicate_review_rationale=(
+                "Independent review would need to disposition every semantic duplicate "
+                "before treating clusters as separate units."
             ),
             benchmark_cluster_assignments_reviewed=True,
             independence_and_exchangeability_assumptions_reviewed=True,

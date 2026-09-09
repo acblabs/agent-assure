@@ -84,9 +84,7 @@ def _item_lines(item: ControlCoverageItem) -> list[str]:
         f"- State: {markdown_code_span(item.coverage_state.value)}",
     ]
     if item.mapping_strength is not None:
-        lines.append(
-            f"- Mapping strength: {markdown_code_span(item.mapping_strength.value)}"
-        )
+        lines.append(f"- Mapping strength: {markdown_code_span(item.mapping_strength.value)}")
     if item.atlas_tactic_ids:
         lines.append("- ATLAS tactics: " + _code_list(item.atlas_tactic_ids))
     if item.atlas_technique_ids:

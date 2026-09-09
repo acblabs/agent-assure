@@ -112,13 +112,8 @@ def compare_live_reports(
         if exploratory and state is GateState.pass_:
             state = GateState.not_evaluated
     else:
-        degenerate_interval = (
-            compared_clusters > 1 and lower == upper == difference
-        )
-        exploratory = (
-            _comparison_exploratory(protocol, compared_clusters)
-            or degenerate_interval
-        )
+        degenerate_interval = compared_clusters > 1 and lower == upper == difference
+        exploratory = _comparison_exploratory(protocol, compared_clusters) or degenerate_interval
         state = _comparison_state(lower, margin, compared_clusters, exploratory)
     limitations = list(
         _comparison_limitations(
@@ -283,9 +278,7 @@ def _paired_cluster_differences(
     candidate_rates = _cluster_pass_rates(candidate, protocol.candidate_group_id)
     _validate_paired_cluster_sets(baseline_rates, candidate_rates)
     common_clusters = sorted(baseline_rates)
-    return tuple(
-        candidate_rates[cluster] - baseline_rates[cluster] for cluster in common_clusters
-    )
+    return tuple(candidate_rates[cluster] - baseline_rates[cluster] for cluster in common_clusters)
 
 
 def _paired_cluster_difference_from_values(
@@ -400,9 +393,7 @@ def _included_group_observations(
             if live_record_group_id(observation) == group_id
         )
     return tuple(
-        observation
-        for observation in observations
-        if observation.observation_status == "included"
+        observation for observation in observations if observation.observation_status == "included"
     )
 
 
@@ -413,10 +404,7 @@ def _observation_set_delta(
     delta: list[str] = []
     for cluster_id in sorted(set(left) | set(right)):
         missing = sorted(
-            (
-                left.get(cluster_id, Counter())
-                - right.get(cluster_id, Counter())
-            ).elements()
+            (left.get(cluster_id, Counter()) - right.get(cluster_id, Counter())).elements()
         )
         delta.extend(
             (
@@ -543,10 +531,7 @@ def _comparison_exploratory(protocol: LiveProtocolRecord, compared_clusters: int
         return True
     if protocol.analysis_method == "exploratory":
         return True
-    if (
-        protocol.analysis_method == "paired_cluster_bootstrap_percentile"
-        and compared_clusters < 50
-    ):
+    if protocol.analysis_method == "paired_cluster_bootstrap_percentile" and compared_clusters < 50:
         return True
     return False
 
@@ -608,11 +593,7 @@ def _comparison_limitations(
             "boundary; this does not prove candidate inferiority or establish a "
             "statistically confirmatory regression"
         )
-    elif (
-        compared_clusters > 0
-        and margin == Decimal("0")
-        and boundary_value == Decimal("0")
-    ):
+    elif compared_clusters > 0 and margin == Decimal("0") and boundary_value == Decimal("0"):
         limitations.append(
             "the comparison reached the zero-margin equality boundary and is inconclusive; "
             "it is not evaluated and does not prove candidate regression"
@@ -624,9 +605,7 @@ def _comparison_limitations(
                 "so the comparison is exploratory"
             )
         if compared_clusters < 30:
-            limitations.append(
-                "fewer than 30 compared clusters makes this comparison exploratory"
-            )
+            limitations.append("fewer than 30 compared clusters makes this comparison exploratory")
         elif protocol.analysis_method == "paired_cluster_bootstrap_percentile":
             limitations.append(
                 "paired cluster percentile bootstrap requires at least 50 compared clusters "

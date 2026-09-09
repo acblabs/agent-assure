@@ -81,6 +81,8 @@ def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodRevie
         reviewed_at_utc="2025-01-03T00:00:00Z",
         reviewer_pseudonym="independent-statistical-reviewer",
         reviewer_statistical_qualification_confirmed=True,
+        reviewer_qualification_basis_types=("professional_statistical_practice",),
+        reviewer_qualification_evidence_digest="0123456789abcdef" * 4,
         reviewer_qualification_basis=(
             "The reviewer has applied expertise in clustered binomial inference, "
             "multiplicity control, and prospective power analysis."
@@ -90,6 +92,17 @@ def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodRevie
             "The reviewer did not author the benchmark or design, dispatch provider "
             "calls, select observations, or conduct the final analysis."
         ),
+        independence_design_basis_reviewed_and_accepted=True,
+        independence_acceptance_rationale=(
+            "Independent inspection supports the synthetic generator's separate "
+            "cluster construction within this bounded integration-test design."
+        ),
+        semantic_near_duplicate_audit_reviewed=True,
+        semantic_near_duplicate_pseudoreplication_rejected=True,
+        semantic_near_duplicate_review_rationale=(
+            "The digest-bound comparison found no unhandled semantic duplicate "
+            "counted as another cluster in the integration fixture."
+        ),
         benchmark_cluster_assignments_reviewed=True,
         independence_and_exchangeability_assumptions_reviewed=True,
         sampling_frame_and_estimand_reviewed=True,
@@ -97,6 +110,35 @@ def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodRevie
         power_and_decision_boundary_reachability_reviewed=True,
         negative_control_design_reviewed=True,
     )
+
+
+def _execution_review_template() -> dict[str, object]:
+    return {
+        "receipt_id": "integration-execution-review",
+        "reviewed_at_utc": "2025-04-01T00:00:00Z",
+        "reviewer_pseudonym": "independent-integration-reviewer",
+        "reviewer_independent_of_execution": True,
+        "reviewer_independence_rationale": (
+            "The reviewer did not operate the integration fixture execution."
+        ),
+        "provider_log_review_scope": (
+            "The reviewer inspected every integration provider event across the "
+            "registered execution window and all request classes."
+        ),
+        "provider_log_evidence_digest": "1234567890abcdef" * 4,
+        "provider_account_review_scope": (
+            "The reviewer reconciled the complete integration usage ledger against "
+            "every recorded attempt and terminal response."
+        ),
+        "provider_account_evidence_digest": "abcdef0123456789" * 4,
+        "provider_log_and_account_review_confirmed": True,
+        "provider_log_time_window_coverage_confirmed": True,
+        "provider_account_usage_reconciled": True,
+        "exhaustive_attempt_failure_retry_accounting_confirmed": True,
+        "provider_response_id_matches_confirmed": True,
+        "exact_runset_artifact_digest_matches_confirmed": True,
+        "provider_serving_fingerprint_availability_reviewed": True,
+    }
 
 
 def test_study_input_commitment_snapshots_without_dispatch(
@@ -159,9 +201,29 @@ def test_study_review_execution_builds_exact_post_window_receipt_without_dispatc
         registration_review_receipt=fixture.registration_review_receipt,
         out_dir=bundle,
     )
-    template_path = ROOT / "docs" / "templates" / "real_model_study_execution_review.yaml"
+    untouched_template_path = ROOT / "docs" / "templates" / "real_model_study_execution_review.yaml"
+    template_path = tmp_path / "execution-review-template.json"
+    _write_json(template_path, _execution_review_template())
     receipt_path = tmp_path / "study-execution-review.json"
     monkeypatch.setattr(rag_cmd_module, "run_repeated_live_study", _reject_dispatch)
+
+    untouched = RUNNER.invoke(
+        app,
+        [
+            "rag",
+            "study",
+            "review-execution",
+            "--bundle",
+            str(bundle),
+            "--template",
+            str(untouched_template_path),
+            "--out",
+            str(receipt_path),
+        ],
+    )
+    assert untouched.exit_code == 2
+    assert "Input should be True" in untouched.output
+    assert not receipt_path.exists()
 
     result = RUNNER.invoke(
         app,
@@ -231,6 +293,10 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
                 "hypothesis_decision_rule_digest",
                 "registered_at_utc",
                 "execution_window_start_utc",
+                "approved_inference_scope",
+                "independence_design_basis",
+                "independence_audit_artifact_sha256",
+                "semantic_near_duplicate_disposition",
                 "conditions",
                 "method_review_receipt_digest",
                 "approval_disposition",
@@ -261,6 +327,15 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     ]
     for condition_id, protocol_path in protocol_paths.items():
         arguments.extend(("--protocol", f"{condition_id}={protocol_path}"))
+
+    untouched_arguments = list(arguments)
+    untouched_arguments[untouched_arguments.index(str(template_path))] = str(
+        ROOT / "docs" / "templates" / "real_model_study_statistical_method_review.yaml"
+    )
+    untouched = RUNNER.invoke(app, untouched_arguments)
+    assert untouched.exit_code == 2
+    assert "Input should be True" in untouched.output
+    assert not receipt_path.exists()
 
     result = RUNNER.invoke(app, arguments)
 
@@ -301,6 +376,26 @@ def test_study_review_registration_builds_bound_receipt_without_dispatch(
         encoding="utf-8",
     )
     monkeypatch.setattr(rag_cmd_module, "run_repeated_live_study", _reject_dispatch)
+
+    untouched = RUNNER.invoke(
+        app,
+        [
+            "rag",
+            "study",
+            "review-registration",
+            "--manifest",
+            str(manifest_path),
+            "--record",
+            str(record_path),
+            "--template",
+            str(ROOT / "docs" / "templates" / "real_model_study_registration_review.yaml"),
+            "--out",
+            str(out),
+        ],
+    )
+    assert untouched.exit_code == 2
+    assert "Input should be True" in untouched.output
+    assert not out.exists()
 
     result = RUNNER.invoke(
         app,
@@ -602,17 +697,7 @@ def test_study_analyze_publishes_the_replay_bundle_from_relative_evidence(
         protocols=fixture.protocols,
         report=_analyze(fixture),
         evidence=fixture.evidence_by_condition,
-        receipt_id="integration-execution-review",
-        reviewed_at_utc="2025-04-01T00:00:00Z",
-        reviewer_pseudonym="independent-integration-reviewer",
-        reviewer_independent_of_execution=True,
-        reviewer_independence_rationale=(
-            "The reviewer did not operate the integration fixture execution."
-        ),
-        provider_log_and_account_review_confirmed=True,
-        exhaustive_attempt_failure_retry_accounting_confirmed=True,
-        provider_response_id_matches_confirmed=True,
-        exact_runset_artifact_digest_matches_confirmed=True,
+        **_execution_review_template(),
     )
     _write_json(execution_review_path, execution_review_receipt)
     descriptor_conditions = []

@@ -14,6 +14,11 @@ pip install -e ".[dev]"
 make check
 ```
 
+Commands below that use
+`--allow-missing-efficacy-for-migration` or `--release-profile` describe the
+unreleased 0.6.6 source checkout. They are not options in the currently
+published v0.6.5 package; do not mix package and action versions.
+
 ## Run flagship demo
 
 ```bash
@@ -44,12 +49,17 @@ provider, outcome, and human-review findings.
 ## Use CI gate
 
 ```bash
-agent-assure ci CANDIDATE.runset.json --suite SUITE.compiled.json --baseline BASELINE.runset.json --out-dir .tmp/ci-report --report-mode full
+agent-assure ci CANDIDATE.runset.json --suite SUITE.compiled.json --baseline BASELINE.runset.json --out-dir .tmp/ci-report --report-mode full --allow-missing-efficacy-for-migration
 ```
 
-The command exits nonzero when a blocking finding is observed. Demo wrappers may
-turn an expected blocking finding into a successful demonstration, but the core
-CI command remains strict.
+This invocation is explicitly evaluation-only: the named migration option
+allows the generated packet to omit control-efficacy evidence and labels the
+decision as non-assurance. Without it, packet gating fails closed on absent
+efficacy. For an assurance claim, build a packet containing a control-efficacy
+report and gate it with a separately controlled `--efficacy-policy`; release
+automation must use `--release-profile`. The command exits nonzero when a
+blocking finding is observed. Demo wrappers may turn an expected blocking
+finding into a successful demonstration.
 
 ## Read evidence packet
 

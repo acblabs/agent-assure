@@ -30,12 +30,7 @@ def test_source_checkout_component_ignores_adjacent_installed_schema(
 ) -> None:
     environment = tmp_path / "venv"
     module_file = (
-        environment
-        / "Lib"
-        / "site-packages"
-        / "agent_assure"
-        / "schema"
-        / "validation.py"
+        environment / "Lib" / "site-packages" / "agent_assure" / "schema" / "validation.py"
     )
     adjacent_schema = environment / "Lib" / "schemas" / "v0.5.0" / "run-set.schema.json"
     module_file.parent.mkdir(parents=True)

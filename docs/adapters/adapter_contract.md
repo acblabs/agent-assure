@@ -7,6 +7,23 @@ agent-assure artifacts. Evaluation remains framework-neutral: once an adapter
 has produced `AgentRunRecord`, usage, evidence, and provenance fields, the
 ordinary expectation and invariant evaluator decides pass or fail.
 
+Current producers follow `agent-run-record-producer-contract/v2` and declare a
+source for each structured run-record field. The source label is provenance,
+not remote attestation:
+
+| Producer path | Structured-field origin | Evaluation meaning |
+| --- | --- | --- |
+| Deterministic fixture runner or live static JSONL | `fixture` | Authored test input; eligible for declared fixture controls, not proof of an external event. |
+| Direct OpenAI-compatible response | `model_self_report` | Only recommendation, outcome, and summary are accepted. Process fields are unavailable and cannot satisfy process controls. |
+| External script or framework observation adapter | `instrumented_adapter` | Eligible producer-declared process evidence; correctness still depends on the adapter and upstream instrumentation. |
+| Runner-created runtime error record | `runner_observed` | Locally derived failure evidence for the exact excluded error-record shape. |
+| Older live record with no origin declaration | `legacy_unspecified` | Process fields fail closed; a self-reported pass cannot become positive control evidence. |
+
+Older fixture records without the v2 field are interpreted as authored fixture
+input. An origin must describe how a field reached the record; producers must
+not upgrade model output to `instrumented_adapter` merely because an adapter
+copied it.
+
 ## Observation Shape
 
 The core observation model is `FrameworkObservation` in
@@ -32,10 +49,11 @@ not semantic raw-text detection. Prefer canonical tokens such as
 display labels with spaces or raw payload fragments.
 
 The helper that projects framework observations into `AgentRunRecord` emits
-fixture-mode review artifacts. It is for deterministic offline or declared
-observation records. Final `recommendation` and `outcome` values must be
-observed in privacy-filtered observation attributes; the projection helper does
-not treat static projection values as measured framework output by default.
+fixture-mode review artifacts with `instrumented_adapter` provenance. It is for
+deterministic offline or declared observation records. Final `recommendation`
+and `outcome` values must be recorded in privacy-filtered observation
+attributes; the projection helper does not treat static projection values as
+measured framework output by default.
 When producers emit `human_review_required` or `human_review_performed`,
 values must be the compact strings `"true"` or `"false"`; malformed present
 values fail closed rather than falling back to projection defaults. Observed

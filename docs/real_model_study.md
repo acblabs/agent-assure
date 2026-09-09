@@ -78,6 +78,22 @@ repeated protocol's design commitment. Digest consistency detects changed
 bytes and mismatched bindings; it is not a signature, timestamp, or proof of
 source authenticity.
 
+## Inference eligibility and trust boundary
+
+The manifest makes inference scope machine-readable rather than leaving it in
+prose:
+
+| Scope | Required design disposition | Report behavior | Bundle/readiness eligibility |
+| --- | --- | --- | --- |
+| `confirmatory_independent_clusters` | A resolved independent-cluster design basis, digest-bound independence audit, and explicit semantic-near-duplicate disposition accepted by the qualified reviewer. | `inferential_statistics_applicable=true`; the preregistered multiplicity, interval, and decision rules may classify only after every validity gate passes. | May satisfy `ValidatedStudyBundle.is_publication_ready` and Sprint 7, but only with all other real-provider, review, benchmark, and pilot requirements. |
+| `fixed_frame_descriptive_conformance` | Shared-template dependence is acknowledged and the method reviewer approves the downscope. | `inferential_statistics_applicable=false`; classification is always `not_measured`; release-facing Markdown reports frame completeness plus counts/rates and omits inferential units, alpha, materiality thresholds, minimum-independent-cluster claims, and adjusted intervals. | May satisfy only scoped descriptive publication readiness. It can never satisfy the Sprint 7 empirical checkpoint. |
+
+Distinct IDs and digests prove identity, not independence. The software binds
+the structured design basis, audit digest, near-duplicate disposition, and
+review decision; it cannot establish that the audit was competent or truthful.
+Reviewer identity, qualification evidence, provider-log access, and provider
+account access remain authenticated out of band.
+
 The two knowledge digests serve different purposes and are deliberately not
 interchangeable. `study_knowledge_contract_digest` binds the three-field
 semantic premise stated in the manifest. `knowledge_contract_digest` binds the
@@ -115,6 +131,12 @@ analyzed:
    publication. Recoverable failures remove only transaction-owned entries, but
    the pair is not crash-atomic; consumers reject a half-bound pair left by
    abrupt termination or power loss.
+
+Every study-bound live configuration must preregister
+`fail_fast_on_excluded_response: true`. Binding rejects a false or omitted
+value before snapshot preparation. A non-stop or malformed provider response
+therefore invalidates the attempt and stops the unissued tail instead of
+spending the remaining planned request budget.
 
 `version_control_commit` and `append_only_registry` are the registration
 methods eligible for a confirmatory conclusion. `local_digest_commitment` is

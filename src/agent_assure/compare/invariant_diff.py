@@ -87,10 +87,7 @@ def diff_control_findings(
                 finding,
                 baseline_state=None,
                 candidate_state=finding.state,
-                message=(
-                    "candidate introduced fail-state finding "
-                    f"{finding.reason_code.value}"
-                ),
+                message=(f"candidate introduced fail-state finding {finding.reason_code.value}"),
             )
         )
     for key in sorted(set(baseline_findings) - set(candidate_findings)):
@@ -101,10 +98,7 @@ def diff_control_findings(
                 finding,
                 baseline_state=finding.state,
                 candidate_state=None,
-                message=(
-                    "candidate resolved baseline finding "
-                    f"{finding.reason_code.value}"
-                ),
+                message=(f"candidate resolved baseline finding {finding.reason_code.value}"),
             )
         )
     for key in sorted(set(baseline_findings) & set(candidate_findings)):
@@ -117,8 +111,7 @@ def diff_control_findings(
                 baseline_state=baseline_finding.state,
                 candidate_state=candidate_finding.state,
                 message=(
-                    "candidate retains fail-state finding "
-                    f"{candidate_finding.reason_code.value}"
+                    f"candidate retains fail-state finding {candidate_finding.reason_code.value}"
                 ),
             )
         )

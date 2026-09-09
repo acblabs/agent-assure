@@ -76,19 +76,31 @@ def test_library_entrypoints_default_to_strict_efficacy() -> None:
         assert "separate verifier-owned efficacy policy" in decision.message
 
 
-def test_optional_packet_without_efficacy_discloses_that_none_was_checked() -> None:
+def test_packet_without_efficacy_fails_closed_unless_migration_is_explicit() -> None:
     packet = _packet_without_efficacy()
 
-    decision = gate_artifact(packet)
-    dumped = decision.model_dump()
+    default_decisions = (gate_artifact(packet), gate_evidence_packet(packet))
+    migration_decisions = (
+        gate_artifact(packet, allow_missing_efficacy_for_migration=True),
+        gate_evidence_packet(packet, allow_missing_efficacy_for_migration=True),
+    )
 
-    assert decision.exit_code == 0
-    assert decision.outcome is GateOutcome.pass_
-    assert dumped["efficacy_evidence"] == "absent"
-    assert dumped["efficacy_verification"] == "not_requested"
-    assert dumped["efficacy_required"] is False
-    assert "efficacy_evidence=absent" in decision.message
-    assert "efficacy_verification=not_requested" in decision.message
+    for decision in default_decisions:
+        dumped = decision.model_dump()
+        assert decision.exit_code == 2
+        assert decision.outcome is GateOutcome.invalid
+        assert dumped["efficacy_evidence"] == "absent"
+        assert dumped["efficacy_verification"] == "strict"
+        assert dumped["efficacy_required"] is True
+        assert "default evidence-packet gate" in decision.message
+
+    for decision in migration_decisions:
+        dumped = decision.model_dump()
+        assert decision.exit_code == 0
+        assert decision.outcome is GateOutcome.pass_
+        assert dumped["efficacy_evidence"] == "absent"
+        assert dumped["efficacy_verification"] == "not_requested"
+        assert dumped["efficacy_required"] is False
 
 
 def test_require_efficacy_rejects_packet_without_efficacy_with_specific_message() -> None:
@@ -107,7 +119,7 @@ def test_require_efficacy_rejects_packet_without_efficacy_with_specific_message(
         assert dumped["efficacy_required"] is True
         assert f"evidence-packet {packet.packet_id}" in decision.message
         assert "has no control-efficacy evidence" in decision.message
-        assert "required by verifier policy or --require-efficacy" in decision.message
+        assert "required by the default evidence-packet gate" in decision.message
 
 
 def test_verifier_policy_implies_required_efficacy_for_packet() -> None:
@@ -121,7 +133,7 @@ def test_verifier_policy_implies_required_efficacy_for_packet() -> None:
     assert decision.model_dump()["efficacy_required"] is True
     assert f"evidence-packet {packet.packet_id}" in decision.message
     assert "has no control-efficacy evidence" in decision.message
-    assert "required by verifier policy or --require-efficacy" in decision.message
+    assert "required by the default evidence-packet gate" in decision.message
 
 
 def test_non_efficacy_artifact_discloses_not_applicable_verification() -> None:
@@ -592,7 +604,9 @@ def test_ci_command_defaults_to_strict_efficacy_for_reports(tmp_path: Path) -> N
     assert "ci gate pass: control-efficacy-report" in advisory.output
 
 
-def test_ci_require_efficacy_rejects_packet_without_efficacy(tmp_path: Path) -> None:
+def test_ci_packet_efficacy_is_required_by_default_with_migration_opt_out(
+    tmp_path: Path,
+) -> None:
     packet = _packet_without_efficacy()
     packet_path = tmp_path / "packet.json"
     write_evidence_packet(packet, packet_path)
@@ -603,7 +617,7 @@ def test_ci_require_efficacy_rejects_packet_without_efficacy(tmp_path: Path) -> 
     config_path.write_bytes(files[CONFIG_FILENAME])
     (policy_dir / THREAT_MANIFEST_FILENAME).write_bytes(files[THREAT_MANIFEST_FILENAME])
 
-    optional = _RUNNER.invoke(
+    default = _RUNNER.invoke(
         app,
         ["ci", "gate", str(packet_path)],
         terminal_width=240,
@@ -618,17 +632,205 @@ def test_ci_require_efficacy_rejects_packet_without_efficacy(tmp_path: Path) -> 
         ["ci", "gate", str(packet_path), "--efficacy-policy", str(config_path)],
         terminal_width=240,
     )
+    migration = _RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+        terminal_width=240,
+    )
 
-    assert optional.exit_code == 0, optional.output
-    assert "efficacy_evidence=absent" in " ".join(optional.output.split())
-    assert "efficacy_verification=not_requested" in " ".join(optional.output.split())
-    for result in (required, policy_required):
+    for result in (default, required, policy_required):
         normalized = " ".join(result.output.split())
         assert result.exit_code == 2, result.output
         assert f"evidence-packet {packet.packet_id}" in normalized
         assert "has no control-efficacy evidence" in normalized
-        assert "required by verifier policy or --require-efficacy" in normalized
+        assert "required by the default evidence-packet gate" in normalized
         assert "options require a control-efficacy report or evidence packet" not in normalized
+    assert migration.exit_code == 0, migration.output
+    migration_output = " ".join(migration.output.split())
+    assert "efficacy_evidence=absent" in migration_output
+    assert "efficacy_verification=not_requested" in migration_output
+    assert "policy_profile=non-assurance-migration" in migration_output
+
+
+def test_ci_migration_absent_efficacy_json_is_explicitly_not_verified(
+    tmp_path: Path,
+) -> None:
+    packet_path = tmp_path / "packet.json"
+    write_evidence_packet(_packet_without_efficacy(), packet_path)
+
+    result = _RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+            "--format",
+            "json",
+        ],
+        terminal_width=240,
+    )
+
+    assert result.exit_code == 0, result.output
+    decision = json.loads(result.output)
+    assert decision["efficacy_evidence"] == "absent"
+    assert decision["efficacy_verification"] == "not_requested"
+    assert decision["efficacy_required"] is False
+
+
+def test_migration_override_rejects_non_packet_and_present_efficacy() -> None:
+    report = _passing_report()
+    efficacy_packet = _packet(report, _permissive_profile(report))
+
+    non_packet = gate_artifact(
+        _passing_evaluation(),
+        allow_missing_efficacy_for_migration=True,
+    )
+    already_present = gate_evidence_packet(
+        efficacy_packet,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    assert non_packet.exit_code == 2
+    assert non_packet.outcome is GateOutcome.invalid
+    assert "valid only for an evidence packet without" in non_packet.message
+    assert already_present.exit_code == 2
+    assert already_present.outcome is GateOutcome.invalid
+    assert "already carries control-efficacy evidence" in already_present.message
+
+
+def test_ci_migration_override_rejects_packet_with_existing_efficacy(
+    tmp_path: Path,
+) -> None:
+    report = _passing_report()
+    packet_path = tmp_path / "packet.json"
+    write_evidence_packet(_packet(report, _permissive_profile(report)), packet_path)
+
+    result = _RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-missing-efficacy-for-migration",
+        ],
+        terminal_width=240,
+    )
+
+    assert result.exit_code == 2
+    assert "already carries control-efficacy evidence" in " ".join(result.output.split())
+
+
+def test_ci_release_profile_requires_policy_and_rejects_non_packet(tmp_path: Path) -> None:
+    report_path = write_control_efficacy_report(
+        _passing_report(),
+        tmp_path / "efficacy",
+    ).report
+
+    without_policy = _RUNNER.invoke(
+        app,
+        ["ci", "gate", str(report_path), "--release-profile"],
+        terminal_width=240,
+    )
+    assert without_policy.exit_code == 2
+    assert "--release-profile requires --efficacy-policy" in without_policy.output
+
+    files = expected_scaffold_files()
+    policy_dir = tmp_path / "policy"
+    policy_dir.mkdir()
+    policy_path = policy_dir / CONFIG_FILENAME
+    policy_path.write_bytes(files[CONFIG_FILENAME])
+    (policy_dir / THREAT_MANIFEST_FILENAME).write_bytes(files[THREAT_MANIFEST_FILENAME])
+    non_packet = _RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(report_path),
+            "--release-profile",
+            "--efficacy-policy",
+            str(policy_path),
+        ],
+        terminal_width=240,
+    )
+    assert non_packet.exit_code == 2
+    assert "--release-profile requires an evidence packet" in non_packet.output
+
+
+@pytest.mark.parametrize(
+    "weakening_flag",
+    (
+        "--allow-missing-efficacy-for-migration",
+        "--allow-advisory-efficacy",
+        "--allow-sensitivity-non-verdict",
+        "--allow-legacy-unbound-comparison",
+    ),
+)
+def test_ci_release_profile_rejects_weakening_flags(
+    tmp_path: Path,
+    weakening_flag: str,
+) -> None:
+    files = expected_scaffold_files()
+    policy_dir = tmp_path / "policy"
+    policy_dir.mkdir()
+    policy_path = policy_dir / CONFIG_FILENAME
+    policy_path.write_bytes(files[CONFIG_FILENAME])
+    (policy_dir / THREAT_MANIFEST_FILENAME).write_bytes(files[THREAT_MANIFEST_FILENAME])
+    packet_path = tmp_path / "packet.json"
+    write_evidence_packet(_packet_without_efficacy(), packet_path)
+
+    result = _RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--release-profile",
+            "--efficacy-policy",
+            str(policy_path),
+            weakening_flag,
+        ],
+        terminal_width=500,
+    )
+
+    assert result.exit_code == 2
+    assert "--release-profile" in result.output
+    assert weakening_flag in result.output
+
+
+def test_ci_release_profile_requires_present_strict_efficacy(tmp_path: Path) -> None:
+    files = expected_scaffold_files()
+    policy_dir = tmp_path / "policy"
+    policy_dir.mkdir()
+    policy_path = policy_dir / CONFIG_FILENAME
+    policy_path.write_bytes(files[CONFIG_FILENAME])
+    (policy_dir / THREAT_MANIFEST_FILENAME).write_bytes(files[THREAT_MANIFEST_FILENAME])
+    packet_path = tmp_path / "packet.json"
+    write_evidence_packet(_packet_without_efficacy(), packet_path)
+
+    result = _RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--release-profile",
+            "--efficacy-policy",
+            str(policy_path),
+        ],
+        terminal_width=240,
+    )
+
+    normalized = " ".join(result.output.split())
+    assert result.exit_code == 2
+    assert "has no control-efficacy evidence" in normalized
+    assert "required by the default evidence-packet gate" in normalized
+    assert "policy_profile=release" in normalized
 
 
 def test_yaml_policy_loader_pins_config_catalog_and_threat_scope(tmp_path: Path) -> None:

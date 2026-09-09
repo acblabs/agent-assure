@@ -68,8 +68,7 @@ def test_release_commands_reject_external_suite(tmp_path: Path) -> None:
                 suite=str(external_suite),
                 baseline_variant="examples/prior_auth_synthetic/variants/baseline.yaml",
                 candidate_variant=(
-                    "examples/prior_auth_synthetic/variants/"
-                    "candidate_evidence_normalization.yaml"
+                    "examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml"
                 ),
                 artifact_prefix="prior-auth",
             )
@@ -94,6 +93,7 @@ def test_release_commands_pin_ci_evaluation_date(tmp_path: Path) -> None:
     ci_command = next(command.command for command in commands if command.name == "ci-gate")
     today_index = ci_command.index("--today")
     assert ci_command[today_index + 1] == "2030-01-02"
+    assert ci_command.count("--allow-missing-efficacy-for-migration") == 1
 
 
 def test_release_env_sets_default_source_date_epoch(monkeypatch) -> None:

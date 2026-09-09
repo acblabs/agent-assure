@@ -94,10 +94,7 @@ class MappingRule(StrictModel):
 
     @model_validator(mode="after")
     def _validate_contradiction_path(self) -> Self:
-        if (
-            self.coverage_state_when_false
-            is ControlCoverageState.contradictory_evidence_observed
-        ):
+        if self.coverage_state_when_false is ControlCoverageState.contradictory_evidence_observed:
             raise ValueError(
                 "contradictory_evidence_observed must be authored on true mapping paths"
             )
@@ -168,15 +165,12 @@ class FrameworkMapping(StrictModel):
     def _validate_framework_specific_controls(self) -> Self:
         if self.framework is ControlFramework.mitre_atlas_2026_06:
             missing_strength = [
-                control.id
-                for control in self.controls
-                if control.mapping_strength is None
+                control.id for control in self.controls if control.mapping_strength is None
             ]
             if missing_strength:
                 joined = ", ".join(missing_strength)
                 raise ValueError(
-                    "MITRE ATLAS mappings require mapping_strength for every "
-                    f"control: {joined}"
+                    f"MITRE ATLAS mappings require mapping_strength for every control: {joined}"
                 )
         return self
 
@@ -305,10 +299,7 @@ def _coverage_item(
         limitations.extend(rule.limitations)
     state = _aggregate_state(tuple(evaluations))
     evidence_refs = _dedupe_evidence_refs(
-        ref
-        for evaluation in evaluations
-        if evaluation.observed
-        for ref in evaluation.evidence_refs
+        ref for evaluation in evaluations if evaluation.observed for ref in evaluation.evidence_refs
     )
     return ControlCoverageItem(
         artifact_kind="control-coverage-item",
@@ -361,9 +352,7 @@ def _format_requirement(requirement: MappingRequirement) -> str:
 
 def _format_rule_condition(requirements: tuple[MappingRequirement, ...]) -> str | None:
     conditions = tuple(
-        requirement.condition
-        for requirement in requirements
-        if requirement.condition is not None
+        requirement.condition for requirement in requirements if requirement.condition is not None
     )
     if not conditions:
         return None
@@ -381,10 +370,7 @@ def _missing_signal_rationale(
     ]
     if not missing:
         return "Required packet signals were observed."
-    missing_labels = ", ".join(
-        _format_requirement(requirement)
-        for requirement, _result in missing
-    )
+    missing_labels = ", ".join(_format_requirement(requirement) for requirement, _result in missing)
     rationales = " ".join(result.rationale for _requirement, result in missing)
     return f"Missing packet signals: {missing_labels}. {rationales}"
 
@@ -603,8 +589,7 @@ class _PacketContext:
         findings = [
             finding
             for finding in self.packet.evaluation.findings
-            if finding.control_id == control_id
-            and finding.state is not GateState.not_evaluated
+            if finding.control_id == control_id and finding.state is not GateState.not_evaluated
         ]
         if not findings:
             return _not_observed(
@@ -614,9 +599,7 @@ class _PacketContext:
         return SignalResult(
             observed=True,
             evidence_refs=tuple(_finding_ref(finding) for finding in findings),
-            rationale=(
-                f"Observed {len(findings)} control-specific evaluation finding(s)."
-            ),
+            rationale=(f"Observed {len(findings)} control-specific evaluation finding(s)."),
         )
 
     def _evaluation_state(self, state: str | None) -> SignalResult:

@@ -31,9 +31,7 @@ def test_markdown_rendering_preserves_ordinary_escaping() -> None:
 
 
 def test_markdown_rendering_removes_controls_and_reredacts() -> None:
-    rendered = markdown_text(
-        "[safe]\x1b[31m\x9b2J\u202e contact second@example\x00.com"
-    )
+    rendered = markdown_text("[safe]\x1b[31m\x9b2J\u202e contact second@example\x00.com")
 
     assert rendered.startswith("\\[safe\\]\\[31m2J contact ")
     assert "\x1b" not in rendered

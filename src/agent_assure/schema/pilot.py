@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Mapping, Sequence
 from enum import StrEnum
 from typing import Annotated, Literal, Self
@@ -38,6 +39,42 @@ MAX_PILOT_COMMAND_ARGUMENTS = 128
 MAX_PILOT_ENVIRONMENT_COMPONENTS = 64
 MAX_PILOT_FINDINGS = 128
 MAX_PILOT_REMEDIATIONS = 128
+
+GitRevision = Annotated[str, Field(pattern=r"^[a-f0-9]{40}$")]
+WorkflowInputValue = Annotated[
+    str,
+    Field(min_length=1, max_length=2_048, pattern=r"^[^\x00\r\n]+$"),
+]
+_GITHUB_ACTIONS_RUN_URL = re.compile(
+    r"^https://github\.com/([A-Za-z0-9_.-]+)/([A-Za-z0-9_.-]+)/actions/runs/"
+    r"([1-9][0-9]*)/attempts/([1-9][0-9]*)$"
+)
+_PILOT_WORKFLOW_PATHS = {
+    "capture": ".github/workflows/external-pilot-capture.yml",
+    "finalize": ".github/workflows/external-pilot-finalize.yml",
+}
+_PILOT_WORKFLOW_INPUTS = {
+    "capture": frozenset(
+        {
+            "attest_independent_non_maintainer",
+            "consent_to_temporary_actions_storage",
+            "participant_pseudonym",
+        }
+    ),
+    "finalize": frozenset(
+        {
+            "capture_run_attempt",
+            "capture_run_id",
+            "friction_assessment",
+            "friction_category",
+            "grant_privacy_filtered_publication",
+            "prior_candidate_evidence_digest",
+            "reattest_independent_non_maintainer",
+            "remediation_disposition",
+            "remediation_source_revision",
+        }
+    ),
+}
 
 PilotText = Annotated[str, Field(min_length=1, max_length=2_048)]
 PilotVersion = Annotated[str, Field(min_length=1, max_length=128)]
@@ -501,6 +538,112 @@ class PilotRemediationDisposition(StrEnum):
     planned = "planned"
     deferred = "deferred"
     no_change_required = "no_change_required"
+
+
+class PilotWorkflowDispatchInput(FrozenStrictModel):
+    """One public, non-secret workflow-dispatch input reviewed from a run record."""
+
+    name: MachineIdentifier
+    value: WorkflowInputValue
+
+
+def calculate_pilot_workflow_inputs_digest(
+    inputs: Sequence[PilotWorkflowDispatchInput],
+) -> str:
+    """Bind the complete canonical workflow-dispatch input mapping."""
+
+    return hashlib.sha256(
+        rfc8785.dumps(
+            {
+                "contract_id": "PilotWorkflowDispatchInputs/v1",
+                "inputs": tuple(item.model_dump(mode="json") for item in inputs),
+            }
+        )
+    ).hexdigest()
+
+
+class PilotWorkflowRunReview(FrozenStrictModel):
+    """Human-reviewed binding between one Actions run and trusted workflow bytes."""
+
+    stage: Literal["capture", "finalize"]
+    run_url: str = Field(min_length=1, max_length=512)
+    run_attempt: int = Field(ge=1)
+    run_head_sha: GitRevision
+    trusted_workflow_revision: GitRevision
+    execution_source_revision: GitRevision
+    workflow_path: str = Field(min_length=1, max_length=255)
+    run_head_workflow_sha256: DigestHex
+    trusted_workflow_sha256: DigestHex
+    workflow_bytes_match_trusted_revision: Literal[True]
+    public_inputs: tuple[PilotWorkflowDispatchInput, ...] = Field(min_length=1, max_length=32)
+    public_inputs_sha256: DigestHex
+
+    @field_validator("public_inputs", mode="before")
+    @classmethod
+    def _coerce_public_inputs(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @classmethod
+    def build(cls, **values: object) -> Self:
+        prepared = dict(values)
+        raw_inputs = coerce_tuple(prepared.get("public_inputs"))
+        if not isinstance(raw_inputs, tuple):
+            raise TypeError("pilot workflow public inputs must be a sequence")
+        inputs = tuple(PilotWorkflowDispatchInput.model_validate(item) for item in raw_inputs)
+        prepared["public_inputs"] = inputs
+        prepared["public_inputs_sha256"] = calculate_pilot_workflow_inputs_digest(inputs)
+        return cls.model_validate(prepared)
+
+    @model_validator(mode="after")
+    def _validate_run_review(self) -> Self:
+        match = _GITHUB_ACTIONS_RUN_URL.fullmatch(self.run_url)
+        if match is None:
+            raise ValueError(
+                "pilot workflow run URL must name one attempt-specific public GitHub Actions run"
+            )
+        if int(match.group(4)) != self.run_attempt:
+            raise ValueError("pilot workflow run attempt must match its attempt-specific URL")
+        if self.workflow_path != _PILOT_WORKFLOW_PATHS[self.stage]:
+            raise ValueError("pilot workflow path does not match its reviewed stage")
+        if self.run_head_workflow_sha256 != self.trusted_workflow_sha256:
+            raise ValueError("pilot run-head workflow bytes must match the trusted workflow bytes")
+        if self.public_inputs != tuple(sorted(self.public_inputs, key=lambda item: item.name)):
+            raise ValueError("pilot workflow public inputs must use canonical name ordering")
+        names = tuple(item.name for item in self.public_inputs)
+        if len(set(names)) != len(names):
+            raise ValueError("pilot workflow public input names must be unique")
+        if set(names) != _PILOT_WORKFLOW_INPUTS[self.stage]:
+            raise ValueError("pilot workflow public inputs must exactly cover the reviewed stage")
+        expected_digest = calculate_pilot_workflow_inputs_digest(self.public_inputs)
+        if self.public_inputs_sha256 != expected_digest:
+            raise ValueError("pilot workflow public input digest does not match its exact values")
+        input_values = {item.name: item.value for item in self.public_inputs}
+        required_true = (
+            {"attest_independent_non_maintainer", "consent_to_temporary_actions_storage"}
+            if self.stage == "capture"
+            else {"grant_privacy_filtered_publication", "reattest_independent_non_maintainer"}
+        )
+        if any(input_values[name] != "true" for name in required_true):
+            raise ValueError("reviewed pilot consent and control inputs must be true")
+        return self
+
+    @property
+    def repository(self) -> str:
+        match = _GITHUB_ACTIONS_RUN_URL.fullmatch(self.run_url)
+        if match is None:  # pragma: no cover - model validation guards this
+            raise RuntimeError("validated pilot workflow run URL became invalid")
+        return f"{match.group(1)}/{match.group(2)}"
+
+    @property
+    def run_id(self) -> str:
+        match = _GITHUB_ACTIONS_RUN_URL.fullmatch(self.run_url)
+        if match is None:  # pragma: no cover - model validation guards this
+            raise RuntimeError("validated pilot workflow run URL became invalid")
+        return match.group(3)
+
+    @property
+    def input_values(self) -> dict[str, str]:
+        return {item.name: item.value for item in self.public_inputs}
 
 
 class PilotArtifactDigest(FrozenStrictModel):
@@ -1410,6 +1553,20 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
     artifact_manifest_digest: DigestHex
     environment_control_evidence_artifact_id: MachineIdentifier
     environment_control_evidence_sha256: DigestHex
+    publication_consent_artifact_id: MachineIdentifier
+    publication_consent_sha256: DigestHex
+    pilot_execution_source_revision: GitRevision
+    pilot_friction_assessment: PilotFrictionAssessmentState
+    pilot_friction_categories: tuple[PilotFrictionCategory, ...] = Field(
+        max_length=MAX_PILOT_FINDINGS
+    )
+    pilot_remediation_dispositions: tuple[PilotRemediationDisposition, ...] = Field(
+        max_length=MAX_PILOT_REMEDIATIONS
+    )
+    pilot_remediation_source_revision: GitRevision | None
+    prior_planned_candidate_evidence_digest: DigestHex | None
+    capture_workflow_run: PilotWorkflowRunReview
+    finalize_workflow_run: PilotWorkflowRunReview
     expected_release_line: str = Field(
         pattern=r"^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$"
     )
@@ -1428,9 +1585,37 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
     execution_time_input_content_digests_reviewed: Literal[True]
     input_semantic_identities_reviewed: Literal[True]
     complete_bundle_publication_consent_reviewed: Literal[True]
+    run_head_shas_reviewed: Literal[True]
+    workflow_run_urls_reviewed: Literal[True]
+    trusted_workflow_bytes_reviewed: Literal[True]
+    execution_source_pins_reviewed: Literal[True]
+    public_workflow_inputs_reviewed: Literal[True]
+    friction_and_remediation_disposition_reviewed: Literal[True]
+    friction_category_and_remediation_bindings_reviewed: Literal[True]
     privacy_boundary_reviewed: Literal[True]
     review_outcome: Literal["approved_for_empirical_checkpoint"]
     reviewed_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)
+
+    @field_validator("pilot_friction_assessment", mode="before")
+    @classmethod
+    def _coerce_reviewed_friction(cls, value: object) -> PilotFrictionAssessmentState:
+        return coerce_enum(PilotFrictionAssessmentState, value)
+
+    @field_validator("pilot_friction_categories", mode="before")
+    @classmethod
+    def _coerce_reviewed_friction_categories(cls, value: object) -> object:
+        values = coerce_tuple(value)
+        if isinstance(values, tuple):
+            return tuple(coerce_enum(PilotFrictionCategory, item) for item in values)
+        return values
+
+    @field_validator("pilot_remediation_dispositions", mode="before")
+    @classmethod
+    def _coerce_reviewed_remediations(cls, value: object) -> object:
+        values = coerce_tuple(value)
+        if isinstance(values, tuple):
+            return tuple(coerce_enum(PilotRemediationDisposition, item) for item in values)
+        return values
 
     @model_validator(mode="after")
     def _validate_review_receipt(self) -> Self:
@@ -1443,6 +1628,89 @@ class ExternalPilotIndependenceReviewReceipt(SelfDigestedArtifact):
             )
         if self.reviewer_pseudonym.casefold() == self.pilot_participant_pseudonym.casefold():
             raise ValueError("pilot reviewer must be distinct from the pilot participant")
+        capture = self.capture_workflow_run
+        finalize = self.finalize_workflow_run
+        if capture.stage != "capture" or finalize.stage != "finalize":
+            raise ValueError("pilot review receipt requires capture and finalize run bindings")
+        if capture.repository.casefold() != finalize.repository.casefold():
+            raise ValueError("pilot capture and finalization must come from the same fork")
+        if capture.trusted_workflow_revision != finalize.trusted_workflow_revision:
+            raise ValueError("pilot workflows must use one trusted upstream workflow revision")
+        if (
+            capture.execution_source_revision != self.pilot_execution_source_revision
+            or finalize.execution_source_revision != self.pilot_execution_source_revision
+        ):
+            raise ValueError(
+                "pilot workflow execution-source pins must match the reviewed pilot source"
+            )
+        if capture.input_values["participant_pseudonym"] != self.pilot_participant_pseudonym:
+            raise ValueError("pilot capture public pseudonym does not match the evidence")
+        if finalize.input_values["capture_run_id"] != capture.run_id:
+            raise ValueError("pilot finalization public inputs do not bind the capture run URL")
+        if finalize.input_values["capture_run_attempt"] != str(capture.run_attempt):
+            raise ValueError("pilot finalization public inputs do not bind the capture run attempt")
+        if finalize.input_values["friction_assessment"] != self.pilot_friction_assessment.value:
+            raise ValueError("pilot finalization public friction state does not match the evidence")
+        if self.pilot_friction_categories != tuple(
+            sorted(self.pilot_friction_categories, key=lambda item: item.value)
+        ) or len(set(self.pilot_friction_categories)) != len(self.pilot_friction_categories):
+            raise ValueError("reviewed pilot friction categories must be canonical and unique")
+        expected_category = (
+            self.pilot_friction_categories[0].value
+            if len(self.pilot_friction_categories) == 1
+            else "not_applicable"
+        )
+        if finalize.input_values["friction_category"] != expected_category:
+            raise ValueError(
+                "pilot finalization public friction category does not match the evidence"
+            )
+        expected_disposition = (
+            self.pilot_remediation_dispositions[0].value
+            if len(self.pilot_remediation_dispositions) == 1
+            else "not_applicable"
+        )
+        if finalize.input_values["remediation_disposition"] != expected_disposition:
+            raise ValueError(
+                "pilot finalization remediation disposition does not match the evidence"
+            )
+        if expected_disposition == PilotRemediationDisposition.applied.value:
+            if (
+                self.pilot_remediation_source_revision is None
+                or self.prior_planned_candidate_evidence_digest is None
+            ):
+                raise ValueError(
+                    "applied pilot remediation requires source and prior-candidate bindings"
+                )
+            if (
+                finalize.input_values["remediation_source_revision"]
+                != self.pilot_remediation_source_revision
+                or finalize.input_values["prior_candidate_evidence_digest"]
+                != self.prior_planned_candidate_evidence_digest
+            ):
+                raise ValueError(
+                    "pilot finalization applied-remediation inputs do not match the evidence"
+                )
+        elif (
+            self.pilot_remediation_source_revision is not None
+            or self.prior_planned_candidate_evidence_digest is not None
+            or finalize.input_values["remediation_source_revision"] != "none"
+            or finalize.input_values["prior_candidate_evidence_digest"] != "none"
+        ):
+            raise ValueError(
+                "non-applied pilot remediation cannot carry applied-remediation bindings"
+            )
+        if self.pilot_friction_assessment is PilotFrictionAssessmentState.friction_observed:
+            if (
+                len(self.pilot_friction_categories) != 1
+                or len(self.pilot_remediation_dispositions) != 1
+            ):
+                raise ValueError(
+                    "observed pilot friction requires one reviewed category and remediation"
+                )
+        elif self.pilot_friction_categories or self.pilot_remediation_dispositions:
+            raise ValueError(
+                "no-friction pilot review cannot claim friction categories or remediations"
+            )
         return self
 
 
@@ -1463,6 +1731,7 @@ def _require_artifact(
 
 
 __all__ = [
+    "calculate_pilot_workflow_inputs_digest",
     "calculate_pilot_input_set_digest",
     "ExternalPilotEvidence",
     "ExternalPilotIndependenceReviewReceipt",
@@ -1493,5 +1762,7 @@ __all__ = [
     "PilotRemediationDisposition",
     "PilotRemediationReference",
     "PilotSubject",
+    "PilotWorkflowDispatchInput",
+    "PilotWorkflowRunReview",
     "pilot_workflow_input_arguments",
 ]

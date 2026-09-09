@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -15,6 +16,7 @@ from agent_assure.reporting.study import (
     StudyPrivacyError,
     write_real_model_study_artifacts,
 )
+from agent_assure.rooted_io import RootedDirectoryDescriptor
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.stochastic_sensitivity import (
     RepeatedEvidenceSensitivityProtocol,
@@ -57,6 +59,52 @@ def test_large_generation_requires_an_explicit_scoped_entry_bound(tmp_path: Path
     )
 
     assert tuple(written) == expected
+
+
+@pytest.mark.skipif(os.name == "nt", reason="POSIX parent-swap regression")
+def test_generation_publication_rejects_parent_swap_after_anchored_acquisition(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    requested_parent = tmp_path / "requested-parent"
+    moved_parent = tmp_path / "moved-parent"
+    outside_parent = tmp_path / "outside-parent"
+    requested_parent.mkdir()
+    outside_parent.mkdir()
+    output = requested_parent / "generation"
+    original_open = stochastic_writer.open_or_create_rooted_directory_from_filesystem_root
+    swapped = False
+
+    def swap_after_acquisition(
+        directory: Path,
+        *,
+        label: str,
+        mode: int = 0o700,
+    ) -> RootedDirectoryDescriptor:
+        nonlocal swapped
+        lease = original_open(directory, label=label, mode=mode)
+        if directory == requested_parent and not swapped:
+            requested_parent.rename(moved_parent)
+            requested_parent.symlink_to(outside_parent, target_is_directory=True)
+            swapped = True
+        return lease
+
+    monkeypatch.setattr(
+        stochastic_writer,
+        "open_or_create_rooted_directory_from_filesystem_root",
+        swap_after_acquisition,
+    )
+
+    with pytest.raises((OSError, ValueError), match="repeated sensitivity output parent"):
+        stochastic_writer.publish_generation(
+            output,
+            {"artifact.json": "{}\n"},
+            expected_filenames=("artifact.json",),
+        )
+
+    assert swapped
+    assert not (outside_parent / output.name).exists()
+    assert not (moved_parent / output.name).exists()
 
 
 def test_study_inventory_supports_the_declared_64_condition_boundary(

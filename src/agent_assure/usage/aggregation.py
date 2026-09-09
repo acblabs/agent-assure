@@ -75,9 +75,7 @@ def usage_summary_for_runset(runset: RunSet) -> UsageSummary | None:
     if runset.usage_summary is not None:
         return runset.usage_summary
     summaries = tuple(
-        summary
-        for run in runset.runs
-        if (summary := _usage_summary_for_run(run)) is not None
+        summary for run in runset.runs if (summary := _usage_summary_for_run(run)) is not None
     )
     if not summaries:
         return None
@@ -214,8 +212,7 @@ def format_usage_delta(delta: UsageSummaryDelta) -> str:
             else f" ({delta.estimated_cost_microusd_delta_bps:+d} bps)"
         )
         parts.append(
-            "declared estimated cost delta "
-            f"{delta.estimated_cost_microusd_delta:+d} micro-USD{bps}"
+            f"declared estimated cost delta {delta.estimated_cost_microusd_delta:+d} micro-USD{bps}"
         )
     if delta.limitations:
         parts.append("limitations: " + "; ".join(delta.limitations))
@@ -349,10 +346,7 @@ def _sum_summary_cost(summaries: tuple[UsageSummary, ...]) -> _SummaryCostAggreg
             (),
             (),
             None,
-            [
-                "Declared estimated cost was not aggregated because pricing snapshot "
-                "IDs differ."
-            ],
+            ["Declared estimated cost was not aggregated because pricing snapshot IDs differ."],
         )
     snapshot_digest_sets = {summary.pricing_snapshot_digests for summary in cost_summaries}
     if len(snapshot_digest_sets) != 1:
@@ -363,10 +357,7 @@ def _sum_summary_cost(summaries: tuple[UsageSummary, ...]) -> _SummaryCostAggreg
             (),
             (),
             None,
-            [
-                "Declared estimated cost was not aggregated because pricing snapshot "
-                "digests differ."
-            ],
+            ["Declared estimated cost was not aggregated because pricing snapshot digests differ."],
         )
     cost_observation_count: int | None = None
     if all(summary.cost_observation_count is not None for summary in cost_summaries):
@@ -467,9 +458,7 @@ def _cost_comparison_limitation(
             "were not declared for both sides."
         )
     if baseline.pricing_snapshot_digests != candidate.pricing_snapshot_digests:
-        return (
-            "Declared estimated cost was not compared because pricing snapshot digests differ."
-        )
+        return "Declared estimated cost was not compared because pricing snapshot digests differ."
     return None
 
 
