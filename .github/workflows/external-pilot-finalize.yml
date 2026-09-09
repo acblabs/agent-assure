@@ -76,11 +76,6 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
-      - name: Refuse an unfinalized execution-source pin
-        shell: bash
-        run: |
-          echo "::error title=External pilot unavailable::The trusted v0.6.6 execution-source commit has not been created and pinned yet. Do not recruit or dispatch this workflow."
-          exit 2
       - name: Validate the participant finalization request
         shell: bash
         env:
@@ -174,7 +169,7 @@ jobs:
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
         with:
           repository: acblabs/agent-assure
-          ref: 0000000000000000000000000000000000000000
+          ref: c742546f80c7bae998f5dc648b54e89f3ec556ab
           path: agent-assure-source
           fetch-depth: 1
           persist-credentials: false

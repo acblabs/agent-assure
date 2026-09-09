@@ -1,10 +1,11 @@
 # External Pilot Quickstart
 
-> **Maintainer deployment status:** the checked-in pilot workflows currently
-> contain a zero execution-source sentinel and stop immediately. Do not recruit
-> or dispatch them. First create and validate the implementation source commit
-> `S`; then, in a later trusted workflow/docs commit `W`, pin both workflows to
-> `S` and remove the refusal step. Recruit only from `W`.
+> **Maintainer deployment status:** these workflow bytes pin the immutable
+> `EXECUTION_SOURCE_REVISION` to
+> `c742546f80c7bae998f5dc648b54e89f3ec556ab`. Recruit only from a separately
+> supplied immutable `TRUSTED_WORKFLOW_REVISION` that contains these exact
+> workflow and documentation bytes. Keep the two revisions distinct; never
+> substitute `main` for either one.
 
 This is a two-stage GitHub Actions pilot for one person who is not an
 `acblabs/agent-assure` maintainer. Target participant effort is 10–15 minutes;

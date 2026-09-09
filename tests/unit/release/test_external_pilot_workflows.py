@@ -15,6 +15,7 @@ REVIEW_TEMPLATE = ROOT / "docs" / "templates" / "external_pilot_independence_rev
 CODEOWNERS = ROOT / ".github" / "CODEOWNERS"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
 ZERO_REVISION = "0" * 40
+EXPECTED_EXECUTION_SOURCE_REVISION = "c742546f80c7bae998f5dc648b54e89f3ec556ab"
 UPSTREAM_REF = re.compile(r"repository: acblabs/agent-assure\n\s+ref: ([0-9a-f]{40})")
 PINNED_ACTIONS = {
     "actions/checkout": "34e114876b0b11c390a56381ad16ebd13914f8d5",
@@ -116,22 +117,20 @@ def test_external_pilot_workflows_pin_actions_and_upload_explicit_inventories() 
     )
 
 
-def test_external_pilot_workflows_fail_closed_until_the_source_commit_is_pinned() -> None:
+def test_external_pilot_workflows_pin_the_reviewed_execution_source() -> None:
     capture = CAPTURE.read_text(encoding="utf-8")
     finalize = FINALIZE.read_text(encoding="utf-8")
 
     capture_revision = _upstream_revision(capture)
     finalize_revision = _upstream_revision(finalize)
-    assert capture_revision == finalize_revision == ZERO_REVISION
+    assert capture_revision == finalize_revision == EXPECTED_EXECUTION_SOURCE_REVISION
+    assert EXPECTED_EXECUTION_SOURCE_REVISION != ZERO_REVISION
     for workflow in (capture, finalize):
-        assert workflow.count("Refuse an unfinalized execution-source pin") == 1
-        assert "External pilot unavailable" in workflow
-        assert "Do not recruit or dispatch this workflow." in workflow
-        assert workflow.index("Refuse an unfinalized execution-source pin") < workflow.index(
-            "uses: actions/"
-        )
-    assert "ref: main" not in capture
-    assert "ref: main" not in finalize
+        assert workflow.count(f"ref: {EXPECTED_EXECUTION_SOURCE_REVISION}") == 1
+        assert "Refuse an unfinalized execution-source pin" not in workflow
+        assert "External pilot unavailable" not in workflow
+        assert f"ref: {ZERO_REVISION}" not in workflow
+        assert "ref: main" not in workflow
 
 
 def test_external_pilot_build_epoch_matches_the_release_build_epoch() -> None:
@@ -151,8 +150,9 @@ def test_volunteer_issue_requires_an_immutable_trusted_workflow_revision() -> No
 
     assert "blob/main" not in issue
     assert "blob/TRUSTED_WORKFLOW_REVISION/docs/external_pilot_quickstart.md" in issue
-    assert "do not post this issue" in issue
-    assert "zero execution-source sentinel/refusal step" in issue
+    assert "do not post this issue until every" in issue
+    assert EXPECTED_EXECUTION_SOURCE_REVISION in issue
+    assert "zero execution-source sentinel/refusal step" not in issue
 
 
 def test_pilot_integrity_surfaces_have_precise_codeowners() -> None:
