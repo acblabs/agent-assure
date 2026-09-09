@@ -112,11 +112,20 @@ def test_ci_coverage_gate_is_complete_branch_enabled_and_fail_closed() -> None:
     assert shards["env"]["COVERAGE_FILE"] == ".coverage.${{ matrix.shard }}"
     assert all("continue-on-error" not in step for step in shards["steps"])
 
+    checkout = next(
+        step
+        for step in shards["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+    }
     run_step = next(
         step for step in shards["steps"] if step.get("name") == "Run branch-coverage shard"
     )
     assert "--cov=agent_assure --cov-branch --cov-report=" in run_step["run"]
-    assert "--cov-fail-under=0" in run_step["run"]
+    assert run_step["run"].count("--cov-fail-under=0") == 1
     upload = next(
         step
         for step in shards["steps"]
@@ -150,6 +159,7 @@ def test_ci_coverage_gate_is_complete_branch_enabled_and_fail_closed() -> None:
         assert f"--expected .coverage.{name}" in gate_commands
     assert "python -m coverage combine --keep .coverage-data" in gate_commands
     assert "python -m coverage report" in gate_commands
+    assert "--cov-fail-under=0" not in gate_commands
     assert "--fail-under 65" in gate_commands
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
