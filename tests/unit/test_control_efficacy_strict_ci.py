@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from click import unstyle
 from typer.testing import CliRunner
 
 from agent_assure.ci import (
@@ -54,6 +55,10 @@ _BYPASS_OPERATOR = "bypass-required-human-review"
 _POLICY_SHA256 = "a" * 64
 _SCOPE_SHA256 = "b" * 64
 _RUNNER = CliRunner()
+
+
+def _plain_cli_output(output: str) -> str:
+    return " ".join(unstyle(output).split())
 
 
 def test_library_entrypoints_default_to_strict_efficacy() -> None:
@@ -644,14 +649,14 @@ def test_ci_packet_efficacy_is_required_by_default_with_migration_opt_out(
     )
 
     for result in (default, required, policy_required):
-        normalized = " ".join(result.output.split())
+        normalized = _plain_cli_output(result.output)
         assert result.exit_code == 2, result.output
         assert f"evidence-packet {packet.packet_id}" in normalized
         assert "has no control-efficacy evidence" in normalized
         assert "required by the default evidence-packet gate" in normalized
         assert "options require a control-efficacy report or evidence packet" not in normalized
     assert migration.exit_code == 0, migration.output
-    migration_output = " ".join(migration.output.split())
+    migration_output = _plain_cli_output(migration.output)
     assert "efficacy_evidence=absent" in migration_output
     assert "efficacy_verification=not_requested" in migration_output
     assert "policy_profile=non-assurance-migration" in migration_output
@@ -723,7 +728,7 @@ def test_ci_migration_override_rejects_packet_with_existing_efficacy(
     )
 
     assert result.exit_code == 2
-    assert "already carries control-efficacy evidence" in " ".join(result.output.split())
+    assert "already carries control-efficacy evidence" in _plain_cli_output(result.output)
 
 
 def test_ci_release_profile_requires_policy_and_rejects_non_packet(tmp_path: Path) -> None:
@@ -738,7 +743,9 @@ def test_ci_release_profile_requires_policy_and_rejects_non_packet(tmp_path: Pat
         terminal_width=240,
     )
     assert without_policy.exit_code == 2
-    assert "--release-profile requires --efficacy-policy" in without_policy.output
+    assert "--release-profile requires --efficacy-policy" in _plain_cli_output(
+        without_policy.output
+    )
 
     files = expected_scaffold_files()
     policy_dir = tmp_path / "policy"
@@ -759,7 +766,7 @@ def test_ci_release_profile_requires_policy_and_rejects_non_packet(tmp_path: Pat
         terminal_width=240,
     )
     assert non_packet.exit_code == 2
-    assert "--release-profile requires an evidence packet" in non_packet.output
+    assert "--release-profile requires an evidence packet" in _plain_cli_output(non_packet.output)
 
 
 @pytest.mark.parametrize(
@@ -799,8 +806,9 @@ def test_ci_release_profile_rejects_weakening_flags(
     )
 
     assert result.exit_code == 2
-    assert "--release-profile" in result.output
-    assert weakening_flag in result.output
+    normalized = _plain_cli_output(result.output)
+    assert "--release-profile" in normalized
+    assert weakening_flag in normalized
 
 
 def test_ci_release_profile_requires_present_strict_efficacy(tmp_path: Path) -> None:
@@ -826,7 +834,7 @@ def test_ci_release_profile_requires_present_strict_efficacy(tmp_path: Path) -> 
         terminal_width=240,
     )
 
-    normalized = " ".join(result.output.split())
+    normalized = _plain_cli_output(result.output)
     assert result.exit_code == 2
     assert "has no control-efficacy evidence" in normalized
     assert "required by the default evidence-packet gate" in normalized
