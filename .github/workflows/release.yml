@@ -243,7 +243,7 @@ jobs:
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.build.outputs.bundle_artifact_id }}
           merge-multiple: true
@@ -879,7 +879,7 @@ jobs:
       signed_bundle_artifact_digest: ${{ steps.upload-signed.outputs.artifact-digest }}
     steps:
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.reproduce.outputs.verified_bundle_artifact_id }}
           merge-multiple: true
@@ -941,7 +941,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.sign.outputs.signed_bundle_artifact_id }}
           merge-multiple: true
@@ -1016,13 +1016,13 @@ jobs:
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.verify-signatures.outputs.verified_signed_bundle_artifact_id }}
           merge-multiple: true
           path: .tmp/release
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.verify-signatures.outputs.distributions_artifact_id }}
           merge-multiple: true
@@ -1059,7 +1059,7 @@ jobs:
       contents: write
     steps:
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.verify-uploaded-artifacts.outputs.verified_signed_bundle_artifact_id }}
           merge-multiple: true
@@ -1171,7 +1171,7 @@ jobs:
       id-token: write
     steps:
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.verify-uploaded-artifacts.outputs.distributions_artifact_id }}
           merge-multiple: true
@@ -1466,7 +1466,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: 8622776891
           github-token: ${{ github.token }}
@@ -1475,7 +1475,7 @@ jobs:
           merge-multiple: true
           path: .tmp/release
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: 8622776782
           github-token: ${{ github.token }}
@@ -1614,7 +1614,7 @@ jobs:
       contents: read
     steps:
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.recover-verify.outputs.verified_bundle_artifact_id }}
           merge-multiple: true
@@ -1812,7 +1812,7 @@ jobs:
       id-token: write
     steps:
       # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.recover-verify.outputs.distributions_artifact_id }}
           merge-multiple: true
