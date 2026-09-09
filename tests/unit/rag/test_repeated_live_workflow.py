@@ -3220,15 +3220,16 @@ def test_analysis_writer_adopts_exact_generation_that_wins_commit_race(
     assert len(tuple(tmp_path.glob(".agent-assure-stochastic-*.tmp"))) == 1
 
 
-def test_analysis_writer_concurrent_publishers_converge_without_lock_wait(
+def test_generation_publisher_converges_concurrently_without_lock_wait(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    protocol = _protocol()
-    baseline = _runset(protocol, arm_id="baseline_evidence")
-    counterfactual = _runset(protocol, arm_id="counterfactual_evidence")
-    sufficiency, report = _analysis_generation(protocol, baseline, counterfactual)
     out_dir = tmp_path / "concurrent-analysis"
+    expected_filenames = ("analysis.json", "analysis.md")
+    texts = {
+        "analysis.json": '{"state":"ready"}\n',
+        "analysis.md": "# Ready\n",
+    }
     publishers = 4
     first_check_barrier = threading.Barrier(publishers)
     first_checks: set[int] = set()
@@ -3264,13 +3265,10 @@ def test_analysis_writer_concurrent_publishers_converge_without_lock_wait(
     def publish() -> None:
         try:
             results.append(
-                write_repeated_analysis_artifacts(
-                    protocol=protocol,
-                    baseline_source=baseline,
-                    counterfactual_source=counterfactual,
-                    sufficiency=sufficiency,
-                    report=report,
-                    out_dir=out_dir,
+                writer.publish_generation(
+                    out_dir,
+                    texts,
+                    expected_filenames=expected_filenames,
                 )
             )
         except BaseException as exc:
@@ -3285,8 +3283,9 @@ def test_analysis_writer_concurrent_publishers_converge_without_lock_wait(
     assert all(not thread.is_alive() for thread in threads)
     assert not errors
     assert len(results) == publishers
-    assert all(tuple(result) == REPEATED_ANALYSIS_OUTPUT_FILENAMES for result in results)
-    assert {path.name for path in out_dir.iterdir()} == set(REPEATED_ANALYSIS_OUTPUT_FILENAMES)
+    assert all(tuple(result) == expected_filenames for result in results)
+    assert {path.name for path in out_dir.iterdir()} == set(expected_filenames)
+    assert {name: (out_dir / name).read_text("utf-8") for name in expected_filenames} == texts
 
 
 def test_analysis_writer_classifies_install_validation_failure_as_postcommit(
