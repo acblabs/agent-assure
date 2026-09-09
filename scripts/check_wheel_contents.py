@@ -92,7 +92,7 @@ SDIST_SENSITIVE_FIXTURE_SHA256 = {
         "9b2859b46a44f11b8f5d35b505e54a3e774091e6b5871e52043d5961dfd06305"
     ),
     "tests/unit/rag/test_repeated_live_workflow.py": (
-        "9297fd8250cd6e774254b68142aae202342a4b7c5432bfd3b6873c0366e0c3c6"
+        "236715ab98c7e12b3b121b8394ec41aa1965789eeef2555a5c2f9739c524c799"
     ),
     "tests/unit/release/test_wheel_content_checks.py": (
         "019c1c63bdbde6fd8805d3dd7086b9f109884afa55b3a926961affa73219e85e"
