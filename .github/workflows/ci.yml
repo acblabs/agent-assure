@@ -69,7 +69,7 @@ jobs:
         run: >-
           python -m pytest -p no:cacheprovider
           --basetemp "$RUNNER_TEMP/pytest-${{ matrix.shard }}"
-          --cov=agent_assure --cov-branch --cov-report=
+          --cov=agent_assure --cov-branch --cov-report= --cov-fail-under=0
           ${{ matrix.test_paths }}
       - name: Upload exact coverage database
         if: ${{ always() }}

@@ -116,6 +116,7 @@ def test_ci_coverage_gate_is_complete_branch_enabled_and_fail_closed() -> None:
         step for step in shards["steps"] if step.get("name") == "Run branch-coverage shard"
     )
     assert "--cov=agent_assure --cov-branch --cov-report=" in run_step["run"]
+    assert "--cov-fail-under=0" in run_step["run"]
     upload = next(
         step
         for step in shards["steps"]
