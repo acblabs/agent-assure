@@ -33,13 +33,7 @@ def evaluate_material_claim_evidence(
     run: AgentRunRecord,
     expectation: Expectation,
 ) -> tuple[ControlResult, ...]:
-    complete_evidence = _observed_evidence_refs(run) & _observed_evidence_items(run)
-    links = (
-        run.claim_evidence_links
-        if structured_field_is_control_eligible(run, "claim_evidence_links")
-        else ()
-    )
-    linked_claims = {link.claim_id for link in links if link.evidence_ref_id in complete_evidence}
+    linked_claims = material_claims_with_complete_evidence(run)
     return tuple(
         ControlResult(
             control_id="material_claims_have_evidence",
@@ -55,6 +49,23 @@ def evaluate_material_claim_evidence(
         )
         for claim_id in expectation.material_claim_ids
         if claim_id not in linked_claims
+    )
+
+
+def material_claims_with_complete_evidence(run: AgentRunRecord) -> frozenset[str]:
+    """Return claims backed by a complete, control-eligible evidence graph.
+
+    This is the affirmative predicate used by the material-claim detector. Keep
+    mutation applicability on this same boundary so a mutation can target only
+    a claim that passes the detector before its link is removed.
+    """
+    complete_evidence = _observed_evidence_refs(run) & _observed_evidence_items(run)
+    if not structured_field_is_control_eligible(run, "claim_evidence_links"):
+        return frozenset()
+    return frozenset(
+        link.claim_id
+        for link in run.claim_evidence_links
+        if link.evidence_ref_id in complete_evidence
     )
 
 

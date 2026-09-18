@@ -9,6 +9,7 @@ from typing import cast
 from agent_assure.policies.evidence import (
     claim_finding_target,
     evidence_ref_finding_target,
+    material_claims_with_complete_evidence,
 )
 from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.run import AgentRunRecord, RunSet
@@ -81,12 +82,10 @@ def drop_material_evidence_link_targets(
         expectation = expectations.get(run.case_id)
         if expectation is None or not expectation.material_claim_ids:
             continue
-        present_items = {item.ref_id for item in run.evidence_items}
-        linked_claims = {
-            link.claim_id
-            for link in run.claim_evidence_links
-            if link.evidence_ref_id in present_items
-        }
+        # A target is applicable only when the detector's own affirmative
+        # predicate passes before mutation. In particular, item-only graphs and
+        # producer-declared links cannot be mislabeled as detector challenges.
+        linked_claims = material_claims_with_complete_evidence(run)
         raw_run = _raw_run(raw_runs, run_index)
         raw_links = _raw_sequence(raw_run, "claim_evidence_links")
         for claim_id in sorted(set(expectation.material_claim_ids) & linked_claims):
