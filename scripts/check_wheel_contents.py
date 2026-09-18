@@ -57,49 +57,67 @@ REVIEWED_BINARY_ASSET_SHA256 = {
         "9e94351162d69fb8790756a662721ed58a89b38f98f3f6ada174c44f071987a7"
     ),
 }
-# Tests that exercise high-confidence credential detectors may contain inert
-# synthetic literals. Any exception is exact-byte-bound: changing even one byte
-# restores the normal scan until a reviewer updates this inventory.
-SDIST_SENSITIVE_FIXTURE_SHA256 = {
-    "tests/integration/test_controls_mutate_cli.py": (
-        "d0a0aee9223bc8b5f9265c067503a5d8d3d09514a746b0e49b3ee6ff352e0d88"
-    ),
-    "tests/integration/test_external_pilot_cli.py": (
-        "6e50cdfa2c61db48af26a26a88b0b0eeeba1a331e9f2022ac9d7c1b140f104ef"
-    ),
-    "tests/integration/test_stream_cli.py": (
-        "676ae69422330a62a867c20fa57bdc08887304f05bcb90ba9fe528ebc0d5f716"
-    ),
-    "tests/unit/test_otel_cli.py": (
-        "08eeed8dcd68fd1b7fc65ea7a4d2ce087dab774af9be1d4fb4d48029fb8ed6c5"
-    ),
-    "tests/unit/test_pilot_bundle.py": (
-        "b946151c70c5f663159ff64b9041ceb6518501a85b1a9e15cd1a0991c26e7f25"
-    ),
-    "tests/unit/authoring/test_yaml_loader.py": (
-        "ad351d179f95321c6f53a9bd3998295e96fad0086463d8c4d79297f6dd8e813f"
-    ),
-    "tests/unit/evaluation/test_live_runner.py": (
-        "c774dfe721366adde1b0a60419ca7ee00d47d80eeba5c8d4c317f750b9d628c9"
-    ),
-    "tests/unit/mutation/test_campaign.py": (
-        "00675c6263cd18e6e24f7969f755347426b0a022ef66a1b9a007dfce028d9b59"
-    ),
-    "tests/unit/mutation/test_execution.py": (
-        "69a3709521e446f653aef91566164a645ea7ff0253b2fe8cedd8fab734d36b8a"
-    ),
-    "tests/unit/privacy/test_hmac_and_redaction.py": (
-        "9b2859b46a44f11b8f5d35b505e54a3e774091e6b5871e52043d5961dfd06305"
-    ),
-    "tests/unit/rag/test_repeated_live_workflow.py": (
-        "236715ab98c7e12b3b121b8394ec41aa1965789eeef2555a5c2f9739c524c799"
-    ),
-    "tests/unit/release/test_wheel_content_checks.py": (
-        "019c1c63bdbde6fd8805d3dd7086b9f109884afa55b3a926961affa73219e85e"
-    ),
-    "tests/unit/schema/test_pilot_evidence.py": (
-        "84f1b653d1aad95ba89d2f45ce824e47f8d1036ca3738a40c82db84b303938f1"
-    ),
+# Tests that exercise high-confidence credential detectors contain inert
+# synthetic literals. Exceptions bind the exact sdist path, the UTF-8 bytes of
+# each Python STRING token (including its prefix and quotes), and its reviewed
+# occurrence count. Unrelated source remains scanned; an altered, added,
+# duplicated, missing, or moved-to-another-member detector token fails closed.
+SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS = {
+    "tests/integration/test_controls_mutate_cli.py": {
+        "13a93cb9487d81e35bf273f9f4791b9d93390da0ddb184ce47b539242dcaf295": 1,
+        "7e1c6ccf502cdfa9248271925095d8ab1b69341fbfe7cafaafffc399c788edae": 1,
+        "b0bf38add6e5052e0ce54e75964bc09a2302c956a21c9d1d39d20bbbe58466c1": 1,
+        "f22cd8d77ca8f770f6fc8cb4f3fb600ca4f37695480d2940859cb838804c0713": 3,
+    },
+    "tests/integration/test_external_pilot_cli.py": {
+        "e7fc08e7e95dff40a7a54b83d038c8f5f2e551e2b2d61143dfeca0372c9f3c63": 1,
+    },
+    "tests/integration/test_stream_cli.py": {
+        "977adbbdc310d3eec375fce3b54399f4a152f28a4d73e898e0388a50af22c4dd": 1,
+    },
+    "tests/unit/test_otel_cli.py": {
+        "57c090eff4615f966b96a0f958e9bc177c8db694f24c2783bdf86305dad5d325": 2,
+    },
+    "tests/unit/test_pilot_bundle.py": {
+        "077244c46e1bb12d01ca4114d5c9b3d5bf5e3332ee0cf463c5b1892f95f136c5": 3,
+        "81195dcaabe10e143dab318e90b00e109d635d79c1efc848d5fa8f8956a8db61": 1,
+    },
+    "tests/unit/authoring/test_yaml_loader.py": {
+        "48fdb8ef0789a6b8c432010d0926ad31f4c146ed9ef54a5ede47d282d7a89511": 1,
+        "b84ea32f084eb0519f5650cd2f5aa88cbc88807cf94500b7dddea54e8c279566": 1,
+    },
+    "tests/unit/evaluation/test_live_runner.py": {
+        "b84ea32f084eb0519f5650cd2f5aa88cbc88807cf94500b7dddea54e8c279566": 1,
+        "ba5ca4c1fd63634937ecf4ff656d3a603f2bf9d5827ac11828f9056e59045ac9": 1,
+    },
+    "tests/unit/mutation/test_campaign.py": {
+        "cce43882e56d74f2e03a61f61c1d416d50e0fdf968de37f4303c4e1bf2192db9": 2,
+    },
+    "tests/unit/mutation/test_execution.py": {
+        "f22cd8d77ca8f770f6fc8cb4f3fb600ca4f37695480d2940859cb838804c0713": 4,
+    },
+    "tests/unit/privacy/test_hmac_and_redaction.py": {
+        "2df8c4ba30ab694fb44512da3fd848f03989a00b3679c8dda9482dfe0a6c3eda": 1,
+        "3a41287d7e5b448b14e2a061b535695e9a15f397b153287ad0dcd73c0152fbe1": 1,
+        "5fb2662dc76044d0a16a1f702b0f78c06458cc37ffdf2735c0eb3db27bf38751": 1,
+        "663aca1c4213594882b035651ce45efbc2f6a0c43957cee6b9beeb950703b5a0": 1,
+        "84d1c0a6027715b87bcba228321a64c3a8bf47ecfa5fa3a14dcb745b2ff3f29e": 1,
+        "f22cd8d77ca8f770f6fc8cb4f3fb600ca4f37695480d2940859cb838804c0713": 2,
+    },
+    "tests/unit/rag/test_repeated_live_workflow.py": {
+        "75b235290b1a43180ffa99ec7fe61b462a265f016b59fde2699d836c1975c5cc": 1,
+    },
+    "tests/unit/release/test_wheel_content_checks.py": {
+        "077244c46e1bb12d01ca4114d5c9b3d5bf5e3332ee0cf463c5b1892f95f136c5": 3,
+        "8c26c86892dbbde264a25af7accd7eab357bf7e12b27fce6a69a043af4713b4e": 1,
+        "977adbbdc310d3eec375fce3b54399f4a152f28a4d73e898e0388a50af22c4dd": 3,
+    },
+    "tests/unit/schema/test_pilot_evidence.py": {
+        "64b05836c8d265895de27f93e7dcbab9ce8bbe70d7b3d88e4c6f9903c22ecf05": 1,
+        "735c5ca3ba6e8b56aeeabba36cf9e04fad091d87667cea057ef93d3450b7d101": 1,
+        "c05f45caec558cff42440f496ff780e7ec8efc6e7b40c3dc719077a9ee0da5d6": 1,
+        "e7034274132b39aafe5f02d4cd2a78049cb6aebcdd280503277c908c94443135": 1,
+    },
 }
 _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT = 0x400
 _WINDOWS_FORBIDDEN_FILENAME_CHARACTERS = frozenset('<>"|?*')
@@ -669,11 +687,6 @@ def _validate_sdist_privacy(sdist: Path) -> None:
                 raise ValueError(f"sdist expands to more than {MAX_ARCHIVE_TOTAL_BYTES} bytes")
             data = _read_tar_member_bytes(archive, member)
             name = _strip_sdist_root(member.name)
-            expected_fixture_digest = SDIST_SENSITIVE_FIXTURE_SHA256.get(name)
-            allow_sensitive_fixture = (
-                expected_fixture_digest is not None
-                and hashlib.sha256(data).hexdigest() == expected_fixture_digest
-            )
             scanned_lines = validate_distribution_member_privacy(
                 name,
                 data,
@@ -683,7 +696,9 @@ def _validate_sdist_privacy(sdist: Path) -> None:
                 max_python_member_tokens=MAX_DISTRIBUTION_PYTHON_MEMBER_TOKENS,
                 strict_python_source=name.startswith("src/agent_assure/"),
                 reviewed_binary_assets=REVIEWED_BINARY_ASSET_SHA256,
-                allow_sensitive_fixture=allow_sensitive_fixture,
+                reviewed_sensitive_python_string_token_sha256_counts=(
+                    SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS.get(name)
+                ),
             )
             remaining_lines -= scanned_lines
 

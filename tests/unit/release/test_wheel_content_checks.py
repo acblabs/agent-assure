@@ -743,16 +743,25 @@ def test_release_scanner_allows_credential_handling_source_without_a_value(
     inspect_sdist(sdist)
 
 
-def test_sdist_sensitive_fixture_exception_is_bound_to_exact_path_and_bytes(
+def _synthetic_sensitive_python_literal(*, body: str = "abcdefghijklmnopqrstuvwxyz") -> str:
+    return repr(("sk-" + "proj-") + body)
+
+
+def _reviewed_string_token_counts(literal: str, *, count: int = 1) -> dict[str, int]:
+    return {hashlib.sha256(literal.encode("utf-8")).hexdigest(): count}
+
+
+def test_sdist_sensitive_token_review_allows_unrelated_test_source_edits(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
-    approved = b"TOKEN = 'sk-proj-abcdefghijklmnopqrstuvwxyz'\n"
+    literal = _synthetic_sensitive_python_literal()
+    approved = f"TOKEN = {literal}\n".encode()
     monkeypatch.setitem(
-        wheel_content_checks.SDIST_SENSITIVE_FIXTURE_SHA256,
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
         fixture_path,
-        hashlib.sha256(approved).hexdigest(),
+        _reviewed_string_token_counts(literal),
     )
     _wheel, sdist = _write_payload_pair(
         tmp_path,
@@ -761,12 +770,192 @@ def test_sdist_sensitive_fixture_exception_is_bound_to_exact_path_and_bytes(
 
     inspect_sdist(sdist)
 
+    _wheel, edited_sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: approved + b"# unrelated reviewed-test edit\n"},
+    )
+    inspect_sdist(edited_sdist)
+
+
+def test_sdist_sensitive_token_review_rejects_an_altered_sensitive_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    approved_literal = _synthetic_sensitive_python_literal()
+    altered_literal = _synthetic_sensitive_python_literal(body="zyxwvutsrqponmlkjihgfedcba")
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        fixture_path,
+        _reviewed_string_token_counts(approved_literal),
+    )
     _wheel, changed_sdist = _write_payload_pair(
         tmp_path,
-        extra_sdist={fixture_path: approved + b"# changed\n"},
+        extra_sdist={fixture_path: f"TOKEN = {altered_literal}\n".encode()},
     )
-    with pytest.raises(ValueError, match="credential-literal privacy review"):
+
+    with pytest.raises(ValueError, match="string token occurrence was not found"):
         inspect_sdist(changed_sdist)
+
+
+def test_sdist_sensitive_token_review_rejects_an_extra_approved_occurrence(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    literal = _synthetic_sensitive_python_literal()
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        fixture_path,
+        _reviewed_string_token_counts(literal),
+    )
+    source = f"FIRST = {literal}\nSECOND = {literal}\n".encode()
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={fixture_path: source})
+
+    with pytest.raises(ValueError, match="credential-literal privacy review"):
+        inspect_sdist(sdist)
+
+
+def test_sdist_sensitive_token_review_scans_a_new_unreviewed_sensitive_token(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    approved_literal = _synthetic_sensitive_python_literal()
+    new_literal = _synthetic_sensitive_python_literal(body="zyxwvutsrqponmlkjihgfedcba")
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        fixture_path,
+        _reviewed_string_token_counts(approved_literal),
+    )
+    source = f"APPROVED = {approved_literal}\nNEW = {new_literal}\n".encode()
+    _wheel, sdist = _write_payload_pair(tmp_path, extra_sdist={fixture_path: source})
+
+    with pytest.raises(ValueError, match="credential-literal privacy review"):
+        inspect_sdist(sdist)
+
+
+def test_sdist_sensitive_token_review_rejects_path_substitution(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    reviewed_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    substituted_path = "tests/unit/privacy/substituted_detector_vector.py"
+    literal = _synthetic_sensitive_python_literal()
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        reviewed_path,
+        _reviewed_string_token_counts(literal),
+    )
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={substituted_path: f"TOKEN = {literal}\n".encode()},
+    )
+
+    with pytest.raises(ValueError, match="credential-literal privacy review"):
+        inspect_sdist(sdist)
+
+
+@pytest.mark.parametrize(
+    "member_path",
+    (
+        "tests/unit/privacy/synthetic_detector_vector.txt",
+        "src/agent_assure/synthetic_detector_vector.py",
+    ),
+)
+def test_sdist_sensitive_token_review_cannot_exempt_non_python_or_production_source(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    member_path: str,
+) -> None:
+    literal = _synthetic_sensitive_python_literal()
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        member_path,
+        _reviewed_string_token_counts(literal),
+    )
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={member_path: f"TOKEN = {literal}\n".encode()},
+    )
+
+    with pytest.raises(ValueError, match="restricted to non-production Python test members"):
+        inspect_sdist(sdist)
+
+
+def test_sdist_sensitive_token_review_requires_a_string_token_and_valid_original_syntax(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    literal = _synthetic_sensitive_python_literal()
+    reviewed = _reviewed_string_token_counts(literal)
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        fixture_path,
+        reviewed,
+    )
+    _wheel, comment_sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: f"# {literal}\n".encode()},
+    )
+    with pytest.raises(ValueError, match="string token occurrence was not found"):
+        inspect_sdist(comment_sdist)
+
+    _wheel, invalid_sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: f"TOKEN = {literal}\nif (\n".encode()},
+    )
+    with pytest.raises(ValueError, match="not syntactically valid"):
+        inspect_sdist(invalid_sdist)
+
+
+@pytest.mark.parametrize(
+    "source",
+    (
+        b'TOKEN = "sk-proj-" "abcdefghijklmnopqrstuvwxyz"\n',
+        (
+            b'TOKEN = ("sk-proj-"\n'
+            b"         # comments and non-significant newlines remain implicit\n"
+            b'         "abcdefghijklmnopqrstuvwxyz")\n'
+        ),
+        b'TOKEN = b"sk-proj-" b"abcdefghijklmnopqrstuvwxyz"\n',
+        b'TOKEN = "sk-proj-" f"abcdefghijklmnopqrstuvwxyz"\n',
+    ),
+)
+def test_sdist_privacy_scan_rejects_implicitly_concatenated_credential_literals(
+    tmp_path: Path,
+    source: bytes,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: source},
+    )
+
+    with pytest.raises(ValueError, match="adjacent-string credential-literal privacy review"):
+        inspect_sdist(sdist)
+
+
+def test_sdist_reviewed_sensitive_token_is_not_exempt_when_adjacent(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture_path = "tests/unit/privacy/synthetic_detector_vector.py"
+    reviewed_literal = _synthetic_sensitive_python_literal()
+    monkeypatch.setitem(
+        wheel_content_checks.SDIST_REVIEWED_SENSITIVE_PYTHON_STRING_TOKEN_SHA256_COUNTS,
+        fixture_path,
+        _reviewed_string_token_counts(reviewed_literal),
+    )
+    source = f"TOKEN = {reviewed_literal} ''\n".encode()
+    _wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={fixture_path: source},
+    )
+
+    with pytest.raises(ValueError, match="adjacent-string credential-literal privacy review"):
+        inspect_sdist(sdist)
 
 
 @pytest.mark.parametrize(
