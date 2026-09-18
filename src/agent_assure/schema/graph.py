@@ -3,9 +3,9 @@ from __future__ import annotations
 from collections import deque
 from collections.abc import Mapping
 from enum import StrEnum
-from typing import Annotated, Literal, Self, assert_never
+from typing import Annotated, Any, Literal, Self, assert_never
 
-from pydantic import Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from agent_assure.io_limits import MAX_ARTIFACT_JSON_BYTES
 from agent_assure.schema.base import FrozenStrictModel
@@ -78,6 +78,30 @@ MAX_GRAPH_REFERENCES = MAX_CATALOG_THREAT_REFERENCES + 1
 MAX_GRAPH_REASON_CODES = 64
 MAX_GRAPH_LIMITATIONS = 32_768
 MAX_GRAPH_MESSAGES = 32_768
+
+
+def _stochastic_projection_json_schema_extra(schema: dict[str, Any]) -> None:
+    """Forbid inferential estimate fields on finite-frame descriptive projections."""
+
+    rules = schema.setdefault("allOf", [])
+    if not isinstance(rules, list):
+        raise TypeError("stochastic graph projection JSON Schema allOf must be a list")
+    rules.append(
+        {
+            "if": {
+                "required": ["state"],
+                "properties": {
+                    "state": {"const": "fixed_frame_descriptive"},
+                },
+            },
+            "then": {
+                "properties": {
+                    "estimated_response_unit": False,
+                    "estimated_response_rate": False,
+                },
+            },
+        }
+    )
 
 
 class EvidenceGraphNodeKind(StrEnum):
@@ -662,6 +686,13 @@ class EvidenceGraphStatisticalSufficiencyProjection(FrozenStrictModel):
             raise ValueError(
                 "satisfied statistical-sufficiency projection requires analysis evidence"
             )
+        if self.state is SufficiencyState.descriptive_complete and any(
+            value is not None for value in analysis_fields
+        ):
+            raise ValueError(
+                "descriptive statistical-sufficiency projection cannot carry "
+                "inferential analysis evidence"
+            )
         if self.analysis_compared_clusters is not None and (
             self.analysis_compared_clusters != self.planned_clusters
             or self.analysis_responding_clusters is None
@@ -675,6 +706,8 @@ class EvidenceGraphStatisticalSufficiencyProjection(FrozenStrictModel):
 
 
 class EvidenceGraphStochasticSensitivityProjection(FrozenStrictModel):
+    model_config = ConfigDict(json_schema_extra=_stochastic_projection_json_schema_extra)
+
     protocol_id: GraphSourceId
     protocol_digest: DigestHex
     baseline_expected_recommendation: RAGSensitivityDecision
@@ -698,8 +731,14 @@ class EvidenceGraphStochasticSensitivityProjection(FrozenStrictModel):
     observed_counterexample_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
     observed_cluster_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
     observed_cluster_response_count: int = Field(ge=0, le=MAX_GRAPH_NODES)
-    estimated_response_unit: Literal["independent_cluster"] = "independent_cluster"
-    estimated_response_rate: GraphUnitDecimalString | None = None
+    estimated_response_unit: Literal["independent_cluster"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    estimated_response_rate: GraphUnitDecimalString | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     sufficiency_report_id: GraphSourceId
     sufficiency_report_digest: DigestHex
 
@@ -734,6 +773,27 @@ class EvidenceGraphStochasticSensitivityProjection(FrozenStrictModel):
     def _coerce_gate_effect(cls, value: object) -> StochasticGateEffect:
         return coerce_enum(StochasticGateEffect, value)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _validate_raw_estimate_fields(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        state = value.get("state")
+        fixed_frame_descriptive = state in {
+            StochasticSensitivityState.fixed_frame_descriptive,
+            StochasticSensitivityState.fixed_frame_descriptive.value,
+        }
+        estimate_fields = ("estimated_response_unit", "estimated_response_rate")
+        if fixed_frame_descriptive and any(field in value for field in estimate_fields):
+            raise ValueError(
+                "fixed-frame descriptive projection must omit estimated response fields"
+            )
+        if fixed_frame_descriptive or "estimated_response_unit" in value:
+            return value
+        prepared = dict(value)
+        prepared["estimated_response_unit"] = "independent_cluster"
+        return prepared
+
     @model_validator(mode="after")
     def _validate_semantic_role(self) -> Self:
         candidate_binding = (
@@ -761,10 +821,12 @@ class EvidenceGraphStochasticSensitivityProjection(FrozenStrictModel):
         expected_gate_effect = {
             StochasticSensitivityState.pass_: StochasticGateEffect.pass_,
             StochasticSensitivityState.block: StochasticGateEffect.block,
+            StochasticSensitivityState.fixed_frame_descriptive: (StochasticGateEffect.non_verdict),
             StochasticSensitivityState.prerequisites_unmet: (StochasticGateEffect.non_verdict),
             StochasticSensitivityState.inconclusive: StochasticGateEffect.non_verdict,
         }[self.state]
         expected_population_claim = {
+            StochasticSensitivityState.fixed_frame_descriptive: "none",
             StochasticSensitivityState.pass_: (
                 "expected_decision_response_cluster_rate_above_null_supported"
             ),
@@ -781,6 +843,14 @@ class EvidenceGraphStochasticSensitivityProjection(FrozenStrictModel):
             raise ValueError(
                 "stochastic sensitivity gate and population claim must match its state"
             )
+        if self.state is StochasticSensitivityState.fixed_frame_descriptive:
+            if self.estimated_response_unit is not None or self.estimated_response_rate is not None:
+                raise ValueError(
+                    "fixed-frame descriptive projection cannot carry an estimated "
+                    "response rate or an independent-cluster unit"
+                )
+        elif self.estimated_response_unit is None:
+            raise ValueError("non-descriptive stochastic projection requires its response unit")
         if (
             self.observed_response_count + self.observed_counterexample_count
             != self.observed_pair_count
@@ -1350,6 +1420,7 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
             sufficiency_projection = self.statistical_sufficiency_projection
             expected_state = {
                 SufficiencyState.satisfied: EvidenceState.supported,
+                SufficiencyState.descriptive_complete: EvidenceState.not_evaluated,
                 SufficiencyState.prerequisites_unmet: EvidenceState.prerequisites_unmet,
                 SufficiencyState.inconclusive: EvidenceState.inconclusive,
             }[sufficiency_projection.state]
@@ -1375,6 +1446,7 @@ class EvidenceGraphEvidencePayload(FrozenStrictModel):
             expected_state = {
                 StochasticSensitivityState.pass_: EvidenceState.supported,
                 StochasticSensitivityState.block: EvidenceState.violated,
+                StochasticSensitivityState.fixed_frame_descriptive: (EvidenceState.not_evaluated),
                 StochasticSensitivityState.prerequisites_unmet: (EvidenceState.prerequisites_unmet),
                 StochasticSensitivityState.inconclusive: EvidenceState.inconclusive,
             }[stochastic_projection.state]

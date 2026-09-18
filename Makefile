@@ -44,7 +44,7 @@ release-control-efficacy-check:
 	$(SOURCE_CLI_PYTHON) scripts/run_source_cli.py ci gate "$(RELEASE_EFFICACY_PACKET)" --artifact-root "$(RELEASE_EFFICACY_ARTIFACT_ROOT)" --release-profile --efficacy-policy "$(RELEASE_EFFICACY_POLICY)"
 
 empirical-readiness:
-	$(PYTHON) scripts/check_empirical_readiness.py --study-bundle-root "$(EMPIRICAL_STUDY_BUNDLE_ROOT)" --external-pilot-bundle-root "$(EXTERNAL_PILOT_BUNDLE_ROOT)" --external-pilot-evidence "$(EXTERNAL_PILOT_EVIDENCE)" --external-pilot-review-receipt "$(EXTERNAL_PILOT_REVIEW_RECEIPT)" --benchmark "examples/process_equivalence_benchmark_v0_2/benchmark.json" --expected-release "$(EXPECTED_RELEASE)"
+	$(PYTHON) scripts/check_empirical_readiness.py --study-bundle-root "$(EMPIRICAL_STUDY_BUNDLE_ROOT)" --external-pilot-bundle-root "$(EXTERNAL_PILOT_BUNDLE_ROOT)" --external-pilot-evidence "$(EXTERNAL_PILOT_EVIDENCE)" --external-pilot-review-receipt "$(EXTERNAL_PILOT_REVIEW_RECEIPT)" --benchmark "study/registration/frozen-non-grid-benchmark.json" --expected-release "$(EXPECTED_RELEASE)"
 
 docs-align:
 	$(PYTHON) scripts/check_docs_alignment.py

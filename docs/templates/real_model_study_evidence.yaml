@@ -8,9 +8,15 @@ schema_name: real-model-study-evidence-input/v1
 # canonical receipt before execution with "rag study review-registration".
 registration_record: registration/registration-record.json
 registration_review_receipt: registration/study-registration-review.json
-# Build this qualified, independent receipt after preregistration and before
-# the execution window with "rag study review-statistics". It is optional only
-# for a non-publishable draft replay.
+# Exact UTF-8 audit bytes committed by
+# hypothesis_decision_rule.dependence_acknowledgement.dependence_audit_artifact_sha256
+# for fixed-frame studies (or the confirmatory independence-justification design audit).
+# This file becomes study-independence-audit.md in the closed publication bundle.
+independence_audit_artifact: registration/study-independence-audit.md
+# Build this qualified, independent receipt strictly after the exact registration
+# review and before the execution window with "rag study review-statistics".
+# It binds that registration-review receipt digest and is optional only for a
+# non-publishable draft replay.
 statistical_method_review_receipt: registration/study-statistical-method-review.json
 # Keep null for the first exact replay. After the planned execution window,
 # build a receipt with "rag study review-execution", set this to its relative

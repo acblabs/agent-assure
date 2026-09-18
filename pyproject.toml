@@ -122,6 +122,8 @@ include = [
   "docs/**/*",
   "tests/**/*",
   "scripts/**/*",
+  "study/registration/frozen-non-grid-benchmark.json",
+  "study/registration/frozen-non-grid-benchmark-statistical-method-review.json",
   "README.md",
   "LICENSE",
   "pyproject.toml",

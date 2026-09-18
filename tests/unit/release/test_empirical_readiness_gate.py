@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import struct
@@ -10,9 +11,16 @@ from types import SimpleNamespace
 import pytest
 
 import scripts.check_empirical_readiness as readiness_gate
+from agent_assure.schema.benchmark import (
+    ProcessEquivalenceBenchmarkManifest,
+    registered_confirmatory_benchmark_bar_reason,
+)
 from agent_assure.schema.study import StudyInferenceScope
 from agent_assure.study.readiness import EmpiricalReadinessAssessment
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from tests.unit.schema.test_pilot_evidence import _external_evidence
+from tests.unit.study.test_readiness import _verified_study
+from tests.unit.study.test_real_model_study import _fixture
 from tests.unit.test_pilot_bundle import (
     EVIDENCE_NAME,
     RECEIPT_NAME,
@@ -29,6 +37,55 @@ def _write_json(path: Path, payload: object) -> None:
         encoding="utf-8",
         newline="\n",
     )
+
+
+def _synthetic_confirmatory_trust() -> readiness_gate.CanonicalConfirmatoryBenchmarkTrust:
+    """Build an explicitly reviewed synthetic descriptor, never a v0.2 mutation."""
+
+    fixture = _fixture(real_provider_execution=True)
+    bundle = _verified_study(fixture)
+    receipt = bundle.statistical_method_review_receipt
+    assert receipt is not None
+    benchmark_bytes = published_model_json_bytes(fixture.benchmark)
+    return readiness_gate.CanonicalConfirmatoryBenchmarkTrust(
+        benchmark=fixture.benchmark,
+        statistical_method_review_receipt=receipt,
+        benchmark_artifact_sha256=hashlib.sha256(benchmark_bytes).hexdigest(),
+    )
+
+
+def _install_synthetic_canonical_benchmark(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> readiness_gate.CanonicalConfirmatoryBenchmarkTrust:
+    trust = _synthetic_confirmatory_trust()
+    benchmark = trust.benchmark
+    review = trust.statistical_method_review_receipt
+    canonical_path = tmp_path / "registration" / "benchmark.json"
+    packaged_path = tmp_path / "package" / "benchmark.json"
+    canonical_review_path = tmp_path / "registration" / "benchmark-review.json"
+    packaged_review_path = tmp_path / "package" / "benchmark-review.json"
+    canonical_path.parent.mkdir(parents=True)
+    packaged_path.parent.mkdir(parents=True)
+    benchmark_bytes = published_model_json_bytes(benchmark)
+    review_bytes = published_model_json_bytes(review)
+    canonical_path.write_bytes(benchmark_bytes)
+    packaged_path.write_bytes(benchmark_bytes)
+    canonical_review_path.write_bytes(review_bytes)
+    packaged_review_path.write_bytes(review_bytes)
+    monkeypatch.setattr(readiness_gate, "CANONICAL_BENCHMARK_PATH", canonical_path)
+    monkeypatch.setattr(readiness_gate, "PACKAGED_BENCHMARK_PATH", packaged_path)
+    monkeypatch.setattr(
+        readiness_gate,
+        "CANONICAL_BENCHMARK_METHOD_REVIEW_PATH",
+        canonical_review_path,
+    )
+    monkeypatch.setattr(
+        readiness_gate,
+        "PACKAGED_BENCHMARK_METHOD_REVIEW_PATH",
+        packaged_review_path,
+    )
+    return trust
 
 
 def _stub_validated_evidence(
@@ -90,6 +147,8 @@ def _stub_validated_evidence(
         study_confirmatory_inference_satisfied=checkpoint_ready,
         study_evidence_satisfied=checkpoint_ready,
         study_real_provider_origin_satisfied=checkpoint_ready,
+        study_statistical_method_review_matches_release_trust=checkpoint_ready,
+        canonical_benchmark_confirmatory_approval_satisfied=checkpoint_ready,
         canonical_benchmark_satisfied=checkpoint_ready,
         external_pilot_bundle_verified=True,
         external_pilot_attempt_satisfied=True,
@@ -113,13 +172,22 @@ def _stub_validated_evidence(
         "load_verified_external_pilot_bundle",
         lambda _root, **_kwargs: verified_pilot,
     )
-    monkeypatch.setattr(readiness_gate, "_load_canonical_benchmark", lambda: benchmark)
+    canonical_trust = SimpleNamespace(
+        benchmark=benchmark,
+        statistical_method_review_receipt=study_method_review_receipt,
+        benchmark_artifact_sha256="6" * 64,
+    )
+    monkeypatch.setattr(
+        readiness_gate,
+        "_load_canonical_confirmatory_benchmark_trust",
+        lambda: canonical_trust,
+    )
     monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: benchmark)
     monkeypatch.setattr(readiness_gate, "_bundle_root_is_absent", lambda _path: False)
     monkeypatch.setattr(
         readiness_gate,
         "assess_empirical_readiness",
-        lambda _study_bundle, _pilot, _benchmark, _expected_release: assessment,
+        lambda _study_bundle, _pilot, _benchmark, _expected_release, **_kwargs: assessment,
     )
     return study_digest, pilot_digest
 
@@ -143,7 +211,7 @@ def test_publish_gate_orders_efficacy_and_empirical_readiness_before_release_wor
         "$(MAKE) empirical-readiness"
     )
     assert makefile.index("$(MAKE) empirical-readiness") < makefile.index("$(MAKE) release-check")
-    assert '--benchmark "examples/process_equivalence_benchmark_v0_2/benchmark.json"' in makefile
+    assert '--benchmark "study/registration/frozen-non-grid-benchmark.json"' in makefile
     assert '--study-bundle-root "$(EMPIRICAL_STUDY_BUNDLE_ROOT)"' in makefile
     assert '--external-pilot-bundle-root "$(EXTERNAL_PILOT_BUNDLE_ROOT)"' in makefile
     assert '--external-pilot-review-receipt "$(EXTERNAL_PILOT_REVIEW_RECEIPT)"' in makefile
@@ -170,26 +238,215 @@ def test_publish_workflows_pin_the_closed_empirical_bundle_layouts() -> None:
         assert "RELEASE_EFFICACY_ARTIFACT_ROOT: ." in workflow
 
 
-def test_committed_canonical_benchmark_matches_packaged_mirror_exactly() -> None:
-    benchmark = readiness_gate._load_canonical_benchmark()
+def test_release_gate_does_not_use_the_v02_example_as_its_trust_anchor() -> None:
+    assert readiness_gate.CANONICAL_BENCHMARK_PATH == (
+        ROOT / "study/registration/frozen-non-grid-benchmark.json"
+    )
+    assert readiness_gate.PACKAGED_BENCHMARK_PATH == (
+        ROOT / "src/agent_assure/release_trust/v0_6_6/frozen-non-grid-benchmark.json"
+    )
+    assert readiness_gate.CANONICAL_BENCHMARK_METHOD_REVIEW_PATH == (
+        ROOT / "study/registration/frozen-non-grid-benchmark-statistical-method-review.json"
+    )
+    assert readiness_gate.PACKAGED_BENCHMARK_METHOD_REVIEW_PATH == (
+        ROOT / "src/agent_assure/release_trust/v0_6_6/"
+        "frozen-non-grid-benchmark-statistical-method-review.json"
+    )
+    assert "process_equivalence_benchmark_v0_2" not in str(readiness_gate.CANONICAL_BENCHMARK_PATH)
 
-    assert (
-        readiness_gate.CANONICAL_BENCHMARK_PATH.read_bytes()
-        == readiness_gate.PACKAGED_BENCHMARK_PATH.read_bytes()
+
+def test_canonical_benchmark_requires_an_eligible_byte_identical_packaged_mirror(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    expected = _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
+
+    assert readiness_gate._load_canonical_confirmatory_benchmark_trust() == expected
+
+
+def test_canonical_benchmark_rejects_semantically_equal_nonidentical_mirror_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
+    readiness_gate.PACKAGED_BENCHMARK_PATH.write_bytes(
+        readiness_gate.PACKAGED_BENCHMARK_PATH.read_bytes() + b"\n"
     )
-    assert (
-        benchmark.benchmark_digest
-        == "9f734a3910933d92e5993e3e6f54ca23756146848d78e17317480f48ab54bb54"
+
+    with pytest.raises(ValueError, match="canonical benchmark and packaged mirror differ"):
+        readiness_gate._load_canonical_confirmatory_benchmark_trust()
+
+
+def test_canonical_positive_review_requires_a_byte_identical_packaged_mirror(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
+    readiness_gate.PACKAGED_BENCHMARK_METHOD_REVIEW_PATH.write_bytes(
+        readiness_gate.PACKAGED_BENCHMARK_METHOD_REVIEW_PATH.read_bytes() + b"\n"
     )
+
+    with pytest.raises(
+        readiness_gate.CanonicalConfirmatoryBenchmarkApprovalInvalidError,
+        match="canonical benchmark review and packaged mirror differ",
+    ):
+        readiness_gate._load_canonical_confirmatory_benchmark_trust()
+
+    exit_code = readiness_gate.main(
+        [
+            "--study-bundle-root",
+            "study-bundle",
+            "--external-pilot-bundle-root",
+            "pilot-bundle",
+            "--external-pilot-evidence",
+            "pilot-evidence.json",
+            "--external-pilot-review-receipt",
+            "pilot-review.json",
+            "--expected-release",
+            "0.6.6",
+        ]
+    )
+    assert exit_code == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "blocking_reasons": ["canonical-confirmatory-benchmark-approval-invalid-or-mismatched"],
+        "checkpoint_ready": False,
+        "failure_category": "CanonicalConfirmatoryBenchmarkApprovalInvalidError",
+    }
+
+
+def test_v02_cannot_be_installed_as_the_confirmatory_release_trust_anchor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
+    v0_2_bytes = published_model_json_bytes(
+        ProcessEquivalenceBenchmarkManifest.model_validate_json(
+            (ROOT / "examples/process_equivalence_benchmark_v0_2/benchmark.json").read_bytes()
+        )
+    )
+    readiness_gate.CANONICAL_BENCHMARK_PATH.write_bytes(v0_2_bytes)
+    readiness_gate.PACKAGED_BENCHMARK_PATH.write_bytes(v0_2_bytes)
+
+    with pytest.raises(readiness_gate.CanonicalConfirmatoryBenchmarkIneligibleError):
+        readiness_gate._load_canonical_confirmatory_benchmark_trust()
+
+
+def test_one_case_digest_mutation_of_v02_is_not_positive_confirmatory_approval(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
+    v0_2 = ProcessEquivalenceBenchmarkManifest.model_validate_json(
+        (ROOT / "examples/process_equivalence_benchmark_v0_2/benchmark.json").read_bytes()
+    )
+    values = v0_2.model_dump(mode="python", exclude={"benchmark_digest"})
+    cases = list(v0_2.cases)
+    cases[0] = cases[0].model_copy(
+        update={"input_digest": hashlib.sha256(b"one-case-v0.2-mutation").hexdigest()}
+    )
+    values["cases"] = tuple(cases)
+    mutated = ProcessEquivalenceBenchmarkManifest.build(**values)
+    mutated_bytes = published_model_json_bytes(mutated)
+    readiness_gate.CANONICAL_BENCHMARK_PATH.write_bytes(mutated_bytes)
+    readiness_gate.PACKAGED_BENCHMARK_PATH.write_bytes(mutated_bytes)
+
+    assert registered_confirmatory_benchmark_bar_reason(mutated) is None
+    with pytest.raises(
+        readiness_gate.CanonicalConfirmatoryBenchmarkApprovalInvalidError,
+        match="lacks an exact positive confirmatory approval",
+    ):
+        readiness_gate._load_canonical_confirmatory_benchmark_trust()
+
+
+def test_missing_canonical_benchmark_pair_has_a_specific_release_blocker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setattr(
+        readiness_gate,
+        "CANONICAL_BENCHMARK_PATH",
+        tmp_path / "missing-canonical.json",
+    )
+    monkeypatch.setattr(
+        readiness_gate,
+        "PACKAGED_BENCHMARK_PATH",
+        tmp_path / "missing-packaged.json",
+    )
+
+    exit_code = readiness_gate.main(
+        [
+            "--study-bundle-root",
+            "study-bundle",
+            "--external-pilot-bundle-root",
+            "pilot-bundle",
+            "--external-pilot-evidence",
+            "pilot-evidence.json",
+            "--external-pilot-review-receipt",
+            "pilot-review.json",
+            "--expected-release",
+            "0.6.6",
+        ]
+    )
+
+    assert exit_code == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "blocking_reasons": ["canonical-confirmatory-benchmark-not-frozen"],
+        "checkpoint_ready": False,
+        "failure_category": "CanonicalConfirmatoryBenchmarkNotFrozenError",
+    }
+
+
+def test_frozen_benchmark_with_missing_positive_approval_has_distinct_blocker(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
+    monkeypatch.setattr(
+        readiness_gate,
+        "CANONICAL_BENCHMARK_METHOD_REVIEW_PATH",
+        tmp_path / "missing-canonical-review.json",
+    )
+    monkeypatch.setattr(
+        readiness_gate,
+        "PACKAGED_BENCHMARK_METHOD_REVIEW_PATH",
+        tmp_path / "missing-packaged-review.json",
+    )
+
+    exit_code = readiness_gate.main(
+        [
+            "--study-bundle-root",
+            "study-bundle",
+            "--external-pilot-bundle-root",
+            "pilot-bundle",
+            "--external-pilot-evidence",
+            "pilot-evidence.json",
+            "--external-pilot-review-receipt",
+            "pilot-review.json",
+            "--expected-release",
+            "0.6.6",
+        ]
+    )
+
+    assert exit_code == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "blocking_reasons": ["canonical-confirmatory-benchmark-approval-not-frozen"],
+        "checkpoint_ready": False,
+        "failure_category": "CanonicalConfirmatoryBenchmarkApprovalNotFrozenError",
+    }
 
 
 def test_canonical_benchmark_mirror_read_is_size_bounded(
+    tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
     monkeypatch.setattr(readiness_gate, "MAX_ARTIFACT_JSON_BYTES", 1)
 
     with pytest.raises(ValueError, match="exceeds maximum supported size"):
-        readiness_gate._load_canonical_benchmark()
+        readiness_gate._load_canonical_confirmatory_benchmark_trust()
 
 
 def test_operator_benchmark_override_cannot_replace_committed_trust_anchor(
@@ -198,7 +455,12 @@ def test_operator_benchmark_override_cannot_replace_committed_trust_anchor(
 ) -> None:
     canonical = SimpleNamespace(benchmark_digest="c" * 64)
     unrelated = SimpleNamespace(benchmark_digest="d" * 64)
-    monkeypatch.setattr(readiness_gate, "_load_canonical_benchmark", lambda: canonical)
+    canonical_trust = SimpleNamespace(benchmark=canonical)
+    monkeypatch.setattr(
+        readiness_gate,
+        "_load_canonical_confirmatory_benchmark_trust",
+        lambda: canonical_trust,
+    )
     monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: unrelated)
 
     exit_code = readiness_gate.main(
@@ -358,9 +620,13 @@ def test_empirical_readiness_gate_normalizes_corrupt_deflate_without_traceback(
     wheel[compressed_offset] ^= 0xFF
     pilot_root = tmp_path / "pilot-bundle"
     _write_bundle(pilot_root, distribution_bytes=bytes(wheel))
-    benchmark = SimpleNamespace(benchmark_digest="c" * 64)
-    monkeypatch.setattr(readiness_gate, "_load_canonical_benchmark", lambda: benchmark)
-    monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: benchmark)
+    trust = _synthetic_confirmatory_trust()
+    monkeypatch.setattr(
+        readiness_gate,
+        "_load_canonical_confirmatory_benchmark_trust",
+        lambda: trust,
+    )
+    monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: trust.benchmark)
 
     exit_code = readiness_gate.main(
         [
@@ -391,8 +657,17 @@ def test_empirical_readiness_gate_normalizes_corrupt_deflate_without_traceback(
 
 def test_missing_bundle_roots_surface_assessor_blocking_reasons(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    trust = _synthetic_confirmatory_trust()
+    monkeypatch.setattr(
+        readiness_gate,
+        "_load_canonical_confirmatory_benchmark_trust",
+        lambda: trust,
+    )
+    monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: trust.benchmark)
+
     exit_code = readiness_gate.main(
         [
             "--study-bundle-root",
@@ -412,6 +687,7 @@ def test_missing_bundle_roots_surface_assessor_blocking_reasons(
     result = json.loads(capsys.readouterr().out)
     reasons = result["blocking_reasons"]
     assert "real-model-study-bundle-not-verified" in reasons
+    assert "real-model-study-canonical-benchmark-mismatch" not in reasons
     assert "external-pilot-bundle-not-verified" in reasons
     assert "external-ci-pilot-not-attempted" in reasons
     assert "empirical-evidence-invalid-or-unavailable" not in reasons
@@ -424,8 +700,16 @@ def test_missing_bundle_roots_surface_assessor_blocking_reasons(
 
 def test_empirical_readiness_gate_fails_closed_without_leaking_invalid_values(
     tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
+    trust = _synthetic_confirmatory_trust()
+    monkeypatch.setattr(
+        readiness_gate,
+        "_load_canonical_confirmatory_benchmark_trust",
+        lambda: trust,
+    )
+    monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: trust.benchmark)
     secret = "patient-secret-invalid-study"
     study_root = tmp_path / "study-bundle"
     study_root.mkdir()
@@ -501,13 +785,18 @@ def test_bare_external_evidence_with_fake_hashes_and_no_files_fails_checker(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    benchmark = SimpleNamespace(benchmark_digest="c" * 64)
+    trust = _synthetic_confirmatory_trust()
+    benchmark = trust.benchmark
     study_bundle = SimpleNamespace(
         report=SimpleNamespace(report_digest="a" * 64),
         file_count=24,
         total_bytes=456,
     )
-    monkeypatch.setattr(readiness_gate, "_load_canonical_benchmark", lambda: benchmark)
+    monkeypatch.setattr(
+        readiness_gate,
+        "_load_canonical_confirmatory_benchmark_trust",
+        lambda: trust,
+    )
     monkeypatch.setattr(readiness_gate, "_load_benchmark", lambda _path: benchmark)
     monkeypatch.setattr(
         readiness_gate,

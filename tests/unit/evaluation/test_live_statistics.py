@@ -274,7 +274,7 @@ def test_live_statistics_rejects_heterogeneous_execution_arm_identity() -> None:
         update={
             "provider": "other-provider",
             "model": "other-model",
-            "adapter_id": "other-adapter",
+            "adapter_id": "external-script",
             "pipeline_id": "candidate-b",
             "structured_field_origins": StructuredFieldOrigins.uniform(
                 StructuredFieldOrigin.instrumented_adapter

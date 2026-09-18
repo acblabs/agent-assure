@@ -142,6 +142,7 @@ def test_study_writer_publishes_an_exact_replayable_generation(tmp_path: Path) -
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=out,
     )
     second = write_real_model_study_artifacts(
@@ -152,6 +153,7 @@ def test_study_writer_publishes_an_exact_replayable_generation(tmp_path: Path) -
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=out,
     )
 
@@ -160,6 +162,7 @@ def test_study_writer_publishes_an_exact_replayable_generation(tmp_path: Path) -
         "process-equivalence-benchmark.json",
         "study-registration-record.json",
         "study-registration-review.json",
+        "study-independence-audit.md",
         "real-model-study-report.json",
         "real-model-study-report.md",
         *{
@@ -262,6 +265,7 @@ def test_study_writer_and_bundle_verifier_accept_declared_condition_scale(
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=out,
     )
     verified = load_and_validate_study_bundle(out)
@@ -287,10 +291,54 @@ def test_study_writer_rejects_a_report_not_derived_from_supplied_evidence(
             report=other_report,
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
             out_dir=tmp_path / "must-not-publish",
         )
 
     assert not (tmp_path / "must-not-publish").exists()
+
+
+def test_study_writer_requires_the_manifest_committed_independence_audit(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture()
+    out = tmp_path / "must-not-publish"
+
+    with pytest.raises(ValueError, match="requires the digest-bound independence audit bytes"):
+        write_real_model_study_artifacts(
+            manifest=fixture.manifest,
+            benchmark=fixture.benchmark,
+            protocols=fixture.protocols,
+            evidence=fixture.evidence_by_condition,
+            report=_analyze(fixture),
+            registration_record_bytes=fixture.registration_record_bytes,
+            registration_review_receipt=fixture.registration_review_receipt,
+            out_dir=out,
+        )
+
+    assert not out.exists()
+
+
+def test_study_writer_privacy_scans_the_independence_audit(
+    tmp_path: Path,
+) -> None:
+    fixture = _fixture()
+    out = tmp_path / "must-not-publish"
+
+    with pytest.raises(StudyPrivacyError, match="credential material"):
+        write_real_model_study_artifacts(
+            manifest=fixture.manifest,
+            benchmark=fixture.benchmark,
+            protocols=fixture.protocols,
+            evidence=fixture.evidence_by_condition,
+            report=_analyze(fixture),
+            registration_record_bytes=fixture.registration_record_bytes,
+            registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=(b"AWS_SECRET_ACCESS_KEY=very-secret-test-value"),
+            out_dir=out,
+        )
+
+    assert not out.exists()
 
 
 def test_study_writer_rejects_source_evidence_that_redaction_would_change(
@@ -323,6 +371,7 @@ def test_study_writer_rejects_source_evidence_that_redaction_would_change(
             report=_analyze(fixture),
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
             out_dir=tmp_path / "must-not-publish",
         )
 
@@ -367,6 +416,7 @@ def test_study_writer_rejects_structural_credentials_in_nested_runset_strings(
             report=_analyze(fixture),
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
             out_dir=tmp_path / "must-not-publish",
         )
 
@@ -402,6 +452,7 @@ def test_study_writer_preserves_invalidated_sources_without_a_provenance_sidecar
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=out,
     )
 
@@ -432,6 +483,7 @@ def test_study_writer_enforces_the_bundle_aggregate_byte_ceiling(
             report=_analyze(fixture),
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
             out_dir=tmp_path / "must-not-publish",
         )
 
@@ -482,6 +534,7 @@ def test_study_bundle_transports_a_maximum_journaled_runset_through_the_64_mib_p
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=out,
     )
     assert (

@@ -17,7 +17,10 @@ from pathlib import Path
 from typing import Literal
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.live.config import LiveRunConfig
+from agent_assure.live.config import (
+    PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE,
+    LiveRunConfig,
+)
 from agent_assure.live.runner import (
     LiveExecutionSnapshot,
     calculate_provider_input_manifest_digest,
@@ -43,12 +46,15 @@ from agent_assure.rag.sensitivity_statistics import (
 from agent_assure.schema.benchmark import (
     ProcessEquivalenceBenchmarkCase,
     ProcessEquivalenceBenchmarkManifest,
+    registered_confirmatory_benchmark_bar_reason,
 )
 from agent_assure.schema.common import ExecutionMode
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.sensitivity import EvidenceSensitivityExpectedRelation
 from agent_assure.schema.stochastic_sensitivity import (
     CONFIRMATORY_STOCHASTIC_ADAPTER_IDS,
+    BinaryPairedDesignPlan,
+    FixedFrameDescriptivePlan,
     PairDisposition,
     PairedSensitivityObservation,
     RepeatedEvidenceSensitivityProtocol,
@@ -71,6 +77,7 @@ from agent_assure.schema.study import (
     StudyExpectedResponseDiagnostic,
     StudyFailureSummary,
     StudyHypothesisClassification,
+    StudyHypothesisDecisionRule,
     StudyInferenceScope,
     StudyObservedExecutionProvenance,
     StudyObservedModelIdentity,
@@ -114,14 +121,19 @@ _DEFAULT_REPORT_LIMITATIONS = (
         "the report does not claim an arm-isolated causal effect."
     ),
     (
-        "Raw prompts, raw completions, credentials, and credential digests are "
-        "outside the persisted study evidence boundary."
+        "Raw prompts, raw completions, credentials, and direct credential digests are "
+        "outside the persisted study evidence boundary. Current trusted live adapters "
+        "emit SHA-256 commitments to complete response payload bytes, and real-provider "
+        "eligibility requires complete commitment coverage; legacy, imported, and "
+        "synthetic RunSets may omit them. Commitments can be linkable and are not content "
+        "confidentiality or provider authentication."
     ),
     (
         "Observed execution provenance is deterministically derived from privacy-filtered "
-        "local runner records and response metadata and digest-bound to the exact source "
-        "RunSets; it is not cryptographic provider authentication or independent human-"
-        "provenance attestation."
+        "local runner records, response metadata, and trusted-adapter payload commitments "
+        "and digest-bound to the exact source RunSets; it is not cryptographic provider "
+        "authentication, proof of transport completeness, or independent human-provenance "
+        "attestation."
     ),
     (
         "The report does not itself verify preregistration record bytes or reviewer "
@@ -234,6 +246,23 @@ def derive_study_observed_execution_provenance(
             if _usable_provider_response_id(record.provider_response_id)
         )
     )
+    provider_response_payload_entries = tuple(
+        sorted(
+            (
+                arm_id,
+                record.run_id,
+                record.provider_response_payload_scope,
+                record.provider_response_payload_sha256,
+            )
+            for arm_id, runset in zip(arm_ids, runsets, strict=True)
+            for record in runset.runs
+            if record.provider_response_payload_scope is not None
+            and record.provider_response_payload_sha256 is not None
+        )
+    )
+    provider_response_payload_scopes = tuple(
+        sorted({scope for _, _, scope, _ in provider_response_payload_entries if scope is not None})
+    )
     provider_serving_fingerprint_entries = tuple(
         sorted(
             (
@@ -300,6 +329,8 @@ def derive_study_observed_execution_provenance(
         and binding_consistent_run_records == run_records
         and timing_complete_run_records == run_records
         and len(provider_response_id_entries) == run_records
+        and len(provider_response_payload_entries) == run_records
+        and provider_response_payload_scopes == ("complete_http_response_body",)
         and provider_response_metadata_records == run_records
         and fingerprint_policy_satisfied
         and normal_termination_run_records == run_records
@@ -333,6 +364,18 @@ def derive_study_observed_execution_provenance(
         binding_consistent_run_records=binding_consistent_run_records,
         timing_complete_run_records=timing_complete_run_records,
         provider_response_id_records=len(provider_response_id_entries),
+        provider_response_payload_commitment_records=(len(provider_response_payload_entries)),
+        provider_response_payload_commitment_set_digest=(
+            sha256_hexdigest(
+                {
+                    "purpose": "study-provider-response-payload-commitments/v1",
+                    "records": provider_response_payload_entries,
+                }
+            )
+            if provider_response_payload_entries
+            else None
+        ),
+        provider_response_payload_scopes=provider_response_payload_scopes,
         provider_response_metadata_records=provider_response_metadata_records,
         provider_serving_fingerprint_records=len(provider_serving_fingerprint_entries),
         distinct_provider_serving_fingerprints=(distinct_provider_serving_fingerprints),
@@ -362,6 +405,23 @@ def derive_study_observed_execution_provenance(
     )
 
 
+def _reject_known_ineligible_confirmatory_benchmark(
+    manifest: RealModelStudyManifest,
+    benchmark: ProcessEquivalenceBenchmarkManifest,
+) -> None:
+    if (
+        manifest.hypothesis_decision_rule.inference_scope
+        is StudyInferenceScope.confirmatory_independent_clusters
+        and registered_confirmatory_benchmark_bar_reason(benchmark)
+        == "known_shared_template_parameter_grid"
+    ):
+        raise ValueError(
+            "confirmatory independent-cluster inference is prohibited for the known "
+            "shared-template parameter-grid benchmark; freeze a new case frame and "
+            "obtain design-specific qualified method review before provider execution"
+        )
+
+
 def validate_study_manifest_inputs(
     manifest: RealModelStudyManifest,
     benchmark: ProcessEquivalenceBenchmarkManifest,
@@ -383,6 +443,7 @@ def validate_study_manifest_inputs(
         benchmark.benchmark_digest,
     ):
         raise ValueError("study manifest does not bind the supplied benchmark")
+    _reject_known_ineligible_confirmatory_benchmark(manifest, benchmark)
     expected_ids = tuple(item.condition_id for item in manifest.conditions)
     if tuple(sorted(protocols)) != expected_ids:
         raise ValueError("study protocols must exactly cover the frozen condition IDs")
@@ -454,6 +515,7 @@ def bind_study_manifest_to_live_config(
         benchmark.benchmark_digest,
     ):
         raise ValueError("study manifest does not bind the supplied benchmark")
+    _reject_known_ineligible_confirmatory_benchmark(manifest, benchmark)
     _validate_benchmark_condition_frames(manifest, benchmark)
     protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
     binding = _manifest_condition(manifest, condition_id)
@@ -486,6 +548,11 @@ def bind_study_manifest_to_live_config(
     existing = config.study_manifest_digest
     if existing is not None and existing != manifest.manifest_digest:
         raise ValueError("live configuration is already bound to another study manifest")
+    if config.execution_profile != PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE:
+        raise ValueError(
+            "live study config must select preregistered_paired_study before "
+            "the repeated protocol freezes its configuration digest"
+        )
     if not config.fail_fast_on_excluded_response:
         raise ValueError(
             "live study config must set fail_fast_on_excluded_response=true before "
@@ -590,10 +657,15 @@ def analyze_real_model_study(
     # Negative controls are evaluated by the exact zero-change gate and do not
     # spend alpha, although their descriptive intervals retain the frozen
     # target-family alpha for a consistent uncertainty reference.
-    family_size = len(manifest.hypothesis_decision_rule.target_task_model_conditions)
-    adjusted_alpha = bonferroni_adjusted_alpha(
-        manifest.hypothesis_decision_rule.familywise_alpha,
-        family_size,
+    rule = manifest.hypothesis_decision_rule
+    family_size = len(rule.target_task_model_conditions)
+    adjusted_alpha = (
+        bonferroni_adjusted_alpha(
+            rule.familywise_alpha,
+            family_size,
+        )
+        if isinstance(rule, StudyHypothesisDecisionRule)
+        else Decimal("0")
     )
     results = tuple(
         _analyze_condition(
@@ -631,7 +703,11 @@ def analyze_real_model_study(
         for item in results
     )
     invariant_controls_satisfied = all(
-        item.state is StudyConditionState.analyzed
+        item.state
+        in {
+            StudyConditionState.analyzed,
+            StudyConditionState.fixed_frame_descriptive,
+        }
         and item.control_unexpected_change_cluster_count == 0
         for item in results
         if item.analysis_role is StudyConditionAnalysisRole.invariant_negative_control
@@ -709,18 +785,42 @@ def _validate_condition_protocol(
     protocol: RepeatedEvidenceSensitivityProtocol,
     benchmark_by_case: Mapping[str, ProcessEquivalenceBenchmarkCase],
 ) -> None:
-    validate_binary_paired_design_plan(protocol)
     if protocol.execution_mode is not SensitivityExecutionMode.stochastic_live:
         raise ValueError(f"condition {binding.condition_id} is not stochastic_live")
-    if protocol.interpretation is not SensitivityInterpretation.confirmatory:
-        raise ValueError(f"condition {binding.condition_id} is not confirmatory")
+    fixed_frame = (
+        manifest.hypothesis_decision_rule.inference_scope
+        is StudyInferenceScope.fixed_frame_descriptive_conformance
+    )
+    expected_interpretation = (
+        SensitivityInterpretation.fixed_frame_descriptive
+        if fixed_frame
+        else SensitivityInterpretation.confirmatory
+    )
+    if protocol.interpretation is not expected_interpretation:
+        raise ValueError(
+            f"condition {binding.condition_id} protocol interpretation does not match "
+            "the study inference scope"
+        )
+    if fixed_frame:
+        if not isinstance(protocol.design, FixedFrameDescriptivePlan):
+            raise ValueError(
+                f"condition {binding.condition_id} fixed-frame scope requires a "
+                "descriptive design plan"
+            )
+    else:
+        if isinstance(protocol.design, FixedFrameDescriptivePlan):
+            raise ValueError(
+                f"condition {binding.condition_id} confirmatory scope requires an "
+                "inferential design plan"
+            )
+        validate_binary_paired_design_plan(protocol)
     if binding.analysis_role is not _analysis_role(protocol):
         raise ValueError(
             f"condition {binding.condition_id} analysis role does not match its protocol relation"
         )
     if Decimal(protocol.design.maximum_exclusion_rate) != Decimal("0"):
         raise ValueError(
-            f"condition {binding.condition_id} confirmatory study protocol must set "
+            f"condition {binding.condition_id} study protocol must set "
             "maximum_exclusion_rate to zero"
         )
     if (
@@ -797,19 +897,26 @@ def _validate_condition_protocol(
         binding.baseline_configuration_digest,
         binding.counterfactual_configuration_digest,
         binding.planned_pairs,
-        binding.planned_independent_clusters,
+        binding.planned_clusters,
     )
     if observed_identity != expected_identity:
         raise ValueError(f"condition {binding.condition_id} frozen identity mismatch")
     rule = manifest.hypothesis_decision_rule
-    if (
-        protocol.multiplicity_method != "bonferroni"
-        or protocol.multiplicity_family_size != len(rule.target_task_model_conditions)
-        or protocol.design.familywise_alpha != rule.familywise_alpha
-        or protocol.design.planned_inferential_clusters != binding.planned_independent_clusters
-        or binding.planned_independent_clusters < rule.minimum_independent_clusters
-    ):
-        raise ValueError(f"condition {binding.condition_id} analysis-plan mismatch")
+    if fixed_frame:
+        assert isinstance(protocol.design, FixedFrameDescriptivePlan)
+        if protocol.design.planned_descriptive_clusters != binding.planned_clusters:
+            raise ValueError(f"condition {binding.condition_id} descriptive-frame mismatch")
+    else:
+        assert isinstance(protocol.design, BinaryPairedDesignPlan)
+        assert isinstance(rule, StudyHypothesisDecisionRule)
+        if (
+            protocol.multiplicity_method != "bonferroni"
+            or protocol.multiplicity_family_size != len(rule.target_task_model_conditions)
+            or protocol.design.familywise_alpha != rule.familywise_alpha
+            or protocol.design.planned_inferential_clusters != binding.planned_clusters
+            or binding.planned_clusters < rule.minimum_independent_clusters
+        ):
+            raise ValueError(f"condition {binding.condition_id} analysis-plan mismatch")
 
 
 def _analysis_role(
@@ -869,6 +976,19 @@ def _analyze_condition(
         and observed_provenance.observed_origin is not StudyExecutionOrigin.real_provider
     ):
         deviations.add("provider-dispatch-provenance-incomplete")
+    if (
+        binding.execution_origin is StudyExecutionOrigin.real_provider
+        and observed_provenance.provider_response_payload_commitment_records
+        != observed_provenance.run_records
+    ):
+        deviations.add("provider-response-payload-commitment-incomplete")
+    if (
+        binding.execution_origin is StudyExecutionOrigin.real_provider
+        and observed_provenance.provider_response_payload_commitment_records
+        == observed_provenance.run_records
+        and observed_provenance.provider_response_payload_scopes != ("complete_http_response_body",)
+    ):
+        deviations.add("provider-response-payload-scope-invalid")
     if source_protocol != protocol:
         deviations.add("post-registration-protocol-drift")
     if (
@@ -944,10 +1064,31 @@ def _analyze_condition(
         )
 
     deviations.update(_observation_deviations(observations))
-    if sufficiency.excluded_pairs:
+    if (
+        sufficiency.excluded_pairs
+        and protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+    ):
+        deviations.add("fixed-frame-descriptive-incomplete")
+    if (
+        sufficiency.excluded_pairs
+        and protocol.interpretation is not SensitivityInterpretation.fixed_frame_descriptive
+    ):
         deviations.add("confirmatory-pair-exclusion-observed")
-    if sufficiency.state is SufficiencyState.prerequisites_unmet:
+    if (
+        sufficiency.state is SufficiencyState.prerequisites_unmet
+        and protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+    ):
+        deviations.add("descriptive-integrity-prerequisites-unmet")
+    if (
+        sufficiency.state is SufficiencyState.prerequisites_unmet
+        and protocol.interpretation is not SensitivityInterpretation.fixed_frame_descriptive
+    ):
         deviations.add("statistical-prerequisites-unmet")
+    if (
+        protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+        and sufficiency.state is not SufficiencyState.descriptive_complete
+    ):
+        deviations.add("fixed-frame-descriptive-incomplete")
     endpoint_counts = derive_study_cluster_endpoint_counts(sufficiency)
     invalid_endpoint_count = endpoint_counts[6]
     if invalid_endpoint_count:
@@ -958,6 +1099,7 @@ def _analyze_condition(
         )
     control_failed = (
         not deviations
+        and protocol.interpretation is SensitivityInterpretation.confirmatory
         and sufficiency.state is SufficiencyState.satisfied
         and protocol.expected_relation is EvidenceSensitivityExpectedRelation.decision_invariant
         and endpoint_counts[5] > 0
@@ -969,6 +1111,8 @@ def _analyze_condition(
         if control_failed
         else StudyConditionState.invalidated
         if deviations
+        else StudyConditionState.fixed_frame_descriptive
+        if sufficiency.state is SufficiencyState.descriptive_complete
         else StudyConditionState.underpowered
         if sufficiency.state is SufficiencyState.inconclusive
         else StudyConditionState.analyzed
@@ -985,9 +1129,16 @@ def _analyze_condition(
     control_change_count: int | None = None
     control_change_rate: str | None = None
     control_change_interval: StudyOneSidedInterval | None = None
-    if state in {StudyConditionState.analyzed, StudyConditionState.control_failed}:
+    if state in {
+        StudyConditionState.analyzed,
+        StudyConditionState.control_failed,
+        StudyConditionState.fixed_frame_descriptive,
+    }:
+        decision_rule = manifest.hypothesis_decision_rule
         analysis = sufficiency.analysis
-        if analysis is None:
+        if state is StudyConditionState.fixed_frame_descriptive and analysis is not None:
+            raise ValueError("fixed-frame descriptive condition cannot carry inferential analysis")
+        if state is not StudyConditionState.fixed_frame_descriptive and analysis is None:
             raise ValueError("satisfied live study condition is missing exact analysis")
         if protocol.expected_relation is EvidenceSensitivityExpectedRelation.decision_flip:
             (
@@ -1002,7 +1153,7 @@ def _analyze_condition(
                 mixed_baseline_correctness_inertia_count,
             ) = derive_study_inertia_descriptive_counts(sufficiency)
             inertia_breakdown = StudyDecisionInertiaDescriptiveBreakdown(
-                planned_clusters=binding.planned_independent_clusters,
+                planned_clusters=binding.planned_clusters,
                 baseline_correct_same_decision_cluster_count=(baseline_correct_inertia_count),
                 baseline_incorrect_same_decision_cluster_count=(baseline_incorrect_inertia_count),
                 mixed_baseline_correctness_same_decision_cluster_count=(
@@ -1010,73 +1161,81 @@ def _analyze_condition(
                 ),
                 baseline_correct_same_decision_rate=format_six_place_rate(
                     baseline_correct_inertia_count,
-                    binding.planned_independent_clusters,
+                    binding.planned_clusters,
                 ),
                 baseline_incorrect_same_decision_rate=format_six_place_rate(
                     baseline_incorrect_inertia_count,
-                    binding.planned_independent_clusters,
+                    binding.planned_clusters,
                 ),
                 mixed_baseline_correctness_same_decision_rate=format_six_place_rate(
                     mixed_baseline_correctness_inertia_count,
-                    binding.planned_independent_clusters,
+                    binding.planned_clusters,
                 ),
-            )
-            lower = clopper_pearson_one_sided(
-                inertia_count,
-                binding.planned_independent_clusters,
-                adjusted_alpha,
-                side="lower",
-            )
-            upper = clopper_pearson_one_sided(
-                inertia_count,
-                binding.planned_independent_clusters,
-                adjusted_alpha,
-                side="upper",
             )
             response_rate = format_six_place_rate(
                 response_count,
-                binding.planned_independent_clusters,
+                binding.planned_clusters,
             )
             inertia_rate = format_six_place_rate(
                 inertia_count,
-                binding.planned_independent_clusters,
+                binding.planned_clusters,
             )
-            inertia_interval = StudyOneSidedInterval(
-                familywise_alpha=manifest.hypothesis_decision_rule.familywise_alpha,
-                family_size=family_size,
-                adjusted_alpha=f"{adjusted_alpha:.12f}",
-                trials=binding.planned_independent_clusters,
-                successes=inertia_count,
-                lower_bound=format_twelve_place_bound(lower.bound, rounding=ROUND_FLOOR),
-                upper_bound=format_twelve_place_bound(upper.bound, rounding=ROUND_CEILING),
-            )
+            if state is not StudyConditionState.fixed_frame_descriptive:
+                assert isinstance(decision_rule, StudyHypothesisDecisionRule)
+                lower = clopper_pearson_one_sided(
+                    inertia_count,
+                    binding.planned_clusters,
+                    adjusted_alpha,
+                    side="lower",
+                )
+                upper = clopper_pearson_one_sided(
+                    inertia_count,
+                    binding.planned_clusters,
+                    adjusted_alpha,
+                    side="upper",
+                )
+                inertia_interval = StudyOneSidedInterval(
+                    familywise_alpha=decision_rule.familywise_alpha,
+                    family_size=family_size,
+                    adjusted_alpha=f"{adjusted_alpha:.12f}",
+                    trials=binding.planned_clusters,
+                    successes=inertia_count,
+                    lower_bound=format_twelve_place_bound(lower.bound, rounding=ROUND_FLOOR),
+                    upper_bound=format_twelve_place_bound(upper.bound, rounding=ROUND_CEILING),
+                )
         else:
             control_stability_count, control_change_count = endpoint_counts[4:6]
-            control_lower = clopper_pearson_one_sided(
-                control_change_count,
-                binding.planned_independent_clusters,
-                adjusted_alpha,
-                side="lower",
-            )
-            control_upper = clopper_pearson_one_sided(
-                control_change_count,
-                binding.planned_independent_clusters,
-                adjusted_alpha,
-                side="upper",
-            )
             control_change_rate = format_six_place_rate(
                 control_change_count,
-                binding.planned_independent_clusters,
+                binding.planned_clusters,
             )
-            control_change_interval = StudyOneSidedInterval(
-                familywise_alpha=manifest.hypothesis_decision_rule.familywise_alpha,
-                family_size=family_size,
-                adjusted_alpha=f"{adjusted_alpha:.12f}",
-                trials=binding.planned_independent_clusters,
-                successes=control_change_count,
-                lower_bound=format_twelve_place_bound(control_lower.bound, rounding=ROUND_FLOOR),
-                upper_bound=format_twelve_place_bound(control_upper.bound, rounding=ROUND_CEILING),
-            )
+            if state is not StudyConditionState.fixed_frame_descriptive:
+                assert isinstance(decision_rule, StudyHypothesisDecisionRule)
+                control_lower = clopper_pearson_one_sided(
+                    control_change_count,
+                    binding.planned_clusters,
+                    adjusted_alpha,
+                    side="lower",
+                )
+                control_upper = clopper_pearson_one_sided(
+                    control_change_count,
+                    binding.planned_clusters,
+                    adjusted_alpha,
+                    side="upper",
+                )
+                control_change_interval = StudyOneSidedInterval(
+                    familywise_alpha=decision_rule.familywise_alpha,
+                    family_size=family_size,
+                    adjusted_alpha=f"{adjusted_alpha:.12f}",
+                    trials=binding.planned_clusters,
+                    successes=control_change_count,
+                    lower_bound=format_twelve_place_bound(
+                        control_lower.bound, rounding=ROUND_FLOOR
+                    ),
+                    upper_bound=format_twelve_place_bound(
+                        control_upper.bound, rounding=ROUND_CEILING
+                    ),
+                )
     invalid_pairs = (
         sufficiency.actual_pairs - sufficiency.included_pairs - sufficiency.excluded_pairs
     )
@@ -1095,7 +1254,7 @@ def _analyze_condition(
         "missing_pairs": sufficiency.missing_pairs,
         "excluded_pairs": sufficiency.excluded_pairs,
         "invalid_pairs": invalid_pairs,
-        "planned_clusters": binding.planned_independent_clusters,
+        "planned_clusters": binding.planned_clusters,
         "actual_clusters": sufficiency.actual_clusters,
         "analyzable_clusters": sufficiency.analyzable_clusters,
         "coupling": protocol.coupling,
@@ -1110,7 +1269,11 @@ def _analyze_condition(
         result_payload["expected_response_diagnostic"] = (
             StudyExpectedResponseDiagnostic.from_source_report(stochastic)
         )
-    if state in {StudyConditionState.analyzed, StudyConditionState.control_failed}:
+    if state in {
+        StudyConditionState.analyzed,
+        StudyConditionState.control_failed,
+        StudyConditionState.fixed_frame_descriptive,
+    }:
         if protocol.expected_relation is EvidenceSensitivityExpectedRelation.decision_flip:
             result_payload.update(
                 {
@@ -1121,7 +1284,11 @@ def _analyze_condition(
                     "decision_inertia_descriptive_breakdown": inertia_breakdown,
                     "decision_response_rate": response_rate,
                     "decision_inertia_rate": inertia_rate,
-                    "decision_inertia_interval": inertia_interval,
+                    **(
+                        {"decision_inertia_interval": inertia_interval}
+                        if inertia_interval is not None
+                        else {}
+                    ),
                 }
             )
         else:
@@ -1130,7 +1297,11 @@ def _analyze_condition(
                     "control_expected_stability_cluster_count": control_stability_count,
                     "control_unexpected_change_cluster_count": control_change_count,
                     "control_unexpected_change_rate": control_change_rate,
-                    "control_unexpected_change_interval": control_change_interval,
+                    **(
+                        {"control_unexpected_change_interval": control_change_interval}
+                        if control_change_interval is not None
+                        else {}
+                    ),
                 }
             )
     return StudyConditionResult.model_validate(result_payload)
@@ -1313,7 +1484,7 @@ def _record_has_complete_study_timing(
         )
     except ValueError:
         return False
-    return window_start <= started < completed <= window_end
+    return window_start <= started < completed < window_end
 
 
 def _usable_provider_metadata(value: str | None) -> bool:
@@ -1398,7 +1569,7 @@ def _execution_window_deviations(
         )
         if completed < started:
             deviations.add("execution-timestamp-order-invalid")
-        if started < window_start or completed > window_end:
+        if started < window_start or completed >= window_end:
             deviations.add("execution-outside-preregistered-window")
     if (
         records
@@ -1644,7 +1815,7 @@ def _empty_condition_result(
         "missing_pairs": missing_pairs,
         "excluded_pairs": 0,
         "invalid_pairs": invalid_pairs,
-        "planned_clusters": binding.planned_independent_clusters,
+        "planned_clusters": binding.planned_clusters,
         "actual_clusters": actual_clusters,
         "analyzable_clusters": 0,
         "operational_summary": operational
@@ -1755,7 +1926,10 @@ def _classify(
     manifest: RealModelStudyManifest,
     results: tuple[StudyConditionResult, ...],
 ) -> StudyHypothesisClassification:
-    threshold = Decimal(manifest.hypothesis_decision_rule.materiality_threshold)
+    decision_rule = manifest.hypothesis_decision_rule
+    if not isinstance(decision_rule, StudyHypothesisDecisionRule):
+        raise ValueError("fixed-frame descriptive studies cannot be hypothesis-classified")
+    threshold = Decimal(decision_rule.materiality_threshold)
     intervals = tuple(
         item.decision_inertia_interval
         for item in results

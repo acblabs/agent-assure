@@ -778,6 +778,7 @@ def _project_statistical_sufficiency(
 ) -> str:
     state = {
         SufficiencyState.satisfied: EvidenceState.supported,
+        SufficiencyState.descriptive_complete: EvidenceState.not_evaluated,
         SufficiencyState.prerequisites_unmet: EvidenceState.prerequisites_unmet,
         SufficiencyState.inconclusive: EvidenceState.inconclusive,
     }[report.state]
@@ -861,6 +862,7 @@ def _project_stochastic_evidence_sensitivity(
     state = {
         StochasticSensitivityState.pass_: EvidenceState.supported,
         StochasticSensitivityState.block: EvidenceState.violated,
+        StochasticSensitivityState.fixed_frame_descriptive: EvidenceState.not_evaluated,
         StochasticSensitivityState.prerequisites_unmet: (EvidenceState.prerequisites_unmet),
         StochasticSensitivityState.inconclusive: EvidenceState.inconclusive,
     }[report.state]
@@ -926,8 +928,14 @@ def _project_stochastic_evidence_sensitivity(
                     observed_counterexample_count=(report.observed_counterexample_count),
                     observed_cluster_count=report.observed_cluster_count,
                     observed_cluster_response_count=(report.observed_cluster_response_count),
-                    estimated_response_unit=report.estimated_response_unit,
-                    estimated_response_rate=report.estimated_response_rate,
+                    **(
+                        {}  # type: ignore[arg-type]
+                        if report.state is StochasticSensitivityState.fixed_frame_descriptive
+                        else {
+                            "estimated_response_unit": report.estimated_response_unit,
+                            "estimated_response_rate": report.estimated_response_rate,
+                        }
+                    ),
                     sufficiency_report_id=sufficiency_report_id,
                     sufficiency_report_digest=sufficiency_report_digest,
                 )

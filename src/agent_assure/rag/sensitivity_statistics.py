@@ -21,6 +21,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     ArtifactDependency,
     BinaryPairedDesignPlan,
     ClusterBinomialAnalysisResult,
+    FixedFrameDescriptivePlan,
     PairDisposition,
     PairDispositionCount,
     PairedSensitivityObservation,
@@ -142,6 +143,10 @@ def validate_binary_paired_design_plan(
 
     protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
     design = protocol.design
+    if not isinstance(design, BinaryPairedDesignPlan):
+        raise ValueError("fixed-frame descriptive protocols do not define a binary design")
+    if protocol.multiplicity_method is None or protocol.multiplicity_family_size is None:
+        raise ValueError("binary paired design requires multiplicity controls")
     expected = plan_binary_paired_design(
         familywise_alpha=design.familywise_alpha,
         desired_power=design.desired_power,
@@ -189,7 +194,10 @@ def evaluate_statistical_sufficiency(
     """
 
     protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
-    validate_binary_paired_design_plan(protocol)
+    if isinstance(protocol.design, BinaryPairedDesignPlan):
+        validate_binary_paired_design_plan(protocol)
+    elif not isinstance(protocol.design, FixedFrameDescriptivePlan):
+        raise TypeError("unsupported sensitivity design plan")
     observations = _validated_observations(protocol, observations)
     source_runsets = tuple(
         RunSetArtifactDependency.model_validate(item.model_dump(mode="json"))
@@ -226,31 +234,52 @@ def evaluate_statistical_sufficiency(
     state = (
         SufficiencyState.prerequisites_unmet
         if structural_unmet
-        else SufficiencyState.satisfied
+        else (
+            SufficiencyState.descriptive_complete
+            if protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+            else SufficiencyState.satisfied
+        )
         if all_satisfied
         else SufficiencyState.inconclusive
     )
     analysis = None
-    if protocol.execution_mode is SensitivityExecutionMode.stochastic_live and not structural_unmet:
+    if (
+        protocol.execution_mode is SensitivityExecutionMode.stochastic_live
+        and protocol.interpretation is not SensitivityInterpretation.fixed_frame_descriptive
+        and not structural_unmet
+    ):
         analysis = derive_cluster_binomial_analysis(protocol, observations)
 
-    limitations = [
-        (
-            "Confirmatory exact inference retains every frozen planned cluster and "
-            "assigns response zero to each non-analyzable cluster; observed analyzable "
-            "cluster counts remain separate descriptive facts."
-        ),
-        (
-            "Observed pair counterexamples are sample facts; the independent-"
-            "cluster response rate is a separate inferential summary."
-        ),
-        (
-            "Sufficiency establishes only evaluated operational checks for a "
-            "schema-validated design; it does not verify cluster independence, "
-            "causality, external validity, or general provider quality."
-        ),
-    ]
-    if state is not SufficiencyState.satisfied:
+    if protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive:
+        limitations = [
+            (
+                "Fixed-frame descriptive completion reports only exact observed counts "
+                "for the frozen planned cases and clusters; it performs no hypothesis test."
+            ),
+            (
+                "No independence, exchangeability, population, causal, external-validity, "
+                "or general provider-quality claim is permitted."
+            ),
+            ("Any missing or excluded pair makes the frozen-frame summary inconclusive."),
+        ]
+    else:
+        limitations = [
+            (
+                "Confirmatory exact inference retains every frozen planned cluster and "
+                "assigns response zero to each non-analyzable cluster; observed analyzable "
+                "cluster counts remain separate descriptive facts."
+            ),
+            (
+                "Observed pair counterexamples are sample facts; the independent-"
+                "cluster response rate is a separate inferential summary."
+            ),
+            (
+                "Sufficiency establishes only evaluated operational checks for a "
+                "schema-validated design; it does not verify cluster independence, "
+                "causality, external validity, or general provider quality."
+            ),
+        ]
+    if state not in {SufficiencyState.satisfied, SufficiencyState.descriptive_complete}:
         limitations.append("Unsatisfied or inconclusive prerequisites prohibit a passing verdict.")
     if protocol.execution_mode is SensitivityExecutionMode.deterministic_fixture:
         limitations.append(
@@ -299,10 +328,14 @@ def build_stochastic_sensitivity_report(
         sufficiency.observations,
     )
     responding_clusters = sum(cluster_responses)
+    fixed_frame_descriptive = (
+        protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+    )
     estimated_rate = None
     if (
         protocol.execution_mode is SensitivityExecutionMode.stochastic_live
         and sufficiency.state is not SufficiencyState.prerequisites_unmet
+        and not fixed_frame_descriptive
     ):
         estimated_rate = (
             sufficiency.analysis.planned_cluster_response_rate
@@ -314,10 +347,14 @@ def build_stochastic_sensitivity_report(
         state = StochasticSensitivityState.prerequisites_unmet
     elif sufficiency.state is SufficiencyState.inconclusive:
         state = StochasticSensitivityState.inconclusive
+    elif sufficiency.state is SufficiencyState.descriptive_complete:
+        state = StochasticSensitivityState.fixed_frame_descriptive
     else:
         analysis = sufficiency.analysis
         if analysis is None:
             raise ValueError("satisfied stochastic sufficiency requires an analysis")
+        if not isinstance(protocol.design, BinaryPairedDesignPlan):
+            raise ValueError("verdict-bearing sufficiency requires an inferential design")
         supported = cluster_binomial_rejection_region_contains(
             trials=analysis.compared_clusters,
             successes=analysis.responding_clusters,
@@ -351,25 +388,49 @@ def build_stochastic_sensitivity_report(
         if verdict_bearing
         else None
     )
-    limitations = [
-        (
-            "Confirmatory estimated response rates use the full planned-cluster "
-            "denominator with non-analyzable clusters assigned response zero; "
-            "observed cluster counts remain descriptive."
-        ),
-        (
-            "The population statement is scoped to the predeclared provider, "
-            "model, exact configurations, corpus pair, case population, and protocol."
-        ),
-        (
-            "An observed pair counterexample and the estimated independent-cluster "
-            "response rate are distinct; neither is a causal or general quality claim."
-        ),
-    ]
-    if not verdict_bearing:
+    if fixed_frame_descriptive:
+        limitations = [
+            (
+                "This report contains observed counts for the exact frozen frame only; "
+                "it does not estimate a population response rate."
+            ),
+            (
+                "The fixed-frame descriptive state is always non-verdict and cannot "
+                "support a dependency or population claim."
+            ),
+            (
+                "No independence, exchangeability, causal, external-validity, or "
+                "general provider-quality claim is made."
+            ),
+        ]
+    else:
+        limitations = [
+            (
+                "Confirmatory estimated response rates use the full planned-cluster "
+                "denominator with non-analyzable clusters assigned response zero; "
+                "observed cluster counts remain descriptive."
+            ),
+            (
+                "The population statement is scoped to the predeclared provider, "
+                "model, exact configurations, corpus pair, case population, and protocol."
+            ),
+            (
+                "An observed pair counterexample and the estimated independent-cluster "
+                "response rate are distinct; neither is a causal or general quality claim."
+            ),
+        ]
+    if not verdict_bearing and not fixed_frame_descriptive:
         limitations.append(
             "This result is non-verdict because statistical prerequisites were not satisfied."
         )
+    estimate_fields: dict[str, object] = (
+        {}
+        if fixed_frame_descriptive
+        else {
+            "estimated_response_unit": "independent_cluster",
+            "estimated_response_rate": estimated_rate,
+        }
+    )
     return StochasticEvidenceSensitivityReport.build(
         report_id=f"{protocol.protocol_id}/stochastic-result",
         protocol_id=protocol.protocol_id,
@@ -385,8 +446,8 @@ def build_stochastic_sensitivity_report(
         observed_counterexample_count=pair_counterexamples,
         observed_cluster_count=len(cluster_responses),
         observed_cluster_response_count=responding_clusters,
-        estimated_response_rate=estimated_rate,
         limitations=tuple(sorted(limitations)),
+        **estimate_fields,
     )
 
 

@@ -1326,6 +1326,10 @@ def _gate_stochastic_sensitivity_report(
     expected_role = {
         StochasticSensitivityState.pass_: (StochasticGateEffect.pass_, True),
         StochasticSensitivityState.block: (StochasticGateEffect.block, True),
+        StochasticSensitivityState.fixed_frame_descriptive: (
+            StochasticGateEffect.non_verdict,
+            False,
+        ),
         StochasticSensitivityState.prerequisites_unmet: (
             StochasticGateEffect.non_verdict,
             False,

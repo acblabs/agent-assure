@@ -6,6 +6,7 @@ import os
 import sys
 import threading
 import time
+from hashlib import sha256
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,89 @@ from agent_assure.runner.subprocess_harness import (
     run_external_script,
 )
 from agent_assure.telemetry.context import trace_context_for_seed
+
+
+def test_external_script_completed_hashes_exact_stdout_bytes(tmp_path: Path) -> None:
+    raw_stdout = b"first line\r\nsecond line\n"
+    script = tmp_path / "exact_stdout.py"
+    script.write_text(
+        f"import sys\nsys.stdout.buffer.write({raw_stdout!r})\n",
+        encoding="utf-8",
+    )
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=3,
+        request_payload={},
+        observation_id="obs-exact-stdout",
+        run_id="run-exact-stdout",
+        case_id="case-exact-stdout",
+        adapter_id="external-script",
+    )
+
+    completed = run_external_script(invocation)
+
+    assert completed.stdout.encode("utf-8") == raw_stdout
+    assert completed.stdout_sha256 == sha256(raw_stdout).hexdigest()
+
+
+def test_successful_external_script_rejects_non_utf8_stdout(tmp_path: Path) -> None:
+    raw_stdout = b'{"value":"raw-\xff-byte"}\n'
+    script = tmp_path / "invalid_utf8_stdout.py"
+    script.write_text(
+        f"import sys\nsys.stdout.buffer.write({raw_stdout!r})\n",
+        encoding="utf-8",
+    )
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=3,
+        request_payload={},
+        observation_id="obs-invalid-utf8",
+        run_id="run-invalid-utf8",
+        case_id="case-invalid-utf8",
+        adapter_id="external-script",
+    )
+
+    with pytest.raises(ExternalScriptError, match="stdout was not valid UTF-8") as raised:
+        run_external_script(invocation)
+
+    emergency = raised.value.emergency_record
+    assert emergency.failure_kind == "invalid_output"
+    assert emergency.exit_code == 0
+    assert emergency.stdout_bytes == len(raw_stdout)
+    assert subprocess_harness._decode_sample(raw_stdout) == raw_stdout.decode(
+        "utf-8",
+        errors="replace",
+    )
+
+
+def test_external_script_emergency_diagnostics_replace_non_utf8_bytes(tmp_path: Path) -> None:
+    raw_stderr = b"diagnostic-\xff-byte"
+    script = tmp_path / "invalid_utf8_stderr.py"
+    script.write_text(
+        f"import sys\nsys.stderr.buffer.write({raw_stderr!r})\nraise SystemExit(7)\n",
+        encoding="utf-8",
+    )
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=3,
+        request_payload={},
+        observation_id="obs-invalid-stderr-utf8",
+        run_id="run-invalid-stderr-utf8",
+        case_id="case-invalid-stderr-utf8",
+        adapter_id="external-script",
+    )
+
+    with pytest.raises(ExternalScriptError, match="exited nonzero") as raised:
+        run_external_script(invocation)
+
+    emergency = raised.value.emergency_record
+    assert emergency.failure_kind == "nonzero_exit"
+    assert emergency.exit_code == 7
+    assert emergency.stderr_bytes == len(raw_stderr)
+    assert emergency.stderr_summary == "diagnostic-�-byte"
 
 
 def test_external_script_adapter_invokes_script_with_trace_context(
@@ -95,6 +179,7 @@ print(json.dumps({
     assert content["recommendation"] == "approve"
     assert response.total_tokens == 7
     assert response.resolved_model == "script-model@local"
+    assert response.provider_response_payload_scope == "complete_external_script_stdout"
 
 
 def test_external_script_failure_creates_redacted_emergency_record(tmp_path: Path) -> None:
@@ -519,6 +604,31 @@ def test_output_limit_uses_process_tree_termination(monkeypatch: pytest.MonkeyPa
     assert terminated == [fake_process]
 
 
+def test_output_capture_disarm_prevents_late_process_termination(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeProcess:
+        stdout = None
+        stderr = None
+
+    terminated: list[object] = []
+    fake_process = FakeProcess()
+    monkeypatch.setattr(subprocess_harness, "MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES", 4)
+    monkeypatch.setattr(
+        subprocess_harness,
+        "_terminate_process_tree",
+        lambda process: terminated.append(process),
+    )
+    capture = subprocess_harness._ProcessOutputCapture(fake_process)  # type: ignore[arg-type]
+    capture.disarm_process_termination()
+
+    capture.add("stdout", b"12345")
+
+    assert capture.limit_exceeded is True
+    assert capture.stdout_bytes == 5
+    assert terminated == []
+
+
 def test_output_capture_finalize_never_joins_reader_without_a_deadline() -> None:
     class FakeProcess:
         stdout = None
@@ -531,12 +641,74 @@ def test_output_capture_finalize_never_joins_reader_without_a_deadline() -> None
     reader.start()
     started = time.monotonic()
 
-    capture.finalize()
+    assert capture.finalize() is False
 
     assert time.monotonic() - started < 1
     assert reader.is_alive()
     release_reader.set()
     reader.join(timeout=1)
+
+
+def test_output_capture_requires_eof_not_only_finished_reader() -> None:
+    class ErroringPipe:
+        def read(self, _size: int) -> bytes:
+            raise OSError("synthetic read failure")
+
+        def close(self) -> None:
+            pass
+
+    class FakeProcess:
+        stdout = ErroringPipe()
+        stderr = None
+
+    capture = subprocess_harness._ProcessOutputCapture(FakeProcess())  # type: ignore[arg-type]
+    capture.start()
+
+    assert capture.finalize() is False
+    assert not any(thread.is_alive() for thread in capture._threads)
+
+
+def test_successful_script_fails_closed_when_output_capture_is_incomplete(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raw_stdout = "stdout-content-must-not-persist"
+    script = tmp_path / "incomplete_capture.py"
+    script.write_text(f"print({raw_stdout!r})\n", encoding="utf-8")
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=3,
+        request_payload={},
+        observation_id="obs-incomplete-capture",
+        run_id="run-incomplete-capture",
+        case_id="case-incomplete-capture",
+        adapter_id="external-script",
+    )
+    real_join = subprocess_harness._ProcessOutputCapture.join
+
+    def report_incomplete_after_draining(
+        capture: subprocess_harness._ProcessOutputCapture,
+        *,
+        timeout_seconds: float,
+    ) -> bool:
+        assert real_join(capture, timeout_seconds=timeout_seconds)
+        return False
+
+    monkeypatch.setattr(
+        subprocess_harness._ProcessOutputCapture,
+        "join",
+        report_incomplete_after_draining,
+    )
+
+    with pytest.raises(ExternalScriptError, match="output capture was incomplete") as raised:
+        run_external_script(invocation)
+
+    emergency = raised.value.emergency_record
+    assert emergency.failure_kind == "invalid_output"
+    assert emergency.exit_code == 0
+    assert emergency.stdout_bytes == len((raw_stdout + os.linesep).encode("utf-8"))
+    assert raw_stdout not in emergency.model_dump_json()
 
 
 def test_windows_process_group_options_start_suspended(

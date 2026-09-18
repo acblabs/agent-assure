@@ -7,7 +7,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Self
+from typing import Any, Literal, Self
 from urllib.parse import urlsplit
 
 from pydantic import Field
@@ -75,6 +75,11 @@ class EndpointResolutionStatus:
     @property
     def has_disallowed_address(self) -> bool:
         return any(is_disallowed_endpoint_host(address) for address in self.addresses)
+
+
+LiveExecutionProfile = Literal["ordinary_live", "preregistered_paired_study"]
+ORDINARY_LIVE_EXECUTION_PROFILE: LiveExecutionProfile = "ordinary_live"
+PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE: LiveExecutionProfile = "preregistered_paired_study"
 
 
 class LiveScriptEnvVar(StrictModel):
@@ -297,6 +302,7 @@ class LiveRunConfig(StrictModel):
     agent_assure_execution_version: str = AGENT_ASSURE_EXECUTION_VERSION
     live_adapter_implementation_id: str = LIVE_ADAPTER_IMPLEMENTATION_ID
     provider_request_envelope_id: str = LIVE_PROVIDER_REQUEST_ENVELOPE_ID
+    execution_profile: LiveExecutionProfile = ORDINARY_LIVE_EXECUTION_PROFILE
     variant_id: str = Field(min_length=1)
     pipeline_id: str = Field(min_length=1)
     tool_schema_digest: DigestHex
@@ -358,6 +364,20 @@ class LiveRunConfig(StrictModel):
             raise ValueError("live config adapter implementation identity is unsupported")
         if self.provider_request_envelope_id != LIVE_PROVIDER_REQUEST_ENVELOPE_ID:
             raise ValueError("live config provider request envelope identity is unsupported")
+        if (
+            self.execution_profile == ORDINARY_LIVE_EXECUTION_PROFILE
+            and self.study_manifest_digest is not None
+        ):
+            raise ValueError(
+                "ordinary_live execution profile cannot carry a study manifest backlink"
+            )
+        if (
+            self.study_manifest_digest is not None
+            and self.evidence_sensitivity_design_digest is None
+        ):
+            raise ValueError(
+                "study manifest backlink requires an evidence sensitivity design backlink"
+            )
         if self.retrieval_corpus_dir is not None and self.retrieval_corpus_digest is None:
             raise ValueError("retrieval_corpus_dir requires retrieval_corpus_digest")
         if self.knowledge_contract_path is not None and self.knowledge_contract_digest is None:

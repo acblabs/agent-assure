@@ -18,6 +18,27 @@ artifacts, expectation digests, RunSet `suite_digest` and
 `fixture_manifest_digest` bindings, fixture manifest entries, run records, span
 plans, and manifest paths.
 
+`provider_response_payload_sha256` is a deliberate raw-byte commitment rather
+than a typed canonical-artifact digest. A built-in live adapter applies SHA-256
+directly to the exact bounded response byte sequence before decoding,
+normalization, or parsing. Its required `provider_response_payload_scope`
+identifies whether those bytes are a complete HTTP response body, complete
+external-script stdout, one complete static JSONL record, or bytes declared by
+an unregistered adapter. The successful-attempt journal repeats the same pair.
+Study provenance canonically hashes the sorted `(arm_id, run_id, scope,
+payload_sha256)` tuples into a separate aggregate set digest; confirmatory
+real-provider eligibility requires one complete-HTTP-body commitment per run.
+Neither digest is provider authentication, a signature, confidentiality, or
+proof that a transport supplied every upstream byte.
+
+`StudyStatisticalMethodReviewReceipt.registration_review_receipt_digest` is a
+logical backlink to the exact self-digested registration-review receipt that
+the method-review command revalidated against the raw registration record. It
+orders and binds the two human attestations; it is not a second hash of the raw
+record and does not authenticate either reviewer. Validation requires the
+method-review timestamp to be strictly later than the bound registration
+review.
+
 Configuration decimals use fixed six-place strings, for example `0.700000`.
 
 The persisted run schema is intentionally lean for deterministic fixture mode

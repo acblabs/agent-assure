@@ -1614,6 +1614,26 @@
     },
     "EvidenceGraphStochasticSensitivityProjection": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "fixed_frame_descriptive"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "estimated_response_rate": false,
+              "estimated_response_unit": false
+            }
+          }
+        }
+      ],
       "properties": {
         "baseline_expected_outcome": {
           "$ref": "#/$defs/RAGSensitivityOutcome"
@@ -1687,10 +1707,17 @@
           "title": "Estimated Response Rate"
         },
         "estimated_response_unit": {
-          "const": "independent_cluster",
-          "default": "independent_cluster",
-          "title": "Estimated Response Unit",
-          "type": "string"
+          "anyOf": [
+            {
+              "const": "independent_cluster",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Response Unit"
         },
         "gate_effect": {
           "$ref": "#/$defs/StochasticGateEffect"
@@ -2127,6 +2154,7 @@
       "enum": [
         "pass",
         "block",
+        "fixed_frame_descriptive",
         "prerequisites_unmet",
         "inconclusive"
       ],
@@ -2136,6 +2164,7 @@
     "SufficiencyState": {
       "enum": [
         "satisfied",
+        "descriptive_complete",
         "prerequisites_unmet",
         "inconclusive"
       ],

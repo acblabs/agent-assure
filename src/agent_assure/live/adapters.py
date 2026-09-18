@@ -54,7 +54,7 @@ from agent_assure.runner.subprocess_harness import (
     run_external_script,
 )
 from agent_assure.schema.base import SCHEMA_VERSION, StrictModel
-from agent_assure.schema.common import DigestHex
+from agent_assure.schema.common import DigestHex, ProviderResponsePayloadScope
 from agent_assure.sensitivity_contract import MAX_SENSITIVITY_CORPUS_BYTES
 
 EstimatedCostSource = Literal[
@@ -91,6 +91,14 @@ class LiveAdapterResourceSnapshot:
     adapter_id: str
     content_sha256: str
     content: bytes
+
+
+@dataclass(frozen=True)
+class _StaticJsonlResponse:
+    """One parsed response bound to its exact JSONL source-record bytes."""
+
+    payload: dict[str, Any]
+    payload_sha256: str
 
 
 class LiveProviderRequest(StrictModel):
@@ -175,6 +183,8 @@ class LiveProviderResponse(StrictModel):
     provider_sdk: str | None = None
     provider_region: str | None = None
     provider_response_id: str | None = None
+    provider_response_payload_sha256: DigestHex
+    provider_response_payload_scope: ProviderResponsePayloadScope
     provider_finish_reason: str | None = Field(
         default=None,
         min_length=1,
@@ -334,16 +344,20 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
         host: str,
         *,
         pinned_addresses: tuple[str, ...],
+        network_dispatch_guard: Callable[[], None] | None = None,
         **kwargs: Any,
     ) -> None:
         super().__init__(host, **kwargs)
         self._pinned_addresses = pinned_addresses
+        self._network_dispatch_guard = network_dispatch_guard
 
     def connect(self) -> None:
         if getattr(self, "_tunnel_host", None) is not None:
             raise OSError("pinned HTTPS transport does not support tunnels")
         last_error: OSError | None = None
         for address in self._pinned_addresses:
+            if self._network_dispatch_guard is not None:
+                self._network_dispatch_guard()
             raw_socket: socket.socket | None = None
             try:
                 raw_socket = socket.create_connection(
@@ -354,30 +368,44 @@ class _PinnedHTTPSConnection(http.client.HTTPSConnection):
                 tls_context = getattr(self, "_context", None)
                 if tls_context is None:
                     raise OSError("pinned HTTPS transport has no TLS context")
-                self.sock = tls_context.wrap_socket(
+                tls_socket = tls_context.wrap_socket(
                     raw_socket,
                     server_hostname=self.host,
                 )
-                return
             except OSError as exc:
                 last_error = exc
                 if raw_socket is not None:
                     raw_socket.close()
+                continue
+            try:
+                if self._network_dispatch_guard is not None:
+                    self._network_dispatch_guard()
+            except BaseException:
+                tls_socket.close()
+                raise
+            self.sock = tls_socket
+            return
         if last_error is not None:
             raise last_error
         raise OSError("pinned HTTPS transport has no screened addresses")
 
 
 class _PinnedHTTPSHandler(urllib.request.HTTPSHandler):
-    def __init__(self, pinned_addresses: tuple[str, ...]) -> None:
+    def __init__(
+        self,
+        pinned_addresses: tuple[str, ...],
+        network_dispatch_guard: Callable[[], None] | None = None,
+    ) -> None:
         super().__init__()
         self._pinned_addresses = pinned_addresses
+        self._network_dispatch_guard = network_dispatch_guard
 
     def https_open(self, request: urllib.request.Request) -> Any:
         def connection(host: str, **kwargs: Any) -> _PinnedHTTPSConnection:
             return _PinnedHTTPSConnection(
                 host,
                 pinned_addresses=self._pinned_addresses,
+                network_dispatch_guard=self._network_dispatch_guard,
                 **kwargs,
             )
 
@@ -415,14 +443,15 @@ class StaticJsonlAdapter:
         )
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
-        payload = self._responses.get((request.case_id, request.repetition_index))
-        if payload is None and request.allow_case_only_static_response:
-            payload = self._responses.get((request.case_id, None))
-        if payload is None:
+        entry = self._responses.get((request.case_id, request.repetition_index))
+        if entry is None and request.allow_case_only_static_response:
+            entry = self._responses.get((request.case_id, None))
+        if entry is None:
             raise KeyError(
                 f"no static live response for case_id={request.case_id!r}, "
                 f"repetition_index={request.repetition_index}"
             )
+        payload = entry.payload
         content = payload.get("content")
         if content is None and isinstance(payload.get("record"), dict):
             content = json.dumps(payload["record"], sort_keys=True)
@@ -455,6 +484,8 @@ class StaticJsonlAdapter:
             ),
             provider_region=_optional_string(payload.get("provider_region"), self._config.region),
             provider_response_id=_optional_string(payload.get("provider_response_id")),
+            provider_response_payload_sha256=entry.payload_sha256,
+            provider_response_payload_scope="complete_static_jsonl_record",
             observation_status=_string(payload.get("observation_status"), "included"),
             exclusion_reason=_optional_string(payload.get("exclusion_reason")),
             prompt_tokens=_optional_int(payload.get("prompt_tokens")),
@@ -477,6 +508,7 @@ class OpenAIChatCompletionsAdapter:
         *,
         base_dir: Path,
         trust: TrustedLiveExecution | None = None,
+        network_dispatch_guard: Callable[[], None] | None = None,
     ) -> None:
         del base_dir
         require_live_adapter_trust(config, trust)
@@ -492,6 +524,7 @@ class OpenAIChatCompletionsAdapter:
             raise ValueError(f"environment variable {config.api_key_env!r} is not set")
         self._config = config
         self._api_key = api_key
+        self._network_dispatch_guard = network_dispatch_guard
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
         pinned_addresses = _validate_openai_endpoint(self._config)
@@ -533,16 +566,19 @@ class OpenAIChatCompletionsAdapter:
             method="POST",
         )
         http_request.add_unredirected_header("Authorization", f"Bearer {self._api_key}")
+        # DNS pinning and request construction can be slow. Recheck the
+        # caller's authorization boundary after both and immediately before
+        # opening the outbound request.
+        if self._network_dispatch_guard is not None:
+            self._network_dispatch_guard()
         try:
             with _open_no_redirects(
                 http_request,
                 timeout_seconds=self._config.timeout_seconds,
                 pinned_addresses=pinned_addresses,
+                network_dispatch_guard=self._network_dispatch_guard,
             ) as response:
-                payload = loads_json_bounded(
-                    _read_provider_response(response).decode("utf-8"),
-                    label="provider response JSON",
-                )
+                response_body = _read_provider_response(response)
         except urllib.error.HTTPError as exc:
             retry_after = exc.headers.get("Retry-After") if exc.headers is not None else None
             raise LiveProviderRequestError(
@@ -558,7 +594,7 @@ class OpenAIChatCompletionsAdapter:
                     (TimeoutError, ConnectionError, socket.gaierror),
                 ),
             ) from exc
-        return _openai_response(payload, self._config)
+        return _openai_response(response_body, self._config)
 
 
 class ExternalScriptAdapter:
@@ -699,7 +735,11 @@ class ExternalScriptAdapter:
             )
             raise ExternalScriptError("external script stdout JSON root was invalid", emergency)
         try:
-            return _script_response(loaded, self._config)
+            return _script_response(
+                loaded,
+                self._config,
+                provider_response_payload_sha256=completed.stdout_sha256,
+            )
         except (TypeError, ValueError) as exc:
             emergency = invalid_output_emergency(
                 invocation,
@@ -758,6 +798,7 @@ def build_adapter(
     base_dir: Path,
     trust: TrustedLiveExecution | None = None,
     resource_snapshot: LiveAdapterResourceSnapshot | None = None,
+    network_dispatch_guard: Callable[[], None] | None = None,
 ) -> LiveProviderAdapter:
     known_ids = adapter_ids()
     if config.adapter_id not in known_ids:
@@ -777,6 +818,7 @@ def build_adapter(
             config,
             base_dir=base_dir,
             trust=trust,
+            network_dispatch_guard=network_dispatch_guard,
         )
     if config.adapter_id == ExternalScriptAdapter.adapter_id:
         return ExternalScriptAdapter(
@@ -831,29 +873,53 @@ def _open_no_redirects(
     *,
     timeout_seconds: int,
     pinned_addresses: tuple[str, ...] = (),
+    network_dispatch_guard: Callable[[], None] | None = None,
 ) -> Any:
     handlers: list[Any] = [
         urllib.request.ProxyHandler({}),
         _NoRedirectHandler(),
     ]
     if pinned_addresses:
-        handlers.append(_PinnedHTTPSHandler(pinned_addresses))
+        handlers.append(
+            _PinnedHTTPSHandler(
+                pinned_addresses,
+                network_dispatch_guard=network_dispatch_guard,
+            )
+        )
     opener = urllib.request.build_opener(*handlers)
     return opener.open(request, timeout=timeout_seconds)
 
 
 def _read_provider_response(response: Any) -> bytes:
-    payload = response.read(MAX_PROVIDER_RESPONSE_BYTES + 1)
-    if isinstance(payload, str):
-        payload = payload.encode("utf-8")
-    elif not isinstance(payload, bytes):
-        payload = bytes(payload)
-    if len(payload) > MAX_PROVIDER_RESPONSE_BYTES:
+    payload = bytearray()
+    while True:
+        # A blocking stream may return fewer bytes than requested without
+        # having reached EOF. Read through the explicit empty sentinel so the
+        # payload commitment cannot omit a trailing response fragment.
+        chunk = response.read(MAX_PROVIDER_RESPONSE_BYTES - len(payload) + 1)
+        if isinstance(chunk, str):
+            chunk = chunk.encode("utf-8")
+        elif not isinstance(chunk, bytes):
+            chunk = bytes(chunk)
+        if not chunk:
+            remaining_length = getattr(response, "length", None)
+            if isinstance(remaining_length, int) and remaining_length > 0:
+                raise ValueError("provider response ended before declared Content-Length")
+            return bytes(payload)
+        if len(payload) + len(chunk) > MAX_PROVIDER_RESPONSE_BYTES:
+            raise ValueError("provider response exceeded configured byte limit")
+        payload.extend(chunk)
+
+
+def _openai_response(response_body: bytes, config: LiveAdapterConfig) -> LiveProviderResponse:
+    if len(response_body) > MAX_PROVIDER_RESPONSE_BYTES:
         raise ValueError("provider response exceeded configured byte limit")
-    return payload
-
-
-def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> LiveProviderResponse:
+    payload = loads_json_bounded(
+        response_body.decode("utf-8"),
+        label="provider response JSON",
+    )
+    if not isinstance(payload, dict):
+        raise ValueError("provider response JSON root was not an object")
     choices = payload.get("choices")
     if not isinstance(choices, list) or not choices:
         raise ValueError("provider response did not contain choices")
@@ -890,6 +956,8 @@ def _openai_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
             field_name="id",
             max_length=256,
         ),
+        provider_response_payload_sha256=hashlib.sha256(response_body).hexdigest(),
+        provider_response_payload_scope="complete_http_response_body",
         provider_finish_reason=finish_reason,
         provider_serving_fingerprint=_optional_machine_metadata(
             payload.get("system_fingerprint"),
@@ -970,7 +1038,7 @@ def _load_jsonl_responses(
     relative_path: str,
     *,
     display_path: Path,
-) -> dict[tuple[str, int | None], dict[str, Any]]:
+) -> dict[tuple[str, int | None], _StaticJsonlResponse]:
     text = read_text_bounded_at(
         root,
         relative_path,
@@ -984,10 +1052,15 @@ def _parse_jsonl_responses(
     text: str,
     *,
     display_path: Path,
-) -> dict[tuple[str, int | None], dict[str, Any]]:
-    responses: dict[tuple[str, int | None], dict[str, Any]] = {}
+) -> dict[tuple[str, int | None], _StaticJsonlResponse]:
+    responses: dict[tuple[str, int | None], _StaticJsonlResponse] = {}
     path = display_path
-    for line_number, line in enumerate(text.splitlines(), start=1):
+    lines = text.splitlines()
+    source_records = text.splitlines(keepends=True)
+    for line_number, (line, source_record) in enumerate(
+        zip(lines, source_records, strict=True),
+        start=1,
+    ):
         if not line.strip():
             continue
         if len(line.encode("utf-8")) > MAX_STATIC_JSONL_LINE_BYTES:
@@ -1010,7 +1083,10 @@ def _parse_jsonl_responses(
                 f"{path}:{line_number}: duplicate static response for "
                 f"case_id={case_id!r}, repetition_index={repetition}"
             )
-        responses[key] = payload
+        responses[key] = _StaticJsonlResponse(
+            payload=payload,
+            payload_sha256=hashlib.sha256(source_record.encode("utf-8")).hexdigest(),
+        )
     return responses
 
 
@@ -1064,7 +1140,12 @@ def _sealed_script_memfd(script: BoundedFileDescriptor) -> int:
         raise
 
 
-def _script_response(payload: dict[str, Any], config: LiveAdapterConfig) -> LiveProviderResponse:
+def _script_response(
+    payload: dict[str, Any],
+    config: LiveAdapterConfig,
+    *,
+    provider_response_payload_sha256: str,
+) -> LiveProviderResponse:
     content = payload.get("content")
     if content is None and isinstance(payload.get("record"), dict):
         content = json.dumps(payload["record"], sort_keys=True)
@@ -1086,6 +1167,8 @@ def _script_response(payload: dict[str, Any], config: LiveAdapterConfig) -> Live
         provider_sdk=_optional_string(payload.get("provider_sdk"), _sdk_label(config)),
         provider_region=_optional_string(payload.get("provider_region"), config.region),
         provider_response_id=_optional_string(payload.get("provider_response_id")),
+        provider_response_payload_sha256=provider_response_payload_sha256,
+        provider_response_payload_scope="complete_external_script_stdout",
         observation_status=_string(payload.get("observation_status"), "included"),
         exclusion_reason=_optional_string(payload.get("exclusion_reason")),
         prompt_tokens=_optional_int(payload.get("prompt_tokens")),

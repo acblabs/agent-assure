@@ -65,6 +65,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     CouplingClassification,
     CouplingCondition,
     CouplingDescriptor,
+    FixedFrameDescriptivePlan,
     PairDisposition,
     PairedSensitivityObservation,
     RepeatedEvidenceSensitivityProtocol,
@@ -361,6 +362,28 @@ def test_underpowered_packet_remains_nonverdict() -> None:
             stochastic_evidence_sensitivity=false_pass,
             artifact_digests=_artifact_digests(),
         )
+
+
+def test_fixed_frame_descriptive_packet_is_nonverdict_and_dependency_free() -> None:
+    sufficiency, stochastic, _ = _reports(fixed_frame_descriptive=True)
+    assert sufficiency.state.value == "descriptive_complete"
+    assert sufficiency.analysis is None
+    assert not sufficiency.population_claim_permitted
+    assert stochastic.state.value == "fixed_frame_descriptive"
+    assert stochastic.gate_effect is StochasticGateEffect.non_verdict
+    assert not stochastic.verdict_bearing
+    assert stochastic.population_claim == "none"
+    assert stochastic.dependency is None
+
+    packet = build_evidence_packet(
+        _evaluation(sufficiency),
+        statistical_sufficiency=sufficiency,
+        stochastic_evidence_sensitivity=stochastic,
+        artifact_digests=_artifact_digests(),
+    )
+
+    assert packet.statistical_sufficiency == sufficiency
+    assert packet.stochastic_evidence_sensitivity == stochastic
 
 
 def test_packet_artifact_limits_expand_only_stochastic_source_runsets() -> None:
@@ -722,6 +745,7 @@ def _reports(
     underpowered: bool = False,
     schema_version: Literal["0.6.5", "0.6.6"] = "0.6.6",
     journal_bound: bool = False,
+    fixed_frame_descriptive: bool = False,
 ) -> tuple[
     StatisticalSufficiencyReport,
     StochasticEvidenceSensitivityReport,
@@ -729,12 +753,18 @@ def _reports(
 ]:
     if journal_bound and schema_version != "0.6.6":
         raise ValueError("attempt journals are supported only for current stochastic fixtures")
-    design = plan_binary_paired_design(
-        familywise_alpha="0.500000",
-        desired_power="0.500000",
-        null_response_rate="0.100000",
-        alternative_response_rate="0.900000",
-        monte_carlo_resamples=1_000,
+    if fixed_frame_descriptive and schema_version != "0.6.6":
+        raise ValueError("fixed-frame descriptive fixtures require schema version 0.6.6")
+    design = (
+        FixedFrameDescriptivePlan(planned_descriptive_clusters=2)
+        if fixed_frame_descriptive
+        else plan_binary_paired_design(
+            familywise_alpha="0.500000",
+            desired_power="0.500000",
+            null_response_rate="0.100000",
+            alternative_response_rate="0.900000",
+            monte_carlo_resamples=1_000,
+        )
     )
     case_ids = ("case-a", "case-b")
     baseline_arm = _arm(
@@ -751,8 +781,9 @@ def _reports(
         schema_version=schema_version,
         protocol_id="stochastic-packet-protocol",
         execution_attempt_id=("stochastic-packet-attempt-01" if journal_bound else None),
-        interpretation="confirmatory",
+        interpretation=("fixed_frame_descriptive" if fixed_frame_descriptive else "confirmatory"),
         execution_mode="stochastic_live",
+        **({"descriptive_unit": "case_id"} if fixed_frame_descriptive else {}),
         baseline_arm=baseline_arm,
         counterfactual_arm=counterfactual_arm,
         planned_case_ids=case_ids,
@@ -767,7 +798,7 @@ def _reports(
         ),
         repetitions_per_arm=1,
         planned_pairs=2,
-        multiplicity_family="evidence-sensitivity",
+        **({} if fixed_frame_descriptive else {"multiplicity_family": "evidence-sensitivity"}),
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
             stochastic_dimensions=(

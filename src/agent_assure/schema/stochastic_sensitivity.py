@@ -1,12 +1,22 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Mapping
 from decimal import ROUND_CEILING, ROUND_FLOOR, Context, Decimal, localcontext
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Self, cast
 
-from pydantic import ConfigDict, Field, ValidationInfo, model_validator
+from pydantic import (
+    ConfigDict,
+    Field,
+    GetJsonSchemaHandler,
+    SerializerFunctionWrapHandler,
+    ValidationInfo,
+    model_serializer,
+    model_validator,
+)
 from pydantic.functional_validators import field_validator
+from pydantic_core import CoreSchema
 
 from agent_assure.io_limits import MAX_PERSISTED_OBSERVATIONS
 from agent_assure.schema.base import FrozenStrictModel
@@ -152,6 +162,85 @@ def _repeated_protocol_json_schema_extra(schema: dict[str, Any]) -> None:
     rules.append(
         {
             "if": {
+                "required": ["interpretation"],
+                "properties": {
+                    "interpretation": {"const": "fixed_frame_descriptive"},
+                },
+            },
+            "then": {
+                "required": [
+                    "schema_version",
+                    "execution_mode",
+                    "descriptive_unit",
+                    "case_authority_bindings",
+                    "design",
+                ],
+                "properties": {
+                    "schema_version": {"const": "0.6.6"},
+                    "execution_mode": {"const": "stochastic_live"},
+                    "descriptive_unit": {"enum": ["case_id", "source_group_id"]},
+                    "case_authority_bindings": {"minItems": 1},
+                    "baseline_arm": {
+                        "required": ["adapter_id"],
+                        "properties": {"adapter_id": {"enum": supported_adapters}},
+                    },
+                    "counterfactual_arm": {
+                        "required": ["adapter_id"],
+                        "properties": {"adapter_id": {"enum": supported_adapters}},
+                    },
+                    "coupling": {
+                        "required": ["classification"],
+                        "properties": {
+                            "classification": {"not": {"enum": ["unpaired", "unknown"]}},
+                            "unknown": _array_excludes_any(_LIVE_REQUIRED_COUPLING_DIMENSIONS),
+                        },
+                    },
+                    "design": {
+                        "required": ["analysis_method"],
+                        "properties": {
+                            "analysis_method": {"const": "fixed_frame_descriptive_counts"},
+                        },
+                    },
+                },
+                "not": {
+                    "anyOf": [
+                        {"required": [field_name]}
+                        for field_name in (
+                            "inferential_unit",
+                            "multiplicity_family",
+                            "multiplicity_method",
+                            "multiplicity_family_size",
+                        )
+                    ]
+                },
+            },
+            "else": {
+                "required": [
+                    "inferential_unit",
+                    "multiplicity_family",
+                    "multiplicity_method",
+                    "multiplicity_family_size",
+                    "design",
+                ],
+                "properties": {
+                    "inferential_unit": {"enum": ["case_id", "source_group_id"]},
+                    "multiplicity_family": {"type": "string"},
+                    "multiplicity_method": {"enum": ["single_endpoint", "bonferroni"]},
+                    "multiplicity_family_size": {"type": "integer", "minimum": 1},
+                    "design": {
+                        "required": ["analysis_method"],
+                        "properties": {
+                            "analysis_method": {"const": "cluster_binary_exact"},
+                        },
+                    },
+                },
+                "not": {"required": ["descriptive_unit"]},
+            },
+        }
+    )
+    rules.append(
+        {
+            "if": {
                 "required": ["execution_mode", "interpretation"],
                 "properties": {
                     "execution_mode": {"const": "stochastic_live"},
@@ -236,6 +325,47 @@ def _repeated_protocol_json_schema_extra(schema: dict[str, Any]) -> None:
     )
 
 
+def _stochastic_report_json_schema_extra(schema: dict[str, Any]) -> None:
+    """Forbid estimate-field presence for fixed-frame descriptive artifacts."""
+
+    rules = schema.setdefault("allOf", [])
+    if not isinstance(rules, list):
+        raise TypeError("stochastic report JSON Schema allOf must be a list")
+    rules.append(
+        {
+            "if": {
+                "required": ["sufficiency_report"],
+                "properties": {
+                    "sufficiency_report": {
+                        "required": ["protocol"],
+                        "properties": {
+                            "protocol": {
+                                "required": ["interpretation"],
+                                "properties": {
+                                    "interpretation": {"const": "fixed_frame_descriptive"},
+                                },
+                            },
+                        },
+                    },
+                },
+            },
+            "then": {
+                "not": {
+                    "anyOf": [
+                        {"required": ["estimated_response_unit"]},
+                        {"required": ["estimated_response_rate"]},
+                    ]
+                }
+            },
+            "else": {
+                "properties": {
+                    "estimated_response_unit": {"const": "independent_cluster"},
+                },
+            },
+        }
+    )
+
+
 class CouplingClassification(StrEnum):
     fully_coupled = "fully_coupled"
     partially_coupled = "partially_coupled"
@@ -247,6 +377,7 @@ class CouplingClassification(StrEnum):
 class SensitivityInterpretation(StrEnum):
     confirmatory = "confirmatory"
     exploratory = "exploratory"
+    fixed_frame_descriptive = "fixed_frame_descriptive"
 
 
 class SensitivityExecutionMode(StrEnum):
@@ -271,6 +402,7 @@ class PairDisposition(StrEnum):
 
 class SufficiencyState(StrEnum):
     satisfied = "satisfied"
+    descriptive_complete = "descriptive_complete"
     prerequisites_unmet = "prerequisites_unmet"
     inconclusive = "inconclusive"
 
@@ -284,6 +416,7 @@ class PrerequisiteCheckState(StrEnum):
 class StochasticSensitivityState(StrEnum):
     pass_ = "pass"
     block = "block"
+    fixed_frame_descriptive = "fixed_frame_descriptive"
     prerequisites_unmet = "prerequisites_unmet"
     inconclusive = "inconclusive"
 
@@ -613,6 +746,33 @@ class BinaryPairedDesignPlan(FrozenStrictModel):
         return self
 
 
+class FixedFrameDescriptivePlan(FrozenStrictModel):
+    """Predeclared finite-frame summary with no inferential parameters.
+
+    This plan deliberately has no alpha, power, null-rate, exchangeability, or
+    confirmatory-frame fields.  It can summarize only the exact frozen cases
+    and clusters named by the enclosing protocol.
+    """
+
+    analysis_method: Literal["fixed_frame_descriptive_counts"] = "fixed_frame_descriptive_counts"
+    descriptive_unit: Literal["frozen_planned_cluster"] = "frozen_planned_cluster"
+    cluster_endpoint_aggregation: Literal["all_planned_pairs_expected_response"] = (
+        "all_planned_pairs_expected_response"
+    )
+    descriptive_cluster_frame: Literal["all_frozen_planned_clusters"] = (
+        "all_frozen_planned_clusters"
+    )
+    incomplete_cluster_policy: Literal["report_inconclusive"] = "report_inconclusive"
+    maximum_exclusion_rate: Literal["0.000000"] = "0.000000"
+    planned_descriptive_clusters: int = Field(ge=1, le=MAX_PLANNED_CASES)
+
+
+SensitivityDesignPlan = Annotated[
+    BinaryPairedDesignPlan | FixedFrameDescriptivePlan,
+    Field(discriminator="analysis_method"),
+]
+
+
 class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     _digest_field = "protocol_digest"
     model_config = ConfigDict(json_schema_extra=_repeated_protocol_json_schema_extra)
@@ -639,7 +799,14 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     expected_relation: EvidenceSensitivityExpectedRelation = (
         EvidenceSensitivityExpectedRelation.decision_flip
     )
-    inferential_unit: Literal["case_id", "source_group_id"] = "case_id"
+    inferential_unit: Literal["case_id", "source_group_id"] | None = Field(
+        default="case_id",
+        exclude_if=lambda value: value is None,
+    )
+    descriptive_unit: Literal["case_id", "source_group_id"] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     pair_identity: Literal["case_id_repetition_index"] = "case_id_repetition_index"
     cluster_by: Literal["case_id", "source_group_id"] = "case_id"
     arm_execution_order: Literal["baseline_then_counterfactual"] = "baseline_then_counterfactual"
@@ -666,11 +833,21 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     )
     repetitions_per_arm: int = Field(ge=1)
     planned_pairs: int = Field(ge=1, le=MAX_PAIRED_OBSERVATIONS)
-    multiplicity_family: MachineIdentifier
-    multiplicity_method: Literal["single_endpoint", "bonferroni"] = "single_endpoint"
-    multiplicity_family_size: int = Field(default=1, ge=1)
+    multiplicity_family: MachineIdentifier | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    multiplicity_method: Literal["single_endpoint", "bonferroni"] | None = Field(
+        default="single_endpoint",
+        exclude_if=lambda value: value is None,
+    )
+    multiplicity_family_size: int | None = Field(
+        default=1,
+        ge=1,
+        exclude_if=lambda value: value is None,
+    )
     coupling: CouplingDescriptor
-    design: BinaryPairedDesignPlan
+    design: SensitivityDesignPlan
     allowed_exclusion_reasons: tuple[MachineIdentifier, ...] = ()
     limitations: tuple[str, ...] = Field(min_length=1, max_length=32)
 
@@ -705,6 +882,47 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
     ) -> EvidenceSensitivityExpectedRelation:
         return coerce_enum(EvidenceSensitivityExpectedRelation, value)
 
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_interpretation_defaults(cls, value: object) -> object:
+        """Apply legacy defaults without accepting cross-mode field presence."""
+
+        if not isinstance(value, Mapping):
+            return value
+        interpretation = value.get("interpretation")
+        fixed_frame_descriptive = interpretation in {
+            SensitivityInterpretation.fixed_frame_descriptive,
+            SensitivityInterpretation.fixed_frame_descriptive.value,
+        }
+        if not fixed_frame_descriptive:
+            if "descriptive_unit" in value:
+                raise ValueError("non-descriptive protocols cannot include descriptive_unit")
+            return value
+        forbidden = tuple(
+            field_name
+            for field_name in (
+                "inferential_unit",
+                "multiplicity_family",
+                "multiplicity_method",
+                "multiplicity_family_size",
+            )
+            if field_name in value
+        )
+        if forbidden:
+            raise ValueError(
+                "fixed-frame descriptive protocols cannot include inferential fields: "
+                + ", ".join(forbidden)
+            )
+        prepared = dict(value)
+        for field_name in (
+            "inferential_unit",
+            "multiplicity_family",
+            "multiplicity_method",
+            "multiplicity_family_size",
+        ):
+            prepared[field_name] = None
+        return prepared
+
     @classmethod
     def build(cls, **values: object) -> Self:
         """Build both the non-circular design commitment and artifact digest."""
@@ -735,6 +953,53 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_protocol(self, info: ValidationInfo) -> Self:
+        fixed_frame_descriptive = (
+            self.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+        )
+        if fixed_frame_descriptive and self.schema_version != "0.6.6":
+            raise ValueError("fixed-frame descriptive protocols require schema version 0.6.6")
+        if (
+            fixed_frame_descriptive
+            and self.execution_mode is not SensitivityExecutionMode.stochastic_live
+        ):
+            raise ValueError("fixed-frame descriptive protocols require stochastic_live execution")
+        if fixed_frame_descriptive:
+            if not isinstance(self.design, FixedFrameDescriptivePlan):
+                raise ValueError(
+                    "fixed-frame descriptive interpretation requires a descriptive design plan"
+                )
+            if self.descriptive_unit is None or self.descriptive_unit != self.cluster_by:
+                raise ValueError("descriptive_unit must equal the predeclared cluster identity")
+            if self.inferential_unit is not None:
+                raise ValueError(
+                    "fixed-frame descriptive protocols cannot declare inferential_unit"
+                )
+            if any(
+                value is not None
+                for value in (
+                    self.multiplicity_family,
+                    self.multiplicity_method,
+                    self.multiplicity_family_size,
+                )
+            ):
+                raise ValueError(
+                    "fixed-frame descriptive protocols cannot declare multiplicity controls"
+                )
+        else:
+            if not isinstance(self.design, BinaryPairedDesignPlan):
+                raise ValueError(
+                    "non-descriptive interpretation requires a binary inferential plan"
+                )
+            if self.descriptive_unit is not None:
+                raise ValueError("non-descriptive protocols cannot declare descriptive_unit")
+            if self.inferential_unit is None:
+                raise ValueError("non-descriptive protocols require inferential_unit")
+            if (
+                self.multiplicity_family is None
+                or self.multiplicity_method is None
+                or self.multiplicity_family_size is None
+            ):
+                raise ValueError("non-descriptive protocols require multiplicity controls")
         if (
             self.schema_version == "0.6.5"
             and self.expected_relation is not EvidenceSensitivityExpectedRelation.decision_flip
@@ -861,60 +1126,87 @@ class RepeatedEvidenceSensitivityProtocol(SelfDigestedArtifact):
             raise ValueError(
                 "coupling descriptor must declare governing_corpus_digest intentionally different"
             )
-        if self.multiplicity_method == "single_endpoint" and self.multiplicity_family_size != 1:
-            raise ValueError("single_endpoint multiplicity requires family size one")
-        with localcontext(Context(prec=32)):
-            expected_adjusted = (
-                Decimal(
-                    _probability_floor(
-                        Decimal(self.design.familywise_alpha)
-                        / Decimal(self.multiplicity_family_size)
+        if isinstance(self.design, BinaryPairedDesignPlan):
+            assert self.multiplicity_method is not None
+            assert self.multiplicity_family_size is not None
+            if self.multiplicity_method == "single_endpoint" and self.multiplicity_family_size != 1:
+                raise ValueError("single_endpoint multiplicity requires family size one")
+            with localcontext(Context(prec=32)):
+                expected_adjusted = (
+                    Decimal(
+                        _probability_floor(
+                            Decimal(self.design.familywise_alpha)
+                            / Decimal(self.multiplicity_family_size)
+                        )
                     )
+                    if self.multiplicity_method == "bonferroni"
+                    else Decimal(self.design.familywise_alpha)
                 )
-                if self.multiplicity_method == "bonferroni"
-                else Decimal(self.design.familywise_alpha)
-            )
-        if self.design.adjusted_alpha != decimal_string(expected_adjusted):
-            raise ValueError("design adjusted_alpha does not match multiplicity declaration")
+            if self.design.adjusted_alpha != decimal_string(expected_adjusted):
+                raise ValueError("design adjusted_alpha does not match multiplicity declaration")
         if (
             self.execution_mode is SensitivityExecutionMode.deterministic_fixture
             and self.interpretation is not SensitivityInterpretation.exploratory
         ):
             raise ValueError("deterministic fixture execution is explicitly exploratory")
-        if (
-            self.interpretation is SensitivityInterpretation.confirmatory
-            and self.coupling.classification
-            in {CouplingClassification.unpaired, CouplingClassification.unknown}
-        ):
-            raise ValueError("confirmatory interpretation requires a resolved paired design")
+        if self.interpretation in {
+            SensitivityInterpretation.confirmatory,
+            SensitivityInterpretation.fixed_frame_descriptive,
+        } and self.coupling.classification in {
+            CouplingClassification.unpaired,
+            CouplingClassification.unknown,
+        }:
+            raise ValueError(
+                "confirmatory and fixed-frame interpretations require a resolved paired design"
+            )
         if (
             self.execution_mode is SensitivityExecutionMode.stochastic_live
-            and self.interpretation is SensitivityInterpretation.confirmatory
+            and self.interpretation
+            in {
+                SensitivityInterpretation.confirmatory,
+                SensitivityInterpretation.fixed_frame_descriptive,
+            }
+            and not self.case_authority_bindings
         ):
-            if not self.case_authority_bindings:
-                raise ValueError(
-                    "confirmatory stochastic sensitivity requires exact per-case authority bindings"
-                )
+            raise ValueError(
+                "confirmatory and fixed-frame stochastic sensitivity require exact "
+                "per-case authority bindings"
+            )
+        if (
+            self.execution_mode is SensitivityExecutionMode.stochastic_live
+            and self.interpretation
+            in {
+                SensitivityInterpretation.confirmatory,
+                SensitivityInterpretation.fixed_frame_descriptive,
+            }
+        ):
             if self.baseline_arm.adapter_id not in CONFIRMATORY_STOCHASTIC_ADAPTER_IDS:
                 raise ValueError(
-                    "confirmatory stochastic sensitivity requires a supported stochastic adapter"
+                    "confirmatory and fixed-frame stochastic sensitivity require a "
+                    "supported stochastic adapter"
                 )
-        if self.inferential_unit != self.cluster_by:
+        if self.inferential_unit is not None and self.inferential_unit != self.cluster_by:
             raise ValueError("inferential_unit must equal the predeclared cluster identity")
         if self.cluster_by == "case_id" and (
             self.planned_cluster_ids != self.planned_case_ids
             or any(item.case_id != item.cluster_id for item in self.case_cluster_bindings)
         ):
             raise ValueError("case_id clustering requires an identity case-to-cluster mapping")
-        if self.design.planned_inferential_clusters != len(self.planned_cluster_ids):
-            raise ValueError("planned cluster identities must exactly realize the power plan")
-        if (
-            len(self.planned_cluster_ids) > self.design.monte_carlo_diagnostic_threshold_clusters
-            and len(self.planned_cluster_ids) * self.design.monte_carlo_resamples
-            > MAX_MONTE_CARLO_BERNOULLI_DRAWS
-        ):
+        if isinstance(self.design, BinaryPairedDesignPlan):
+            if self.design.planned_inferential_clusters != len(self.planned_cluster_ids):
+                raise ValueError("planned cluster identities must exactly realize the power plan")
+            if (
+                len(self.planned_cluster_ids)
+                > self.design.monte_carlo_diagnostic_threshold_clusters
+                and len(self.planned_cluster_ids) * self.design.monte_carlo_resamples
+                > MAX_MONTE_CARLO_BERNOULLI_DRAWS
+            ):
+                raise ValueError(
+                    "planned Monte Carlo diagnostic exceeds the bounded Bernoulli-draw budget"
+                )
+        elif self.design.planned_descriptive_clusters != len(self.planned_cluster_ids):
             raise ValueError(
-                "planned Monte Carlo diagnostic exceeds the bounded Bernoulli-draw budget"
+                "planned cluster identities must exactly realize the descriptive frame"
             )
         live_required_dimensions = {
             CouplingCondition.provider_sampling_randomness,
@@ -1370,6 +1662,8 @@ def derive_cluster_binomial_analysis(
     observations: tuple[PairedSensitivityObservation, ...],
 ) -> ClusterBinomialAnalysisResult:
     """Derive the authoritative exact cluster analysis and optional MC check."""
+    if not isinstance(protocol.design, BinaryPairedDesignPlan):
+        raise ValueError("fixed-frame descriptive protocols do not define inferential analysis")
     analyzable_responses = derive_cluster_response_vector(protocol, observations)
     cluster_responses = derive_confirmatory_cluster_response_vector(
         protocol,
@@ -1697,10 +1991,17 @@ class StatisticalSufficiencyReport(SelfDigestedArtifact):
         all_satisfied = all(
             check.state is PrerequisiteCheckState.satisfied for check in self.prerequisites
         )
+        fixed_frame_descriptive = (
+            self.protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+        )
         expected_state = (
             SufficiencyState.prerequisites_unmet
             if structural_unmet
-            else SufficiencyState.satisfied
+            else (
+                SufficiencyState.descriptive_complete
+                if fixed_frame_descriptive
+                else SufficiencyState.satisfied
+            )
             if all_satisfied
             else SufficiencyState.inconclusive
         )
@@ -1715,10 +2016,15 @@ class StatisticalSufficiencyReport(SelfDigestedArtifact):
             raise ValueError("population claim permission does not match sufficiency state")
         if self.state is SufficiencyState.satisfied and self.analysis is None:
             raise ValueError("satisfied stochastic sufficiency requires an analysis")
+        if fixed_frame_descriptive and self.analysis is not None:
+            raise ValueError(
+                "fixed-frame descriptive sufficiency cannot carry inferential analysis"
+            )
         if (
             self.protocol.execution_mode is SensitivityExecutionMode.stochastic_live
             and self.state is SufficiencyState.inconclusive
             and self.analysis is None
+            and not fixed_frame_descriptive
         ):
             raise ValueError(
                 "inconclusive stochastic-live sufficiency requires planned-frame analysis"
@@ -1781,6 +2087,15 @@ def derive_sufficiency_prerequisites(
     )
     with localcontext(Context(prec=32)):
         exclusion_rate = Decimal(excluded_pairs) / Decimal(protocol.planned_pairs)
+    fixed_frame_descriptive = (
+        protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+    )
+    if isinstance(protocol.design, BinaryPairedDesignPlan):
+        exclusion_within_plan = exclusion_rate <= Decimal(protocol.design.maximum_exclusion_rate)
+        exclusion_reason = "exclusion-rate-exceeded"
+    else:
+        exclusion_within_plan = excluded_pairs == 0
+        exclusion_reason = "fixed-frame-exclusion-observed"
     checks: dict[str, tuple[PrerequisiteCheckState, str | None]] = {
         "arm_configuration_comparability": _prerequisite_state(
             not any(item.disposition in arm_difference_dispositions for item in observations),
@@ -1804,8 +2119,8 @@ def derive_sufficiency_prerequisites(
             "missing-pairs-observed",
         ),
         "pair_exclusion_rate": _prerequisite_state(
-            exclusion_rate <= Decimal(protocol.design.maximum_exclusion_rate),
-            "exclusion-rate-exceeded",
+            exclusion_within_plan,
+            exclusion_reason,
         ),
         "record_validity": _prerequisite_state(
             not any(item.disposition in invalid_dispositions for item in observations),
@@ -1841,7 +2156,14 @@ def derive_sufficiency_prerequisites(
             ),
             "source-runset-incomplete",
         ),
-        "stochastic_confirmatory_mode": _prerequisite_state(
+    }
+    if fixed_frame_descriptive:
+        checks["fixed_frame_descriptive_mode"] = _prerequisite_state(
+            protocol.execution_mode is SensitivityExecutionMode.stochastic_live,
+            "fixed-frame-descriptive-requires-stochastic-live",
+        )
+    else:
+        checks["stochastic_confirmatory_mode"] = _prerequisite_state(
             protocol.execution_mode is SensitivityExecutionMode.stochastic_live
             and protocol.interpretation is SensitivityInterpretation.confirmatory,
             (
@@ -1849,8 +2171,7 @@ def derive_sufficiency_prerequisites(
                 if protocol.execution_mode is SensitivityExecutionMode.deterministic_fixture
                 else "exploratory-protocol"
             ),
-        ),
-    }
+        )
     return tuple(
         SufficiencyPrerequisite(
             check_id=check_id,
@@ -2106,9 +2427,76 @@ class StochasticEvidenceSensitivityReport(SelfDigestedArtifact):
     observed_counterexample_count: int = Field(ge=0)
     observed_cluster_count: int = Field(ge=0)
     observed_cluster_response_count: int = Field(ge=0)
-    estimated_response_unit: Literal["independent_cluster"] = "independent_cluster"
+    estimated_response_unit: Literal["independent_cluster"] | None = Field(
+        default="independent_cluster",
+        exclude_if=lambda value: value is None,
+    )
     estimated_response_rate: UnitDecimalString | None = None
     limitations: tuple[str, ...] = Field(min_length=1, max_length=32)
+
+    @classmethod
+    def __get_pydantic_json_schema__(
+        cls,
+        core_schema: CoreSchema,
+        handler: GetJsonSchemaHandler,
+    ) -> dict[str, Any]:
+        schema = super().__get_pydantic_json_schema__(core_schema, handler)
+        _stochastic_report_json_schema_extra(schema)
+        return schema
+
+    @model_validator(mode="before")
+    @classmethod
+    def _apply_fixed_frame_estimate_defaults(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        sufficiency = value.get("sufficiency_report")
+        if isinstance(sufficiency, StatisticalSufficiencyReport):
+            interpretation: object = sufficiency.protocol.interpretation
+        elif isinstance(sufficiency, Mapping):
+            protocol = sufficiency.get("protocol")
+            if isinstance(protocol, RepeatedEvidenceSensitivityProtocol):
+                interpretation = protocol.interpretation
+            elif isinstance(protocol, Mapping):
+                interpretation = protocol.get("interpretation")
+            else:
+                interpretation = None
+        else:
+            interpretation = None
+        if interpretation not in {
+            SensitivityInterpretation.fixed_frame_descriptive,
+            SensitivityInterpretation.fixed_frame_descriptive.value,
+        }:
+            return value
+        forbidden = tuple(
+            field_name
+            for field_name in ("estimated_response_unit", "estimated_response_rate")
+            if field_name in value
+        )
+        if forbidden:
+            raise ValueError(
+                "fixed-frame descriptive reports cannot include estimated fields: "
+                + ", ".join(forbidden)
+            )
+        prepared = dict(value)
+        prepared["estimated_response_unit"] = None
+        prepared["estimated_response_rate"] = None
+        return prepared
+
+    @model_serializer(mode="wrap")
+    def _serialize_fixed_frame_without_estimates(
+        self,
+        handler: SerializerFunctionWrapHandler,
+    ) -> dict[str, Any]:
+        payload = handler(self)
+        if not isinstance(payload, dict):
+            raise TypeError("stochastic report serializer must produce an object")
+        if (
+            self.sufficiency_report.protocol.interpretation
+            is SensitivityInterpretation.fixed_frame_descriptive
+        ):
+            payload.pop("estimated_response_unit", None)
+            payload.pop("estimated_response_rate", None)
+        return cast(dict[str, Any], payload)
 
     @field_validator("state", mode="before")
     @classmethod
@@ -2165,24 +2553,37 @@ class StochasticEvidenceSensitivityReport(SelfDigestedArtifact):
             if self.sufficiency_report.analysis is not None
             else None
         )
+        fixed_frame_descriptive = (
+            protocol.interpretation is SensitivityInterpretation.fixed_frame_descriptive
+        )
         if (
             protocol.execution_mode is SensitivityExecutionMode.deterministic_fixture
             or self.sufficiency_report.state is SufficiencyState.prerequisites_unmet
+            or fixed_frame_descriptive
         ):
             expected_rate = None
         if self.estimated_response_rate != expected_rate:
             raise ValueError(
                 "estimated_response_rate must be distinct from deterministic observed counts"
             )
+        expected_rate_unit = None if fixed_frame_descriptive else "independent_cluster"
+        if self.estimated_response_unit != expected_rate_unit:
+            raise ValueError(
+                "fixed-frame descriptive results cannot declare an estimated response unit"
+            )
         sufficiency_state = self.sufficiency_report.state
         if sufficiency_state is SufficiencyState.prerequisites_unmet:
             expected_state = StochasticSensitivityState.prerequisites_unmet
         elif sufficiency_state is SufficiencyState.inconclusive:
             expected_state = StochasticSensitivityState.inconclusive
+        elif sufficiency_state is SufficiencyState.descriptive_complete:
+            expected_state = StochasticSensitivityState.fixed_frame_descriptive
         else:
             analysis = self.sufficiency_report.analysis
             if analysis is None:
                 raise ValueError("satisfied sufficiency must carry an analysis")
+            if not isinstance(protocol.design, BinaryPairedDesignPlan):
+                raise ValueError("verdict-bearing sufficiency requires an inferential design")
             supported = cluster_binomial_rejection_region_contains(
                 trials=analysis.compared_clusters,
                 successes=analysis.responding_clusters,
@@ -2243,6 +2644,7 @@ __all__ = [
     "CouplingCondition",
     "CouplingDescriptor",
     "ExactBinomialTailExpression",
+    "FixedFrameDescriptivePlan",
     "PairDisposition",
     "PairDispositionCount",
     "PairedSensitivityObservation",
@@ -2251,6 +2653,7 @@ __all__ = [
     "RunSetArtifactDependency",
     "RunRecordArtifactDependency",
     "SensitivityArmBinding",
+    "SensitivityDesignPlan",
     "SensitivityExecutionMode",
     "SensitivityInterpretation",
     "StatisticalSufficiencyReport",

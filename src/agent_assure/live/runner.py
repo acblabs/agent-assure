@@ -5,11 +5,12 @@ import json
 import random
 import time
 from collections.abc import Callable, Iterator, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from email.utils import parsedate_to_datetime
 from pathlib import Path
+from threading import Lock
 from typing import Literal
 from uuid import uuid5
 
@@ -41,6 +42,8 @@ from agent_assure.live.adapters import (
 from agent_assure.live.config import (
     MAX_LIVE_REQUESTS,
     MAX_LIVE_RETRY_BACKOFF_SECONDS,
+    ORDINARY_LIVE_EXECUTION_PROFILE,
+    PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE,
     LivePromptCase,
     LiveRunConfig,
     live_sdk_identifier,
@@ -54,6 +57,7 @@ from agent_assure.live.output_contract import (
     OPENAI_DECISION_OUTPUT_CONTRACT_DIGEST,
     OPENAI_DECISION_OUTPUT_CONTRACT_ID,
     OPENAI_DECISION_RESPONSE_FORMAT_JSON,
+    LiveDecisionRecord,
     LiveOutputContractError,
     LiveStructuredRecord,
     parse_live_decision_content,
@@ -66,7 +70,13 @@ from agent_assure.privacy.safe_errors import safe_error
 from agent_assure.rag.sensitivity import LoadedSensitivityCorpus, load_sensitivity_corpus
 from agent_assure.runner.ids import AGENT_ASSURE_NAMESPACE
 from agent_assure.runner.subprocess_harness import emergency_from_exception
-from agent_assure.schema.common import ExecutionMode, GateState, ReasonCode, Severity
+from agent_assure.schema.common import (
+    ExecutionMode,
+    GateState,
+    ProviderResponsePayloadScope,
+    ReasonCode,
+    Severity,
+)
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.run import (
@@ -75,6 +85,7 @@ from agent_assure.schema.run import (
     RunSet,
     StructuredFieldOrigin,
     StructuredFieldOrigins,
+    live_adapter_structured_field_origin,
 )
 from agent_assure.schema.runtime import EmergencyProcessRecord
 from agent_assure.schema.sensitivity import (
@@ -86,6 +97,11 @@ from agent_assure.schema.sensitivity import (
     knowledge_contract_case_authority_bindings,
 )
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.study_dispatch import (
+    ValidatedStudyDispatchPreflight,
+    require_validated_study_dispatch_authorization,
+    require_validated_study_dispatch_window_open,
+)
 from agent_assure.telemetry.context import RuntimeTraceContext, trace_context_for_seed
 
 LIVE_ACCOUNTING_UNAVAILABLE_STOP_REASONS = frozenset(
@@ -109,6 +125,7 @@ LIVE_RUNSET_STOP_REASONS_ALLOWING_UNISSUED_TAIL = frozenset(
         *LIVE_TERMINAL_STOP_REASONS,
         "budget_exhausted",
         "generated_token_budget_exhausted",
+        "live_adapter_error",
         "provider_response_excluded",
         "structured_output_invalid",
         "request_budget_exhausted",
@@ -188,15 +205,267 @@ class LiveAttemptNotification:
     request: LiveProviderRequest
     adapter_attempt_index: int
     provider_response_id: str | None = None
+    provider_response_payload_sha256: str | None = None
+    provider_response_payload_scope: ProviderResponsePayloadScope | None = None
     retryable: bool | None = None
     rate_limited: bool | None = None
 
 
 LiveAttemptObserver = Callable[[LiveAttemptNotification], None]
+LiveProviderDispatchGuard = Callable[[], None]
+
+
+_STUDY_DISPATCH_AUTHORIZATION_SEAL = object()
+_STUDY_JOURNAL_EXECUTION_CAPABILITY_SEAL = object()
+
+
+class _StudyBoundAttemptJournalExecutionCapability:
+    """One-shot callback identity minted for a reserved durable journal arm."""
+
+    __slots__ = (
+        "_attempt_observer",
+        "_consumed",
+        "_lock",
+        "_provider_dispatch_guard",
+        "_seal",
+    )
+
+    def __init__(
+        self,
+        *,
+        attempt_observer: LiveAttemptObserver,
+        provider_dispatch_guard: LiveProviderDispatchGuard,
+        _seal: object,
+    ) -> None:
+        if _seal is not _STUDY_JOURNAL_EXECUTION_CAPABILITY_SEAL:
+            raise TypeError(
+                "study execution capabilities can be created only for a reserved "
+                "durable attempt journal"
+            )
+        self._attempt_observer = attempt_observer
+        self._provider_dispatch_guard = provider_dispatch_guard
+        self._lock = Lock()
+        self._consumed = False
+        self._seal = _seal
+
+    @property
+    def attempt_observer(self) -> LiveAttemptObserver:
+        return self._attempt_observer
+
+    @property
+    def provider_dispatch_guard(self) -> LiveProviderDispatchGuard:
+        return self._provider_dispatch_guard
+
+    def consume(
+        self,
+        *,
+        attempt_observer: LiveAttemptObserver | None,
+        provider_dispatch_guard: LiveProviderDispatchGuard | None,
+    ) -> None:
+        with self._lock:
+            if self._consumed:
+                raise ValueError(
+                    "study dispatch authorization was already consumed; refusing replay"
+                )
+            if attempt_observer is not self._attempt_observer:
+                raise ValueError(
+                    "study dispatch authorization does not match its durable attempt observer"
+                )
+            if provider_dispatch_guard is not self._provider_dispatch_guard:
+                raise ValueError(
+                    "study dispatch authorization does not match its journal-owned dispatch guard"
+                )
+            self._consumed = True
+
+    def __copy__(self) -> _StudyBoundAttemptJournalExecutionCapability:
+        return self
+
+    def __deepcopy__(
+        self,
+        _memo: dict[int, object],
+    ) -> _StudyBoundAttemptJournalExecutionCapability:
+        return self
+
+
+def _create_study_bound_attempt_journal_execution_capability(
+    *,
+    attempt_observer: LiveAttemptObserver,
+    provider_dispatch_guard: LiveProviderDispatchGuard,
+) -> _StudyBoundAttemptJournalExecutionCapability:
+    """Mint callback identity after an exclusive durable journal reservation."""
+
+    if not callable(attempt_observer) or not callable(provider_dispatch_guard):
+        raise TypeError("study journal execution callbacks must be callable")
+    return _StudyBoundAttemptJournalExecutionCapability(
+        attempt_observer=attempt_observer,
+        provider_dispatch_guard=provider_dispatch_guard,
+        _seal=_STUDY_JOURNAL_EXECUTION_CAPABILITY_SEAL,
+    )
+
+
+@dataclass(frozen=True, slots=True)
+class _StudyBoundLiveExecutionAuthorization:
+    """Opaque capability for one preregistered study arm execution.
+
+    The paired-study orchestrator issues this capability only after replaying
+    the complete dispatch preflight and reserving the durable attempt journal.
+    It is intentionally not constructible through the public API.
+    """
+
+    study_manifest_digest: str
+    evidence_sensitivity_design_digest: str
+    configuration_digest: str
+    _journal_execution_capability: _StudyBoundAttemptJournalExecutionCapability = field(
+        repr=False,
+        compare=False,
+    )
+    _validated_preflight: ValidatedStudyDispatchPreflight = field(
+        repr=False,
+        compare=False,
+    )
+    _seal: object = field(repr=False, compare=False)
+
+    def __post_init__(self) -> None:
+        if self._seal is not _STUDY_DISPATCH_AUTHORIZATION_SEAL:
+            raise TypeError(
+                "study dispatch authorization can be issued only by the paired-study workflow"
+            )
+
+
+def _issue_study_bound_live_execution_authorization(
+    *,
+    config: LiveRunConfig,
+    configuration_digest: str,
+    journal_execution_capability: _StudyBoundAttemptJournalExecutionCapability,
+    validated_preflight: ValidatedStudyDispatchPreflight,
+) -> _StudyBoundLiveExecutionAuthorization:
+    """Issue an arm-bound capability after the caller completes study preflight."""
+
+    config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
+    if config.execution_profile != PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE:
+        raise ValueError(
+            "study dispatch authorization requires the preregistered_paired_study execution profile"
+        )
+    if config.study_manifest_digest is None:
+        raise ValueError("cannot authorize a live config without a study manifest commitment")
+    if config.evidence_sensitivity_design_digest is None:
+        raise ValueError("study-bound live config has no sensitivity design commitment")
+    if (
+        not isinstance(
+            journal_execution_capability,
+            _StudyBoundAttemptJournalExecutionCapability,
+        )
+        or journal_execution_capability._seal is not _STUDY_JOURNAL_EXECUTION_CAPABILITY_SEAL
+    ):
+        raise ValueError(
+            "study-bound live execution requires a reserved durable attempt journal capability"
+        )
+    require_validated_study_dispatch_authorization(
+        validated_preflight,
+        study_manifest_digest=config.study_manifest_digest,
+        evidence_sensitivity_design_digest=config.evidence_sensitivity_design_digest,
+        configuration_digest=configuration_digest,
+    )
+    return _StudyBoundLiveExecutionAuthorization(
+        study_manifest_digest=config.study_manifest_digest,
+        evidence_sensitivity_design_digest=config.evidence_sensitivity_design_digest,
+        configuration_digest=configuration_digest,
+        _journal_execution_capability=journal_execution_capability,
+        _validated_preflight=validated_preflight,
+        _seal=_STUDY_DISPATCH_AUTHORIZATION_SEAL,
+    )
+
+
+def _consume_study_bound_live_execution_authorization(
+    config: LiveRunConfig,
+    authorization: _StudyBoundLiveExecutionAuthorization | None,
+    *,
+    attempt_observer: LiveAttemptObserver | None,
+    provider_dispatch_guard: LiveProviderDispatchGuard | None,
+) -> None:
+    if config.execution_profile == ORDINARY_LIVE_EXECUTION_PROFILE:
+        if authorization is not None:
+            raise ValueError("unbound live configs cannot consume study dispatch authorization")
+        return
+    if config.study_manifest_digest is None:
+        raise ValueError(
+            "preregistered_paired_study execution cannot dispatch without its "
+            "study manifest backlink"
+        )
+    if authorization is None:
+        raise ValueError(
+            "study-bound live configs must be executed through the preregistered paired-study "
+            "workflow; generic live execution is not authorized"
+        )
+    if (
+        not isinstance(authorization, _StudyBoundLiveExecutionAuthorization)
+        or authorization._seal is not _STUDY_DISPATCH_AUTHORIZATION_SEAL
+    ):
+        raise ValueError("study-bound live execution received invalid dispatch authorization")
+    if authorization.study_manifest_digest != config.study_manifest_digest:
+        raise ValueError("study dispatch authorization does not match the live config manifest")
+    if (
+        config.evidence_sensitivity_design_digest is None
+        or authorization.evidence_sensitivity_design_digest
+        != config.evidence_sensitivity_design_digest
+    ):
+        raise ValueError("study dispatch authorization does not match the sensitivity design")
+    require_validated_study_dispatch_authorization(
+        authorization._validated_preflight,
+        study_manifest_digest=authorization.study_manifest_digest,
+        evidence_sensitivity_design_digest=authorization.evidence_sensitivity_design_digest,
+        configuration_digest=authorization.configuration_digest,
+    )
+    authorization._journal_execution_capability.consume(
+        attempt_observer=attempt_observer,
+        provider_dispatch_guard=provider_dispatch_guard,
+    )
+
+
+def _validate_study_bound_live_execution_configuration(
+    config: LiveRunConfig,
+    authorization: _StudyBoundLiveExecutionAuthorization | None,
+    *,
+    configuration_digest: str,
+) -> None:
+    if config.execution_profile == ORDINARY_LIVE_EXECUTION_PROFILE:
+        return
+    if authorization is None:
+        raise ValueError("study-bound live execution has no consumed dispatch authorization")
+    if authorization.configuration_digest != configuration_digest:
+        raise ValueError("study dispatch authorization does not match the executable live config")
+    require_validated_study_dispatch_authorization(
+        authorization._validated_preflight,
+        study_manifest_digest=authorization.study_manifest_digest,
+        evidence_sensitivity_design_digest=authorization.evidence_sensitivity_design_digest,
+        configuration_digest=authorization.configuration_digest,
+    )
+
+
+def _authorized_provider_dispatch_guard(
+    authorization: _StudyBoundLiveExecutionAuthorization | None,
+    provider_dispatch_guard: LiveProviderDispatchGuard | None,
+) -> LiveProviderDispatchGuard | None:
+    if authorization is None:
+        return provider_dispatch_guard
+    assert provider_dispatch_guard is not None
+
+    def guard() -> None:
+        require_validated_study_dispatch_window_open(
+            authorization._validated_preflight,
+            boundary="live provider attempt",
+        )
+        provider_dispatch_guard()
+
+    return guard
 
 
 class LiveAttemptObserverError(RuntimeError):
     """The durable pre/post-dispatch evidence boundary could not be recorded."""
+
+
+class LiveProviderDispatchGuardError(RuntimeError):
+    """A caller-supplied fail-closed guard prevented provider dispatch."""
 
 
 @dataclass(frozen=True)
@@ -762,6 +1031,8 @@ def run_live_suite(
     trust: TrustedLiveExecution | None = None,
     execution_snapshot: LiveExecutionSnapshot | None = None,
     attempt_observer: LiveAttemptObserver | None = None,
+    provider_dispatch_guard: LiveProviderDispatchGuard | None = None,
+    _study_dispatch_authorization: _StudyBoundLiveExecutionAuthorization | None = None,
 ) -> RunSet:
     # Pydantic's model_copy(update=...) intentionally skips validation. Treat
     # this library API as the final execution boundary and reconstruct every
@@ -769,6 +1040,16 @@ def run_live_suite(
     compiled = CompiledSuite.model_validate(compiled.model_dump(mode="json"))
     config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
     protocol = LiveProtocolRecord.model_validate(protocol.model_dump(mode="json"))
+    _consume_study_bound_live_execution_authorization(
+        config,
+        _study_dispatch_authorization,
+        attempt_observer=attempt_observer,
+        provider_dispatch_guard=provider_dispatch_guard,
+    )
+    provider_dispatch_guard = _authorized_provider_dispatch_guard(
+        _study_dispatch_authorization,
+        provider_dispatch_guard,
+    )
     _validate_cases(compiled, config)
     _validate_protocol_config(compiled, config, protocol)
     planned_observations = _planned_observation_count(config)
@@ -794,13 +1075,25 @@ def run_live_suite(
     schedule = _schedule(config)
     request_budget = _LiveRequestBudget(config.max_requests)
     rate_limit_budget = _LiveRateLimitBudget(config.max_rate_limit_events)
+    configuration_digest = _configuration_digest(compiled, config, snapshot)
+    _validate_study_bound_live_execution_configuration(
+        config,
+        _study_dispatch_authorization,
+        configuration_digest=configuration_digest,
+    )
     adapter = build_adapter(
         config.adapter,
         base_dir=config_dir,
         trust=trust,
         resource_snapshot=snapshot.adapter_resource,
+        network_dispatch_guard=(
+            lambda: (
+                _run_provider_dispatch_guard(provider_dispatch_guard)
+                if provider_dispatch_guard is not None
+                else None
+            )
+        ),
     )
-    configuration_digest = _configuration_digest(compiled, config, snapshot)
     protocol_digest = sha256_hexdigest(protocol)
     committed_cost = Decimal("0")
     committed_total_tokens = 0
@@ -1060,6 +1353,7 @@ def run_live_suite(
                 attempt_state=attempt_state,
                 before_attempt=pace_attempt,
                 attempt_observer=attempt_observer,
+                provider_dispatch_guard=provider_dispatch_guard,
             )
             latency_ms = monotonic_ms(start)
             completed = completed or _completion_utc(started)
@@ -1138,7 +1432,7 @@ def run_live_suite(
                 if config.fail_fast_on_excluded_response:
                     terminal_stop_reason = "provider_response_excluded"
         except Exception as exc:
-            if isinstance(exc, LiveAttemptObserverError):
+            if isinstance(exc, (LiveAttemptObserverError, LiveProviderDispatchGuardError)):
                 raise
             emergency = emergency_from_exception(exc)
             if emergency is not None:
@@ -1154,6 +1448,13 @@ def run_live_suite(
                 stop_reasons.add("structured_output_invalid")
                 if config.fail_fast_on_excluded_response:
                     terminal_stop_reason = "structured_output_invalid"
+            if config.fail_fast_on_excluded_response and terminal_stop_reason is None:
+                # Every handled adapter failure becomes an excluded observation.
+                # Study-bound profiles promise not to spend the unissued tail
+                # after any such exclusion, including malformed provider
+                # envelopes that fail before a LiveProviderResponse exists.
+                stop_reasons.add("live_adapter_error")
+                terminal_stop_reason = "live_adapter_error"
             reason_code = (
                 ReasonCode.STRUCTURED_OUTPUT_INVALID
                 if isinstance(exc, LiveOutputContractError)
@@ -1219,7 +1520,9 @@ def run_live_suite(
         protocol_id=protocol.protocol_id,
         protocol_digest=protocol_digest,
         evidence_sensitivity_design_digest=(config.evidence_sensitivity_design_digest),
-        study_manifest_digest=config.study_manifest_digest,
+        # A study backlink is finalized only after both arms complete and the
+        # identical durable attempt journal is embedded by the paired workflow.
+        study_manifest_digest=None,
         completion_status="incomplete" if stop_reasons else "complete",
         stop_reasons=tuple(sorted(stop_reasons)),
         emergency_records=tuple(emergency_records),
@@ -1234,12 +1537,27 @@ def _uniform_structured_field_origins(
 
 
 def _adapter_structured_field_origins(adapter_id: str) -> StructuredFieldOrigins:
-    origin = {
-        "static-jsonl": StructuredFieldOrigin.fixture,
-        "openai-chat-completions": StructuredFieldOrigin.model_self_report,
-        "external-script": StructuredFieldOrigin.instrumented_adapter,
-    }.get(adapter_id, StructuredFieldOrigin.instrumented_adapter)
-    return _uniform_structured_field_origins(origin)
+    return _uniform_structured_field_origins(live_adapter_structured_field_origin(adapter_id))
+
+
+def _payload_structured_field_origins(
+    adapter_id: str,
+    payload: LiveDecisionRecord | LiveStructuredRecord,
+) -> StructuredFieldOrigins:
+    """Bind provenance only to fields explicitly present in adapter output."""
+
+    observed_fields = payload.model_fields_set
+    adapter_origin = live_adapter_structured_field_origin(adapter_id)
+    return StructuredFieldOrigins.model_validate(
+        {
+            field_name: (
+                adapter_origin
+                if field_name in observed_fields
+                else StructuredFieldOrigin.legacy_unspecified
+            )
+            for field_name in StructuredFieldOrigins.model_fields
+        }
+    )
 
 
 def _record_from_response(
@@ -1273,7 +1591,7 @@ def _record_from_response(
         )
     else:
         payload = parse_live_structured_content(response.content)
-    field_origins = _adapter_structured_field_origins(config.adapter.adapter_id)
+    field_origins = _payload_structured_field_origins(config.adapter.adapter_id, payload)
     blocking_policy_failure = any(
         result.state is GateState.fail and result.severity is Severity.blocker
         for result in payload.policy_results
@@ -1328,6 +1646,8 @@ def _record_from_response(
             "provider_sdk": response.provider_sdk,
             "provider_region": response.provider_region,
             "provider_response_id": response.provider_response_id,
+            "provider_response_payload_sha256": response.provider_response_payload_sha256,
+            "provider_response_payload_scope": response.provider_response_payload_scope,
             "provider_finish_reason": response.provider_finish_reason,
             "provider_serving_fingerprint": response.provider_serving_fingerprint,
             "provider_created_unix_seconds": response.provider_created_unix_seconds,
@@ -1448,6 +1768,12 @@ def _error_record(
         provider_sdk=response.provider_sdk if response else _sdk_label(config),
         provider_region=response.provider_region if response else config.adapter.region,
         provider_response_id=response.provider_response_id if response else None,
+        provider_response_payload_sha256=(
+            response.provider_response_payload_sha256 if response else None
+        ),
+        provider_response_payload_scope=(
+            response.provider_response_payload_scope if response else None
+        ),
         provider_finish_reason=response.provider_finish_reason if response else None,
         provider_serving_fingerprint=(response.provider_serving_fingerprint if response else None),
         provider_created_unix_seconds=(
@@ -1635,11 +1961,13 @@ def _complete_with_retries(
     attempt_state: _LiveAttemptState,
     before_attempt: Callable[[], None],
     attempt_observer: LiveAttemptObserver | None = None,
+    provider_dispatch_guard: LiveProviderDispatchGuard | None = None,
 ) -> LiveProviderResponse:
     max_attempts = config.max_retries + 1
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
         before_attempt()
+        _run_provider_dispatch_guard(provider_dispatch_guard)
         request_budget.consume()
         attempt_state.attempt_count += 1
         _notify_attempt_observer(
@@ -1650,12 +1978,18 @@ def _complete_with_retries(
                 adapter_attempt_index=attempt,
             ),
         )
+        # The durable observer may fsync to slow storage. Recheck immediately
+        # afterward so a window that closed while recording `request_issued`
+        # cannot result in a provider call outside the authorized interval.
+        _run_provider_dispatch_guard(provider_dispatch_guard)
         try:
             response = adapter.complete(request)
             if not isinstance(response, LiveProviderResponse):
                 raise TypeError("live adapter returned an invalid response object")
             response = LiveProviderResponse.model_validate(response.model_dump(mode="python"))
         except Exception as exc:
+            if isinstance(exc, LiveProviderDispatchGuardError):
+                raise
             rate_limited = _is_rate_limit_error(exc)
             retryable = _is_retryable_error(exc)
             _notify_attempt_observer(
@@ -1696,12 +2030,29 @@ def _complete_with_retries(
                 request=request,
                 adapter_attempt_index=attempt,
                 provider_response_id=response.provider_response_id,
+                provider_response_payload_sha256=response.provider_response_payload_sha256,
+                provider_response_payload_scope=response.provider_response_payload_scope,
             ),
         )
+        # Persist the response commitment before enforcing the post-call
+        # boundary. If a call straddles the window end, its evidence remains
+        # auditable but this exception prevents every subsequent attempt.
+        _run_provider_dispatch_guard(provider_dispatch_guard)
         return response
     if last_exc is None:
         raise RuntimeError("live adapter failed without an exception")
     raise last_exc
+
+
+def _run_provider_dispatch_guard(guard: LiveProviderDispatchGuard | None) -> None:
+    if guard is None:
+        return
+    try:
+        guard()
+    except Exception as exc:
+        raise LiveProviderDispatchGuardError(
+            "live provider dispatch guard rejected the next adapter attempt"
+        ) from exc
 
 
 def _notify_attempt_observer(
@@ -1931,7 +2282,9 @@ def _provenance(
         model_identifier=config.adapter.model,
         retrieval_corpus_digest=config.retrieval_corpus_digest,
         evidence_sensitivity_design_digest=(config.evidence_sensitivity_design_digest),
-        study_manifest_digest=config.study_manifest_digest,
+        # The direct runner never emits a partial study backlink. The paired
+        # workflow adds it to every record only with the completed journal.
+        study_manifest_digest=None,
     )
 
 
@@ -1943,7 +2296,9 @@ def _configuration_digest(
     config_payload = config.model_dump(mode="json")
     # Higher-level commitments bind this content-derived configuration digest.
     # Excluding their back-links prevents commitment cycles without weakening
-    # the digest of the executable configuration they bind.
+    # the digest of the executable configuration they bind. The non-cyclic
+    # `execution_profile` deliberately remains: changing a preregistered arm
+    # into an ordinary live config must change its frozen execution identity.
     config_payload.pop("evidence_sensitivity_design_digest", None)
     config_payload.pop("study_manifest_digest", None)
     return sha256_hexdigest(

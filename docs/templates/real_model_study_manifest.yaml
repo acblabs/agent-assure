@@ -1,8 +1,10 @@
 # Authoring template only; it is not evidence that a study ran.
-# The canonical benchmark identity, digest, four strata, case frames, and
-# knowledge-contract digests below are executable defaults. Replace them only
-# when preregistering a different benchmark. Replace every provider, model,
-# protocol, configuration, registration, timestamp, and budget placeholder.
+# The v0.2 benchmark identity, digest, four strata, case frames, and
+# knowledge-contract digests below are executable descriptive defaults. This
+# shared-template parameter grid cannot be used for confirmatory inference.
+# Replace every benchmark/frame value when preregistering a different benchmark,
+# and replace every provider, model, protocol, configuration, registration,
+# timestamp, and budget placeholder.
 # Omit the three derived digest fields: rag study finalize computes
 # manifest_digest, protocol_set_digest, and hypothesis_decision_rule_digest.
 artifact_kind: real-model-study-manifest
@@ -31,7 +33,8 @@ knowledge_contract:
   authority_level: authoritative
   expected_behavior: follow_governing_context
 analysis_status:
-  primary: confirmatory_independent_clusters
+  # The shipped v0.2 grid is mechanically limited to this descriptive scope.
+  primary: fixed_frame_descriptive_conformance
   exploratory_secondary_analyses_allowed: true
   pooling_permitted: false
   llm_judge_endpoint_permitted: false
@@ -116,13 +119,13 @@ conditions:
     knowledge_contract_digest: "b55331054accc0d5b9a6d7789f6bdd567c4bb71db3f6ff16aa5c7bc0d5b1917e"
     study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
     planned_pairs: 42
-    planned_independent_clusters: 42
+    planned_clusters: 42
   - condition_id: approve-to-deny-condition
     justification: >-
-      Confirmatory measurement of direct same-decision inertia in the canonical
+      Descriptive measurement of direct same-decision inertia in the canonical
       approve-to-deny authority stratum. The 42 cases form a finite score-grid
-      conformance frame and are treated as independent exchangeable endpoints
-      only under the explicit shared-task and semantic-near-duplicate caveat.
+      conformance frame; no independent or exchangeable endpoint assumption is
+      made for this shared-task frame.
     analysis_role: inertia_estimand
     task_ids:
       - synthetic-benefit-eligibility
@@ -192,7 +195,7 @@ conditions:
     knowledge_contract_digest: "cc9c5a982bb6ad6422ec7636f25256b7c272d856f1d25ffa5ee2b0c022259a59"
     study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
     planned_pairs: 42
-    planned_independent_clusters: 42
+    planned_clusters: 42
   - condition_id: deny-invariant-condition
     justification: >-
       Negative-control measurement of the canonical deny-to-deny authority
@@ -268,13 +271,13 @@ conditions:
     knowledge_contract_digest: "90809e34470e6bdc9ef00e7c8aee9a2f3c76e731b3c15a89dff52858f353b908"
     study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
     planned_pairs: 42
-    planned_independent_clusters: 42
+    planned_clusters: 42
   - condition_id: deny-to-approve-condition
     justification: >-
-      Confirmatory measurement of direct same-decision inertia in the canonical
+      Descriptive measurement of direct same-decision inertia in the canonical
       deny-to-approve authority stratum. The 42 cases form a finite score-grid
-      conformance frame and are treated as independent exchangeable endpoints
-      only under the explicit shared-task and semantic-near-duplicate caveat.
+      conformance frame; no independent or exchangeable endpoint assumption is
+      made for this shared-task frame.
     analysis_role: inertia_estimand
     task_ids:
       - synthetic-benefit-eligibility
@@ -344,9 +347,9 @@ conditions:
     knowledge_contract_digest: "7f3336cdc49cf4746318a49644c8445b5de3d42206e27fca128499864c7ccfb4"
     study_knowledge_contract_digest: "25d214930ebf04f575e0c775293ab185a9ad966f307f0ef1312edc044491cad3"
     planned_pairs: 42
-    planned_independent_clusters: 42
+    planned_clusters: 42
 hypothesis_decision_rule:
-  inference_scope: confirmatory_independent_clusters
+  inference_scope: fixed_frame_descriptive_conformance
   estimand: decision_inertia_rate
   derivation: direct_same_decision_rate_on_decision_flip_conditions
   target_task_model_conditions:
@@ -356,55 +359,33 @@ hypothesis_decision_rule:
     - approve-invariant-condition
     - deny-invariant-condition
   invariant_control_gate: zero_observed_unexpected_arm_changes
-  inferential_unit: case_cluster
-  # All 42 frozen clusters are required even though 36 would make the
-  # zero-inertia branch reachable under the corrected two-target family.
-  minimum_independent_clusters: 42
-  materiality_threshold: "0.100000"
-  familywise_alpha: "0.050000"
-  interval_method: clopper_pearson_exact_one_sided
-  adjusted_alpha_serialization: conservative_floor_6_decimal
-  interval_bound_serialization: conservative_outward_12_decimal
-  multiplicity_method: bonferroni
-  multiplicity_family_scope: target_task_model_conditions_only
-  directional_error_control: each_direction_separately_fwer_controlled_not_joint_two_sided_alpha
+  descriptive_unit: frozen_case_cluster
+  descriptive_frame: all_frozen_planned_clusters
   sampling_frame: finite_frozen_conformance_frame
-  exchangeability_assumption: independent_exchangeable_binary_cluster_endpoints_within_condition
-  decision_boundary_rationale: >-
-    Familywise alpha 0.05 is Bonferroni-adjusted over the two decision-flip
-    targets only, giving alpha 0.025 per target; invariant controls instead use
-    the exact zero-change gate. At n=42 and threshold 0.10, contradicted requires
-    zero inertia clusters in both targets (zero-count upper bound 0.084083854941),
-    supported requires at least nine inertia clusters in either target
-    (nine-count lower bound 0.102959649897), and counts one through eight in
-    every target are inconclusive. Support and contradiction are distinct
-    directional claims, each FWER-controlled at 0.05 over the two targets; the
-    complete two-direction rule is not a single joint two-sided-alpha guarantee.
-  independence_justification:
-    # This unresolved drafting object is structurally valid for local/synthetic
-    # authoring, but real-provider manifests and statistical-method approval
-    # reject it. Replace every field with a study-specific positive design
-    # argument; repeating the benchmark caveat is not a justification.
-    status: unresolved_authoring_placeholder
-    design_basis: unresolved
-    semantic_near_duplicate_disposition: unresolved
-    inferential_unit_definition: >-
-      Each proposed inferential unit is one separately dispatched case-ID cluster
-      in a finite frozen benefit-eligibility conformance frame.
-    independence_basis: >-
-      UNRESOLVED AUTHORING PLACEHOLDER: replace this text with a positive design-based
-      argument before real-provider preregistration.
+  descriptive_scope_rationale: >-
+    Report exact frozen-frame counts and rates only. Do not calculate intervals,
+    p-values, power, hypothesis classifications, or population estimates, and do
+    not generalize beyond these exact case clusters.
+  dependence_acknowledgement:
+    # SHA-256 of examples/process_equivalence_benchmark_v0_2/README.md. Supply
+    # those exact bytes as the dependence audit for these descriptive defaults.
+    design_basis: shared_template_parameter_grid
+    semantic_near_duplicate_disposition: fixed_frame_descriptive_only
+    dependence_audit_artifact_sha256: "678613e648ddc690986992db106a38564d4b27ef30e375266c462638339b9088"
+    descriptive_unit_definition: >-
+      Each descriptive observation unit is one separately dispatched case-ID
+      cluster in the finite frozen benefit-eligibility conformance frame.
+    dependence_basis: >-
+      All cases belong to one shared task template and differ visibly only by an
+      integer eligibility score; they are not a population sample.
     dependence_risks_and_mitigations: >-
       The cases share one task template and differ visibly only by integer score;
       unique identities and digests establish replayability, not semantic,
       stochastic, or behavioral independence.
     residual_scope_limitation: >-
-      Any accepted inference remains conditional on the qualified reviewer's
-      assessment and scoped to this finite frame, not a provider or task population.
-    software_verification_scope: structure_and_presence_only_not_independence_truth
-  supported_when: any_adjusted_lower_bound_above_threshold
-  contradicted_when: all_adjusted_upper_bounds_at_or_below_threshold
-  inconclusive_when: otherwise_after_valid_sufficient_execution
+      Results are descriptive for this exact finite frame and cannot be generalized
+      to a provider, model family, task population, or deployment distribution.
+    software_verification_scope: structure_and_presence_only_not_dependence_truth
 budget:
   # Safe drafting default: any execution invalidates publication until
   # a human-approved nonzero budget replaces this value.
@@ -421,4 +402,4 @@ publication:
 limitations:
   - Add a condition-specific operational limitation before registration.
   - Exact input-digest uniqueness excludes byte-identical prompts but does not establish semantic independence.
-  - Inference is conditional on within-condition independent exchangeable binary endpoints in this finite frozen conformance frame.
+  - No independent-exchangeable endpoint assumption is made; results are descriptive for this exact frozen frame only.

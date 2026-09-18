@@ -18,7 +18,9 @@ from agent_assure.io_limits import (
 )
 from agent_assure.privacy.persistence import assert_persisted_payload_safe
 from agent_assure.rooted_io import PinnedDirectoryFile
-from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
+from agent_assure.schema.benchmark import (
+    ProcessEquivalenceBenchmarkManifest,
+)
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.stochastic_sensitivity import (
     RepeatedEvidenceSensitivityProtocol,
@@ -26,11 +28,16 @@ from agent_assure.schema.stochastic_sensitivity import (
 from agent_assure.schema.study import (
     RealModelStudyManifest,
     RealModelStudyReport,
+    StudyConditionState,
     StudyExecutionOrigin,
     StudyExecutionReviewReceipt,
+    StudyFixedFrameDescriptiveRule,
     StudyHypothesisClassification,
+    StudyHypothesisDecisionRule,
     StudyInferenceScope,
+    StudyMethodReviewApprovalDisposition,
     StudyObservedExecutionProvenance,
+    StudyProviderFingerprintReviewStatus,
     StudyRegistrationMethod,
     StudyRegistrationReviewReceipt,
     StudyStatisticalMethodReviewReceipt,
@@ -42,7 +49,12 @@ from agent_assure.study_limits import (
     MAX_STUDY_BUNDLE_TOTAL_BYTES,
     MAX_STUDY_RUNSET_JSON_BYTES,
 )
-from agent_assure.study_method_review import validate_study_statistical_method_review
+from agent_assure.study_method_review import (
+    STUDY_INDEPENDENCE_AUDIT_FILENAME,
+    statistical_method_review_explicitly_approves_confirmatory_benchmark,
+    validate_study_independence_audit_artifact,
+    validate_study_statistical_method_review,
+)
 from agent_assure.study_registration import validate_study_registration
 
 if TYPE_CHECKING:
@@ -82,6 +94,8 @@ class ValidatedStudyBundle:
     execution_review_receipt: StudyExecutionReviewReceipt | None
     registration_record_sha256: str
     registration_evidence_verified: bool
+    design_audit_artifact_sha256: str | None
+    independence_audit_artifact_verified: bool
     statistical_method_review_verified: bool
     execution_review_verified: bool
     file_count: int
@@ -98,16 +112,75 @@ class ValidatedStudyBundle:
         return getattr(self, "_verification_marker", None) is _VALIDATED_STUDY_BUNDLE_MARKER
 
     @property
+    def has_complete_provider_serving_fingerprint_coverage(self) -> bool:
+        """Return whether reviewed real-provider evidence has stable full coverage.
+
+        ``observed_origin=real_provider`` remains an execution-origin fact when a
+        provider does not expose a serving fingerprint. Confirmatory publication
+        is narrower: every condition must expose one stable value on every run,
+        and the independently reviewed condition projection must agree.
+        """
+
+        receipt = self.execution_review_receipt
+        receipt_condition_ids = (
+            tuple(condition.condition_id for condition in receipt.conditions)
+            if receipt is not None
+            else ()
+        )
+        report_condition_ids = tuple(result.condition_id for result in self.report.conditions)
+        return bool(
+            self.is_mechanically_verified
+            and self.execution_review_verified
+            and receipt is not None
+            and not receipt.provider_serving_fingerprint_absence_acknowledged
+            and receipt_condition_ids == report_condition_ids
+            and all(
+                condition.provider_serving_fingerprint_status
+                is StudyProviderFingerprintReviewStatus.complete_and_stable
+                for condition in receipt.conditions
+            )
+            and all(
+                result.observed_execution_provenance is not None
+                and result.observed_execution_provenance.provider_serving_fingerprint_records
+                == result.observed_execution_provenance.run_records
+                and result.observed_execution_provenance.distinct_provider_serving_fingerprints == 1
+                and result.observed_execution_provenance.provider_serving_fingerprint_set_digest
+                is not None
+                and len(result.observed_model_identities) == 1
+                and result.observed_model_identities[0].provider_serving_fingerprint is not None
+                for result in self.report.conditions
+            )
+        )
+
+    @property
     def is_publication_ready(self) -> bool:
         """Return trusted confirmatory eligibility after exact bundle replay."""
 
+        rule = self.manifest.hypothesis_decision_rule
+        if not isinstance(rule, StudyHypothesisDecisionRule):
+            return False
+        justification = rule.independence_justification
+        expected_audit_sha256 = justification.design_audit_artifact_sha256
         return bool(
             self.is_mechanically_verified
             and self.registration_evidence_verified
+            and self.independence_audit_artifact_verified
+            and self.design_audit_artifact_sha256 == expected_audit_sha256
             and self.statistical_method_review_verified
             and self.statistical_method_review_receipt is not None
             and self.execution_review_verified
             and self.execution_review_receipt is not None
+            and self.has_complete_provider_serving_fingerprint_coverage
+            and statistical_method_review_explicitly_approves_confirmatory_benchmark(
+                benchmark=self.benchmark,
+                review_receipt=self.statistical_method_review_receipt,
+            )
+            and self.statistical_method_review_receipt.study_manifest_digest
+            == self.manifest.manifest_digest
+            and self.statistical_method_review_receipt.registration_review_receipt_digest
+            == self.registration_review_receipt.review_receipt_digest
+            and self.statistical_method_review_receipt.design_audit_artifact_sha256
+            == expected_audit_sha256
             and self.registration_record_sha256 == self.manifest.registration.evidence_digest
             and self.manifest.registration.method
             in {
@@ -145,11 +218,33 @@ class ValidatedStudyBundle:
         path without being relabeled as independent-cluster evidence.
         """
 
+        rule = self.manifest.hypothesis_decision_rule
+        if not isinstance(rule, StudyFixedFrameDescriptiveRule):
+            return False
+        expected_audit_sha256 = rule.dependence_acknowledgement.dependence_audit_artifact_sha256
+        frame_complete = all(
+            result.state is StudyConditionState.fixed_frame_descriptive
+            and result.actual_pairs == result.planned_pairs
+            and result.included_pairs == result.planned_pairs
+            and result.missing_pairs == 0
+            and result.excluded_pairs == 0
+            and result.invalid_pairs == 0
+            and result.actual_clusters == result.planned_clusters
+            and result.analyzable_clusters == result.planned_clusters
+            and result.operational_summary.run_records == 2 * result.planned_pairs
+            for result in self.report.conditions
+        )
         return bool(
             self.is_mechanically_verified
             and self.registration_evidence_verified
+            and self.independence_audit_artifact_verified
+            and self.design_audit_artifact_sha256 == expected_audit_sha256
             and self.statistical_method_review_verified
             and self.statistical_method_review_receipt is not None
+            and self.statistical_method_review_receipt.approved_inference_scope
+            is StudyInferenceScope.fixed_frame_descriptive_conformance
+            and self.statistical_method_review_receipt.approval_disposition
+            is StudyMethodReviewApprovalDisposition.approved_fixed_frame_descriptive_conformance
             and self.execution_review_verified
             and self.execution_review_receipt is not None
             and self.registration_record_sha256 == self.manifest.registration.evidence_digest
@@ -161,7 +256,8 @@ class ValidatedStudyBundle:
             and self.manifest.hypothesis_decision_rule.inference_scope
             is StudyInferenceScope.fixed_frame_descriptive_conformance
             and self.report.protocol_valid
-            and self.report.statistical_sufficiency_satisfied
+            and not self.report.statistical_sufficiency_satisfied
+            and frame_complete
             and self.report.invariant_controls_satisfied
             and self.report.hypothesis_classification is StudyHypothesisClassification.not_measured
             and all(
@@ -193,6 +289,8 @@ class ValidatedStudyBundle:
         execution_review_receipt: StudyExecutionReviewReceipt | None = None,
         registration_record_sha256: str,
         registration_evidence_verified: bool,
+        design_audit_artifact_sha256: str | None = None,
+        independence_audit_artifact_verified: bool = False,
         statistical_method_review_verified: bool = False,
         execution_review_verified: bool = False,
         file_count: int,
@@ -236,6 +334,16 @@ class ValidatedStudyBundle:
             instance,
             "registration_evidence_verified",
             registration_evidence_verified,
+        )
+        object.__setattr__(
+            instance,
+            "design_audit_artifact_sha256",
+            design_audit_artifact_sha256,
+        )
+        object.__setattr__(
+            instance,
+            "independence_audit_artifact_verified",
+            independence_audit_artifact_verified,
         )
         object.__setattr__(
             instance,
@@ -319,6 +427,14 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
             label="real-model study manifest",
         )
         expected_entries = list(STUDY_BUNDLE_BASE_FILENAMES)
+        rule = manifest.hypothesis_decision_rule
+        has_independence_audit = (
+            rule.independence_justification.design_audit_artifact_sha256 is not None
+            if isinstance(rule, StudyHypothesisDecisionRule)
+            else isinstance(rule, StudyFixedFrameDescriptiveRule)
+        )
+        if has_independence_audit:
+            expected_entries.append(STUDY_INDEPENDENCE_AUDIT_FILENAME)
         has_execution_review = STUDY_EXECUTION_REVIEW_FILENAME in initial_entry_set
         if has_execution_review:
             expected_entries.append(STUDY_EXECUTION_REVIEW_FILENAME)
@@ -373,6 +489,17 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
             manifest=manifest,
             registration_record_bytes=registration_record_bytes,
             review_receipt=registration_review_receipt,
+        )
+        independence_audit = validate_study_independence_audit_artifact(
+            manifest=manifest,
+            artifact_bytes=(
+                read_child(
+                    STUDY_INDEPENDENCE_AUDIT_FILENAME,
+                    label="study independence audit artifact",
+                )
+                if has_independence_audit
+                else None
+            ),
         )
         report_bytes = read_child(
             "real-model-study-report.json",
@@ -479,6 +606,10 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
         statistical_method_review_receipt = None
         statistical_method_review_verified = False
         if has_statistical_method_review:
+            if independence_audit is None:
+                raise ValueError(
+                    "statistical-method review requires the bundled independence audit"
+                )
             statistical_method_review_receipt = _load_canonical_model(
                 read_child(
                     STUDY_STATISTICAL_METHOD_REVIEW_FILENAME,
@@ -491,7 +622,10 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
                 manifest=manifest,
                 benchmark=benchmark,
                 protocols=protocols,
+                registration_record_bytes=registration_record_bytes,
+                registration_review_receipt=registration.review_receipt,
                 review_receipt=statistical_method_review_receipt,
+                independence_audit_artifact_bytes=independence_audit.data,
                 manifest_bytes=manifest_bytes,
                 benchmark_bytes=benchmark_bytes,
                 registered_protocol_bytes=registered_protocol_bytes,
@@ -556,6 +690,10 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
         execution_review_receipt=execution_review_receipt,
         registration_record_sha256=registration.record_sha256,
         registration_evidence_verified=True,
+        design_audit_artifact_sha256=(
+            independence_audit.artifact_sha256 if independence_audit is not None else None
+        ),
+        independence_audit_artifact_verified=independence_audit is not None,
         statistical_method_review_verified=statistical_method_review_verified,
         execution_review_verified=execution_review_verified,
         file_count=len(expected_entries),
@@ -613,6 +751,7 @@ __all__ = [
     "MAX_STUDY_RUNSET_JSON_BYTES",
     "STUDY_BUNDLE_BASE_FILENAMES",
     "STUDY_EXECUTION_REVIEW_FILENAME",
+    "STUDY_INDEPENDENCE_AUDIT_FILENAME",
     "STUDY_STATISTICAL_METHOD_REVIEW_FILENAME",
     "ValidatedStudyBundle",
     "load_and_validate_study_bundle",

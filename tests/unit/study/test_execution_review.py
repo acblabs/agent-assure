@@ -1,7 +1,14 @@
 from __future__ import annotations
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
+from pydantic import ValidationError
 
+from agent_assure.schema.study import (
+    StudyExecutionReviewCondition,
+    StudyObservedExecutionProvenance,
+)
 from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_execution_review import (
     build_study_execution_review_receipt,
@@ -74,6 +81,39 @@ def test_execution_review_public_api_replays_and_binds_exact_model_bytes() -> No
         condition.provider_serving_fingerprint_status == "not_exposed_by_provider"
         for condition in receipt.conditions
     )
+
+
+def test_execution_review_response_scope_has_model_and_json_schema_parity() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    condition = _receipt(fixture).conditions[0]
+    payload = condition.model_dump(mode="json")
+    validator = Draft202012Validator(
+        StudyExecutionReviewCondition.model_json_schema(mode="validation")
+    )
+    validator.validate(payload)
+
+    payload["provider_response_payload_scopes"] = ["complete_external_script_stdout"]
+    with pytest.raises(ValidationError, match="complete HTTP response"):
+        StudyExecutionReviewCondition.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        validator.validate(payload)
+
+
+def test_observed_response_commitment_linkage_has_json_schema_parity() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    provenance = _analyze(fixture).conditions[0].observed_execution_provenance
+    assert provenance is not None
+    payload = provenance.model_dump(mode="json")
+    validator = Draft202012Validator(
+        StudyObservedExecutionProvenance.model_json_schema(mode="validation")
+    )
+    validator.validate(payload)
+
+    payload["provider_response_payload_commitment_records"] = 0
+    with pytest.raises(ValidationError, match="commitment count and set digest"):
+        StudyObservedExecutionProvenance.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        validator.validate(payload)
 
 
 def test_execution_review_rejects_placeholder_provider_evidence_digest() -> None:

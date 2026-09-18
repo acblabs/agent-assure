@@ -35,4 +35,6 @@ provider_response_id_matches_confirmed: false
 exact_runset_artifact_digest_matches_confirmed: false
 # Fingerprints may be absent because a provider did not expose them; the built
 # receipt derives and visibly records that absence instead of silently passing.
+# All-absent evidence may still be analyzed and disclosed descriptively, but it
+# cannot satisfy confirmatory publication or empirical release readiness.
 provider_serving_fingerprint_availability_reviewed: false

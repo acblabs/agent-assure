@@ -10,7 +10,12 @@ from click import unstyle
 from typer.testing import CliRunner
 
 from agent_assure.canonical.digests import sha256_hexdigest
-from agent_assure.ci import GateOutcome, gate_artifact, gate_evidence_packet
+from agent_assure.ci import (
+    GateOutcome,
+    _gate_stochastic_sensitivity_report,
+    gate_artifact,
+    gate_evidence_packet,
+)
 from agent_assure.cli.main import app
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.rag.repeated_sensitivity import build_paired_runset_dependencies
@@ -38,6 +43,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     CouplingClassification,
     CouplingCondition,
     CouplingDescriptor,
+    FixedFrameDescriptivePlan,
     PairDisposition,
     PairedSensitivityObservation,
     RepeatedEvidenceSensitivityProtocol,
@@ -54,7 +60,13 @@ from tests.stochastic_source_support import (
 
 _ArmId = Literal["baseline_evidence", "counterfactual_evidence"]
 _EndpointValue = Literal[0, 1]
-_ReportMode = Literal["pass", "block", "inconclusive", "prerequisites_unmet"]
+_ReportMode = Literal[
+    "pass",
+    "block",
+    "fixed_frame_descriptive",
+    "inconclusive",
+    "prerequisites_unmet",
+]
 RUNNER = CliRunner()
 REQUIRE_FLAG = "--require-stochastic-evidence-sensitivity"
 _LEGACY_STOCHASTIC_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
@@ -151,6 +163,32 @@ def test_stochastic_packet_gate_fails_closed_on_present_nonverdict_evidence(
         assert strict_default.exit_code == 1
         assert "accepts only a verdict-bearing pass" in required.message
         assert REQUIRE_FLAG in required.message
+
+
+def test_fixed_frame_descriptive_ci_mapping_is_not_evaluated_and_never_passes() -> None:
+    _, report, _ = _reports("fixed_frame_descriptive")
+
+    advisory = _gate_stochastic_sensitivity_report(
+        report,
+        required=False,
+        fail_on_not_evaluated=False,
+    )
+    strict = _gate_stochastic_sensitivity_report(
+        report,
+        required=False,
+        fail_on_not_evaluated=True,
+    )
+    required = _gate_stochastic_sensitivity_report(
+        report,
+        required=True,
+        fail_on_not_evaluated=False,
+    )
+
+    assert (advisory.outcome, advisory.exit_code) == (GateOutcome.not_evaluated, 0)
+    assert (strict.outcome, strict.exit_code) == (GateOutcome.fail, 1)
+    assert (required.outcome, required.exit_code) == (GateOutcome.fail, 1)
+    assert GateOutcome.pass_ not in {advisory.outcome, strict.outcome, required.outcome}
+    assert "state=fixed_frame_descriptive" in advisory.message
 
 
 def test_required_stochastic_evidence_rejects_absence_and_nonpacket_use() -> None:
@@ -692,12 +730,17 @@ def _reports(
     StochasticEvidenceSensitivityReport,
     tuple[RunSet, RunSet],
 ]:
-    design = plan_binary_paired_design(
-        familywise_alpha="0.500000",
-        desired_power="0.500000",
-        null_response_rate="0.100000",
-        alternative_response_rate="0.900000",
-        monte_carlo_resamples=1_000,
+    fixed_frame_descriptive = mode == "fixed_frame_descriptive"
+    design = (
+        FixedFrameDescriptivePlan(planned_descriptive_clusters=2)
+        if fixed_frame_descriptive
+        else plan_binary_paired_design(
+            familywise_alpha="0.500000",
+            desired_power="0.500000",
+            null_response_rate="0.100000",
+            alternative_response_rate="0.900000",
+            monte_carlo_resamples=1_000,
+        )
     )
     case_ids = ("case-a", "case-b")
     baseline_arm = _arm(
@@ -711,10 +754,11 @@ def _reports(
         corpus_digest="3" * 64,
     )
     protocol = RepeatedEvidenceSensitivityProtocol.build(
-        schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+        schema_version=("0.6.6" if fixed_frame_descriptive else _LEGACY_STOCHASTIC_SCHEMA_VERSION),
         protocol_id=f"stochastic-ci-{mode}",
-        interpretation="confirmatory",
+        interpretation=("fixed_frame_descriptive" if fixed_frame_descriptive else "confirmatory"),
         execution_mode="stochastic_live",
+        **({"descriptive_unit": "case_id"} if fixed_frame_descriptive else {}),
         baseline_arm=baseline_arm,
         counterfactual_arm=counterfactual_arm,
         planned_case_ids=case_ids,
@@ -729,7 +773,7 @@ def _reports(
         ),
         repetitions_per_arm=1,
         planned_pairs=2,
-        multiplicity_family="evidence-sensitivity",
+        **({} if fixed_frame_descriptive else {"multiplicity_family": "evidence-sensitivity"}),
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
             stochastic_dimensions=(
@@ -819,19 +863,21 @@ def _reports(
         observation_tuple,
         source_runsets=dependencies,
     )
-    sufficiency_payload = sufficiency.model_dump(
-        mode="python",
-        exclude={"report_digest"},
-    )
-    sufficiency_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
-    sufficiency = StatisticalSufficiencyReport.build(**sufficiency_payload)
+    if not fixed_frame_descriptive:
+        sufficiency_payload = sufficiency.model_dump(
+            mode="python",
+            exclude={"report_digest"},
+        )
+        sufficiency_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
+        sufficiency = StatisticalSufficiencyReport.build(**sufficiency_payload)
     stochastic = build_stochastic_sensitivity_report(sufficiency)
-    stochastic_payload = stochastic.model_dump(
-        mode="python",
-        exclude={"report_digest"},
-    )
-    stochastic_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
-    stochastic = StochasticEvidenceSensitivityReport.build(**stochastic_payload)
+    if not fixed_frame_descriptive:
+        stochastic_payload = stochastic.model_dump(
+            mode="python",
+            exclude={"report_digest"},
+        )
+        stochastic_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
+        stochastic = StochasticEvidenceSensitivityReport.build(**stochastic_payload)
     return sufficiency, stochastic, source_runsets
 
 

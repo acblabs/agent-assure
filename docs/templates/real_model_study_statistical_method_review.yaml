@@ -1,6 +1,8 @@
 # Human-authored input for a qualified statistical-method review command.
-# Complete this after preregistration and before the planned execution window.
-# The command derives all manifest, benchmark, protocol, and design digests.
+# Complete this strictly after the registration-review receipt and before the
+# planned execution window. The command requires the exact registration record
+# and registration-review receipt, revalidates them, and derives all manifest,
+# review, benchmark, protocol, and design digests.
 receipt_id: replace-statistical-method-review-id
 reviewed_at_utc: "2026-01-01T12:00:00Z"
 reviewer_pseudonym: replace-independent-statistical-reviewer-pseudonym
@@ -17,14 +19,14 @@ reviewer_qualification_basis_types:
 # sentinel is rejected; replace it without publishing private credential bytes.
 reviewer_qualification_evidence_digest: "0000000000000000000000000000000000000000000000000000000000000000"
 reviewer_qualification_basis: >-
-  The reviewer has training and applied experience in preregistered binomial
-  inference, clustered study design, multiplicity control, and power analysis.
+  The reviewer has training and applied experience in preregistered study
+  design, finite-frame measurement, and limitations on statistical inference.
 reviewer_independent_of_design_execution_and_analysis: false
 reviewer_independence_rationale: >-
   The reviewer did not author the study design, construct the benchmark,
   execute provider calls, select observations, or perform the final analysis.
-independence_design_basis_reviewed_and_accepted: false
-independence_acceptance_rationale: >-
+design_basis_reviewed_and_accepted: false
+design_review_rationale: >-
   TODO: replace with why the manifest's enumerated design basis supports its
   declared scope, citing the audit and actual unit-construction mechanism.
 semantic_near_duplicate_audit_reviewed: false
@@ -33,8 +35,11 @@ semantic_near_duplicate_review_rationale: >-
   TODO: replace with how semantic near-duplicates were detected and either
   collapsed or excluded, or why dependence requires fixed-frame scope.
 benchmark_cluster_assignments_reviewed: false
-independence_and_exchangeability_assumptions_reviewed: false
 sampling_frame_and_estimand_reviewed: false
-multiplicity_and_interval_method_reviewed: false
-power_and_decision_boundary_reachability_reviewed: false
+# These three assertions are specific to the shipped fixed-frame descriptive
+# manifest. A confirmatory design must instead supply the four inferential
+# attestations documented in the schema reference; the two sets are exclusive.
+fixed_frame_completeness_reviewed: false
+descriptive_count_and_rate_derivation_reviewed: false
+population_inference_prohibition_reviewed: false
 negative_control_design_reviewed: false
