@@ -54,7 +54,7 @@ on:
         default: none
         type: string
       grant_privacy_filtered_publication:
-        description: I authorize documented prospective publication, 14-day fork storage/read access, and input-digest/opaque correlation
+        description: I prospectively authorize exact run URLs/head SHAs linking my account, plus documented 14-day storage/digest correlation
         required: true
         default: false
         type: boolean

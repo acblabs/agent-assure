@@ -18,8 +18,15 @@ Obtain the candidate artifact, capture and finalization run URLs, fork URL,
 participant pseudonym, each run's actual head revision, and the agreed basis
 for environment control through the non-public handoff arranged after
 recruitment. Derive both head revisions from the corresponding run record or
-GitHub API rather than accepting a generic branch revision. Before asserting
-any checklist value, verify:
+GitHub API rather than accepting a generic branch revision.
+
+The receipt is itself part of the consented public bundle. It persists those
+exact attempt-specific URLs and run-head commit SHAs; because each URL names
+the participant's fork, publication can directly identify the GitHub account
+and connect it to the participant pseudonym. Confirm that this disclosure was
+presented before Stage-2 consent, not merely after the run.
+
+Before asserting any checklist value, verify:
 
 - the fork and Actions environment were controlled by the non-maintainer
   participant and `acblabs` did not operate the runs;

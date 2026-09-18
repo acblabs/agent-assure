@@ -26,9 +26,12 @@
 - Hardened the external pilot with deliberate non-default friction choices,
   actionable workflow diagnostics, exact run-attempt/workflow/public-input
   review bindings, complete consent binding, and immutable planned-to-applied
-  remediation lineage. Until the validated source commit `S` and later trusted
-  workflow commit `W` exist, both workflows carry a zero-SHA sentinel and fail
-  immediately so issue #27 cannot consume a volunteer against stale bytes.
+  remediation lineage. The zero-SHA activation sentinel has been removed and
+  both stages now pin validated execution source
+  `c742546f80c7bae998f5dc648b54e89f3ec556ab`. Recruitment remains gated on a
+  separately frozen, nonzero trusted workflow/documentation revision; any
+  later pilot workflow or disclosure change requires a new trusted revision
+  before dispatch.
 - Added the top-level `study` command alias and help for the four core CLI
   commands; made evidence-packet CI fail closed when efficacy is absent, with a
   named non-assurance migration opt-out; added an efficacy-required

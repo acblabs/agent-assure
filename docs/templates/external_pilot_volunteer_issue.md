@@ -13,7 +13,9 @@ participant effort is 10–15 minutes; CI runtime may be longer. No
 participant-supplied model/provider API key, proprietary data, repository
 secret, or maintainer access is needed. GitHub supplies its normal short-lived,
 read-only workflow token. A blocked or failed attempt can still be useful when
-its execution and friction evidence is complete.
+its execution and friction evidence is complete. If Stage 1 exits before its
+capture artifact is uploaded, however, it cannot be finalized into qualifying
+pilot evidence and must be rerun after troubleshooting.
 
 The published GitHub/PyPI release is still `0.6.5`; this exercise targets exact
 bytes from an unreleased `0.6.6` pre-candidate, not a published release or RC.
@@ -27,6 +29,9 @@ You should volunteer only if:
 - you are not an `acblabs/agent-assure` maintainer;
 - you control the fork and its Actions settings without `acblabs` operating
   the run;
+- you can use the same GitHub account and fork for capture, finalization, and
+  any required remediation re-finalization; a separate reviewer cannot operate
+  those stages for you;
 - you will use the pinned GitHub-hosted runner, not a self-hosted runner;
 - you can commit one benign, participant-authored non-bundled input;
 - you can explicitly consent to a 14-day capture handoff in your public
@@ -37,7 +42,9 @@ You should volunteer only if:
   documented outcome-dependent privacy-filtered inventory, including up to
   14 days of Stage 2 public-fork Actions storage and the disclosed random
   cross-stage correlation binding and public committed-input digest
-  linkability.
+  linkability, plus publication of exact attempt-specific run URLs and run-head
+  commit SHAs that can identify your GitHub account and fork despite the
+  pseudonym.
 
 Please read the
 [external pilot quickstart](https://github.com/acblabs/agent-assure/blob/TRUSTED_WORKFLOW_REVISION/docs/external_pilot_quickstart.md).
