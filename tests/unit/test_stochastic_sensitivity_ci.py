@@ -132,6 +132,7 @@ def test_stochastic_packet_gate_fails_closed_on_present_nonverdict_evidence(
         allowed = gate_evidence_packet(
             packet,
             stochastic_source_runsets=source_runsets,
+            fail_on_not_evaluated=False,
             allow_sensitivity_non_verdict=True,
             allow_missing_efficacy_for_migration=True,
         )
@@ -139,6 +140,7 @@ def test_stochastic_packet_gate_fails_closed_on_present_nonverdict_evidence(
             packet,
             stochastic_source_runsets=source_runsets,
             fail_on_not_evaluated=True,
+            allow_sensitivity_non_verdict=True,
             allow_missing_efficacy_for_migration=True,
         )
         assert allowed.outcome is GateOutcome.not_evaluated
@@ -390,6 +392,7 @@ def test_ci_gate_flag_enforces_stochastic_pass(
                 "gate",
                 str(packet_path),
                 "--allow-sensitivity-non-verdict",
+                "--allow-not-evaluated",
                 "--allow-missing-efficacy-for-migration",
             ],
         )

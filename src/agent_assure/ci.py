@@ -473,7 +473,7 @@ def gate_artifact(
     artifact_root: Path | None = None,
     stochastic_source_runsets: tuple[RunSet, RunSet] | None = None,
     fail_on_warn: bool = False,
-    fail_on_not_evaluated: bool = False,
+    fail_on_not_evaluated: bool = True,
     verifier_efficacy_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool | None = None,
@@ -685,7 +685,7 @@ def gate_evaluation_summary(
     summary: EvaluationSummary,
     *,
     fail_on_warn: bool = False,
-    fail_on_not_evaluated: bool = False,
+    fail_on_not_evaluated: bool = True,
 ) -> GateDecision:
     try:
         summary = EvaluationSummary.model_validate(
@@ -745,7 +745,7 @@ def gate_comparison_summary(
     summary: ComparisonSummary,
     *,
     fail_on_warn: bool = False,
-    fail_on_not_evaluated: bool = False,
+    fail_on_not_evaluated: bool = True,
     allow_legacy_unbound_comparison: bool = False,
 ) -> GateDecision:
     try:
@@ -794,14 +794,27 @@ def gate_comparison_summary(
             if legacy_unbound_comparison
             else decision
         )
-    if (
-        summary.classification
-        in {
-            ComparisonClassification.new_failure,
-            ComparisonClassification.persistent_failure,
-        }
-        and summary.candidate_state is not GateState.warn
-    ):
+    if summary.classification is ComparisonClassification.new_failure:
+        decision = GateDecision(
+            exit_code=1,
+            outcome=GateOutcome.fail,
+            message=(
+                "ci gate fail: comparison-summary "
+                f"{summary.baseline_runset_id}->{summary.candidate_runset_id} "
+                "classification=new_failure; "
+                f"candidate_state={summary.candidate_state.value}; "
+                "raw_regression=true; disposition=blocking-new-failure"
+            ),
+            reason_code=ReasonCode.POLICY_FAILED,
+            artifact_kind=summary.artifact_kind,
+        )
+        return (
+            _with_legacy_comparison_compatibility_notice(decision)
+            if legacy_unbound_comparison
+            else decision
+        )
+    persistent_failure = summary.classification is ComparisonClassification.persistent_failure
+    if persistent_failure and summary.candidate_state is not GateState.warn:
         decision = GateDecision(
             exit_code=1,
             outcome=GateOutcome.fail,
@@ -824,6 +837,14 @@ def gate_comparison_summary(
         fail_on_warn=fail_on_warn,
         fail_on_not_evaluated=fail_on_not_evaluated,
     )
+    if persistent_failure and summary.candidate_state is GateState.warn:
+        decision = replace(
+            decision,
+            message=(
+                f"{decision.message}; classification={summary.classification.value}; "
+                "raw_regression=true; disposition=nonblocking-candidate-evaluation"
+            ),
+        )
     return (
         _with_legacy_comparison_compatibility_notice(decision)
         if legacy_unbound_comparison
@@ -837,7 +858,7 @@ def gate_evidence_packet(
     artifact_root: Path | None = None,
     stochastic_source_runsets: tuple[RunSet, RunSet] | None = None,
     fail_on_warn: bool = False,
-    fail_on_not_evaluated: bool = False,
+    fail_on_not_evaluated: bool = True,
     verifier_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool | None = None,
@@ -1069,52 +1090,59 @@ def gate_evidence_packet(
     if packet.evidence_sensitivity is not None:
         sensitivity_decision = gate_evidence_sensitivity_report(
             packet.evidence_sensitivity,
-            fail_on_not_evaluated=fail_on_not_evaluated,
+            fail_on_not_evaluated=False,
         )
-        if (
-            sensitivity_decision.outcome is GateOutcome.not_evaluated
-            and not allow_sensitivity_non_verdict
-        ):
-            sensitivity_decision = GateDecision(
-                exit_code=2,
-                outcome=GateOutcome.invalid,
-                message=(
-                    "ci gate invalid: sensitivity-bearing evidence packet has a "
-                    "non-verdict sensitivity result "
-                    f"state={packet.evidence_sensitivity.state.value} "
-                    f"gate_effect={packet.evidence_sensitivity.gate_effect.value}; "
-                    "explicitly allow it with "
-                    "allow_sensitivity_non_verdict=True or "
-                    "--allow-sensitivity-non-verdict"
-                ),
-                reason_code=sensitivity_decision.reason_code,
-                artifact_kind=packet.artifact_kind,
-            )
+        if sensitivity_decision.outcome is GateOutcome.not_evaluated:
+            if not allow_sensitivity_non_verdict:
+                sensitivity_decision = GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=(
+                        "ci gate invalid: sensitivity-bearing evidence packet has a "
+                        "non-verdict sensitivity result "
+                        f"state={packet.evidence_sensitivity.state.value} "
+                        f"gate_effect={packet.evidence_sensitivity.gate_effect.value}; "
+                        "explicitly allow it with "
+                        "allow_sensitivity_non_verdict=True or "
+                        "--allow-sensitivity-non-verdict"
+                    ),
+                    reason_code=sensitivity_decision.reason_code,
+                    artifact_kind=packet.artifact_kind,
+                )
+            elif fail_on_not_evaluated:
+                sensitivity_decision = gate_evidence_sensitivity_report(
+                    packet.evidence_sensitivity,
+                    fail_on_not_evaluated=True,
+                )
         decisions.append(sensitivity_decision)
     if packet.stochastic_evidence_sensitivity is not None:
         stochastic_decision = _gate_stochastic_sensitivity_report(
             packet.stochastic_evidence_sensitivity,
             required=require_stochastic_evidence_sensitivity,
-            fail_on_not_evaluated=fail_on_not_evaluated,
+            fail_on_not_evaluated=False,
         )
-        if (
-            stochastic_decision.outcome is GateOutcome.not_evaluated
-            and not allow_sensitivity_non_verdict
-        ):
-            stochastic_decision = GateDecision(
-                exit_code=2,
-                outcome=GateOutcome.invalid,
-                message=(
-                    "ci gate invalid: stochastic-sensitivity-bearing evidence packet "
-                    "has a non-verdict stochastic result "
-                    f"state={packet.stochastic_evidence_sensitivity.state.value} "
-                    f"gate_effect={packet.stochastic_evidence_sensitivity.gate_effect.value}; "
-                    "explicitly allow it with allow_sensitivity_non_verdict=True or "
-                    "--allow-sensitivity-non-verdict"
-                ),
-                reason_code=stochastic_decision.reason_code,
-                artifact_kind=packet.artifact_kind,
-            )
+        if stochastic_decision.outcome is GateOutcome.not_evaluated:
+            if not allow_sensitivity_non_verdict:
+                stochastic_decision = GateDecision(
+                    exit_code=2,
+                    outcome=GateOutcome.invalid,
+                    message=(
+                        "ci gate invalid: stochastic-sensitivity-bearing evidence packet "
+                        "has a non-verdict stochastic result "
+                        f"state={packet.stochastic_evidence_sensitivity.state.value} "
+                        f"gate_effect={packet.stochastic_evidence_sensitivity.gate_effect.value}; "
+                        "explicitly allow it with allow_sensitivity_non_verdict=True or "
+                        "--allow-sensitivity-non-verdict"
+                    ),
+                    reason_code=stochastic_decision.reason_code,
+                    artifact_kind=packet.artifact_kind,
+                )
+            elif fail_on_not_evaluated:
+                stochastic_decision = _gate_stochastic_sensitivity_report(
+                    packet.stochastic_evidence_sensitivity,
+                    required=require_stochastic_evidence_sensitivity,
+                    fail_on_not_evaluated=True,
+                )
         decisions.append(stochastic_decision)
     if packet.control_efficacy is not None:
         if packet.control_efficacy_gate is None or packet.control_efficacy_gate_profile is None:
@@ -1782,7 +1810,7 @@ def gate_control_efficacy_report(
     report: ControlEfficacyReport,
     *,
     fail_on_warn: bool = False,
-    fail_on_not_evaluated: bool = False,
+    fail_on_not_evaluated: bool = True,
     verifier_policy: VerifierEfficacyPolicy | None = None,
     strict_efficacy: bool = True,
     require_efficacy: bool = False,
@@ -2078,6 +2106,7 @@ def run_ci(
     project_root: Path | None = None,
     source_input_paths: tuple[Path, ...] = (),
     allow_missing_efficacy_for_migration: bool = False,
+    allow_not_evaluated: bool = False,
 ) -> CiRunResult:
     _ensure_ci_output_directory_safe(out_dir)
     input_paths = tuple(
@@ -2142,7 +2171,10 @@ def run_ci(
     if report_mode == "fail-fast":
         candidate_report = _fail_fast_evaluation_report(candidate_report)
     report_paths = list(_write_evaluation_outputs(candidate_report, out_dir))
-    decision = gate_evaluation_summary(candidate_report.candidate_vs_expectations)
+    decision = gate_evaluation_summary(
+        candidate_report.candidate_vs_expectations,
+        fail_on_not_evaluated=not allow_not_evaluated,
+    )
     comparison_summary: ComparisonSummary | None = None
     comparison_paths: tuple[Path, ...] = ()
 
@@ -2160,7 +2192,10 @@ def run_ci(
         comparison_paths = _write_comparison_outputs(comparison_report, out_dir)
         report_paths.extend(comparison_paths)
         comparison_summary = comparison_report.comparison_summary
-        decision = gate_comparison_summary(comparison_summary)
+        decision = gate_comparison_summary(
+            comparison_summary,
+            fail_on_not_evaluated=not allow_not_evaluated,
+        )
 
     try:
         packet_path, packet_markdown_path, graph_path, manifest_path = _write_ci_packet(
@@ -2202,6 +2237,7 @@ def run_ci(
     packet_decision = gate_evidence_packet(
         load_evidence_packet(packet_path),
         artifact_root=artifact_root,
+        fail_on_not_evaluated=not allow_not_evaluated,
         allow_missing_efficacy_for_migration=allow_missing_efficacy_for_migration,
     )
     if (

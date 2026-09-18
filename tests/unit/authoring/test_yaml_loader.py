@@ -398,3 +398,27 @@ cases:
 
     assert expectation.allowed_tools == ()
     assert expectation.allowed_tools_override is True
+
+
+def test_empty_suite_tool_allowlist_is_recorded_as_explicit_deny_all(tmp_path) -> None:  # type: ignore[no-untyped-def]
+    suite = tmp_path / "suite.yaml"
+    suite.write_text(
+        """
+suite_id: demo
+suite_version: 0.1.0
+defaults:
+  runner_id: test.runner
+  allowed_tools: []
+cases:
+  - case_id: case-001
+    title: No tools suite
+""".lstrip(),
+        encoding="utf-8",
+    )
+
+    compiled = compile_suite(suite)
+    expectation = compiled.resolved_expectations[0]
+
+    assert compiled.defaults.allowed_tools == ()
+    assert expectation.allowed_tools == ()
+    assert expectation.allowed_tools_override is True

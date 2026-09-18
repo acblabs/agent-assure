@@ -107,25 +107,10 @@ def test_direct_evaluation_gate_revalidates_model_copy_tampering() -> None:
     assert "failed trusted model revalidation" in decision.message
 
 
-@pytest.mark.parametrize(
-    ("state", "expected_output"),
-    (
-        (
-            GateState.warn,
-            "ci gate review: evaluation-summary candidate state=warn",
-        ),
-        (
-            GateState.not_evaluated,
-            "ci gate not-evaluated: evaluation-summary candidate state=not_evaluated",
-        ),
-    ),
-)
 def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
     tmp_path: Path,
-    state: GateState,
-    expected_output: str,
 ) -> None:
-    summary_path = tmp_path / f"{state.value}.json"
+    summary_path = tmp_path / "warn.json"
     _write_json(
         summary_path,
         EvaluationSummary(
@@ -134,14 +119,14 @@ def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
             runset_digest="d" * 64,
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
-            state=state,
+            state=GateState.warn,
         ).model_dump(mode="json"),
     )
 
     result = RUNNER.invoke(app, ["ci", "gate", str(summary_path)])
 
     assert result.exit_code == 0, result.output
-    assert result.output.strip() == expected_output
+    assert result.output.strip() == "ci gate review: evaluation-summary candidate state=warn"
 
 
 @pytest.mark.parametrize(
@@ -149,7 +134,6 @@ def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
     (
         (GateState.pass_, "pass"),
         (GateState.warn, "review"),
-        (GateState.not_evaluated, "not_evaluated"),
     ),
 )
 def test_ci_gate_json_output_exposes_every_nonblocking_outcome(
@@ -185,6 +169,80 @@ def test_ci_gate_json_output_exposes_every_nonblocking_outcome(
     assert decision["efficacy_evidence"] == "not_applicable"
     assert decision["efficacy_verification"] == "not_requested"
     assert decision["efficacy_required"] is False
+
+
+def test_ci_gate_not_evaluated_fails_closed_with_explicit_advisory_escape(
+    tmp_path: Path,
+) -> None:
+    summary_path = tmp_path / "not-evaluated.json"
+    _write_json(
+        summary_path,
+        EvaluationSummary(
+            artifact_kind="evaluation-summary",
+            runset_id="configured-control-not-evaluated",
+            runset_digest="e" * 64,
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.not_evaluated,
+        ).model_dump(mode="json"),
+    )
+
+    blocked = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(summary_path), "--format", "json"],
+    )
+    advisory = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(summary_path),
+            "--allow-not-evaluated",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert blocked.exit_code == 1, blocked.output
+    blocked_decision = json.loads(blocked.output)
+    assert blocked_decision["outcome"] == "fail"
+    assert blocked_decision["exit_code"] == 1
+    assert "state=not_evaluated" in blocked_decision["message"]
+
+    assert advisory.exit_code == 0, advisory.output
+    advisory_decision = json.loads(advisory.output)
+    assert advisory_decision["outcome"] == "not_evaluated"
+    assert advisory_decision["exit_code"] == 0
+    assert "state=not_evaluated" in advisory_decision["message"]
+
+
+def test_ci_rejects_conflicting_not_evaluated_policy_options(tmp_path: Path) -> None:
+    summary_path = tmp_path / "pass.json"
+    _write_json(
+        summary_path,
+        EvaluationSummary(
+            artifact_kind="evaluation-summary",
+            runset_id="conflicting-options",
+            runset_digest="f" * 64,
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        ).model_dump(mode="json"),
+    )
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(summary_path),
+            "--fail-on-not-evaluated",
+            "--allow-not-evaluated",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "cannot be combined" in result.output
 
 
 def test_ci_gate_json_output_reports_invalid_artifact_load_structurally(
@@ -225,6 +283,37 @@ def test_ci_gate_exits_two_for_invalid_comparison(tmp_path: Path) -> None:
     result = RUNNER.invoke(app, ["ci", "gate", str(path)])
 
     assert result.exit_code == 2
+
+
+def test_ci_gate_blocks_new_failure_even_when_candidate_state_is_warn(
+    tmp_path: Path,
+) -> None:
+    summary = ComparisonSummary(
+        artifact_kind="comparison-summary",
+        baseline_runset_id="baseline",
+        candidate_runset_id="waived-candidate",
+        baseline_runset_digest="b" * 64,
+        candidate_runset_digest="c" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.new_failure,
+        fixture_equivalence_state=GateState.pass_,
+        baseline_state=GateState.pass_,
+        candidate_state=GateState.warn,
+        verdict_findings=("candidate waiver_id=reviewed-waiver status=matched",),
+    )
+    path = tmp_path / "waived-new-failure.json"
+    _write_json(path, summary.model_dump(mode="json"))
+
+    result = RUNNER.invoke(app, ["ci", "gate", str(path), "--format", "json"])
+
+    assert result.exit_code == 1, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "fail"
+    assert decision["exit_code"] == 1
+    assert "classification=new_failure" in decision["message"]
+    assert "candidate_state=warn" in decision["message"]
+    assert "disposition=blocking-new-failure" in decision["message"]
 
 
 def test_ci_gate_legacy_unbound_comparison_requires_explicit_compatibility(
@@ -712,6 +801,72 @@ def test_full_ci_fails_closed_when_generated_packet_lacks_efficacy(tmp_path: Pat
     assert decision["efficacy_verification"] == "strict"
     assert decision["efficacy_required"] is True
     assert "default evidence-packet gate" in decision["message"]
+
+
+def test_full_ci_blocks_configured_not_evaluated_control_by_default(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    baseline = run_suite(compiled, load_variant_config(BASELINE), SUITE.parent)
+    no_tool_observations = baseline.model_copy(
+        update={
+            "runset_id": "configured-tool-policy-without-observations",
+            "runs": tuple(run.model_copy(update={"tools": ()}) for run in baseline.runs),
+        }
+    )
+    compiled_path = tmp_path / "tool-policy.compiled.json"
+    candidate_path = tmp_path / "tool-policy-no-observations.json"
+    write_compiled_suite(compiled, compiled_path)
+    write_runset(no_tool_observations, candidate_path)
+
+    blocked = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(tmp_path / "blocked-tool-policy"),
+            "--allow-missing-efficacy-for-migration",
+            "--format",
+            "json",
+        ],
+    )
+    advisory = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(tmp_path / "advisory-tool-policy"),
+            "--allow-missing-efficacy-for-migration",
+            "--allow-not-evaluated",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert blocked.exit_code == 1, blocked.output
+    blocked_decision = json.loads(blocked.output)
+    assert blocked_decision["outcome"] == "fail"
+    assert "state=not_evaluated" in blocked_decision["message"]
+    blocked_summary = json.loads(
+        (tmp_path / "blocked-tool-policy" / "evaluation-summary.json").read_text(encoding="utf-8")
+    )
+    assert blocked_summary["state"] == "not_evaluated"
+    assert {
+        finding["control_id"]
+        for finding in blocked_summary["findings"]
+        if finding["state"] == "not_evaluated"
+    } == {"tool_allowlist"}
+
+    assert advisory.exit_code == 0, advisory.output
+    advisory_decision = json.loads(advisory.output)
+    assert advisory_decision["outcome"] == "not_evaluated"
+    assert advisory_decision["exit_code"] == 0
 
 
 def test_successful_non_assurance_full_ci_json_exposes_structural_decision(
