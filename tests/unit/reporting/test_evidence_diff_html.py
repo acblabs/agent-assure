@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import cast
 
 import pytest
 
@@ -10,6 +11,9 @@ from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFI
 from agent_assure.reporting.evidence_diff_html import (
     THESIS_TITLE,
     _h,
+    _join_html,
+    _raw_html,
+    _SafeHtml,
     render_evidence_diff_html,
 )
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
@@ -36,6 +40,16 @@ import scripts.check_claim_boundaries as claim_boundaries  # noqa: E402
 import scripts.update_golden as update_golden  # noqa: E402
 
 _DIGEST = "a" * 64
+
+
+def test_raw_html_sink_requires_a_trusted_fragment() -> None:
+    assert _raw_html(_h("<script>safe</script>")) == "&lt;script&gt;safe&lt;/script&gt;"
+
+    with pytest.raises(TypeError, match="_SafeHtml"):
+        _raw_html(cast(_SafeHtml, "<script>unsafe</script>"))
+
+    with pytest.raises(TypeError, match="_SafeHtml"):
+        _join_html((cast(_SafeHtml, "<tr><td>unsafe</td></tr>"),))
 
 
 def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
