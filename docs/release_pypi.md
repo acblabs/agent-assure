@@ -56,11 +56,21 @@ directory before package upload. For the v0.6.6 package release, the active
 schema is `0.6.6` and the candidate schema directory is `schemas/v0.6.6` until
 the matching tag freezes it.
 
-The `coverage-gate` status is a separate canonical Ubuntu/Python 3.11 lane. It
-requires all five exact coverage shards, combines only their named databases,
-and enforces both 80% combined statement/branch coverage and 65% pure branch
-coverage. It is a regression floor, not evidence of universal behavior or
-security coverage.
+The `coverage-gate` status is a separate canonical Ubuntu 24.04/Python 3.11
+lane. It requires all five exact coverage shards; it rejects missing or extra
+artifacts and databases that are oversized, change during inspection, are
+corrupt or non-branch, contain separator-normalization path collisions, or
+have incomplete source inventories before combination, and combines only
+their named files. The gate enforces 80% combined statement/branch coverage
+and a 68% repository-wide pure
+branch floor. It also enforces pure-branch floors for the critical package
+areas: `live/` 65%, `privacy/` 78%, `mutation/` 74%, `study/` 78%, `schema/`
+67%, `policies/` 85%, `statistics/` 82%, and `cli/` 67%. These are measured
+regression floors over the exact checked-out `src/agent_assure/**/*.py`
+inventory, not evidence of universal behavior or security coverage. Coverage
+shards have a finite 180-minute ceiling because the maximum 4,096-cluster
+retry-journal round-trip test writes and reloads RunSets above the ordinary
+16 MiB artifact limit and is substantially slower under branch instrumentation.
 
 ## Owner Setup
 
