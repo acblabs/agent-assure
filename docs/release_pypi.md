@@ -198,17 +198,55 @@ but is not publication authorization.
 
 The target then validates the exact self-digested study report, the pilot evidence
 descriptor, a separately persisted human independence-review receipt, every
-referenced pilot artifact byte, and the fixed
-committed Process-Equivalence Benchmark v0.2. The Make target does not expose a
-benchmark override: the checker loads the top-level canonical artifact and its
-packaged mirror, requires byte-for-byte mirror parity, then requires the study
+referenced pilot artifact byte, and the fixed confirmatory benchmark trust
+anchor. The Make target does not expose a benchmark override: the checker loads
+`study/registration/frozen-non-grid-benchmark.json` and its packaged mirror at
+`src/agent_assure/release_trust/v0_6_6/frozen-non-grid-benchmark.json`, requires
+byte-for-byte mirror parity, validates both through the benchmark schema and
+self-digest contract, and rejects any registered confirmatory-ineligible
+structure. Absence of a registered bar is not eligibility. A second
+byte-identical source/package pair named
+`frozen-non-grid-benchmark-statistical-method-review.json` is the positive
+allowlist: its exact qualified-review receipt must carry
+`approved_confirmatory_independent_clusters`, bind the benchmark's canonical
+raw-file SHA-256 and semantic digest, and equal the receipt replayed from the
+closed study bundle. That equality also binds the study manifest, registration
+review, and independence-audit commitment. It then requires the study
 manifest's benchmark ID, version, digest, and disjoint exhaustive case frame to
-match. It also requires an eligible all-`real_provider` study report, a
-genuinely external independently controlled CI attempt for implementation
+match. It also requires an eligible
+ all-`real_provider` study report, complete-and-stable provider serving
+ fingerprints on every study run and in every independently reviewed condition,
+ a genuinely external independently controlled CI attempt for implementation
 `agent-assure`, a pilot implementation version on the `EXPECTED_RELEASE` base
 line, and captured pilot learning. An RC such as `0.6.6rc1` and stable `0.6.6`
 share base line `0.6.6`; a different base version fails closed with a distinct
 reason.
+
+An all-absent serving-fingerprint result remains honest, replayable
+real-provider evidence and may be published within a descriptive scope, but it
+cannot authorize confirmatory publication. The readiness projection reports
+`real-model-study-confirmatory-serving-fingerprint-coverage-not-complete-and-stable`
+so an operator can distinguish that limitation from provider-origin failure. A
+complete stable provider value remains unauthenticated metadata and is not
+proof of an immutable serving backend.
+
+The exact shipped v0.2 digest is a known shared-template parameter grid and is
+mechanically ineligible for confirmatory independent-cluster inference. It is
+not a release trust anchor. Until a genuinely non-grid frame has been written
+byte-for-byte to both benchmark paths, the checker emits
+`canonical-confirmatory-benchmark-not-frozen`. If that pair exists but the
+positive review pair does not, it emits
+`canonical-confirmatory-benchmark-approval-not-frozen`; invalid, mismatched, or
+non-confirmatory review bytes emit
+`canonical-confirmatory-benchmark-approval-invalid-or-mismatched`. A
+structurally barred benchmark emits
+`canonical-confirmatory-benchmark-not-eligible`. Freeze both pairs and obtain
+the digest-bound design-specific audit and qualified method review before the
+first provider call. Source/package mirroring is repository governance, not
+cryptographic reviewer authentication: the receipt explicitly records
+`reviewer_identity_authentication=out_of_band_not_machine_verified`, and its
+human claims still require out-of-band verification. The v0.2 frame and shipped manifest template remain
+available for descriptive conformance, which cannot unlock this checkpoint.
 
 The checker pins one closed, link-free pilot bundle, enforces per-file and
 aggregate bounds, verifies every byte digest, validates the wheel
@@ -246,9 +284,14 @@ so wheel-only `.pth`/`.data` payloads, missing sources, and build byte drift are
 release blockers. It also privacy-scans every final wheel and sdist member under
 bounded byte/line/token budgets. Installable Python is parsed for literal
 credential assignments while credential-handling vocabulary remains valid;
-intentional detector-test vectors require exact reviewed file digests. Unknown
-types, undecodable text, raw-output paths, and modified/unapproved binary assets
-are release blockers. Before any package code runs, the smoke phase creates and
+intentional detector-test vectors require an exact test-member path plus
+reviewed Python string-token SHA-256 and occurrence count. Only those exact
+tokens are neutralized; original syntax/resource checks and ordinary scanning
+of all other bytes remain mandatory. Python's compile-time adjacent-literal
+values are scanned before neutralization, and a reviewed token is not exempt
+when it participates in an adjacent literal group. Unknown types, undecodable
+text, raw-output paths, and modified/unapproved binary assets are release
+blockers. Before any package code runs, the smoke phase creates and
 pins every artifact, cache, build, and environment root; installs the
 hash-locked dependencies separately; builds the exact sdist offline; and
 requires the resulting wheel's complete payload and metadata to reproduce the

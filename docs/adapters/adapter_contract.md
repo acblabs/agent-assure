@@ -24,6 +24,41 @@ input. An origin must describe how a field reached the record; producers must
 not upgrade model output to `instrumented_adapter` merely because an adapter
 copied it.
 
+Only registered adapter IDs receive one of the adapter-specific provenance
+classes above. A missing, misspelled, or future unregistered live adapter ID
+resolves to `legacy_unspecified`; it cannot claim instrumented process evidence
+until registration assigns an explicit origin.
+
+Current built-in live producers also bind each successful response to the exact
+bounded byte sequence they parsed, without persisting that sequence. The
+OpenAI-compatible adapter hashes the complete HTTP response body before UTF-8
+decoding or JSON parsing; the external-script adapter hashes complete captured
+stdout before decoding; and static JSONL hashes only the selected source record,
+including its line ending. `provider_response_payload_sha256` and
+`provider_response_payload_scope` are an all-or-nothing pair, and registered
+adapter IDs may declare only their registered scope. An injected or future
+unregistered adapter may declare only
+`complete_adapter_declared_response_bytes`, which does not upgrade its
+fail-closed structured-field provenance or qualify it as confirmatory
+real-provider evidence.
+
+These plain SHA-256 commitments are local claims made by trusted adapter code.
+They detect later byte substitution when reconciled with the attempt journal;
+they do not authenticate a remote provider, prove transport completeness,
+establish semantic correctness, or provide content confidentiality. Digests of
+predictable payloads may be guessable or linkable. Raw response bytes remain
+outside the persisted RunSet contract.
+
+Tool policies also require observation coverage. When a tool policy is
+configured but the run's `tools` field is unavailable or not control-eligible,
+evaluation emits `NOT_EVALUATED`. A reported forbidden tool remains
+conservative negative evidence even when its origin is only self-report. An
+explicit YAML `allowed_tools: []` means deny all tools, while omission means no
+allowlist was configured. An empty `tools` observation does not establish that
+no tool was called—even when an instrumented adapter emitted the empty list—so
+it remains `NOT_EVALUATED` rather than satisfying deny-all. Deny-all can fail
+on an observed tool; it cannot pass from silence.
+
 ## Observation Shape
 
 The core observation model is `FrameworkObservation` in
