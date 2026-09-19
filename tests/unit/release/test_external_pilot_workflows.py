@@ -11,6 +11,9 @@ CI_WORKFLOWS = tuple(
     ROOT / ".github" / "workflows" / name for name in ("ci.yml", "docs.yml", "security.yml")
 )
 VOLUNTEER_ISSUE = ROOT / "docs" / "templates" / "external_pilot_volunteer_issue.md"
+QUICKSTART = ROOT / "docs" / "external_pilot_quickstart.md"
+REVIEW_GUIDE = ROOT / "docs" / "external_pilot_review.md"
+CHANGELOG = ROOT / "CHANGELOG.md"
 REVIEW_TEMPLATE = ROOT / "docs" / "templates" / "external_pilot_independence_review.yaml"
 CODEOWNERS = ROOT / ".github" / "CODEOWNERS"
 RELEASE_WORKFLOW = ROOT / ".github" / "workflows" / "release.yml"
@@ -155,6 +158,50 @@ def test_volunteer_issue_requires_an_immutable_trusted_workflow_revision() -> No
     assert "zero execution-source sentinel/refusal step" not in issue
 
 
+def test_participant_materials_disclose_linkability_and_early_failure_limit() -> None:
+    quickstart = " ".join(QUICKSTART.read_text(encoding="utf-8").split())
+    issue = " ".join(VOLUNTEER_ISSUE.read_text(encoding="utf-8").split())
+    review = " ".join(REVIEW_GUIDE.read_text(encoding="utf-8").split())
+    finalize = FINALIZE.read_text(encoding="utf-8")
+
+    assert (
+        "exact attempt-specific capture and finalization GitHub Actions URLs and both "
+        "run-head commit SHAs"
+    ) in quickstart
+    assert "make your GitHub account and fork discoverable" in quickstart
+    assert "The same GitHub actor must dispatch" in quickstart
+    assert "cannot operate Stage 2 on your behalf" in quickstart
+    assert "Do not use your GitHub handle or real name as the pseudonym" in quickstart
+    assert "not your GitHub handle or real name" in CAPTURE.read_text(encoding="utf-8")
+    assert "workflow token has contents:read; do not add a personal token" in (
+        CAPTURE.read_text(encoding="utf-8")
+    )
+    assert "If that query returns `403`" in quickstart
+    assert "Do not grant write access or add a personal token" in quickstart
+    assert "If Stage 1 exits before the upload step" in quickstart
+    assert "cannot be finalized into a qualifying pilot bundle" in quickstart
+    assert "outside the privacy-filtered evidence bundle" in quickstart
+
+    assert "same GitHub account and fork for capture, finalization" in issue
+    assert "a separate reviewer cannot operate those stages for you" in issue
+    assert "exact attempt-specific run URLs and run-head commit SHAs" in issue
+    assert "identify your GitHub account and fork despite the pseudonym" in issue
+    assert "cannot be finalized into qualifying pilot evidence" in issue
+
+    assert "receipt is itself part of the consented public bundle" in review
+    assert "publication can directly identify the GitHub account" in review
+    assert "presented before Stage-2 consent" in review
+    assert "prospectively authorize exact run URLs/head SHAs linking my account" in finalize
+
+
+def test_changelog_records_external_pilot_activation_without_a_stale_sentinel() -> None:
+    changelog = CHANGELOG.read_text(encoding="utf-8")
+
+    assert "zero-SHA activation sentinel has been removed" in changelog
+    assert EXPECTED_EXECUTION_SOURCE_REVISION in changelog
+    assert "both workflows carry a zero-SHA sentinel and fail" not in changelog
+
+
 def test_pilot_integrity_surfaces_have_precise_codeowners() -> None:
     codeowners = CODEOWNERS.read_text(encoding="utf-8")
 
@@ -218,7 +265,7 @@ def test_capture_requires_informed_temporary_storage_consent() -> None:
         "and committed-input digests"
     ) in capture
     assert "Privacy-safe pseudonym" not in capture
-    assert "Pseudonym (not your GitHub name; see participant guide)" in capture
+    assert "Pseudonym (not your GitHub handle or real name; see participant guide)" in capture
     assert (
         "TEMPORARY_STORAGE_CONSENT_GRANTED: ${{ inputs.consent_to_temporary_actions_storage }}"
     ) in capture
@@ -226,8 +273,8 @@ def test_capture_requires_informed_temporary_storage_consent() -> None:
     assert "--temporary-storage-consent-granted" in capture
     assert capture.count("retention-days: 14") == 1
     assert (
-        "I authorize documented prospective publication, 14-day fork storage/read "
-        "access, and input-digest/opaque correlation"
+        "I prospectively authorize exact run URLs/head SHAs linking my account, plus "
+        "documented 14-day storage/digest correlation"
     ) in finalize
 
 

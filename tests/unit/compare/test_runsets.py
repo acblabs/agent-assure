@@ -116,6 +116,20 @@ def test_candidate_waiver_does_not_rewrite_raw_comparison_history() -> None:
         "matched waivers make the affected evaluation findings nonblocking" in explanation
         for explanation in report.verdict_explanations
     )
+    default_decision = gate_comparison_summary(report.comparison_summary)
+    strict_decision = gate_comparison_summary(
+        report.comparison_summary,
+        fail_on_warn=True,
+    )
+    assert default_decision.exit_code == 1
+    assert default_decision.outcome.value == "fail"
+    assert "classification=new_failure" in default_decision.message
+    assert "candidate_state=warn" in default_decision.message
+    assert "raw_regression=true" in default_decision.message
+    assert "disposition=blocking-new-failure" in default_decision.message
+    assert strict_decision.exit_code == 1
+    assert "classification=new_failure" in strict_decision.message
+    assert "raw_regression=true" in strict_decision.message
 
 
 def test_compare_diffs_nonblocking_fail_state_findings() -> None:
@@ -162,7 +176,9 @@ def test_compare_diffs_nonblocking_fail_state_findings() -> None:
         change.control_id == "policy_result:nonblocking-regression"
         for change in report.control_changes
     )
-    assert gate_comparison_summary(report.comparison_summary).exit_code == 0
+    default_decision = gate_comparison_summary(report.comparison_summary)
+    assert default_decision.exit_code == 1
+    assert "disposition=blocking-new-failure" in default_decision.message
     assert (
         gate_comparison_summary(
             report.comparison_summary,
@@ -170,6 +186,43 @@ def test_compare_diffs_nonblocking_fail_state_findings() -> None:
         ).exit_code
         == 1
     )
+
+
+def test_persistent_failure_with_waived_candidate_remains_reviewable() -> None:
+    compiled = compile_suite(SUITE)
+    baseline = _runset(compiled, EVIDENCE_CANDIDATE)
+    candidate = baseline.model_copy(update={"runset_id": f"{baseline.runset_id}-candidate"})
+    raw_report = evaluate_runset(compiled, candidate)
+    finding = raw_report.candidate_vs_expectations.findings[0]
+    today = date(2026, 8, 13)
+    waiver = Waiver(
+        waiver_id="persistent-candidate-waiver",
+        owner="comparison-security-owner",
+        rationale="retain a reviewed persistent failure without rewriting history",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(candidate),
+        expires_on=today + timedelta(days=1),
+        reviewer="comparison-security-reviewer",
+    )
+
+    report = compare_runsets(
+        compiled,
+        baseline,
+        candidate,
+        waivers=(waiver,),
+        today=today,
+    )
+
+    assert report.comparison_summary.classification is ComparisonClassification.persistent_failure
+    assert report.comparison_summary.baseline_state is GateState.fail
+    assert report.comparison_summary.candidate_state is GateState.warn
+    decision = gate_comparison_summary(report.comparison_summary)
+    assert decision.exit_code == 0
+    assert decision.outcome.value == "review"
+    assert "classification=persistent_failure" in decision.message
+    assert "disposition=nonblocking-candidate-evaluation" in decision.message
+    assert gate_comparison_summary(report.comparison_summary, fail_on_warn=True).exit_code == 1
 
 
 def test_provenance_only_changes_do_not_create_verdict_findings() -> None:

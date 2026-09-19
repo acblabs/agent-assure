@@ -21,10 +21,12 @@
           "type": "boolean"
         },
         "primary": {
-          "$ref": "#/$defs/StudyInferenceScope",
-          "default": "confirmatory_independent_clusters"
+          "$ref": "#/$defs/StudyInferenceScope"
         }
       },
+      "required": [
+        "primary"
+      ],
       "title": "StudyAnalysisDeclaration",
       "type": "object"
     },
@@ -200,10 +202,10 @@
           "title": "Pipeline Id",
           "type": "string"
         },
-        "planned_independent_clusters": {
+        "planned_clusters": {
           "maximum": 1000,
           "minimum": 2,
-          "title": "Planned Independent Clusters",
+          "title": "Planned Clusters",
           "type": "integer"
         },
         "planned_pairs": {
@@ -334,7 +336,7 @@
         "knowledge_contract_digest",
         "study_knowledge_contract_digest",
         "planned_pairs",
-        "planned_independent_clusters"
+        "planned_clusters"
       ],
       "title": "StudyConditionBinding",
       "type": "object"
@@ -370,6 +372,157 @@
       "title": "StudyExecutionWindow",
       "type": "object"
     },
+    "StudyFixedFrameDependenceAcknowledgement": {
+      "additionalProperties": false,
+      "description": "Machine-readable acknowledgement that a frozen frame is not a population sample.",
+      "properties": {
+        "dependence_audit_artifact_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Dependence Audit Artifact Sha256",
+          "type": "string"
+        },
+        "dependence_basis": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Dependence Basis",
+          "type": "string"
+        },
+        "dependence_risks_and_mitigations": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Dependence Risks And Mitigations",
+          "type": "string"
+        },
+        "descriptive_unit_definition": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Descriptive Unit Definition",
+          "type": "string"
+        },
+        "design_basis": {
+          "const": "shared_template_parameter_grid",
+          "default": "shared_template_parameter_grid",
+          "title": "Design Basis",
+          "type": "string"
+        },
+        "residual_scope_limitation": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Residual Scope Limitation",
+          "type": "string"
+        },
+        "semantic_near_duplicate_disposition": {
+          "const": "fixed_frame_descriptive_only",
+          "default": "fixed_frame_descriptive_only",
+          "title": "Semantic Near Duplicate Disposition",
+          "type": "string"
+        },
+        "software_verification_scope": {
+          "const": "structure_and_presence_only_not_dependence_truth",
+          "default": "structure_and_presence_only_not_dependence_truth",
+          "title": "Software Verification Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dependence_audit_artifact_sha256",
+        "descriptive_unit_definition",
+        "dependence_basis",
+        "dependence_risks_and_mitigations",
+        "residual_scope_limitation"
+      ],
+      "title": "StudyFixedFrameDependenceAcknowledgement",
+      "type": "object"
+    },
+    "StudyFixedFrameDescriptiveRule": {
+      "additionalProperties": false,
+      "description": "Finite-frame diagnostics with no inferential decision machinery.",
+      "properties": {
+        "dependence_acknowledgement": {
+          "$ref": "#/$defs/StudyFixedFrameDependenceAcknowledgement"
+        },
+        "derivation": {
+          "const": "direct_same_decision_rate_on_decision_flip_conditions",
+          "default": "direct_same_decision_rate_on_decision_flip_conditions",
+          "title": "Derivation",
+          "type": "string"
+        },
+        "descriptive_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Descriptive Frame",
+          "type": "string"
+        },
+        "descriptive_scope_rationale": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Descriptive Scope Rationale",
+          "type": "string"
+        },
+        "descriptive_unit": {
+          "const": "frozen_case_cluster",
+          "default": "frozen_case_cluster",
+          "title": "Descriptive Unit",
+          "type": "string"
+        },
+        "estimand": {
+          "const": "decision_inertia_rate",
+          "default": "decision_inertia_rate",
+          "title": "Estimand",
+          "type": "string"
+        },
+        "inference_scope": {
+          "const": "fixed_frame_descriptive_conformance",
+          "title": "Inference Scope",
+          "type": "string"
+        },
+        "invariant_control_gate": {
+          "const": "zero_observed_unexpected_arm_changes",
+          "default": "zero_observed_unexpected_arm_changes",
+          "title": "Invariant Control Gate",
+          "type": "string"
+        },
+        "negative_control_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Negative Control Conditions",
+          "type": "array"
+        },
+        "sampling_frame": {
+          "const": "finite_frozen_conformance_frame",
+          "default": "finite_frozen_conformance_frame",
+          "title": "Sampling Frame",
+          "type": "string"
+        },
+        "target_task_model_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Target Task Model Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "inference_scope",
+        "target_task_model_conditions",
+        "negative_control_conditions",
+        "dependence_acknowledgement",
+        "descriptive_scope_rationale"
+      ],
+      "title": "StudyFixedFrameDescriptiveRule",
+      "type": "object"
+    },
     "StudyHypothesisDecisionRule": {
       "additionalProperties": false,
       "properties": {
@@ -398,8 +551,8 @@
           "type": "string"
         },
         "directional_error_control": {
-          "const": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
-          "default": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
+          "const": "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha",
+          "default": "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha",
           "title": "Directional Error Control",
           "type": "string"
         },
@@ -410,11 +563,8 @@
           "type": "string"
         },
         "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints_within_condition",
           "default": "independent_exchangeable_binary_cluster_endpoints_within_condition",
-          "enum": [
-            "independent_exchangeable_binary_cluster_endpoints_within_condition",
-            "not_assumed_fixed_frame_descriptive_only"
-          ],
           "title": "Exchangeability Assumption",
           "type": "string"
         },
@@ -433,8 +583,9 @@
           "$ref": "#/$defs/StudyIndependenceJustification"
         },
         "inference_scope": {
-          "$ref": "#/$defs/StudyInferenceScope",
-          "default": "confirmatory_independent_clusters"
+          "const": "confirmatory_independent_clusters",
+          "title": "Inference Scope",
+          "type": "string"
         },
         "inferential_unit": {
           "const": "case_cluster",
@@ -521,6 +672,7 @@
         }
       },
       "required": [
+        "inference_scope",
         "target_task_model_conditions",
         "negative_control_conditions",
         "minimum_independent_clusters",
@@ -547,16 +699,19 @@
       "additionalProperties": false,
       "description": "Structured author assertion; never machine proof of independence.",
       "properties": {
+        "cluster_unit_definition": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Cluster Unit Definition",
+          "type": "string"
+        },
         "dependence_risks_and_mitigations": {
           "maxLength": 4096,
           "minLength": 32,
           "title": "Dependence Risks And Mitigations",
           "type": "string"
         },
-        "design_basis": {
-          "$ref": "#/$defs/StudyIndependenceDesignBasis"
-        },
-        "independence_audit_artifact_sha256": {
+        "design_audit_artifact_sha256": {
           "anyOf": [
             {
               "pattern": "^[a-f0-9]{64}$",
@@ -567,18 +722,15 @@
             }
           ],
           "default": null,
-          "title": "Independence Audit Artifact Sha256"
+          "title": "Design Audit Artifact Sha256"
+        },
+        "design_basis": {
+          "$ref": "#/$defs/StudyIndependenceDesignBasis"
         },
         "independence_basis": {
           "maxLength": 4096,
           "minLength": 32,
           "title": "Independence Basis",
-          "type": "string"
-        },
-        "inferential_unit_definition": {
-          "maxLength": 4096,
-          "minLength": 32,
-          "title": "Inferential Unit Definition",
           "type": "string"
         },
         "residual_scope_limitation": {
@@ -604,7 +756,7 @@
         "status",
         "design_basis",
         "semantic_near_duplicate_disposition",
-        "inferential_unit_definition",
+        "cluster_unit_definition",
         "independence_basis",
         "dependence_risks_and_mitigations",
         "residual_scope_limitation"
@@ -615,8 +767,7 @@
     "StudyIndependenceJustificationStatus": {
       "enum": [
         "unresolved_authoring_placeholder",
-        "author_asserted_design_basis_pending_qualified_review",
-        "fixed_frame_dependence_acknowledged"
+        "author_asserted_design_basis_pending_qualified_review"
       ],
       "title": "StudyIndependenceJustificationStatus",
       "type": "string"
@@ -757,13 +908,7 @@
   "additionalProperties": false,
   "properties": {
     "analysis_status": {
-      "$ref": "#/$defs/StudyAnalysisDeclaration",
-      "default": {
-        "exploratory_secondary_analyses_allowed": true,
-        "llm_judge_endpoint_permitted": false,
-        "pooling_permitted": false,
-        "primary": "confirmatory_independent_clusters"
-      }
+      "$ref": "#/$defs/StudyAnalysisDeclaration"
     },
     "artifact_kind": {
       "const": "real-model-study-manifest",
@@ -817,7 +962,22 @@
       "$ref": "#/$defs/StudyExecutionWindow"
     },
     "hypothesis_decision_rule": {
-      "$ref": "#/$defs/StudyHypothesisDecisionRule"
+      "discriminator": {
+        "mapping": {
+          "confirmatory_independent_clusters": "#/$defs/StudyHypothesisDecisionRule",
+          "fixed_frame_descriptive_conformance": "#/$defs/StudyFixedFrameDescriptiveRule"
+        },
+        "propertyName": "inference_scope"
+      },
+      "oneOf": [
+        {
+          "$ref": "#/$defs/StudyHypothesisDecisionRule"
+        },
+        {
+          "$ref": "#/$defs/StudyFixedFrameDescriptiveRule"
+        }
+      ],
+      "title": "Hypothesis Decision Rule"
     },
     "hypothesis_decision_rule_digest": {
       "pattern": "^[a-f0-9]{64}$",
@@ -906,6 +1066,7 @@
     "benchmark_id",
     "benchmark_digest",
     "protocol_set_digest",
+    "analysis_status",
     "conditions",
     "hypothesis_decision_rule",
     "hypothesis_decision_rule_digest",

@@ -384,6 +384,166 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "external-script"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_external_script_stdout"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "openai-chat-completions"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_http_response_body"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "static-jsonl"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_static_jsonl_record"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "not": {
+                    "properties": {
+                      "adapter_id": {
+                        "enum": [
+                          "external-script",
+                          "openai-chat-completions",
+                          "static-jsonl"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "adapter_id"
+                    ]
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_adapter_declared_response_bytes"
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "adapter_id": {
+                "type": "string"
+              },
+              "execution_mode": {
+                "const": "live"
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "schema_version",
+              "execution_mode",
+              "adapter_id"
+            ]
+          }
         }
       ],
       "properties": {
@@ -756,6 +916,37 @@
           ],
           "default": null,
           "title": "Provider Response Id"
+        },
+        "provider_response_payload_scope": {
+          "anyOf": [
+            {
+              "enum": [
+                "complete_http_response_body",
+                "complete_external_script_stdout",
+                "complete_static_jsonl_record",
+                "complete_adapter_declared_response_bytes"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Scope"
+        },
+        "provider_response_payload_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Sha256"
         },
         "provider_sdk": {
           "anyOf": [
@@ -1572,6 +1763,74 @@
     },
     "LiveExecutionAttemptEvent": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "event_type": {
+                "const": "request_succeeded"
+              }
+            },
+            "required": [
+              "event_type"
+            ]
+          }
+        }
+      ],
       "description": "One privacy-safe, append-only provider-dispatch lifecycle event.",
       "properties": {
         "adapter_attempt_index": {
@@ -1662,6 +1921,37 @@
           ],
           "default": null,
           "title": "Provider Response Id Digest"
+        },
+        "provider_response_payload_scope": {
+          "anyOf": [
+            {
+              "enum": [
+                "complete_http_response_body",
+                "complete_external_script_stdout",
+                "complete_static_jsonl_record",
+                "complete_adapter_declared_response_bytes"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Scope"
+        },
+        "provider_response_payload_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Sha256"
         },
         "rate_limited": {
           "anyOf": [

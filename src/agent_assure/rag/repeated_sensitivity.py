@@ -6,29 +6,46 @@ import re
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, cast
+from threading import Lock
+from typing import Literal, NamedTuple, cast
+from weakref import WeakKeyDictionary
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
+    load_json_bytes_bounded,
     read_file_bounded_from_filesystem_root,
 )
 from agent_assure.live.adapters import TrustedLiveExecution
-from agent_assure.live.config import LiveRunConfig, live_sdk_identifier
+from agent_assure.live.config import (
+    PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE,
+    LiveRunConfig,
+    live_sdk_identifier,
+)
 from agent_assure.live.runner import (
     LIVE_NEVER_ISSUED_EXCLUSION_REASONS,
     LIVE_RUNSET_STOP_REASONS_ALLOWING_UNISSUED_TAIL,
     LiveAttemptNotification,
+    LiveAttemptObserver,
     LiveExecutionSnapshot,
+    LiveProviderDispatchGuard,
+    _create_study_bound_attempt_journal_execution_capability,
+    _issue_study_bound_live_execution_authorization,
+    _StudyBoundAttemptJournalExecutionCapability,
     calculate_live_execution_configuration_digest,
     calculate_live_prompt_manifest_digest,
+    maximum_provider_attempt_chain_seconds,
     prepare_live_execution_snapshot,
     run_live_suite,
     validate_live_execution_snapshot,
 )
 from agent_assure.privacy.persistence import assert_persisted_payload_safe
-from agent_assure.rooted_io import RootedDirectoryDescriptor, open_rooted_directory
+from agent_assure.rooted_io import (
+    RootedDirectoryDescriptor,
+    open_or_create_rooted_directory_from_filesystem_root,
+)
+from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_MAX_CHARS,
     MACHINE_IDENTIFIER_PATTERN,
@@ -57,10 +74,18 @@ from agent_assure.schema.stochastic_sensitivity import (
     SensitivityInterpretation,
     derive_expected_decision_response,
 )
+from agent_assure.schema.study import RealModelStudyManifest
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
-    load_validated_artifact_payload_with_size,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
+)
+from agent_assure.study_dispatch import (
+    StudyDispatchPreflightEvidence,
+    ValidatedStudyDispatchPreflight,
+    require_real_provider_condition_dispatch,
+    require_study_execution_window_open,
+    validate_study_dispatch_preflight,
 )
 
 _LIVE_OPERATIONAL_EXCLUSION_REASONS = frozenset(
@@ -95,23 +120,79 @@ _ATTEMPT_JOURNAL_DIRECTORY = ".agent-assure-attempt-journals"
 _ATTEMPT_JOURNAL_VERSION = "1.0.0"
 
 
+class RegisteredRepeatedSensitivityProtocolSnapshot:
+    """Opaque, identity-issued snapshot of one registered protocol file."""
+
+    __slots__ = ("__weakref__",)
+
+    def __new__(cls) -> RegisteredRepeatedSensitivityProtocolSnapshot:
+        del cls
+        raise TypeError(
+            "registered protocol snapshots must be issued by "
+            "load_registered_repeated_sensitivity_protocol_snapshot"
+        )
+
+    @property
+    def resolved_path(self) -> Path:
+        return _registered_protocol_snapshot_record(self).resolved_path
+
+    @property
+    def protocol(self) -> RepeatedEvidenceSensitivityProtocol:
+        return _registered_protocol_snapshot_record(self).protocol
+
+    @property
+    def data(self) -> bytes:
+        return _registered_protocol_snapshot_record(self).data
+
+
+class _RegisteredProtocolSnapshotRecord(NamedTuple):
+    resolved_path: Path
+    protocol: RepeatedEvidenceSensitivityProtocol
+    data: bytes
+
+
+_REGISTERED_PROTOCOL_SNAPSHOT_LOCK = Lock()
+_REGISTERED_PROTOCOL_SNAPSHOT_RECORDS: WeakKeyDictionary[
+    RegisteredRepeatedSensitivityProtocolSnapshot,
+    _RegisteredProtocolSnapshotRecord,
+] = WeakKeyDictionary()
+
+
+def _registered_protocol_snapshot_record(
+    snapshot: RegisteredRepeatedSensitivityProtocolSnapshot,
+) -> _RegisteredProtocolSnapshotRecord:
+    if type(snapshot) is not RegisteredRepeatedSensitivityProtocolSnapshot:
+        raise ValueError("registered protocol snapshot is invalid")
+    with _REGISTERED_PROTOCOL_SNAPSHOT_LOCK:
+        try:
+            return _REGISTERED_PROTOCOL_SNAPSHOT_RECORDS[snapshot]
+        except (KeyError, TypeError) as exc:
+            raise ValueError("registered protocol snapshot is invalid") from exc
+
+
+def _issue_registered_protocol_snapshot(
+    record: _RegisteredProtocolSnapshotRecord,
+) -> RegisteredRepeatedSensitivityProtocolSnapshot:
+    snapshot = object.__new__(RegisteredRepeatedSensitivityProtocolSnapshot)
+    with _REGISTERED_PROTOCOL_SNAPSHOT_LOCK:
+        _REGISTERED_PROTOCOL_SNAPSHOT_RECORDS[snapshot] = record
+    return snapshot
+
+
 class _DurableAttemptJournal:
     """Exclusive, append-only evidence written and synced around every dispatch."""
 
     def __init__(self, path: Path, header: dict[str, object]) -> None:
-        try:
-            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
-            parent = path.parent.resolve(strict=True)
-        except OSError as exc:
-            raise OSError("execution attempt registry cannot be prepared") from exc
-        if not parent.is_dir() or path.name in {"", ".", ".."}:
+        self._reservation_ready = False
+        self._issued_study_arm_capability_ids: set[str] = set()
+        if path.name in {"", ".", ".."}:
             raise ValueError("execution attempt registry path is invalid")
         self._directory: RootedDirectoryDescriptor | None = None
         try:
-            self._directory = open_rooted_directory(
-                parent,
-                ".",
+            self._directory = open_or_create_rooted_directory_from_filesystem_root(
+                path.parent,
                 label="execution attempt registry",
+                mode=0o700,
             )
             self._descriptor = self._directory.open_regular_file_exclusive(path.name, mode=0o600)
         except FileExistsError as exc:
@@ -131,12 +212,55 @@ class _DurableAttemptJournal:
             self._append_payload(header)
             if self._directory.descriptor is not None:
                 os.fsync(self._directory.descriptor)
+            self._reservation_ready = True
         except BaseException:
             os.close(self._descriptor)
             self._descriptor = -1
             self._directory.close()
             self._directory = None
             raise
+
+    def create_study_arm_execution_capability(
+        self,
+        *,
+        arm_id: str,
+        study_manifest: RealModelStudyManifest,
+    ) -> _StudyBoundAttemptJournalExecutionCapability:
+        """Bind one study arm to this open, exclusively reserved journal."""
+
+        if not self._reservation_ready or getattr(self, "_descriptor", -1) < 0:
+            raise ValueError(
+                "study execution capability requires an open durable journal reservation"
+            )
+        if arm_id in self._issued_study_arm_capability_ids:
+            raise ValueError("study execution capability was already issued for this journal arm")
+        frozen_manifest = RealModelStudyManifest.model_validate(
+            study_manifest.model_dump(mode="json")
+        )
+
+        def attempt_observer(notification: LiveAttemptNotification) -> None:
+            self.append(
+                f"request_{notification.phase}",
+                arm_id=arm_id,
+                notification=notification,
+            )
+
+        def provider_dispatch_guard() -> None:
+            if not self._reservation_ready or getattr(self, "_descriptor", -1) < 0:
+                raise ValueError(
+                    "durable execution attempt journal closed before provider dispatch"
+                )
+            require_study_execution_window_open(
+                frozen_manifest,
+                boundary=f"{arm_id} provider attempt",
+            )
+
+        capability = _create_study_bound_attempt_journal_execution_capability(
+            attempt_observer=attempt_observer,
+            provider_dispatch_guard=provider_dispatch_guard,
+        )
+        self._issued_study_arm_capability_ids.add(arm_id)
+        return capability
 
     def append(
         self,
@@ -184,6 +308,12 @@ class _DurableAttemptJournal:
                         if notification.provider_response_id is not None
                         else None
                     ),
+                    "provider_response_payload_sha256": (
+                        notification.provider_response_payload_sha256
+                    ),
+                    "provider_response_payload_scope": (
+                        notification.provider_response_payload_scope
+                    ),
                     "retryable": notification.retryable,
                     "rate_limited": notification.rate_limited,
                 }
@@ -197,6 +327,7 @@ class _DurableAttemptJournal:
         self.events.append(event)
 
     def close(self) -> None:
+        self._reservation_ready = False
         descriptor = getattr(self, "_descriptor", -1)
         if descriptor >= 0:
             os.close(descriptor)
@@ -258,12 +389,34 @@ def load_repeated_sensitivity_protocol_with_size(
     *,
     max_bytes: int = MAX_ARTIFACT_JSON_BYTES,
 ) -> tuple[RepeatedEvidenceSensitivityProtocol, int]:
+    protocol, data = load_repeated_sensitivity_protocol_with_bytes(
+        path,
+        max_bytes=max_bytes,
+    )
+    return protocol, len(data)
+
+
+def load_repeated_sensitivity_protocol_with_bytes(
+    path: Path,
+    *,
+    max_bytes: int = MAX_ARTIFACT_JSON_BYTES,
+) -> tuple[RepeatedEvidenceSensitivityProtocol, bytes]:
+    """Load and project one protocol from the same exact bounded byte snapshot."""
+
+    contents = read_file_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label="repeated evidence-sensitivity protocol",
+    )
     if path.suffix.lower() == ".json":
-        payload, size = load_validated_artifact_payload_with_size(
-            path,
-            "repeated-evidence-sensitivity-protocol",
+        payload = load_json_bytes_bounded(
+            contents.data,
             max_bytes=max_bytes,
             label="repeated evidence-sensitivity protocol",
+        )
+        validate_loaded_artifact_payload(
+            payload,
+            "repeated-evidence-sensitivity-protocol",
         )
         return (
             project_validated_artifact_payload(
@@ -271,13 +424,8 @@ def load_repeated_sensitivity_protocol_with_size(
                 RepeatedEvidenceSensitivityProtocol,
                 kind="repeated-evidence-sensitivity-protocol",
             ),
-            size,
+            contents.data,
         )
-    contents = read_file_bounded_from_filesystem_root(
-        path,
-        max_bytes=max_bytes,
-        label="repeated evidence-sensitivity protocol YAML",
-    )
     text = contents.data.decode("utf-8")
     payload = safe_load_yaml_text(
         text,
@@ -285,7 +433,57 @@ def load_repeated_sensitivity_protocol_with_size(
     )
     if not isinstance(payload, dict):
         raise TypeError("repeated evidence-sensitivity protocol must be a mapping")
-    return RepeatedEvidenceSensitivityProtocol.model_validate(payload), contents.size
+    return RepeatedEvidenceSensitivityProtocol.model_validate(payload), contents.data
+
+
+def _resolve_registered_protocol_path(path: Path) -> Path:
+    try:
+        resolved_path = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("registered protocol path cannot be resolved") from exc
+    if not resolved_path.is_file():
+        raise ValueError("registered protocol path must identify a regular file")
+    return resolved_path
+
+
+def load_registered_repeated_sensitivity_protocol_snapshot(
+    path: Path,
+    *,
+    max_bytes: int = MAX_ARTIFACT_JSON_BYTES,
+) -> RegisteredRepeatedSensitivityProtocolSnapshot:
+    """Resolve and load an execution protocol into one issued exact-byte snapshot."""
+
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise ValueError("registered protocol byte limit must be a positive integer")
+    effective_max_bytes = min(max_bytes, MAX_ARTIFACT_JSON_BYTES)
+    resolved_path = _resolve_registered_protocol_path(path)
+    protocol, data = load_repeated_sensitivity_protocol_with_bytes(
+        resolved_path,
+        max_bytes=effective_max_bytes,
+    )
+    if type(data) is not bytes or len(data) > effective_max_bytes:
+        raise ValueError("registered protocol exceeds the maximum artifact size")
+    return _issue_registered_protocol_snapshot(
+        _RegisteredProtocolSnapshotRecord(
+            resolved_path=resolved_path,
+            protocol=protocol,
+            data=data,
+        )
+    )
+
+
+def _validate_registered_protocol_snapshot(
+    snapshot: RegisteredRepeatedSensitivityProtocolSnapshot,
+) -> _RegisteredProtocolSnapshotRecord:
+    record = _registered_protocol_snapshot_record(snapshot)
+    if (
+        not record.resolved_path.is_absolute()
+        or type(record.protocol) is not RepeatedEvidenceSensitivityProtocol
+        or type(record.data) is not bytes
+        or len(record.data) > MAX_ARTIFACT_JSON_BYTES
+    ):
+        raise ValueError("registered protocol snapshot is invalid")
+    return record
 
 
 def calculate_case_manifest_digest(config: LiveRunConfig) -> str:
@@ -428,6 +626,11 @@ def run_repeated_live_study(
     baseline_trust: TrustedLiveExecution | None = None,
     counterfactual_trust: TrustedLiveExecution | None = None,
     registered_protocol_path: Path | None = None,
+    registered_protocol_snapshot: RegisteredRepeatedSensitivityProtocolSnapshot | None = None,
+    study_manifest: RealModelStudyManifest | None = None,
+    study_benchmark: ProcessEquivalenceBenchmarkManifest | None = None,
+    study_condition_id: str | None = None,
+    study_dispatch_evidence: StudyDispatchPreflightEvidence | None = None,
 ) -> tuple[RunSet, RunSet]:
     """Execute two pre-bound arms through the existing trusted live adapters."""
     protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
@@ -439,16 +642,109 @@ def run_repeated_live_study(
         raise ValueError(
             "paired live configs must carry the same study manifest commitment, including absence"
         )
+    if baseline_config.execution_profile != counterfactual_config.execution_profile:
+        raise ValueError("paired live configs must carry the same execution profile")
+    if (
+        baseline_config.execution_profile == PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE
+        and baseline_config.study_manifest_digest is None
+    ):
+        raise ValueError(
+            "preregistered paired-study configs cannot dispatch before the study "
+            "manifest backlink is bound"
+        )
     if protocol.execution_mode is not SensitivityExecutionMode.stochastic_live:
         raise ValueError("live study execution requires stochastic_live mode")
     if protocol.execution_attempt_id is None:
         raise ValueError("paired live protocol has no registered execution attempt identity")
     if registered_protocol_path is None:
         raise ValueError("paired live execution requires its exact registered protocol path")
-    registered_protocol_path = registered_protocol_path.resolve(strict=True)
-    registered_protocol = load_repeated_sensitivity_protocol(registered_protocol_path)
+    if registered_protocol_snapshot is None:
+        registered_protocol_snapshot = load_registered_repeated_sensitivity_protocol_snapshot(
+            registered_protocol_path
+        )
+    else:
+        resolved_execution_path = _resolve_registered_protocol_path(registered_protocol_path)
+        snapshot_record = _validate_registered_protocol_snapshot(registered_protocol_snapshot)
+        if resolved_execution_path != snapshot_record.resolved_path:
+            raise ValueError("registered protocol snapshot path does not match the execution path")
+    snapshot_record = _validate_registered_protocol_snapshot(registered_protocol_snapshot)
+    registered_protocol_path = snapshot_record.resolved_path
+    registered_protocol = snapshot_record.protocol
+    registered_protocol_bytes = snapshot_record.data
     if registered_protocol != protocol:
         raise ValueError("registered protocol path does not contain the exact execution protocol")
+    study_manifest_digest = baseline_config.study_manifest_digest
+    study_dispatch_inputs = (
+        study_manifest,
+        study_benchmark,
+        study_condition_id,
+        study_dispatch_evidence,
+    )
+    validated_study_preflight: ValidatedStudyDispatchPreflight | None = None
+    if study_manifest_digest is None:
+        if any(value is not None for value in study_dispatch_inputs):
+            raise ValueError(
+                "unbound paired live configs cannot acquire a study binding during dispatch"
+            )
+    else:
+        if any(value is None for value in study_dispatch_inputs):
+            raise ValueError(
+                "study-bound paired live execution requires the exact study manifest, "
+                "benchmark, condition identity, and preregistration preflight evidence"
+            )
+        assert study_manifest is not None
+        assert study_benchmark is not None
+        assert study_condition_id is not None
+        assert study_dispatch_evidence is not None
+        if study_manifest.manifest_digest != study_manifest_digest:
+            raise ValueError("study-bound live configs do not match the supplied study manifest")
+        require_real_provider_condition_dispatch(
+            manifest=study_manifest,
+            condition_id=study_condition_id,
+            protocol=protocol,
+        )
+        # Import lazily because study analysis reuses this module's replay
+        # validators. Replaying the full one-condition bind here makes the
+        # no-spend boundary independent of whichever CLI or library caller
+        # supplied the already-bound configs.
+        from agent_assure.study.analysis import bind_study_manifest_to_live_config
+
+        rebound_baseline = bind_study_manifest_to_live_config(
+            manifest=study_manifest,
+            benchmark=study_benchmark,
+            condition_id=study_condition_id,
+            protocol=protocol,
+            arm_id="baseline_evidence",
+            compiled=compiled,
+            config=baseline_config,
+            config_dir=baseline_config_dir,
+        )
+        rebound_counterfactual = bind_study_manifest_to_live_config(
+            manifest=study_manifest,
+            benchmark=study_benchmark,
+            condition_id=study_condition_id,
+            protocol=protocol,
+            arm_id="counterfactual_evidence",
+            compiled=compiled,
+            config=counterfactual_config,
+            config_dir=counterfactual_config_dir,
+        )
+        if rebound_baseline != baseline_config or rebound_counterfactual != counterfactual_config:
+            raise ValueError(
+                "study dispatch revalidation changed an already-bound live configuration"
+            )
+        if (
+            study_dispatch_evidence.registered_protocol_bytes.get(study_condition_id)
+            != registered_protocol_bytes
+        ):
+            raise ValueError(
+                "active registered protocol bytes do not match the statistical-method review input"
+            )
+        validated_study_preflight = validate_study_dispatch_preflight(
+            manifest=study_manifest,
+            benchmark=study_benchmark,
+            evidence=study_dispatch_evidence,
+        )
     attempt_journal_path = execution_attempt_journal_path(
         registered_protocol_path,
         protocol,
@@ -524,24 +820,88 @@ def run_repeated_live_study(
         counterfactual_snapshot,
     )
     operational_protocol_digest = sha256_hexdigest(operational_protocol)
+    reservation_record: dict[str, object] = {
+        "event_type": "attempt_reserved",
+        "journal_version": _ATTEMPT_JOURNAL_VERSION,
+        "execution_attempt_id": protocol.execution_attempt_id,
+        "repeated_protocol_digest": protocol.protocol_digest,
+        "operational_protocol_digest": operational_protocol_digest,
+        "study_manifest_digest": baseline_config.study_manifest_digest,
+        "baseline_configuration_digest": protocol.baseline_arm.configuration_digest,
+        "counterfactual_configuration_digest": (protocol.counterfactual_arm.configuration_digest),
+    }
+    if study_manifest is not None:
+        reservation_reserve = max(
+            maximum_provider_attempt_chain_seconds(baseline_config),
+            maximum_provider_attempt_chain_seconds(counterfactual_config),
+        )
+        require_study_execution_window_open(
+            study_manifest,
+            boundary="execution-attempt reservation",
+            minimum_remaining_seconds=reservation_reserve,
+        )
     journal = _DurableAttemptJournal(
         attempt_journal_path,
-        {
-            "event_type": "attempt_reserved",
-            "journal_version": _ATTEMPT_JOURNAL_VERSION,
-            "execution_attempt_id": protocol.execution_attempt_id,
-            "repeated_protocol_digest": protocol.protocol_digest,
-            "operational_protocol_digest": operational_protocol_digest,
-            "study_manifest_digest": baseline_config.study_manifest_digest,
-            "baseline_configuration_digest": protocol.baseline_arm.configuration_digest,
-            "counterfactual_configuration_digest": (
-                protocol.counterfactual_arm.configuration_digest
-            ),
-        },
+        reservation_record,
     )
+
+    def baseline_attempt_observer(notification: LiveAttemptNotification) -> None:
+        journal.append(
+            f"request_{notification.phase}",
+            arm_id=protocol.baseline_arm.arm_id,
+            notification=notification,
+        )
+
+    def counterfactual_attempt_observer(notification: LiveAttemptNotification) -> None:
+        journal.append(
+            f"request_{notification.phase}",
+            arm_id=protocol.counterfactual_arm.arm_id,
+            notification=notification,
+        )
+
+    def unbound_dispatch_guard() -> None:
+        return None
+
+    baseline_attempt_callback: LiveAttemptObserver = baseline_attempt_observer
+    counterfactual_attempt_callback: LiveAttemptObserver = counterfactual_attempt_observer
+    baseline_dispatch_guard: LiveProviderDispatchGuard = unbound_dispatch_guard
+    counterfactual_dispatch_guard: LiveProviderDispatchGuard = unbound_dispatch_guard
+    baseline_study_authorization = None
+    counterfactual_study_authorization = None
+    if study_manifest is not None:
+        assert validated_study_preflight is not None
+        baseline_journal_capability = journal.create_study_arm_execution_capability(
+            arm_id=protocol.baseline_arm.arm_id,
+            study_manifest=study_manifest,
+        )
+        counterfactual_journal_capability = journal.create_study_arm_execution_capability(
+            arm_id=protocol.counterfactual_arm.arm_id,
+            study_manifest=study_manifest,
+        )
+        baseline_attempt_callback = baseline_journal_capability.attempt_observer
+        counterfactual_attempt_callback = counterfactual_journal_capability.attempt_observer
+        baseline_dispatch_guard = baseline_journal_capability.provider_dispatch_guard
+        counterfactual_dispatch_guard = counterfactual_journal_capability.provider_dispatch_guard
+        baseline_study_authorization = _issue_study_bound_live_execution_authorization(
+            config=baseline_config,
+            configuration_digest=protocol.baseline_arm.configuration_digest,
+            journal_execution_capability=baseline_journal_capability,
+            validated_preflight=validated_study_preflight,
+        )
+        counterfactual_study_authorization = _issue_study_bound_live_execution_authorization(
+            config=counterfactual_config,
+            configuration_digest=protocol.counterfactual_arm.configuration_digest,
+            journal_execution_capability=counterfactual_journal_capability,
+            validated_preflight=validated_study_preflight,
+        )
     completed = False
     terminal_written = False
     try:
+        if study_manifest is not None:
+            require_study_execution_window_open(
+                study_manifest,
+                boundary="baseline arm start",
+            )
         journal.append("arm_started", arm_id=protocol.baseline_arm.arm_id)
         baseline = run_live_suite(
             compiled,
@@ -550,13 +910,18 @@ def run_repeated_live_study(
             config_dir=baseline_config_dir,
             trust=baseline_trust,
             execution_snapshot=baseline_snapshot,
-            attempt_observer=lambda notification: journal.append(
-                f"request_{notification.phase}",
-                arm_id=protocol.baseline_arm.arm_id,
-                notification=notification,
-            ),
+            attempt_observer=baseline_attempt_callback,
+            provider_dispatch_guard=baseline_dispatch_guard,
+            _study_dispatch_authorization=baseline_study_authorization,
         )
+        if study_manifest is not None:
+            _require_completed_live_arm(baseline, arm_name="baseline")
         journal.append("arm_completed", arm_id=protocol.baseline_arm.arm_id)
+        if study_manifest is not None:
+            require_study_execution_window_open(
+                study_manifest,
+                boundary="counterfactual arm start",
+            )
         journal.append("arm_started", arm_id=protocol.counterfactual_arm.arm_id)
         counterfactual = run_live_suite(
             compiled,
@@ -565,12 +930,12 @@ def run_repeated_live_study(
             config_dir=counterfactual_config_dir,
             trust=counterfactual_trust,
             execution_snapshot=counterfactual_snapshot,
-            attempt_observer=lambda notification: journal.append(
-                f"request_{notification.phase}",
-                arm_id=protocol.counterfactual_arm.arm_id,
-                notification=notification,
-            ),
+            attempt_observer=counterfactual_attempt_callback,
+            provider_dispatch_guard=counterfactual_dispatch_guard,
+            _study_dispatch_authorization=counterfactual_study_authorization,
         )
+        if study_manifest is not None:
+            _require_completed_live_arm(counterfactual, arm_name="counterfactual")
         journal.append("arm_completed", arm_id=protocol.counterfactual_arm.arm_id)
         terminal_event = journal.prepare_event("attempt_completed")
         embedded = LiveExecutionAttemptJournal.build(
@@ -599,11 +964,25 @@ def run_repeated_live_study(
         journal.close()
 
 
+def _require_completed_live_arm(runset: RunSet, *, arm_name: str) -> None:
+    if runset.completion_status == "complete" and not runset.stop_reasons:
+        return
+    stop_reasons = ",".join(runset.stop_reasons) or "unspecified"
+    raise ValueError(
+        f"{arm_name} live arm did not complete; stop_reasons={stop_reasons}; "
+        "refusing remaining paired-study dispatch and completion"
+    )
+
+
 def _bind_attempt_journal(
     runset: RunSet,
     journal: LiveExecutionAttemptJournal,
 ) -> RunSet:
     payload = runset.model_dump(mode="json")
+    if journal.study_manifest_digest is not None:
+        payload["study_manifest_digest"] = journal.study_manifest_digest
+        for record in payload["runs"]:
+            record["provenance"]["study_manifest_digest"] = journal.study_manifest_digest
     payload.update(
         {
             "execution_attempt_id": journal.execution_attempt_id,
@@ -1367,8 +1746,19 @@ def validate_paired_attempt_journal(
             )
             if final.provider_response_id_digest != expected_response_digest:
                 raise ValueError("provider response identity does not match attempt journal")
-        elif run.provider_response_id is not None:
-            raise ValueError("failed provider attempt cannot yield a persisted response identity")
+            if (
+                final.provider_response_payload_sha256 != run.provider_response_payload_sha256
+                or final.provider_response_payload_scope != run.provider_response_payload_scope
+            ):
+                raise ValueError(
+                    "provider response payload commitment does not match attempt journal"
+                )
+        elif (
+            run.provider_response_id is not None
+            or run.provider_response_payload_sha256 is not None
+            or run.provider_response_payload_scope is not None
+        ):
+            raise ValueError("failed provider attempt cannot yield persisted response provenance")
 
 
 def _validate_unjournaled_synthetic_study_inputs(
@@ -1860,12 +2250,15 @@ def _source_artifact_identifier(value: str, *, namespace: str) -> str:
 
 
 __all__ = [
+    "RegisteredRepeatedSensitivityProtocolSnapshot",
     "assemble_paired_observations",
     "build_paired_runset_dependencies",
     "calculate_case_manifest_digest",
     "calculate_live_arm_binding_facts",
     "execution_attempt_journal_path",
+    "load_registered_repeated_sensitivity_protocol_snapshot",
     "load_repeated_sensitivity_protocol",
+    "load_repeated_sensitivity_protocol_with_bytes",
     "load_repeated_sensitivity_protocol_with_size",
     "run_repeated_live_study",
     "validate_live_arm_prebinding",

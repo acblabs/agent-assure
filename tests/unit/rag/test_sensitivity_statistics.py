@@ -4,6 +4,8 @@ from decimal import ROUND_DOWN, Decimal, Inexact, Rounded, localcontext
 from hashlib import sha256
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
 from agent_assure.rag.sensitivity_statistics import (
@@ -20,12 +22,14 @@ from agent_assure.schema.stochastic_sensitivity import (
     BinaryPairedDesignPlan,
     CaseClusterBinding,
     CouplingDescriptor,
+    FixedFrameDescriptivePlan,
     PairedSensitivityObservation,
     RepeatedEvidenceSensitivityProtocol,
     RunRecordArtifactDependency,
     RunSetArtifactDependency,
     SensitivityArmBinding,
     StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
     derive_cluster_response_vector,
     derive_confirmatory_cluster_response_vector,
 )
@@ -111,7 +115,7 @@ def _protocol(
     cluster_by_case: tuple[str, ...] | None = None,
     execution_mode: str = "stochastic_live",
     interpretation: str = "confirmatory",
-    design: BinaryPairedDesignPlan | None = None,
+    design: BinaryPairedDesignPlan | FixedFrameDescriptivePlan | None = None,
     multiplicity_method: str = "single_endpoint",
     multiplicity_family_size: int = 1,
     allowed_exclusion_reasons: tuple[str, ...] = (),
@@ -122,7 +126,12 @@ def _protocol(
     )
     if cluster_by_case is not None:
         case_count = len(cluster_by_case)
-    case_count = case_count or design.planned_inferential_clusters
+    planned_clusters = (
+        design.planned_inferential_clusters
+        if isinstance(design, BinaryPairedDesignPlan)
+        else design.planned_descriptive_clusters
+    )
+    case_count = case_count or planned_clusters
     cases = tuple(f"case-{index:02d}" for index in range(case_count))
     cluster_by_case = cluster_by_case or cases
     clusters = tuple(sorted(set(cluster_by_case)))
@@ -137,11 +146,20 @@ def _protocol(
         "counterfactual-config",
         "counterfactual-corpus",
     )
+    mode_fields: dict[str, object] = (
+        {"descriptive_unit": cluster_by}
+        if isinstance(design, FixedFrameDescriptivePlan)
+        else {
+            "inferential_unit": cluster_by,
+            "multiplicity_family": "evidence-sensitivity",
+            "multiplicity_method": multiplicity_method,
+            "multiplicity_family_size": multiplicity_family_size,
+        }
+    )
     return RepeatedEvidenceSensitivityProtocol.build(
         protocol_id=protocol_id,
         interpretation=interpretation,
         execution_mode=execution_mode,
-        inferential_unit=cluster_by,
         cluster_by=cluster_by,
         baseline_arm=baseline,
         counterfactual_arm=counterfactual,
@@ -184,9 +202,6 @@ def _protocol(
         ),
         repetitions_per_arm=1,
         planned_pairs=case_count,
-        multiplicity_family="evidence-sensitivity",
-        multiplicity_method=multiplicity_method,
-        multiplicity_family_size=multiplicity_family_size,
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
             stochastic_dimensions=(
@@ -207,6 +222,7 @@ def _protocol(
         design=design,
         allowed_exclusion_reasons=allowed_exclusion_reasons,
         limitations=("Scoped statistical protocol.",),
+        **mode_fields,
     )
 
 
@@ -416,6 +432,128 @@ def test_satisfied_exact_analysis_is_verdict_bearing_and_dependency_bound() -> N
     assert report.estimated_response_rate == "1.000000"
     assert report.dependency is not None
     assert report.dependency.target_digest == sufficiency.report_digest
+
+
+def test_fixed_frame_complete_reports_observed_counts_without_inference() -> None:
+    protocol = _protocol(
+        interpretation="fixed_frame_descriptive",
+        design=FixedFrameDescriptivePlan(planned_descriptive_clusters=8),
+    )
+    observations = _observations(
+        protocol,
+        zero_cases=frozenset({protocol.planned_case_ids[0]}),
+    )
+    sufficiency = _evaluate(protocol, observations)
+    report = build_stochastic_sensitivity_report(sufficiency)
+
+    assert sufficiency.state.value == "descriptive_complete"
+    assert sufficiency.analysis is None
+    assert not sufficiency.population_claim_permitted
+    assert sufficiency.analyzable_clusters == 8
+    assert report.state.value == "fixed_frame_descriptive"
+    assert report.gate_effect.value == "non_verdict"
+    assert not report.verdict_bearing
+    assert report.population_claim == "none"
+    assert report.dependency is None
+    assert report.observed_pair_count == 8
+    assert report.observed_response_count == 7
+    assert report.observed_counterexample_count == 1
+    assert report.observed_cluster_count == 8
+    assert report.observed_cluster_response_count == 7
+    assert report.estimated_response_unit is None
+    assert report.estimated_response_rate is None
+    serialized = report.model_dump(mode="json")
+    assert "estimated_response_unit" not in serialized
+    assert "estimated_response_rate" not in serialized
+    assert not any(
+        "statistical prerequisites were not satisfied" in limitation
+        for limitation in report.limitations
+    )
+
+    for field_name in ("estimated_response_unit", "estimated_response_rate"):
+        malformed = report.model_dump(mode="python", exclude={"report_digest"})
+        malformed[field_name] = None
+        with pytest.raises(ValidationError, match="cannot include estimated fields"):
+            StochasticEvidenceSensitivityReport.build(**malformed)
+
+        schema_payload = report.model_dump(mode="json")
+        schema_payload[field_name] = None
+        with pytest.raises(JsonSchemaValidationError):
+            Draft202012Validator(
+                StochasticEvidenceSensitivityReport.model_json_schema(mode="validation")
+            ).validate(schema_payload)
+
+    with pytest.raises(ValueError, match="do not define a binary design"):
+        analyze_cluster_response(protocol, observations)
+
+
+def test_nonfixed_report_preserves_legacy_estimated_unit_default() -> None:
+    report = build_stochastic_sensitivity_report(_evaluate(_protocol()))
+    serialized = report.model_dump(mode="json")
+    assert serialized["estimated_response_unit"] == "independent_cluster"
+    assert serialized["estimated_response_rate"] == "1.000000"
+
+    rebuild_values = report.model_dump(
+        mode="python",
+        exclude={"report_digest", "estimated_response_unit"},
+    )
+    rebuilt = StochasticEvidenceSensitivityReport.build(**rebuild_values)
+    assert rebuilt.estimated_response_unit == "independent_cluster"
+    assert rebuilt.model_dump(mode="json")["estimated_response_unit"] == ("independent_cluster")
+
+
+@pytest.mark.parametrize(
+    ("disposition", "reason", "allowed_reasons"),
+    (
+        ("missing_both", "provider-response-missing", ()),
+        ("excluded_both", "predeclared-operator-exclusion", ("predeclared-operator-exclusion",)),
+    ),
+)
+def test_fixed_frame_incomplete_is_inconclusive_without_analysis(
+    disposition: str,
+    reason: str,
+    allowed_reasons: tuple[str, ...],
+) -> None:
+    protocol = _protocol(
+        interpretation="fixed_frame_descriptive",
+        design=FixedFrameDescriptivePlan(planned_descriptive_clusters=8),
+        allowed_exclusion_reasons=allowed_reasons,
+    )
+    observations = _observations(
+        protocol,
+        dispositions={protocol.planned_case_ids[0]: (disposition, reason)},
+    )
+    sufficiency = _evaluate(protocol, observations)
+    report = build_stochastic_sensitivity_report(sufficiency)
+
+    assert sufficiency.state.value == "inconclusive"
+    assert sufficiency.analysis is None
+    assert not sufficiency.population_claim_permitted
+    assert report.state.value == "inconclusive"
+    assert report.gate_effect.value == "non_verdict"
+    assert report.dependency is None
+    assert report.population_claim == "none"
+    assert report.estimated_response_unit is None
+    assert report.estimated_response_rate is None
+
+
+def test_fixed_frame_structural_failure_is_prerequisites_unmet() -> None:
+    protocol = _protocol(
+        interpretation="fixed_frame_descriptive",
+        design=FixedFrameDescriptivePlan(planned_descriptive_clusters=8),
+    )
+    observations = _observations(
+        protocol,
+        dispositions={protocol.planned_case_ids[0]: ("invalid_both", "invalid-record")},
+    )
+    sufficiency = _evaluate(protocol, observations)
+    report = build_stochastic_sensitivity_report(sufficiency)
+
+    assert sufficiency.state.value == "prerequisites_unmet"
+    assert sufficiency.analysis is None
+    assert report.state.value == "prerequisites_unmet"
+    assert not report.verdict_bearing
+    assert report.dependency is None
 
 
 def test_every_pair_is_required_for_the_frozen_cluster_endpoint() -> None:

@@ -79,6 +79,8 @@ RUNNER = CliRunner()
 ROOT = Path(__file__).resolve().parents[2]
 EXAMPLE = ROOT / "examples" / "evidence_sensitivity"
 GOLDEN_REPORTS = ROOT / "tests" / "golden" / "reports"
+_THREAD_ORCHESTRATION_TIMEOUT_SECONDS = 30.0
+_THREAD_CLEANUP_TIMEOUT_SECONDS = 60.0
 OUTPUT_FILENAMES = {
     "baseline-corpus-snapshot.json",
     "baseline-evaluation-summary.json",
@@ -1647,7 +1649,7 @@ def test_bundle_publisher_late_failure_does_not_block_exact_generation_adoption(
     def fail_first_after_commit(parent: object) -> None:
         if not committed.is_set():
             committed.set()
-            if not release_late_failure.wait(timeout=10):
+            if not release_late_failure.wait(timeout=_THREAD_CLEANUP_TIMEOUT_SECONDS):
                 raise TimeoutError("test did not release injected late failure")
             raise OSError("injected post-commit failure")
         original_after_commit(parent)  # type: ignore[arg-type]
@@ -1674,20 +1676,25 @@ def test_bundle_publisher_late_failure_does_not_block_exact_generation_adoption(
             second_finished.set()
 
     first_thread = threading.Thread(target=publish_first)
-    first_thread.start()
-    assert committed.wait(timeout=10)
-    assert out.is_dir()
-
     second_thread = threading.Thread(target=publish_second)
-    second_thread.start()
-    assert second_started.wait(timeout=10)
-    assert second_finished.wait(timeout=10)
+    second_thread_was_started = False
+    first_thread.start()
+    try:
+        assert committed.wait(timeout=_THREAD_ORCHESTRATION_TIMEOUT_SECONDS)
+        assert out.is_dir()
 
-    release_late_failure.set()
-    first_thread.join(timeout=10)
-    second_thread.join(timeout=10)
+        second_thread.start()
+        second_thread_was_started = True
+        assert second_started.wait(timeout=_THREAD_ORCHESTRATION_TIMEOUT_SECONDS)
+        assert second_finished.wait(timeout=_THREAD_ORCHESTRATION_TIMEOUT_SECONDS)
+    finally:
+        release_late_failure.set()
+        first_thread.join(timeout=_THREAD_CLEANUP_TIMEOUT_SECONDS)
+        if second_thread_was_started:
+            second_thread.join(timeout=_THREAD_CLEANUP_TIMEOUT_SECONDS)
 
     assert not first_thread.is_alive()
+    assert second_thread_was_started
     assert not second_thread.is_alive()
     assert len(first_errors) == 1
     assert isinstance(first_errors[0], OSError)

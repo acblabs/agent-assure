@@ -7,7 +7,10 @@ from dataclasses import dataclass
 
 from agent_assure import __version__
 from agent_assure.pilot_bundle import VerifiedExternalPilotBundle
-from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
+from agent_assure.schema.benchmark import (
+    ProcessEquivalenceBenchmarkManifest,
+    registered_confirmatory_benchmark_bar_reason,
+)
 from agent_assure.schema.common import PACKAGE_RELEASE_VERSION_PATTERN
 from agent_assure.schema.pilot import (
     ExternalPilotEvidence,
@@ -21,9 +24,12 @@ from agent_assure.schema.study import (
     RealModelStudyReport,
     StudyExecutionOrigin,
     StudyInferenceScope,
-    StudyProviderFingerprintReviewStatus,
+    StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.study_bundle import ValidatedStudyBundle
+from agent_assure.study_method_review import (
+    statistical_method_review_explicitly_approves_confirmatory_benchmark,
+)
 
 EMPIRICAL_CHECKPOINT_IMPLEMENTATION_ID = "agent-assure"
 
@@ -67,6 +73,8 @@ class EmpiricalReadinessAssessment:
     study_confirmatory_inference_satisfied: bool
     study_evidence_satisfied: bool
     study_real_provider_origin_satisfied: bool
+    study_statistical_method_review_matches_release_trust: bool
+    canonical_benchmark_confirmatory_approval_satisfied: bool
     canonical_benchmark_satisfied: bool
     external_pilot_bundle_verified: bool
     external_pilot_attempt_satisfied: bool
@@ -86,6 +94,8 @@ def assess_empirical_readiness(
     verified_pilot: VerifiedExternalPilotBundle | None,
     canonical_benchmark: ProcessEquivalenceBenchmarkManifest | None = None,
     expected_release: str = EMPIRICAL_CHECKPOINT_RELEASE_LINE,
+    *,
+    canonical_confirmatory_method_review: StudyStatisticalMethodReviewReceipt | None = None,
 ) -> EmpiricalReadinessAssessment:
     """Fail closed unless exact study, benchmark, and verified pilot bytes agree.
 
@@ -153,14 +163,7 @@ def assess_empirical_readiness(
         and study_bundle.execution_review_receipt.provider_account_usage_reconciled
     )
     fingerprint_complete = bool(
-        execution_review_ok
-        and study_bundle is not None
-        and study_bundle.execution_review_receipt is not None
-        and all(
-            condition.provider_serving_fingerprint_status
-            is StudyProviderFingerprintReviewStatus.complete_and_stable
-            for condition in study_bundle.execution_review_receipt.conditions
-        )
+        study_bundle is not None and study_bundle.has_complete_provider_serving_fingerprint_coverage
     )
     fingerprint_absence_acknowledged = bool(
         execution_review_ok
@@ -175,6 +178,36 @@ def assess_empirical_readiness(
     )
     scoped_descriptive_ok = bool(
         study_bundle is not None and study_bundle.is_scoped_descriptive_publication_ready
+    )
+    benchmark_confirmatory_bar = (
+        registered_confirmatory_benchmark_bar_reason(canonical_benchmark)
+        if canonical_benchmark is not None
+        else (
+            registered_confirmatory_benchmark_bar_reason(bundled_benchmark)
+            if bundled_benchmark is not None
+            else None
+        )
+    )
+    canonical_confirmatory_approval_ok = bool(
+        canonical_benchmark is not None
+        and canonical_confirmatory_method_review is not None
+        and statistical_method_review_explicitly_approves_confirmatory_benchmark(
+            benchmark=canonical_benchmark,
+            review_receipt=canonical_confirmatory_method_review,
+        )
+    )
+    study_method_review_matches_release_trust = bool(
+        study_bundle is not None
+        and study_bundle.statistical_method_review_receipt is not None
+        and canonical_confirmatory_approval_ok
+        and study_bundle.statistical_method_review_receipt == canonical_confirmatory_method_review
+        and canonical_confirmatory_method_review is not None
+        and canonical_confirmatory_method_review.study_manifest_digest
+        == study_bundle.manifest.manifest_digest
+        and canonical_confirmatory_method_review.registration_review_receipt_digest
+        == study_bundle.registration_review_receipt.review_receipt_digest
+        and canonical_confirmatory_method_review.design_audit_artifact_sha256
+        == study_bundle.design_audit_artifact_sha256
     )
     confirmatory_inference_ok = bool(
         study_bundle is not None
@@ -196,7 +229,7 @@ def assess_empirical_readiness(
         )
     )
     study_ok = bool(study_bundle is not None and study_bundle.is_publication_ready)
-    benchmark_ok = bool(
+    benchmark_identity_ok = bool(
         report is not None
         and bundled_benchmark is not None
         and canonical_benchmark is not None
@@ -215,6 +248,7 @@ def assess_empirical_readiness(
         )
         and _manifest_exactly_covers_benchmark(report, canonical_benchmark)
     )
+    benchmark_ok = bool(benchmark_identity_ok and canonical_confirmatory_approval_ok)
     bundle_verified = verified_pilot is not None
     pilot_ok = bool(bundle_verified and pilot is not None and pilot.qualifies_as_external_attempt)
     pilot_publication_ok = _pilot_publication_authorized(pilot)
@@ -236,16 +270,45 @@ def assess_empirical_readiness(
         reasons.append("real-model-study-execution-review-not-verified")
     if not statistical_method_review_ok:
         reasons.append("real-model-study-statistical-method-review-not-verified")
+    if (
+        study_bundle is not None
+        and execution_review_ok
+        and inference_scope is StudyInferenceScope.confirmatory_independent_clusters
+        and not fingerprint_complete
+    ):
+        reasons.append(
+            "real-model-study-confirmatory-serving-fingerprint-coverage-not-complete-and-stable"
+        )
     if scoped_descriptive_ok and not confirmatory_inference_ok:
         reasons.append("real-model-study-fixed-frame-descriptive-only")
+    if benchmark_confirmatory_bar == "known_shared_template_parameter_grid":
+        reasons.append("real-model-study-benchmark-shared-template-grid-not-confirmatory-eligible")
     if not study_ok:
         reasons.append("real-model-study-not-satisfied")
     if report is not None and not real_provider_ok:
         reasons.append("real-model-study-real-provider-origin-not-satisfied")
     if canonical_benchmark is None:
         reasons.append("canonical-process-equivalence-benchmark-not-supplied")
-    elif not benchmark_ok:
+    # A mismatch requires two available operands. When the study bundle is
+    # absent, its dedicated verification reason is both accurate and actionable.
+    elif study_bundle is not None and not benchmark_identity_ok:
         reasons.append("real-model-study-canonical-benchmark-mismatch")
+    if (
+        canonical_benchmark is not None
+        and benchmark_confirmatory_bar is None
+        and (study_bundle is None or benchmark_identity_ok)
+        and not canonical_confirmatory_approval_ok
+    ):
+        reasons.append("canonical-confirmatory-benchmark-approval-not-satisfied")
+    if (
+        study_bundle is not None
+        and inference_scope is StudyInferenceScope.confirmatory_independent_clusters
+        and study_bundle.statistical_method_review_receipt is not None
+        and canonical_confirmatory_approval_ok
+        and benchmark_identity_ok
+        and not study_method_review_matches_release_trust
+    ):
+        reasons.append("real-model-study-statistical-method-review-not-release-trusted")
     if not bundle_verified:
         reasons.append("external-pilot-bundle-not-verified")
     if not pilot_ok:
@@ -262,6 +325,7 @@ def assess_empirical_readiness(
         study_ok
         and real_provider_ok
         and benchmark_ok
+        and study_method_review_matches_release_trust
         and bundle_verified
         and pilot_ok
         and pilot_publication_ok
@@ -287,6 +351,10 @@ def assess_empirical_readiness(
         study_confirmatory_inference_satisfied=confirmatory_inference_ok,
         study_evidence_satisfied=study_ok,
         study_real_provider_origin_satisfied=real_provider_ok,
+        study_statistical_method_review_matches_release_trust=(
+            study_method_review_matches_release_trust
+        ),
+        canonical_benchmark_confirmatory_approval_satisfied=(canonical_confirmatory_approval_ok),
         canonical_benchmark_satisfied=benchmark_ok,
         external_pilot_bundle_verified=bundle_verified,
         external_pilot_attempt_satisfied=pilot_ok,

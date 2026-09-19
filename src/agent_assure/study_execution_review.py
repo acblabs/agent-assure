@@ -286,6 +286,7 @@ def _expected_conditions(
             or binding.execution_attempt_id is None
             or provenance.observed_origin is not StudyExecutionOrigin.real_provider
             or provenance.provider_response_id_set_digest is None
+            or provenance.provider_response_payload_commitment_set_digest is None
         ):
             raise ValueError("execution review requires complete real-provider response provenance")
         baseline = condition_evidence.baseline_runset
@@ -347,6 +348,13 @@ def _expected_conditions(
                 observed_provenance_digest=provenance.provenance_digest,
                 provider_response_id_set_digest=(provenance.provider_response_id_set_digest),
                 provider_response_records=provenance.provider_response_id_records,
+                provider_response_payload_commitment_set_digest=(
+                    provenance.provider_response_payload_commitment_set_digest
+                ),
+                provider_response_payload_commitment_records=(
+                    provenance.provider_response_payload_commitment_records
+                ),
+                provider_response_payload_scopes=(provenance.provider_response_payload_scopes),
                 provider_serving_fingerprint_records=(
                     provenance.provider_serving_fingerprint_records
                 ),

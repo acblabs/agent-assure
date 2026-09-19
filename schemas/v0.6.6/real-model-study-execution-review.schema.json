@@ -69,6 +69,27 @@
           "title": "Provider Response Id Set Digest",
           "type": "string"
         },
+        "provider_response_payload_commitment_records": {
+          "maximum": 8192,
+          "minimum": 1,
+          "title": "Provider Response Payload Commitment Records",
+          "type": "integer"
+        },
+        "provider_response_payload_commitment_set_digest": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Provider Response Payload Commitment Set Digest",
+          "type": "string"
+        },
+        "provider_response_payload_scopes": {
+          "items": {
+            "const": "complete_http_response_body"
+          },
+          "maxItems": 1,
+          "minItems": 1,
+          "title": "Provider Response Payload Scopes",
+          "type": "array",
+          "uniqueItems": true
+        },
         "provider_response_records": {
           "maximum": 8192,
           "minimum": 1,
@@ -98,6 +119,9 @@
         "observed_provenance_digest",
         "provider_response_id_set_digest",
         "provider_response_records",
+        "provider_response_payload_commitment_set_digest",
+        "provider_response_payload_commitment_records",
+        "provider_response_payload_scopes",
         "provider_serving_fingerprint_records",
         "provider_serving_fingerprint_status"
       ],

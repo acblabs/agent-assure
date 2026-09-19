@@ -384,6 +384,166 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "allOf": [
+              {
+                "if": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "external-script"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_external_script_stdout"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "openai-chat-completions"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_http_response_body"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "static-jsonl"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_static_jsonl_record"
+                    }
+                  }
+                }
+              },
+              {
+                "if": {
+                  "not": {
+                    "properties": {
+                      "adapter_id": {
+                        "enum": [
+                          "external-script",
+                          "openai-chat-completions",
+                          "static-jsonl"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "adapter_id"
+                    ]
+                  }
+                },
+                "then": {
+                  "properties": {
+                    "provider_response_payload_scope": {
+                      "const": "complete_adapter_declared_response_bytes"
+                    }
+                  }
+                }
+              }
+            ],
+            "properties": {
+              "adapter_id": {
+                "type": "string"
+              },
+              "execution_mode": {
+                "const": "live"
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "schema_version",
+              "execution_mode",
+              "adapter_id"
+            ]
+          }
         }
       ],
       "properties": {
@@ -756,6 +916,37 @@
           ],
           "default": null,
           "title": "Provider Response Id"
+        },
+        "provider_response_payload_scope": {
+          "anyOf": [
+            {
+              "enum": [
+                "complete_http_response_body",
+                "complete_external_script_stdout",
+                "complete_static_jsonl_record",
+                "complete_adapter_declared_response_bytes"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Scope"
+        },
+        "provider_response_payload_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Sha256"
         },
         "provider_sdk": {
           "anyOf": [
@@ -4853,6 +5044,59 @@
       "title": "Finding",
       "type": "object"
     },
+    "FixedFrameDescriptivePlan": {
+      "additionalProperties": false,
+      "description": "Predeclared finite-frame summary with no inferential parameters.\n\nThis plan deliberately has no alpha, power, null-rate, exchangeability, or\nconfirmatory-frame fields.  It can summarize only the exact frozen cases\nand clusters named by the enclosing protocol.",
+      "properties": {
+        "analysis_method": {
+          "const": "fixed_frame_descriptive_counts",
+          "default": "fixed_frame_descriptive_counts",
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "cluster_endpoint_aggregation": {
+          "const": "all_planned_pairs_expected_response",
+          "default": "all_planned_pairs_expected_response",
+          "title": "Cluster Endpoint Aggregation",
+          "type": "string"
+        },
+        "descriptive_cluster_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Descriptive Cluster Frame",
+          "type": "string"
+        },
+        "descriptive_unit": {
+          "const": "frozen_planned_cluster",
+          "default": "frozen_planned_cluster",
+          "title": "Descriptive Unit",
+          "type": "string"
+        },
+        "incomplete_cluster_policy": {
+          "const": "report_inconclusive",
+          "default": "report_inconclusive",
+          "title": "Incomplete Cluster Policy",
+          "type": "string"
+        },
+        "maximum_exclusion_rate": {
+          "const": "0.000000",
+          "default": "0.000000",
+          "title": "Maximum Exclusion Rate",
+          "type": "string"
+        },
+        "planned_descriptive_clusters": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Planned Descriptive Clusters",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "planned_descriptive_clusters"
+      ],
+      "title": "FixedFrameDescriptivePlan",
+      "type": "object"
+    },
     "FixtureManifest": {
       "additionalProperties": false,
       "properties": {
@@ -5011,6 +5255,74 @@
     },
     "LiveExecutionAttemptEvent": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_sha256": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_sha256"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "provider_response_payload_scope": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "provider_response_payload_scope"
+            ]
+          },
+          "then": {
+            "properties": {
+              "event_type": {
+                "const": "request_succeeded"
+              }
+            },
+            "required": [
+              "event_type"
+            ]
+          }
+        }
+      ],
       "description": "One privacy-safe, append-only provider-dispatch lifecycle event.",
       "properties": {
         "adapter_attempt_index": {
@@ -5101,6 +5413,37 @@
           ],
           "default": null,
           "title": "Provider Response Id Digest"
+        },
+        "provider_response_payload_scope": {
+          "anyOf": [
+            {
+              "enum": [
+                "complete_http_response_body",
+                "complete_external_script_stdout",
+                "complete_static_jsonl_record",
+                "complete_adapter_declared_response_bytes"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Scope"
+        },
+        "provider_response_payload_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Sha256"
         },
         "rate_limited": {
           "anyOf": [
@@ -8083,6 +8426,172 @@
       "additionalProperties": false,
       "allOf": [
         {
+          "else": {
+            "not": {
+              "required": [
+                "descriptive_unit"
+              ]
+            },
+            "properties": {
+              "design": {
+                "properties": {
+                  "analysis_method": {
+                    "const": "cluster_binary_exact"
+                  }
+                },
+                "required": [
+                  "analysis_method"
+                ]
+              },
+              "inferential_unit": {
+                "enum": [
+                  "case_id",
+                  "source_group_id"
+                ]
+              },
+              "multiplicity_family": {
+                "type": "string"
+              },
+              "multiplicity_family_size": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "multiplicity_method": {
+                "enum": [
+                  "single_endpoint",
+                  "bonferroni"
+                ]
+              }
+            },
+            "required": [
+              "inferential_unit",
+              "multiplicity_family",
+              "multiplicity_method",
+              "multiplicity_family_size",
+              "design"
+            ]
+          },
+          "if": {
+            "properties": {
+              "interpretation": {
+                "const": "fixed_frame_descriptive"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "inferential_unit"
+                  ]
+                },
+                {
+                  "required": [
+                    "multiplicity_family"
+                  ]
+                },
+                {
+                  "required": [
+                    "multiplicity_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "multiplicity_family_size"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "baseline_arm": {
+                "properties": {
+                  "adapter_id": {
+                    "enum": [
+                      "openai-chat-completions"
+                    ]
+                  }
+                },
+                "required": [
+                  "adapter_id"
+                ]
+              },
+              "case_authority_bindings": {
+                "minItems": 1
+              },
+              "counterfactual_arm": {
+                "properties": {
+                  "adapter_id": {
+                    "enum": [
+                      "openai-chat-completions"
+                    ]
+                  }
+                },
+                "required": [
+                  "adapter_id"
+                ]
+              },
+              "coupling": {
+                "properties": {
+                  "classification": {
+                    "not": {
+                      "enum": [
+                        "unpaired",
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "unknown": {
+                    "not": {
+                      "contains": {
+                        "enum": [
+                          "provider_sampling_randomness",
+                          "temporal_execution_order"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "classification"
+                ]
+              },
+              "descriptive_unit": {
+                "enum": [
+                  "case_id",
+                  "source_group_id"
+                ]
+              },
+              "design": {
+                "properties": {
+                  "analysis_method": {
+                    "const": "fixed_frame_descriptive_counts"
+                  }
+                },
+                "required": [
+                  "analysis_method"
+                ]
+              },
+              "execution_mode": {
+                "const": "stochastic_live"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "execution_mode",
+              "descriptive_unit",
+              "case_authority_bindings",
+              "design"
+            ]
+          }
+        },
+        {
           "if": {
             "properties": {
               "execution_mode": {
@@ -8384,8 +8893,39 @@
         "coupling": {
           "$ref": "#/$defs/CouplingDescriptor"
         },
+        "descriptive_unit": {
+          "anyOf": [
+            {
+              "enum": [
+                "case_id",
+                "source_group_id"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Descriptive Unit"
+        },
         "design": {
-          "$ref": "#/$defs/BinaryPairedDesignPlan"
+          "discriminator": {
+            "mapping": {
+              "cluster_binary_exact": "#/$defs/BinaryPairedDesignPlan",
+              "fixed_frame_descriptive_counts": "#/$defs/FixedFrameDescriptivePlan"
+            },
+            "propertyName": "analysis_method"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BinaryPairedDesignPlan"
+            },
+            {
+              "$ref": "#/$defs/FixedFrameDescriptivePlan"
+            }
+          ],
+          "title": "Design"
         },
         "design_commitment_digest": {
           "pattern": "^[a-f0-9]{64}$",
@@ -8421,13 +8961,20 @@
           "default": "decision_flip"
         },
         "inferential_unit": {
-          "default": "case_id",
-          "enum": [
-            "case_id",
-            "source_group_id"
+          "anyOf": [
+            {
+              "enum": [
+                "case_id",
+                "source_group_id"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Inferential Unit",
-          "type": "string"
+          "default": "case_id",
+          "title": "Inferential Unit"
         },
         "interpretation": {
           "$ref": "#/$defs/SensitivityInterpretation"
@@ -8442,26 +8989,48 @@
           "type": "array"
         },
         "multiplicity_family": {
-          "maxLength": 256,
-          "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
-          "title": "Multiplicity Family",
-          "type": "string"
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Multiplicity Family"
         },
         "multiplicity_family_size": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": 1,
-          "minimum": 1,
-          "title": "Multiplicity Family Size",
-          "type": "integer"
+          "title": "Multiplicity Family Size"
         },
         "multiplicity_method": {
-          "default": "single_endpoint",
-          "enum": [
-            "single_endpoint",
-            "bonferroni"
+          "anyOf": [
+            {
+              "enum": [
+                "single_endpoint",
+                "bonferroni"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Multiplicity Method",
-          "type": "string"
+          "default": "single_endpoint",
+          "title": "Multiplicity Method"
         },
         "pair_identity": {
           "const": "case_id_repetition_index",
@@ -8542,7 +9111,6 @@
         "case_cluster_bindings",
         "repetitions_per_arm",
         "planned_pairs",
-        "multiplicity_family",
         "coupling",
         "design",
         "limitations",
@@ -9210,7 +9778,8 @@
     "SensitivityInterpretation": {
       "enum": [
         "confirmatory",
-        "exploratory"
+        "exploratory",
+        "fixed_frame_descriptive"
       ],
       "title": "SensitivityInterpretation",
       "type": "string"
@@ -9402,6 +9971,57 @@
     },
     "StochasticEvidenceSensitivityReport": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "estimated_response_unit": {
+                "const": "independent_cluster"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "sufficiency_report": {
+                "properties": {
+                  "protocol": {
+                    "properties": {
+                      "interpretation": {
+                        "const": "fixed_frame_descriptive"
+                      }
+                    },
+                    "required": [
+                      "interpretation"
+                    ]
+                  }
+                },
+                "required": [
+                  "protocol"
+                ]
+              }
+            },
+            "required": [
+              "sufficiency_report"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_response_unit"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_response_rate"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "stochastic-evidence-sensitivity-report",
@@ -9452,10 +10072,17 @@
           "title": "Estimated Response Rate"
         },
         "estimated_response_unit": {
-          "const": "independent_cluster",
+          "anyOf": [
+            {
+              "const": "independent_cluster",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": "independent_cluster",
-          "title": "Estimated Response Unit",
-          "type": "string"
+          "title": "Estimated Response Unit"
         },
         "gate_effect": {
           "$ref": "#/$defs/StochasticGateEffect"
@@ -9588,6 +10215,7 @@
       "enum": [
         "pass",
         "block",
+        "fixed_frame_descriptive",
         "prerequisites_unmet",
         "inconclusive"
       ],
@@ -9695,6 +10323,7 @@
     "SufficiencyState": {
       "enum": [
         "satisfied",
+        "descriptive_complete",
         "prerequisites_unmet",
         "inconclusive"
       ],

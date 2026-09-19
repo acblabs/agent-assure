@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ctypes
+import hashlib
 import json
 import os
 import re
@@ -12,7 +13,8 @@ import sys
 import tempfile
 import threading
 import time
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, BinaryIO, Literal, cast
@@ -80,6 +82,7 @@ class ExternalScriptCompleted:
     duration_ms: int
     started_at_utc: str
     completed_at_utc: str
+    stdout_sha256: str
     stdout_bytes: int = 0
     stderr_bytes: int = 0
 
@@ -95,6 +98,10 @@ class _ProcessOutputCapture:
         self._lock = threading.Lock()
         self._threads: list[threading.Thread] = []
         self._finalized = False
+        self._capture_complete: bool | None = None
+        self._expected_eof_streams: set[str] = set()
+        self._observed_eof_streams: set[str] = set()
+        self._process_termination_armed = True
 
     def start(self) -> None:
         for stream_name, pipe in (
@@ -103,6 +110,7 @@ class _ProcessOutputCapture:
         ):
             if pipe is None:
                 continue
+            self._expected_eof_streams.add(stream_name)
             thread = threading.Thread(
                 target=_read_process_stream,
                 args=(pipe, stream_name, self),
@@ -124,7 +132,16 @@ class _ProcessOutputCapture:
                 and not self.limit_exceeded
             ):
                 self.limit_exceeded = True
-                _terminate_process_tree(self.process)
+                if self._process_termination_armed:
+                    _terminate_process_tree(self.process)
+
+    def mark_eof(self, stream_name: str) -> None:
+        with self._lock:
+            self._observed_eof_streams.add(stream_name)
+
+    def disarm_process_termination(self) -> None:
+        with self._lock:
+            self._process_termination_armed = False
 
     def join(self, *, timeout_seconds: float) -> bool:
         deadline = time.monotonic() + timeout_seconds
@@ -132,14 +149,19 @@ class _ProcessOutputCapture:
             thread.join(max(0.0, deadline - time.monotonic()))
         return not any(thread.is_alive() for thread in self._threads)
 
-    def finalize(self) -> None:
+    def finalize(self) -> bool:
         if self._finalized:
-            return
+            assert self._capture_complete is not None
+            return self._capture_complete
         # Never wait indefinitely for EOF: an escaped descendant may retain an
         # inherited pipe handle. The daemon readers can finish later without
         # holding the caller past this deadline.
-        self.join(timeout_seconds=OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS)
+        readers_finished = self.join(timeout_seconds=OUTPUT_CAPTURE_JOIN_TIMEOUT_SECONDS)
+        with self._lock:
+            observed_eof_for_every_stream = self._expected_eof_streams <= self._observed_eof_streams
+        self._capture_complete = readers_finished and observed_eof_for_every_stream
         self._finalized = True
+        return self._capture_complete
 
     def snapshot(self) -> tuple[bytes, int, bytes, int]:
         with self._lock:
@@ -166,6 +188,7 @@ def _read_process_stream(
         while True:
             chunk = pipe.read(8192)
             if not chunk:
+                capture.mark_eof(stream_name)
                 return
             capture.add(stream_name, chunk)
     except (OSError, ValueError):
@@ -185,19 +208,24 @@ def _append_sample(sample: bytearray, chunk: bytes) -> None:
 
 def _collected_output(
     capture: _ProcessOutputCapture | None,
-) -> tuple[str, int, str, int]:
+) -> tuple[str, int, str, int, str]:
     if capture is None:
-        return "", 0, "", 0
+        return "", 0, "", 0, hashlib.sha256(b"").hexdigest()
     stdout_sample, stdout_bytes, stderr_sample, stderr_bytes = capture.snapshot()
     return (
         _decode_sample(stdout_sample),
         stdout_bytes,
         _decode_sample(stderr_sample),
         stderr_bytes,
+        hashlib.sha256(stdout_sample).hexdigest(),
     )
 
 
-def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptCompleted:
+def run_external_script(
+    invocation: ExternalScriptInvocation,
+    *,
+    dispatch_guard: Callable[[], None] | None = None,
+) -> ExternalScriptCompleted:
     if not invocation.argv:
         emergency = _emergency_record(
             invocation,
@@ -214,6 +242,7 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
         stdin_file.seek(0)
         process: subprocess.Popen[bytes] | None = None
         capture: _ProcessOutputCapture | None = None
+        output_capture_complete = False
         returncode = -1
         supervisor_status_read_fd: int | None = None
         supervisor_status_write_fd: int | None = None
@@ -240,6 +269,8 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 ):
                     inherited_descriptors.append(invocation.cwd_descriptor)
                 process_options["pass_fds"] = tuple(inherited_descriptors)
+            if dispatch_guard is not None:
+                dispatch_guard()
             process = subprocess.Popen(
                 list(launch_argv),
                 cwd=(
@@ -280,6 +311,13 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 if bound_script is not None:
                     _require_bound_script_path_unchanged(invocation, bound_script)
                 _validate_bound_cwd(invocation)
+                if dispatch_guard is not None:
+                    try:
+                        dispatch_guard()
+                    except BaseException:
+                        _terminate_process_tree(process)
+                        _wait_for_terminated_process(process)
+                        raise
             if not _resume_windows_suspended_process(process):
                 _terminate_process_tree(process)
                 _wait_for_terminated_process(process)
@@ -287,7 +325,10 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             _start_posix_descendant_tracking(process)
             capture = _capture_process_output(process)
             returncode = process.wait(timeout=invocation.timeout_seconds)
+            capture.disarm_process_termination()
         except subprocess.TimeoutExpired as exc:
+            if capture is not None:
+                capture.disarm_process_termination()
             if process is not None:
                 _terminate_process_tree(process)
                 _wait_for_terminated_process(process)
@@ -295,7 +336,7 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 capture.finalize()
             duration_ms = _duration_ms(started)
             completed_at_utc = _utc_now()
-            stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
+            stdout, stdout_bytes, stderr, stderr_bytes, _stdout_sha256 = _collected_output(capture)
             emergency = _emergency_record(
                 invocation,
                 failure_kind="timeout",
@@ -310,6 +351,8 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             )
             raise ExternalScriptError("external script timed out", emergency) from exc
         except OSError as exc:
+            if capture is not None:
+                capture.disarm_process_termination()
             if process is not None:
                 _terminate_process_tree(process)
                 _wait_for_terminated_process(process)
@@ -326,13 +369,15 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             )
             raise ExternalScriptError("external script could not be started", emergency) from exc
         finally:
+            if capture is not None:
+                capture.disarm_process_termination()
             if process is not None:
                 _release_process_tree(process)
             if capture is not None:
-                capture.finalize()
+                output_capture_complete = capture.finalize()
             _close_file_descriptor(supervisor_status_read_fd)
             _close_file_descriptor(supervisor_status_write_fd)
-        stdout, stdout_bytes, stderr, stderr_bytes = _collected_output(capture)
+        stdout, stdout_bytes, stderr, stderr_bytes, stdout_sha256 = _collected_output(capture)
     duration_ms = _duration_ms(started)
     completed_at_utc = _utc_now()
     completed = ExternalScriptCompleted(
@@ -343,6 +388,7 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
         completed_at_utc=completed_at_utc,
         stdout_bytes=stdout_bytes,
         stderr_bytes=stderr_bytes,
+        stdout_sha256=stdout_sha256,
     )
     if stdout_bytes + stderr_bytes > MAX_EXTERNAL_SCRIPT_OUTPUT_BYTES:
         emergency = invalid_output_emergency(
@@ -366,7 +412,24 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
             stderr_bytes=stderr_bytes,
         )
         raise ExternalScriptError("external script exited nonzero", emergency)
-    return completed
+    if not output_capture_complete:
+        emergency = invalid_output_emergency(
+            invocation,
+            completed,
+            "external script output capture did not reach EOF before the drain deadline",
+        )
+        raise ExternalScriptError("external script output capture was incomplete", emergency)
+    try:
+        stdout = _decode_complete_stdout_strict(capture)
+    except UnicodeDecodeError as exc:
+        emergency = invalid_output_emergency(
+            invocation,
+            completed,
+            "external script stdout was not valid UTF-8",
+            exc,
+        )
+        raise ExternalScriptError("external script stdout was not valid UTF-8", emergency) from exc
+    return replace(completed, stdout=stdout)
 
 
 def emergency_from_exception(exc: BaseException) -> EmergencyProcessRecord | None:
@@ -492,6 +555,13 @@ def _decode_sample(sample: bytes | bytearray) -> str:
         "utf-8",
         errors="replace",
     )
+
+
+def _decode_complete_stdout_strict(capture: _ProcessOutputCapture | None) -> str:
+    if capture is None:
+        return ""
+    stdout_sample, _stdout_bytes, _stderr_sample, _stderr_bytes = capture.snapshot()
+    return stdout_sample.decode("utf-8")
 
 
 def _byte_count(value: str | None) -> int:

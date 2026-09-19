@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       participant_pseudonym:
-        description: Pseudonym (not your GitHub name; see participant guide)
+        description: Pseudonym (not your GitHub handle or real name; see participant guide)
         required: true
         type: string
       attest_independent_non_maintainer:
@@ -61,7 +61,7 @@ jobs:
             | jq -e \
               '(.fork == true) and (.parent.full_name == "acblabs/agent-assure")' \
               >/dev/null; then
-            fail "GitHub could not verify a direct fork of acblabs/agent-assure."
+            fail "GitHub could not verify a direct fork. Ensure Actions is enabled and the workflow token has contents:read; do not add a personal token."
           fi
 
       - name: Check out the participant fork and committed input

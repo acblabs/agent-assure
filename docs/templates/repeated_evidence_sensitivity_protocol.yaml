@@ -1,5 +1,5 @@
-# Authoring template only. Authors freeze the endpoint, frame, coupling,
-# multiplicity, powered design, limitations, uncommitted configs, and authority
+# Authoring template only. Authors freeze the endpoint, finite frame, coupling,
+# descriptive plan, limitations, uncommitted configs, and authority
 # contract. Arm identities/digests below are illustrative placeholders:
 # `agent-assure rag sensitivity finalize` derives and replaces them from the
 # exact compiled suite, configs, prompts, corpora, authority, and adapter bytes,
@@ -18,11 +18,14 @@ protocol_digest: "00000000000000000000000000000000000000000000000000000000000000
 design_commitment_digest: "0000000000000000000000000000000000000000000000000000000000000000"
 endpoint: expected_decision_response
 expected_relation: decision_flip
-inferential_unit: case_id
+descriptive_unit: case_id
 pair_identity: case_id_repetition_index
 cluster_by: case_id
 arm_execution_order: baseline_then_counterfactual
-interpretation: confirmatory
+# The shipped v0.2 benchmark is a shared-template parameter grid. This mode can
+# report only exact frozen-frame counts and rates; it cannot emit a statistical
+# verdict, confidence interval, p-value, or population claim.
+interpretation: fixed_frame_descriptive
 execution_mode: stochastic_live
 baseline_arm:
   arm_id: baseline_evidence
@@ -236,9 +239,6 @@ case_authority_bindings:
         claim_id: claim-case-08
 repetitions_per_arm: 1
 planned_pairs: 8
-multiplicity_family: expected-decision-response-primary
-multiplicity_method: single_endpoint
-multiplicity_family_size: 1
 coupling:
   pairing_identity_verified: true
   stochastic_dimensions:
@@ -262,27 +262,13 @@ coupling:
   classification: nominally_paired
   variance_reduction_claim_permitted: false
 design:
-  analysis_method: cluster_binary_exact
-  exchangeability_assumption: independent_exchangeable_binary_cluster_endpoints
+  analysis_method: fixed_frame_descriptive_counts
+  descriptive_unit: frozen_planned_cluster
   cluster_endpoint_aggregation: all_planned_pairs_expected_response
-  confirmatory_cluster_frame: all_frozen_planned_clusters
-  non_analyzable_cluster_policy: score_zero
-  familywise_alpha: "0.050000"
-  adjusted_alpha: "0.050000"
-  desired_power: "0.800000"
-  null_response_rate: "0.500000"
-  alternative_response_rate: "0.900000"
-  minimum_detectable_difference: "0.400000"
-  # Confirmatory real-model studies require zero exclusions: treating an
-  # excluded cluster as non-response would be anti-conservative for the
-  # complementary decision-inertia endpoint.
+  descriptive_cluster_frame: all_frozen_planned_clusters
+  incomplete_cluster_policy: report_inconclusive
   maximum_exclusion_rate: "0.000000"
-  planned_inferential_clusters: 8
-  critical_cluster_responses: 7
-  achieved_type_i_error: "0.035157"
-  achieved_power: "0.813104"
-  monte_carlo_diagnostic_threshold_clusters: 20
-  monte_carlo_resamples: 1000
+  planned_descriptive_clusters: 8
 allowed_exclusion_reasons:
   - budget_accounting_unavailable
   - budget_exhausted
@@ -301,16 +287,15 @@ allowed_exclusion_reasons:
   - token_budget_exhausted
   - token_budget_exhausted_before_attempt
 limitations:
-  - Cluster independence and exchangeability are authored modeling assumptions, not empirically verified prerequisites.
+  - Counts and rates describe only the exact frozen case-cluster frame; no independence, exchangeability, sampling, or population claim is made.
   - Digest commitments bind configuration identity but do not externally timestamp an execution or prevent selection among identical-commitment reruns.
-  - Exact inference assumes independent, exchangeable binary cluster endpoints with a common null response probability.
   - Exact per-case authority bindings prove internal agreement with the loaded frozen corpus and compiled query scope; they do not prove real-world legal or domain authority or source authenticity.
-  - Population inference is conditional on the strict all-planned-pairs cluster endpoint and the frozen sampling frame.
-  - Repeated calls within a cluster are not independent inferential units.
+  - Missing, excluded, or invalid planned evidence makes the descriptive frame incomplete and prohibits a completed descriptive result.
+  - Repeated calls within a cluster are repeated observations, not additional frame units.
   - Results do not establish causal effects, general model quality, provider-wide behavior, safety, or compliance.
   - Sequential arm execution does not establish shared provider randomness or temporal conditions.
-  - The declared null and alternative response rates and estimated response rate apply to the fixed planned-frame composite endpoint, not response conditional on analyzability.
-  - The maximum exclusion rate is an audit cap and does not inflate or reduce the fixed inferential frame.
+  - The descriptive denominator is the full frozen cluster frame, never a post hoc analyzable subset.
+  - The zero maximum exclusion rate is a frame-completeness invariant, not an inferential parameter.
   - The protocol persists bounded structured decisions and digests, not credentials, prompts, completions, or raw tool payloads.
   - Version 1 requires balanced planned cluster composition.
-  - With repetitions_per_arm greater than one, the all-pairs composite probability changes with the repetition count and repetitions do not increase inferential N.
+  - With repetitions_per_arm greater than one, every planned pair must satisfy the endpoint for its cluster to count as a response.

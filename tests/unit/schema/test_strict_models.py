@@ -37,6 +37,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     EvidenceItem,
     EvidenceRef,
+    LiveExecutionAttemptEvent,
     RunSet,
 )
 from agent_assure.schema.validation import validate_artifact_payload
@@ -198,6 +199,14 @@ def test_structured_field_origin_coherence_is_adapter_specific() -> None:
             adapter_id="static-jsonl",
         )
 
+    unknown_origins = dict(common_live_fields)
+    unknown_origins["structured_field_origins"] = StructuredFieldOrigins.uniform(
+        StructuredFieldOrigin.instrumented_adapter
+    )
+    for adapter_id in (None, "future-live-adapter"):
+        with pytest.raises(ValidationError, match="origins conflict"):
+            _record(**unknown_origins, adapter_id=adapter_id)
+
     relabeled = dict(common_live_fields)
     relabeled["structured_field_origins"] = StructuredFieldOrigins.uniform(
         StructuredFieldOrigin.runner_observed
@@ -207,6 +216,149 @@ def test_structured_field_origin_coherence_is_adapter_specific() -> None:
             **relabeled,
             adapter_id="openai-chat-completions",
         )
+
+
+def test_provider_response_payload_commitment_is_paired_and_adapter_scoped() -> None:
+    payload = _live_record().model_dump(mode="json")
+    payload.update(
+        {
+            "adapter_id": "openai-chat-completions",
+            "provider_response_payload_sha256": "a" * 64,
+            "provider_response_payload_scope": "complete_http_response_body",
+        }
+    )
+
+    record = AgentRunRecord.model_validate(payload)
+    schema_validator = Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation"))
+    schema_validator.validate(payload)
+
+    assert record.provider_response_payload_sha256 == "a" * 64
+    assert record.provider_response_payload_scope == "complete_http_response_body"
+
+    missing_scope = dict(payload)
+    missing_scope.pop("provider_response_payload_scope")
+    with pytest.raises(ValidationError, match="must be supplied together"):
+        AgentRunRecord.model_validate(missing_scope)
+    with pytest.raises(JsonSchemaValidationError):
+        schema_validator.validate(missing_scope)
+
+    wrong_scope = dict(payload)
+    wrong_scope["provider_response_payload_scope"] = "complete_static_jsonl_record"
+    with pytest.raises(ValidationError, match="scope conflicts"):
+        AgentRunRecord.model_validate(wrong_scope)
+    with pytest.raises(JsonSchemaValidationError):
+        schema_validator.validate(wrong_scope)
+
+
+def test_unknown_live_adapter_may_only_declare_generic_response_byte_scope() -> None:
+    payload = _live_record().model_dump(mode="json")
+    payload.update(
+        {
+            "adapter_id": "future-live-adapter",
+            "provider_response_payload_sha256": "b" * 64,
+            "provider_response_payload_scope": ("complete_adapter_declared_response_bytes"),
+        }
+    )
+
+    record = AgentRunRecord.model_validate(payload)
+    schema_validator = Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation"))
+    schema_validator.validate(payload)
+
+    assert record.provider_response_payload_scope == "complete_adapter_declared_response_bytes"
+
+    payload["provider_response_payload_scope"] = "complete_http_response_body"
+    with pytest.raises(ValidationError, match="scope conflicts"):
+        AgentRunRecord.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        schema_validator.validate(payload)
+
+
+@pytest.mark.parametrize("adapter_id", (None, pytest.param("omitted", id="omitted")))
+def test_response_payload_commitment_requires_live_adapter_identity(
+    adapter_id: str | None,
+) -> None:
+    payload = _live_record().model_dump(mode="json")
+    payload.update(
+        {
+            "provider_response_payload_sha256": "b" * 64,
+            "provider_response_payload_scope": ("complete_adapter_declared_response_bytes"),
+        }
+    )
+    if adapter_id == "omitted":
+        payload.pop("adapter_id", None)
+    else:
+        payload["adapter_id"] = adapter_id
+
+    with pytest.raises(ValidationError, match="live run records require: adapter_id"):
+        AgentRunRecord.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_fixture_record_cannot_claim_live_provider_response_bytes() -> None:
+    payload = _record().model_dump(mode="json")
+    payload.update(
+        {
+            "provider_response_payload_sha256": "c" * 64,
+            "provider_response_payload_scope": ("complete_adapter_declared_response_bytes"),
+        }
+    )
+    with pytest.raises(ValidationError, match="permitted only in live mode"):
+        AgentRunRecord.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_legacy_run_record_cannot_claim_current_response_payload_commitment() -> None:
+    payload = _live_record().model_dump(mode="json")
+    payload.update(
+        {
+            "schema_version": "0.6.5",
+            "provider_response_payload_sha256": "d" * 64,
+            "provider_response_payload_scope": "complete_http_response_body",
+        }
+    )
+
+    with pytest.raises(ValidationError, match="require schema_version 0.6.6"):
+        AgentRunRecord.model_validate(payload)
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(AgentRunRecord.model_json_schema(mode="validation")).validate(payload)
+
+
+def test_attempt_event_response_commitment_has_json_schema_parity() -> None:
+    payload: dict[str, object] = {
+        "event_index": 1,
+        "event_type": "request_succeeded",
+        "occurred_at_utc": "2026-07-21T12:00:00Z",
+        "arm_id": "baseline",
+        "run_id": "run-001",
+        "observation_id": "observation-001",
+        "case_id": "case-001",
+        "repetition_index": 0,
+        "adapter_attempt_index": 1,
+        "provider_response_payload_sha256": "e" * 64,
+        "provider_response_payload_scope": "complete_http_response_body",
+    }
+    schema_validator = Draft202012Validator(
+        LiveExecutionAttemptEvent.model_json_schema(mode="validation")
+    )
+
+    LiveExecutionAttemptEvent.model_validate(payload)
+    schema_validator.validate(payload)
+
+    missing_scope = dict(payload)
+    missing_scope.pop("provider_response_payload_scope")
+    with pytest.raises(ValidationError, match="must be supplied together"):
+        LiveExecutionAttemptEvent.model_validate(missing_scope)
+    with pytest.raises(JsonSchemaValidationError):
+        schema_validator.validate(missing_scope)
+
+    failed_event = dict(payload)
+    failed_event["event_type"] = "request_failed"
+    with pytest.raises(ValidationError, match="only on request_succeeded"):
+        LiveExecutionAttemptEvent.model_validate(failed_event)
+    with pytest.raises(JsonSchemaValidationError):
+        schema_validator.validate(failed_event)
 
 
 @pytest.mark.parametrize("model", (EvidenceRef, EvidenceItem))

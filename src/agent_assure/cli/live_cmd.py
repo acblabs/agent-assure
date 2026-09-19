@@ -12,7 +12,10 @@ from agent_assure.evaluation.evaluator import load_runset
 from agent_assure.fixtures.loader import compiled_suite_digest, load_compiled_suite
 from agent_assure.live.adapters import TrustedLiveExecution, adapter_ids
 from agent_assure.live.comparison import compare_live_reports, load_live_evaluation_report
-from agent_assure.live.config import load_live_run_config
+from agent_assure.live.config import (
+    PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE,
+    load_live_run_config,
+)
 from agent_assure.live.drift import build_live_drift_report
 from agent_assure.live.runner import run_live_suite
 from agent_assure.live.statistics import evaluate_live_runset
@@ -110,6 +113,13 @@ def run(
         )
         compiled = load_compiled_suite(compiled_suite)
         live_config = load_live_run_config(config)
+        if live_config.execution_profile == PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE:
+            raise ValueError(
+                "preregistered paired-study configs cannot be executed with "
+                "'agent-assure live run'; "
+                "use 'agent-assure rag sensitivity run' with the complete preregistration "
+                "preflight inputs"
+            )
         trust = _confirm_trusted_live_config(
             live_config,
             trust_config=trust_config,

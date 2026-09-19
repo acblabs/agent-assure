@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from pathlib import Path
+from typing import cast
 
 from pydantic import BaseModel
 
@@ -31,6 +32,8 @@ from agent_assure.schema.study import (
     RealModelStudyManifest,
     RealModelStudyReport,
     StudyExecutionReviewReceipt,
+    StudyFixedFrameDescriptiveRule,
+    StudyHypothesisDecisionRule,
     StudyObservedExecutionProvenance,
     StudyRegistrationReviewReceipt,
     StudyStatisticalMethodReviewReceipt,
@@ -43,7 +46,12 @@ from agent_assure.study_limits import (
     MAX_STUDY_BUNDLE_TOTAL_BYTES,
     MAX_STUDY_RUNSET_JSON_BYTES,
 )
-from agent_assure.study_method_review import validate_study_statistical_method_review
+from agent_assure.study_method_review import (
+    STUDY_INDEPENDENCE_AUDIT_FILENAME,
+    ValidatedStudyIndependenceAuditArtifact,
+    validate_study_independence_audit_artifact,
+    validate_study_statistical_method_review,
+)
 from agent_assure.study_registration import validate_study_registration
 
 
@@ -125,6 +133,7 @@ def write_real_model_study_artifacts(
     report: RealModelStudyReport,
     registration_record_bytes: bytes,
     registration_review_receipt: StudyRegistrationReviewReceipt,
+    independence_audit_artifact_bytes: bytes | None = None,
     statistical_method_review_receipt: StudyStatisticalMethodReviewReceipt | None = None,
     execution_review_receipt: StudyExecutionReviewReceipt | None = None,
     out_dir: Path,
@@ -137,6 +146,10 @@ def write_real_model_study_artifacts(
     )
     report = RealModelStudyReport.model_validate(report.model_dump(mode="json"))
     try:
+        independence_audit = validate_study_independence_audit_artifact(
+            manifest=manifest,
+            artifact_bytes=independence_audit_artifact_bytes,
+        )
         registration = validate_study_registration(
             manifest=manifest,
             registration_record_bytes=registration_record_bytes,
@@ -163,6 +176,7 @@ def write_real_model_study_artifacts(
         report=report,
         registration_record_text=registration.record_text,
         registration_review_receipt=registration.review_receipt,
+        independence_audit=independence_audit,
         statistical_method_review_receipt=statistical_method_review_receipt,
         execution_review_receipt=execution_review_receipt,
     )
@@ -188,6 +202,7 @@ def write_real_model_study_artifacts(
         "study-registration-review.json",
         _safe_model_json_text(registration.review_receipt),
     )
+    artifacts.add(STUDY_INDEPENDENCE_AUDIT_FILENAME, independence_audit.text)
     artifacts.add("real-model-study-report.json", _safe_model_json_text(report))
     artifacts.add("real-model-study-report.md", render_real_model_study_markdown(report))
     for index, binding in enumerate(manifest.conditions):
@@ -222,11 +237,16 @@ def write_real_model_study_artifacts(
     texts = artifacts.texts
 
     if statistical_method_review_receipt is not None:
+        if independence_audit is None:  # pragma: no cover - method-review schema invariant
+            raise ValueError("statistical-method review requires an independence audit artifact")
         validated_method_review = validate_study_statistical_method_review(
             manifest=manifest,
             benchmark=benchmark,
             protocols=validated_protocols,
+            registration_record_bytes=registration_record_bytes,
+            registration_review_receipt=registration.review_receipt,
             review_receipt=statistical_method_review_receipt,
+            independence_audit_artifact_bytes=independence_audit.data,
             manifest_bytes=texts["real-model-study-manifest.json"].encode("utf-8"),
             benchmark_bytes=texts["process-equivalence-benchmark.json"].encode("utf-8"),
             registered_protocol_bytes={
@@ -302,6 +322,7 @@ def _preflight_study_artifact_sizes(
     report: RealModelStudyReport,
     registration_record_text: str,
     registration_review_receipt: StudyRegistrationReviewReceipt,
+    independence_audit: ValidatedStudyIndependenceAuditArtifact,
     statistical_method_review_receipt: StudyStatisticalMethodReviewReceipt | None,
     execution_review_receipt: StudyExecutionReviewReceipt | None,
 ) -> None:
@@ -312,6 +333,7 @@ def _preflight_study_artifact_sizes(
     budget.add_model("process-equivalence-benchmark.json", benchmark)
     budget.add_text("study-registration-record.json", registration_record_text)
     budget.add_model("study-registration-review.json", registration_review_receipt)
+    budget.add_bytes(STUDY_INDEPENDENCE_AUDIT_FILENAME, independence_audit.data)
     budget.add_model("real-model-study-report.json", report)
     budget.add_text("real-model-study-report.md", render_real_model_study_markdown(report))
     for index, binding in enumerate(manifest.conditions):
@@ -354,7 +376,20 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
 
     registration = report.manifest.registration
     rule = report.manifest.hypothesis_decision_rule
+    confirmatory_rule = rule if isinstance(rule, StudyHypothesisDecisionRule) else None
+    descriptive_rule = cast(StudyFixedFrameDescriptiveRule, rule)
     inferential_statistics_applicable = report.inferential_statistics_applicable
+    frame_completeness_satisfied = all(
+        result.state.value == "fixed_frame_descriptive"
+        and result.actual_pairs == result.planned_pairs
+        and result.included_pairs == result.planned_pairs
+        and result.missing_pairs == 0
+        and result.excluded_pairs == 0
+        and result.invalid_pairs == 0
+        and result.actual_clusters == result.planned_clusters
+        and result.analyzable_clusters == result.planned_clusters
+        for result in report.conditions
+    )
     lines = [
         "# Real-model study report",
         "",
@@ -380,7 +415,11 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                 if inferential_statistics_applicable
                 else "- Frame completeness satisfied: "
             )
-            + f"{str(report.statistical_sufficiency_satisfied).lower()}"
+            + (
+                f"{str(report.statistical_sufficiency_satisfied).lower()}"
+                if inferential_statistics_applicable
+                else f"{str(frame_completeness_satisfied).lower()}"
+            )
         ),
         (
             "- Invariant negative controls satisfied: "
@@ -452,39 +491,51 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
         f"- Invariant control gate: {markdown_code_span(rule.invariant_control_gate)}",
         *(
             (
-                f"- Inferential unit: {markdown_code_span(rule.inferential_unit)}",
-                (f"- Materiality threshold: {markdown_code_span(rule.materiality_threshold)}"),
-                f"- Familywise alpha: {markdown_code_span(rule.familywise_alpha)}",
+                f"- Inferential unit: {markdown_code_span(confirmatory_rule.inferential_unit)}",
+                (
+                    "- Materiality threshold: "
+                    f"{markdown_code_span(confirmatory_rule.materiality_threshold)}"
+                ),
+                (f"- Familywise alpha: {markdown_code_span(confirmatory_rule.familywise_alpha)}"),
                 (
                     "- Directional error control: "
-                    f"{markdown_code_span(rule.directional_error_control)}. Support and "
-                    "contradiction are each FWER-controlled over target conditions; the "
-                    "combined rule is not a single joint two-sided-alpha guarantee."
+                    f"{markdown_code_span(confirmatory_rule.directional_error_control)}. "
+                    "The support "
+                    "alternative (any target above threshold) and contradiction null "
+                    "(all targets at or below threshold) are exhaustive complements. "
+                    "Bonferroni-adjusted one-sided bounds therefore control the probability "
+                    "of any wrong directional classification at the declared familywise "
+                    "alpha; this is not a simultaneous two-sided confidence-interval claim."
                 ),
                 (
                     "- Multiplicity / interval: "
-                    f"{markdown_code_span(rule.multiplicity_method)} / "
-                    f"{markdown_code_span(rule.interval_method)}"
+                    f"{markdown_code_span(confirmatory_rule.multiplicity_method)} / "
+                    f"{markdown_code_span(confirmatory_rule.interval_method)}"
                 ),
                 (
                     "- Minimum independent clusters: "
-                    f"{markdown_code_span(str(rule.minimum_independent_clusters))}"
+                    f"{markdown_code_span(str(confirmatory_rule.minimum_independent_clusters))}"
                 ),
                 (
                     "- Independence justification status: "
-                    f"{markdown_code_span(rule.independence_justification.status.value)}"
+                    f"{markdown_code_span(confirmatory_rule.independence_justification.status.value)}"
                 ),
                 (
                     "- Independence software-verification scope: "
-                    f"{markdown_code_span(rule.independence_justification.software_verification_scope)}"
+                    f"{markdown_code_span(confirmatory_rule.independence_justification.software_verification_scope)}"
                 ),
             )
-            if inferential_statistics_applicable
+            if confirmatory_rule is not None
             else (
                 "- Inferential decision rule: inactive for fixed-frame descriptive scope",
+                (f"- Descriptive unit: {markdown_code_span(descriptive_rule.descriptive_unit)}"),
                 (
-                    "- Frame-dependence status: "
-                    f"{markdown_code_span(rule.independence_justification.status.value)}"
+                    "- Frame-dependence design basis: "
+                    f"{markdown_code_span(descriptive_rule.dependence_acknowledgement.design_basis.value)}"
+                ),
+                (
+                    "- Dependence-audit software-verification scope: "
+                    f"{markdown_code_span(descriptive_rule.dependence_acknowledgement.software_verification_scope)}"
                 ),
                 (
                     "- Scope limitation: rates and counts apply only to the exact "
@@ -678,8 +729,9 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
         if result.decision_inertia_rate is not None:
             interval = result.decision_inertia_interval
             breakdown = result.decision_inertia_descriptive_breakdown
-            assert interval is not None
             assert breakdown is not None
+            if inferential_statistics_applicable:
+                assert interval is not None
             lines.extend(
                 [
                     (
@@ -721,14 +773,15 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                             f"[{markdown_code_span(interval.lower_bound)}, "
                             f"{markdown_code_span(interval.upper_bound)}]",
                         )
-                        if inferential_statistics_applicable
+                        if interval is not None
                         else ()
                     ),
                 ]
             )
         if result.control_unexpected_change_rate is not None:
             interval = result.control_unexpected_change_interval
-            assert interval is not None
+            if inferential_statistics_applicable:
+                assert interval is not None
             lines.extend(
                 [
                     (
@@ -745,7 +798,7 @@ def render_real_model_study_markdown(report: RealModelStudyReport) -> str:
                             f"[{markdown_code_span(interval.lower_bound)}, "
                             f"{markdown_code_span(interval.upper_bound)}]",
                         )
-                        if inferential_statistics_applicable
+                        if interval is not None
                         else ()
                     ),
                     (

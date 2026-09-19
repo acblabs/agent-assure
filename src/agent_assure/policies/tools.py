@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from agent_assure.policies.base import ControlResult
 from agent_assure.schema.common import GateState, ReasonCode, Severity
-from agent_assure.schema.run import AgentRunRecord
+from agent_assure.schema.run import AgentRunRecord, structured_field_is_control_eligible
 
 
 def evaluate_tool_allowlist(
@@ -13,6 +13,8 @@ def evaluate_tool_allowlist(
 ) -> tuple[ControlResult, ...]:
     forbidden = set(forbidden_tools)
     allowed = None if allowed_tools is None else set(allowed_tools)
+    if allowed is None and not forbidden:
+        return ()
     results: list[ControlResult] = []
     # Tool presence is used only as a negative signal. Even an untrusted
     # self-report of a forbidden tool must not disappear when provenance trust
@@ -33,6 +35,26 @@ def evaluate_tool_allowlist(
                 severity=Severity.error,
                 target=f"tool:{tool}",
                 message=message,
+            )
+        )
+    if not run.tools or not structured_field_is_control_eligible(run, "tools"):
+        coverage_reason = (
+            "tool observation is empty"
+            if not run.tools
+            else "tool observation is not control-eligible"
+        )
+        results.append(
+            ControlResult(
+                control_id="tool_allowlist",
+                case_id=run.case_id,
+                state=GateState.not_evaluated,
+                reason_code=ReasonCode.NOT_EVALUATED,
+                severity=Severity.info,
+                target="tools",
+                message=(
+                    f"{coverage_reason}; absence is not evidence that no tool was called; "
+                    "reported forbidden tools remain conservative negative evidence"
+                ),
             )
         )
     return tuple(results)

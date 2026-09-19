@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import json
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Annotated
+from typing import Annotated, Any
 
 import typer
 from pydantic import ValidationError
@@ -37,7 +38,9 @@ from agent_assure.fixtures.resolver import FixtureResolver
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    load_json_bytes_bounded,
     loads_json_bounded,
+    read_bytes_bounded_from_filesystem_root,
     read_text_bounded_from_filesystem_root,
 )
 from agent_assure.live.config import LiveRunConfig, load_live_run_config
@@ -47,7 +50,9 @@ from agent_assure.rag.repeated_sensitivity import (
     build_paired_runset_dependencies,
     calculate_live_arm_binding_facts,
     execution_attempt_journal_path,
+    load_registered_repeated_sensitivity_protocol_snapshot,
     load_repeated_sensitivity_protocol,
+    load_repeated_sensitivity_protocol_with_bytes,
     run_repeated_live_study,
 )
 from agent_assure.rag.sensitivity import (
@@ -73,18 +78,28 @@ from agent_assure.reporting.stochastic_sensitivity import (
     write_repeated_run_artifacts,
 )
 from agent_assure.reporting.text_safety import sanitize_display_text
+from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.sensitivity import EvidenceSensitivityExpectedRelation
 from agent_assure.schema.stochastic_sensitivity import (
     RepeatedEvidenceSensitivityProtocol,
     SensitivityExecutionMode,
 )
+from agent_assure.schema.study import (
+    MAX_STUDY_CONDITIONS,
+    RealModelStudyManifest,
+    StudyRegistrationReviewReceipt,
+    StudyStatisticalMethodReviewReceipt,
+)
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
 )
 from agent_assure.sensitivity_contract import SENSITIVITY_HARNESS_NOTICE
+from agent_assure.study_dispatch import StudyDispatchPreflightEvidence
+from agent_assure.study_limits import MAX_STUDY_BUNDLE_TOTAL_BYTES
 
 app = typer.Typer(help="Deterministic retrieval-augmented-generation assurance.")
 sensitivity_app = typer.Typer(
@@ -96,6 +111,96 @@ app.add_typer(sensitivity_app, name="sensitivity")
 app.add_typer(study_cmd.app, name="study")
 
 _OWNED_OUTPUT_FILENAMES = SENSITIVITY_OUTPUT_FILENAMES
+
+
+@dataclass(slots=True)
+class _StudyDispatchInputByteBudget:
+    """Bound all evidence retained for one study-dispatch preflight."""
+
+    remaining: int
+
+    def next_read_limit(self, per_file_limit: int) -> int:
+        if self.remaining <= 0:
+            raise ValueError("study dispatch evidence exceeds the maximum aggregate size")
+        return min(per_file_limit, self.remaining)
+
+    def consume_bytes(self, size: int) -> None:
+        if size < 0 or size > self.remaining:
+            raise ValueError("study dispatch evidence exceeds the maximum aggregate size")
+        self.remaining -= size
+
+
+def _read_study_dispatch_evidence_bytes(
+    path: Path,
+    *,
+    label: str,
+    byte_budget: _StudyDispatchInputByteBudget,
+) -> bytes:
+    data = read_bytes_bounded_from_filesystem_root(
+        path,
+        max_bytes=byte_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+        label=label,
+    )
+    byte_budget.consume_bytes(len(data))
+    return data
+
+
+def _load_study_dispatch_artifact_with_bytes(
+    path: Path,
+    kind: str,
+    *,
+    label: str,
+    byte_budget: _StudyDispatchInputByteBudget,
+    enforce_condition_limit: bool = False,
+) -> tuple[dict[str, Any], bytes]:
+    """Validate one JSON artifact from the exact bytes retained by preflight."""
+
+    data = _read_study_dispatch_evidence_bytes(
+        path,
+        label=label,
+        byte_budget=byte_budget,
+    )
+    payload = load_json_bytes_bounded(
+        data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=label,
+    )
+    if enforce_condition_limit:
+        raw_conditions = payload.get("conditions")
+        if isinstance(raw_conditions, list) and len(raw_conditions) > MAX_STUDY_CONDITIONS:
+            raise ValueError("study manifest exceeds the maximum supported condition count")
+    validate_loaded_artifact_payload(payload, kind)
+    return payload, data
+
+
+def _parse_unresolved_study_protocol_specs(
+    values: list[str] | None,
+) -> dict[str, Path]:
+    """Parse condition keys without touching artifact-controlled paths."""
+
+    if not values:
+        return {}
+    if len(values) > MAX_STUDY_CONDITIONS:
+        raise ValueError("study-dispatch protocol mappings exceed the maximum count")
+    parsed: dict[str, Path] = {}
+    for value in values:
+        condition_id, separator, raw_path = value.partition("=")
+        if not separator or not condition_id or not raw_path:
+            raise ValueError("study-dispatch protocol mappings must use CONDITION_ID=PATH")
+        if condition_id in parsed:
+            raise ValueError("study-dispatch protocol condition IDs must be unique")
+        parsed[condition_id] = Path(raw_path)
+    return parsed
+
+
+def _resolve_study_protocol_path(path: Path) -> Path:
+    try:
+        resolved = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("study-dispatch protocol path cannot be resolved") from exc
+    if not resolved.is_file():
+        raise ValueError("study-dispatch protocol path must identify a regular file")
+    return resolved
 
 
 @app.callback()
@@ -454,6 +559,10 @@ def repeated_sensitivity_finalize(
         compiled = load_compiled_suite(compiled_suite_path)
         baseline_config = load_live_run_config(baseline_config_path)
         counterfactual_config = load_live_run_config(counterfactual_config_path)
+        if baseline_config.execution_profile != counterfactual_config.execution_profile:
+            raise ValueError(
+                "finalize requires both live configs to declare the same execution_profile"
+            )
         _reject_inline_environment_for_finalization(
             baseline_config,
             arm_name="baseline",
@@ -784,6 +893,90 @@ def repeated_sensitivity_run(
             help="New atomic paired RunSet artifact directory.",
         ),
     ],
+    study_manifest_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--study-manifest",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact preregistered study manifest required by study-bound configs.",
+        ),
+    ] = None,
+    study_benchmark_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--benchmark",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact benchmark required by study-bound configs.",
+        ),
+    ] = None,
+    study_condition_id: Annotated[
+        str | None,
+        typer.Option(
+            "--study-condition-id",
+            help="Frozen condition identity required by study-bound configs.",
+        ),
+    ] = None,
+    study_registration_record_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--study-registration-record",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact preregistration record bytes committed by the study manifest.",
+        ),
+    ] = None,
+    study_registration_review_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--study-registration-review",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Canonical registration-review receipt required before study dispatch.",
+        ),
+    ] = None,
+    study_independence_audit_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--study-independence-audit",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact independence-audit bytes committed by the study manifest.",
+        ),
+    ] = None,
+    study_statistical_method_review_path: Annotated[
+        Path | None,
+        typer.Option(
+            "--study-statistical-method-review",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Canonical qualified statistical-method review receipt.",
+        ),
+    ] = None,
+    study_protocol_specs: Annotated[
+        list[str] | None,
+        typer.Option(
+            "--study-protocol",
+            metavar="CONDITION_ID=PATH",
+            help=(
+                "Frozen protocol for another manifest condition. Repeat for every "
+                "condition except the active --study-condition-id."
+            ),
+        ),
+    ] = None,
     network_opt_in: Annotated[
         bool,
         typer.Option(
@@ -822,6 +1015,96 @@ def repeated_sensitivity_run(
 ) -> None:
     """Execute exact pre-bound arms through the existing live adapters."""
     try:
+        unresolved_study_protocol_paths = _parse_unresolved_study_protocol_specs(
+            study_protocol_specs
+        )
+        study_preflight_paths = (
+            study_manifest_path,
+            study_benchmark_path,
+            study_registration_record_path,
+            study_registration_review_path,
+            study_independence_audit_path,
+            study_statistical_method_review_path,
+        )
+        study_dispatch_requested = any(path is not None for path in study_preflight_paths) or bool(
+            unresolved_study_protocol_paths
+        )
+        if study_dispatch_requested and (
+            any(path is None for path in study_preflight_paths) or study_condition_id is None
+        ):
+            raise ValueError(
+                "study dispatch requires the exact manifest, benchmark, condition, "
+                "registration record, registration review, independence audit, and "
+                "statistical-method review together"
+            )
+
+        study_manifest = None
+        study_benchmark = None
+        study_dispatch_evidence = None
+        byte_budget = None
+        manifest_bytes = None
+        registered_protocol_snapshot = None
+        study_protocol_paths: dict[str, Path] = {}
+        if study_dispatch_requested:
+            assert study_manifest_path is not None
+            assert study_condition_id is not None
+            byte_budget = _StudyDispatchInputByteBudget(MAX_STUDY_BUNDLE_TOTAL_BYTES)
+            manifest_payload, manifest_bytes = _load_study_dispatch_artifact_with_bytes(
+                study_manifest_path,
+                "real-model-study-manifest",
+                label="real-model study manifest JSON",
+                byte_budget=byte_budget,
+                enforce_condition_limit=True,
+            )
+            study_manifest = project_validated_artifact_payload(
+                manifest_payload,
+                RealModelStudyManifest,
+                kind="real-model-study-manifest",
+            )
+            manifest_condition_ids = tuple(
+                condition.condition_id for condition in study_manifest.conditions
+            )
+            supplied_condition_ids = set(unresolved_study_protocol_paths)
+            supplied_condition_ids.add(study_condition_id)
+            if supplied_condition_ids != set(manifest_condition_ids):
+                raise ValueError(
+                    "study-dispatch protocols must exactly cover the manifest condition IDs"
+                )
+            registered_protocol_path = _resolve_study_protocol_path(protocol_path)
+            resolved_supplied_paths = {
+                condition_id: _resolve_study_protocol_path(
+                    unresolved_study_protocol_paths[condition_id]
+                )
+                for condition_id in manifest_condition_ids
+                if condition_id in unresolved_study_protocol_paths
+            }
+            supplied_active_path = resolved_supplied_paths.get(study_condition_id)
+            if (
+                supplied_active_path is not None
+                and supplied_active_path != registered_protocol_path
+            ):
+                raise ValueError(
+                    "active study protocol mapping must identify the exact --protocol path"
+                )
+            study_protocol_paths = {
+                condition_id: (
+                    registered_protocol_path
+                    if condition_id == study_condition_id
+                    else resolved_supplied_paths[condition_id]
+                )
+                for condition_id in manifest_condition_ids
+            }
+        else:
+            registered_protocol_path = protocol_path.resolve(strict=True)
+
+        optional_study_paths = tuple(
+            path
+            for path in (
+                *study_preflight_paths,
+                *study_protocol_paths.values(),
+            )
+            if path is not None
+        )
         _ensure_repeated_output_does_not_alias_inputs(
             out=out,
             inputs=(
@@ -830,17 +1113,108 @@ def repeated_sensitivity_run(
                 baseline_config_path,
                 counterfactual_config_path,
                 live_protocol_path,
+                *optional_study_paths,
             ),
         )
         if out.exists():
             raise ValueError(
                 "paired live output directory must not exist before provider execution"
             )
-        protocol = load_repeated_sensitivity_protocol(protocol_path)
+        active_protocol_max_bytes = (
+            byte_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES)
+            if byte_budget is not None
+            else MAX_ARTIFACT_JSON_BYTES
+        )
+        registered_protocol_snapshot = load_registered_repeated_sensitivity_protocol_snapshot(
+            registered_protocol_path,
+            max_bytes=active_protocol_max_bytes,
+        )
+        registered_protocol_path = registered_protocol_snapshot.resolved_path
+        protocol = registered_protocol_snapshot.protocol
+        active_protocol_bytes = registered_protocol_snapshot.data
+        if study_dispatch_requested:
+            assert byte_budget is not None
+            byte_budget.consume_bytes(len(active_protocol_bytes))
         compiled = load_compiled_suite(compiled_suite_path)
         baseline_config = load_live_run_config(baseline_config_path)
         counterfactual_config = load_live_run_config(counterfactual_config_path)
         live_protocol = _load_operational_live_protocol(live_protocol_path)
+        if study_dispatch_requested:
+            assert byte_budget is not None
+            assert manifest_bytes is not None
+            assert study_benchmark_path is not None
+            assert study_registration_record_path is not None
+            assert study_registration_review_path is not None
+            assert study_independence_audit_path is not None
+            assert study_statistical_method_review_path is not None
+            assert study_condition_id is not None
+
+            benchmark_payload, benchmark_bytes = _load_study_dispatch_artifact_with_bytes(
+                study_benchmark_path,
+                "process-equivalence-benchmark",
+                label="process-equivalence benchmark JSON",
+                byte_budget=byte_budget,
+            )
+            study_benchmark = project_validated_artifact_payload(
+                benchmark_payload,
+                ProcessEquivalenceBenchmarkManifest,
+                kind="process-equivalence-benchmark",
+            )
+            registration_record_bytes = _read_study_dispatch_evidence_bytes(
+                study_registration_record_path,
+                label="study registration record",
+                byte_budget=byte_budget,
+            )
+            registration_review_payload, _ = _load_study_dispatch_artifact_with_bytes(
+                study_registration_review_path,
+                "real-model-study-registration-review",
+                label="study registration review receipt JSON",
+                byte_budget=byte_budget,
+            )
+            registration_review_receipt = project_validated_artifact_payload(
+                registration_review_payload,
+                StudyRegistrationReviewReceipt,
+                kind="real-model-study-registration-review",
+            )
+            independence_audit_artifact_bytes = _read_study_dispatch_evidence_bytes(
+                study_independence_audit_path,
+                label="study independence audit artifact",
+                byte_budget=byte_budget,
+            )
+            method_review_payload, _ = _load_study_dispatch_artifact_with_bytes(
+                study_statistical_method_review_path,
+                "real-model-study-statistical-method-review",
+                label="study statistical-method review receipt JSON",
+                byte_budget=byte_budget,
+            )
+            statistical_method_review_receipt = project_validated_artifact_payload(
+                method_review_payload,
+                StudyStatisticalMethodReviewReceipt,
+                kind="real-model-study-statistical-method-review",
+            )
+
+            study_protocols = {study_condition_id: protocol}
+            registered_protocol_bytes = {study_condition_id: active_protocol_bytes}
+            for condition_id, path in study_protocol_paths.items():
+                if condition_id == study_condition_id:
+                    continue
+                registered, registered_bytes = load_repeated_sensitivity_protocol_with_bytes(
+                    path,
+                    max_bytes=byte_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+                )
+                byte_budget.consume_bytes(len(registered_bytes))
+                study_protocols[condition_id] = registered
+                registered_protocol_bytes[condition_id] = registered_bytes
+            study_dispatch_evidence = StudyDispatchPreflightEvidence(
+                manifest_bytes=manifest_bytes,
+                benchmark_bytes=benchmark_bytes,
+                registration_record_bytes=registration_record_bytes,
+                registration_review_receipt=registration_review_receipt,
+                independence_audit_artifact_bytes=independence_audit_artifact_bytes,
+                statistical_method_review_receipt=statistical_method_review_receipt,
+                protocols=study_protocols,
+                registered_protocol_bytes=registered_protocol_bytes,
+            )
         if not network_opt_in:
             raise ValueError("paired live execution requires explicit --network-opt-in")
         baseline_trust = _confirm_trusted_live_config(
@@ -859,7 +1233,6 @@ def repeated_sensitivity_run(
             allow_external_script=allow_external_script,
             allow_script_env=allow_script_env,
         )
-        registered_protocol_path = protocol_path.resolve(strict=True)
         attempt_journal = execution_attempt_journal_path(registered_protocol_path, protocol)
         baseline, counterfactual = run_repeated_live_study(
             compiled=compiled,
@@ -872,6 +1245,11 @@ def repeated_sensitivity_run(
             baseline_trust=baseline_trust,
             counterfactual_trust=counterfactual_trust,
             registered_protocol_path=registered_protocol_path,
+            registered_protocol_snapshot=registered_protocol_snapshot,
+            study_manifest=study_manifest,
+            study_benchmark=study_benchmark,
+            study_condition_id=study_condition_id,
+            study_dispatch_evidence=study_dispatch_evidence,
         )
         written = write_repeated_run_artifacts(
             protocol=protocol,

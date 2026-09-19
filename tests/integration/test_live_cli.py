@@ -3,11 +3,14 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
 import yaml
 from typer.testing import CliRunner
 
 from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.cli import live_cmd as live_cmd_module
 from agent_assure.cli.main import app
+from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
     LiveDriftReport,
@@ -19,6 +22,77 @@ from agent_assure.schema.run import RunSet
 
 SUITE = Path("examples/expense_approval_minimal/suite.yaml")
 RUNNER = CliRunner()
+
+
+@pytest.mark.parametrize("study_manifest_digest", ("a" * 64, None))
+def test_live_run_rejects_paired_study_profile_before_trust_or_dispatch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    study_manifest_digest: str | None,
+) -> None:
+    compiled_path = tmp_path / "compiled.json"
+    config_path = tmp_path / "live.json"
+    protocol_path = tmp_path / "protocol.json"
+    out = tmp_path / "runset.json"
+    for path in (compiled_path, config_path, protocol_path):
+        path.write_text("{}\n", encoding="utf-8")
+    config = LiveRunConfig(
+        variant_id="study-bound-generic-cli",
+        pipeline_id="study-pipeline",
+        execution_profile="preregistered_paired_study",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        evidence_sensitivity_design_digest="9" * 64,
+        study_manifest_digest=study_manifest_digest,
+        adapter=LiveAdapterConfig(
+            adapter_id="static-jsonl",
+            provider="static-provider",
+            model="static-model",
+            response_jsonl_path="responses.jsonl",
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path="prompt.txt",
+                input_summary="expense request",
+            ),
+        ),
+        max_requests=1,
+        max_retries=0,
+    )
+    trust_or_dispatch_reached = False
+
+    def unexpected_call(*args: object, **kwargs: object) -> object:
+        nonlocal trust_or_dispatch_reached
+        del args, kwargs
+        trust_or_dispatch_reached = True
+        raise AssertionError("generic CLI continued after study-bound config rejection")
+
+    monkeypatch.setattr(live_cmd_module, "load_compiled_suite", lambda _path: object())
+    monkeypatch.setattr(live_cmd_module, "load_live_run_config", lambda _path: config)
+    monkeypatch.setattr(live_cmd_module, "_confirm_trusted_live_config", unexpected_call)
+    monkeypatch.setattr(live_cmd_module, "run_live_suite", unexpected_call)
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "live",
+            "run",
+            str(compiled_path),
+            "--config",
+            str(config_path),
+            "--protocol",
+            str(protocol_path),
+            "--out",
+            str(out),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "preregistered paired-study configs cannot be executed" in result.output
+    assert "rag sensitivity run" in result.output
+    assert trust_or_dispatch_reached is False
+    assert not out.exists()
 
 
 def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path: Path) -> None:

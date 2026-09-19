@@ -445,6 +445,21 @@ def test_runset_persistence_rejects_sensitive_and_control_mapping_keys() -> None
         assert_runset_payload_safe_for_persistence({"unsafe\nkey": "safe"})
 
 
+@pytest.mark.parametrize(
+    "confusing_key",
+    (
+        "nested.state",
+        "nested[0].state",
+        "nested/total_tokens",
+    ),
+)
+def test_runset_preserve_list_uses_actual_mapping_key(confusing_key: str) -> None:
+    sensitive_assignment = "aws_secret_access_key=abcdefghijklmnopqrstuvwxyz1234567890"
+
+    with pytest.raises(ValueError, match="sensitive-looking content"):
+        assert_runset_payload_safe_for_persistence({confusing_key: sensitive_assignment})
+
+
 @pytest.mark.parametrize("pseudonym_name", ("subject_token", "employee_token"))
 def test_runset_persistence_accepts_canonical_hmac_pseudonym_summary(
     pseudonym_name: str,

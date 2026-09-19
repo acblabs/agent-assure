@@ -13,6 +13,7 @@ from agent_assure.schema.study import (
     StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.study.analysis import StudyConditionEvidence, analyze_real_model_study
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_bundle import (
     MAX_STUDY_BUNDLE_FILES,
     ValidatedStudyBundle,
@@ -20,7 +21,8 @@ from agent_assure.study_bundle import (
 )
 from agent_assure.study_execution_review import build_study_execution_review_receipt
 from agent_assure.study_method_review import build_study_statistical_method_review_receipt
-from tests.unit.study.test_real_model_study import _analyze, _fixture
+from tests.unit.study.test_real_model_study import _fixture
+from tests.unit.study.test_study_semantic_hardening import _with_fingerprint
 
 
 def _write_bundle(
@@ -29,12 +31,29 @@ def _write_bundle(
     real_provider_execution: bool = False,
     execution_review: bool | None = None,
     statistical_method_review: bool | None = None,
+    complete_serving_fingerprints: bool = True,
 ) -> tuple[Path, object]:
     fixture = _fixture(
         responses=(False, True, True, True),
         real_provider_execution=real_provider_execution,
     )
-    report = _analyze(fixture)
+    evidence = fixture.evidence_by_condition
+    if real_provider_execution and complete_serving_fingerprints:
+        evidence = {
+            binding.condition_id: _with_fingerprint(
+                fixture,
+                condition_id=binding.condition_id,
+                baseline_fingerprint="fp-complete-stable-unit-test",
+                counterfactual_fingerprint="fp-complete-stable-unit-test",
+            )
+            for binding in fixture.manifest.conditions
+        }
+    report = analyze_real_model_study(
+        manifest=fixture.manifest,
+        benchmark=fixture.benchmark,
+        protocols=fixture.protocols,
+        evidence=evidence,
+    )
     should_review = real_provider_execution if execution_review is None else execution_review
     should_review_method = (
         real_provider_execution if statistical_method_review is None else statistical_method_review
@@ -42,8 +61,17 @@ def _write_bundle(
     method_review_receipt = (
         build_study_statistical_method_review_receipt(
             manifest=fixture.manifest,
+            manifest_bytes=published_model_json_bytes(fixture.manifest),
             benchmark=fixture.benchmark,
+            benchmark_bytes=published_model_json_bytes(fixture.benchmark),
             protocols=fixture.protocols,
+            registered_protocol_bytes={
+                condition_id: published_model_json_bytes(protocol)
+                for condition_id, protocol in fixture.protocols.items()
+            },
+            registration_record_bytes=fixture.registration_record_bytes,
+            registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
             receipt_id="synthetic-statistical-method-review",
             reviewed_at_utc="2025-01-15T00:00:00Z",
             reviewer_pseudonym="independent-synthetic-statistician",
@@ -57,8 +85,8 @@ def _write_bundle(
             reviewer_independence_rationale=(
                 "The test reviewer did not design, execute, or analyze this study."
             ),
-            independence_design_basis_reviewed_and_accepted=True,
-            independence_acceptance_rationale=(
+            design_basis_reviewed_and_accepted=True,
+            design_review_rationale=(
                 "Independent audit review supports the synthetic generator's separate "
                 "cluster construction for this bounded deterministic test design."
             ),
@@ -72,6 +100,7 @@ def _write_bundle(
             independence_and_exchangeability_assumptions_reviewed=True,
             sampling_frame_and_estimand_reviewed=True,
             multiplicity_and_interval_method_reviewed=True,
+            combined_directional_decision_error_control_reviewed=True,
             power_and_decision_boundary_reachability_reviewed=True,
             negative_control_design_reviewed=True,
         )
@@ -84,7 +113,7 @@ def _write_bundle(
             benchmark=fixture.benchmark,
             protocols=fixture.protocols,
             report=report,
-            evidence=fixture.evidence_by_condition,
+            evidence=evidence,
             receipt_id="synthetic-execution-review",
             reviewed_at_utc="2025-04-01T00:00:00Z",
             reviewer_pseudonym="independent-synthetic-reviewer",
@@ -118,10 +147,11 @@ def _write_bundle(
         manifest=fixture.manifest,
         benchmark=fixture.benchmark,
         protocols=fixture.protocols,
-        evidence=fixture.evidence_by_condition,
+        evidence=evidence,
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         statistical_method_review_receipt=method_review_receipt,
         execution_review_receipt=execution_review_receipt,
         out_dir=out,
@@ -135,8 +165,12 @@ def test_study_bundle_replays_every_pinned_source_artifact(tmp_path: Path) -> No
     verified = load_and_validate_study_bundle(out)
 
     assert verified.report == report
-    assert verified.file_count == 6 + (5 * 4)
+    assert verified.file_count == 7 + (5 * 4)
     assert verified.registration_evidence_verified is True
+    assert verified.independence_audit_artifact_verified is True
+    justification = verified.manifest.hypothesis_decision_rule.independence_justification
+    expected_audit_sha256 = justification.design_audit_artifact_sha256
+    assert verified.design_audit_artifact_sha256 == expected_audit_sha256
     assert verified.execution_review_verified is False
     assert verified.execution_review_receipt is None
     assert verified.statistical_method_review_verified is False
@@ -167,7 +201,26 @@ def test_verified_bundle_derives_readiness_while_report_stays_fail_closed(
     assert verified.execution_review_receipt is not None
     assert verified.statistical_method_review_verified is True
     assert verified.statistical_method_review_receipt is not None
+    assert verified.has_complete_provider_serving_fingerprint_coverage is True
     assert verified.is_publication_ready is True
+
+
+def test_verified_all_absent_fingerprint_bundle_is_not_confirmatory_ready(
+    tmp_path: Path,
+) -> None:
+    out, _report = _write_bundle(
+        tmp_path,
+        real_provider_execution=True,
+        complete_serving_fingerprints=False,
+    )
+
+    verified = load_and_validate_study_bundle(out)
+
+    assert verified.execution_review_verified is True
+    assert verified.execution_review_receipt is not None
+    assert verified.execution_review_receipt.provider_serving_fingerprint_absence_acknowledged
+    assert verified.has_complete_provider_serving_fingerprint_coverage is False
+    assert verified.is_publication_ready is False
 
 
 def test_real_provider_bundle_without_post_execution_review_is_not_ready(
@@ -230,6 +283,7 @@ def test_study_bundle_replays_invalidated_source_trio_without_provenance(
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=out,
     )
 
@@ -285,6 +339,22 @@ def test_study_bundle_rejects_canonical_source_bytes_that_do_not_replay(
         load_and_validate_study_bundle(out)
 
 
+def test_study_bundle_requires_and_digest_checks_the_independence_audit(
+    tmp_path: Path,
+) -> None:
+    out, _report = _write_bundle(tmp_path)
+    audit_path = out / "study-independence-audit.md"
+    assert audit_path.read_bytes() == b"synthetic-fixture-independence-audit"
+
+    audit_path.write_bytes(b"substituted-independence-audit")
+    with pytest.raises(ValueError, match="audit artifact digest does not match"):
+        load_and_validate_study_bundle(out)
+
+    audit_path.unlink()
+    with pytest.raises(ValueError, match="inventory does not match"):
+        load_and_validate_study_bundle(out)
+
+
 def test_study_bundle_enforces_an_aggregate_byte_ceiling(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -297,7 +367,7 @@ def test_study_bundle_enforces_an_aggregate_byte_ceiling(
 
 
 def test_study_bundle_file_bound_covers_the_full_schema_condition_limit() -> None:
-    assert MAX_STUDY_BUNDLE_FILES == 8 + (5 * 64) == 328
+    assert MAX_STUDY_BUNDLE_FILES == 9 + (5 * 64) == 329
 
 
 def test_study_bundle_rejects_statistical_review_that_does_not_bind_design(

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
@@ -19,6 +19,7 @@ from agent_assure.schema.common import (
     DigestHex,
     ExecutionMode,
     GateState,
+    ProviderResponsePayloadScope,
     ReasonCode,
     Severity,
     coerce_enum,
@@ -58,6 +59,7 @@ _BUDGET_COMMITMENT_SCHEMA_VERSIONS = frozenset(
 )
 _EVIDENCE_SENSITIVITY_DESIGN_SCHEMA_VERSIONS = frozenset({"0.6.5", "0.6.6"})
 _STUDY_MANIFEST_BINDING_SCHEMA_VERSIONS = frozenset({"0.6.6"})
+_PROVIDER_RESPONSE_PAYLOAD_COMMITMENT_SCHEMA_VERSIONS = frozenset({"0.6.6"})
 # max_requests counts every adapter attempt, including retries. A paired study
 # therefore emits at most two events per attempt in each of two arms, plus two
 # arm start/end pairs and one attempt terminal event.
@@ -231,6 +233,156 @@ class StructuredFieldOrigin(StrEnum):
     legacy_unspecified = "legacy_unspecified"
 
 
+_LIVE_ADAPTER_STRUCTURED_FIELD_ORIGINS = {
+    "static-jsonl": StructuredFieldOrigin.fixture,
+    "openai-chat-completions": StructuredFieldOrigin.model_self_report,
+    "external-script": StructuredFieldOrigin.instrumented_adapter,
+}
+
+_LIVE_ADAPTER_RESPONSE_PAYLOAD_SCOPES: dict[str, ProviderResponsePayloadScope] = {
+    "static-jsonl": "complete_static_jsonl_record",
+    "openai-chat-completions": "complete_http_response_body",
+    "external-script": "complete_external_script_stdout",
+}
+
+
+def _provider_response_payload_pair_json_schema_rules() -> list[dict[str, Any]]:
+    """Mirror the optional digest/scope pair in schema-only validation."""
+
+    digest_field = "provider_response_payload_sha256"
+    scope_field = "provider_response_payload_scope"
+    return [
+        {
+            "if": {
+                "required": [digest_field],
+                "properties": {digest_field: {"type": "string"}},
+            },
+            "then": {
+                "required": [scope_field],
+                "properties": {scope_field: {"type": "string"}},
+            },
+        },
+        {
+            "if": {
+                "required": [scope_field],
+                "properties": {scope_field: {"type": "string"}},
+            },
+            "then": {
+                "required": [digest_field],
+                "properties": {digest_field: {"type": "string"}},
+            },
+        },
+    ]
+
+
+_LIVE_EXECUTION_ATTEMPT_EVENT_JSON_SCHEMA_EXTRA: dict[str, Any] = {
+    "allOf": [
+        *_provider_response_payload_pair_json_schema_rules(),
+        {
+            "if": {
+                "required": ["provider_response_payload_scope"],
+                "properties": {
+                    "provider_response_payload_scope": {"type": "string"},
+                },
+            },
+            "then": {
+                "required": ["event_type"],
+                "properties": {"event_type": {"const": "request_succeeded"}},
+            },
+        },
+    ]
+}
+
+_RUN_RECORD_JSON_SCHEMA_EXTRA["allOf"].extend(
+    [
+        *_provider_response_payload_pair_json_schema_rules(),
+        {
+            "if": {
+                "required": ["provider_response_payload_scope"],
+                "properties": {
+                    "provider_response_payload_scope": {"type": "string"},
+                },
+            },
+            "then": {
+                "required": ["schema_version", "execution_mode", "adapter_id"],
+                "properties": {
+                    "schema_version": {
+                        "enum": sorted(_PROVIDER_RESPONSE_PAYLOAD_COMMITMENT_SCHEMA_VERSIONS)
+                    },
+                    "execution_mode": {"const": "live"},
+                    "adapter_id": {"type": "string"},
+                },
+                "allOf": [
+                    *(
+                        {
+                            "if": {
+                                "required": ["adapter_id"],
+                                "properties": {"adapter_id": {"const": adapter_id}},
+                            },
+                            "then": {
+                                "properties": {
+                                    "provider_response_payload_scope": {
+                                        "const": scope,
+                                    }
+                                }
+                            },
+                        }
+                        for adapter_id, scope in sorted(
+                            _LIVE_ADAPTER_RESPONSE_PAYLOAD_SCOPES.items()
+                        )
+                    ),
+                    {
+                        "if": {
+                            "not": {
+                                "required": ["adapter_id"],
+                                "properties": {
+                                    "adapter_id": {
+                                        "enum": sorted(_LIVE_ADAPTER_RESPONSE_PAYLOAD_SCOPES)
+                                    }
+                                },
+                            }
+                        },
+                        "then": {
+                            "properties": {
+                                "provider_response_payload_scope": {
+                                    "const": "complete_adapter_declared_response_bytes",
+                                }
+                            }
+                        },
+                    },
+                ],
+            },
+        },
+    ]
+)
+
+
+def live_adapter_structured_field_origin(
+    adapter_id: str | None,
+) -> StructuredFieldOrigin:
+    """Return the registered provenance class for a live adapter, failing closed."""
+
+    if adapter_id is None:
+        return StructuredFieldOrigin.legacy_unspecified
+    return _LIVE_ADAPTER_STRUCTURED_FIELD_ORIGINS.get(
+        adapter_id,
+        StructuredFieldOrigin.legacy_unspecified,
+    )
+
+
+def live_adapter_response_payload_scope(
+    adapter_id: str | None,
+) -> ProviderResponsePayloadScope:
+    """Return the only response-byte scope a live adapter may declare."""
+
+    if adapter_id is None:
+        return "complete_adapter_declared_response_bytes"
+    return _LIVE_ADAPTER_RESPONSE_PAYLOAD_SCOPES.get(
+        adapter_id,
+        "complete_adapter_declared_response_bytes",
+    )
+
+
 StructuredFieldName = Literal[
     "recommendation",
     "outcome",
@@ -310,6 +462,8 @@ LiveAttemptEventType = Literal[
 class LiveExecutionAttemptEvent(FrozenStrictModel):
     """One privacy-safe, append-only provider-dispatch lifecycle event."""
 
+    model_config = ConfigDict(json_schema_extra=_LIVE_EXECUTION_ATTEMPT_EVENT_JSON_SCHEMA_EXTRA)
+
     event_index: int = Field(ge=0)
     event_type: LiveAttemptEventType
     occurred_at_utc: str = Field(
@@ -323,6 +477,8 @@ class LiveExecutionAttemptEvent(FrozenStrictModel):
     repetition_index: int | None = Field(default=None, ge=0)
     adapter_attempt_index: int | None = Field(default=None, ge=1)
     provider_response_id_digest: DigestHex | None = None
+    provider_response_payload_sha256: DigestHex | None = None
+    provider_response_payload_scope: ProviderResponsePayloadScope | None = None
     retryable: bool | None = None
     rate_limited: bool | None = None
 
@@ -349,6 +505,23 @@ class LiveExecutionAttemptEvent(FrozenStrictModel):
             raise ValueError("non-request attempt events cannot carry request cell fields")
         if self.provider_response_id_digest is not None and self.event_type != "request_succeeded":
             raise ValueError("provider_response_id_digest is permitted only on request_succeeded")
+        response_payload_fields = (
+            self.provider_response_payload_sha256,
+            self.provider_response_payload_scope,
+        )
+        if any(value is not None for value in response_payload_fields) and not all(
+            value is not None for value in response_payload_fields
+        ):
+            raise ValueError(
+                "provider response payload commitment fields must be supplied together"
+            )
+        if (
+            self.provider_response_payload_sha256 is not None
+            and self.event_type != "request_succeeded"
+        ):
+            raise ValueError(
+                "provider response payload commitment is permitted only on request_succeeded"
+            )
         if (self.retryable is not None or self.rate_limited is not None) and (
             self.event_type != "request_failed"
         ):
@@ -491,6 +664,14 @@ class AgentRunRecord(PersistedArtifact):
     provider_sdk: str | None = None
     provider_region: str | None = None
     provider_response_id: str | None = None
+    provider_response_payload_sha256: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    provider_response_payload_scope: ProviderResponsePayloadScope | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     provider_finish_reason: str | None = Field(
         default=None,
         min_length=1,
@@ -704,19 +885,43 @@ class AgentRunRecord(PersistedArtifact):
                     "runner-observed origins are reserved for runner-generated error records"
                 )
             return self
-        allowed: set[StructuredFieldOrigin] = set()
+        # Individual optional process fields may be absent from an otherwise
+        # instrumented record; those fields remain explicitly untrusted.
+        allowed: set[StructuredFieldOrigin] = {StructuredFieldOrigin.legacy_unspecified}
         if self.execution_mode is ExecutionMode.fixture:
             allowed.add(StructuredFieldOrigin.fixture)
             allowed.add(StructuredFieldOrigin.instrumented_adapter)
         else:
-            adapter_origin = {
-                "static-jsonl": StructuredFieldOrigin.fixture,
-                "openai-chat-completions": StructuredFieldOrigin.model_self_report,
-                "external-script": StructuredFieldOrigin.instrumented_adapter,
-            }.get(self.adapter_id or "", StructuredFieldOrigin.instrumented_adapter)
-            allowed.add(adapter_origin)
+            allowed.add(live_adapter_structured_field_origin(self.adapter_id))
         if not origins <= allowed:
             raise ValueError("structured field origins conflict with execution mode or adapter")
+        return self
+
+    @model_validator(mode="after")
+    def _validate_provider_response_payload_commitment(self) -> AgentRunRecord:
+        fields = (
+            self.provider_response_payload_sha256,
+            self.provider_response_payload_scope,
+        )
+        if any(value is not None for value in fields) and not all(
+            value is not None for value in fields
+        ):
+            raise ValueError(
+                "provider response payload commitment fields must be supplied together"
+            )
+        if self.provider_response_payload_scope is None:
+            return self
+        if self.schema_version not in _PROVIDER_RESPONSE_PAYLOAD_COMMITMENT_SCHEMA_VERSIONS:
+            raise ValueError("provider response payload commitments require schema_version 0.6.6")
+        if self.execution_mode is not ExecutionMode.live:
+            raise ValueError(
+                "provider response payload commitments are permitted only in live mode"
+            )
+        expected_scope = live_adapter_response_payload_scope(self.adapter_id)
+        if self.provider_response_payload_scope != expected_scope:
+            raise ValueError(
+                "provider response payload scope conflicts with the registered live adapter"
+            )
         return self
 
     @model_validator(mode="after")

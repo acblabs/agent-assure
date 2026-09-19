@@ -19,6 +19,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     CaseClusterBinding,
     CouplingDescriptor,
     ExactBinomialTailExpression,
+    FixedFrameDescriptivePlan,
     PairedSensitivityObservation,
     RepeatedEvidenceSensitivityProtocol,
     SensitivityArmBinding,
@@ -149,6 +150,199 @@ def _protocol_payload() -> dict[str, object]:
         ),
         "limitations": ("Scoped synthetic protocol.",),
     }
+
+
+def _fixed_frame_protocol_payload() -> dict[str, object]:
+    payload = _protocol_payload()
+    cases = cast(tuple[str, ...], payload["planned_cluster_ids"])
+    payload["interpretation"] = "fixed_frame_descriptive"
+    payload["descriptive_unit"] = payload.pop("inferential_unit")
+    payload.pop("multiplicity_family")
+    payload.pop("multiplicity_method", None)
+    payload.pop("multiplicity_family_size", None)
+    payload["design"] = FixedFrameDescriptivePlan(
+        planned_descriptive_clusters=len(cases),
+    )
+    return payload
+
+
+def test_fixed_frame_protocol_uses_a_disjoint_noninferential_contract() -> None:
+    protocol = RepeatedEvidenceSensitivityProtocol.build(**_fixed_frame_protocol_payload())
+    serialized = protocol.model_dump(mode="json")
+
+    assert protocol.schema_version == "0.6.6"
+    assert protocol.design.analysis_method == "fixed_frame_descriptive_counts"
+    assert protocol.descriptive_unit == protocol.cluster_by
+    assert protocol.inferential_unit is None
+    assert protocol.multiplicity_family is None
+    assert protocol.multiplicity_method is None
+    assert protocol.multiplicity_family_size is None
+    assert "inferential_unit" not in serialized
+    assert "multiplicity_family" not in serialized
+    assert "multiplicity_method" not in serialized
+    assert "multiplicity_family_size" not in serialized
+    Draft202012Validator(
+        RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+    ).validate(serialized)
+
+
+def test_fixed_frame_protocol_is_a_v066_only_extension() -> None:
+    payload = _fixed_frame_protocol_payload()
+    payload["schema_version"] = "0.6.5"
+
+    with pytest.raises(ValidationError, match="require schema version 0.6.6"):
+        RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+    valid = RepeatedEvidenceSensitivityProtocol.build(**_fixed_frame_protocol_payload())
+    malformed = valid.model_dump(mode="json")
+    malformed["schema_version"] = "0.6.5"
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+        ).validate(malformed)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    (
+        ("inferential_unit", "case_id"),
+        ("inferential_unit", None),
+        ("multiplicity_family", "post-hoc-family"),
+        ("multiplicity_family", None),
+        ("multiplicity_method", "single_endpoint"),
+        ("multiplicity_method", None),
+        ("multiplicity_family_size", 1),
+        ("multiplicity_family_size", None),
+    ),
+)
+def test_fixed_frame_protocol_rejects_inferential_top_level_fields(
+    field: str,
+    value: object,
+) -> None:
+    payload = _fixed_frame_protocol_payload()
+    payload[field] = value
+    with pytest.raises(ValidationError, match="cannot include"):
+        RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+    valid = RepeatedEvidenceSensitivityProtocol.build(**_fixed_frame_protocol_payload())
+    malformed = valid.model_dump(mode="json")
+    malformed[field] = value
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+        ).validate(malformed)
+
+
+def test_non_descriptive_protocol_rejects_descriptive_field_presence_even_null() -> None:
+    for value in ("case_id", None):
+        payload = _protocol_payload()
+        payload["descriptive_unit"] = value
+        with pytest.raises(ValidationError, match="cannot include descriptive_unit"):
+            RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+        valid = RepeatedEvidenceSensitivityProtocol.build(**_protocol_payload())
+        malformed = valid.model_dump(mode="json")
+        malformed["descriptive_unit"] = value
+        with pytest.raises(JsonSchemaValidationError):
+            Draft202012Validator(
+                RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+            ).validate(malformed)
+
+
+@pytest.mark.parametrize(
+    "field",
+    (
+        "inferential_unit",
+        "multiplicity_family",
+        "multiplicity_method",
+        "multiplicity_family_size",
+    ),
+)
+def test_non_descriptive_protocol_rejects_null_required_mode_fields(field: str) -> None:
+    payload = _protocol_payload()
+    payload[field] = None
+    with pytest.raises(ValidationError, match="require"):
+        RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+    valid = RepeatedEvidenceSensitivityProtocol.build(**_protocol_payload())
+    malformed = valid.model_dump(mode="json")
+    malformed[field] = None
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+        ).validate(malformed)
+
+
+def test_fixed_frame_design_rejects_inferential_parameters() -> None:
+    with pytest.raises(ValidationError, match="Extra inputs are not permitted"):
+        FixedFrameDescriptivePlan.model_validate(
+            {
+                "analysis_method": "fixed_frame_descriptive_counts",
+                "planned_descriptive_clusters": 8,
+                "familywise_alpha": "0.050000",
+            }
+        )
+
+    valid = RepeatedEvidenceSensitivityProtocol.build(**_fixed_frame_protocol_payload())
+    malformed = valid.model_dump(mode="json")
+    assert isinstance(malformed["design"], dict)
+    malformed["design"]["familywise_alpha"] = "0.050000"
+    with pytest.raises(JsonSchemaValidationError):
+        Draft202012Validator(
+            RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+        ).validate(malformed)
+
+
+def test_fixed_frame_requires_supported_adapter_and_resolved_pairing() -> None:
+    unsupported = _fixed_frame_protocol_payload()
+    unsupported["baseline_arm"] = _arm(
+        "baseline_evidence",
+        configuration="baseline-config",
+        corpus="baseline-corpus",
+        adapter_id="static-jsonl",
+    )
+    unsupported["counterfactual_arm"] = _arm(
+        "counterfactual_evidence",
+        configuration="counterfactual-config",
+        corpus="counterfactual-corpus",
+        adapter_id="static-jsonl",
+    )
+    with pytest.raises(ValidationError, match="supported stochastic adapter"):
+        RepeatedEvidenceSensitivityProtocol.build(**unsupported)
+
+    unresolved = _fixed_frame_protocol_payload()
+    unresolved["coupling"] = CouplingDescriptor(
+        pairing_identity_verified=False,
+        stochastic_dimensions=(
+            "provider_sampling_randomness",
+            "temporal_execution_order",
+        ),
+        intentionally_different=("governing_corpus_digest",),
+        not_shared=(
+            "provider_sampling_randomness",
+            "temporal_execution_order",
+        ),
+        classification="unpaired",
+    )
+    with pytest.raises(ValidationError, match="resolved paired design"):
+        RepeatedEvidenceSensitivityProtocol.build(**unresolved)
+
+    valid = RepeatedEvidenceSensitivityProtocol.build(**_fixed_frame_protocol_payload())
+    validator = Draft202012Validator(
+        RepeatedEvidenceSensitivityProtocol.model_json_schema(mode="validation")
+    )
+    malformed_adapter = valid.model_dump(mode="json")
+    malformed_adapter["baseline_arm"]["adapter_id"] = "static-jsonl"
+    malformed_adapter["counterfactual_arm"]["adapter_id"] = "static-jsonl"
+    with pytest.raises(JsonSchemaValidationError):
+        validator.validate(malformed_adapter)
+
+    malformed_coupling = valid.model_dump(mode="json")
+    malformed_coupling["coupling"].update(
+        {"pairing_identity_verified": False, "classification": "unpaired"}
+    )
+    with pytest.raises(JsonSchemaValidationError):
+        validator.validate(malformed_coupling)
 
 
 def test_deterministic_protocol_rejects_execution_attempt_identity_in_model_and_schema() -> None:

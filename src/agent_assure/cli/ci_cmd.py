@@ -79,7 +79,23 @@ def ci(
     ] = False,
     fail_on_not_evaluated: Annotated[
         bool,
-        typer.Option("--fail-on-not-evaluated", help="Treat not-evaluated summaries as blocking."),
+        typer.Option(
+            "--fail-on-not-evaluated",
+            help=(
+                "Also include generic unsupported-capability disclosures in strict "
+                "not-evaluated blocking."
+            ),
+        ),
+    ] = False,
+    allow_not_evaluated: Annotated[
+        bool,
+        typer.Option(
+            "--allow-not-evaluated",
+            help=(
+                "Explicit advisory opt-out: allow not-evaluated summary/control "
+                "outcomes to exit zero. Not valid for release gating."
+            ),
+        ),
     ] = False,
     efficacy_policy: Annotated[
         Path | None,
@@ -177,6 +193,10 @@ def ci(
         raise typer.BadParameter("--format must be text or json")
     argv = tuple(args or ())
     is_gate = bool(argv and argv[0] == "gate")
+    if fail_on_not_evaluated and allow_not_evaluated:
+        raise typer.BadParameter(
+            "--fail-on-not-evaluated cannot be combined with --allow-not-evaluated"
+        )
     if allow_missing_efficacy_for_migration:
         if release_profile or require_efficacy or efficacy_policy is not None:
             raise typer.BadParameter(
@@ -200,14 +220,19 @@ def ci(
             raise typer.BadParameter(
                 "--release-profile cannot be combined with --allow-legacy-unbound-comparison"
             )
+        if allow_not_evaluated:
+            raise typer.BadParameter(
+                "--release-profile cannot be combined with --allow-not-evaluated"
+            )
         fail_on_warn = True
         fail_on_not_evaluated = True
         require_efficacy = True
+    block_not_evaluated = not allow_not_evaluated
     if is_gate:
         _gate_existing_artifact(
             argv,
             fail_on_warn=fail_on_warn,
-            fail_on_not_evaluated=fail_on_not_evaluated,
+            fail_on_not_evaluated=block_not_evaluated,
             efficacy_policy=efficacy_policy,
             strict_efficacy=strict_efficacy,
             require_efficacy=require_efficacy,
@@ -272,6 +297,7 @@ def ci(
             today=parse_cli_date(today),
             source_input_paths=waiver_paths,
             allow_missing_efficacy_for_migration=(allow_missing_efficacy_for_migration),
+            allow_not_evaluated=allow_not_evaluated,
         )
     except (OSError, ValueError) as exc:
         if output_format == "json":

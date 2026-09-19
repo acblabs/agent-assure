@@ -23,7 +23,10 @@ The result is privacy-filtered onboarding-learning evidence. It is not an
 endorsement, adoption claim, customer testimonial, third-party audit, safety or
 security assessment, or exact-candidate release validation. A failed or
 blocked attempt is useful when its execution and friction facts are complete;
-green output is not required.
+green output is not required. This qualification begins only after Stage 1
+uploads a capture artifact. If Stage 1 exits before the upload step, it produces
+no finalizable pilot evidence. Its Actions log may still inform private
+troubleshooting, but that log is outside the privacy-filtered evidence bundle.
 
 ## Before You Start
 
@@ -31,7 +34,7 @@ You qualify as the operator only when all of these are true:
 
 - you are not an Agent Assure maintainer;
 - you control the fork and its Actions settings;
-- no `acblabs` maintainer configures, dispatches, or operates either run; and
+- no `acblabs` maintainer configures, dispatches, or operates either run;
 - you can use one pseudonym and commit one benign participant-authored input;
   and
 - you use the workflow's pinned `ubuntu-24.04` GitHub-hosted runner. Self-hosted
@@ -44,7 +47,7 @@ review only if it did not operate or alter your pilot.
 If you clone the repository locally on Windows, use a short checkout root such
 as `C:\pilot\agent-assure`; deep checkout paths can exceed legacy Git path limits.
 
-Do not use your GitHub name as the pseudonym. A pseudonym reduces direct
+Do not use your GitHub handle or real name as the pseudonym. A pseudonym reduces direct
 identification; it is not anonymity. The kit rejects exact matches to the
 current GitHub actor, owner, and known repository/account IDs, but it cannot
 recognize every real name or identifying alias. The participant and reviewer
@@ -67,10 +70,21 @@ the committed waiver. Those digests can be matched to the waiver bytes in the
 public fork and can therefore link the candidate back to that fork. Stage 1
 will not run unless you explicitly consent to the temporary handoff storage.
 
+The later review receipt in any published complete bundle restores direct
+linkage that the candidate omits: it contains the exact attempt-specific
+capture and finalization GitHub Actions URLs and both run-head commit SHAs. The
+URLs identify the fork owner and repository, so publishing that receipt can
+make your GitHub account and fork discoverable and connect them to your
+pseudonym. Stage-2 publication consent expressly covers that disclosure.
+
 ## Stage 1: Capture the Attempt
 
 1. Fork `acblabs/agent-assure` directly to a repository you control and enable
-   GitHub Actions in the fork.
+   GitHub Actions in the fork. Keep the workflow token at GitHub's standard
+   read-only repository access; the capture job queries the repository API to
+   verify fork eligibility. If that query returns `403` on a new or enterprise
+   fork, restore standard read access and rerun Stage 1. Do not grant write
+   access or add a personal token.
 2. Choose a pseudonym such as `participant-ember-17`. It must be 1–64
    characters, start with a letter or digit, and then use only letters,
    digits, `.`, `_`, `:`, `/`, or `-`.
@@ -107,6 +121,13 @@ exact argv, timestamps, exit code, and—only for evidence-bearing exit `0` or
 `1`—the schema-valid campaign output. It discards command stdout/stderr and
 does not copy the authored waiver, suite, or RunSet into the capture.
 
+Eligibility, GitHub API, checkout, environment setup, dependency installation,
+wheel-build, and capture-validation failures can occur before the upload step.
+When they do, there is no Stage-1 artifact for Stage 2 to download, so the run
+cannot be finalized into a qualifying pilot bundle. Preserve the run URL for
+private troubleshooting and rerun Stage 1 after correcting the problem; do not
+publish the unfiltered Actions log as pilot evidence.
+
 Download and inspect the capture artifact before continuing. Keep the run URL
 and your fork available so the reviewer can verify the committed input bytes
 and environment control out of band.
@@ -115,6 +136,10 @@ and environment control out of band.
 
 Run **external pilot 2 - finalize** from the same fork and with the same GitHub
 account. Supply the capture run ID and attempt number.
+
+The actor identity is bound into the Stage-1 handoff. The same GitHub actor must
+dispatch the initial finalization and every remediation re-finalization. A
+separate reviewer verifies the result but cannot operate Stage 2 on your behalf.
 
 - Select `no_friction_observed` only if installation, configuration,
   diagnostics, CI execution, runtime, and the instructions caused no material
@@ -135,7 +160,10 @@ account. Supply the capture run ID and attempt number.
   includes the capture run ID, and the candidate bytes share the capture's
   random opaque binding, so possession of both stages permits correlation.
   The committed-input digests can also be matched to the public fork's waiver
-  bytes.
+  bytes. The later review receipt published with the complete bundle contains
+  the exact capture and finalization run URLs, attempts, and run-head commit
+  SHAs. Those URLs directly identify your GitHub account and fork even though
+  the evidence descriptor uses a pseudonym.
 - Declining is allowed: do not dispatch Stage 2. If you opened Stage 2 by
   mistake, leave publication unchecked; the run then fails closed with a red
   diagnostic and produces no public candidate.
@@ -148,8 +176,9 @@ job green.
 
 ### If reported friction is later remediated
 
-Do not edit the planned candidate. After an upstream fix is committed, rerun
-Stage 2 from the same fork/account against the unchanged Stage-1 capture:
+Do not edit the planned candidate. After an upstream fix is committed, the
+same GitHub actor must rerun Stage 2 from the same fork/account against the
+unchanged Stage-1 capture:
 
 1. keep `friction_observed` and the original category;
 2. select `applied`;

@@ -17,18 +17,19 @@ Current commands:
 - `agent-assure controls efficacy [--config CONTROLS_MUTATION_YAML] [--campaign CAMPAIGN_DIR] [--allow-external-campaign] [--out REPORT_DIR]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --operator OPERATOR_ID --out REPORT_DIR [--seed INTEGER] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
 - `agent-assure controls mutate --suite SUITE_YAML_OR_COMPILED_JSON --runset RUNSET_JSON --catalog core/v1 --out REPORT_DIR [--operator OPERATOR_ID] [--invariant-family FAMILY] [--threat-id ID] [--seed INTEGER] [--full-report|--fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--fail-on-warn] [--fail-on-not-evaluated] [--today YYYY-MM-DD]`
-- `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--allow-missing-efficacy-for-migration] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
-- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--release-profile] [--require-efficacy] [--allow-missing-efficacy-for-migration] [--require-evidence-sensitivity] [--require-stochastic-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated] [--format text|json]`
+- `agent-assure ci CANDIDATE_RUNSET --suite COMPILED_SUITE_JSON --out-dir REPORT_DIR [--baseline BASELINE_RUNSET] [--report-mode full|fail-fast] [--waiver WAIVER_JSON_OR_YAML] [--allow-missing-efficacy-for-migration] [--fail-on-warn] [--fail-on-not-evaluated|--allow-not-evaluated] [--format text|json]`
+- `agent-assure ci gate SUMMARY_REPORT_OR_PACKET_JSON [--artifact-root DIR] [--efficacy-policy CONTROLS_MUTATION_YAML_OR_PROFILE_JSON] [--release-profile] [--require-efficacy] [--allow-missing-efficacy-for-migration] [--require-evidence-sensitivity] [--require-stochastic-evidence-sensitivity] [--allow-sensitivity-non-verdict] [--allow-legacy-unbound-comparison] [--strict-efficacy|--allow-advisory-efficacy] [--fail-on-warn] [--fail-on-not-evaluated|--allow-not-evaluated] [--format text|json]`
 - `agent-assure demo assure-the-assurance [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure demo evidence-sensitivity [--out DIR] [--clean|--no-clean] [--format text|json] [--strict]`
 - `agent-assure rag sensitivity --suite SUITE_YAML --baseline-corpus DIR --counterfactual-corpus DIR --knowledge-contract CONTRACT_YAML --expected-relation decision_flip --out DIR [--synthetic-data-attestation ATTESTATION_JSON]`
 - `agent-assure rag sensitivity plan --protocol REPEATED_PROTOCOL_JSON_OR_YAML`
 - `agent-assure rag sensitivity finalize --template REPEATED_PROTOCOL_TEMPLATE_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_UNCOMMITTED_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_UNCOMMITTED_LIVE_CONFIG --out REPEATED_PROTOCOL_JSON --baseline-config-out BASELINE_FINAL_LIVE_CONFIG_JSON --counterfactual-config-out COUNTERFACTUAL_FINAL_LIVE_CONFIG_JSON`
-- `agent-assure rag sensitivity run --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config LIVE_CONFIG --counterfactual-config LIVE_CONFIG --live-protocol LIVE_PROTOCOL_JSON --out RUNSET_DIR --network-opt-in [--trust-config] [--ci] [--allow-external-script] [--allow-script-env]`
+- `agent-assure rag sensitivity run --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config LIVE_CONFIG --counterfactual-config LIVE_CONFIG --live-protocol LIVE_PROTOCOL_JSON --out RUNSET_DIR --network-opt-in [--study-manifest STUDY_MANIFEST_JSON --benchmark BENCHMARK_JSON --study-condition-id CONDITION_ID --study-registration-record REGISTRATION_RECORD_JSON --study-registration-review REGISTRATION_REVIEW_JSON --study-independence-audit INDEPENDENCE_AUDIT --study-statistical-method-review METHOD_REVIEW_JSON [--study-protocol OTHER_CONDITION_ID=PROTOCOL_JSON ...]] [--trust-config] [--ci] [--allow-external-script] [--allow-script-env]`
 - `agent-assure rag sensitivity analyze --protocol REPEATED_PROTOCOL_JSON_OR_YAML --runset RUNSET_DIR --out ANALYSIS_DIR`
 - `agent-assure rag study input-commitment --compiled-suite COMPILED_SUITE_JSON --config UNBOUND_LIVE_CONFIG_JSON_OR_YAML`
 - `agent-assure rag study finalize --template STUDY_MANIFEST_TEMPLATE_JSON_OR_YAML --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --protocol CONDITION_ID=REPEATED_PROTOCOL_JSON_OR_YAML [--protocol CONDITION_ID=PATH ...] --out STUDY_MANIFEST_JSON`
 - `agent-assure rag study review-registration --manifest STUDY_MANIFEST_JSON --record REGISTRATION_RECORD_JSON --template REGISTRATION_REVIEW_TEMPLATE_JSON_OR_YAML --out REGISTRATION_REVIEW_RECEIPT_JSON`
+- `agent-assure rag study review-statistics --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --registration-record REGISTRATION_RECORD_JSON --registration-review REGISTRATION_REVIEW_RECEIPT_JSON --independence-audit INDEPENDENCE_AUDIT --protocol CONDITION_ID=REPEATED_PROTOCOL_JSON_OR_YAML [--protocol CONDITION_ID=PATH ...] --template STATISTICAL_METHOD_REVIEW_TEMPLATE_JSON_OR_YAML --out STATISTICAL_METHOD_REVIEW_RECEIPT_JSON`
 - `agent-assure rag study review-execution --bundle STUDY_PRE_REVIEW_BUNDLE_DIR --template EXECUTION_REVIEW_TEMPLATE_JSON_OR_YAML --out EXECUTION_REVIEW_RECEIPT_JSON`
 - `agent-assure rag study bind-config --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --condition-id CONDITION_ID --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_LIVE_CONFIG --baseline-config-out BASELINE_STUDY_BOUND_JSON --counterfactual-config-out COUNTERFACTUAL_STUDY_BOUND_JSON`
 - `agent-assure rag study analyze --manifest STUDY_MANIFEST_JSON --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --evidence STUDY_EVIDENCE_DESCRIPTOR_JSON_OR_YAML --out STUDY_PUBLICATION_DIR`
@@ -134,6 +135,11 @@ builds and self-digests the repeated protocol; and injects that protocol's
 design commitment digest into both finalized configs. It then recomputes the arm
 facts and fails if adding the backlink changed either execution identity. The
 command never constructs an adapter, performs network I/O, or dispatches a model.
+`execution_profile` is part of each executable configuration digest. Ordinary
+work uses the default `ordinary_live`. Configs intended for a registered
+real-model study must declare `preregistered_paired_study` in both uncommitted
+inputs before `finalize`; this non-cyclic marker is therefore frozen into both
+arm digests before the design and manifest backlinks exist.
 
 Each finalized config must use a distinct `.json` filename in the same directory
 as its uncommitted input so relative resource paths preserve the exact bytes they
@@ -182,6 +188,40 @@ implicitly. Every paired live invocation requires `--network-opt-in`; an
 actually network-backed adapter additionally requires its configuration opt-in.
 Risky configuration execution also follows the existing
 `--trust-config`/`--ci` acknowledgement boundary.
+When either config selects `preregistered_paired_study`, `run` requires a
+design backlink, a study-manifest backlink, and the complete all-or-none study
+input group: `--study-manifest`,
+`--benchmark`, `--study-condition-id`, `--study-registration-record`,
+`--study-registration-review`, `--study-independence-audit`, and
+`--study-statistical-method-review`. Repeat `--study-protocol
+CONDITION_ID=PATH` for every other manifest condition; the active
+`--study-condition-id` is taken from the exact `--protocol` path, and an
+explicit active mapping must resolve to that same path. The resulting protocol
+set must exactly cover the manifest. Dispatch replays the registration receipt,
+raw registration record, qualified method receipt, exact raw audit bytes,
+manifest, benchmark, and exact registered protocol bytes before reserving the
+attempt or calling a provider. It requires the selected condition to have been
+preregistered as `real_provider`, with the same execution-attempt identity.
+Removing the study backlink does not turn a paired-study profile into an
+ordinary executable config: dispatch fails before journal reservation. Removing
+both the profile and backlink produces a different executable configuration
+digest and therefore cannot match the frozen protocol arm. Unbound configs
+cannot acquire a study binding at dispatch. A known
+confirmatory-ineligible benchmark therefore fails at the execution boundary
+even if the configs were created by an older client.
+
+The execution interval is half-open: `start <= now < end`. It is checked during
+preflight, immediately before journal reservation and each arm, around every
+durable `request_issued` write, inside the OpenAI adapter after DNS pinning and
+immediately before outbound HTTP, and after a successful response has been
+durably commitment-journaled. If a response straddles the end, its success
+evidence remains in the journal and all later spend stops. If the window closes
+while `request_issued` is being synced, an abandoned journal can contain that
+issued event even though no outbound request occurred; conservative review must
+reconcile it as an unspent issuance reservation, not provider evidence.
+These checks trust the operator-controlled local system clock; they are not a
+secure-time source or remote attestation, and a privileged local operator can
+backdate that clock.
 Before dispatch, `run` reopens the exact `--protocol` file and exclusively
 reserves its preregistered `execution_attempt_id` in a synced, output-independent
 journal beside that file. A second invocation with a different `--out` still
@@ -213,8 +253,9 @@ therefore remain non-verdict even when a conservative exact analysis is
 available for inspection.
 
 The nested `rag study input-commitment`, `finalize`,
-`review-registration`, `bind-config`, `analyze`, and `review-execution`
-commands compose repeated conditions into a preregistered real-model study.
+`review-registration`, `review-statistics`, `bind-config`, `analyze`, and
+`review-execution` commands compose repeated conditions into a preregistered
+real-model study.
 This is an untagged development surface; no real-provider study result is
 included in the repository.
 
@@ -224,7 +265,7 @@ their aggregate manifest digest. Owners run it for both arms and freeze those
 digests in the manifest; final config binding and RunSet replay recompute them.
 
 `study finalize` accepts a manifest authoring mapping, the exact
-Process-Equivalence Benchmark v0.2 manifest, and one
+Process-Equivalence Benchmark manifest, and one
 `CONDITION_ID=PROTOCOL_PATH` entry for every condition. It strips any supplied
 derived manifest, protocol-set, and hypothesis-rule digests, recomputes them,
 then validates exact condition, benchmark-case, task, authority, protocol,
@@ -237,7 +278,10 @@ external locator and `registration.evidence_digest` is the record's digest;
 it is not a circular claim that the record contains the self-digested manifest.
 A
 `local_digest_commitment` remains structurally usable but cannot permit a
-confirmatory publication.
+confirmatory publication. `analysis_status.primary` and
+`hypothesis_decision_rule.inference_scope` are both mandatory and must agree;
+neither has a confirmatory schema default. The shipped v0.2 template explicitly
+selects fixed-frame descriptive conformance.
 
 `study review-registration` takes that finalized manifest, the exact UTF-8
 JSON registration-record bytes, and the mandatory human checklist in
@@ -255,6 +299,8 @@ two-file crash-atomic transaction: abrupt termination or power loss can expose a
 partial pair, which consumers must reject. The inputs and
 outputs must be distinct, confined files, and neither arm may contain inline
 environment values. Both outputs carry the same exact study-manifest digest;
+both inputs must already carry the `preregistered_paired_study` profile frozen
+by `rag sensitivity finalize`;
 the command fails before publication if either arm, configuration digest,
 design commitment, compiled suite, protocol identity, prompt bytes, or
 knowledge-contract bytes differ. It performs no provider dispatch and does not
@@ -264,6 +310,26 @@ Execution remains the separately authorized `rag sensitivity run` command,
 invoked once for each condition with the study-bound configs and the existing
 network, risky-config, credential, and budget controls.
 
+For the OpenAI-compatible adapter, `timeout_seconds` is passed to Python's HTTPS
+socket operations. It is not a monotonic end-to-end request deadline, does not
+bound synchronous DNS resolution, and a peer that continually makes progress
+may keep a response open longer. Use an independently enforced outer
+process/job deadline when a whole-operation wall-clock bound is required.
+Before the paired-study workflow creates its exclusive durable attempt
+reservation, it requires the frozen execution window to retain more time than
+one complete observation's configured timeout-and-maximum-backoff reserve,
+using the larger bound from the two arms. This rejects reservations that are
+already too late and reduces the risk of consuming the frozen attempt identity
+before any provider call can be issued; journal persistence, setup, and pacing
+still occur afterward, and the check does not reserve enough time for the
+entire paired study. At each provider-attempt boundary, the runner then requires
+only the still-available configured chain: the current timeout, every remaining
+timeout, and the maximum backoffs between them. The reserve therefore shrinks
+after each failed attempt, while a final allowed attempt still requires one
+full configured timeout. These checks are admission slack derived from declared
+limits, not wall-clock upper bounds; the independently enforced outer deadline
+remains necessary for a hard completion bound.
+
 `study analyze` consumes a relative-path descriptor with exactly one sorted
 entry per frozen condition:
 
@@ -271,6 +337,7 @@ entry per frozen condition:
 schema_name: real-model-study-evidence-input/v1
 registration_record: registration/registration-record.json
 registration_review_receipt: registration/study-registration-review.json
+independence_audit_artifact: registration/study-independence-audit.md
 statistical_method_review_receipt: registration/study-statistical-method-review.json
 execution_review_receipt: registration/study-execution-review.json
 conditions:
@@ -279,10 +346,13 @@ conditions:
     source_run_directory: condition/run
 ```
 
-Both registration paths are mandatory, bounded, relative inputs. The
-statistical-method review path is optional only for a non-publishable draft
-replay and mandatory for publication readiness. The execution review path is
-optional for a pre-review replay and mandatory for publication readiness.
+Both registration paths are mandatory, bounded, relative inputs. A manifest
+with an independence-audit digest also requires the exact bounded UTF-8 audit
+file; analysis privacy-scans it, checks its raw SHA-256, and includes it as
+`study-independence-audit.md` in the closed bundle. The statistical-method
+review path is optional only for a non-publishable draft replay and mandatory
+for publication readiness. The execution review path is optional for a
+pre-review replay and mandatory for publication readiness.
 Each source directory contains
 `repeated-evidence-sensitivity-protocol.json`, `baseline.runset.json`, and
 `counterfactual.runset.json`. A null `source_run_directory` is represented
@@ -303,16 +373,38 @@ attests to independent provider log/account comparison; the command does not
 cryptographically authenticate that reviewer or provider. Add the resulting
 receipt to the descriptor and analyze into a new empty final directory.
 
-Before provider execution, `study review-statistics` builds a self-digested
-receipt from a qualified independent review template and binds it to the exact
-manifest, benchmark, and registered protocol set. Reviewer identity and
-qualifications remain out-of-band trust inputs.
+Before provider execution, `study review-statistics` requires
+`--registration-record`, `--registration-review`, and `--independence-audit` in
+addition to the exact manifest, benchmark, and complete registered protocol
+set. It replays registration validation, binds the exact registration-review
+receipt digest into its self-digested method receipt, and requires the method
+review timestamp to be strictly later than the registration review and earlier
+than execution. The review template must explicitly confirm the complementary-
+hypotheses combined wrong-direction error contract. At a fixed true parameter
+state, support and contradiction cannot both be the wrong declaration, so the
+one-sided Bonferroni construction bounds the probability of any wrong
+directional decision by `familywise_alpha` without adding error across those
+mutually exclusive truth regions. This is not simultaneous two-sided confidence-
+interval coverage. Byte identity and privacy checks do not establish that the
+audit's independence argument or the human confirmation is true. Reviewer
+identity and qualifications remain out-of-band trust inputs.
+
+Any future confirmatory promotion should preregister an operating-characteristic
+table for plausible true target rates, including the probabilities of
+`supported`, `contradicted`, and `inconclusive`; an inconclusive result is a
+valid planned outcome, not a failed execution. For a zero-tolerance
+negative-control gate, the preregistration should also quantify the probability
+that every control remains clean at plausible spontaneous-flip noise rates. If
+that noise floor is uncertain, calibrate it in a separate, clearly labeled run
+before freezing the confirmatory frame, and do not reuse calibration outcomes as
+confirmatory observations.
 
 Exit `0` means the factory-verified closed bundle is study-publication-ready:
 the direct same-decision analysis and invariant controls satisfy the frozen
 rules, all executions have real-provider provenance, and the exact external
 registration record and provider-backed execution have timely operator review
-receipts bound to the replayed bytes. A standalone report always keeps its
+receipts bound to the replayed bytes, including each condition's aggregate
+complete-HTTP-response payload commitment. A standalone report always keeps its
 publication and confirmatory-permission flags false. Exit `1` means a
 replayable bundle exists but is not study-publication-ready, including a
 missing statistical-method or execution review, `control_failed`,
@@ -611,8 +703,9 @@ infer the missing requirement from a comparison alone, so release automation
 must set this verifier option explicitly. When a report is present, confounded
 and prerequisites-unmet states fail closed as invalid with exit `2`.
 `--allow-sensitivity-non-verdict` is the explicit advisory opt-in that restores
-an exit-`0` `not_evaluated` result; `--fail-on-not-evaluated` instead
-continues to make that state blocking.
+eligibility for an advisory `not_evaluated` result. CI still blocks that result
+by default; `--allow-not-evaluated` must also be explicit for exit `0`.
+Release-profile gating rejects both advisory options.
 
 Strict verification of present efficacy requires a separate verifier-owned
 controls-mutation YAML through `--efficacy-policy`; it pins the installed
@@ -770,6 +863,24 @@ evaluation-only automation may explicitly pass
 or release claim. Assurance automation must independently build and attach a
 control-efficacy report, then use `ci gate` with a verifier-owned
 `--efficacy-policy`; publishing uses the stricter `--release-profile`.
+Both `ci` and `ci gate` fail closed on an actual `not_evaluated`
+summary/control outcome by default. `--allow-not-evaluated` is the explicit
+advisory opt-out and returns the distinguishable `not_evaluated` outcome with
+exit `0`; it cannot be combined with `--fail-on-not-evaluated` or
+`--release-profile`. Generic unsupported-capability disclosures remain separate
+from evaluated controls so they do not make every default run fail.
+`--fail-on-not-evaluated` is the stronger full-`ci` profile: it also includes
+those generic disclosures in evaluation roll-up.
+
+Comparison classification is derived from unwaived findings. Consequently a
+valid waiver or deliberately nonblocking evaluation profile can retain a raw
+failure classification while candidate state is `warn`. A `new_failure` is
+always blocking in comparison CI, including in that state; the comparison
+artifact still preserves its candidate evaluation and waiver audit, and the
+decision records `raw_regression=true` and
+`disposition=blocking-new-failure`. A `persistent_failure` with candidate state
+`warn` remains an explicit `review` outcome by default and records
+`disposition=nonblocking-candidate-evaluation`; `--fail-on-warn` blocks it.
 `--report-mode full` writes all deterministic findings.
 `--report-mode fail-fast` emits only the first blocking candidate finding and
 stops before comparison; it consumes an already-created deterministic RunSet and
@@ -821,6 +932,13 @@ message.
 
 `live adapters` lists installed live adapter identifiers. `live run` consumes a
 compiled suite, live run configuration, and `live-protocol-record`. The command
+is a generic non-study path: it rejects the
+`preregistered_paired_study` execution profile before trust acknowledgement or
+adapter construction, including when a caller has stripped the
+`study_manifest_digest`.
+Study-bound arms must use `rag sensitivity run` with the complete
+preregistration preflight inputs so the paired attempt journal and dispatch
+guards cannot be bypassed. For permitted generic configurations, the command
 checks that the config matches the frozen protocol ID, digest, planned
 repetitions, tool-schema and policy-bundle digests, request budget, cost
 budget, retry policy, and rate-limit caps, then writes a `run-set` with
@@ -1178,4 +1296,6 @@ diagnostic.
 Default roll-up precedence for comparison exits is `invalid_comparison`, then
 `fail`, then `warn`, then `not_evaluated`, then `pass`.
 `not_evaluated` capabilities remain separate unless the selected gate profile
-makes them blocking. Warnings exit `0` unless `--fail-on-warn` is selected.
+makes them blocking. CI summary/control `not_evaluated` outcomes exit `1`
+unless `--allow-not-evaluated` is selected. Warnings exit `0` unless
+`--fail-on-warn` is selected.

@@ -312,19 +312,40 @@ def test_real_model_study_template_exactly_covers_the_canonical_four_strata() ->
     )
     assert len(manifest.conditions) == 4
     assert manifest.primary_endpoint == "direct_same_decision_inertia"
-    assert manifest.hypothesis_decision_rule.minimum_independent_clusters == 42
-    assert (
-        manifest.hypothesis_decision_rule.multiplicity_family_scope
-        == "target_task_model_conditions_only"
-    )
+    assert all(condition.planned_clusters == 42 for condition in manifest.conditions)
+    assert manifest.hypothesis_decision_rule.descriptive_unit == "frozen_case_cluster"
+    assert manifest.hypothesis_decision_rule.descriptive_frame == "all_frozen_planned_clusters"
     assert manifest.hypothesis_decision_rule.sampling_frame == "finite_frozen_conformance_frame"
-    assert "alpha 0.025 per target" in (
-        manifest.hypothesis_decision_rule.decision_boundary_rationale
+    assert manifest.analysis_status.primary == "fixed_frame_descriptive_conformance"
+    assert manifest.hypothesis_decision_rule.inference_scope == (
+        "fixed_frame_descriptive_conformance"
     )
-    independence = manifest.hypothesis_decision_rule.independence_justification
-    assert independence.status == "unresolved_authoring_placeholder"
-    assert "UNRESOLVED AUTHORING PLACEHOLDER" in independence.independence_basis
-    assert "semantic" in independence.dependence_risks_and_mitigations
+    assert "Do not calculate intervals" in (
+        manifest.hypothesis_decision_rule.descriptive_scope_rationale
+    )
+    dependence = manifest.hypothesis_decision_rule.dependence_acknowledgement
+    assert dependence.design_basis == "shared_template_parameter_grid"
+    assert dependence.semantic_near_duplicate_disposition == "fixed_frame_descriptive_only"
+    assert (
+        dependence.dependence_audit_artifact_sha256
+        == hashlib.sha256((BENCHMARK_PATH.parent / "README.md").read_bytes()).hexdigest()
+    )
+    assert "not a population sample" in dependence.dependence_basis
+    assert "semantic" in dependence.dependence_risks_and_mitigations
+    rule_payload = manifest.hypothesis_decision_rule.model_dump(mode="json")
+    for forbidden in (
+        "inferential_unit",
+        "minimum_independent_clusters",
+        "materiality_threshold",
+        "familywise_alpha",
+        "interval_method",
+        "multiplicity_method",
+        "directional_error_control",
+        "supported_when",
+        "contradicted_when",
+        "inconclusive_when",
+    ):
+        assert forbidden not in rule_payload
     assert all(condition.justification.count(".") >= 2 for condition in manifest.conditions)
     assert manifest.hypothesis_decision_rule.target_task_model_conditions == tuple(
         condition.condition_id
@@ -364,7 +385,7 @@ def test_real_model_study_template_exactly_covers_the_canonical_four_strata() ->
         assert covered.isdisjoint(frame)
         covered.update(frame)
         assert condition.planned_pairs == 42
-        assert condition.planned_independent_clusters == 42
+        assert condition.planned_clusters == 42
         cases = tuple(benchmark_by_case[case_id] for case_id in frame)
         strata = {
             (

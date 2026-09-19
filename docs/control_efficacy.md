@@ -187,10 +187,11 @@ invalid input, and `0` for pass or review-only output. The report is still
 written when its configured gate blocks so reviewers and CI can inspect the
 evidence.
 
-For advisory `ci gate`, `--fail-on-warn` turns review findings such as
+For `ci gate`, `--fail-on-warn` turns review findings such as
 `CRITICAL_THREAT_UNCOVERED` into exit `1`. Invalid/error findings remain
-blocking regardless of advisory profile settings. `--fail-on-not-evaluated`
-checks both independent semantic dimensions.
+blocking regardless of advisory profile settings. Not-evaluated outcomes block
+by default and both independent semantic dimensions are checked.
+`--allow-not-evaluated` is the explicit non-release advisory opt-out.
 
 Efficacy evidence presence and verification strength are independent.
 Evidence-packet CLI and programmatic gates require efficacy by default and use

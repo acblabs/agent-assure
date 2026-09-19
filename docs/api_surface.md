@@ -48,9 +48,9 @@ The development package additionally exposes non-stable surfaces:
   `StudyStatisticalMethodReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
   and `RealModelStudyReport/v1` contracts
   plus the no-dispatch `agent-assure study input-commitment`, `finalize`,
-  `review-registration`, `review-execution`, and `bind-config` commands and
-  the replay-only `study analyze` command; the historical `rag study` route is
-  retained as a compatibility alias; and
+  `review-registration`, `review-statistics`, `review-execution`, and
+  `bind-config` commands and the replay-only `study analyze` command; the
+  historical `rag study` route is retained as a compatibility alias; and
 - untagged development `ExternalPilotEvidence/v1` and
   `ExternalPilotIndependenceReviewReceipt/v1`: a pre-candidate,
   learning/remediation-only bundle descriptor plus explicit operator-attested

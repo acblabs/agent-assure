@@ -90,10 +90,10 @@
           "default": null,
           "title": "Execution Attempt Id"
         },
-        "planned_independent_clusters": {
+        "planned_clusters": {
           "maximum": 1000,
           "minimum": 2,
-          "title": "Planned Independent Clusters",
+          "title": "Planned Clusters",
           "type": "integer"
         },
         "protocol_digest": {
@@ -113,7 +113,7 @@
         "protocol_digest",
         "design_commitment_digest",
         "registered_protocol_sha256",
-        "planned_independent_clusters"
+        "planned_clusters"
       ],
       "title": "StudyStatisticalMethodReviewCondition",
       "type": "object"
@@ -122,6 +122,115 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/real-model-study-statistical-method-review.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "approved_inference_scope": {
+            "const": "confirmatory_independent_clusters"
+          }
+        },
+        "required": [
+          "approved_inference_scope"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "fixed_frame_completeness_reviewed"
+              ]
+            },
+            {
+              "required": [
+                "descriptive_count_and_rate_derivation_reviewed"
+              ]
+            },
+            {
+              "required": [
+                "population_inference_prohibition_reviewed"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "combined_directional_decision_error_control_reviewed": {
+            "const": true
+          },
+          "independence_and_exchangeability_assumptions_reviewed": {
+            "const": true
+          },
+          "multiplicity_and_interval_method_reviewed": {
+            "const": true
+          },
+          "power_and_decision_boundary_reachability_reviewed": {
+            "const": true
+          }
+        },
+        "required": [
+          "independence_and_exchangeability_assumptions_reviewed",
+          "multiplicity_and_interval_method_reviewed",
+          "combined_directional_decision_error_control_reviewed",
+          "power_and_decision_boundary_reachability_reviewed"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "approved_inference_scope": {
+            "const": "fixed_frame_descriptive_conformance"
+          }
+        },
+        "required": [
+          "approved_inference_scope"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "independence_and_exchangeability_assumptions_reviewed"
+              ]
+            },
+            {
+              "required": [
+                "multiplicity_and_interval_method_reviewed"
+              ]
+            },
+            {
+              "required": [
+                "combined_directional_decision_error_control_reviewed"
+              ]
+            },
+            {
+              "required": [
+                "power_and_decision_boundary_reachability_reviewed"
+              ]
+            }
+          ]
+        },
+        "properties": {
+          "descriptive_count_and_rate_derivation_reviewed": {
+            "const": true
+          },
+          "fixed_frame_completeness_reviewed": {
+            "const": true
+          },
+          "population_inference_prohibition_reviewed": {
+            "const": true
+          }
+        },
+        "required": [
+          "fixed_frame_completeness_reviewed",
+          "descriptive_count_and_rate_derivation_reviewed",
+          "population_inference_prohibition_reviewed"
+        ]
+      }
+    }
+  ],
   "description": "Qualified independent approval of the exact preregistered study design.\n\nThe receipt cryptographically binds the local artifacts that were\nreviewed. Reviewer identity, qualifications, independence, and the truth\nof the review confirmations remain human attestations authenticated out\nof band.",
   "properties": {
     "approval_disposition": {
@@ -157,6 +266,19 @@
       "title": "Benchmark Sha256",
       "type": "string"
     },
+    "combined_directional_decision_error_control_reviewed": {
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Combined Directional Decision Error Control Reviewed"
+    },
     "conditions": {
       "items": {
         "$ref": "#/$defs/StudyStatisticalMethodReviewCondition"
@@ -178,40 +300,74 @@
       "title": "Contract Version",
       "type": "string"
     },
+    "descriptive_count_and_rate_derivation_reviewed": {
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Descriptive Count And Rate Derivation Reviewed"
+    },
+    "design_audit_artifact_sha256": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Design Audit Artifact Sha256",
+      "type": "string"
+    },
+    "design_basis": {
+      "$ref": "#/$defs/StudyIndependenceDesignBasis"
+    },
+    "design_basis_reviewed_and_accepted": {
+      "const": true,
+      "title": "Design Basis Reviewed And Accepted",
+      "type": "boolean"
+    },
+    "design_review_rationale": {
+      "maxLength": 4096,
+      "minLength": 32,
+      "title": "Design Review Rationale",
+      "type": "string"
+    },
     "execution_window_start_utc": {
       "maxLength": 64,
       "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
       "title": "Execution Window Start Utc",
       "type": "string"
     },
+    "fixed_frame_completeness_reviewed": {
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Fixed Frame Completeness Reviewed"
+    },
     "hypothesis_decision_rule_digest": {
       "pattern": "^[a-f0-9]{64}$",
       "title": "Hypothesis Decision Rule Digest",
       "type": "string"
     },
-    "independence_acceptance_rationale": {
-      "maxLength": 4096,
-      "minLength": 32,
-      "title": "Independence Acceptance Rationale",
-      "type": "string"
-    },
     "independence_and_exchangeability_assumptions_reviewed": {
-      "const": true,
-      "title": "Independence And Exchangeability Assumptions Reviewed",
-      "type": "boolean"
-    },
-    "independence_audit_artifact_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
-      "title": "Independence Audit Artifact Sha256",
-      "type": "string"
-    },
-    "independence_design_basis": {
-      "$ref": "#/$defs/StudyIndependenceDesignBasis"
-    },
-    "independence_design_basis_reviewed_and_accepted": {
-      "const": true,
-      "title": "Independence Design Basis Reviewed And Accepted",
-      "type": "boolean"
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Independence And Exchangeability Assumptions Reviewed"
     },
     "method_review_receipt_digest": {
       "pattern": "^[a-f0-9]{64}$",
@@ -219,19 +375,48 @@
       "type": "string"
     },
     "multiplicity_and_interval_method_reviewed": {
-      "const": true,
-      "title": "Multiplicity And Interval Method Reviewed",
-      "type": "boolean"
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Multiplicity And Interval Method Reviewed"
     },
     "negative_control_design_reviewed": {
       "const": true,
       "title": "Negative Control Design Reviewed",
       "type": "boolean"
     },
+    "population_inference_prohibition_reviewed": {
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Population Inference Prohibition Reviewed"
+    },
     "power_and_decision_boundary_reachability_reviewed": {
-      "const": true,
-      "title": "Power And Decision Boundary Reachability Reviewed",
-      "type": "boolean"
+      "anyOf": [
+        {
+          "const": true,
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Power And Decision Boundary Reachability Reviewed"
     },
     "protocol_set_digest": {
       "pattern": "^[a-f0-9]{64}$",
@@ -249,6 +434,11 @@
       "maxLength": 64,
       "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
       "title": "Registered At Utc",
+      "type": "string"
+    },
+    "registration_review_receipt_digest": {
+      "pattern": "^[a-f0-9]{64}$",
+      "title": "Registration Review Receipt Digest",
       "type": "string"
     },
     "reviewed_at_utc": {
@@ -376,6 +566,7 @@
     "method_review_receipt_digest",
     "study_id",
     "study_manifest_digest",
+    "registration_review_receipt_digest",
     "study_manifest_sha256",
     "benchmark_digest",
     "benchmark_sha256",
@@ -392,20 +583,17 @@
     "reviewer_independent_of_design_execution_and_analysis",
     "reviewer_independence_rationale",
     "approved_inference_scope",
-    "independence_design_basis",
-    "independence_audit_artifact_sha256",
-    "independence_design_basis_reviewed_and_accepted",
-    "independence_acceptance_rationale",
+    "design_basis",
+    "design_audit_artifact_sha256",
+    "design_basis_reviewed_and_accepted",
+    "design_review_rationale",
     "semantic_near_duplicate_disposition",
     "semantic_near_duplicate_audit_reviewed",
     "semantic_near_duplicate_pseudoreplication_rejected",
     "semantic_near_duplicate_review_rationale",
     "conditions",
     "benchmark_cluster_assignments_reviewed",
-    "independence_and_exchangeability_assumptions_reviewed",
     "sampling_frame_and_estimand_reviewed",
-    "multiplicity_and_interval_method_reviewed",
-    "power_and_decision_boundary_reachability_reviewed",
     "negative_control_design_reviewed",
     "approval_disposition",
     "artifact_kind",

@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import Literal
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
 from agent_assure.graph.builder import build_evidence_graph
@@ -25,6 +27,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     CaseClusterBinding,
     CouplingClassification,
     CouplingDescriptor,
+    FixedFrameDescriptivePlan,
     PairDisposition,
     PairedSensitivityObservation,
     RepeatedEvidenceSensitivityProtocol,
@@ -69,13 +72,18 @@ def _reports(
     *,
     response_values: tuple[_EndpointValue, _EndpointValue] = (1, 1),
     deterministic_fixture: bool = False,
+    fixed_frame_descriptive: bool = False,
 ) -> tuple[StatisticalSufficiencyReport, StochasticEvidenceSensitivityReport]:
-    design = plan_binary_paired_design(
-        familywise_alpha="0.500000",
-        desired_power="0.500000",
-        null_response_rate="0.100000",
-        alternative_response_rate="0.900000",
-        monte_carlo_resamples=1_000,
+    design = (
+        FixedFrameDescriptivePlan(planned_descriptive_clusters=2)
+        if fixed_frame_descriptive
+        else plan_binary_paired_design(
+            familywise_alpha="0.500000",
+            desired_power="0.500000",
+            null_response_rate="0.100000",
+            alternative_response_rate="0.900000",
+            monte_carlo_resamples=1_000,
+        )
     )
     case_ids = ("case-a", "case-b")
     baseline_arm = _arm(
@@ -92,8 +100,15 @@ def _reports(
         protocol_id=(
             "deterministic-graph-protocol" if deterministic_fixture else "stochastic-graph-protocol"
         ),
-        interpretation=("exploratory" if deterministic_fixture else "confirmatory"),
+        interpretation=(
+            "fixed_frame_descriptive"
+            if fixed_frame_descriptive
+            else "exploratory"
+            if deterministic_fixture
+            else "confirmatory"
+        ),
         execution_mode=("deterministic_fixture" if deterministic_fixture else "stochastic_live"),
+        **({"descriptive_unit": "case_id"} if fixed_frame_descriptive else {}),
         baseline_arm=baseline_arm,
         counterfactual_arm=counterfactual_arm,
         planned_case_ids=case_ids,
@@ -108,7 +123,7 @@ def _reports(
         ),
         repetitions_per_arm=1,
         planned_pairs=2,
-        multiplicity_family="evidence-sensitivity",
+        **({} if fixed_frame_descriptive else {"multiplicity_family": "evidence-sensitivity"}),
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
             stochastic_dimensions=(
@@ -379,6 +394,89 @@ def test_nonverdict_deterministic_report_projects_no_dependency() -> None:
         payloads[EvidenceGraphEvidenceType.stochastic_evidence_sensitivity].state
         is EvidenceState.inconclusive
     )
+
+
+def test_fixed_frame_descriptive_report_projects_only_not_evaluated_evidence() -> None:
+    sufficiency, stochastic = _reports(fixed_frame_descriptive=True)
+    assert sufficiency.state.value == "descriptive_complete"
+    assert sufficiency.analysis is None
+    assert not sufficiency.population_claim_permitted
+    assert stochastic.state.value == "fixed_frame_descriptive"
+    assert not stochastic.verdict_bearing
+    assert stochastic.dependency is None
+    assert stochastic.estimated_response_unit is None
+    assert stochastic.estimated_response_rate is None
+
+    graph = build_evidence_graph(
+        subject=_subject(),
+        stochastic_evidence_sensitivity=stochastic,
+    )
+    payloads = _evidence_payloads(graph)
+    sufficiency_payload = payloads[EvidenceGraphEvidenceType.statistical_sufficiency]
+    stochastic_payload = payloads[EvidenceGraphEvidenceType.stochastic_evidence_sensitivity]
+
+    assert sufficiency_payload.state is EvidenceState.not_evaluated
+    assert not sufficiency_payload.verdict_bearing
+    assert stochastic_payload.state is EvidenceState.not_evaluated
+    assert not stochastic_payload.verdict_bearing
+    assert not tuple(edge for edge in graph.edges if edge.kind is EvidenceGraphEdgeKind.depends_on)
+    sufficiency_projection = sufficiency_payload.statistical_sufficiency_projection
+    stochastic_projection = stochastic_payload.stochastic_evidence_sensitivity_projection
+    assert sufficiency_projection is not None
+    assert sufficiency_projection.analysis_method is None
+    assert stochastic_projection is not None
+    assert stochastic_projection.population_claim == "none"
+    assert stochastic_projection.estimated_response_unit is None
+    assert stochastic_projection.estimated_response_rate is None
+    projection_payload = stochastic_projection.model_dump(mode="json")
+    assert "estimated_response_unit" not in projection_payload
+    assert "estimated_response_rate" not in projection_payload
+
+
+@pytest.mark.parametrize("field_name", ("estimated_response_unit", "estimated_response_rate"))
+def test_fixed_frame_descriptive_projection_rejects_even_null_estimate_fields(
+    field_name: str,
+) -> None:
+    _, stochastic = _reports(fixed_frame_descriptive=True)
+    graph = build_evidence_graph(
+        subject=_subject(),
+        stochastic_evidence_sensitivity=stochastic,
+    )
+    projection = _evidence_payloads(graph)[
+        EvidenceGraphEvidenceType.stochastic_evidence_sensitivity
+    ].stochastic_evidence_sensitivity_projection
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    validator = Draft202012Validator(
+        EvidenceGraphStochasticSensitivityProjection.model_json_schema(mode="validation")
+    )
+    validator.validate(payload)
+    tampered = {**payload, field_name: None}
+
+    with pytest.raises(ValidationError, match="must omit estimated response fields"):
+        EvidenceGraphStochasticSensitivityProjection.model_validate(tampered)
+    with pytest.raises(JsonSchemaValidationError):
+        validator.validate(tampered)
+
+
+def test_non_descriptive_projection_preserves_omitted_unit_default() -> None:
+    _, stochastic = _reports()
+    graph = build_evidence_graph(
+        subject=_subject(),
+        stochastic_evidence_sensitivity=stochastic,
+    )
+    projection = _evidence_payloads(graph)[
+        EvidenceGraphEvidenceType.stochastic_evidence_sensitivity
+    ].stochastic_evidence_sensitivity_projection
+    assert projection is not None
+    payload = projection.model_dump(mode="json")
+    payload.pop("estimated_response_unit")
+
+    validated = EvidenceGraphStochasticSensitivityProjection.model_validate(payload)
+    assert validated.estimated_response_unit == "independent_cluster"
+    Draft202012Validator(
+        EvidenceGraphStochasticSensitivityProjection.model_json_schema(mode="validation")
+    ).validate(payload)
 
 
 def test_builder_rejects_mismatched_explicit_sufficiency_and_model_copy_tampering() -> None:

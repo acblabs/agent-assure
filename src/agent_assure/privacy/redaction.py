@@ -55,6 +55,7 @@ FAIL_CLOSED_RUNSET_KEYS = frozenset(
         "provider_sdk",
         "provider_region",
         "provider_response_id",
+        "provider_response_payload_scope",
         "provider_finish_reason",
         "provider_serving_fingerprint",
         "started_at_utc",
@@ -291,6 +292,8 @@ PRESERVE_RUNSET_KEYS = frozenset(
         "provider_sdk",
         "provider_region",
         "provider_response_id",
+        "provider_response_payload_sha256",
+        "provider_response_payload_scope",
         "provider_finish_reason",
         "provider_serving_fingerprint",
         "provider_created_unix_seconds",
@@ -561,6 +564,13 @@ def _contains_persisted_credential(value: str) -> bool:
     )
 
 
+def _json_pointer_child(path: str, key: object) -> str:
+    """Append one unambiguous diagnostic path segment using JSON Pointer escaping."""
+
+    segment = str(key).replace("~", "~0").replace("/", "~1")
+    return f"{path}/{segment}"
+
+
 def _assert_mapping_keys_safe(value: Any, *, owner: str, path: str = "$") -> None:
     if isinstance(value, Mapping):
         for index, (key, item) in enumerate(value.items()):
@@ -575,11 +585,19 @@ def _assert_mapping_keys_safe(value: Any, *, owner: str, path: str = "$") -> Non
                 )
             if isinstance(key, str) and is_unsafe_persisted_mapping_key(key):
                 raise ValueError(f"{owner} mapping key contains unsafe content: {key_path}")
-            _assert_mapping_keys_safe(item, owner=owner, path=f"{path}.{key}")
+            _assert_mapping_keys_safe(
+                item,
+                owner=owner,
+                path=_json_pointer_child(path, key),
+            )
         return
     if isinstance(value, tuple | list):
         for index, item in enumerate(value):
-            _assert_mapping_keys_safe(item, owner=owner, path=f"{path}[{index}]")
+            _assert_mapping_keys_safe(
+                item,
+                owner=owner,
+                path=_json_pointer_child(path, index),
+            )
 
 
 def _contains_control_character(value: str) -> bool:
@@ -590,17 +608,31 @@ def _is_valid_structural_digest(key: str, value: str) -> bool:
     return is_digest_field_name(key) and is_sha256_hex_digest(value)
 
 
-def _iter_string_fields(value: Any, path: str = "$") -> Iterator[tuple[str, str, str]]:
+def _iter_string_fields(
+    value: Any,
+    path: str = "$",
+    *,
+    field_name: str = "",
+) -> Iterator[tuple[str, str, str]]:
     if isinstance(value, str):
-        key = path.rsplit(".", maxsplit=1)[-1].split("[", maxsplit=1)[0]
-        yield path, key, value
+        # Preserve-list decisions must use the actual mapping key. Deriving a
+        # key by parsing a rendered path lets keys containing dots or brackets
+        # impersonate a protected structural field suffix.
+        yield path, field_name, value
         return
     if isinstance(value, Mapping):
         for key, item in value.items():
-            key_text = str(key)
-            child_path = f"{path}.{key_text}" if path else key_text
-            yield from _iter_string_fields(item, child_path)
+            child_field_name = key if isinstance(key, str) else ""
+            yield from _iter_string_fields(
+                item,
+                _json_pointer_child(path, key),
+                field_name=child_field_name,
+            )
         return
     if isinstance(value, tuple | list):
         for index, item in enumerate(value):
-            yield from _iter_string_fields(item, f"{path}[{index}]")
+            yield from _iter_string_fields(
+                item,
+                _json_pointer_child(path, index),
+                field_name=field_name,
+            )

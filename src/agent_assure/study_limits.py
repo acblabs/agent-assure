@@ -3,10 +3,11 @@
 from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
 from agent_assure.schema.study import MAX_STUDY_CONDITIONS
 
-# Six replay artifacts plus optional statistical-method and post-execution
-# review receipts. Both receipts are required for publication readiness but
-# may be omitted from draft or non-executed replay bundles.
-STUDY_BUNDLE_BASE_FILE_COUNT = 8
+# Six replay artifacts plus the digest-bound independence audit and optional
+# statistical-method and post-execution review receipts. The audit and both
+# receipts are required for publication readiness; receipts may be omitted from
+# draft or non-executed replay bundles.
+STUDY_BUNDLE_BASE_FILE_COUNT = 9
 STUDY_BUNDLE_FILES_PER_EXECUTED_CONDITION = 5
 MAX_STUDY_BUNDLE_FILES = (
     STUDY_BUNDLE_BASE_FILE_COUNT + STUDY_BUNDLE_FILES_PER_EXECUTED_CONDITION * MAX_STUDY_CONDITIONS

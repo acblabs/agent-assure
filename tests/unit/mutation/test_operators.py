@@ -32,6 +32,8 @@ from agent_assure.schema.run import (
     EvidenceItem,
     EvidenceRef,
     RunSet,
+    StructuredFieldOrigin,
+    StructuredFieldOrigins,
 )
 from agent_assure.schema.suite import CompiledSuite, SuiteCase, SuiteDefaults
 
@@ -52,6 +54,11 @@ def test_drop_material_evidence_link_plans_exact_replacement_without_mutation() 
         (
             _run(
                 "evidence-case",
+                evidence_refs=(
+                    _evidence_ref("ref-selected-a"),
+                    _evidence_ref("ref-other"),
+                    _evidence_ref("ref-selected-b"),
+                ),
                 evidence_items=(
                     _evidence_item("ref-selected-a"),
                     _evidence_item("ref-other"),
@@ -119,6 +126,96 @@ def test_drop_material_evidence_link_is_inapplicable_without_backed_link() -> No
     )
 
 
+@pytest.mark.parametrize(
+    ("include_ref", "include_item"),
+    (
+        (True, False),
+        (False, True),
+    ),
+)
+def test_drop_material_evidence_link_requires_complete_baseline_evidence_pair(
+    include_ref: bool,
+    include_item: bool,
+) -> None:
+    expectation = _expectation(
+        "incomplete-evidence-case",
+        material_claim_ids=("claim-selected",),
+    )
+    suite = _suite((expectation,))
+    subject = _runset(
+        (
+            _run(
+                "incomplete-evidence-case",
+                evidence_refs=(_evidence_ref("ref-selected"),) if include_ref else (),
+                evidence_items=(_evidence_item("ref-selected"),) if include_item else (),
+                claim_evidence_links=(_link("claim-selected", "ref-selected"),),
+            ),
+        )
+    )
+
+    assert (
+        drop_material_evidence_link_targets(
+            suite,
+            subject,
+            _source_payload(subject),
+        )
+        == ()
+    )
+
+
+def test_drop_material_evidence_link_requires_control_eligible_baseline_link() -> None:
+    expectation = _expectation(
+        "untrusted-link-case",
+        material_claim_ids=("claim-selected",),
+    )
+    suite = _suite((expectation,))
+    fixture_run = _run(
+        "untrusted-link-case",
+        evidence_refs=(_evidence_ref("ref-selected"),),
+        evidence_items=(_evidence_item("ref-selected"),),
+        claim_evidence_links=(_link("claim-selected", "ref-selected"),),
+    )
+    payload = fixture_run.model_dump(mode="python")
+    payload.update(
+        {
+            "execution_mode": "live",
+            "observation_id": "obs-untrusted-link",
+            "repetition_index": 0,
+            "schedule_index": 0,
+            "cluster_id": "untrusted-link-case",
+            "adapter_id": "external-script",
+            "cost_budget_committed_usd": "0.000000",
+            "generated_token_budget_committed": 0,
+            "total_token_budget_committed": 0,
+            "structured_field_origins": StructuredFieldOrigins(
+                evidence_refs=StructuredFieldOrigin.instrumented_adapter,
+                evidence_items=StructuredFieldOrigin.instrumented_adapter,
+                claim_evidence_links=StructuredFieldOrigin.legacy_unspecified,
+            ),
+        }
+    )
+    live_run = AgentRunRecord.model_validate(payload)
+    runset_payload = _runset((fixture_run,)).model_dump(mode="python")
+    runset_payload.update(
+        {
+            "execution_mode": "live",
+            "protocol_id": "untrusted-link-protocol",
+            "protocol_digest": "d" * 64,
+            "runs": (live_run,),
+        }
+    )
+    subject = RunSet.model_validate(runset_payload)
+
+    assert (
+        drop_material_evidence_link_targets(
+            suite,
+            subject,
+            _source_payload(subject),
+        )
+        == ()
+    )
+
+
 def test_drop_material_evidence_link_privacy_minimizes_hostile_claim_target() -> None:
     hostile_claim_id = "claim\x1b[2K\u202egnitrops"
     expectation = _expectation(
@@ -132,6 +229,7 @@ def test_drop_material_evidence_link_privacy_minimizes_hostile_claim_target() ->
             _run(
                 "hostile-evidence-case",
                 schema_version="0.5.0",
+                evidence_refs=(_evidence_ref("ref-safe"),),
                 evidence_items=(_evidence_item("ref-safe"),),
                 claim_evidence_links=(_link(hostile_claim_id, "ref-safe", schema_version="0.5.0"),),
             ),

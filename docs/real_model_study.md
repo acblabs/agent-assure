@@ -30,7 +30,7 @@ authored premise for each task, not a claim about every question or domain.
 
 ## Contract Set
 
-The workflow uses six typed development artifacts plus the exact raw
+The workflow uses seven typed development artifacts plus the exact raw
 preregistration JSON record:
 
 - `ProcessEquivalenceBenchmark/v1` publishes Process-Equivalence Benchmark
@@ -53,11 +53,13 @@ preregistration JSON record:
   record's immutability was checked. Reviewer identity remains authenticated
   out of band, not by the JSON artifact.
 - `StudyStatisticalMethodReviewReceipt/v1` binds a qualified, independent
-  pre-execution review to the exact manifest, benchmark, registered protocol
-  bytes, cluster frame, multiplicity/interval method, reachable decision
-  boundaries, and negative controls. The receipt proves artifact identity and
-  ordering; reviewer qualifications and conclusions are out-of-band human
-  attestations.
+  pre-execution review to the exact manifest, benchmark, validated registration-
+  review receipt digest, registered protocol bytes, cluster frame,
+  multiplicity/interval method, complementary directional-decision error
+  contract, reachable decision boundaries, and negative controls. The reviewer
+  must explicitly confirm the combined wrong-direction guarantee. The receipt
+  proves artifact identity and ordering; reviewer qualifications and
+  conclusions are out-of-band human attestations.
 - `StudyExecutionReviewReceipt/v1` binds the exact manifest and report bytes,
   both source RunSet byte digests and IDs for every condition, the derived
   execution-provenance digests, preregistered execution-attempt IDs, attempt-
@@ -81,7 +83,10 @@ source authenticity.
 ## Inference eligibility and trust boundary
 
 The manifest makes inference scope machine-readable rather than leaving it in
-prose:
+prose. Both `analysis_status.primary` and
+`hypothesis_decision_rule.inference_scope` are required, have no schema default,
+and must agree. Omitting either is an error, not implicit confirmatory approval.
+The shipped v0.2 template writes the descriptive scope explicitly:
 
 | Scope | Required design disposition | Report behavior | Bundle/readiness eligibility |
 | --- | --- | --- | --- |
@@ -89,8 +94,11 @@ prose:
 | `fixed_frame_descriptive_conformance` | Shared-template dependence is acknowledged and the method reviewer approves the downscope. | `inferential_statistics_applicable=false`; classification is always `not_measured`; release-facing Markdown reports frame completeness plus counts/rates and omits inferential units, alpha, materiality thresholds, minimum-independent-cluster claims, and adjusted intervals. | May satisfy only scoped descriptive publication readiness. It can never satisfy the Sprint 7 empirical checkpoint. |
 
 Distinct IDs and digests prove identity, not independence. The software binds
-the structured design basis, audit digest, near-duplicate disposition, and
-review decision; it cannot establish that the audit was competent or truthful.
+the structured design basis, exact privacy-checked audit bytes, near-duplicate
+disposition, and review decision. The audit is a required closed-bundle member
+named `study-independence-audit.md`; its raw SHA-256 must match the manifest and
+the method review covers those same bytes. This establishes provenance and
+integrity, not that the audit was competent or truthful.
 Reviewer identity, qualification evidence, provider-log access, and provider
 account access remain authenticated out of band.
 
@@ -126,7 +134,11 @@ analyzed:
    and `registration.evidence_digest` to the digest of that independently
    materialized registration record. Then finalize the self-digested manifest
    without provider dispatch.
-6. Verify that the finalized manifest matches the registered commitments and
+6. Complete `review-registration` against those exact external record bytes.
+7. Strictly after that receipt's review timestamp and before the execution
+   window, complete `review-statistics` against the exact record, registration-
+   review receipt, benchmark, audit, manifest, and protocols.
+8. Verify that the finalized manifest matches the registered commitments and
    bind both live arm configurations under lock-coordinated, no-clobber
    publication. Recoverable failures remove only transaction-owned entries, but
    the pair is not crash-atomic; consumers reject a half-bound pair left by
@@ -189,7 +201,7 @@ For each decision-flip condition `j`:
 
 ```text
 decision_inertia_rate[j] =
-    same_decision_clusters[j] / frozen_planned_independent_clusters[j]
+    same_decision_clusters[j] / frozen_planned_clusters[j]
 ```
 
 The zero-exclusion confirmatory gate requires the analyzable cluster count to
@@ -223,12 +235,18 @@ materiality threshold, familywise alpha, and these exact rules:
 - `inconclusive`: otherwise, but only after every condition is valid and
   statistically sufficient.
 
-The support and contradiction directions are each separate one-sided claims
-with familywise error controlled across target conditions by their own
-Bonferroni bounds. The bidirectional rule is not one combined alpha-level
-directional test: if a single error budget across either possible declaration
-is required, the preregistration must allocate alpha between directions before
-observations.
+The decision rule treats support (`any p[j] > threshold`) and contradiction
+(`all p[j] <= threshold`) as complementary hypotheses. At any fixed true
+parameter state, only one possible declaration can be wrong: under the
+contradiction region, a false support declaration is controlled by the union of
+the lower-bound errors; under the support region, a false contradiction
+declaration requires upper-bound error for at least one truly above-threshold
+target. The same one-sided Bonferroni adjustment therefore bounds the combined
+probability of any wrong directional declaration by `familywise_alpha`; the two
+directional error rates are not added across mutually exclusive true-parameter
+regions. This is a decision-level wrong-direction guarantee. It is not
+simultaneous two-sided confidence-interval coverage, and the one-sided bounds
+must not be presented as a two-sided confidence interval.
 
 Manifest finalization evaluates the two extreme possible observations for each
 decision-flip target under the same Bonferroni-adjusted alpha and conservative
@@ -292,16 +310,21 @@ families, shared prompt-template effects, or correlated model behavior.
 
 Accordingly, the manifest records `sampling_frame` as
 `finite_frozen_conformance_frame`, freezes the exchangeability assumption, and
-requires a structured, substantive `independence_justification`. The shipped
-authoring template is intentionally marked `unresolved_authoring_placeholder`;
-real-provider registration and qualified statistical-method review reject that
-status. A resolved author assertion records the inferential-unit definition,
-positive design basis, dependence risks and mitigations, and residual scope
-limitation separately. Software validates only that structure and presence. A
-human owner must reject confirmatory use when independence is not defensible;
-passing digest, structure, and reachability validators is not evidence that it
-is true. Results remain scoped to the observed finite frame and must not be
-generalized to a provider, model family, user population, or deployment
+requires a structured `independence_justification`. The shipped v0.2 authoring
+template explicitly selects `fixed_frame_dependence_acknowledged`,
+`shared_template_parameter_grid`, and
+`fixed_frame_descriptive_conformance`; it does not invite an operator to fill
+in a confirmatory placeholder. Real-provider confirmatory registration rejects
+that disposition. The exact shipped v0.2 benchmark digest is also registered as
+a known shared-template parameter grid and is mechanically ineligible for
+`confirmatory_independent_clusters`, regardless of an authored design label or
+review receipt. It remains usable for `fixed_frame_descriptive_conformance`.
+Confirmatory work requires a newly constructed and frozen non-grid case frame,
+a new benchmark digest, an exact digest-bound independence audit, and qualified
+design-specific review before the first provider call. Software validates only
+structure, byte identity, and registered eligibility constraints; none proves
+independence truth. Results remain scoped to the observed finite frame and must
+not be generalized to a provider, model family, user population, or deployment
 distribution.
 
 ## Result States and Fail-Closed Semantics
@@ -341,24 +364,32 @@ bytes or a reviewer.
 Study-only publication readiness is derived only after the closed-directory
 verifier pins and replays the exact inventory, matches the raw registration
 record SHA-256 to the manifest, validates the self-digested registration review
-and its pre-execution ordering, validates a qualified independent statistical-
-method review of the exact manifest, benchmark, registered protocols, cluster
-assignments, multiplicity rule, and reachable decision boundaries before
-execution, verifies observed real-provider provenance for every condition,
+and its pre-execution ordering, then validates a strictly later qualified
+independent statistical-method review bound to that exact registration-review
+receipt digest, manifest, benchmark, registered protocols, cluster assignments,
+multiplicity rule, combined wrong-direction guarantee, and reachable decision
+boundaries before execution. It then verifies observed real-provider provenance
+for every condition,
 and validates a self-digested post-execution review against
 the exact manifest, report, RunSet, provenance, preregistered attempt ID,
-attempt-journal, and provider-response-ID-set digests. Real-provider provenance
-also requires every included provider call to carry a normal `stop` finish
-reason; missing or abnormal termination metadata invalidates the condition.
+attempt-journal, provider-response-ID-set, and response-payload-commitment-set
+digests. Real-provider provenance requires every run to carry a registered
+OpenAI-compatible `complete_http_response_body` commitment reconciled with its
+successful journal event, and every included provider call to carry a normal
+`stop` finish reason. Missing, partial, differently scoped, or abnormal
+termination metadata invalidates the condition.
 Provider serving fingerprints, when the provider emits them, must be present on
 every arm/repetition and single-valued within each condition. Across every
 model-matched target/control group, all otherwise valid conditions must then
 either omit the fingerprint or report the same single value; partial group
 coverage or a mismatch invalidates every otherwise valid member and suppresses
-classification. Complete absence is allowed explicitly, and even a complete
-stable value is provider-supplied metadata—not proof of immutable serving
-infrastructure. The report binds each exposed stable value with a canonical set
-digest and independently revalidates the group relation.
+classification. Complete absence remains valid real-provider execution evidence
+that can be analyzed and disclosed descriptively, but it cannot satisfy
+confirmatory `ValidatedStudyBundle.is_publication_ready` or the empirical
+checkpoint. Those gates require complete-and-stable coverage in every reviewed
+condition. Even a complete stable value is provider-supplied metadata—not proof
+of immutable serving infrastructure. The report binds each exposed stable value
+with a canonical set digest and independently revalidates the group relation.
 All three reviews are human attestations: Agent Assure does not
 cryptographically authenticate the remote VCS/registry, provider account,
 response IDs, immutability, or reviewer identities. A valid negative or
@@ -395,12 +426,30 @@ condition protocol:
 ```bash
 agent-assure rag study finalize \
   --template docs/templates/real_model_study_manifest.yaml \
-  --benchmark examples/process_equivalence_benchmark_v0_2/benchmark.json \
+  --benchmark study/registration/frozen-non-grid-benchmark.json \
   --protocol provider-model-condition=condition/protocol.json \
   --out study/real-model-study-manifest.json
 ```
 
-This command computes the manifest, protocol-set, and hypothesis-rule digests
+The benchmark path above is also the fixed source-tree release trust-anchor
+location. Before any confirmatory provider call, a newly constructed non-grid
+frame must be frozen there and mirrored byte-for-byte at
+`src/agent_assure/release_trust/v0_6_6/frozen-non-grid-benchmark.json`. The
+qualified statistical-method review receipt must likewise be frozen as
+`study/registration/frozen-non-grid-benchmark-statistical-method-review.json`
+and mirrored under `src/agent_assure/release_trust/v0_6_6/`. The release checker
+validates both pairs, rejects registered ineligible structures, and requires
+the mirrored receipt's explicit `approved_confirmatory_independent_clusters`
+decision to bind the exact raw and semantic benchmark digests and to equal the
+receipt in the closed study bundle. Missing benchmark bytes, missing approval
+bytes, and invalid or mismatched approval bytes have distinct blockers.
+Repository mirroring does not authenticate the human reviewer; the receipt
+keeps that boundary explicit as `out_of_band_not_machine_verified`. The shipped
+template is coherently descriptive for v0.2; using a new
+frame requires replacing its benchmark identity, complete disjoint case frames,
+condition bindings, and design-specific audit commitment before finalization.
+The v0.2 benchmark cannot authorize the confirmatory execution path. This
+command computes the manifest, protocol-set, and hypothesis-rule digests
 and validates exact benchmark/protocol coverage. Condition case frames must be
 pairwise disjoint and together exhaust the supplied benchmark; each frame must
 also be homogeneous for the relation and ordered decision orientation bound by
@@ -436,26 +485,42 @@ protocol set:
 ```bash
 agent-assure rag study review-statistics \
   --manifest study/real-model-study-manifest.json \
-  --benchmark examples/process_equivalence_benchmark_v0_2/benchmark.json \
+  --benchmark study/registration/frozen-non-grid-benchmark.json \
+  --registration-record study/registration/registration-record.json \
+  --registration-review study/registration/study-registration-review.json \
+  --independence-audit study/registration/study-independence-audit.md \
   --protocol provider-model-condition=condition/protocol.json \
   --template study/registration/statistical-method-review.yaml \
   --out study/registration/study-statistical-method-review.json
 ```
 
-The command requires affirmative review of cluster assignments, independence
-and exchangeability assumptions, the sampling frame and estimand,
-multiplicity and exact interval construction, power and reachable decision
-boundaries, and negative controls. It records substantive qualification and
-independence rationales. Reviewer identity, qualifications, and the truth of
-the attestations remain out-of-band trust inputs; the self-digested receipt
-proves which local design bytes those attestations cover.
+The command first revalidates the exact registration-record bytes and the
+self-digested registration-review receipt, then validates and privacy-scans the
+exact raw audit bytes committed by the manifest. Its receipt binds that exact
+registration-review digest and must have a strictly later review timestamp; an
+equal timestamp fails closed. It requires affirmative review of cluster
+assignments, independence and exchangeability assumptions, the sampling frame
+and estimand, multiplicity and exact interval construction, the complementary-
+hypotheses combined wrong-direction error guarantee, power and reachable
+decision boundaries, and negative controls. That directional confirmation is a
+decision-error review, not an assertion of two-sided confidence-interval
+coverage. It records substantive qualification and independence rationales.
+Reviewer identity, qualifications, and the truth of the attestations remain
+out-of-band trust inputs; the self-digested receipt proves which local design
+and registration-review bytes those attestations cover.
 
 Then bind both arm configs in one operation:
+
+Before the repeated protocol is finalized, both uncommitted arm configs must
+set `execution_profile: preregistered_paired_study`. The profile is included in
+the executable configuration digest; the later design and manifest backlinks
+are excluded only to avoid commitment cycles. `bind-config` refuses an
+`ordinary_live` arm rather than changing its already-frozen execution identity.
 
 ```bash
 agent-assure rag study bind-config \
   --manifest study/real-model-study-manifest.json \
-  --benchmark examples/process_equivalence_benchmark_v0_2/benchmark.json \
+  --benchmark study/registration/frozen-non-grid-benchmark.json \
   --condition-id provider-model-condition \
   --protocol condition/protocol.json \
   --compiled-suite condition/compiled-suite.json \
@@ -479,8 +544,75 @@ recomputes the RunSet digest.
 Provider execution remains a separate, explicitly authorized
 `agent-assure rag sensitivity run` operation for each condition. It retains
 the existing `--network-opt-in`, adapter configuration, credential, budget,
-and risky-config consent boundaries. The study commands do not grant network
-permission.
+and risky-config consent boundaries. For study-bound configs the invocation
+must also supply the exact manifest, benchmark, registration record,
+registration-review receipt, independence-audit bytes, statistical-method
+review receipt, active condition identity, and complete registered protocol
+set. For example:
+
+```bash
+agent-assure rag sensitivity run \
+  --protocol condition-a/protocol.json \
+  --compiled-suite condition-a/compiled-suite.json \
+  --baseline-config condition-a/baseline.study-bound.json \
+  --counterfactual-config condition-a/counterfactual.study-bound.json \
+  --live-protocol condition-a/live-protocol.json \
+  --out condition-a/run \
+  --network-opt-in \
+  --study-manifest study/real-model-study-manifest.json \
+  --benchmark study/registration/frozen-non-grid-benchmark.json \
+  --study-condition-id condition-a \
+  --study-registration-record study/registration/registration-record.json \
+  --study-registration-review study/registration/study-registration-review.json \
+  --study-independence-audit study/registration/study-independence-audit.md \
+  --study-statistical-method-review study/registration/study-statistical-method-review.json \
+  --study-protocol condition-b=condition-b/protocol.json \
+  --study-protocol condition-c=condition-c/protocol.json \
+  --study-protocol condition-d=condition-d/protocol.json
+```
+
+The active protocol comes from the exact `--protocol` bytes; repeat
+`--study-protocol CONDITION_ID=PATH` for every other manifest condition. The
+group is all-or-none and the resulting protocol set must exactly cover the
+manifest. The generic `agent-assure live run` command rejects the paired-study
+profile before trust acknowledgement or adapter construction, even if its
+manifest backlink was removed. At the library boundary, that profile requires
+both backlinks plus a one-shot opaque authorization issued by the complete
+preflight, bound to a manifest-declared design, exact executable configuration,
+and the reserved journal's observer and dispatch-guard identities. Removing
+only a backlink fails closed; removing the profile and backlink changes the
+configuration digest and cannot satisfy the registered protocol. An individual
+arm does not emit a study backlink; the paired workflow adds that backlink to
+the RunSets and every record only after both arms complete and the identical
+durable attempt journal is embedded.
+
+This is a dispatch control for executions performed through Agent Assure, not
+cryptographic authentication of evidence files. Live configs, RunSets, and
+attempt journals are unsigned JSON; a principal able to author arbitrary local
+artifacts can fabricate internally consistent post-hoc evidence. Publication
+therefore still depends on the independent execution reviewer reconciling the
+exact RunSets and journal against provider logs and account records. That
+review, provider identity, and reviewer identity remain unauthenticated
+out-of-band trust boundaries.
+
+Before reservation, the runner replays both review receipts, their
+exact registered/audit/design bytes, review ordering, `real_provider`
+authorization, attempt identity, and the complete live binding. The half-open
+execution window (`start <= now < end`) is then rechecked at reservation, each
+arm, before and after durable issuance, after OpenAI DNS pinning immediately
+before outbound HTTP, and after commitment-journaling every successful
+response. A call that straddles the end remains auditable but stops all later
+spend. This prevents previously bound or hand-authored configs from bypassing a
+newly registered eligibility bar; in particular, the exact v0.2
+shared-template grid fails before provider spend. The study commands do not
+grant network permission. Window enforcement trusts the operator-controlled
+local system clock; it is not secure-time or remote attestation, and a
+privileged local operator can backdate that clock.
+
+Window checks do not cancel an in-flight provider request. For the
+OpenAI-compatible adapter, the post-response check can stop later dispatch only
+after the current call returns; see the
+[documented runtime limitation](limitations.md#runtime-boundary).
 
 Next, copy the
 [evidence descriptor template](https://github.com/acblabs/agent-assure/blob/main/docs/templates/real_model_study_evidence.yaml) beside
@@ -489,7 +621,7 @@ the registered protocols and source run directories, then analyze:
 ```bash
 agent-assure rag study analyze \
   --manifest study/real-model-study-manifest.json \
-  --benchmark examples/process_equivalence_benchmark_v0_2/benchmark.json \
+  --benchmark study/registration/frozen-non-grid-benchmark.json \
   --evidence study/evidence.yaml \
   --out study/publication-pre-review
 ```
@@ -497,7 +629,9 @@ agent-assure rag study analyze \
 Descriptor paths are relative to the descriptor and cannot escape its root.
 The exact registration record and canonical registration-review paths are
 mandatory; the record is copied byte-for-byte and must hash to the manifest
-commitment. The statistical-method review path is required for publication
+commitment. The independence-audit path is required whenever the manifest
+commits its digest; its exact privacy-checked bytes are copied into the closed
+bundle. The statistical-method review path is required for publication
 readiness and may be null or omitted only for a non-publishable draft replay.
 For each executed condition the source directory must contain
 `repeated-evidence-sensitivity-protocol.json`, `baseline.runset.json`, and
@@ -544,7 +678,9 @@ The manifest fixes `publish_raw_prompts`, `publish_raw_completions`, and
 `publish_credentials` to false. The report schema has no raw prompt,
 completion, tool-payload, or credential field. Published source RunSets still
 contain structured decisions, stable identifiers, timestamps, provider/model
-metadata, and sometimes provider response IDs. Those values can be linkable.
+metadata, sometimes provider response IDs, and for current trusted live adapters
+plain SHA-256 commitments to exact response bytes. Those values can be linkable;
+payload commitments are not confidentiality or remote-provider authentication.
 
 Use only non-sensitive benchmark inputs and privacy-safe pseudonymous IDs.
 Apply source-system retention and access controls in addition to Agent

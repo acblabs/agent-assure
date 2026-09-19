@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
@@ -18,6 +20,7 @@ from agent_assure.schema.study import (
     StudyRegistrationReviewReceipt,
     StudyStatisticalMethodReviewReceipt,
 )
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_execution_review import build_study_execution_review_receipt
 from agent_assure.study_method_review import (
     build_study_statistical_method_review_receipt,
@@ -26,6 +29,7 @@ from tests.integration.test_repeated_sensitivity_cli import (
     _uncommitted_live_config,
 )
 from tests.unit.study.test_real_model_study import StudyFixture, _analyze, _fixture
+from tests.unit.study.test_study_semantic_hardening import _with_fingerprint
 
 RUNNER = CliRunner()
 ROOT = Path(__file__).resolve().parents[2]
@@ -72,11 +76,30 @@ def _bound_config(config: LiveRunConfig, manifest: RealModelStudyManifest) -> Li
     )
 
 
+def _paired_study_config(config: LiveRunConfig, fixture: StudyFixture) -> LiveRunConfig:
+    return LiveRunConfig.model_validate(
+        {
+            **config.model_dump(mode="json"),
+            "execution_profile": "preregistered_paired_study",
+            "evidence_sensitivity_design_digest": (fixture.protocol.design_commitment_digest),
+        }
+    )
+
+
 def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodReviewReceipt:
     return build_study_statistical_method_review_receipt(
         manifest=fixture.manifest,
+        manifest_bytes=published_model_json_bytes(fixture.manifest),
         benchmark=fixture.benchmark,
+        benchmark_bytes=published_model_json_bytes(fixture.benchmark),
         protocols=fixture.protocols,
+        registered_protocol_bytes={
+            condition_id: published_model_json_bytes(protocol)
+            for condition_id, protocol in fixture.protocols.items()
+        },
+        registration_record_bytes=fixture.registration_record_bytes,
+        registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         receipt_id="integration-statistical-method-review",
         reviewed_at_utc="2025-01-03T00:00:00Z",
         reviewer_pseudonym="independent-statistical-reviewer",
@@ -92,8 +115,8 @@ def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodRevie
             "The reviewer did not author the benchmark or design, dispatch provider "
             "calls, select observations, or conduct the final analysis."
         ),
-        independence_design_basis_reviewed_and_accepted=True,
-        independence_acceptance_rationale=(
+        design_basis_reviewed_and_accepted=True,
+        design_review_rationale=(
             "Independent inspection supports the synthetic generator's separate "
             "cluster construction within this bounded integration-test design."
         ),
@@ -107,6 +130,7 @@ def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodRevie
         independence_and_exchangeability_assumptions_reviewed=True,
         sampling_frame_and_estimand_reviewed=True,
         multiplicity_and_interval_method_reviewed=True,
+        combined_directional_decision_error_control_reviewed=True,
         power_and_decision_boundary_reachability_reviewed=True,
         negative_control_design_reviewed=True,
     )
@@ -199,6 +223,7 @@ def test_study_review_execution_builds_exact_post_window_receipt_without_dispatc
         report=report,
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
+        independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
         out_dir=bundle,
     )
     untouched_template_path = ROOT / "docs" / "templates" / "real_model_study_execution_review.yaml"
@@ -270,10 +295,16 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     fixture = _fixture(real_provider_execution=True)
     manifest_path = tmp_path / "study-manifest.json"
     benchmark_path = tmp_path / "benchmark.json"
+    registration_record_path = tmp_path / "study-registration-record.json"
+    registration_review_path = tmp_path / "study-registration-review.json"
+    independence_audit_path = tmp_path / "study-independence-audit.md"
     template_path = tmp_path / "statistical-method-review.json"
     receipt_path = tmp_path / "statistical-method-review-receipt.json"
-    _write_json(manifest_path, fixture.manifest)
-    _write_json(benchmark_path, fixture.benchmark)
+    manifest_path.write_bytes(published_model_json_bytes(fixture.manifest))
+    benchmark_path.write_bytes(published_model_json_bytes(fixture.benchmark))
+    registration_record_path.write_bytes(fixture.registration_record_bytes)
+    _write_json(registration_review_path, fixture.registration_review_receipt)
+    independence_audit_path.write_bytes(fixture.independence_audit_artifact_bytes)
     _write_json(
         template_path,
         _method_review_receipt(fixture).model_dump(
@@ -286,6 +317,7 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
                 "contract_version",
                 "study_id",
                 "study_manifest_digest",
+                "registration_review_receipt_digest",
                 "study_manifest_sha256",
                 "benchmark_digest",
                 "benchmark_sha256",
@@ -294,8 +326,8 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
                 "registered_at_utc",
                 "execution_window_start_utc",
                 "approved_inference_scope",
-                "independence_design_basis",
-                "independence_audit_artifact_sha256",
+                "design_basis",
+                "design_audit_artifact_sha256",
                 "semantic_near_duplicate_disposition",
                 "conditions",
                 "method_review_receipt_digest",
@@ -309,7 +341,7 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     protocol_paths: dict[str, Path] = {}
     for index, (condition_id, protocol) in enumerate(fixture.protocols.items()):
         protocol_path = tmp_path / f"protocol-{index:03d}.json"
-        _write_json(protocol_path, protocol)
+        protocol_path.write_bytes(published_model_json_bytes(protocol))
         protocol_paths[condition_id] = protocol_path
     monkeypatch.setattr(rag_cmd_module, "run_repeated_live_study", _reject_dispatch)
     arguments = [
@@ -320,6 +352,12 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
         str(manifest_path),
         "--benchmark",
         str(benchmark_path),
+        "--registration-record",
+        str(registration_record_path),
+        "--registration-review",
+        str(registration_review_path),
+        "--independence-audit",
+        str(independence_audit_path),
         "--template",
         str(template_path),
         "--out",
@@ -337,6 +375,31 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     assert "Input should be True" in untouched.output
     assert not receipt_path.exists()
 
+    load_artifact_snapshot = study_cmd_module._load_artifact_with_bytes
+
+    def _load_then_replace_artifact(path: Path, **kwargs: object):  # type: ignore[no-untyped-def]
+        snapshot = load_artifact_snapshot(path, **kwargs)  # type: ignore[arg-type]
+        if path in {manifest_path, benchmark_path}:
+            path.write_bytes(b"{}\n")
+        return snapshot
+
+    load_protocol_snapshot = study_cmd_module.load_repeated_sensitivity_protocol_with_bytes
+
+    def _load_then_replace_protocol(path: Path, **kwargs: object):  # type: ignore[no-untyped-def]
+        snapshot = load_protocol_snapshot(path, **kwargs)  # type: ignore[arg-type]
+        path.write_bytes(b"{}\n")
+        return snapshot
+
+    monkeypatch.setattr(
+        study_cmd_module,
+        "_load_artifact_with_bytes",
+        _load_then_replace_artifact,
+    )
+    monkeypatch.setattr(
+        study_cmd_module,
+        "load_repeated_sensitivity_protocol_with_bytes",
+        _load_then_replace_protocol,
+    )
     result = RUNNER.invoke(app, arguments)
 
     assert result.exit_code == 0, result.output
@@ -344,6 +407,14 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
         receipt_path.read_text(encoding="utf-8")
     )
     assert receipt.study_manifest_digest == fixture.manifest.manifest_digest
+    assert (
+        receipt.study_manifest_sha256
+        == hashlib.sha256(published_model_json_bytes(fixture.manifest)).hexdigest()
+    )
+    assert (
+        receipt.benchmark_sha256
+        == hashlib.sha256(published_model_json_bytes(fixture.benchmark)).hexdigest()
+    )
     assert receipt.protocol_set_digest == fixture.manifest.protocol_set_digest
     assert len(receipt.conditions) == len(fixture.manifest.conditions)
 
@@ -533,8 +604,11 @@ def test_study_bind_config_validates_then_atomically_publishes_both_arms(
     counterfactual_path = tmp_path / "counterfactual.json"
     baseline_out = tmp_path / "baseline.study-bound.json"
     counterfactual_out = tmp_path / "counterfactual.study-bound.json"
-    baseline = _uncommitted_live_config("baseline")
-    counterfactual = _uncommitted_live_config("counterfactual")
+    baseline = _paired_study_config(_uncommitted_live_config("baseline"), fixture)
+    counterfactual = _paired_study_config(
+        _uncommitted_live_config("counterfactual"),
+        fixture,
+    )
     for path, value in (
         (manifest_path, fixture.manifest),
         (benchmark_path, fixture.benchmark),
@@ -619,8 +693,14 @@ def test_study_bind_config_failure_cannot_leave_one_arm_published(
         (benchmark_path, fixture.benchmark),
         (protocol_path, fixture.protocol),
         (compiled_path, {}),
-        (baseline_path, _uncommitted_live_config("baseline")),
-        (counterfactual_path, _uncommitted_live_config("counterfactual")),
+        (
+            baseline_path,
+            _paired_study_config(_uncommitted_live_config("baseline"), fixture),
+        ),
+        (
+            counterfactual_path,
+            _paired_study_config(_uncommitted_live_config("counterfactual"), fixture),
+        ),
     ):
         _write_json(path, value)
 
@@ -678,11 +758,27 @@ def test_study_analyze_publishes_the_replay_bundle_from_relative_evidence(
         responses=(False, False, False, False),
         real_provider_execution=True,
     )
+    stable_fingerprint = "fp-stable-confirmatory-integration-test"
+    evidence_by_condition = {
+        binding.condition_id: _with_fingerprint(
+            fixture,
+            condition_id=binding.condition_id,
+            baseline_fingerprint=stable_fingerprint,
+            counterfactual_fingerprint=stable_fingerprint,
+        )
+        for binding in fixture.manifest.conditions
+    }
+    fixture = replace(
+        fixture,
+        evidence=evidence_by_condition[fixture.manifest.conditions[0].condition_id],
+        evidence_by_condition=evidence_by_condition,
+    )
     manifest_path = tmp_path / "study-manifest.json"
     benchmark_path = tmp_path / "benchmark.json"
     evidence_path = tmp_path / "evidence.json"
     registration_record_path = tmp_path / "registration-record.json"
     registration_review_path = tmp_path / "registration-review.json"
+    independence_audit_path = tmp_path / "study-independence-audit.md"
     statistical_method_review_path = tmp_path / "statistical-method-review.json"
     execution_review_path = tmp_path / "execution-review.json"
     out = tmp_path / "published-study"
@@ -690,6 +786,7 @@ def test_study_analyze_publishes_the_replay_bundle_from_relative_evidence(
     _write_json(benchmark_path, fixture.benchmark)
     registration_record_path.write_bytes(fixture.registration_record_bytes)
     _write_json(registration_review_path, fixture.registration_review_receipt)
+    independence_audit_path.write_bytes(fixture.independence_audit_artifact_bytes)
     _write_json(statistical_method_review_path, _method_review_receipt(fixture))
     execution_review_receipt = build_study_execution_review_receipt(
         manifest=fixture.manifest,
@@ -733,6 +830,7 @@ def test_study_analyze_publishes_the_replay_bundle_from_relative_evidence(
             "schema_name": "real-model-study-evidence-input/v1",
             "registration_record": registration_record_path.name,
             "registration_review_receipt": registration_review_path.name,
+            "independence_audit_artifact": independence_audit_path.name,
             "statistical_method_review_receipt": statistical_method_review_path.name,
             "execution_review_receipt": execution_review_path.name,
             "conditions": descriptor_conditions,
@@ -763,6 +861,9 @@ def test_study_analyze_publishes_the_replay_bundle_from_relative_evidence(
         fixture.registration_record_bytes
     )
     assert (out / "study-registration-review.json").is_file()
+    assert (out / "study-independence-audit.md").read_bytes() == (
+        fixture.independence_audit_artifact_bytes
+    )
     assert (out / "study-statistical-method-review.json").is_file()
     assert (out / "study-execution-review.json").is_file()
     assert (out / "condition-000.baseline.source.runset.json").is_file()

@@ -55,6 +55,7 @@ from agent_assure.schema.study import (
     MAX_STUDY_CONDITIONS,
     RealModelStudyManifest,
     RealModelStudyReport,
+    StudyAnalysisDeclaration,
     StudyBudget,
     StudyConditionBinding,
     StudyConditionResult,
@@ -66,6 +67,7 @@ from agent_assure.schema.study import (
     StudyIndependenceDesignBasis,
     StudyIndependenceJustification,
     StudyIndependenceJustificationStatus,
+    StudyInferenceScope,
     StudyKnowledgeContract,
     StudyOneSidedInterval,
     StudyRegistration,
@@ -105,9 +107,11 @@ class StudyFixture:
     evidence_by_condition: dict[str, StudyConditionEvidence]
     registration_record_bytes: bytes
     registration_review_receipt: StudyRegistrationReviewReceipt
+    independence_audit_artifact_bytes: bytes
 
 
 _REGISTRATION_RECORD_BYTES = b'{\n  "analysis_plan": "frozen synthetic test registration"\n}\n'
+_INDEPENDENCE_AUDIT_ARTIFACT_BYTES = b"synthetic-fixture-independence-audit"
 
 
 def _provider_input_digest(condition_id: str, arm_id: str, case_id: str) -> str:
@@ -335,7 +339,7 @@ def _manifest(
                     knowledge_contract
                 ),
                 planned_pairs=protocol.planned_pairs,
-                planned_independent_clusters=len(protocol.planned_cluster_ids),
+                planned_clusters=len(protocol.planned_cluster_ids),
             )
         )
     target_condition_ids = tuple(
@@ -350,7 +354,7 @@ def _manifest(
         if protocols[condition_id].expected_relation
         is EvidenceSensitivityExpectedRelation.decision_invariant
     )
-    minimum_clusters = min(item.planned_independent_clusters for item in conditions)
+    minimum_clusters = min(item.planned_clusters for item in conditions)
     return RealModelStudyManifest.build(
         study_id=study_id,
         registration=StudyRegistration(
@@ -366,8 +370,12 @@ def _manifest(
         benchmark_id=benchmark.benchmark_id,
         benchmark_digest=benchmark.benchmark_digest,
         knowledge_contract=knowledge_contract,
+        analysis_status=StudyAnalysisDeclaration(
+            primary=StudyInferenceScope.confirmatory_independent_clusters
+        ),
         conditions=tuple(conditions),
         hypothesis_decision_rule=StudyHypothesisDecisionRule(
+            inference_scope=StudyInferenceScope.confirmatory_independent_clusters,
             target_task_model_conditions=target_condition_ids,
             negative_control_conditions=negative_control_ids,
             minimum_independent_clusters=minimum_clusters,
@@ -386,8 +394,8 @@ def _manifest(
                 semantic_near_duplicate_disposition=(
                     StudySemanticNearDuplicateDisposition.none_detected_by_digest_bound_audit
                 ),
-                independence_audit_artifact_sha256=_digest("synthetic-fixture-independence-audit"),
-                inferential_unit_definition=(
+                design_audit_artifact_sha256=sha256(_INDEPENDENCE_AUDIT_ARTIFACT_BYTES).hexdigest(),
+                cluster_unit_definition=(
                     "Each synthetic inferential unit is one separately dispatched case-ID "
                     "cluster in the finite frozen unit-test frame."
                 ),
@@ -537,6 +545,10 @@ def _bind_runset_to_manifest(
             run.update(
                 {
                     "provider_response_id": f"provider-response-{run['run_id']}",
+                    "provider_response_payload_sha256": _digest(
+                        f"provider-response-payload-{run['run_id']}"
+                    ),
+                    "provider_response_payload_scope": "complete_http_response_body",
                     "provider_finish_reason": "stop",
                     "attempt_count": 1,
                     "retry_count": 0,
@@ -601,6 +613,8 @@ def _attach_execution_attempt_journal(
                         "provider_response_id": run.provider_response_id,
                     }
                 ),
+                provider_response_payload_sha256=(run.provider_response_payload_sha256),
+                provider_response_payload_scope=run.provider_response_payload_scope,
             )
         append_event("arm_completed", arm_id=arm.arm_id)
     append_event("attempt_completed")
@@ -853,6 +867,7 @@ def _fixture(
         evidence_by_condition=evidence_by_condition,
         registration_record_bytes=_REGISTRATION_RECORD_BYTES,
         registration_review_receipt=registration_review_receipt,
+        independence_audit_artifact_bytes=_INDEPENDENCE_AUDIT_ARTIFACT_BYTES,
     )
 
 
@@ -1215,6 +1230,7 @@ def test_live_binding_uses_one_snapshot_and_binds_exact_benchmark_bytes(
     config = LiveRunConfig(
         variant_id="baseline",
         pipeline_id=protocol.baseline_arm.pipeline_id,
+        execution_profile="preregistered_paired_study",
         tool_schema_digest=protocol.baseline_arm.tool_schema_digest,
         policy_bundle_digest=protocol.baseline_arm.policy_bundle_digest,
         retrieval_corpus_digest=protocol.baseline_arm.corpus_digest,
@@ -1332,7 +1348,7 @@ def test_ten_percent_rule_requires_at_least_36_clusters_for_two_targets() -> Non
         for condition in fixture.manifest.conditions:
             binding_payload = condition.model_dump(mode="json")
             binding_payload["planned_pairs"] = clusters
-            binding_payload["planned_independent_clusters"] = clusters
+            binding_payload["planned_clusters"] = clusters
             bindings.append(StudyConditionBinding.model_validate(binding_payload))
         rule_payload = fixture.manifest.hypothesis_decision_rule.model_dump(mode="json")
         rule_payload.update(
@@ -1350,7 +1366,7 @@ def test_ten_percent_rule_requires_at_least_36_clusters_for_two_targets() -> Non
 
     with pytest.raises(ValidationError, match="cannot reach the contradicted branch"):
         build_with_clusters(35)
-    assert build_with_clusters(36).conditions[0].planned_independent_clusters == 36
+    assert build_with_clusters(36).conditions[0].planned_clusters == 36
 
 
 def test_static_replay_is_exact_privacy_safe_and_source_preserving() -> None:
@@ -2081,6 +2097,51 @@ def test_operational_summary_rejects_explicit_null() -> None:
 
 
 @pytest.mark.parametrize(
+    ("started", "completed", "expected_complete", "expected_deviations"),
+    (
+        (
+            "2025-02-01T00:00:00Z",
+            "2025-02-01T00:00:01Z",
+            True,
+            set(),
+        ),
+        (
+            "2025-02-28T23:59:59Z",
+            "2025-03-01T00:00:00Z",
+            False,
+            {"execution-outside-preregistered-window"},
+        ),
+    ),
+)
+def test_execution_window_is_half_open_at_exact_boundaries(
+    started: str,
+    completed: str,
+    expected_complete: bool,
+    expected_deviations: set[str],
+) -> None:
+    fixture = _fixture()
+    payload = fixture.evidence.baseline_runset.runs[0].model_dump(mode="json")
+    payload["started_at_utc"] = started
+    payload["completed_at_utc"] = completed
+    record = AgentRunRecord.model_validate(payload)
+
+    assert (
+        study_analysis_module._record_has_complete_study_timing(
+            record,
+            fixture.manifest,
+        )
+        is expected_complete
+    )
+    assert (
+        study_analysis_module._execution_window_deviations(
+            fixture.manifest,
+            (record,),
+        )
+        == expected_deviations
+    )
+
+
+@pytest.mark.parametrize(
     ("started", "completed", "expected_code"),
     (
         (
@@ -2250,6 +2311,96 @@ def test_missing_or_self_asserted_observed_provenance_invalidates() -> None:
     assert "observed-execution-provenance-mismatch" in forged_result.deviation_codes
 
 
+def test_partial_response_payload_commitment_coverage_downscopes_provider_origin() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    binding = fixture.manifest.conditions[0]
+    baseline = fixture.evidence.baseline_runset
+    counterfactual = fixture.evidence.counterfactual_runset
+    journal = baseline.execution_attempt_journal
+    assert journal is not None
+    target = baseline.runs[0]
+
+    target_payload = target.model_dump(mode="json")
+    target_payload.pop("provider_response_payload_sha256")
+    target_payload.pop("provider_response_payload_scope")
+    target_without_commitment = AgentRunRecord.model_validate(target_payload)
+
+    rebound_events: list[LiveExecutionAttemptEvent] = []
+    for event in journal.events:
+        if event.event_type == "request_succeeded" and event.run_id == target.run_id:
+            event_payload = event.model_dump(mode="json")
+            event_payload.pop("provider_response_payload_sha256")
+            event_payload.pop("provider_response_payload_scope")
+            rebound_events.append(LiveExecutionAttemptEvent.model_validate(event_payload))
+        else:
+            rebound_events.append(event)
+    rebound_journal = LiveExecutionAttemptJournal.build(
+        **{
+            **journal.model_dump(mode="json", exclude={"journal_digest", "events"}),
+            "events": tuple(rebound_events),
+        }
+    )
+
+    def attach(
+        runset: RunSet,
+        runs: tuple[AgentRunRecord, ...],
+    ) -> RunSet:
+        return RunSet.model_validate(
+            {
+                **runset.model_dump(mode="json"),
+                "runs": runs,
+                "execution_attempt_journal_digest": rebound_journal.journal_digest,
+                "execution_attempt_journal": rebound_journal.model_dump(mode="json"),
+            }
+        )
+
+    baseline = attach(
+        baseline,
+        (target_without_commitment, *baseline.runs[1:]),
+    )
+    counterfactual = attach(counterfactual, counterfactual.runs)
+    evidence = _condition_evidence(
+        manifest=fixture.manifest,
+        binding=binding,
+        protocol=fixture.protocol,
+        baseline_runset=baseline,
+        counterfactual_runset=counterfactual,
+    )
+    provenance = evidence.observed_execution_provenance
+    assert provenance is not None
+
+    assert provenance.execution_attempt_journal_verified is True
+    assert provenance.provider_response_payload_commitment_records == provenance.run_records - 1
+    assert provenance.observed_origin is StudyExecutionOrigin.synthetic_fixture
+
+    result = _analyze(fixture, evidence).conditions[0]
+
+    assert result.state is StudyConditionState.invalidated
+    assert "provider-response-payload-commitment-incomplete" in result.deviation_codes
+    assert "provider-response-payload-scope-invalid" not in result.deviation_codes
+
+
+def test_response_payload_commitment_set_digest_is_rederived_from_runsets() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    provenance = fixture.evidence.observed_execution_provenance
+    assert provenance is not None
+    payload = provenance.model_dump(mode="json", exclude={"provenance_digest"})
+    payload["provider_response_payload_commitment_set_digest"] = "f" * 64
+    self_consistent_forgery = type(provenance).build(**payload)
+    forged = StudyConditionEvidence(
+        protocol=fixture.protocol,
+        baseline_runset=fixture.evidence.baseline_runset,
+        counterfactual_runset=fixture.evidence.counterfactual_runset,
+        observed_execution_provenance=self_consistent_forgery,
+    )
+
+    result = _analyze(fixture, forged).conditions[0]
+
+    assert self_consistent_forgery.provenance_digest != provenance.provenance_digest
+    assert result.state is StudyConditionState.invalidated
+    assert "observed-execution-provenance-mismatch" in result.deviation_codes
+
+
 @pytest.mark.parametrize("adapter_id", ("static-jsonl", "external-script"))
 def test_replay_and_external_script_records_cannot_prove_provider_dispatch(
     adapter_id: str,
@@ -2258,6 +2409,10 @@ def test_replay_and_external_script_records_cannot_prove_provider_dispatch(
 
     def replace_adapter(payload: dict[str, Any]) -> dict[str, Any]:
         payload["adapter_id"] = adapter_id
+        payload["provider_response_payload_scope"] = {
+            "static-jsonl": "complete_static_jsonl_record",
+            "external-script": "complete_external_script_stdout",
+        }[adapter_id]
         return payload
 
     baseline = _replace_runset_records(
@@ -2279,6 +2434,12 @@ def test_replay_and_external_script_records_cannot_prove_provider_dispatch(
     assert provenance.observed_origin is StudyExecutionOrigin.synthetic_fixture
     assert provenance.approved_adapter_run_records == 0
     assert provenance.adapter_ids == (adapter_id,)
+    assert provenance.provider_response_payload_scopes == (
+        {
+            "static-jsonl": "complete_static_jsonl_record",
+            "external-script": "complete_external_script_stdout",
+        }[adapter_id],
+    )
 
 
 def test_provider_response_ids_must_be_complete_and_unique_across_arms() -> None:

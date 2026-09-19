@@ -124,7 +124,11 @@ a network-isolation boundary against hostile Python or native code.
   success.
 - Raw prompts and raw provider responses are not persisted in RunSet artifacts,
   but a trusted live adapter or external script sees the prompt it is asked to
-  process.
+  process. Current built-in live adapters persist a plain SHA-256 commitment to
+  the exact bounded response bytes plus a scope label. This detects later local
+  substitution when journal-bound, but it can be guessable or linkable and is
+  not confidentiality, remote-provider authentication, semantic validation, or
+  proof of transport completeness.
 - Optional usage artifacts may persist measured token, tool-call, retry,
   latency, and declared estimated cost fields. Cost-bearing usage segments must
   include explicit limitations, and pricing snapshot IDs, pricing snapshot

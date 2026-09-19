@@ -26,6 +26,7 @@
 /src/agent_assure/privacy/** @acblabs
 /src/agent_assure/release_evidence.py @acblabs
 /src/agent_assure/reporting/** @acblabs
+/src/agent_assure/release_trust/** @acblabs
 /src/agent_assure/runner/** @acblabs
 /src/agent_assure/schema/** @acblabs
 /src/agent_assure/schema/pilot.py @acblabs
@@ -41,4 +42,5 @@
 /docs/release_*.md @acblabs
 /docs/claims_traceability_matrix.* @acblabs
 /docs/threat_coverage_matrix.yaml @acblabs
+/study/** @acblabs
 /evidence/empirical/** @acblabs

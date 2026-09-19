@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from html import escape
 from pathlib import Path, PurePosixPath, PureWindowsPath
 
@@ -39,6 +39,30 @@ DISPLAY_SAFETY_NOTE = (
 
 PathValue = str | Path
 _EXTERNAL_URL_PATTERN = re.compile(r"https?://[^\s<>'\"]+", re.IGNORECASE)
+
+
+class _SafeHtml(str):
+    """HTML fragment whose dynamic leaves were escaped by a trusted builder."""
+
+
+def _safe_html(markup: str) -> _SafeHtml:
+    return _SafeHtml(markup)
+
+
+def _raw_html(fragment: _SafeHtml) -> str:
+    if type(fragment) is not _SafeHtml:
+        raise TypeError("raw HTML sinks require a _SafeHtml fragment")
+    return str(fragment)
+
+
+def _join_html(
+    fragments: Iterable[_SafeHtml],
+    *,
+    separator: str = "",
+) -> _SafeHtml:
+    """Join only trusted fragments at an HTML composition boundary."""
+
+    return _safe_html(separator.join(_raw_html(fragment) for fragment in fragments))
 
 
 def write_evidence_diff_html(
@@ -510,13 +534,16 @@ def _key_finding_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> 
                 "</section>",
             )
         )
-    rows = "\n".join(_key_finding_row(diff) for diff in missing_links)
+    rows = _join_html(
+        (_key_finding_row(diff) for diff in missing_links),
+        separator="\n",
+    )
     return "\n".join(
         (
             '<section class="key-finding" aria-labelledby="key-finding">',
             '<div class="section-heading-row">',
             '<h2 id="key-finding">Key Finding</h2>',
-            _regression_badge(len(missing_links)),
+            _raw_html(_regression_badge(len(missing_links))),
             "</div>",
             (
                 "<p>"
@@ -531,7 +558,7 @@ def _key_finding_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> 
             "<th>Case</th><th>Material claim</th><th>Baseline link</th>"
             "<th>Candidate link</th><th>Reason</th>"
             "</tr></thead>",
-            f"<tbody>{rows}</tbody>",
+            f"<tbody>{_raw_html(rows)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -562,7 +589,7 @@ def _final_output_section(
     baseline_summary: EvaluationSummary,
     candidate_summary: EvaluationSummary,
 ) -> str:
-    rows = "\n".join(_visible_output_rows(baseline, candidate))
+    rows = _join_html(_visible_output_rows(baseline, candidate), separator="\n")
     return "\n".join(
         (
             '<section class="decision-section" aria-labelledby="decision-field-comparison">',
@@ -579,7 +606,7 @@ def _final_output_section(
             "<th>Case</th><th>Baseline recommendation</th><th>Candidate recommendation</th>"
             "<th>Baseline outcome</th><th>Candidate outcome</th><th>Decision fields</th>"
             "</tr></thead>",
-            f"<tbody>{rows}</tbody>",
+            f"<tbody>{_raw_html(rows)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -595,16 +622,17 @@ def _process_diff_section(
     missing_links: tuple[MissingEvidenceLinkDiff, ...],
     affected_summary: ProcessAffectedSummary,
 ) -> str:
-    rows = "\n".join(
+    rows = _join_html(
         _process_diff_rows(
             baseline,
             candidate,
             visible_state,
             candidate_summary,
             missing_links,
-        )
+        ),
+        separator="\n",
     )
-    body = rows or '<tr><td colspan="6" class="empty">No runs were recorded.</td></tr>'
+    body = rows or _safe_html('<tr><td colspan="6" class="empty">No runs were recorded.</td></tr>')
     return _page(
         "diff-page",
         2,
@@ -619,7 +647,12 @@ def _process_diff_section(
                     "the process evidence around the decision, not just the visible answer."
                     "</p>"
                 ),
-                _evidence_link_diagram(missing_links, ci_gate_state="candidate blocked"),
+                _raw_html(
+                    _evidence_link_diagram(
+                        missing_links,
+                        ci_gate_state="candidate blocked",
+                    )
+                ),
                 _key_finding_section(missing_links),
                 (
                     '<p class="section-note">'
@@ -634,7 +667,7 @@ def _process_diff_section(
                 "<th>Case</th><th>Process status</th><th>Decision fields</th>"
                 "<th>Changed fields</th><th>Process findings</th><th>Claim-evidence links</th>"
                 "</tr></thead>",
-                f"<tbody>{body}</tbody>",
+                f"<tbody>{_raw_html(body)}</tbody>",
                 "</table>",
                 "</div>",
                 "</section>",
@@ -647,58 +680,62 @@ def _evidence_link_diagram(
     missing_links: tuple[MissingEvidenceLinkDiff, ...],
     *,
     ci_gate_state: str,
-) -> str:
+) -> _SafeHtml:
     if missing_links:
         diff = missing_links[0]
         baseline_value = _inline_values(diff.baseline_evidence_refs)
-        candidate_value = '<span class="empty">none</span>'
+        candidate_value = _safe_html('<span class="empty">none</span>')
         claim = _h(diff.claim_id)
     else:
-        baseline_value = '<span class="empty">none observed</span>'
-        candidate_value = '<span class="empty">none observed</span>'
-        claim = "material-claim"
-    return "\n".join(
-        (
+        baseline_value = _safe_html('<span class="empty">none observed</span>')
+        candidate_value = _safe_html('<span class="empty">none observed</span>')
+        claim = _h("material-claim")
+    return _safe_html(
+        "\n".join(
             (
-                '<div class="evidence-diagram" '
-                'aria-label="Baseline and candidate evidence-link comparison">'
-            ),
-            '<div class="diagram-row diagram-row-good">',
-            '<div class="diagram-label">Baseline Process</div>',
-            (
-                '<div class="diagram-chain">'
-                f'<code>{claim}</code><span class="diagram-arrow">→</span>{baseline_value}'
-                "</div>"
-            ),
-            (
-                '<div class="diagram-state"><span aria-hidden="true">&#10003;</span> '
-                "material claim has evidence</div>"
-            ),
-            "</div>",
-            '<div class="diagram-row diagram-row-bad">',
-            '<div class="diagram-label">Candidate Process</div>',
-            (
-                '<div class="diagram-chain">'
-                f'<code>{claim}</code><span class="diagram-arrow">→</span>{candidate_value}'
-                "</div>"
-            ),
-            (
-                '<div class="diagram-state"><span aria-hidden="true">&#10005;</span> '
-                "material claim evidence link missing</div>"
-            ),
-            "</div>",
-            '<div class="diagram-row diagram-row-gate">',
-            '<div class="diagram-label">CI Gate</div>',
-            (
-                '<div class="diagram-chain"><strong>control response</strong>'
-                '<span class="diagram-arrow">→</span><code>blocked</code></div>'
-            ),
-            (
-                '<div class="diagram-state"><span aria-hidden="true">&#9632;</span> '
-                f"{_h(ci_gate_state)}</div>"
-            ),
-            "</div>",
-            "</div>",
+                (
+                    '<div class="evidence-diagram" '
+                    'aria-label="Baseline and candidate evidence-link comparison">'
+                ),
+                '<div class="diagram-row diagram-row-good">',
+                '<div class="diagram-label">Baseline Process</div>',
+                (
+                    '<div class="diagram-chain">'
+                    f'<code>{_raw_html(claim)}</code><span class="diagram-arrow">→</span>'
+                    f"{_raw_html(baseline_value)}"
+                    "</div>"
+                ),
+                (
+                    '<div class="diagram-state"><span aria-hidden="true">&#10003;</span> '
+                    "material claim has evidence</div>"
+                ),
+                "</div>",
+                '<div class="diagram-row diagram-row-bad">',
+                '<div class="diagram-label">Candidate Process</div>',
+                (
+                    '<div class="diagram-chain">'
+                    f'<code>{_raw_html(claim)}</code><span class="diagram-arrow">→</span>'
+                    f"{_raw_html(candidate_value)}"
+                    "</div>"
+                ),
+                (
+                    '<div class="diagram-state"><span aria-hidden="true">&#10005;</span> '
+                    "material claim evidence link missing</div>"
+                ),
+                "</div>",
+                '<div class="diagram-row diagram-row-gate">',
+                '<div class="diagram-label">CI Gate</div>',
+                (
+                    '<div class="diagram-chain"><strong>control response</strong>'
+                    '<span class="diagram-arrow">→</span><code>blocked</code></div>'
+                ),
+                (
+                    '<div class="diagram-state"><span aria-hidden="true">&#9632;</span> '
+                    f"{_h(ci_gate_state)}</div>"
+                ),
+                "</div>",
+                "</div>",
+            )
         )
     )
 
@@ -821,8 +858,11 @@ def _process_evidence_section(
     *,
     section_class: str = "",
 ) -> str:
-    rows = "\n".join(_process_evidence_row(run) for run in sorted(runset.runs, key=_case_key))
-    body = rows or '<tr><td colspan="10" class="empty">No runs were recorded.</td></tr>'
+    rows = _join_html(
+        (_process_evidence_row(run) for run in sorted(runset.runs, key=_case_key)),
+        separator="\n",
+    )
+    body = rows or _safe_html('<tr><td colspan="10" class="empty">No runs were recorded.</td></tr>')
     class_attr = f' class="{_h(section_class)}"' if section_class else ""
     return "\n".join(
         (
@@ -835,7 +875,7 @@ def _process_evidence_section(
             "<th>Policy states</th><th>Human review</th><th>Provider/model</th><th>Tools</th>"
             "<th>Operational metrics</th><th>Measured usage</th>"
             "</tr></thead>",
-            f"<tbody>{body}</tbody>",
+            f"<tbody>{_raw_html(body)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -844,11 +884,16 @@ def _process_evidence_section(
 
 
 def _missing_evidence_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]) -> str:
-    rows = "\n".join(_missing_link_row(diff) for diff in missing_links)
+    rows = _join_html(
+        (_missing_link_row(diff) for diff in missing_links),
+        separator="\n",
+    )
     body = (
         rows
         if rows
-        else '<tr><td colspan="4" class="empty">No missing evidence links were observed.</td></tr>'
+        else _safe_html(
+            '<tr><td colspan="4" class="empty">No missing evidence links were observed.</td></tr>'
+        )
     )
     return "\n".join(
         (
@@ -865,7 +910,7 @@ def _missing_evidence_section(missing_links: tuple[MissingEvidenceLinkDiff, ...]
             "<th>Case</th><th>Claim</th><th>Baseline evidence refs</th>"
             "<th>Candidate evidence refs</th>"
             "</tr></thead>",
-            f"<tbody>{body}</tbody>",
+            f"<tbody>{_raw_html(body)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -877,11 +922,11 @@ def _findings_section(
     findings: tuple[Finding, ...],
     missing_links: tuple[MissingEvidenceLinkDiff, ...],
 ) -> str:
-    rows = "\n".join(_finding_row(finding) for finding in findings)
+    rows = _join_html((_finding_row(finding) for finding in findings), separator="\n")
     body = (
         rows
         if rows
-        else (
+        else _safe_html(
             '<tr><td colspan="6" class="empty">'
             "No process invariant findings were recorded.</td></tr>"
         )
@@ -896,7 +941,7 @@ def _findings_section(
             '<table class="wide-table">',
             "<thead><tr><th>Case</th><th>Control</th><th>Target</th>"
             "<th>Reason code</th><th>State</th><th>Message</th></tr></thead>",
-            f"<tbody>{body}</tbody>",
+            f"<tbody>{_raw_html(body)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -954,7 +999,10 @@ def _comparison_section(
     )
 
 
-def _retrieval_corpus_digest_html(baseline: RunSet, candidate: RunSet) -> str | None:
+def _retrieval_corpus_digest_html(
+    baseline: RunSet,
+    candidate: RunSet,
+) -> _SafeHtml | None:
     pairs = _paired_runs(baseline, candidate)
     if not pairs:
         if _has_retrieval_corpus_digest(baseline) or _has_retrieval_corpus_digest(candidate):
@@ -981,7 +1029,7 @@ def _retrieval_corpus_digest_html(baseline: RunSet, candidate: RunSet) -> str | 
         digest = observed_pairs[0][1] or observed_pairs[0][2] or "not recorded"
         case_count = len(observed_pairs)
         noun = "case" if case_count == 1 else "cases"
-        return (
+        return _safe_html(
             '<span class="state-good">unchanged</span> '
             f'<span class="empty">across {_h(case_count)} {_h(noun)}</span><br>'
             f"<code>{_h(digest)}</code>"
@@ -990,8 +1038,9 @@ def _retrieval_corpus_digest_html(baseline: RunSet, candidate: RunSet) -> str | 
         _retrieval_corpus_digest_change_item(case_id, baseline_digest, candidate_digest)
         for case_id, baseline_digest, candidate_digest in changed
     )
-    return '<span class="state-bad">changed</span><br>' + _summarized_html_items(
-        values, empty="none"
+    return _safe_html(
+        '<span class="state-bad">changed</span><br>'
+        + _raw_html(_summarized_html_items(values, empty="none"))
     )
 
 
@@ -999,18 +1048,18 @@ def _retrieval_corpus_digest_change_item(
     case_id: str,
     baseline_digest: str | None,
     candidate_digest: str | None,
-) -> str:
-    return (
+) -> _SafeHtml:
+    return _safe_html(
         f"<code>{_h(case_id)}</code>: baseline "
         f"{_digest_value_html(baseline_digest)} candidate "
         f"{_digest_value_html(candidate_digest)}"
     )
 
 
-def _digest_value_html(digest: str | None) -> str:
+def _digest_value_html(digest: str | None) -> _SafeHtml:
     if digest is None:
-        return '<span class="empty">&lt;unset&gt;</span>'
-    return f"<code>{_h(digest)}</code>"
+        return _safe_html('<span class="empty">&lt;unset&gt;</span>')
+    return _safe_html(f"<code>{_h(digest)}</code>")
 
 
 def _has_retrieval_corpus_digest(runset: RunSet) -> bool:
@@ -1055,12 +1104,17 @@ def _ci_gate_section(ci_gate_result: str, packet: EvidencePacket | None) -> str:
 
 
 def _artifact_paths_section(artifact_paths: Mapping[str, PathValue] | None) -> str:
-    rows = "\n".join(
-        _artifact_path_row(label, value)
-        for label, value in sorted((artifact_paths or {}).items(), key=lambda item: item[0])
-        if str(value)
+    rows = _join_html(
+        (
+            _artifact_path_row(label, value)
+            for label, value in sorted((artifact_paths or {}).items(), key=lambda item: item[0])
+            if str(value)
+        ),
+        separator="\n",
     )
-    body = rows or '<tr><td colspan="2" class="empty">No artifact paths were provided.</td></tr>'
+    body = rows or _safe_html(
+        '<tr><td colspan="2" class="empty">No artifact paths were provided.</td></tr>'
+    )
     return "\n".join(
         (
             '<section class="appendix-section" aria-labelledby="artifact-paths">',
@@ -1068,7 +1122,7 @@ def _artifact_paths_section(artifact_paths: Mapping[str, PathValue] | None) -> s
             '<div class="table-wrap">',
             "<table>",
             "<thead><tr><th>Artifact</th><th>Path</th></tr></thead>",
-            f"<tbody>{body}</tbody>",
+            f"<tbody>{_raw_html(body)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -1077,8 +1131,8 @@ def _artifact_paths_section(artifact_paths: Mapping[str, PathValue] | None) -> s
 
 
 def _artifact_digests_section(packet: EvidencePacket | None) -> str:
-    rows = "\n".join(_artifact_digest_rows(packet))
-    body = rows or (
+    rows = _join_html(_artifact_digest_rows(packet), separator="\n")
+    body = rows or _safe_html(
         '<tr><td colspan="3" class="empty">No packet artifact digests were provided.</td></tr>'
     )
     return "\n".join(
@@ -1088,7 +1142,7 @@ def _artifact_digests_section(packet: EvidencePacket | None) -> str:
             '<div class="table-wrap">',
             "<table>",
             "<thead><tr><th>Role</th><th>Path</th><th>SHA-256</th></tr></thead>",
-            f"<tbody>{body}</tbody>",
+            f"<tbody>{_raw_html(body)}</tbody>",
             "</table>",
             "</div>",
             "</section>",
@@ -1155,45 +1209,52 @@ def _detail(label: str, value: str) -> str:
     return f"<dt>{_h(label)}</dt><dd>{_h(value)}</dd>"
 
 
-def _detail_html(label: str, value_html: str) -> str:
-    return f"<dt>{_h(label)}</dt><dd>{value_html}</dd>"
+def _detail_html(label: str, value_html: _SafeHtml) -> str:
+    return f"<dt>{_h(label)}</dt><dd>{_raw_html(value_html)}</dd>"
 
 
-def _regression_badge(count: int) -> str:
+def _regression_badge(count: int) -> _SafeHtml:
     noun = "regression" if count == 1 else "regressions"
-    return f'<span class="regression-badge">{_h(count)} material claim link {noun}</span>'
+    return _safe_html(
+        f'<span class="regression-badge">{_h(count)} material claim link {_h(noun)}</span>'
+    )
 
 
-def _key_finding_row(diff: MissingEvidenceLinkDiff) -> str:
-    return "".join(
-        (
-            "<tr>",
-            _labeled_cell("Case", _h(diff.case_id)),
-            _labeled_cell("Material claim", f"<code>{_h(diff.claim_id)}</code>"),
-            _labeled_cell(
-                "Baseline link",
-                _link_expression(diff.claim_id, diff.baseline_evidence_refs),
-            ),
-            _labeled_cell(
-                "Candidate link",
-                _link_expression(diff.claim_id, diff.candidate_evidence_refs),
-            ),
-            _labeled_cell(
-                "Reason",
-                (
-                    '<code class="wrap-token">'
-                    f"{_h(ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value)}</code>"
+def _key_finding_row(diff: MissingEvidenceLinkDiff) -> _SafeHtml:
+    return _safe_html(
+        "".join(
+            (
+                "<tr>",
+                _labeled_cell("Case", _h(diff.case_id)),
+                _labeled_cell(
+                    "Material claim",
+                    _safe_html(f"<code>{_h(diff.claim_id)}</code>"),
                 ),
-            ),
-            "</tr>",
+                _labeled_cell(
+                    "Baseline link",
+                    _link_expression(diff.claim_id, diff.baseline_evidence_refs),
+                ),
+                _labeled_cell(
+                    "Candidate link",
+                    _link_expression(diff.claim_id, diff.candidate_evidence_refs),
+                ),
+                _labeled_cell(
+                    "Reason",
+                    _safe_html(
+                        '<code class="wrap-token">'
+                        f"{_h(ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE.value)}</code>"
+                    ),
+                ),
+                "</tr>",
+            )
         )
     )
 
 
-def _visible_output_rows(baseline: RunSet, candidate: RunSet) -> tuple[str, ...]:
+def _visible_output_rows(baseline: RunSet, candidate: RunSet) -> tuple[_SafeHtml, ...]:
     baseline_by_case = {run.case_id: run for run in baseline.runs}
     candidate_by_case = {run.case_id: run for run in candidate.runs}
-    rows: list[str] = []
+    rows: list[_SafeHtml] = []
     for case_id in sorted(set(baseline_by_case) | set(candidate_by_case)):
         rows.append(
             _visible_output_row(
@@ -1209,9 +1270,9 @@ def _visible_output_row(
     case_id: str,
     baseline: AgentRunRecord | None,
     candidate: AgentRunRecord | None,
-) -> str:
+) -> _SafeHtml:
     state = _visible_output_state(baseline, candidate)
-    return (
+    return _safe_html(
         "<tr>"
         f"<td>{_h(case_id)}</td>"
         f"<td>{_h(baseline.recommendation if baseline else '<missing>')}</td>"
@@ -1229,7 +1290,7 @@ def _process_diff_rows(
     visible_state: str,
     candidate_summary: EvaluationSummary,
     missing_links: tuple[MissingEvidenceLinkDiff, ...],
-) -> tuple[str, ...]:
+) -> tuple[_SafeHtml, ...]:
     baseline_by_case = {run.case_id: run for run in baseline.runs}
     candidate_by_case = {run.case_id: run for run in candidate.runs}
     findings_by_case: dict[str, list[Finding]] = {}
@@ -1238,7 +1299,7 @@ def _process_diff_rows(
     missing_by_case: dict[str, list[MissingEvidenceLinkDiff]] = {}
     for diff in missing_links:
         missing_by_case.setdefault(diff.case_id, []).append(diff)
-    rows: list[str] = []
+    rows: list[_SafeHtml] = []
     for case_id in sorted(set(baseline_by_case) | set(candidate_by_case)):
         baseline_run = baseline_by_case.get(case_id)
         candidate_run = candidate_by_case.get(case_id)
@@ -1265,7 +1326,7 @@ def _process_diff_row(
     visible_state: str,
     findings: tuple[Finding, ...],
     missing_links: tuple[MissingEvidenceLinkDiff, ...],
-) -> str:
+) -> _SafeHtml:
     status = _process_diff_status(baseline, candidate, findings, missing_links)
     changed_fields = _process_changed_fields(baseline, candidate)
     row_class = {
@@ -1275,38 +1336,44 @@ def _process_diff_row(
     claim_link_state = (
         _regression_badge(len(missing_links))
         if missing_links
-        else '<span class="state-good">no regression</span>'
+        else _safe_html('<span class="state-good">no regression</span>')
     )
     if findings:
         reason_codes = tuple(finding.reason_code.value for finding in findings)
-        claim_link_state += "<br>" + _inline_values(reason_codes)
-    return "".join(
-        (
-            f'<tr class="{_h(row_class)}">',
-            _process_diff_cell("Case", _h(case_id)),
-            _process_diff_cell("Process status", _status_badge(status)),
-            _process_diff_cell("Decision fields", _status_badge(visible_state)),
-            _process_diff_cell("Changed fields", _inline_values(changed_fields)),
-            _process_diff_cell("Process findings", claim_link_state),
-            _process_diff_cell(
-                "Claim-evidence links",
-                _evidence_chain_comparison(baseline, candidate, missing_links),
-            ),
-            "</tr>",
+        claim_link_state = _safe_html(
+            _raw_html(claim_link_state) + "<br>" + _raw_html(_inline_values(reason_codes))
+        )
+    return _safe_html(
+        "".join(
+            (
+                f'<tr class="{_h(row_class)}">',
+                _process_diff_cell("Case", _h(case_id)),
+                _process_diff_cell("Process status", _status_badge(status)),
+                _process_diff_cell("Decision fields", _status_badge(visible_state)),
+                _process_diff_cell("Changed fields", _inline_values(changed_fields)),
+                _process_diff_cell("Process findings", claim_link_state),
+                _process_diff_cell(
+                    "Claim-evidence links",
+                    _evidence_chain_comparison(baseline, candidate, missing_links),
+                ),
+                "</tr>",
+            )
         )
     )
 
 
-def _process_diff_cell(label: str, value_html: str) -> str:
+def _process_diff_cell(label: str, value_html: _SafeHtml) -> _SafeHtml:
     return _labeled_cell(label, value_html)
 
 
-def _labeled_cell(label: str, value_html: str) -> str:
-    return f'<td data-label="{_h(label)}"><div class="cell-value">{value_html}</div></td>'
+def _labeled_cell(label: str, value_html: _SafeHtml) -> _SafeHtml:
+    return _safe_html(
+        f'<td data-label="{_h(label)}"><div class="cell-value">{_raw_html(value_html)}</div></td>'
+    )
 
 
-def _status_badge(state: str) -> str:
-    return f'<span class="{_state_class(state)}">{_h(state)}</span>'
+def _status_badge(state: str) -> _SafeHtml:
+    return _safe_html(f'<span class="{_state_class(state)}">{_h(state)}</span>')
 
 
 def _process_diff_status(
@@ -1328,8 +1395,8 @@ def _evidence_chain_comparison(
     baseline: AgentRunRecord | None,
     candidate: AgentRunRecord | None,
     missing_links: tuple[MissingEvidenceLinkDiff, ...],
-) -> str:
-    return (
+) -> _SafeHtml:
+    return _safe_html(
         '<div class="diff-pair">'
         '<span class="diff-label">Baseline</span>'
         f"<span>{_claim_link_summary(baseline)}</span>"
@@ -1343,9 +1410,9 @@ def _claim_link_summary(
     run: AgentRunRecord | None,
     *,
     removed: tuple[MissingEvidenceLinkDiff, ...] = (),
-) -> str:
+) -> _SafeHtml:
     if run is None:
-        return '<span class="empty">missing run</span>'
+        return _safe_html('<span class="empty">missing run</span>')
     pieces = [
         _removed_link_expression(diff.claim_id)
         for diff in sorted(removed, key=lambda item: item.claim_id)
@@ -1356,16 +1423,16 @@ def _claim_link_summary(
         if claim_id not in {diff.claim_id for diff in removed}
     )
     if not pieces:
-        return '<span class="empty">none</span>'
-    return "; ".join(pieces)
+        return _safe_html('<span class="empty">none</span>')
+    return _safe_html("; ".join(pieces))
 
 
-def _link_expression(claim_id: str, evidence_refs: tuple[str, ...]) -> str:
-    return f"<code>{_h(claim_id)}</code> → {_inline_values(evidence_refs)}"
+def _link_expression(claim_id: str, evidence_refs: tuple[str, ...]) -> _SafeHtml:
+    return _safe_html(f"<code>{_h(claim_id)}</code> → {_inline_values(evidence_refs)}")
 
 
-def _removed_link_expression(claim_id: str) -> str:
-    return (
+def _removed_link_expression(claim_id: str) -> _SafeHtml:
+    return _safe_html(
         '<span class="diff-removed">'
         '<span class="diff-marker">-</span> '
         f'<span class="diff-removed-token"><code>{_h(claim_id)}</code></span>'
@@ -1416,31 +1483,33 @@ def _process_changed_fields(
     return tuple(changed)
 
 
-def _process_evidence_row(run: AgentRunRecord) -> str:
+def _process_evidence_row(run: AgentRunRecord) -> _SafeHtml:
     linked_claim_ids = tuple(_linked_claim_evidence(run))
-    return "".join(
-        (
-            "<tr>",
-            _labeled_cell("Case", _h(run.case_id)),
-            _labeled_cell("Claims", _inline_values(_claim_ids(run))),
-            _labeled_cell(
-                "Evidence refs",
-                _inline_values(_evidence_ref_display_values(run)),
-            ),
-            _labeled_cell("Linked claims", _inline_values(linked_claim_ids)),
-            _labeled_cell("Policy states", _inline_values(_policy_states(run))),
-            _labeled_cell("Human review", _h(_human_review_state(run))),
-            _labeled_cell("Provider/model", _h(_provider_model(run) or "not recorded")),
-            _labeled_cell("Tools", _inline_values(run.tools)),
-            _labeled_cell("Operational metrics", _h(_operational_metrics_display(run))),
-            _labeled_cell("Measured usage", _h(_usage_summary_display(run))),
-            "</tr>",
+    return _safe_html(
+        "".join(
+            (
+                "<tr>",
+                _labeled_cell("Case", _h(run.case_id)),
+                _labeled_cell("Claims", _inline_values(_claim_ids(run))),
+                _labeled_cell(
+                    "Evidence refs",
+                    _inline_values(_evidence_ref_display_values(run)),
+                ),
+                _labeled_cell("Linked claims", _inline_values(linked_claim_ids)),
+                _labeled_cell("Policy states", _inline_values(_policy_states(run))),
+                _labeled_cell("Human review", _h(_human_review_state(run))),
+                _labeled_cell("Provider/model", _h(_provider_model(run) or "not recorded")),
+                _labeled_cell("Tools", _inline_values(run.tools)),
+                _labeled_cell("Operational metrics", _h(_operational_metrics_display(run))),
+                _labeled_cell("Measured usage", _h(_usage_summary_display(run))),
+                "</tr>",
+            )
         )
     )
 
 
-def _finding_row(finding: Finding) -> str:
-    return (
+def _finding_row(finding: Finding) -> _SafeHtml:
+    return _safe_html(
         "<tr>"
         f"<td>{_h(finding.case_id or 'unscoped')}</td>"
         f"<td>{_h(finding.control_id)}</td>"
@@ -1452,8 +1521,8 @@ def _finding_row(finding: Finding) -> str:
     )
 
 
-def _missing_link_row(diff: MissingEvidenceLinkDiff) -> str:
-    return (
+def _missing_link_row(diff: MissingEvidenceLinkDiff) -> _SafeHtml:
+    return _safe_html(
         "<tr>"
         f"<td>{_h(diff.case_id)}</td>"
         f"<td>{_h(diff.claim_id)}</td>"
@@ -1463,14 +1532,16 @@ def _missing_link_row(diff: MissingEvidenceLinkDiff) -> str:
     )
 
 
-def _artifact_path_row(label: str, value: PathValue) -> str:
-    return f"<tr><td>{_h(label)}</td><td><code>{_h(_path_value(value))}</code></td></tr>"
+def _artifact_path_row(label: str, value: PathValue) -> _SafeHtml:
+    return _safe_html(
+        f"<tr><td>{_h(label)}</td><td><code>{_h(_path_value(value))}</code></td></tr>"
+    )
 
 
-def _artifact_digest_rows(packet: EvidencePacket | None) -> tuple[str, ...]:
+def _artifact_digest_rows(packet: EvidencePacket | None) -> tuple[_SafeHtml, ...]:
     if packet is None:
         return ()
-    rows: list[str] = []
+    rows: list[_SafeHtml] = []
     rows.extend(
         _artifact_digest_row(digest.role, "packet artifact digest", digest.sha256)
         for digest in packet.artifact_digests
@@ -1483,8 +1554,8 @@ def _artifact_digest_rows(packet: EvidencePacket | None) -> tuple[str, ...]:
     return tuple(rows)
 
 
-def _artifact_digest_row(role: str, path: str, sha256: str) -> str:
-    return (
+def _artifact_digest_row(role: str, path: str, sha256: str) -> _SafeHtml:
+    return _safe_html(
         "<tr>"
         f"<td>{_h(role)}</td>"
         f"<td><code>{_h(_path_value(path))}</code></td>"
@@ -1612,32 +1683,36 @@ def _observed_int(value: int | None) -> str:
     return str(value)
 
 
-def _inline_values(values: tuple[str, ...], *, empty: str = "none") -> str:
+def _inline_values(values: tuple[str, ...], *, empty: str = "none") -> _SafeHtml:
     if not values:
-        return f'<span class="empty">{_h(empty)}</span>'
-    return ", ".join(f"<code>{_h(value)}</code>" for value in values)
+        return _safe_html(f'<span class="empty">{_h(empty)}</span>')
+    return _safe_html(", ".join(f"<code>{_h(value)}</code>" for value in values))
 
 
-def _summarized_values_html(values: tuple[str, ...], *, empty: str) -> str:
+def _summarized_values_html(values: tuple[str, ...], *, empty: str) -> _SafeHtml:
     if not values:
-        return f'<span class="empty">{_h(empty)}</span>'
+        return _safe_html(f'<span class="empty">{_h(empty)}</span>')
     shown = tuple(_truncate_value(value) for value in values[:MAX_INLINE_ITEMS])
     prefix = f"{len(values)} item" if len(values) == 1 else f"{len(values)} items"
     if len(values) > MAX_INLINE_ITEMS:
         prefix = f"{prefix}; first {len(shown)} shown"
     items = "".join(f"<li>{_h(value)}</li>" for value in shown)
-    return f'<span class="value-count">{_h(prefix)}</span><ul class="value-list">{items}</ul>'
+    return _safe_html(
+        f'<span class="value-count">{_h(prefix)}</span><ul class="value-list">{items}</ul>'
+    )
 
 
-def _summarized_html_items(values: tuple[str, ...], *, empty: str) -> str:
+def _summarized_html_items(values: tuple[_SafeHtml, ...], *, empty: str) -> _SafeHtml:
     if not values:
-        return f'<span class="empty">{_h(empty)}</span>'
+        return _safe_html(f'<span class="empty">{_h(empty)}</span>')
     shown = values[:MAX_INLINE_ITEMS]
     prefix = f"{len(values)} item" if len(values) == 1 else f"{len(values)} items"
     if len(values) > MAX_INLINE_ITEMS:
         prefix = f"{prefix}; first {len(shown)} shown"
-    items = "".join(f"<li>{value}</li>" for value in shown)
-    return f'<span class="value-count">{_h(prefix)}</span><ul class="value-list">{items}</ul>'
+    items = "".join(f"<li>{_raw_html(value)}</li>" for value in shown)
+    return _safe_html(
+        f'<span class="value-count">{_h(prefix)}</span><ul class="value-list">{items}</ul>'
+    )
 
 
 def _summarized_values(values: tuple[str, ...], *, empty: str) -> str:
@@ -1708,8 +1783,8 @@ def _path_name(value: str) -> str:
     return "artifact"
 
 
-def _h(value: object) -> str:
+def _h(value: object) -> _SafeHtml:
     safe_display = sanitize_display_text(value)
     without_external_urls = _EXTERNAL_URL_PATTERN.sub("[URL]", safe_display)
     polished_display = without_external_urls.replace("->", "→")
-    return escape(polished_display, quote=True)
+    return _safe_html(escape(polished_display, quote=True))

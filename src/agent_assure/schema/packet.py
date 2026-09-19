@@ -581,6 +581,7 @@ class EvidencePacket(PersistedArtifact):
             or stochastic.dependency is not None
             or stochastic.state
             not in {
+                StochasticSensitivityState.fixed_frame_descriptive,
                 StochasticSensitivityState.prerequisites_unmet,
                 StochasticSensitivityState.inconclusive,
             }

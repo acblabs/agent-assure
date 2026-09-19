@@ -181,6 +181,13 @@ credential values. Network adapters obtain a credential from a configured
 environment variable only after explicit network consent; the protocol records
 neither the secret nor its value-derived digest.
 
+Current built-in live adapters do retain a plain SHA-256 commitment to the
+exact bounded response bytes and a scope label. The bytes themselves are not
+retained. This supports later local byte-identity reconciliation but is not
+encryption, de-identification, remote-provider authentication, or a proof of
+transport completeness. A digest of a small or predictable response can be
+guessed and can link repeated payloads.
+
 These omissions do not make the remaining metadata anonymous. Case IDs,
 provider response IDs retained in underlying live RunSets, model revisions,
 cluster labels, timestamps, and stable digests can be linkable. Producers must

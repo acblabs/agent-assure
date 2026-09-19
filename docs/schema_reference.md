@@ -413,7 +413,7 @@ threshold. See
 [Repeated Paired Evidence Sensitivity](repeated_evidence_sensitivity.md) for
 planning equations, execution and privacy boundaries, and limitations.
 
-Six persisted roots are introduced on the v0.6.6 development writer surface:
+The v0.6.6 development writer surface introduces these persisted roots:
 
 - `process-equivalence-benchmark` is
   `ProcessEquivalenceBenchmark/v1`. Its `benchmark_digest` binds the
@@ -428,6 +428,13 @@ Six persisted roots are introduced on the v0.6.6 development writer surface:
   protocols/configurations/model identities, authority contract, budget,
   publication policy, and complete prespecified decision rule. The protocol-set
   and decision-rule digests are independently derived within the manifest.
+  `analysis_status.primary` and
+  `hypothesis_decision_rule.inference_scope` are both required, have no default,
+  and must name the same explicit confirmatory or descriptive scope. The
+  confirmatory decision rule identifies its directional contract as
+  `complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha`;
+  this is a decision-error guarantee, not two-sided confidence-interval
+  coverage.
   `execution_origin` is the enum `real_provider | synthetic_fixture` and
   defaults to the fail-closed synthetic value. Real-provider readiness also
   requires a derived provenance sidecar bound to both exact source RunSets and
@@ -444,18 +451,25 @@ Six persisted roots are introduced on the v0.6.6 development writer surface:
   `StudyExecutionReviewReceipt/v1`. Its self-digest binds the exact study,
   manifest/report logical and byte digests, every condition's source RunSet IDs
   and byte digests, observed-provenance digest, provider-response-ID-set digest,
+  provider-response-payload-commitment set digest, commitment count and scopes,
   post-window review time, distinct reviewer rationale, and mandatory
   provider-log/account checks. Those checks are human attestations; reviewer
   and provider identities remain authenticated out of band.
 - `real-model-study-statistical-method-review` is
   `StudyStatisticalMethodReviewReceipt/v1`. Its self-digest binds an approval
   by a qualified reviewer independent of study design, execution, and analysis
-  to the exact manifest and benchmark bytes, registered protocol bytes and
-  design commitments, cluster counts and roles, preregistered provider-attempt
-  identities, multiplicity method, interval method, decision boundaries, and
-  negative-control design. Validation requires the review after registration
-  and before execution. Qualifications, independence, and review conclusions
-  remain human attestations authenticated out of band.
+  to the exact validated registration-review receipt digest, manifest and
+  benchmark bytes, registered protocol bytes and design commitments, cluster
+  counts and roles, preregistered provider-attempt identities, multiplicity
+  method, one-sided interval method, decision boundaries, and negative-control
+  design. The mandatory
+  `combined_directional_decision_error_control_reviewed: true` field records
+  explicit human review of the complementary-hypotheses combined wrong-
+  direction guarantee; it does not assert two-sided interval coverage.
+  Validation replays the registration record and receipt and requires the
+  statistical review strictly after that registration review and before
+  execution. Equal review timestamps fail closed. Qualifications, independence,
+  and review conclusions remain human attestations authenticated out of band.
 - `real-model-study-report` is `RealModelStudyReport/v1`. Its
   `report_digest` binds the frozen manifest, every condition result,
   missing/excluded/invalid pair partitions, sufficiency and operational
@@ -489,6 +503,17 @@ Six persisted roots are introduced on the v0.6.6 development writer surface:
   dispatch inputs and their canonical checksums, distinct reviewer, completed
   human review checklist, and review time. It is explicitly operator-attested with reviewer identity
   authenticated out of band rather than by this JSON contract.
+
+The exported study JSON Schemas enforce provider-response commitment field
+shape, paired presence, allowed scope cardinality and uniqueness, and the
+one-way restrictions on `real_provider` provenance. Exact equality between a
+commitment count and the corresponding provider-response or run count—and
+therefore provenance eligibility derived from complete coverage—remains an
+application semantic invariant: JSON Schema Draft 2020-12 has no standard
+data-dependent cross-property equality keyword. `agent-assure validate` runs
+both JSON Schema and Pydantic validation. Consumers making trust or release
+decisions must use that complete validation path rather than treating
+schema-only acceptance as semantic replay.
 
 The real-model study and external-pilot contracts are documented in
 [Preregistered Real-Model Study](real_model_study.md) and
@@ -619,10 +644,13 @@ comparison summaries carry the same pair, and packet/report assembly rejects
 incoherent profile bindings. Accepted pre-v0.5.0 artifacts omit the pair and
 remain serializable against their frozen schemas. Live records may additionally persist
 observation IDs, repetition and schedule indexes, cluster/source-group IDs,
-adapter IDs, provider response IDs, resolved provider-version fields,
-request/completion timestamps, trace context, attempt/retry/rate-limit
-counters, inclusion or exclusion state, latency, token counts, and estimated
-cost. Live RunSets bind to a protocol ID and digest, can mark incomplete
+adapter IDs, provider response IDs, an optional all-or-nothing exact-response-
+byte commitment and scope pair, resolved provider-version fields,
+request/completion timestamps, trace context, attempt/retry/rate-limit counters,
+inclusion or exclusion state, latency, token counts, and estimated cost. Known
+adapter IDs constrain the allowed byte scope; an unknown adapter can declare
+only the generic adapter-asserted scope. Live RunSets bind to a protocol ID and
+digest, can mark incomplete
 execution with stop reasons, and may include emergency process records for
 external-script subprocess failures. They still do not persist raw prompts,
 raw provider outputs, tool arguments, retrieval records, risk tags, or
@@ -635,6 +663,15 @@ partial or conflicting backlink fails validation. Real-model study analysis
 requires the exact frozen manifest digest on both source RunSets and every
 record, so a non-study or differently registered execution cannot be
 substituted into the confirmatory replay.
+
+`LiveRunConfig` is an execution input rather than a frozen root evidence
+artifact. It has an explicit `execution_profile`: `ordinary_live` or
+`preregistered_paired_study`. The profile is included in the content-derived
+configuration digest carried by each repeated-protocol arm. A study manifest
+backlink is invalid under `ordinary_live`, and a manifest backlink requires the
+design backlink. The paired profile may omit backlinks only during
+pre-finalization/pre-binding authoring; neither the generic runner nor the
+paired runner may dispatch that incomplete state.
 
 The implemented live adapter IDs include `static-jsonl`,
 `openai-chat-completions`, and `external-script`. The OpenAI-compatible adapter

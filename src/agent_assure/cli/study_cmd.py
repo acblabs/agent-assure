@@ -22,6 +22,7 @@ from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    load_json_bytes_bounded,
     loads_json_bounded,
     read_bytes_bounded_from_filesystem_root,
 )
@@ -31,6 +32,7 @@ from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.privacy.persistence import assert_persisted_payload_safe
 from agent_assure.rag.repeated_sensitivity import (
     load_repeated_sensitivity_protocol,
+    load_repeated_sensitivity_protocol_with_bytes,
     load_repeated_sensitivity_protocol_with_size,
 )
 from agent_assure.reporting.study import (
@@ -56,6 +58,7 @@ from agent_assure.schema.study import (
 from agent_assure.schema.validation import (
     load_validated_artifact_payload_with_size,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
 )
 from agent_assure.study.analysis import (
     StudyConditionEvidence,
@@ -113,6 +116,7 @@ class _StudyEvidenceDescriptor(StrictModel):
     )
     registration_record: str = Field(min_length=1, max_length=1_024)
     registration_review_receipt: str = Field(min_length=1, max_length=1_024)
+    independence_audit_artifact: str | None = Field(default=None, max_length=1_024)
     statistical_method_review_receipt: str | None = Field(
         default=None,
         max_length=1_024,
@@ -123,6 +127,7 @@ class _StudyEvidenceDescriptor(StrictModel):
     @field_validator(
         "registration_record",
         "registration_review_receipt",
+        "independence_audit_artifact",
         "statistical_method_review_receipt",
         "execution_review_receipt",
     )
@@ -188,16 +193,20 @@ class _StudyStatisticalMethodReviewTemplate(StrictModel):
     reviewer_qualification_basis: str = Field(min_length=32, max_length=4_096)
     reviewer_independent_of_design_execution_and_analysis: Literal[True]
     reviewer_independence_rationale: str = Field(min_length=32, max_length=4_096)
-    independence_design_basis_reviewed_and_accepted: Literal[True]
-    independence_acceptance_rationale: str = Field(min_length=32, max_length=4_096)
+    design_basis_reviewed_and_accepted: Literal[True]
+    design_review_rationale: str = Field(min_length=32, max_length=4_096)
     semantic_near_duplicate_audit_reviewed: Literal[True]
     semantic_near_duplicate_pseudoreplication_rejected: Literal[True]
     semantic_near_duplicate_review_rationale: str = Field(min_length=32, max_length=4_096)
     benchmark_cluster_assignments_reviewed: Literal[True]
-    independence_and_exchangeability_assumptions_reviewed: Literal[True]
+    independence_and_exchangeability_assumptions_reviewed: Literal[True] | None = None
     sampling_frame_and_estimand_reviewed: Literal[True]
-    multiplicity_and_interval_method_reviewed: Literal[True]
-    power_and_decision_boundary_reachability_reviewed: Literal[True]
+    multiplicity_and_interval_method_reviewed: Literal[True] | None = None
+    combined_directional_decision_error_control_reviewed: Literal[True] | None = None
+    power_and_decision_boundary_reachability_reviewed: Literal[True] | None = None
+    fixed_frame_completeness_reviewed: Literal[True] | None = None
+    descriptive_count_and_rate_derivation_reviewed: Literal[True] | None = None
+    population_inference_prohibition_reviewed: Literal[True] | None = None
     negative_control_design_reviewed: Literal[True]
 
     @field_validator("reviewer_qualification_basis_types", mode="before")
@@ -329,7 +338,7 @@ def review_registration(
             )
         )
         receipt = StudyRegistrationReviewReceipt.build(
-            **authored.model_dump(mode="python", warnings="error"),
+            **authored.model_dump(mode="python", warnings="error", exclude_none=True),
             study_id=manifest.study_id,
             study_manifest_digest=manifest.manifest_digest,
             registration_method=manifest.registration.method,
@@ -384,6 +393,39 @@ def review_statistics(
             help="Exact benchmark JSON bound by the study manifest.",
         ),
     ],
+    registration_record_path: Annotated[
+        Path,
+        typer.Option(
+            "--registration-record",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact preregistration record bytes bound by the study manifest.",
+        ),
+    ],
+    registration_review_path: Annotated[
+        Path,
+        typer.Option(
+            "--registration-review",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Validated operator review receipt for the preregistration record.",
+        ),
+    ],
+    independence_audit_path: Annotated[
+        Path,
+        typer.Option(
+            "--independence-audit",
+            exists=True,
+            file_okay=True,
+            dir_okay=False,
+            readable=True,
+            help="Exact UTF-8 independence audit committed by the study manifest.",
+        ),
+    ],
     protocol_specs: Annotated[
         list[str] | None,
         typer.Option(
@@ -424,37 +466,81 @@ def review_statistics(
             inputs=(
                 manifest_path,
                 benchmark_path,
+                registration_record_path,
+                registration_review_path,
+                independence_audit_path,
                 template_path,
                 *protocol_paths.values(),
             ),
             outputs=(out,),
             config_output_pairs=(),
         )
-        manifest = _load_artifact(
+        input_budget = _StudyInputByteBudget()
+        manifest, manifest_bytes = _load_artifact_with_bytes(
             manifest_path,
             kind="real-model-study-manifest",
             model=RealModelStudyManifest,
+            byte_budget=input_budget,
         )
-        benchmark = _load_artifact(
+        benchmark, benchmark_bytes = _load_artifact_with_bytes(
             benchmark_path,
             kind="process-equivalence-benchmark",
             model=ProcessEquivalenceBenchmarkManifest,
+            byte_budget=input_budget,
         )
+        registration_record_bytes = read_bytes_bounded_from_filesystem_root(
+            registration_record_path,
+            max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+            label="study registration record",
+        )
+        input_budget.consume_bytes(len(registration_record_bytes))
+        registration_review_receipt = _load_artifact(
+            registration_review_path,
+            kind="real-model-study-registration-review",
+            model=StudyRegistrationReviewReceipt,
+            byte_budget=input_budget,
+        )
+        independence_audit_artifact_bytes = read_bytes_bounded_from_filesystem_root(
+            independence_audit_path,
+            max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+            label="study independence audit artifact",
+        )
+        input_budget.consume_bytes(len(independence_audit_artifact_bytes))
+        protocol_snapshots: dict[
+            str,
+            tuple[RepeatedEvidenceSensitivityProtocol, bytes],
+        ] = {}
+        for condition_id, path in protocol_paths.items():
+            snapshot = load_repeated_sensitivity_protocol_with_bytes(
+                path,
+                max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+            )
+            input_budget.consume_bytes(len(snapshot[1]))
+            protocol_snapshots[condition_id] = snapshot
         protocols = {
-            condition_id: load_repeated_sensitivity_protocol(path)
-            for condition_id, path in protocol_paths.items()
+            condition_id: snapshot[0] for condition_id, snapshot in protocol_snapshots.items()
+        }
+        registered_protocol_bytes = {
+            condition_id: snapshot[1] for condition_id, snapshot in protocol_snapshots.items()
         }
         validate_study_manifest_inputs(manifest, benchmark, protocols)
         authored = _StudyStatisticalMethodReviewTemplate.model_validate(
             _load_authoring_mapping(
                 template_path,
                 label="study statistical-method review template",
+                byte_budget=input_budget,
             )
         )
         receipt = build_study_statistical_method_review_receipt(
             manifest=manifest,
+            manifest_bytes=manifest_bytes,
             benchmark=benchmark,
+            benchmark_bytes=benchmark_bytes,
             protocols=protocols,
+            registered_protocol_bytes=registered_protocol_bytes,
+            registration_record_bytes=registration_record_bytes,
+            registration_review_receipt=registration_review_receipt,
+            independence_audit_artifact_bytes=independence_audit_artifact_bytes,
             **authored.model_dump(mode="python", warnings="error"),
         )
         text = _safe_bounded_model_json(
@@ -931,6 +1017,21 @@ def analyze(
             model=StudyRegistrationReviewReceipt,
             byte_budget=input_budget,
         )
+        independence_audit_path = None
+        independence_audit_artifact_bytes = None
+        if descriptor.independence_audit_artifact is not None:
+            independence_audit_path = _resolve_descriptor_path(
+                descriptor_root,
+                descriptor.independence_audit_artifact,
+                directory=False,
+                label="study independence audit artifact",
+            )
+            independence_audit_artifact_bytes = read_bytes_bounded_from_filesystem_root(
+                independence_audit_path,
+                max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+                label="study independence audit artifact",
+            )
+            input_budget.consume_bytes(len(independence_audit_artifact_bytes))
         statistical_method_review_receipt = None
         statistical_method_review_path = None
         if descriptor.statistical_method_review_receipt is not None:
@@ -975,6 +1076,8 @@ def analyze(
             input_files.append(execution_review_path)
         if statistical_method_review_path is not None:
             input_files.append(statistical_method_review_path)
+        if independence_audit_path is not None:
+            input_files.append(independence_audit_path)
         input_directories: list[Path] = []
         for condition in descriptor.conditions:
             registered_path = _resolve_descriptor_path(
@@ -1057,6 +1160,7 @@ def analyze(
             report=report,
             registration_record_bytes=registration_record_bytes,
             registration_review_receipt=registration_review_receipt,
+            independence_audit_artifact_bytes=independence_audit_artifact_bytes,
             statistical_method_review_receipt=statistical_method_review_receipt,
             execution_review_receipt=execution_review_receipt,
             out_dir=out,
@@ -1149,6 +1253,37 @@ def _load_authoring_mapping(
     if not isinstance(payload, dict):
         raise TypeError(f"{label} must be a mapping")
     return payload
+
+
+def _load_artifact_with_bytes(
+    path: Path,
+    *,
+    kind: str,
+    model: type[ArtifactModelT],
+    byte_budget: _StudyInputByteBudget | None = None,
+) -> tuple[ArtifactModelT, bytes]:
+    """Project one artifact from the same bounded bytes returned to its caller."""
+
+    max_bytes = (
+        MAX_ARTIFACT_JSON_BYTES
+        if byte_budget is None
+        else byte_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES)
+    )
+    data = read_bytes_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label=f"{kind} JSON",
+    )
+    payload = load_json_bytes_bounded(
+        data,
+        max_bytes=max_bytes,
+        label=f"{kind} JSON",
+    )
+    validate_loaded_artifact_payload(payload, kind)
+    result = project_validated_artifact_payload(payload, model, kind=kind)
+    if byte_budget is not None:
+        byte_budget.consume_bytes(len(data))
+    return result, data
 
 
 def _load_artifact(

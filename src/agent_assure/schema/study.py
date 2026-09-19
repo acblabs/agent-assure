@@ -15,6 +15,7 @@ from agent_assure.schema.common import (
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     MachineIdentifier,
+    ProviderResponsePayloadScope,
     coerce_enum,
     coerce_tuple,
 )
@@ -128,17 +129,30 @@ _INERTIA_STATISTICAL_FIELDS = (
     "decision_inertia_rate",
     "decision_inertia_interval",
 )
+_INERTIA_DESCRIPTIVE_FIELDS = _INERTIA_STATISTICAL_FIELDS[:-1]
 _CONTROL_STATISTICAL_FIELDS = (
     "control_expected_stability_cluster_count",
     "control_unexpected_change_cluster_count",
     "control_unexpected_change_rate",
     "control_unexpected_change_interval",
 )
+_CONTROL_DESCRIPTIVE_FIELDS = _CONTROL_STATISTICAL_FIELDS[:-1]
 _CONDITION_STATISTICAL_FIELDS = (
     *_INERTIA_STATISTICAL_FIELDS,
     *_CONTROL_STATISTICAL_FIELDS,
 )
 _CONDITION_DERIVED_REPORT_FIELDS = ("sufficiency_report", "expected_response_diagnostic")
+_CONFIRMATORY_METHOD_REVIEW_FIELDS = (
+    "independence_and_exchangeability_assumptions_reviewed",
+    "multiplicity_and_interval_method_reviewed",
+    "combined_directional_decision_error_control_reviewed",
+    "power_and_decision_boundary_reachability_reviewed",
+)
+_DESCRIPTIVE_METHOD_REVIEW_FIELDS = (
+    "fixed_frame_completeness_reviewed",
+    "descriptive_count_and_rate_derivation_reviewed",
+    "population_inference_prohibition_reviewed",
+)
 _OPERATIONAL_OPTIONAL_FIELDS = (
     "total_estimated_cost_microusd",
     "total_cost_budget_committed_microusd",
@@ -150,6 +164,46 @@ _OPERATIONAL_OPTIONAL_FIELDS = (
 
 def _forbid_present_properties(field_names: tuple[str, ...]) -> dict[str, Any]:
     return {"not": {"anyOf": [{"required": [name]} for name in field_names]}}
+
+
+def _statistical_method_review_json_schema_extra(schema: dict[str, Any]) -> None:
+    rules = schema.setdefault("allOf", [])
+    if not isinstance(rules, list):
+        raise TypeError("statistical method-review JSON Schema allOf must be a list")
+    rules.extend(
+        (
+            {
+                "if": {
+                    "required": ["approved_inference_scope"],
+                    "properties": {
+                        "approved_inference_scope": {"const": "confirmatory_independent_clusters"}
+                    },
+                },
+                "then": {
+                    "required": list(_CONFIRMATORY_METHOD_REVIEW_FIELDS),
+                    "properties": {
+                        name: {"const": True} for name in _CONFIRMATORY_METHOD_REVIEW_FIELDS
+                    },
+                    **_forbid_present_properties(_DESCRIPTIVE_METHOD_REVIEW_FIELDS),
+                },
+            },
+            {
+                "if": {
+                    "required": ["approved_inference_scope"],
+                    "properties": {
+                        "approved_inference_scope": {"const": "fixed_frame_descriptive_conformance"}
+                    },
+                },
+                "then": {
+                    "required": list(_DESCRIPTIVE_METHOD_REVIEW_FIELDS),
+                    "properties": {
+                        name: {"const": True} for name in _DESCRIPTIVE_METHOD_REVIEW_FIELDS
+                    },
+                    **_forbid_present_properties(_CONFIRMATORY_METHOD_REVIEW_FIELDS),
+                },
+            },
+        )
+    )
 
 
 def _forbid_explicit_null(field_name: str) -> dict[str, Any]:
@@ -184,11 +238,145 @@ def _condition_binding_json_schema_extra(schema: dict[str, Any]) -> None:
     )
 
 
+def _execution_review_condition_json_schema_extra(schema: dict[str, Any]) -> None:
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        raise TypeError("study execution-review condition schema requires properties")
+    scopes = properties.get("provider_response_payload_scopes")
+    if not isinstance(scopes, dict):
+        raise TypeError("study execution-review condition schema requires payload scopes")
+    scopes.update(
+        {
+            "items": {"const": "complete_http_response_body"},
+            "minItems": 1,
+            "maxItems": 1,
+            "uniqueItems": True,
+        }
+    )
+
+
+def _observed_execution_provenance_json_schema_extra(schema: dict[str, Any]) -> None:
+    properties = schema.get("properties")
+    if not isinstance(properties, dict):
+        raise TypeError("study execution-provenance schema requires properties")
+    for field_name in ("provider_response_payload_scopes", "adapter_ids"):
+        sequence = properties.get(field_name)
+        if not isinstance(sequence, dict):
+            raise TypeError(f"study execution-provenance schema requires {field_name}")
+        sequence["uniqueItems"] = True
+    rules = schema.setdefault("allOf", [])
+    if not isinstance(rules, list):
+        raise TypeError("study execution-provenance JSON Schema allOf must be a list")
+    rules.extend(
+        (
+            {
+                "if": {
+                    "required": ["provider_response_payload_commitment_records"],
+                    "properties": {"provider_response_payload_commitment_records": {"const": 0}},
+                },
+                "then": {
+                    "properties": {
+                        "provider_response_payload_commitment_set_digest": {"type": "null"},
+                        "provider_response_payload_scopes": {"maxItems": 0},
+                    }
+                },
+                "else": {
+                    "required": [
+                        "provider_response_payload_commitment_set_digest",
+                        "provider_response_payload_scopes",
+                    ],
+                    "properties": {
+                        "provider_response_payload_commitment_set_digest": {"type": "string"},
+                        "provider_response_payload_scopes": {"minItems": 1},
+                    },
+                },
+            },
+            {
+                "if": {
+                    "required": ["observed_origin"],
+                    "properties": {"observed_origin": {"const": "real_provider"}},
+                },
+                "then": {
+                    "required": [
+                        "provider_response_payload_commitment_set_digest",
+                        "provider_response_payload_scopes",
+                    ],
+                    "properties": {
+                        "execution_attempt_journal_verified": {"const": True},
+                        "provider_response_payload_commitment_records": {"minimum": 1},
+                        "provider_response_payload_commitment_set_digest": {"type": "string"},
+                        "provider_response_payload_scopes": {
+                            "const": ["complete_http_response_body"]
+                        },
+                        "adapter_ids": {
+                            "minItems": 1,
+                            "items": {"enum": sorted(CONFIRMATORY_STOCHASTIC_ADAPTER_IDS)},
+                        },
+                    },
+                },
+            },
+        )
+    )
+
+
 def _condition_result_json_schema_extra(schema: dict[str, Any]) -> None:
     rules = schema.setdefault("allOf", [])
     if not isinstance(rules, list):
         raise TypeError("study condition JSON Schema allOf must be a list")
     rules.extend(_forbid_explicit_null(name) for name in _CONDITION_OPTIONAL_EVIDENCE_FIELDS)
+    rules.extend(
+        (
+            {
+                "if": {
+                    "required": ["state"],
+                    "properties": {"state": {"const": "fixed_frame_descriptive"}},
+                },
+                "then": {
+                    "required": [
+                        "coupling",
+                        "sufficiency_report",
+                        "expected_response_diagnostic",
+                        "observed_execution_window",
+                        "observed_execution_provenance",
+                    ],
+                    "properties": {
+                        "deviation_codes": {"maxItems": 0},
+                        "observed_model_identities": {"minItems": 1},
+                    },
+                },
+            },
+            {
+                "if": {
+                    "required": ["state", "analysis_role"],
+                    "properties": {
+                        "state": {"const": "fixed_frame_descriptive"},
+                        "analysis_role": {"const": "inertia_estimand"},
+                    },
+                },
+                "then": {
+                    "required": list(_INERTIA_DESCRIPTIVE_FIELDS),
+                    **_forbid_present_properties(
+                        (*_CONTROL_STATISTICAL_FIELDS, "decision_inertia_interval")
+                    ),
+                },
+            },
+            {
+                "if": {
+                    "required": ["state", "analysis_role"],
+                    "properties": {
+                        "state": {"const": "fixed_frame_descriptive"},
+                        "analysis_role": {"const": "invariant_negative_control"},
+                    },
+                },
+                "then": {
+                    "required": list(_CONTROL_DESCRIPTIVE_FIELDS),
+                    **_forbid_present_properties(
+                        (*_INERTIA_STATISTICAL_FIELDS, "control_unexpected_change_interval")
+                    ),
+                },
+            },
+        )
+    )
     rules.extend(
         (
             {
@@ -566,6 +754,7 @@ class StudyHypothesisClassification(StrEnum):
 
 
 class StudyConditionState(StrEnum):
+    fixed_frame_descriptive = "fixed_frame_descriptive"
     analyzed = "analyzed"
     control_failed = "control_failed"
     underpowered = "underpowered"
@@ -664,6 +853,8 @@ class StudyRegistrationReviewReceipt(SelfDigestedArtifact):
 class StudyExecutionReviewCondition(FrozenStrictModel):
     """Exact per-condition evidence reviewed against provider-side records."""
 
+    model_config = ConfigDict(json_schema_extra=_execution_review_condition_json_schema_extra)
+
     condition_id: MachineIdentifier
     execution_attempt_id: MachineIdentifier
     execution_attempt_journal_digest: DigestHex
@@ -690,6 +881,15 @@ class StudyExecutionReviewCondition(FrozenStrictModel):
     observed_provenance_digest: DigestHex
     provider_response_id_set_digest: DigestHex
     provider_response_records: int = Field(ge=1, le=2 * MAX_STUDY_TASKS)
+    provider_response_payload_commitment_set_digest: DigestHex
+    provider_response_payload_commitment_records: int = Field(
+        ge=1,
+        le=2 * MAX_STUDY_TASKS,
+    )
+    provider_response_payload_scopes: tuple[ProviderResponsePayloadScope, ...] = Field(
+        min_length=1,
+        max_length=4,
+    )
     provider_serving_fingerprint_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
     provider_serving_fingerprint_status: StudyProviderFingerprintReviewStatus
 
@@ -701,8 +901,18 @@ class StudyExecutionReviewCondition(FrozenStrictModel):
     ) -> StudyProviderFingerprintReviewStatus:
         return coerce_enum(StudyProviderFingerprintReviewStatus, value)
 
+    @field_validator("provider_response_payload_scopes", mode="before")
+    @classmethod
+    def _coerce_response_payload_scopes(cls, value: object) -> object:
+        return coerce_tuple(value)
+
     @model_validator(mode="after")
     def _validate_fingerprint_coverage(self) -> Self:
+        if (
+            self.provider_response_payload_commitment_records != self.provider_response_records
+            or self.provider_response_payload_scopes != ("complete_http_response_body",)
+        ):
+            raise ValueError("execution review requires complete HTTP response payload commitments")
         expected_records = (
             self.provider_response_records
             if self.provider_serving_fingerprint_status
@@ -823,7 +1033,7 @@ class StudyStatisticalMethodReviewCondition(FrozenStrictModel):
     protocol_digest: DigestHex
     design_commitment_digest: DigestHex
     registered_protocol_sha256: DigestHex
-    planned_independent_clusters: int = Field(ge=2, le=1_000)
+    planned_clusters: int = Field(ge=2, le=1_000)
 
     @field_validator("analysis_role", mode="before")
     @classmethod
@@ -853,6 +1063,7 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     """
 
     _digest_field = "method_review_receipt_digest"
+    model_config = ConfigDict(json_schema_extra=_statistical_method_review_json_schema_extra)
 
     artifact_kind: Literal["real-model-study-statistical-method-review"] = (
         "real-model-study-statistical-method-review"
@@ -869,6 +1080,7 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     method_review_receipt_digest: DigestHex
     study_id: MachineIdentifier
     study_manifest_digest: DigestHex
+    registration_review_receipt_digest: DigestHex
     study_manifest_sha256: DigestHex
     benchmark_digest: DigestHex
     benchmark_sha256: DigestHex
@@ -888,10 +1100,10 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     reviewer_independent_of_design_execution_and_analysis: Literal[True]
     reviewer_independence_rationale: SubstantiveStudyText
     approved_inference_scope: StudyInferenceScope
-    independence_design_basis: StudyIndependenceDesignBasis
-    independence_audit_artifact_sha256: DigestHex
-    independence_design_basis_reviewed_and_accepted: Literal[True]
-    independence_acceptance_rationale: SubstantiveStudyText
+    design_basis: StudyIndependenceDesignBasis
+    design_audit_artifact_sha256: DigestHex
+    design_basis_reviewed_and_accepted: Literal[True]
+    design_review_rationale: SubstantiveStudyText
     semantic_near_duplicate_disposition: StudySemanticNearDuplicateDisposition
     semantic_near_duplicate_audit_reviewed: Literal[True]
     semantic_near_duplicate_pseudoreplication_rejected: Literal[True]
@@ -901,10 +1113,35 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
         max_length=MAX_STUDY_CONDITIONS,
     )
     benchmark_cluster_assignments_reviewed: Literal[True]
-    independence_and_exchangeability_assumptions_reviewed: Literal[True]
+    independence_and_exchangeability_assumptions_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     sampling_frame_and_estimand_reviewed: Literal[True]
-    multiplicity_and_interval_method_reviewed: Literal[True]
-    power_and_decision_boundary_reachability_reviewed: Literal[True]
+    multiplicity_and_interval_method_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    combined_directional_decision_error_control_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    power_and_decision_boundary_reachability_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    fixed_frame_completeness_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    descriptive_count_and_rate_derivation_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    population_inference_prohibition_reviewed: Literal[True] | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
     negative_control_design_reviewed: Literal[True]
     approval_disposition: StudyMethodReviewApprovalDisposition
     unresolved_methodological_concerns: tuple[BoundedStudyText, ...] = Field(
@@ -917,6 +1154,41 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     reviewer_identity_authentication: Literal["out_of_band_not_machine_verified"] = (
         "out_of_band_not_machine_verified"
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _reject_cross_scope_attestations(cls, value: object) -> object:
+        if not isinstance(value, Mapping):
+            return value
+        scope = value.get("approved_inference_scope")
+        fixed = scope in {
+            StudyInferenceScope.fixed_frame_descriptive_conformance,
+            StudyInferenceScope.fixed_frame_descriptive_conformance.value,
+        }
+        required = (
+            _DESCRIPTIVE_METHOD_REVIEW_FIELDS if fixed else _CONFIRMATORY_METHOD_REVIEW_FIELDS
+        )
+        forbidden = (
+            _CONFIRMATORY_METHOD_REVIEW_FIELDS if fixed else _DESCRIPTIVE_METHOD_REVIEW_FIELDS
+        )
+        missing = tuple(name for name in required if name not in value)
+        unconfirmed = tuple(name for name in required if name in value and value[name] is not True)
+        present = tuple(name for name in forbidden if name in value)
+        if missing:
+            raise ValueError(
+                "method-review receipt is missing scope-specific attestations: "
+                + ", ".join(missing)
+            )
+        if unconfirmed:
+            raise ValueError(
+                "method-review receipt must set scope-specific attestations to true: "
+                + ", ".join(unconfirmed)
+            )
+        if present:
+            raise ValueError(
+                "method-review receipt contains inapplicable attestations: " + ", ".join(present)
+            )
+        return value
 
     @field_validator(
         "conditions",
@@ -941,9 +1213,9 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     def _coerce_approved_scope(cls, value: object) -> StudyInferenceScope:
         return coerce_enum(StudyInferenceScope, value)
 
-    @field_validator("independence_design_basis", mode="before")
+    @field_validator("design_basis", mode="before")
     @classmethod
-    def _coerce_independence_design_basis(
+    def _coerce_design_basis(
         cls,
         value: object,
     ) -> StudyIndependenceDesignBasis:
@@ -968,7 +1240,7 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
     @field_validator(
         "reviewer_qualification_basis",
         "reviewer_independence_rationale",
-        "independence_acceptance_rationale",
+        "design_review_rationale",
         "semantic_near_duplicate_review_rationale",
     )
     @classmethod
@@ -980,7 +1252,7 @@ class StudyStatisticalMethodReviewReceipt(SelfDigestedArtifact):
 
     @field_validator(
         "reviewer_qualification_evidence_digest",
-        "independence_audit_artifact_sha256",
+        "design_audit_artifact_sha256",
     )
     @classmethod
     def _validate_review_evidence_digest(cls, value: str, info: ValidationInfo) -> str:
@@ -1070,7 +1342,7 @@ class StudyInferenceScope(StrEnum):
 
 
 class StudyAnalysisDeclaration(FrozenStrictModel):
-    primary: StudyInferenceScope = StudyInferenceScope.confirmatory_independent_clusters
+    primary: StudyInferenceScope
     exploratory_secondary_analyses_allowed: bool = True
     pooling_permitted: Literal[False] = False
     llm_judge_endpoint_permitted: Literal[False] = False
@@ -1086,7 +1358,6 @@ class StudyIndependenceJustificationStatus(StrEnum):
     author_asserted_design_basis_pending_qualified_review = (
         "author_asserted_design_basis_pending_qualified_review"
     )
-    fixed_frame_dependence_acknowledged = "fixed_frame_dependence_acknowledged"
 
 
 class StudyIndependenceDesignBasis(StrEnum):
@@ -1111,11 +1382,11 @@ class StudyIndependenceJustification(FrozenStrictModel):
     status: StudyIndependenceJustificationStatus
     design_basis: StudyIndependenceDesignBasis
     semantic_near_duplicate_disposition: StudySemanticNearDuplicateDisposition
-    independence_audit_artifact_sha256: DigestHex | None = Field(
+    design_audit_artifact_sha256: DigestHex | None = Field(
         default=None,
         exclude_if=lambda value: value is None,
     )
-    inferential_unit_definition: SubstantiveStudyText
+    cluster_unit_definition: SubstantiveStudyText
     independence_basis: SubstantiveStudyText
     dependence_risks_and_mitigations: SubstantiveStudyText
     residual_scope_limitation: SubstantiveStudyText
@@ -1141,18 +1412,18 @@ class StudyIndependenceJustification(FrozenStrictModel):
     ) -> StudySemanticNearDuplicateDisposition:
         return coerce_enum(StudySemanticNearDuplicateDisposition, value)
 
-    @field_validator("independence_audit_artifact_sha256")
+    @field_validator("design_audit_artifact_sha256")
     @classmethod
     def _validate_independence_audit_digest(cls, value: str | None) -> str | None:
         if value is None:
             return value
         return _require_non_placeholder_digest(
             value,
-            field_name="independence_audit_artifact_sha256",
+            field_name="design_audit_artifact_sha256",
         )
 
     @field_validator(
-        "inferential_unit_definition",
+        "cluster_unit_definition",
         "independence_basis",
         "dependence_risks_and_mitigations",
         "residual_scope_limitation",
@@ -1181,24 +1452,14 @@ class StudyIndependenceJustification(FrozenStrictModel):
                 self.design_basis is not StudyIndependenceDesignBasis.unresolved
                 or self.semantic_near_duplicate_disposition
                 is not StudySemanticNearDuplicateDisposition.unresolved
-                or self.independence_audit_artifact_sha256 is not None
+                or self.design_audit_artifact_sha256 is not None
             ):
                 raise ValueError(
                     "unresolved independence status requires unresolved structured audit fields"
                 )
             return self
-        if self.independence_audit_artifact_sha256 is None:
+        if self.design_audit_artifact_sha256 is None:
             raise ValueError("resolved independence scope requires a digest-bound audit artifact")
-        if self.status is StudyIndependenceJustificationStatus.fixed_frame_dependence_acknowledged:
-            if (
-                self.design_basis is not StudyIndependenceDesignBasis.shared_template_parameter_grid
-                or self.semantic_near_duplicate_disposition
-                is not StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
-            ):
-                raise ValueError(
-                    "fixed-frame downscope must acknowledge the shared-template parameter grid"
-                )
-            return self
         if self.design_basis in {
             StudyIndependenceDesignBasis.unresolved,
             StudyIndependenceDesignBasis.shared_template_parameter_grid,
@@ -1228,9 +1489,49 @@ def require_resolved_independence_justification(
         )
 
 
+class StudyFixedFrameDependenceAcknowledgement(FrozenStrictModel):
+    """Machine-readable acknowledgement that a frozen frame is not a population sample."""
+
+    design_basis: Literal[StudyIndependenceDesignBasis.shared_template_parameter_grid] = (
+        StudyIndependenceDesignBasis.shared_template_parameter_grid
+    )
+    semantic_near_duplicate_disposition: Literal[
+        StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
+    ] = StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
+    dependence_audit_artifact_sha256: DigestHex
+    descriptive_unit_definition: SubstantiveStudyText
+    dependence_basis: SubstantiveStudyText
+    dependence_risks_and_mitigations: SubstantiveStudyText
+    residual_scope_limitation: SubstantiveStudyText
+    software_verification_scope: Literal["structure_and_presence_only_not_dependence_truth"] = (
+        "structure_and_presence_only_not_dependence_truth"
+    )
+
+    @field_validator("dependence_audit_artifact_sha256")
+    @classmethod
+    def _validate_audit_digest(cls, value: str) -> str:
+        return _require_non_placeholder_digest(
+            value,
+            field_name="dependence_audit_artifact_sha256",
+        )
+
+    @field_validator(
+        "descriptive_unit_definition",
+        "dependence_basis",
+        "dependence_risks_and_mitigations",
+        "residual_scope_limitation",
+    )
+    @classmethod
+    def _validate_text(cls, value: str, info: ValidationInfo) -> str:
+        return _require_substantive_non_placeholder_text(
+            value,
+            field_name=_validator_field_name(info),
+        )
+
+
 class StudyHypothesisDecisionRule(FrozenStrictModel):
     estimand: Literal["decision_inertia_rate"] = "decision_inertia_rate"
-    inference_scope: StudyInferenceScope = StudyInferenceScope.confirmatory_independent_clusters
+    inference_scope: Literal[StudyInferenceScope.confirmatory_independent_clusters]
     derivation: Literal["direct_same_decision_rate_on_decision_flip_conditions"] = (
         "direct_same_decision_rate_on_decision_flip_conditions"
     )
@@ -1261,12 +1562,11 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
         "target_task_model_conditions_only"
     )
     directional_error_control: Literal[
-        "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha"
-    ] = "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha"
+        "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha"
+    ] = "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha"
     sampling_frame: Literal["finite_frozen_conformance_frame"] = "finite_frozen_conformance_frame"
     exchangeability_assumption: Literal[
-        "independent_exchangeable_binary_cluster_endpoints_within_condition",
-        "not_assumed_fixed_frame_descriptive_only",
+        "independent_exchangeable_binary_cluster_endpoints_within_condition"
     ] = "independent_exchangeable_binary_cluster_endpoints_within_condition"
     decision_boundary_rationale: SubstantiveStudyText
     independence_justification: StudyIndependenceJustification
@@ -1289,11 +1589,6 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
     def _coerce_targets(cls, value: object) -> object:
         return coerce_tuple(value)
 
-    @field_validator("inference_scope", mode="before")
-    @classmethod
-    def _coerce_inference_scope(cls, value: object) -> StudyInferenceScope:
-        return coerce_enum(StudyInferenceScope, value)
-
     @field_validator("decision_boundary_rationale")
     @classmethod
     def _validate_substantive_rationale(cls, value: str, info: ValidationInfo) -> str:
@@ -1312,20 +1607,6 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
                 raise ValueError(f"{field_name} must be unique and sorted")
         if set(self.target_task_model_conditions) & set(self.negative_control_conditions):
             raise ValueError("inertia targets and negative controls must be disjoint")
-        confirmatory = self.inference_scope is StudyInferenceScope.confirmatory_independent_clusters
-        expected_exchangeability = (
-            "independent_exchangeable_binary_cluster_endpoints_within_condition"
-            if confirmatory
-            else "not_assumed_fixed_frame_descriptive_only"
-        )
-        if self.exchangeability_assumption != expected_exchangeability:
-            raise ValueError("exchangeability assumption must match the declared inference scope")
-        fixed_frame = (
-            self.independence_justification.status
-            is StudyIndependenceJustificationStatus.fixed_frame_dependence_acknowledged
-        )
-        if fixed_frame is confirmatory:
-            raise ValueError("independence justification must match the declared inference scope")
         threshold = Decimal(self.materiality_threshold)
         alpha = Decimal(self.familywise_alpha)
         if not Decimal("0") <= threshold < Decimal("1"):
@@ -1333,6 +1614,81 @@ class StudyHypothesisDecisionRule(FrozenStrictModel):
         if not Decimal("0") < alpha <= Decimal("0.5"):
             raise ValueError("familywise_alpha must be greater than zero and at most 0.5")
         return self
+
+
+class StudyFixedFrameDescriptiveRule(FrozenStrictModel):
+    """Finite-frame diagnostics with no inferential decision machinery."""
+
+    estimand: Literal["decision_inertia_rate"] = "decision_inertia_rate"
+    inference_scope: Literal[StudyInferenceScope.fixed_frame_descriptive_conformance]
+    derivation: Literal["direct_same_decision_rate_on_decision_flip_conditions"] = (
+        "direct_same_decision_rate_on_decision_flip_conditions"
+    )
+    target_task_model_conditions: tuple[MachineIdentifier, ...] = Field(
+        min_length=1,
+        max_length=MAX_STUDY_CONDITIONS,
+    )
+    negative_control_conditions: tuple[MachineIdentifier, ...] = Field(
+        min_length=1,
+        max_length=MAX_STUDY_CONDITIONS,
+    )
+    invariant_control_gate: Literal["zero_observed_unexpected_arm_changes"] = (
+        "zero_observed_unexpected_arm_changes"
+    )
+    descriptive_unit: Literal["frozen_case_cluster"] = "frozen_case_cluster"
+    descriptive_frame: Literal["all_frozen_planned_clusters"] = "all_frozen_planned_clusters"
+    sampling_frame: Literal["finite_frozen_conformance_frame"] = "finite_frozen_conformance_frame"
+    dependence_acknowledgement: StudyFixedFrameDependenceAcknowledgement
+    descriptive_scope_rationale: SubstantiveStudyText
+
+    @field_validator(
+        "target_task_model_conditions",
+        "negative_control_conditions",
+        mode="before",
+    )
+    @classmethod
+    def _coerce_targets(cls, value: object) -> object:
+        return coerce_tuple(value)
+
+    @field_validator("descriptive_scope_rationale")
+    @classmethod
+    def _validate_scope_rationale(cls, value: str, info: ValidationInfo) -> str:
+        return _require_substantive_non_placeholder_text(
+            value,
+            field_name=_validator_field_name(info),
+        )
+
+    @model_validator(mode="after")
+    def _validate_rule(self) -> Self:
+        for field_name in (
+            "target_task_model_conditions",
+            "negative_control_conditions",
+        ):
+            condition_ids = getattr(self, field_name)
+            if condition_ids != tuple(sorted(set(condition_ids))):
+                raise ValueError(f"{field_name} must be unique and sorted")
+        if set(self.target_task_model_conditions) & set(self.negative_control_conditions):
+            raise ValueError("inertia targets and negative controls must be disjoint")
+        return self
+
+
+StudyDecisionRule = Annotated[
+    StudyHypothesisDecisionRule | StudyFixedFrameDescriptiveRule,
+    Field(discriminator="inference_scope"),
+]
+
+
+def _coerce_study_decision_rule(
+    value: object,
+) -> StudyHypothesisDecisionRule | StudyFixedFrameDescriptiveRule:
+    if isinstance(value, (StudyHypothesisDecisionRule, StudyFixedFrameDescriptiveRule)):
+        return value
+    if isinstance(value, Mapping) and value.get("inference_scope") in {
+        StudyInferenceScope.fixed_frame_descriptive_conformance,
+        StudyInferenceScope.fixed_frame_descriptive_conformance.value,
+    }:
+        return StudyFixedFrameDescriptiveRule.model_validate(value)
+    return StudyHypothesisDecisionRule.model_validate(value)
 
 
 class StudyBudget(FrozenStrictModel):
@@ -1406,7 +1762,7 @@ class StudyConditionBinding(FrozenStrictModel):
     knowledge_contract_digest: DigestHex
     study_knowledge_contract_digest: DigestHex
     planned_pairs: int = Field(ge=1, le=4_096)
-    planned_independent_clusters: int = Field(ge=2, le=1_000)
+    planned_clusters: int = Field(ge=2, le=1_000)
 
     @field_validator("task_ids", "benchmark_case_ids", mode="before")
     @classmethod
@@ -1431,8 +1787,8 @@ class StudyConditionBinding(FrozenStrictModel):
                 raise ValueError(f"{field_name} must be unique and sorted")
         if self.baseline_configuration_digest == self.counterfactual_configuration_digest:
             raise ValueError("study condition requires two distinct arm configurations")
-        if self.planned_independent_clusters > self.planned_pairs:
-            raise ValueError("planned independent clusters cannot exceed planned pairs")
+        if self.planned_clusters > self.planned_pairs:
+            raise ValueError("planned clusters cannot exceed planned pairs")
         if (self.execution_origin is StudyExecutionOrigin.real_provider) != (
             self.execution_attempt_id is not None
         ):
@@ -1486,7 +1842,7 @@ def _validate_study_interval_design_work_budget(
 
     total = 0
     for condition in conditions:
-        trials = condition.planned_independent_clusters
+        trials = condition.planned_clusters
         # The lower+upper pair reaches its maximum recurrence width at floor(n/2).
         total += clopper_pearson_interval_pair_work_units(trials // 2, trials)
         if total > MAX_CLOPPER_PEARSON_AGGREGATE_WORK_UNITS:
@@ -1515,7 +1871,7 @@ def _validate_decision_rule_reachability(
     for condition in conditions:
         if condition.condition_id not in target_ids:
             continue
-        clusters = condition.planned_independent_clusters
+        clusters = condition.planned_clusters
         best_case_upper = format_twelve_place_bound(
             clopper_pearson_one_sided(
                 0,
@@ -1566,7 +1922,9 @@ def calculate_study_protocol_set_digest(
     )
 
 
-def calculate_hypothesis_decision_rule_digest(rule: StudyHypothesisDecisionRule) -> str:
+def calculate_hypothesis_decision_rule_digest(
+    rule: StudyHypothesisDecisionRule | StudyFixedFrameDescriptiveRule,
+) -> str:
     return _canonical_sha256(
         {
             "purpose": "real-model-study-hypothesis-decision-rule/v1",
@@ -1602,12 +1960,12 @@ class RealModelStudyManifest(SelfDigestedArtifact):
     protocol_set_digest: DigestHex
     primary_endpoint: Literal["direct_same_decision_inertia"] = "direct_same_decision_inertia"
     knowledge_contract: StudyKnowledgeContract = StudyKnowledgeContract()
-    analysis_status: StudyAnalysisDeclaration = StudyAnalysisDeclaration()
+    analysis_status: StudyAnalysisDeclaration
     conditions: tuple[StudyConditionBinding, ...] = Field(
         min_length=1,
         max_length=MAX_STUDY_CONDITIONS,
     )
-    hypothesis_decision_rule: StudyHypothesisDecisionRule
+    hypothesis_decision_rule: StudyDecisionRule
     hypothesis_decision_rule_digest: DigestHex
     budget: StudyBudget
     publication: StudyPublicationPolicy = StudyPublicationPolicy()
@@ -1625,7 +1983,7 @@ class RealModelStudyManifest(SelfDigestedArtifact):
         if not isinstance(raw_conditions, tuple):
             raise TypeError("conditions must be a sequence")
         conditions = tuple(StudyConditionBinding.model_validate(item) for item in raw_conditions)
-        rule = StudyHypothesisDecisionRule.model_validate(prepared.get("hypothesis_decision_rule"))
+        rule = _coerce_study_decision_rule(prepared.get("hypothesis_decision_rule"))
         prepared["conditions"] = conditions
         prepared["hypothesis_decision_rule"] = rule
         prepared["protocol_set_digest"] = calculate_study_protocol_set_digest(conditions)
@@ -1648,7 +2006,10 @@ class RealModelStudyManifest(SelfDigestedArtifact):
         )
         if len(real_provider_attempt_ids) != len(set(real_provider_attempt_ids)):
             raise ValueError("real-provider execution_attempt_id values must be unique")
-        if real_provider_attempt_ids:
+        if real_provider_attempt_ids and isinstance(
+            self.hypothesis_decision_rule,
+            StudyHypothesisDecisionRule,
+        ):
             require_resolved_independence_justification(
                 self.hypothesis_decision_rule.independence_justification
             )
@@ -1697,17 +2058,17 @@ class RealModelStudyManifest(SelfDigestedArtifact):
                 "every study provider/model execution identity must have both an inertia "
                 "estimand and a model-matched invariant negative control"
             )
-        _validate_study_interval_design_work_budget(self.conditions)
-        _validate_decision_rule_reachability(
-            self.hypothesis_decision_rule,
-            self.conditions,
-        )
-        if any(
-            item.planned_independent_clusters
-            < self.hypothesis_decision_rule.minimum_independent_clusters
-            for item in self.conditions
-        ):
-            raise ValueError("every target condition must meet the minimum cluster declaration")
+        if isinstance(self.hypothesis_decision_rule, StudyHypothesisDecisionRule):
+            _validate_study_interval_design_work_budget(self.conditions)
+            _validate_decision_rule_reachability(
+                self.hypothesis_decision_rule,
+                self.conditions,
+            )
+            if any(
+                item.planned_clusters < self.hypothesis_decision_rule.minimum_independent_clusters
+                for item in self.conditions
+            ):
+                raise ValueError("every target condition must meet the minimum cluster declaration")
         expected_knowledge_digest = calculate_study_knowledge_contract_digest(
             self.knowledge_contract
         )
@@ -1755,6 +2116,8 @@ class StudyObservedExecutionProvenance(FrozenStrictModel):
     path, not a cryptographic attestation from a remote provider.
     """
 
+    model_config = ConfigDict(json_schema_extra=_observed_execution_provenance_json_schema_extra)
+
     observation_method: Literal["agent-assure-runset-dispatch-metadata/v1"] = (
         "agent-assure-runset-dispatch-metadata/v1"
     )
@@ -1779,6 +2142,18 @@ class StudyObservedExecutionProvenance(FrozenStrictModel):
     binding_consistent_run_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
     timing_complete_run_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
     provider_response_id_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
+    provider_response_payload_commitment_records: int = Field(
+        ge=0,
+        le=2 * MAX_STUDY_TASKS,
+    )
+    provider_response_payload_commitment_set_digest: DigestHex | None = Field(
+        default=None,
+        exclude_if=lambda value: value is None,
+    )
+    provider_response_payload_scopes: tuple[ProviderResponsePayloadScope, ...] = Field(
+        default=(),
+        max_length=4,
+    )
     provider_response_metadata_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
     provider_serving_fingerprint_records: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
     distinct_provider_serving_fingerprints: int = Field(ge=0, le=2 * MAX_STUDY_TASKS)
@@ -1817,15 +2192,19 @@ class StudyObservedExecutionProvenance(FrozenStrictModel):
     def _coerce_origins(cls, value: object) -> StudyExecutionOrigin:
         return coerce_enum(StudyExecutionOrigin, value)
 
-    @field_validator("adapter_ids", mode="before")
+    @field_validator("adapter_ids", "provider_response_payload_scopes", mode="before")
     @classmethod
-    def _coerce_adapter_ids(cls, value: object) -> object:
+    def _coerce_sorted_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
 
     @model_validator(mode="after")
     def _validate_provenance(self, info: ValidationInfo) -> Self:
         if self.adapter_ids != tuple(sorted(set(self.adapter_ids))):
             raise ValueError("observed execution adapter IDs must be unique and sorted")
+        if self.provider_response_payload_scopes != tuple(
+            sorted(set(self.provider_response_payload_scopes))
+        ):
+            raise ValueError("provider response payload scopes must be unique and sorted")
         bounded_counts = (
             self.included_run_records,
             self.live_run_records,
@@ -1833,6 +2212,7 @@ class StudyObservedExecutionProvenance(FrozenStrictModel):
             self.binding_consistent_run_records,
             self.timing_complete_run_records,
             self.provider_response_id_records,
+            self.provider_response_payload_commitment_records,
             self.provider_response_metadata_records,
             self.provider_serving_fingerprint_records,
             self.normal_termination_run_records,
@@ -1849,6 +2229,18 @@ class StudyObservedExecutionProvenance(FrozenStrictModel):
             self.provider_response_id_set_digest is None
         ):
             raise ValueError("provider response ID count and set digest must be present together")
+        if (self.provider_response_payload_commitment_records == 0) != (
+            self.provider_response_payload_commitment_set_digest is None
+        ):
+            raise ValueError(
+                "provider response payload commitment count and set digest must be present together"
+            )
+        if (self.provider_response_payload_commitment_records == 0) != (
+            len(self.provider_response_payload_scopes) == 0
+        ):
+            raise ValueError(
+                "provider response payload commitment count and scopes must be present together"
+            )
         if (self.provider_serving_fingerprint_records == 0) != (
             self.provider_serving_fingerprint_set_digest is None
         ):
@@ -1874,6 +2266,8 @@ class StudyObservedExecutionProvenance(FrozenStrictModel):
             and self.binding_consistent_run_records == self.run_records
             and self.timing_complete_run_records == self.run_records
             and self.provider_response_id_records == self.run_records
+            and self.provider_response_payload_commitment_records == self.run_records
+            and self.provider_response_payload_scopes == ("complete_http_response_body",)
             and self.provider_response_metadata_records == self.run_records
             and fingerprint_policy_satisfied
             and self.normal_termination_run_records == self.run_records
@@ -2116,6 +2510,7 @@ class StudyExpectedResponseDiagnostic(FrozenStrictModel):
     )
     endpoint: Literal["expected_decision_response"] = "expected_decision_response"
     diagnostic_state: Literal[
+        "fixed_frame_descriptive",
         "expected_response_supported",
         "expected_response_not_supported",
         "prerequisites_unmet",
@@ -2151,12 +2546,14 @@ class StudyExpectedResponseDiagnostic(FrozenStrictModel):
         state_map: dict[
             str,
             Literal[
+                "fixed_frame_descriptive",
                 "expected_response_supported",
                 "expected_response_not_supported",
                 "prerequisites_unmet",
                 "inconclusive",
             ],
         ] = {
+            "fixed_frame_descriptive": "fixed_frame_descriptive",
             "pass": "expected_response_supported",
             "block": "expected_response_not_supported",
             "prerequisites_unmet": "prerequisites_unmet",
@@ -2171,6 +2568,7 @@ class StudyExpectedResponseDiagnostic(FrozenStrictModel):
     @model_validator(mode="after")
     def _validate_projection(self) -> Self:
         expected_state = {
+            "fixed_frame_descriptive": "fixed_frame_descriptive",
             "pass": "expected_response_supported",
             "block": "expected_response_not_supported",
             "prerequisites_unmet": "prerequisites_unmet",
@@ -2424,7 +2822,139 @@ class StudyConditionResult(FrozenStrictModel):
             self.control_unexpected_change_interval,
         )
         statistical_fields = (*inertia_statistical_fields, *control_statistical_fields)
-        if self.state in {
+        if self.state is StudyConditionState.fixed_frame_descriptive:
+            if self.sufficiency_report is None or self.expected_response_diagnostic is None:
+                raise ValueError(
+                    "fixed-frame descriptive condition requires reproducible source reports"
+                )
+            if self.sufficiency_report.state is not SufficiencyState.descriptive_complete:
+                raise ValueError(
+                    "fixed-frame descriptive condition requires complete descriptive evidence"
+                )
+            if self.sufficiency_report.analysis is not None:
+                raise ValueError(
+                    "fixed-frame descriptive condition cannot carry inferential analysis"
+                )
+            if self.deviation_codes:
+                raise ValueError(
+                    "fixed-frame descriptive condition cannot carry protocol deviations"
+                )
+            (
+                derived_response_count,
+                derived_inertia_count,
+                derived_wrong_direction_count,
+                derived_other_non_inertia_count,
+                derived_stability_count,
+                derived_change_count,
+                invalid_endpoint_count,
+            ) = derive_study_cluster_endpoint_counts(self.sufficiency_report)
+            if invalid_endpoint_count:
+                raise ValueError(
+                    "fixed-frame descriptive condition cannot contain unclassifiable endpoints"
+                )
+            expected_role = (
+                StudyConditionAnalysisRole.inertia_estimand
+                if self.sufficiency_report.protocol.expected_relation
+                is EvidenceSensitivityExpectedRelation.decision_flip
+                else StudyConditionAnalysisRole.invariant_negative_control
+            )
+            if self.analysis_role is not expected_role:
+                raise ValueError(
+                    "condition analysis role must derive from the frozen expected relation"
+                )
+            if self.analysis_role is StudyConditionAnalysisRole.inertia_estimand:
+                inertia_descriptive_values = inertia_statistical_fields[:-1]
+                if any(value is None for value in inertia_descriptive_values) or any(
+                    value is not None
+                    for value in (*control_statistical_fields, self.decision_inertia_interval)
+                ):
+                    raise ValueError(
+                        "descriptive inertia condition requires only count-and-rate fields"
+                    )
+                response_count = self.decision_response_cluster_count
+                inertia_count = self.decision_inertia_cluster_count
+                wrong_direction_count = self.decision_wrong_direction_cluster_count
+                other_non_inertia_count = self.decision_other_non_inertia_cluster_count
+                inertia_breakdown = self.decision_inertia_descriptive_breakdown
+                assert (
+                    response_count is not None
+                    and inertia_count is not None
+                    and wrong_direction_count is not None
+                    and other_non_inertia_count is not None
+                    and inertia_breakdown is not None
+                )
+                if (
+                    response_count,
+                    inertia_count,
+                    wrong_direction_count,
+                    other_non_inertia_count,
+                ) != (
+                    derived_response_count,
+                    derived_inertia_count,
+                    derived_wrong_direction_count,
+                    derived_other_non_inertia_count,
+                ):
+                    raise ValueError(
+                        "descriptive inertia counts must derive from cluster endpoints"
+                    )
+                if (
+                    response_count + inertia_count + wrong_direction_count + other_non_inertia_count
+                    != self.planned_clusters
+                ):
+                    raise ValueError(
+                        "descriptive endpoint categories must partition the frozen frame"
+                    )
+                derived_inertia_breakdown = derive_study_inertia_descriptive_counts(
+                    self.sufficiency_report
+                )
+                observed_inertia_breakdown = (
+                    inertia_breakdown.baseline_correct_same_decision_cluster_count,
+                    inertia_breakdown.baseline_incorrect_same_decision_cluster_count,
+                    inertia_breakdown.mixed_baseline_correctness_same_decision_cluster_count,
+                )
+                if (
+                    inertia_breakdown.planned_clusters != self.planned_clusters
+                    or observed_inertia_breakdown != derived_inertia_breakdown
+                    or sum(observed_inertia_breakdown) != inertia_count
+                ):
+                    raise ValueError(
+                        "descriptive same-decision breakdown must partition the frozen frame"
+                    )
+                if self.decision_response_rate != format_six_place_rate(
+                    response_count, self.planned_clusters
+                ) or self.decision_inertia_rate != format_six_place_rate(
+                    inertia_count, self.planned_clusters
+                ):
+                    raise ValueError("descriptive inertia rates must derive from the frozen frame")
+            else:
+                control_descriptive_values = control_statistical_fields[:-1]
+                if any(value is None for value in control_descriptive_values) or any(
+                    value is not None
+                    for value in (
+                        *inertia_statistical_fields,
+                        self.control_unexpected_change_interval,
+                    )
+                ):
+                    raise ValueError(
+                        "descriptive invariant control requires only count-and-rate fields"
+                    )
+                stability_count = self.control_expected_stability_cluster_count
+                change_count = self.control_unexpected_change_cluster_count
+                assert stability_count is not None and change_count is not None
+                if (stability_count, change_count) != (
+                    derived_stability_count,
+                    derived_change_count,
+                ):
+                    raise ValueError(
+                        "descriptive control counts must derive from cluster endpoints"
+                    )
+                if stability_count + change_count != self.planned_clusters:
+                    raise ValueError("descriptive control counts must partition the frozen frame")
+                if self.control_unexpected_change_rate != format_six_place_rate(
+                    change_count, self.planned_clusters
+                ):
+                    raise ValueError("descriptive control rate must derive from the frozen frame")
+        elif self.state in {
             StudyConditionState.analyzed,
             StudyConditionState.control_failed,
         }:
@@ -2811,12 +3341,13 @@ class RealModelStudyReport(SelfDigestedArtifact):
                 binding.protocol_digest,
                 binding.design_commitment_digest,
                 binding.planned_pairs,
-                binding.planned_independent_clusters,
+                binding.planned_clusters,
             ):
                 raise ValueError("condition result does not match its manifest binding")
             if result.state in {
                 StudyConditionState.analyzed,
                 StudyConditionState.control_failed,
+                StudyConditionState.fixed_frame_descriptive,
                 StudyConditionState.underpowered,
             }:
                 if len(result.observed_model_identities) != 1:
@@ -2931,7 +3462,11 @@ class RealModelStudyReport(SelfDigestedArtifact):
                     )
                 if (
                     result.state
-                    in {StudyConditionState.analyzed, StudyConditionState.control_failed}
+                    in {
+                        StudyConditionState.analyzed,
+                        StudyConditionState.control_failed,
+                        StudyConditionState.fixed_frame_descriptive,
+                    }
                     and result.operational_summary.run_records != 2 * result.planned_pairs
                 ):
                     raise ValueError(
@@ -2984,18 +3519,22 @@ class RealModelStudyReport(SelfDigestedArtifact):
             inferential_family_size = len(
                 self.manifest.hypothesis_decision_rule.target_task_model_conditions
             )
-            if result.decision_inertia_interval is not None and (
-                result.decision_inertia_interval.familywise_alpha
-                != self.manifest.hypothesis_decision_rule.familywise_alpha
-                or result.decision_inertia_interval.family_size != inferential_family_size
+            decision_rule = self.manifest.hypothesis_decision_rule
+            for interval, label in (
+                (result.decision_inertia_interval, "condition"),
+                (result.control_unexpected_change_interval, "control"),
             ):
-                raise ValueError("condition interval does not match the frozen multiplicity rule")
-            if result.control_unexpected_change_interval is not None and (
-                result.control_unexpected_change_interval.familywise_alpha
-                != self.manifest.hypothesis_decision_rule.familywise_alpha
-                or result.control_unexpected_change_interval.family_size != inferential_family_size
-            ):
-                raise ValueError("control interval does not match the frozen multiplicity rule")
+                if interval is None:
+                    continue
+                if not isinstance(decision_rule, StudyHypothesisDecisionRule):
+                    raise ValueError("fixed-frame descriptive conditions cannot carry intervals")
+                if (
+                    interval.familywise_alpha != decision_rule.familywise_alpha
+                    or interval.family_size != inferential_family_size
+                ):
+                    raise ValueError(
+                        f"{label} interval does not match the frozen multiplicity rule"
+                    )
             if result.analysis_role is not binding.analysis_role:
                 raise ValueError("condition analysis role must match its frozen manifest binding")
         for fingerprints in fingerprints_by_execution_identity.values():
@@ -3068,7 +3607,11 @@ class RealModelStudyReport(SelfDigestedArtifact):
             for item in self.conditions
         )
         invariant_controls_satisfied = all(
-            item.state is StudyConditionState.analyzed
+            item.state
+            in {
+                StudyConditionState.analyzed,
+                StudyConditionState.fixed_frame_descriptive,
+            }
             and item.control_unexpected_change_cluster_count == 0
             for item in self.conditions
             if item.analysis_role is StudyConditionAnalysisRole.invariant_negative_control
@@ -3084,8 +3627,10 @@ class RealModelStudyReport(SelfDigestedArtifact):
         if (
             sufficient
             and invariant_controls_satisfied
-            and self.manifest.hypothesis_decision_rule.inference_scope
-            is StudyInferenceScope.confirmatory_independent_clusters
+            and isinstance(
+                self.manifest.hypothesis_decision_rule,
+                StudyHypothesisDecisionRule,
+            )
         ):
             threshold = Decimal(self.manifest.hypothesis_decision_rule.materiality_threshold)
             intervals = tuple(
@@ -3149,8 +3694,11 @@ __all__ = [
     "StudyExecutionWindow",
     "StudyFailureSummary",
     "StudyExpectedResponseDiagnostic",
+    "StudyFixedFrameDependenceAcknowledgement",
+    "StudyFixedFrameDescriptiveRule",
     "StudyHypothesisClassification",
     "StudyHypothesisDecisionRule",
+    "StudyDecisionRule",
     "StudyInferenceScope",
     "StudyIndependenceDesignBasis",
     "StudyIndependenceJustification",

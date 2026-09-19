@@ -29,7 +29,11 @@ jobs:
       - run: python scripts/update_golden.py
   coverage-shards:
     name: coverage / ${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    # The maximum 4,096-cluster retry-journal round trip writes and reloads
+    # RunSets above the ordinary 16 MiB limit and is expensive under branch
+    # instrumentation. Keep a finite bound with measured headroom.
+    timeout-minutes: 180
     strategy:
       fail-fast: false
       matrix:
@@ -83,7 +87,8 @@ jobs:
           if-no-files-found: error
           retention-days: 1
   coverage-gate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     needs: coverage-shards
     if: ${{ always() }}
     steps:
@@ -106,7 +111,7 @@ jobs:
           pattern: coverage-*
           path: .coverage-data
           merge-multiple: true
-      - name: Verify exact shard inventory
+      - name: Verify exact usable shard inventory
         run: >-
           python scripts/check_coverage_gate.py inventory
           --artifact-dir .coverage-data
@@ -123,7 +128,15 @@ jobs:
       - name: Enforce the pure branch floor
         run: >-
           python scripts/check_coverage_gate.py branches
-          --report coverage.json --fail-under 65
+          --report coverage.json --fail-under 68
+          --critical-prefix src/agent_assure/live/=65
+          --critical-prefix src/agent_assure/privacy/=78
+          --critical-prefix src/agent_assure/mutation/=74
+          --critical-prefix src/agent_assure/study/=78
+          --critical-prefix src/agent_assure/schema/=67
+          --critical-prefix src/agent_assure/policies/=85
+          --critical-prefix src/agent_assure/statistics/=82
+          --critical-prefix src/agent_assure/cli/=67
   windows-containment:
     runs-on: windows-latest
     strategy:

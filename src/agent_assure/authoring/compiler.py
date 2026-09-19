@@ -35,6 +35,7 @@ def compile_loaded_suite(loaded: LoadedYaml, source_digest: str) -> CompiledSuit
         raise ValueError("defaults must not declare both expectation and expectation_defaults")
     if "runner_id" not in defaults_data:
         raise ValueError("suite defaults require an explicit runner_id")
+    suite_tools_were_explicit = "allowed_tools" in defaults_data
     expectation_defaults = _mapping(
         defaults_data.pop("expectation", defaults_data.pop("expectation_defaults", {}))
     )
@@ -60,7 +61,12 @@ def compile_loaded_suite(loaded: LoadedYaml, source_digest: str) -> CompiledSuit
             expectation_defaults,
             expectation_override,
         )
-        if "allowed_tools" in expectation_override:
+        if "allowed_tools" in expectation_override or "allowed_tools" in expectation_defaults:
+            expectation_data["allowed_tools_override"] = True
+        elif suite_tools_were_explicit and not defaults.allowed_tools:
+            # Preserve an explicit suite-level deny-all policy. Omission remains
+            # unconfigured so legacy suites do not acquire a new control.
+            expectation_data["allowed_tools"] = ()
             expectation_data["allowed_tools_override"] = True
         expectation_data.setdefault("case_id", case_id)
         expectation_data.setdefault("expectation_id", f"{case_id}:expectation")

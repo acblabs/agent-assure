@@ -507,6 +507,7 @@ def test_strict_policy_rejects_incomplete_efficacy_that_advisory_policy_allows(
 
     advisory = gate_artifact(
         report,
+        fail_on_not_evaluated=False,
         verifier_efficacy_policy=policy,
         strict_efficacy=False,
     )
@@ -774,6 +775,7 @@ def test_ci_release_profile_requires_policy_and_rejects_non_packet(tmp_path: Pat
     (
         "--allow-missing-efficacy-for-migration",
         "--allow-advisory-efficacy",
+        "--allow-not-evaluated",
         "--allow-sensitivity-non-verdict",
         "--allow-legacy-unbound-comparison",
     ),

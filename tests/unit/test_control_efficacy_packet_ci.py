@@ -351,7 +351,7 @@ def test_direct_efficacy_report_gate_revalidates_model_copy_tampering(
     assert "failed trusted model revalidation" in gate.message
 
 
-def test_fail_on_not_evaluated_applies_to_standalone_and_packet_efficacy(
+def test_advisory_not_evaluated_opt_out_applies_to_standalone_and_packet_efficacy(
     tmp_path: Path,
 ) -> None:
     execution = _campaign(operator_ids=(_DROP_OPERATOR,))
@@ -388,7 +388,14 @@ def test_fail_on_not_evaluated_applies_to_standalone_and_packet_efficacy(
     efficacy_gate = evaluate_control_efficacy_gate(report, profile)
 
     assert report.threat_scope_state.value == "not_evaluated"
-    assert gate_artifact(report, strict_efficacy=False).outcome is GateOutcome.pass_
+    assert (
+        gate_artifact(
+            report,
+            fail_on_not_evaluated=False,
+            strict_efficacy=False,
+        ).outcome
+        is GateOutcome.pass_
+    )
     strict_report_gate = gate_artifact(
         report,
         fail_on_not_evaluated=True,
@@ -409,7 +416,14 @@ def test_fail_on_not_evaluated_applies_to_standalone_and_packet_efficacy(
             _config_digest(tmp_path),
         ),
     )
-    assert gate_artifact(packet, strict_efficacy=False).outcome is GateOutcome.pass_
+    assert (
+        gate_artifact(
+            packet,
+            fail_on_not_evaluated=False,
+            strict_efficacy=False,
+        ).outcome
+        is GateOutcome.pass_
+    )
     strict_packet_gate = gate_artifact(
         packet,
         fail_on_not_evaluated=True,
@@ -984,7 +998,7 @@ def test_gate_artifact_rejects_artifact_root_for_non_packet_input() -> None:
     assert "artifact_root is only valid for an evidence packet" in decision.message
 
 
-def test_packet_preserves_not_evaluated_outcome() -> None:
+def test_packet_preserves_not_evaluated_outcome_under_explicit_advisory_policy() -> None:
     evaluation = EvaluationSummary(
         artifact_kind="evaluation-summary",
         runset_id="control-efficacy-not-evaluated-runset",
@@ -998,6 +1012,7 @@ def test_packet_preserves_not_evaluated_outcome() -> None:
 
     decision = gate_artifact(
         packet,
+        fail_on_not_evaluated=False,
         allow_missing_efficacy_for_migration=True,
     )
 

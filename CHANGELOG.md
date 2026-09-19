@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Made configured `not_evaluated` controls fail closed in CI by default, with an
+  explicit non-release advisory opt-out. Raw `new_failure` comparisons now
+  remain blocking even when a valid waiver or nonblocking profile reduces the
+  candidate rollup to `warn`, while preserving the evaluation and waiver audit.
+  Material-evidence-link mutation applicability now uses the detector's exact
+  complete, control-eligible evidence predicate.
+- Replaced whole-test-file privacy exceptions in source-distribution review
+  with exact test-path, Python string-token SHA-256, and occurrence-count
+  bindings. Only reviewed inert detector tokens are neutralized; original
+  syntax/resource checks and scanning of all other source bytes remain
+  fail-closed, including Python values assembled through compile-time adjacent
+  literals. A reviewed token cannot participate in an adjacent literal group,
+  while unrelated test maintenance no longer requires digest renewal.
 - Added source-qualified structured fields to current `AgentRunRecord` writers.
   Fixture and instrumented-adapter values retain their explicit producer trust
   boundaries; legacy live and model-self-reported process values cannot satisfy
@@ -16,27 +29,56 @@
   assignments are covered by privacy profile v4.
 - Reworked the real-model study boundary into explicit
   `confirmatory_independent_clusters` and
-  `fixed_frame_descriptive_conformance` scopes. Fixed-frame output is always
-  `not_measured`, renders no inferential interval or population claim, and can
-  never unlock the v0.6.6 empirical checkpoint. Qualified method review and
-  post-execution review now
-  bind independence/near-duplicate audits, private provider-log and account
+  `fixed_frame_descriptive_conformance` scopes. Both manifest scope fields are
+  now mandatory, must agree, and have no implicit confirmatory default.
+  Fixed-frame output is always `not_measured`, renders no inferential interval
+  or population claim, and can never unlock the v0.6.6 empirical checkpoint.
+  Qualified method review now replays the exact registration record and review,
+  binds that registration-review receipt digest, requires a strictly later
+  timestamp, and records explicit review of the combined directional-decision
+  error contract. Post-execution review binds private provider-log and account
   evidence digests, response IDs, attempt accounting, and complete-stable or
-  provider-not-exposed serving-fingerprint status.
+  provider-not-exposed serving-fingerprint status. All-absent fingerprints
+  remain analyzable, explicitly disclosed real-provider evidence, but only
+  complete-and-stable coverage in every reviewed condition can satisfy
+  confirmatory publication and empirical release readiness; absence now emits a
+  distinct actionable blocker.
+- Registered the exact v0.2 shared-template score grid as structurally
+  ineligible for confirmatory independent-cluster inference, made its shipped
+  authoring template descriptive by construction, and moved the v0.6.6 release
+  trust anchor to separately frozen source/package pairs for the non-grid
+  benchmark and its positive statistical-method approval. Publication now
+  requires the exact `approved_confirmatory_independent_clusters` receipt to
+  bind the benchmark's raw and semantic digests and match the closed bundle's
+  manifest, registration-review, and independence-audit commitments. Missing
+  benchmark bytes, missing approval bytes, and invalid or mismatched approval
+  bytes have distinct blockers. The mirror is a repository-governance control,
+  while reviewer identity remains authenticated out of band. v0.2 cannot be
+  relabelled or reviewer-stamped around the eligibility bar.
 - Hardened the external pilot with deliberate non-default friction choices,
   actionable workflow diagnostics, exact run-attempt/workflow/public-input
   review bindings, complete consent binding, and immutable planned-to-applied
-  remediation lineage. Until the validated source commit `S` and later trusted
-  workflow commit `W` exist, both workflows carry a zero-SHA sentinel and fail
-  immediately so issue #27 cannot consume a volunteer against stale bytes.
+  remediation lineage. The zero-SHA activation sentinel has been removed and
+  both stages now pin validated execution source
+  `c742546f80c7bae998f5dc648b54e89f3ec556ab`. Recruitment remains gated on a
+  separately frozen, nonzero trusted workflow/documentation revision; any
+  later pilot workflow or disclosure change requires a new trusted revision
+  before dispatch.
 - Added the top-level `study` command alias and help for the four core CLI
   commands; made evidence-packet CI fail closed when efficacy is absent, with a
   named non-assurance migration opt-out; added an efficacy-required
   release-facing `ci gate` profile that is explicitly separate from publication
-  authorization; added a fail-closed five-shard Linux branch-coverage gate with
-  combined and pure-branch floors; expanded CODEOWNERS over v0.6.6 trust
-  surfaces; and made all four dependency locks carry an offline canonical
-  dependency-input freshness marker.
+  authorization; expanded CODEOWNERS over v0.6.6 trust surfaces; and made all
+  four dependency locks carry an offline canonical dependency-input freshness
+  marker.
+- Added a fail-closed five-shard Ubuntu 24.04 branch-coverage gate. Before
+  combination it requires the exact named databases, all current package source
+  paths, branch-mode arcs, bounded unchanged regular files, and no
+  separator-normalization collisions. It enforces 80% combined coverage, 68%
+  repository pure-branch coverage, and critical-area pure-branch floors for
+  `live/` 65%, `privacy/` 78%, `mutation/` 74%, `study/` 78%, `schema/` 67%,
+  `policies/` 85%, `statistics/` 82%, and `cli/` 67%, with a finite 180-minute
+  shard ceiling for the maximum 4,096-cluster retry-journal round-trip test.
 - Made decimal canonicalization independent of ambient decimal precision,
   rounding, and traps. Adopted repository-wide Ruff formatting and a full-tree
   format gate in place of the previous single-file check.
@@ -74,9 +116,11 @@
   dated provider-model preregistration and complete/stable-or-absent serving
   fingerprints within conditions and across model-matched target/control
   groups; conservative design-time plus report-ingestion Clopper--Pearson work
-  prevalidation; and a locked 42-cluster decision-boundary test clarifying that
-  each direction receives its own familywise alpha control rather than one
-  joint two-sided guarantee.
+  prevalidation; and a locked 42-cluster decision-boundary test. Because support
+  and contradiction are complementary hypotheses, the one-sided Bonferroni
+  construction controls the combined probability of a wrong directional
+  declaration at the familywise alpha. This is a decision-error guarantee, not
+  simultaneous two-sided confidence-interval coverage.
 - Packaged a 168-case, non-sensitive benchmark fixture with four balanced
   42-case relation/orientation strata. Authority sources and globally unique
   exact inputs are byte-for-byte SHA-256 bound, with wheel/sdist and

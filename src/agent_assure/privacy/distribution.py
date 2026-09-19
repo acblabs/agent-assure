@@ -113,20 +113,32 @@ def validate_distribution_member_privacy(
     max_python_member_tokens: int,
     strict_python_source: bool,
     reviewed_binary_assets: Mapping[str, str] | None = None,
-    allow_sensitive_fixture: bool = False,
+    reviewed_sensitive_python_string_token_sha256_counts: Mapping[str, int] | None = None,
     ast_parser: Callable[[str], ast.AST] = ast.parse,
 ) -> int:
     """Validate one already size-bounded regular archive member.
 
-    ``allow_sensitive_fixture`` is intended only for an external exact-byte
-    allowlist. It suppresses literal-value scanning, but never type, encoding,
-    syntax, or resource-limit checks.
+    Reviewed detector vectors may neutralize only an exact counted set of
+    SHA-256-bound Python ``STRING`` tokens. The exception is restricted to
+    non-production ``tests/`` members; original and neutralized source both
+    retain type, UTF-8, syntax, and resource-limit validation.
     """
 
     normalized_name = name.casefold()
     path = PurePosixPath(normalized_name)
     suffix = path.suffix
     basename = path.name
+    python_member = suffix in {".py", ".pyi"}
+    reviewed_token_counts = _validate_reviewed_python_string_token_counts(
+        reviewed_sensitive_python_string_token_sha256_counts,
+        max_tokens=max_python_member_tokens,
+    )
+    if reviewed_token_counts and (
+        not python_member or strict_python_source or not normalized_name.startswith("tests/")
+    ):
+        raise ValueError(
+            "reviewed sensitive string tokens are restricted to non-production Python test members"
+        )
     if _has_forbidden_sensitive_path(path):
         raise ValueError("distribution contains a credential or raw-output member path")
     _reject_credential_literals(name)
@@ -143,6 +155,8 @@ def validate_distribution_member_privacy(
     if suffix not in DISTRIBUTION_UTF8_SUFFIXES and basename not in DISTRIBUTION_TEXT_BASENAMES:
         raise ValueError("distribution contains a member outside the closed text inventory")
     if not data:
+        if reviewed_token_counts:
+            raise ValueError("reviewed sensitive Python string token occurrence was not found")
         return 0
     try:
         text = data.decode("utf-8")
@@ -152,24 +166,34 @@ def validate_distribution_member_privacy(
     line_count = text.count("\n") + 1 if text else 0
     if line_count > max_structural_scan_lines:
         raise ValueError("distribution exceeds the structural privacy-scan line limit")
-    python_member = suffix in {".py", ".pyi"}
+    privacy_text = text
     if python_member:
         if len(data) > max_python_member_bytes:
             raise ValueError("distribution Python member exceeds the byte limit")
         if line_count > max_python_member_lines:
             raise ValueError("distribution Python member exceeds the line limit")
-        _validate_python_source(
+        tokens = _validate_python_source(
             text,
             max_tokens=max_python_member_tokens,
-            scan_assignments=strict_python_source and not allow_sensitive_fixture,
+            scan_assignments=strict_python_source,
             ast_parser=ast_parser,
         )
-    if allow_sensitive_fixture:
-        return line_count
+        if reviewed_token_counts:
+            privacy_text = _neutralize_reviewed_python_string_tokens(
+                text,
+                tokens=tokens,
+                reviewed_sha256_counts=reviewed_token_counts,
+            )
+            _validate_python_source(
+                privacy_text,
+                max_tokens=max_python_member_tokens,
+                scan_assignments=False,
+                ast_parser=ast_parser,
+            )
 
-    _reject_credential_literals(text)
+    _reject_credential_literals(privacy_text)
     if suffix in _STRUCTURED_TEXT_SUFFIXES and not normalized_name.endswith(".schema.json"):
-        _reject_structural_credentials(text)
+        _reject_structural_credentials(privacy_text)
     return line_count
 
 
@@ -244,28 +268,98 @@ def _reject_structural_credentials(text: str) -> None:
                 raise ValueError("distribution member failed structural privacy review")
 
 
+def _validate_reviewed_python_string_token_counts(
+    reviewed_sha256_counts: Mapping[str, int] | None,
+    *,
+    max_tokens: int,
+) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    total = 0
+    for digest, count in (reviewed_sha256_counts or {}).items():
+        if not isinstance(digest, str) or re.fullmatch(r"[a-f0-9]{64}", digest) is None:
+            raise ValueError("reviewed Python string token SHA-256 must be lowercase hex")
+        if type(count) is not int or count <= 0:
+            raise ValueError("reviewed Python string token occurrence count must be positive")
+        total += count
+        if total > max_tokens:
+            raise ValueError("reviewed Python string token occurrences exceed the token limit")
+        counts[digest] = count
+    return counts
+
+
+def _neutralize_reviewed_python_string_tokens(
+    text: str,
+    *,
+    tokens: Sequence[tokenize.TokenInfo],
+    reviewed_sha256_counts: Mapping[str, int],
+) -> str:
+    """Neutralize only exact reviewed detector-bearing ``STRING`` occurrences."""
+
+    # ``tokenize`` advances source rows only at LF boundaries. Building offsets
+    # from LF explicitly avoids treating other Unicode ``splitlines`` characters
+    # as token rows.
+    line_offsets = [0]
+    line_offsets.extend(index + 1 for index, character in enumerate(text) if character == "\n")
+
+    def absolute_offset(position: tuple[int, int]) -> int:
+        row, column = position
+        if row < 1 or row > len(line_offsets):
+            raise ValueError("reviewed Python string token has an invalid source position")
+        return line_offsets[row - 1] + column
+
+    remaining = dict(reviewed_sha256_counts)
+    edits: list[tuple[int, int]] = []
+    for token in tokens:
+        if token.type != tokenize.STRING:
+            continue
+        digest = hashlib.sha256(token.string.encode("utf-8")).hexdigest()
+        if remaining.get(digest, 0) == 0:
+            continue
+        if not contains_credential_literal(token.string):
+            raise ValueError("reviewed Python string token is not detector-bearing")
+        start = absolute_offset(token.start)
+        end = absolute_offset(token.end)
+        if text[start:end] != token.string:
+            raise ValueError("reviewed Python string token does not match its source span")
+        edits.append((start, end))
+        remaining[digest] -= 1
+
+    if any(remaining.values()):
+        raise ValueError("reviewed sensitive Python string token occurrence was not found")
+    sanitized: list[str] = []
+    cursor = 0
+    for start, end in edits:
+        sanitized.extend((text[cursor:start], "''"))
+        cursor = end
+    sanitized.append(text[cursor:])
+    return "".join(sanitized)
+
+
 def _validate_python_source(
     text: str,
     *,
     max_tokens: int,
     scan_assignments: bool,
     ast_parser: Callable[[str], ast.AST],
-) -> None:
+) -> tuple[tokenize.TokenInfo, ...]:
+    tokens: list[tokenize.TokenInfo] = []
     try:
-        for token_count, _token in enumerate(
+        for token_count, token in enumerate(
             tokenize.generate_tokens(io.StringIO(text).readline),
             start=1,
         ):
             if token_count > max_tokens:
                 raise ValueError("distribution Python member exceeds the token limit")
+            tokens.append(token)
     except (IndentationError, tokenize.TokenError) as exc:
         raise ValueError("distribution Python member is not syntactically valid") from exc
     try:
         tree = ast_parser(text)
     except SyntaxError as exc:
         raise ValueError("distribution Python member is not syntactically valid") from exc
+    _reject_implicitly_concatenated_credential_literals(text, tree)
     if not scan_assignments:
-        return
+        return tuple(tokens)
 
     exact_compact_names = {
         re.sub(r"[^a-z0-9]", "", value.casefold()) for value in PERSISTED_CREDENTIAL_NAMES
@@ -360,6 +454,63 @@ def _validate_python_source(
                     argument.arg, keyword_default.value
                 ):
                     raise ValueError("distribution Python member failed structural privacy review")
+    return tuple(tokens)
+
+
+def _reject_implicitly_concatenated_credential_literals(text: str, tree: ast.AST) -> None:
+    """Reject credentials hidden by Python's compile-time string concatenation."""
+
+    joined_string_parts = {
+        id(part)
+        for node in ast.walk(tree)
+        if isinstance(node, ast.JoinedStr)
+        for part in node.values
+        if isinstance(part, ast.Constant)
+    }
+    string_token_types = {tokenize.STRING}
+    fstring_start = getattr(tokenize, "FSTRING_START", None)
+    if isinstance(fstring_start, int):
+        string_token_types.add(fstring_start)
+    for node in ast.walk(tree):
+        literal_value: str | bytes | None = None
+        if (
+            isinstance(node, ast.Constant)
+            and isinstance(node.value, str | bytes)
+            and id(node) not in joined_string_parts
+        ):
+            literal_value = node.value
+        elif isinstance(node, ast.JoinedStr):
+            joined_parts: list[str] = []
+            for part in node.values:
+                if not isinstance(part, ast.Constant) or not isinstance(part.value, str):
+                    break
+                joined_parts.append(part.value)
+            else:
+                literal_value = "".join(joined_parts)
+        if literal_value is None:
+            continue
+        decoded_value = (
+            literal_value.decode("utf-8", errors="ignore")
+            if isinstance(literal_value, bytes)
+            else literal_value
+        )
+        if not contains_credential_literal(decoded_value):
+            continue
+        source_segment = ast.get_source_segment(text, node)
+        if source_segment is None:
+            raise ValueError("distribution Python literal has no auditable source span")
+        try:
+            literal_token_count = sum(
+                token.type in string_token_types
+                for token in tokenize.generate_tokens(io.StringIO(source_segment).readline)
+            )
+        except (IndentationError, tokenize.TokenError) as exc:
+            raise ValueError("distribution Python literal source span is not tokenizable") from exc
+        if literal_token_count > 1:
+            raise ValueError(
+                "distribution Python member failed adjacent-string credential-literal "
+                "privacy review"
+            )
 
 
 def _validate_png_without_metadata(data: bytes) -> None:

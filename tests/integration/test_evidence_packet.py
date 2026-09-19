@@ -2900,12 +2900,14 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
     )
     packet_allowed = gate_evidence_packet(
         packet,
+        fail_on_not_evaluated=False,
         allow_sensitivity_non_verdict=True,
         allow_missing_efficacy_for_migration=True,
     )
     packet_strict = gate_evidence_packet(
         packet,
         fail_on_not_evaluated=True,
+        allow_sensitivity_non_verdict=True,
         allow_missing_efficacy_for_migration=True,
     )
 
@@ -2941,11 +2943,24 @@ def test_nonverdict_sensitivity_fails_closed_unless_explicitly_allowed(
             "gate",
             str(packet_path),
             "--allow-sensitivity-non-verdict",
+            "--allow-not-evaluated",
+            "--allow-missing-efficacy-for-migration",
+        ],
+    )
+    cli_sensitivity_only = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            "gate",
+            str(packet_path),
+            "--allow-sensitivity-non-verdict",
             "--allow-missing-efficacy-for-migration",
         ],
     )
     assert cli_default.exit_code == 2
     assert "--allow-sensitivity-non-verdict" in cli_default.output
+    assert cli_sensitivity_only.exit_code == 1
+    assert "state=confounded gate_effect=non_verdict" in cli_sensitivity_only.output
     assert cli_allowed.exit_code == 0, cli_allowed.output
     assert "state=confounded gate_effect=non_verdict" in cli_allowed.output
 

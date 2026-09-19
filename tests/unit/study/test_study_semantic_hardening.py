@@ -1,21 +1,42 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
 from typing import Any, cast
 
 import pytest
 from pydantic import ValidationError
 
 import agent_assure.schema.study as study_schema
+import agent_assure.study.analysis as study_analysis
+from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
+from agent_assure.rag import repeated_sensitivity as repeated_workflow
+from agent_assure.rag.repeated_sensitivity import run_repeated_live_study
 from agent_assure.reporting.study import render_real_model_study_markdown
-from agent_assure.schema.stochastic_sensitivity import CaseClusterBinding
+from agent_assure.schema.benchmark import (
+    ProcessEquivalenceBenchmarkManifest,
+    benchmark_has_registered_confirmatory_bar,
+    calculate_benchmark_confirmatory_structure_digest,
+)
+from agent_assure.schema.live import LiveProtocolRecord
+from agent_assure.schema.run import LiveExecutionAttemptJournal, RunSet
+from agent_assure.schema.stochastic_sensitivity import (
+    CaseClusterBinding,
+    FixedFrameDescriptivePlan,
+    RepeatedEvidenceSensitivityProtocol,
+)
 from agent_assure.schema.study import (
     UNRESOLVED_INDEPENDENCE_BASIS,
+    RealModelStudyManifest,
     RealModelStudyReport,
     StudyAnalysisDeclaration,
     StudyConditionBinding,
     StudyConditionResult,
     StudyConditionState,
+    StudyExecutionOrigin,
     StudyExpectedResponseDiagnostic,
+    StudyFixedFrameDependenceAcknowledgement,
+    StudyFixedFrameDescriptiveRule,
     StudyHypothesisClassification,
     StudyHypothesisDecisionRule,
     StudyIndependenceDesignBasis,
@@ -25,10 +46,14 @@ from agent_assure.schema.study import (
     StudyObservedExecutionProvenance,
     StudySemanticNearDuplicateDisposition,
 )
+from agent_assure.schema.suite import CompiledSuite
 from agent_assure.study.analysis import (
     StudyConditionEvidence,
     analyze_real_model_study,
+    validate_study_manifest_inputs,
 )
+from agent_assure.study_artifact_serialization import published_model_json_bytes
+from agent_assure.study_dispatch import StudyDispatchPreflightEvidence
 from agent_assure.study_method_review import (
     build_study_statistical_method_review_receipt,
 )
@@ -37,10 +62,12 @@ from tests.unit.study.test_real_model_study import (
     _analyze,
     _condition_evidence,
     _fixture,
-    _rebind_evidence_to_manifest,
+    _manifest,
     _rebuild_manifest,
     _replace_runset_records,
 )
+
+ROOT = Path(__file__).resolve().parents[3]
 
 
 def _set_decision(payload: dict[str, Any], decision: str) -> dict[str, Any]:
@@ -148,7 +175,7 @@ def _unresolved_independence() -> StudyIndependenceJustification:
         status=StudyIndependenceJustificationStatus.unresolved_authoring_placeholder,
         design_basis=StudyIndependenceDesignBasis.unresolved,
         semantic_near_duplicate_disposition=(StudySemanticNearDuplicateDisposition.unresolved),
-        inferential_unit_definition=(
+        cluster_unit_definition=(
             "Each proposed inferential unit is one separately dispatched case-ID "
             "cluster in a finite frozen conformance frame."
         ),
@@ -164,64 +191,209 @@ def _unresolved_independence() -> StudyIndependenceJustification:
     )
 
 
-def _fixed_frame_manifest(fixture: StudyFixture):  # type: ignore[no-untyped-def]
-    rule_payload = fixture.manifest.hypothesis_decision_rule.model_dump(mode="json")
-    rule_payload.update(
+def _fixed_frame_protocol(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+) -> RepeatedEvidenceSensitivityProtocol:
+    payload = protocol.model_dump(mode="json")
+    for field_name in (
+        "protocol_digest",
+        "design_commitment_digest",
+        "inferential_unit",
+        "multiplicity_family",
+        "multiplicity_method",
+        "multiplicity_family_size",
+    ):
+        payload.pop(field_name, None)
+    payload.update(
         {
-            "inference_scope": "fixed_frame_descriptive_conformance",
-            "exchangeability_assumption": "not_assumed_fixed_frame_descriptive_only",
-            "independence_justification": StudyIndependenceJustification(
-                status=(StudyIndependenceJustificationStatus.fixed_frame_dependence_acknowledged),
-                design_basis=StudyIndependenceDesignBasis.shared_template_parameter_grid,
-                semantic_near_duplicate_disposition=(
-                    StudySemanticNearDuplicateDisposition.fixed_frame_descriptive_only
-                ),
-                independence_audit_artifact_sha256="0123456789abcdef" * 4,
-                inferential_unit_definition=(
-                    "Each reported unit is a committed case cluster in this exact finite "
-                    "synthetic conformance frame, without a population-sampling claim."
-                ),
-                independence_basis=(
-                    "The cases form a shared-template parameter grid, so the design does "
-                    "not claim independent exchangeable behavioral units."
-                ),
-                dependence_risks_and_mitigations=(
-                    "Shared task structure and adjacent parameters can induce correlated "
-                    "behavior; the analysis therefore reports only fixed-frame rates."
-                ),
-                residual_scope_limitation=(
-                    "Results describe only these exact committed cases and provider calls, "
-                    "with no prevalence or population generalization."
-                ),
+            "interpretation": "fixed_frame_descriptive",
+            "descriptive_unit": protocol.cluster_by,
+            "design": FixedFrameDescriptivePlan(
+                planned_descriptive_clusters=len(protocol.planned_cluster_ids)
             ).model_dump(mode="json"),
+            "limitations": tuple(
+                sorted(
+                    {
+                        *protocol.limitations,
+                        (
+                            "Finite-frame counts and rates describe only the exact "
+                            "frozen planned clusters; no population inference is made."
+                        ),
+                    }
+                )
+            ),
         }
     )
+    return RepeatedEvidenceSensitivityProtocol.build(**payload)
+
+
+def _fixed_frame_manifest(
+    fixture: StudyFixture,
+    protocols: dict[str, RepeatedEvidenceSensitivityProtocol] | None = None,
+) -> RealModelStudyManifest:
+    fixed_protocols = protocols or {
+        condition_id: _fixed_frame_protocol(protocol)
+        for condition_id, protocol in fixture.protocols.items()
+    }
+    execution_origins = {item.execution_origin for item in fixture.manifest.conditions}
+    assert len(execution_origins) == 1
+    bound = _manifest(
+        fixture.benchmark,
+        fixed_protocols,
+        execution_origin=next(iter(execution_origins)),
+    )
+    source_rule = fixture.manifest.hypothesis_decision_rule
+    audit_sha256 = source_rule.independence_justification.design_audit_artifact_sha256
+    assert audit_sha256 is not None
+    rule = StudyFixedFrameDescriptiveRule(
+        inference_scope=StudyInferenceScope.fixed_frame_descriptive_conformance,
+        target_task_model_conditions=source_rule.target_task_model_conditions,
+        negative_control_conditions=source_rule.negative_control_conditions,
+        dependence_acknowledgement=StudyFixedFrameDependenceAcknowledgement(
+            dependence_audit_artifact_sha256=audit_sha256,
+            descriptive_unit_definition=(
+                "Each reported unit is one committed case cluster in this exact finite "
+                "synthetic conformance frame, without a population-sampling claim."
+            ),
+            dependence_basis=(
+                "The cases form a shared-template parameter grid, so the design does "
+                "not claim independent exchangeable behavioral units."
+            ),
+            dependence_risks_and_mitigations=(
+                "Shared task structure and adjacent parameters can induce correlated "
+                "behavior; the analysis therefore reports only fixed-frame rates."
+            ),
+            residual_scope_limitation=(
+                "Results describe only these exact committed cases and provider calls, "
+                "with no prevalence or population generalization."
+            ),
+        ),
+        descriptive_scope_rationale=(
+            "This downscope reports exact finite-frame counts and rates while explicitly "
+            "prohibiting confirmatory, prevalence, and population-level inference."
+        ),
+    )
     return _rebuild_manifest(
-        fixture.manifest,
+        bound,
         analysis_status=StudyAnalysisDeclaration(
             primary=StudyInferenceScope.fixed_frame_descriptive_conformance
         ),
-        hypothesis_decision_rule=StudyHypothesisDecisionRule.model_validate(rule_payload),
+        hypothesis_decision_rule=rule,
+    )
+
+
+def _fixed_frame_evidence(
+    fixture: StudyFixture,
+    manifest: RealModelStudyManifest,
+    protocols: dict[str, RepeatedEvidenceSensitivityProtocol],
+) -> dict[str, StudyConditionEvidence]:
+    bindings = {item.condition_id: item for item in manifest.conditions}
+
+    def rebind_runset(
+        source: RunSet,
+        protocol: RepeatedEvidenceSensitivityProtocol,
+    ) -> RunSet:
+        payload = source.model_dump(mode="json")
+        payload["evidence_sensitivity_design_digest"] = protocol.design_commitment_digest
+        payload["study_manifest_digest"] = manifest.manifest_digest
+        for raw_run in payload["runs"]:
+            provenance = dict(raw_run["provenance"])
+            provenance["evidence_sensitivity_design_digest"] = protocol.design_commitment_digest
+            provenance["study_manifest_digest"] = manifest.manifest_digest
+            raw_run["provenance"] = provenance
+        if payload.get("execution_attempt_journal") is not None:
+            journal_payload = dict(payload["execution_attempt_journal"])
+            journal_payload.pop("journal_digest")
+            journal_payload["repeated_protocol_digest"] = protocol.protocol_digest
+            journal_payload["study_manifest_digest"] = manifest.manifest_digest
+            journal = LiveExecutionAttemptJournal.build(**journal_payload)
+            payload["execution_attempt_journal_digest"] = journal.journal_digest
+            payload["execution_attempt_journal"] = journal.model_dump(mode="json")
+        return RunSet.model_validate(payload)
+
+    return {
+        condition_id: _condition_evidence(
+            manifest=manifest,
+            binding=bindings[condition_id],
+            protocol=protocols[condition_id],
+            baseline_runset=rebind_runset(
+                source.baseline_runset,
+                protocols[condition_id],
+            ),
+            counterfactual_runset=rebind_runset(
+                source.counterfactual_runset,
+                protocols[condition_id],
+            ),
+        )
+        for condition_id, source in fixture.evidence_by_condition.items()
+    }
+
+
+def _analyze_fixed_frame_with_condition_fingerprints(
+    fixture: StudyFixture,
+    manifest: RealModelStudyManifest,
+    protocols: dict[str, RepeatedEvidenceSensitivityProtocol],
+    fingerprints: dict[str, str | None],
+) -> RealModelStudyReport:
+    def set_fingerprint(value: str | None):  # type: ignore[no-untyped-def]
+        def transform(payload: dict[str, Any]) -> dict[str, Any]:
+            if value is None:
+                payload.pop("provider_serving_fingerprint", None)
+            else:
+                payload["provider_serving_fingerprint"] = value
+            return payload
+
+        return transform
+
+    evidence = _fixed_frame_evidence(fixture, manifest, protocols)
+    bindings = {item.condition_id: item for item in manifest.conditions}
+    for condition_id, fingerprint in fingerprints.items():
+        source = evidence[condition_id]
+        evidence[condition_id] = _condition_evidence(
+            manifest=manifest,
+            binding=bindings[condition_id],
+            protocol=protocols[condition_id],
+            baseline_runset=_replace_runset_records(
+                source.baseline_runset,
+                set_fingerprint(fingerprint),
+            ),
+            counterfactual_runset=_replace_runset_records(
+                source.counterfactual_runset,
+                set_fingerprint(fingerprint),
+            ),
+        )
+    return analyze_real_model_study(
+        manifest=manifest,
+        benchmark=fixture.benchmark,
+        protocols=protocols,
+        evidence=evidence,
     )
 
 
 def test_fixed_frame_downscope_is_analyzable_but_never_classified() -> None:
     fixture = _fixture()
-    manifest = _fixed_frame_manifest(fixture)
-    evidence = _rebind_evidence_to_manifest(fixture, manifest)
+    protocols = {
+        condition_id: _fixed_frame_protocol(protocol)
+        for condition_id, protocol in fixture.protocols.items()
+    }
+    manifest = _fixed_frame_manifest(fixture, protocols)
+    evidence = _fixed_frame_evidence(fixture, manifest, protocols)
 
     report = analyze_real_model_study(
         manifest=manifest,
         benchmark=fixture.benchmark,
-        protocols=fixture.protocols,
+        protocols=protocols,
         evidence=evidence,
     )
 
     assert report.protocol_valid is True
     assert report.inferential_statistics_applicable is False
-    assert report.statistical_sufficiency_satisfied is True
+    assert report.statistical_sufficiency_satisfied is False
     assert report.invariant_controls_satisfied is True
     assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert all(
+        result.state is StudyConditionState.fixed_frame_descriptive for result in report.conditions
+    )
     assert all(
         result.decision_inertia_rate is not None
         for result in report.conditions
@@ -242,6 +414,35 @@ def test_fixed_frame_downscope_is_analyzable_but_never_classified() -> None:
     assert "Adjusted one-sided unexpected-change interval:" not in markdown
 
 
+def test_study_inference_scope_is_never_implicitly_confirmatory() -> None:
+    fixture = _fixture()
+    rule_payload = fixture.manifest.hypothesis_decision_rule.model_dump(mode="json")
+    rule_payload.pop("inference_scope")
+    with pytest.raises(ValidationError, match="inference_scope"):
+        StudyHypothesisDecisionRule.model_validate(rule_payload)
+
+    manifest_payload = fixture.manifest.model_dump(mode="json")
+    manifest_payload.pop("analysis_status")
+    with pytest.raises(ValidationError, match="analysis_status"):
+        RealModelStudyManifest.model_validate(manifest_payload)
+
+
+def test_directional_contract_names_the_combined_wrong_decision_guarantee() -> None:
+    fixture = _fixture()
+    rule = fixture.manifest.hypothesis_decision_rule
+    assert (
+        rule.directional_error_control
+        == "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha"
+    )
+
+    payload = rule.model_dump(mode="json")
+    payload["directional_error_control"] = (
+        "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha"
+    )
+    with pytest.raises(ValidationError, match="directional_error_control"):
+        StudyHypothesisDecisionRule.model_validate(payload)
+
+
 def test_confirmatory_scope_rejects_shared_template_grid_as_independence_basis() -> None:
     fixture = _fixture()
     payload = fixture.manifest.hypothesis_decision_rule.independence_justification.model_dump(
@@ -256,6 +457,162 @@ def test_confirmatory_scope_rejects_shared_template_grid_as_independence_basis()
 
     with pytest.raises(ValidationError, match="confirmatory independence"):
         StudyIndependenceJustification.model_validate(payload)
+
+
+def test_exact_v0_2_shared_template_grid_is_rejected_before_provider_execution() -> None:
+    fixture = _fixture()
+    benchmark = ProcessEquivalenceBenchmarkManifest.model_validate_json(
+        (ROOT / "examples/process_equivalence_benchmark_v0_2/benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    confirmatory_manifest = _manifest(benchmark, fixture.protocols)
+
+    assert not benchmark_has_registered_confirmatory_bar(fixture.benchmark)
+    assert benchmark_has_registered_confirmatory_bar(benchmark)
+    with pytest.raises(ValueError, match="shared-template parameter-grid benchmark"):
+        validate_study_manifest_inputs(
+            confirmatory_manifest,
+            benchmark,
+            fixture.protocols,
+        )
+
+
+def test_v0_2_grid_relabeling_cannot_bypass_confirmatory_bar() -> None:
+    benchmark = ProcessEquivalenceBenchmarkManifest.model_validate_json(
+        (ROOT / "examples/process_equivalence_benchmark_v0_2/benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    values = benchmark.model_dump(mode="python", exclude={"benchmark_digest"})
+    values["benchmark_id"] = "relabelled-shared-grid"
+    values["cases"] = tuple(
+        case.model_copy(
+            update={
+                "case_id": f"relabelled-case-{index:03d}",
+                "task_id": f"relabelled-task-{index:03d}",
+                "authority_contract_id": f"relabelled-contract-{index:03d}",
+                "query_family_id": f"relabelled-query-{index:03d}",
+            }
+        )
+        for index, case in enumerate(benchmark.cases)
+    )
+    relabelled = ProcessEquivalenceBenchmarkManifest.build(**values)
+
+    assert relabelled.benchmark_digest != benchmark.benchmark_digest
+    assert calculate_benchmark_confirmatory_structure_digest(relabelled) == (
+        calculate_benchmark_confirmatory_structure_digest(benchmark)
+    )
+    assert benchmark_has_registered_confirmatory_bar(relabelled)
+
+
+def test_exact_v0_2_grid_is_rejected_at_actual_dispatch_boundary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    benchmark = ProcessEquivalenceBenchmarkManifest.model_validate_json(
+        (ROOT / "examples/process_equivalence_benchmark_v0_2/benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    manifest = _manifest(
+        benchmark,
+        fixture.protocols,
+        execution_origin=StudyExecutionOrigin.real_provider,
+    )
+    condition_id, protocol = next(iter(fixture.protocols.items()))
+    protocol_path = tmp_path / "registered-protocol.json"
+    protocol_path.write_text(
+        json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    config = LiveRunConfig(
+        variant_id="grid-dispatch-guard",
+        pipeline_id="sensitivity-pipeline",
+        execution_profile="preregistered_paired_study",
+        tool_schema_digest="a" * 64,
+        policy_bundle_digest="b" * 64,
+        evidence_sensitivity_design_digest=protocol.design_commitment_digest,
+        study_manifest_digest=manifest.manifest_digest,
+        adapter=LiveAdapterConfig(
+            adapter_id="openai-chat-completions",
+            provider="synthetic-provider",
+            model="synthetic-model",
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="case-a",
+                prompt_path="case-a.txt",
+                input_summary="synthetic request",
+            ),
+        ),
+        max_requests=1,
+        max_retries=0,
+    )
+    dispatches: list[str] = []
+
+    def unexpected_dispatch(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        dispatches.append("called")
+        raise AssertionError("known grid reached provider dispatch")
+
+    monkeypatch.setattr(repeated_workflow, "run_live_suite", unexpected_dispatch)
+
+    with pytest.raises(ValueError, match="shared-template parameter-grid benchmark"):
+        run_repeated_live_study(
+            compiled=cast(CompiledSuite, object()),
+            protocol=protocol,
+            baseline_config=config,
+            counterfactual_config=config,
+            operational_protocol=cast(LiveProtocolRecord, object()),
+            baseline_config_dir=tmp_path,
+            counterfactual_config_dir=tmp_path,
+            registered_protocol_path=protocol_path,
+            study_manifest=manifest,
+            study_benchmark=benchmark,
+            study_condition_id=condition_id,
+            # A valid registration cannot be constructed for this known-
+            # ineligible grid. A non-null sentinel proves the library dispatch
+            # boundary reaches structural validation before any provider call.
+            study_dispatch_evidence=cast(StudyDispatchPreflightEvidence, object()),
+        )
+
+    assert dispatches == []
+
+
+def test_exact_v0_2_grid_remains_available_for_fixed_frame_descriptive_scope(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture()
+    benchmark = ProcessEquivalenceBenchmarkManifest.model_validate_json(
+        (ROOT / "examples/process_equivalence_benchmark_v0_2/benchmark.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    canonical_bound = _manifest(benchmark, fixture.protocols)
+    fixed_frame = _fixed_frame_manifest(fixture)
+    descriptive_manifest = _rebuild_manifest(
+        canonical_bound,
+        analysis_status=fixed_frame.analysis_status,
+        hypothesis_decision_rule=fixed_frame.hypothesis_decision_rule,
+    )
+    monkeypatch.setattr(
+        study_analysis,
+        "_validate_benchmark_condition_frames",
+        lambda *_args: None,
+    )
+    monkeypatch.setattr(
+        study_analysis,
+        "_validate_condition_protocol",
+        lambda **_kwargs: None,
+    )
+
+    validate_study_manifest_inputs(
+        descriptive_manifest,
+        benchmark,
+        fixture.protocols,
+    )
 
 
 def test_inertia_breakdown_is_descriptive_exact_and_published() -> None:
@@ -459,8 +816,17 @@ def test_statistical_method_review_rejects_unresolved_synthetic_manifest() -> No
     with pytest.raises(ValueError, match="positive design-based independence"):
         build_study_statistical_method_review_receipt(
             manifest=manifest,
+            manifest_bytes=published_model_json_bytes(manifest),
             benchmark=fixture.benchmark,
+            benchmark_bytes=published_model_json_bytes(fixture.benchmark),
             protocols=fixture.protocols,
+            registered_protocol_bytes={
+                condition_id: published_model_json_bytes(protocol)
+                for condition_id, protocol in fixture.protocols.items()
+            },
+            registration_record_bytes=fixture.registration_record_bytes,
+            registration_review_receipt=fixture.registration_review_receipt,
+            independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
             receipt_id="unresolved-independence-review",
             reviewed_at_utc="2025-01-03T00:00:00Z",
             reviewer_pseudonym="independent-statistical-reviewer",
@@ -476,8 +842,8 @@ def test_statistical_method_review_rejects_unresolved_synthetic_manifest() -> No
                 "The reviewer did not design, execute, analyze, or sponsor this "
                 "synthetic validation study."
             ),
-            independence_design_basis_reviewed_and_accepted=True,
-            independence_acceptance_rationale=(
+            design_basis_reviewed_and_accepted=True,
+            design_review_rationale=(
                 "Independent review would need to accept a concrete cluster-construction "
                 "basis before confirmatory provider execution."
             ),
@@ -491,6 +857,7 @@ def test_statistical_method_review_rejects_unresolved_synthetic_manifest() -> No
             independence_and_exchangeability_assumptions_reviewed=True,
             sampling_frame_and_estimand_reviewed=True,
             multiplicity_and_interval_method_reviewed=True,
+            combined_directional_decision_error_control_reviewed=True,
             power_and_decision_boundary_reachability_reviewed=True,
             negative_control_design_reviewed=True,
         )
@@ -578,6 +945,70 @@ def test_model_matched_cross_condition_fingerprint_partial_coverage_invalidates_
         for result in report.conditions
     )
     assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert report.protocol_valid is False
+
+
+def test_fixed_frame_target_control_fingerprint_drift_invalidates_group() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    protocols = {
+        condition_id: _fixed_frame_protocol(protocol)
+        for condition_id, protocol in fixture.protocols.items()
+    }
+    manifest = _fixed_frame_manifest(fixture, protocols)
+    targets = set(manifest.hypothesis_decision_rule.target_task_model_conditions)
+    controls = set(manifest.hypothesis_decision_rule.negative_control_conditions)
+    condition_ids = {condition.condition_id for condition in manifest.conditions}
+    assert targets
+    assert controls
+    assert targets | controls == condition_ids
+
+    report = _analyze_fixed_frame_with_condition_fingerprints(
+        fixture,
+        manifest,
+        protocols,
+        {
+            condition.condition_id: (
+                "fp-target-2025-04-14"
+                if condition.condition_id in targets
+                else "fp-control-2025-04-14"
+            )
+            for condition in manifest.conditions
+        },
+    )
+
+    assert all(
+        result.state is StudyConditionState.invalidated
+        and "provider-serving-fingerprint-group-drift" in result.deviation_codes
+        for result in report.conditions
+    )
+    assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert report.inferential_statistics_applicable is False
+    assert report.protocol_valid is False
+
+
+def test_fixed_frame_cross_condition_fingerprint_partial_coverage_invalidates_group() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    protocols = {
+        condition_id: _fixed_frame_protocol(protocol)
+        for condition_id, protocol in fixture.protocols.items()
+    }
+    manifest = _fixed_frame_manifest(fixture, protocols)
+    first_condition_id = manifest.conditions[0].condition_id
+
+    report = _analyze_fixed_frame_with_condition_fingerprints(
+        fixture,
+        manifest,
+        protocols,
+        {first_condition_id: "fp-partial-2025-04-14"},
+    )
+
+    assert all(
+        result.state is StudyConditionState.invalidated
+        and "provider-serving-fingerprint-group-incomplete" in result.deviation_codes
+        for result in report.conditions
+    )
+    assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert report.inferential_statistics_applicable is False
     assert report.protocol_valid is False
 
 
@@ -722,7 +1153,7 @@ def test_manifest_rejects_worst_case_interval_work_before_reachability(
         condition_payload.update(
             {
                 "planned_pairs": 1_000,
-                "planned_independent_clusters": 1_000,
+                "planned_clusters": 1_000,
             }
         )
         resized_conditions.append(StudyConditionBinding.model_validate(condition_payload))

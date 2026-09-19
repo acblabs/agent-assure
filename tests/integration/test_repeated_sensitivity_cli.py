@@ -1189,11 +1189,14 @@ def test_repeated_sensitivity_run_requires_network_opt_in_before_dispatch(
 ) -> None:
     protocol = _protocol()
     inputs = tuple(tmp_path / name for name in ("protocol", "suite", "base", "counter", "live"))
-    for path in inputs:
+    inputs[0].write_text(
+        json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in inputs[1:]:
         path.write_text("{}\n", encoding="utf-8")
     dispatched = False
 
-    monkeypatch.setattr(rag_cmd_module, "load_repeated_sensitivity_protocol", lambda _: protocol)
     monkeypatch.setattr(rag_cmd_module, "load_compiled_suite", lambda _: object())
     monkeypatch.setattr(rag_cmd_module, "load_live_run_config", lambda _: object())
     monkeypatch.setattr(rag_cmd_module, "_load_operational_live_protocol", lambda _: object())
@@ -1245,13 +1248,16 @@ def test_repeated_sensitivity_run_refuses_same_registered_attempt_with_different
             "live.json",
         )
     )
-    for path in input_paths:
+    input_paths[0].write_text(
+        json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    for path in input_paths[1:]:
         path.write_text("{}\n", encoding="utf-8")
     baseline_config = _uncommitted_live_config("baseline")
     counterfactual_config = _uncommitted_live_config("counterfactual")
     provider_dispatches = 0
 
-    monkeypatch.setattr(rag_cmd_module, "load_repeated_sensitivity_protocol", lambda _: protocol)
     monkeypatch.setattr(rag_cmd_module, "load_compiled_suite", lambda _: object())
     monkeypatch.setattr(
         rag_cmd_module,

@@ -3,7 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from dataclasses import asdict
+from dataclasses import asdict, dataclass
+from hashlib import sha256
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,7 +23,9 @@ from agent_assure.pilot_bundle import (  # noqa: E402
 )
 from agent_assure.schema.benchmark import (  # noqa: E402
     ProcessEquivalenceBenchmarkManifest,
+    registered_confirmatory_benchmark_bar_reason,
 )
+from agent_assure.schema.study import StudyStatisticalMethodReviewReceipt  # noqa: E402
 from agent_assure.schema.validation import (  # noqa: E402
     load_validated_artifact_payload,
     project_validated_artifact_payload,
@@ -33,18 +36,63 @@ from agent_assure.study_bundle import (  # noqa: E402
     ValidatedStudyBundle,
     load_and_validate_study_bundle,
 )
-
-CANONICAL_BENCHMARK_PATH = (
-    ROOT / "examples" / "process_equivalence_benchmark_v0_2" / "benchmark.json"
+from agent_assure.study_method_review import (  # noqa: E402
+    statistical_method_review_explicitly_approves_confirmatory_benchmark,
 )
+
+# The release trust anchor is deliberately separate from the shipped v0.2
+# example. v0.2 is a known shared-template parameter grid and can never be
+# relabelled into confirmatory evidence. These paths remain absent until a
+# genuinely non-grid frame has been frozen and reviewed; that absence is an
+# explicit release blocker rather than an invitation to fall back to v0.2.
+CANONICAL_BENCHMARK_PATH = ROOT / "study" / "registration" / "frozen-non-grid-benchmark.json"
 PACKAGED_BENCHMARK_PATH = (
+    ROOT / "src" / "agent_assure" / "release_trust" / "v0_6_6" / "frozen-non-grid-benchmark.json"
+)
+CANONICAL_BENCHMARK_METHOD_REVIEW_PATH = (
+    ROOT / "study" / "registration" / "frozen-non-grid-benchmark-statistical-method-review.json"
+)
+PACKAGED_BENCHMARK_METHOD_REVIEW_PATH = (
     ROOT
     / "src"
     / "agent_assure"
-    / "examples"
-    / "process_equivalence_benchmark_v0_2"
-    / "benchmark.json"
+    / "release_trust"
+    / "v0_6_6"
+    / "frozen-non-grid-benchmark-statistical-method-review.json"
 )
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalConfirmatoryBenchmarkTrust:
+    """Repository-governed positive approval for one exact benchmark.
+
+    Mirror identity is mechanically checked. Reviewer identity and the truth of
+    the receipt's human attestations remain authenticated out of band.
+    """
+
+    benchmark: ProcessEquivalenceBenchmarkManifest
+    statistical_method_review_receipt: StudyStatisticalMethodReviewReceipt
+    benchmark_artifact_sha256: str
+
+
+class CanonicalConfirmatoryBenchmarkNotFrozenError(RuntimeError):
+    """The committed and packaged benchmark pair is incomplete."""
+
+
+class CanonicalConfirmatoryBenchmarkInvalidError(RuntimeError):
+    """The benchmark trust anchor is invalid or differs from its packaged mirror."""
+
+
+class CanonicalConfirmatoryBenchmarkIneligibleError(RuntimeError):
+    """The benchmark has a registered confirmatory structural bar."""
+
+
+class CanonicalConfirmatoryBenchmarkApprovalNotFrozenError(RuntimeError):
+    """The committed and packaged positive-approval pair is incomplete."""
+
+
+class CanonicalConfirmatoryBenchmarkApprovalInvalidError(RuntimeError):
+    """The positive approval is invalid, mismatched, or non-confirmatory."""
 
 
 def _load_benchmark(path: Path) -> ProcessEquivalenceBenchmarkManifest:
@@ -74,32 +122,122 @@ def _load_benchmark_bytes(
     )
 
 
-def _load_canonical_benchmark() -> ProcessEquivalenceBenchmarkManifest:
-    """Load the committed trust anchor and require its packaged mirror byte-for-byte."""
+def _load_method_review_bytes(
+    data: bytes,
+    *,
+    label: str,
+) -> StudyStatisticalMethodReviewReceipt:
+    payload = load_json_bytes_bounded(
+        data,
+        max_bytes=MAX_ARTIFACT_JSON_BYTES,
+        label=label,
+    )
+    validate_loaded_artifact_payload(payload, "real-model-study-statistical-method-review")
+    return project_validated_artifact_payload(
+        payload,
+        StudyStatisticalMethodReviewReceipt,
+        kind="real-model-study-statistical-method-review",
+    )
 
-    canonical_bytes = read_bytes_bounded_from_filesystem_root(
-        CANONICAL_BENCHMARK_PATH,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
-        label="canonical process-equivalence benchmark",
-    )
-    packaged_bytes = read_bytes_bounded_from_filesystem_root(
-        PACKAGED_BENCHMARK_PATH,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
-        label="packaged process-equivalence benchmark mirror",
-    )
+
+def _load_canonical_confirmatory_benchmark_trust() -> CanonicalConfirmatoryBenchmarkTrust:
+    """Load the exact benchmark and its positive, repository-governed approval."""
+
+    try:
+        canonical_bytes = read_bytes_bounded_from_filesystem_root(
+            CANONICAL_BENCHMARK_PATH,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label="canonical confirmatory process-equivalence benchmark",
+        )
+        packaged_bytes = read_bytes_bounded_from_filesystem_root(
+            PACKAGED_BENCHMARK_PATH,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label="packaged confirmatory process-equivalence benchmark mirror",
+        )
+    except FileNotFoundError as exc:
+        raise CanonicalConfirmatoryBenchmarkNotFrozenError(
+            "the confirmatory benchmark trust-anchor pair has not been frozen"
+        ) from exc
     if canonical_bytes != packaged_bytes:
-        raise ValueError("canonical benchmark and packaged mirror differ")
-    canonical = _load_benchmark_bytes(
-        canonical_bytes,
-        label="canonical process-equivalence benchmark",
-    )
-    packaged = _load_benchmark_bytes(
-        packaged_bytes,
-        label="packaged process-equivalence benchmark mirror",
-    )
+        raise CanonicalConfirmatoryBenchmarkInvalidError(
+            "canonical benchmark and packaged mirror differ"
+        )
+    try:
+        canonical = _load_benchmark_bytes(
+            canonical_bytes,
+            label="canonical process-equivalence benchmark",
+        )
+        packaged = _load_benchmark_bytes(
+            packaged_bytes,
+            label="packaged process-equivalence benchmark mirror",
+        )
+    except (TypeError, ValueError) as exc:
+        raise CanonicalConfirmatoryBenchmarkInvalidError(
+            "canonical benchmark trust anchor is invalid"
+        ) from exc
     if canonical != packaged:
-        raise ValueError("canonical benchmark and packaged mirror do not validate identically")
-    return canonical
+        raise CanonicalConfirmatoryBenchmarkInvalidError(
+            "canonical benchmark and packaged mirror do not validate identically"
+        )
+    if registered_confirmatory_benchmark_bar_reason(canonical) is not None:
+        raise CanonicalConfirmatoryBenchmarkIneligibleError(
+            "the canonical benchmark has a registered confirmatory structural bar"
+        )
+    try:
+        canonical_review_bytes = read_bytes_bounded_from_filesystem_root(
+            CANONICAL_BENCHMARK_METHOD_REVIEW_PATH,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label="canonical confirmatory benchmark statistical-method review",
+        )
+        packaged_review_bytes = read_bytes_bounded_from_filesystem_root(
+            PACKAGED_BENCHMARK_METHOD_REVIEW_PATH,
+            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            label="packaged confirmatory benchmark statistical-method review mirror",
+        )
+    except FileNotFoundError as exc:
+        raise CanonicalConfirmatoryBenchmarkApprovalNotFrozenError(
+            "the confirmatory benchmark positive-approval pair has not been frozen"
+        ) from exc
+    if canonical_review_bytes != packaged_review_bytes:
+        raise CanonicalConfirmatoryBenchmarkApprovalInvalidError(
+            "canonical benchmark review and packaged mirror differ"
+        )
+    try:
+        canonical_review = _load_method_review_bytes(
+            canonical_review_bytes,
+            label="canonical confirmatory benchmark statistical-method review",
+        )
+        packaged_review = _load_method_review_bytes(
+            packaged_review_bytes,
+            label="packaged confirmatory benchmark statistical-method review mirror",
+        )
+    except (TypeError, ValueError) as exc:
+        raise CanonicalConfirmatoryBenchmarkApprovalInvalidError(
+            "canonical benchmark positive approval is invalid"
+        ) from exc
+    if canonical_review != packaged_review:
+        raise CanonicalConfirmatoryBenchmarkApprovalInvalidError(
+            "canonical benchmark review and packaged mirror do not validate identically"
+        )
+    try:
+        explicitly_approved = statistical_method_review_explicitly_approves_confirmatory_benchmark(
+            benchmark=canonical,
+            review_receipt=canonical_review,
+            benchmark_bytes=canonical_bytes,
+        )
+    except (TypeError, ValueError) as exc:
+        raise CanonicalConfirmatoryBenchmarkApprovalInvalidError(
+            "canonical benchmark positive approval cannot bind the benchmark bytes"
+        ) from exc
+    if not explicitly_approved:
+        raise CanonicalConfirmatoryBenchmarkApprovalInvalidError(
+            "the canonical benchmark lacks an exact positive confirmatory approval"
+        )
+    return CanonicalConfirmatoryBenchmarkTrust(
+        benchmark=canonical,
+        statistical_method_review_receipt=canonical_review,
+        benchmark_artifact_sha256=sha256(canonical_bytes).hexdigest(),
+    )
 
 
 def _bundle_root_is_absent(path: Path) -> bool:
@@ -152,7 +290,8 @@ def check_empirical_readiness(
 ) -> tuple[bool, dict[str, object]]:
     """Validate exact artifacts and derive the v0.6.6 empirical checkpoint."""
 
-    canonical_benchmark = _load_canonical_benchmark()
+    canonical_trust = _load_canonical_confirmatory_benchmark_trust()
+    canonical_benchmark = canonical_trust.benchmark
     supplied_benchmark = _load_benchmark(benchmark_path)
     if supplied_benchmark != canonical_benchmark:
         raise ValueError("supplied benchmark is not the committed canonical benchmark")
@@ -169,9 +308,17 @@ def check_empirical_readiness(
         verified_pilot,
         canonical_benchmark,
         expected_release,
+        canonical_confirmatory_method_review=(canonical_trust.statistical_method_review_receipt),
     )
     result: dict[str, object] = asdict(assessment)
     result["canonical_benchmark_digest"] = canonical_benchmark.benchmark_digest
+    result["canonical_benchmark_artifact_sha256"] = canonical_trust.benchmark_artifact_sha256
+    result["canonical_benchmark_confirmatory_approval_digest"] = (
+        canonical_trust.statistical_method_review_receipt.method_review_receipt_digest
+    )
+    result["canonical_benchmark_reviewer_identity_authentication"] = (
+        canonical_trust.statistical_method_review_receipt.reviewer_identity_authentication
+    )
     result["study_report_digest"] = (
         study_bundle.report.report_digest if study_bundle is not None else None
     )
@@ -314,6 +461,41 @@ def main(argv: list[str] | None = None) -> int:
             args.benchmark,
             expected_release=args.expected_release,
         )
+    except CanonicalConfirmatoryBenchmarkNotFrozenError as exc:
+        ready = False
+        result = {
+            "blocking_reasons": ["canonical-confirmatory-benchmark-not-frozen"],
+            "checkpoint_ready": False,
+            "failure_category": exc.__class__.__name__,
+        }
+    except CanonicalConfirmatoryBenchmarkInvalidError as exc:
+        ready = False
+        result = {
+            "blocking_reasons": ["canonical-confirmatory-benchmark-invalid-or-mismatched"],
+            "checkpoint_ready": False,
+            "failure_category": exc.__class__.__name__,
+        }
+    except CanonicalConfirmatoryBenchmarkApprovalNotFrozenError as exc:
+        ready = False
+        result = {
+            "blocking_reasons": ["canonical-confirmatory-benchmark-approval-not-frozen"],
+            "checkpoint_ready": False,
+            "failure_category": exc.__class__.__name__,
+        }
+    except CanonicalConfirmatoryBenchmarkApprovalInvalidError as exc:
+        ready = False
+        result = {
+            "blocking_reasons": ["canonical-confirmatory-benchmark-approval-invalid-or-mismatched"],
+            "checkpoint_ready": False,
+            "failure_category": exc.__class__.__name__,
+        }
+    except CanonicalConfirmatoryBenchmarkIneligibleError as exc:
+        ready = False
+        result = {
+            "blocking_reasons": ["canonical-confirmatory-benchmark-not-eligible"],
+            "checkpoint_ready": False,
+            "failure_category": exc.__class__.__name__,
+        }
     except (OSError, RuntimeError, TypeError, ValueError) as exc:
         # Emit a stable, value-free release-log result instead of copying
         # potentially sensitive validation instance values into CI output.

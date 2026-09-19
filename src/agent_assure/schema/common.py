@@ -101,6 +101,16 @@ MachineIdentifier = Annotated[
         pattern=MACHINE_IDENTIFIER_PATTERN,
     ),
 ]
+
+# Each value names the exact byte sequence committed by a live adapter. The
+# custom-adapter scope is intentionally weaker provenance: it describes bytes
+# supplied by that adapter and is never sufficient for confirmatory studies.
+ProviderResponsePayloadScope = Literal[
+    "complete_http_response_body",
+    "complete_external_script_stdout",
+    "complete_static_jsonl_record",
+    "complete_adapter_declared_response_bytes",
+]
 MACHINE_IDENTIFIER_SCHEMA_VERSION = "0.6.6"
 # v0.6.1 introduced the bounded ASCII machine-identifier contract. Keep the
 # version set explicit so compatibility projection cannot silently weaken that

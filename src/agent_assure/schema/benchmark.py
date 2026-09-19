@@ -12,6 +12,18 @@ PROCESS_EQUIVALENCE_BENCHMARK_SCHEMA_VERSION: Literal["0.6.6"] = "0.6.6"
 PROCESS_EQUIVALENCE_BENCHMARK_CONTRACT_VERSION: Literal["1.0.0"] = "1.0.0"
 PROCESS_EQUIVALENCE_BENCHMARK_VERSION: Literal["0.2.0"] = "0.2.0"
 MAX_PROCESS_EQUIVALENCE_BENCHMARK_CASES = 10_000
+PROCESS_EQUIVALENCE_BENCHMARK_V0_2_SHARED_TEMPLATE_GRID_DIGEST = (
+    "9f734a3910933d92e5993e3e6f54ca23756146848d78e17317480f48ab54bb54"
+)
+PROCESS_EQUIVALENCE_BENCHMARK_V0_2_SHARED_TEMPLATE_GRID_STRUCTURE_DIGEST = (
+    "90fbcc92ebdf38f89b43295d1a65d79e86a2607271a527542a6fcacff7be058c"
+)
+_CONFIRMATORY_INELIGIBLE_BENCHMARK_DIGESTS = frozenset(
+    {PROCESS_EQUIVALENCE_BENCHMARK_V0_2_SHARED_TEMPLATE_GRID_DIGEST}
+)
+_CONFIRMATORY_INELIGIBLE_BENCHMARK_STRUCTURE_DIGESTS = frozenset(
+    {PROCESS_EQUIVALENCE_BENCHMARK_V0_2_SHARED_TEMPLATE_GRID_STRUCTURE_DIGEST}
+)
 
 
 class ProcessEquivalenceBenchmarkCase(FrozenStrictModel):
@@ -123,13 +135,86 @@ ProcessEquivalenceBenchmark = ProcessEquivalenceBenchmarkManifest
 ProcessEquivalenceBenchmarkCaseDescriptor = ProcessEquivalenceBenchmarkCase
 
 
+def calculate_benchmark_confirmatory_structure_digest(
+    benchmark: ProcessEquivalenceBenchmarkManifest,
+) -> str:
+    """Digest the semantic case frame while excluding all relabelable metadata."""
+
+    from agent_assure.canonical.digests import sha256_hexdigest
+
+    cases = tuple(
+        sorted(
+            (
+                {
+                    "expected_relation": case.expected_relation,
+                    "baseline_expected_decision": case.baseline_expected_decision,
+                    "counterfactual_expected_decision": case.counterfactual_expected_decision,
+                    "source_digest": case.source_digest,
+                    "input_digest": case.input_digest,
+                }
+                for case in benchmark.cases
+            ),
+            key=lambda case: (
+                case["source_digest"],
+                case["input_digest"],
+                case["expected_relation"],
+                case["baseline_expected_decision"],
+                case["counterfactual_expected_decision"],
+            ),
+        )
+    )
+    return sha256_hexdigest(
+        {
+            "purpose": "process-equivalence-benchmark-confirmatory-case-frame/v1",
+            "cases": cases,
+        }
+    )
+
+
+def registered_confirmatory_benchmark_bar_reason(
+    benchmark: ProcessEquivalenceBenchmarkManifest,
+) -> str | None:
+    """Return a registered structural bar to independent-cluster inference.
+
+    Absence of a registered bar is not evidence that cases are independent.
+    The manifest's design justification, exact audit artifact, and qualified
+    review remain separate requirements.
+    """
+
+    if (
+        benchmark.benchmark_digest in _CONFIRMATORY_INELIGIBLE_BENCHMARK_DIGESTS
+        or calculate_benchmark_confirmatory_structure_digest(benchmark)
+        in _CONFIRMATORY_INELIGIBLE_BENCHMARK_STRUCTURE_DIGESTS
+    ):
+        return "known_shared_template_parameter_grid"
+    return None
+
+
+def benchmark_has_registered_confirmatory_bar(
+    benchmark: ProcessEquivalenceBenchmarkManifest,
+) -> bool:
+    """Return whether a defense-in-depth benchmark-level bar is registered.
+
+    A false result is deliberately not an eligibility decision. Confirmatory
+    eligibility requires an exact positive statistical-method approval; this
+    registry only prevents already-known bad frames from being relabelled.
+    """
+
+    return registered_confirmatory_benchmark_bar_reason(benchmark) is not None
+
+
 __all__ = [
     "MAX_PROCESS_EQUIVALENCE_BENCHMARK_CASES",
     "PROCESS_EQUIVALENCE_BENCHMARK_CONTRACT_VERSION",
     "PROCESS_EQUIVALENCE_BENCHMARK_SCHEMA_VERSION",
+    "PROCESS_EQUIVALENCE_BENCHMARK_V0_2_SHARED_TEMPLATE_GRID_DIGEST",
+    "PROCESS_EQUIVALENCE_BENCHMARK_V0_2_SHARED_TEMPLATE_GRID_STRUCTURE_DIGEST",
     "PROCESS_EQUIVALENCE_BENCHMARK_VERSION",
     "ProcessEquivalenceBenchmark",
     "ProcessEquivalenceBenchmarkCase",
     "ProcessEquivalenceBenchmarkCaseDescriptor",
     "ProcessEquivalenceBenchmarkManifest",
+    "benchmark_has_registered_confirmatory_bar",
+    "calculate_benchmark_confirmatory_structure_digest",
+    "registered_confirmatory_benchmark_bar_reason",
 ]

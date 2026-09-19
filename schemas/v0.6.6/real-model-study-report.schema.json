@@ -1096,6 +1096,59 @@
       "title": "ExactBinomialTailExpression",
       "type": "object"
     },
+    "FixedFrameDescriptivePlan": {
+      "additionalProperties": false,
+      "description": "Predeclared finite-frame summary with no inferential parameters.\n\nThis plan deliberately has no alpha, power, null-rate, exchangeability, or\nconfirmatory-frame fields.  It can summarize only the exact frozen cases\nand clusters named by the enclosing protocol.",
+      "properties": {
+        "analysis_method": {
+          "const": "fixed_frame_descriptive_counts",
+          "default": "fixed_frame_descriptive_counts",
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "cluster_endpoint_aggregation": {
+          "const": "all_planned_pairs_expected_response",
+          "default": "all_planned_pairs_expected_response",
+          "title": "Cluster Endpoint Aggregation",
+          "type": "string"
+        },
+        "descriptive_cluster_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Descriptive Cluster Frame",
+          "type": "string"
+        },
+        "descriptive_unit": {
+          "const": "frozen_planned_cluster",
+          "default": "frozen_planned_cluster",
+          "title": "Descriptive Unit",
+          "type": "string"
+        },
+        "incomplete_cluster_policy": {
+          "const": "report_inconclusive",
+          "default": "report_inconclusive",
+          "title": "Incomplete Cluster Policy",
+          "type": "string"
+        },
+        "maximum_exclusion_rate": {
+          "const": "0.000000",
+          "default": "0.000000",
+          "title": "Maximum Exclusion Rate",
+          "type": "string"
+        },
+        "planned_descriptive_clusters": {
+          "maximum": 10000,
+          "minimum": 1,
+          "title": "Planned Descriptive Clusters",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "planned_descriptive_clusters"
+      ],
+      "title": "FixedFrameDescriptivePlan",
+      "type": "object"
+    },
     "PairDisposition": {
       "enum": [
         "included",
@@ -1531,13 +1584,7 @@
       "additionalProperties": false,
       "properties": {
         "analysis_status": {
-          "$ref": "#/$defs/StudyAnalysisDeclaration",
-          "default": {
-            "exploratory_secondary_analyses_allowed": true,
-            "llm_judge_endpoint_permitted": false,
-            "pooling_permitted": false,
-            "primary": "confirmatory_independent_clusters"
-          }
+          "$ref": "#/$defs/StudyAnalysisDeclaration"
         },
         "artifact_kind": {
           "const": "real-model-study-manifest",
@@ -1591,7 +1638,22 @@
           "$ref": "#/$defs/StudyExecutionWindow"
         },
         "hypothesis_decision_rule": {
-          "$ref": "#/$defs/StudyHypothesisDecisionRule"
+          "discriminator": {
+            "mapping": {
+              "confirmatory_independent_clusters": "#/$defs/StudyHypothesisDecisionRule",
+              "fixed_frame_descriptive_conformance": "#/$defs/StudyFixedFrameDescriptiveRule"
+            },
+            "propertyName": "inference_scope"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/StudyHypothesisDecisionRule"
+            },
+            {
+              "$ref": "#/$defs/StudyFixedFrameDescriptiveRule"
+            }
+          ],
+          "title": "Hypothesis Decision Rule"
         },
         "hypothesis_decision_rule_digest": {
           "pattern": "^[a-f0-9]{64}$",
@@ -1680,6 +1742,7 @@
         "benchmark_id",
         "benchmark_digest",
         "protocol_set_digest",
+        "analysis_status",
         "conditions",
         "hypothesis_decision_rule",
         "hypothesis_decision_rule_digest",
@@ -1697,6 +1760,172 @@
     "RepeatedEvidenceSensitivityProtocol": {
       "additionalProperties": false,
       "allOf": [
+        {
+          "else": {
+            "not": {
+              "required": [
+                "descriptive_unit"
+              ]
+            },
+            "properties": {
+              "design": {
+                "properties": {
+                  "analysis_method": {
+                    "const": "cluster_binary_exact"
+                  }
+                },
+                "required": [
+                  "analysis_method"
+                ]
+              },
+              "inferential_unit": {
+                "enum": [
+                  "case_id",
+                  "source_group_id"
+                ]
+              },
+              "multiplicity_family": {
+                "type": "string"
+              },
+              "multiplicity_family_size": {
+                "minimum": 1,
+                "type": "integer"
+              },
+              "multiplicity_method": {
+                "enum": [
+                  "single_endpoint",
+                  "bonferroni"
+                ]
+              }
+            },
+            "required": [
+              "inferential_unit",
+              "multiplicity_family",
+              "multiplicity_method",
+              "multiplicity_family_size",
+              "design"
+            ]
+          },
+          "if": {
+            "properties": {
+              "interpretation": {
+                "const": "fixed_frame_descriptive"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "inferential_unit"
+                  ]
+                },
+                {
+                  "required": [
+                    "multiplicity_family"
+                  ]
+                },
+                {
+                  "required": [
+                    "multiplicity_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "multiplicity_family_size"
+                  ]
+                }
+              ]
+            },
+            "properties": {
+              "baseline_arm": {
+                "properties": {
+                  "adapter_id": {
+                    "enum": [
+                      "openai-chat-completions"
+                    ]
+                  }
+                },
+                "required": [
+                  "adapter_id"
+                ]
+              },
+              "case_authority_bindings": {
+                "minItems": 1
+              },
+              "counterfactual_arm": {
+                "properties": {
+                  "adapter_id": {
+                    "enum": [
+                      "openai-chat-completions"
+                    ]
+                  }
+                },
+                "required": [
+                  "adapter_id"
+                ]
+              },
+              "coupling": {
+                "properties": {
+                  "classification": {
+                    "not": {
+                      "enum": [
+                        "unpaired",
+                        "unknown"
+                      ]
+                    }
+                  },
+                  "unknown": {
+                    "not": {
+                      "contains": {
+                        "enum": [
+                          "provider_sampling_randomness",
+                          "temporal_execution_order"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "required": [
+                  "classification"
+                ]
+              },
+              "descriptive_unit": {
+                "enum": [
+                  "case_id",
+                  "source_group_id"
+                ]
+              },
+              "design": {
+                "properties": {
+                  "analysis_method": {
+                    "const": "fixed_frame_descriptive_counts"
+                  }
+                },
+                "required": [
+                  "analysis_method"
+                ]
+              },
+              "execution_mode": {
+                "const": "stochastic_live"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "execution_mode",
+              "descriptive_unit",
+              "case_authority_bindings",
+              "design"
+            ]
+          }
+        },
         {
           "if": {
             "properties": {
@@ -1999,8 +2228,39 @@
         "coupling": {
           "$ref": "#/$defs/CouplingDescriptor"
         },
+        "descriptive_unit": {
+          "anyOf": [
+            {
+              "enum": [
+                "case_id",
+                "source_group_id"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Descriptive Unit"
+        },
         "design": {
-          "$ref": "#/$defs/BinaryPairedDesignPlan"
+          "discriminator": {
+            "mapping": {
+              "cluster_binary_exact": "#/$defs/BinaryPairedDesignPlan",
+              "fixed_frame_descriptive_counts": "#/$defs/FixedFrameDescriptivePlan"
+            },
+            "propertyName": "analysis_method"
+          },
+          "oneOf": [
+            {
+              "$ref": "#/$defs/BinaryPairedDesignPlan"
+            },
+            {
+              "$ref": "#/$defs/FixedFrameDescriptivePlan"
+            }
+          ],
+          "title": "Design"
         },
         "design_commitment_digest": {
           "pattern": "^[a-f0-9]{64}$",
@@ -2036,13 +2296,20 @@
           "default": "decision_flip"
         },
         "inferential_unit": {
-          "default": "case_id",
-          "enum": [
-            "case_id",
-            "source_group_id"
+          "anyOf": [
+            {
+              "enum": [
+                "case_id",
+                "source_group_id"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Inferential Unit",
-          "type": "string"
+          "default": "case_id",
+          "title": "Inferential Unit"
         },
         "interpretation": {
           "$ref": "#/$defs/SensitivityInterpretation"
@@ -2057,26 +2324,48 @@
           "type": "array"
         },
         "multiplicity_family": {
-          "maxLength": 256,
-          "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
-          "title": "Multiplicity Family",
-          "type": "string"
+          "anyOf": [
+            {
+              "maxLength": 256,
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Multiplicity Family"
         },
         "multiplicity_family_size": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": 1,
-          "minimum": 1,
-          "title": "Multiplicity Family Size",
-          "type": "integer"
+          "title": "Multiplicity Family Size"
         },
         "multiplicity_method": {
-          "default": "single_endpoint",
-          "enum": [
-            "single_endpoint",
-            "bonferroni"
+          "anyOf": [
+            {
+              "enum": [
+                "single_endpoint",
+                "bonferroni"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
           ],
-          "title": "Multiplicity Method",
-          "type": "string"
+          "default": "single_endpoint",
+          "title": "Multiplicity Method"
         },
         "pair_identity": {
           "const": "case_id_repetition_index",
@@ -2157,7 +2446,6 @@
         "case_cluster_bindings",
         "repetitions_per_arm",
         "planned_pairs",
-        "multiplicity_family",
         "coupling",
         "design",
         "limitations",
@@ -2476,7 +2764,8 @@
     "SensitivityInterpretation": {
       "enum": [
         "confirmatory",
-        "exploratory"
+        "exploratory",
+        "fixed_frame_descriptive"
       ],
       "title": "SensitivityInterpretation",
       "type": "string"
@@ -2658,6 +2947,57 @@
     },
     "StochasticEvidenceSensitivityReport": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "estimated_response_unit": {
+                "const": "independent_cluster"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "sufficiency_report": {
+                "properties": {
+                  "protocol": {
+                    "properties": {
+                      "interpretation": {
+                        "const": "fixed_frame_descriptive"
+                      }
+                    },
+                    "required": [
+                      "interpretation"
+                    ]
+                  }
+                },
+                "required": [
+                  "protocol"
+                ]
+              }
+            },
+            "required": [
+              "sufficiency_report"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_response_unit"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_response_rate"
+                  ]
+                }
+              ]
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "stochastic-evidence-sensitivity-report",
@@ -2708,10 +3048,17 @@
           "title": "Estimated Response Rate"
         },
         "estimated_response_unit": {
-          "const": "independent_cluster",
+          "anyOf": [
+            {
+              "const": "independent_cluster",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
           "default": "independent_cluster",
-          "title": "Estimated Response Unit",
-          "type": "string"
+          "title": "Estimated Response Unit"
         },
         "gate_effect": {
           "$ref": "#/$defs/StochasticGateEffect"
@@ -2844,6 +3191,7 @@
       "enum": [
         "pass",
         "block",
+        "fixed_frame_descriptive",
         "prerequisites_unmet",
         "inconclusive"
       ],
@@ -2871,10 +3219,12 @@
           "type": "boolean"
         },
         "primary": {
-          "$ref": "#/$defs/StudyInferenceScope",
-          "default": "confirmatory_independent_clusters"
+          "$ref": "#/$defs/StudyInferenceScope"
         }
       },
+      "required": [
+        "primary"
+      ],
       "title": "StudyAnalysisDeclaration",
       "type": "object"
     },
@@ -3050,10 +3400,10 @@
           "title": "Pipeline Id",
           "type": "string"
         },
-        "planned_independent_clusters": {
+        "planned_clusters": {
           "maximum": 1000,
           "minimum": 2,
-          "title": "Planned Independent Clusters",
+          "title": "Planned Clusters",
           "type": "integer"
         },
         "planned_pairs": {
@@ -3184,7 +3534,7 @@
         "knowledge_contract_digest",
         "study_knowledge_contract_digest",
         "planned_pairs",
-        "planned_independent_clusters"
+        "planned_clusters"
       ],
       "title": "StudyConditionBinding",
       "type": "object"
@@ -3393,6 +3743,163 @@
             },
             "required": [
               "expected_response_diagnostic"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "state": {
+                "const": "fixed_frame_descriptive"
+              }
+            },
+            "required": [
+              "state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "deviation_codes": {
+                "maxItems": 0
+              },
+              "observed_model_identities": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "coupling",
+              "sufficiency_report",
+              "expected_response_diagnostic",
+              "observed_execution_window",
+              "observed_execution_provenance"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_role": {
+                "const": "inertia_estimand"
+              },
+              "state": {
+                "const": "fixed_frame_descriptive"
+              }
+            },
+            "required": [
+              "state",
+              "analysis_role"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "control_expected_stability_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_interval"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_interval"
+                  ]
+                }
+              ]
+            },
+            "required": [
+              "decision_response_cluster_count",
+              "decision_inertia_cluster_count",
+              "decision_wrong_direction_cluster_count",
+              "decision_other_non_inertia_cluster_count",
+              "decision_inertia_descriptive_breakdown",
+              "decision_response_rate",
+              "decision_inertia_rate"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_role": {
+                "const": "invariant_negative_control"
+              },
+              "state": {
+                "const": "fixed_frame_descriptive"
+              }
+            },
+            "required": [
+              "state",
+              "analysis_role"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "decision_response_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_wrong_direction_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_other_non_inertia_cluster_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_descriptive_breakdown"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_response_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_rate"
+                  ]
+                },
+                {
+                  "required": [
+                    "decision_inertia_interval"
+                  ]
+                },
+                {
+                  "required": [
+                    "control_unexpected_change_interval"
+                  ]
+                }
+              ]
+            },
+            "required": [
+              "control_expected_stability_cluster_count",
+              "control_unexpected_change_cluster_count",
+              "control_unexpected_change_rate"
             ]
           }
         },
@@ -4150,6 +4657,7 @@
     },
     "StudyConditionState": {
       "enum": [
+        "fixed_frame_descriptive",
         "analyzed",
         "control_failed",
         "underpowered",
@@ -4270,6 +4778,7 @@
         },
         "diagnostic_state": {
           "enum": [
+            "fixed_frame_descriptive",
             "expected_response_supported",
             "expected_response_not_supported",
             "prerequisites_unmet",
@@ -4345,6 +4854,157 @@
       "title": "StudyFailureSummary",
       "type": "object"
     },
+    "StudyFixedFrameDependenceAcknowledgement": {
+      "additionalProperties": false,
+      "description": "Machine-readable acknowledgement that a frozen frame is not a population sample.",
+      "properties": {
+        "dependence_audit_artifact_sha256": {
+          "pattern": "^[a-f0-9]{64}$",
+          "title": "Dependence Audit Artifact Sha256",
+          "type": "string"
+        },
+        "dependence_basis": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Dependence Basis",
+          "type": "string"
+        },
+        "dependence_risks_and_mitigations": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Dependence Risks And Mitigations",
+          "type": "string"
+        },
+        "descriptive_unit_definition": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Descriptive Unit Definition",
+          "type": "string"
+        },
+        "design_basis": {
+          "const": "shared_template_parameter_grid",
+          "default": "shared_template_parameter_grid",
+          "title": "Design Basis",
+          "type": "string"
+        },
+        "residual_scope_limitation": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Residual Scope Limitation",
+          "type": "string"
+        },
+        "semantic_near_duplicate_disposition": {
+          "const": "fixed_frame_descriptive_only",
+          "default": "fixed_frame_descriptive_only",
+          "title": "Semantic Near Duplicate Disposition",
+          "type": "string"
+        },
+        "software_verification_scope": {
+          "const": "structure_and_presence_only_not_dependence_truth",
+          "default": "structure_and_presence_only_not_dependence_truth",
+          "title": "Software Verification Scope",
+          "type": "string"
+        }
+      },
+      "required": [
+        "dependence_audit_artifact_sha256",
+        "descriptive_unit_definition",
+        "dependence_basis",
+        "dependence_risks_and_mitigations",
+        "residual_scope_limitation"
+      ],
+      "title": "StudyFixedFrameDependenceAcknowledgement",
+      "type": "object"
+    },
+    "StudyFixedFrameDescriptiveRule": {
+      "additionalProperties": false,
+      "description": "Finite-frame diagnostics with no inferential decision machinery.",
+      "properties": {
+        "dependence_acknowledgement": {
+          "$ref": "#/$defs/StudyFixedFrameDependenceAcknowledgement"
+        },
+        "derivation": {
+          "const": "direct_same_decision_rate_on_decision_flip_conditions",
+          "default": "direct_same_decision_rate_on_decision_flip_conditions",
+          "title": "Derivation",
+          "type": "string"
+        },
+        "descriptive_frame": {
+          "const": "all_frozen_planned_clusters",
+          "default": "all_frozen_planned_clusters",
+          "title": "Descriptive Frame",
+          "type": "string"
+        },
+        "descriptive_scope_rationale": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Descriptive Scope Rationale",
+          "type": "string"
+        },
+        "descriptive_unit": {
+          "const": "frozen_case_cluster",
+          "default": "frozen_case_cluster",
+          "title": "Descriptive Unit",
+          "type": "string"
+        },
+        "estimand": {
+          "const": "decision_inertia_rate",
+          "default": "decision_inertia_rate",
+          "title": "Estimand",
+          "type": "string"
+        },
+        "inference_scope": {
+          "const": "fixed_frame_descriptive_conformance",
+          "title": "Inference Scope",
+          "type": "string"
+        },
+        "invariant_control_gate": {
+          "const": "zero_observed_unexpected_arm_changes",
+          "default": "zero_observed_unexpected_arm_changes",
+          "title": "Invariant Control Gate",
+          "type": "string"
+        },
+        "negative_control_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Negative Control Conditions",
+          "type": "array"
+        },
+        "sampling_frame": {
+          "const": "finite_frozen_conformance_frame",
+          "default": "finite_frozen_conformance_frame",
+          "title": "Sampling Frame",
+          "type": "string"
+        },
+        "target_task_model_conditions": {
+          "items": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Target Task Model Conditions",
+          "type": "array"
+        }
+      },
+      "required": [
+        "inference_scope",
+        "target_task_model_conditions",
+        "negative_control_conditions",
+        "dependence_acknowledgement",
+        "descriptive_scope_rationale"
+      ],
+      "title": "StudyFixedFrameDescriptiveRule",
+      "type": "object"
+    },
     "StudyHypothesisClassification": {
       "enum": [
         "supported",
@@ -4383,8 +5043,8 @@
           "type": "string"
         },
         "directional_error_control": {
-          "const": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
-          "default": "each_direction_separately_fwer_controlled_not_joint_two_sided_alpha",
+          "const": "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha",
+          "default": "complementary_hypotheses_combined_wrong_direction_fwer_at_most_familywise_alpha",
           "title": "Directional Error Control",
           "type": "string"
         },
@@ -4395,11 +5055,8 @@
           "type": "string"
         },
         "exchangeability_assumption": {
+          "const": "independent_exchangeable_binary_cluster_endpoints_within_condition",
           "default": "independent_exchangeable_binary_cluster_endpoints_within_condition",
-          "enum": [
-            "independent_exchangeable_binary_cluster_endpoints_within_condition",
-            "not_assumed_fixed_frame_descriptive_only"
-          ],
           "title": "Exchangeability Assumption",
           "type": "string"
         },
@@ -4418,8 +5075,9 @@
           "$ref": "#/$defs/StudyIndependenceJustification"
         },
         "inference_scope": {
-          "$ref": "#/$defs/StudyInferenceScope",
-          "default": "confirmatory_independent_clusters"
+          "const": "confirmatory_independent_clusters",
+          "title": "Inference Scope",
+          "type": "string"
         },
         "inferential_unit": {
           "const": "case_cluster",
@@ -4506,6 +5164,7 @@
         }
       },
       "required": [
+        "inference_scope",
         "target_task_model_conditions",
         "negative_control_conditions",
         "minimum_independent_clusters",
@@ -4532,16 +5191,19 @@
       "additionalProperties": false,
       "description": "Structured author assertion; never machine proof of independence.",
       "properties": {
+        "cluster_unit_definition": {
+          "maxLength": 4096,
+          "minLength": 32,
+          "title": "Cluster Unit Definition",
+          "type": "string"
+        },
         "dependence_risks_and_mitigations": {
           "maxLength": 4096,
           "minLength": 32,
           "title": "Dependence Risks And Mitigations",
           "type": "string"
         },
-        "design_basis": {
-          "$ref": "#/$defs/StudyIndependenceDesignBasis"
-        },
-        "independence_audit_artifact_sha256": {
+        "design_audit_artifact_sha256": {
           "anyOf": [
             {
               "pattern": "^[a-f0-9]{64}$",
@@ -4552,18 +5214,15 @@
             }
           ],
           "default": null,
-          "title": "Independence Audit Artifact Sha256"
+          "title": "Design Audit Artifact Sha256"
+        },
+        "design_basis": {
+          "$ref": "#/$defs/StudyIndependenceDesignBasis"
         },
         "independence_basis": {
           "maxLength": 4096,
           "minLength": 32,
           "title": "Independence Basis",
-          "type": "string"
-        },
-        "inferential_unit_definition": {
-          "maxLength": 4096,
-          "minLength": 32,
-          "title": "Inferential Unit Definition",
           "type": "string"
         },
         "residual_scope_limitation": {
@@ -4589,7 +5248,7 @@
         "status",
         "design_basis",
         "semantic_near_duplicate_disposition",
-        "inferential_unit_definition",
+        "cluster_unit_definition",
         "independence_basis",
         "dependence_risks_and_mitigations",
         "residual_scope_limitation"
@@ -4600,8 +5259,7 @@
     "StudyIndependenceJustificationStatus": {
       "enum": [
         "unresolved_authoring_placeholder",
-        "author_asserted_design_basis_pending_qualified_review",
-        "fixed_frame_dependence_acknowledged"
+        "author_asserted_design_basis_pending_qualified_review"
       ],
       "title": "StudyIndependenceJustificationStatus",
       "type": "string"
@@ -4641,6 +5299,86 @@
     },
     "StudyObservedExecutionProvenance": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "provider_response_payload_commitment_set_digest": {
+                "type": "string"
+              },
+              "provider_response_payload_scopes": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "provider_response_payload_commitment_set_digest",
+              "provider_response_payload_scopes"
+            ]
+          },
+          "if": {
+            "properties": {
+              "provider_response_payload_commitment_records": {
+                "const": 0
+              }
+            },
+            "required": [
+              "provider_response_payload_commitment_records"
+            ]
+          },
+          "then": {
+            "properties": {
+              "provider_response_payload_commitment_set_digest": {
+                "type": "null"
+              },
+              "provider_response_payload_scopes": {
+                "maxItems": 0
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observed_origin": {
+                "const": "real_provider"
+              }
+            },
+            "required": [
+              "observed_origin"
+            ]
+          },
+          "then": {
+            "properties": {
+              "adapter_ids": {
+                "items": {
+                  "enum": [
+                    "openai-chat-completions"
+                  ]
+                },
+                "minItems": 1
+              },
+              "execution_attempt_journal_verified": {
+                "const": true
+              },
+              "provider_response_payload_commitment_records": {
+                "minimum": 1
+              },
+              "provider_response_payload_commitment_set_digest": {
+                "type": "string"
+              },
+              "provider_response_payload_scopes": {
+                "const": [
+                  "complete_http_response_body"
+                ]
+              }
+            },
+            "required": [
+              "provider_response_payload_commitment_set_digest",
+              "provider_response_payload_scopes"
+            ]
+          }
+        }
+      ],
       "description": "Digest-bound local evidence for how a study condition was executed.\n\nThis is a deterministic projection of the exact source RunSets and their\nprivacy-filtered records. It is intentionally evidence of the local runner\npath, not a cryptographic attestation from a remote provider.",
       "properties": {
         "adapter_ids": {
@@ -4650,7 +5388,8 @@
           },
           "maxItems": 16,
           "title": "Adapter Ids",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "approved_adapter_run_records": {
           "maximum": 8192,
@@ -4793,6 +5532,41 @@
           "title": "Provider Response Metadata Records",
           "type": "integer"
         },
+        "provider_response_payload_commitment_records": {
+          "maximum": 8192,
+          "minimum": 0,
+          "title": "Provider Response Payload Commitment Records",
+          "type": "integer"
+        },
+        "provider_response_payload_commitment_set_digest": {
+          "anyOf": [
+            {
+              "pattern": "^[a-f0-9]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Provider Response Payload Commitment Set Digest"
+        },
+        "provider_response_payload_scopes": {
+          "default": [],
+          "items": {
+            "enum": [
+              "complete_http_response_body",
+              "complete_external_script_stdout",
+              "complete_static_jsonl_record",
+              "complete_adapter_declared_response_bytes"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "title": "Provider Response Payload Scopes",
+          "type": "array",
+          "uniqueItems": true
+        },
         "provider_serving_fingerprint_policy": {
           "const": "all_absent_or_complete_and_stable_across_condition",
           "default": "all_absent_or_complete_and_stable_across_condition",
@@ -4858,6 +5632,7 @@
         "binding_consistent_run_records",
         "timing_complete_run_records",
         "provider_response_id_records",
+        "provider_response_payload_commitment_records",
         "provider_response_metadata_records",
         "provider_serving_fingerprint_records",
         "distinct_provider_serving_fingerprints",
@@ -5351,6 +6126,7 @@
     "SufficiencyState": {
       "enum": [
         "satisfied",
+        "descriptive_complete",
         "prerequisites_unmet",
         "inconclusive"
       ],

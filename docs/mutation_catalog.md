@@ -118,6 +118,14 @@ Each selected operator:
 6. checks the normative required detector and prohibited substitutes; and
 7. emits an individual mutation result that the campaign embeds.
 
+The material-evidence-link operator shares the detector's affirmative
+applicability predicate. A target must have a control-eligible claim link whose
+reference ID occurs in both the control-eligible evidence-reference set and the
+control-eligible content-addressed evidence-item set. The selected claim
+therefore passes the target detector before mutation; an item-only, reference-
+only, or producer-declared graph is inapplicable rather than a false detector
+challenge.
+
 All current built-ins set `secondary_findings_allowed: true`. Secondary
 findings are newly observed candidate findings after source findings are
 removed. They remain fully visible in the result, but unless they match an

@@ -265,6 +265,23 @@ those remain producer-attested rather than independently verified. Legacy live
 records with unspecified origins fail closed for observation-grade process
 controls. Agent Assure does not attest adapter code or provider responses.
 
+Current built-in live adapters commit successful records to exact bounded
+response bytes without persisting those bytes. Registered adapter IDs constrain
+the declared coverage scope, and confirmatory real-provider study provenance
+requires complete `complete_http_response_body` coverage from the registered
+OpenAI-compatible adapter. This is a trusted local-adapter assertion, not remote
+provider authentication, a signature, proof of transport completeness, or
+semantic verification. Plain SHA-256 commitments can be guessable or linkable
+and do not make sensitive payloads safe to retain elsewhere.
+
+For the OpenAI-compatible adapter, `timeout_seconds` is a Python HTTPS
+connect/socket-I/O timeout, not a monotonic end-to-end deadline. It does not
+bound synchronous DNS resolution, and progress just inside each socket timeout
+can keep one response open longer. Study execution-window checks do not cancel
+that in-flight call; the post-response guard prevents later dispatch only after
+the call returns. Deployments needing a whole-operation deadline must enforce
+one around the Agent Assure process or job.
+
 A live RunSet is one bounded JSON artifact rather than a streaming log. Live
 and repeated-sensitivity plans therefore reject more than 4,096 observations
 per RunSet before schedule allocation. Ordinary JSON artifacts retain a 16 MiB
@@ -532,6 +549,15 @@ the declared binomial family; they do not verify cluster independence or
 exchangeability, correct benchmark selection, provider drift, unrecorded
 reruns, or publication bias.
 
+A provider may omit serving fingerprints entirely. Agent Assure preserves such
+runs as real-provider execution evidence when all other origin requirements are
+met, analyzes them, and discloses the absence rather than inventing an identity.
+All-absent coverage is insufficient for confirmatory publication and the
+empirical release checkpoint: those gates require complete-and-stable coverage
+for every run and independently reviewed condition. Even complete stable
+provider-supplied metadata does not authenticate or prove an immutable serving
+backend.
+
 Missing, excluded, invalid, or non-analyzable observations remain visible.
 Inertia is counted directly from coherent same-decision arm pairs rather than
 as the complement of expected response. Invariant negative-control changes
@@ -563,8 +589,14 @@ Python fail closed. Credential-handling source is parsed structurally rather
 than rejected for vocabulary alone. The sole binary source-distribution asset
 is bound to an explicitly reviewed path and SHA-256 digest and must also pass
 bounded PNG structure and decompression checks. Intentional credential-detector
-test vectors are exceptions only at exact path-and-byte digests, so any edit
-restores ordinary scanning. These checks are not general DLP or steganography
+test vectors may neutralize only reviewed, counted Python string tokens bound
+to an exact test-member path and exact token-byte SHA-256. Original source and
+the neutralized projection both pass syntax and resource checks; every other
+source byte remains under ordinary scanning. Altered, added, duplicated,
+missing, or cross-path tokens fail closed, while unrelated test edits do not
+require digest renewal. Compile-time adjacent Python string-literal values are
+also scanned before neutralization; participation in such a group invalidates
+the reviewed-token exemption. These checks are not general DLP or steganography
 detection; reviewers remain responsible for the approved source and exact
 binary asset bytes.
 
