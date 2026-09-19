@@ -29,7 +29,7 @@ jobs:
       bundle_artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -105,7 +105,7 @@ jobs:
       verified_bundle_artifact_id: ${{ steps.upload-verified.outputs.artifact-id }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -232,7 +232,7 @@ jobs:
       verified_signed_bundle_artifact_id: ${{ steps.upload-verified-bundle.outputs.artifact-id }}
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # actions/setup-python@v5
@@ -283,7 +283,7 @@ jobs:
       contents: read
     steps:
       # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # actions/setup-python@v5
