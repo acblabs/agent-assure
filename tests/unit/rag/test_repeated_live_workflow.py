@@ -1009,6 +1009,9 @@ def test_ordinary_paired_live_execution_returns_incomplete_arms_for_nonverdict_a
         json.dumps(protocol.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
+    registered_protocol_snapshot = (
+        repeated_workflow.load_registered_repeated_sensitivity_protocol_snapshot(protocol_path)
+    )
     compiled = compile_suite(Path("examples/expense_approval_minimal/suite.yaml"))
     operational_protocol = _operational_protocol(compiled)
     operational_protocol_digest = sha256_hexdigest(operational_protocol)
@@ -1039,6 +1042,16 @@ def test_ordinary_paired_live_execution_returns_incomplete_arms_for_nonverdict_a
 
     monkeypatch.setattr(repeated_workflow, "run_live_suite", partial_dispatch)
 
+    def unexpected_protocol_reload(*_args: object, **_kwargs: object) -> object:
+        raise AssertionError("sealed registered protocol snapshot was reloaded")
+
+    monkeypatch.setattr(
+        repeated_workflow,
+        "load_registered_repeated_sensitivity_protocol_snapshot",
+        unexpected_protocol_reload,
+    )
+    monkeypatch.chdir(tmp_path)
+
     observed_baseline, observed_counterfactual = run_repeated_live_study(
         compiled=compiled,
         protocol=protocol,
@@ -1047,7 +1060,8 @@ def test_ordinary_paired_live_execution_returns_incomplete_arms_for_nonverdict_a
         operational_protocol=operational_protocol,
         baseline_config_dir=tmp_path,
         counterfactual_config_dir=tmp_path,
-        registered_protocol_path=protocol_path,
+        registered_protocol_path=Path("registered-protocol.json"),
+        registered_protocol_snapshot=registered_protocol_snapshot,
     )
 
     assert dispatches == ["baseline_evidence", "counterfactual_evidence"]
@@ -1056,6 +1070,48 @@ def test_ordinary_paired_live_execution_returns_incomplete_arms_for_nonverdict_a
     assert observed_counterfactual.completion_status == "complete"
     assert observed_baseline.execution_attempt_journal is not None
     assert observed_counterfactual.execution_attempt_journal is not None
+
+
+def test_registered_protocol_snapshot_rejects_unissued_instances() -> None:
+    snapshot_type = repeated_workflow.RegisteredRepeatedSensitivityProtocolSnapshot
+    with pytest.raises(TypeError, match="must be issued"):
+        snapshot_type()
+
+    forged_snapshot = object.__new__(snapshot_type)
+    with pytest.raises(ValueError, match="snapshot is invalid"):
+        repeated_workflow._validate_registered_protocol_snapshot(forged_snapshot)
+
+
+def test_registered_protocol_snapshot_enforces_the_hard_artifact_cap(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol_path = tmp_path / "registered-protocol.json"
+    protocol_path.write_text("{}", encoding="utf-8")
+    observed_limits: list[int] = []
+
+    def oversized_loader(
+        _path: Path,
+        *,
+        max_bytes: int,
+    ) -> tuple[RepeatedEvidenceSensitivityProtocol, bytes]:
+        observed_limits.append(max_bytes)
+        return _protocol(), b"x" * 33
+
+    monkeypatch.setattr(repeated_workflow, "MAX_ARTIFACT_JSON_BYTES", 32)
+    monkeypatch.setattr(
+        repeated_workflow,
+        "load_repeated_sensitivity_protocol_with_bytes",
+        oversized_loader,
+    )
+
+    with pytest.raises(ValueError, match="maximum artifact size"):
+        repeated_workflow.load_registered_repeated_sensitivity_protocol_snapshot(
+            protocol_path,
+            max_bytes=64,
+        )
+
+    assert observed_limits == [32]
 
 
 def test_study_bound_live_library_requires_exact_study_inputs_before_dispatch(

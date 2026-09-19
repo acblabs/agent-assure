@@ -28,8 +28,14 @@ def _review(**overrides: object) -> StudyStatisticalMethodReviewReceipt:
     fixture = _fixture(real_provider_execution=True)
     values: dict[str, object] = {
         "manifest": fixture.manifest,
+        "manifest_bytes": published_model_json_bytes(fixture.manifest),
         "benchmark": fixture.benchmark,
+        "benchmark_bytes": published_model_json_bytes(fixture.benchmark),
         "protocols": fixture.protocols,
+        "registered_protocol_bytes": {
+            condition_id: published_model_json_bytes(protocol)
+            for condition_id, protocol in fixture.protocols.items()
+        },
         "registration_record_bytes": fixture.registration_record_bytes,
         "registration_review_receipt": fixture.registration_review_receipt,
         "independence_audit_artifact_bytes": fixture.independence_audit_artifact_bytes,
@@ -95,8 +101,14 @@ def _fixed_review() -> StudyStatisticalMethodReviewReceipt:
     )
     return build_study_statistical_method_review_receipt(
         manifest=manifest,
+        manifest_bytes=published_model_json_bytes(manifest),
         benchmark=fixture.benchmark,
+        benchmark_bytes=published_model_json_bytes(fixture.benchmark),
         protocols=protocols,
+        registered_protocol_bytes={
+            condition_id: published_model_json_bytes(protocol)
+            for condition_id, protocol in protocols.items()
+        },
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=registration_review,
         independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
@@ -342,6 +354,41 @@ def test_statistical_method_review_rejects_copied_author_independence_basis() ->
         )
 
 
+@pytest.mark.parametrize(
+    ("field_name", "author_field"),
+    (
+        ("design_review_rationale", "independence_basis"),
+        (
+            "semantic_near_duplicate_review_rationale",
+            "dependence_risks_and_mitigations",
+        ),
+    ),
+)
+@pytest.mark.parametrize("presentation_variant", ("case", "whitespace", "unicode"))
+def test_statistical_method_review_rejects_presentation_only_author_prose_changes(
+    field_name: str,
+    author_field: str,
+    presentation_variant: str,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    justification = fixture.manifest.hypothesis_decision_rule.independence_justification
+    author_prose = getattr(justification, author_field)
+    if presentation_variant == "case":
+        copied_prose = author_prose.swapcase()
+    elif presentation_variant == "whitespace":
+        copied_prose = " \n\t".join(author_prose.split())
+    else:
+        copied_prose = "".join(
+            chr(ord(character) + 0xFEE0)
+            if index < 3 and 0x21 <= ord(character) <= 0x7E
+            else character
+            for index, character in enumerate(author_prose)
+        )
+
+    with pytest.raises(ValueError, match="must add independent analysis"):
+        _review(**{field_name: copied_prose})
+
+
 def test_statistical_method_review_rejects_placeholder_qualification_digest() -> None:
     with pytest.raises(ValidationError, match="commit to actual evidence bytes"):
         _review(reviewer_qualification_evidence_digest="0" * 64)
@@ -350,6 +397,22 @@ def test_statistical_method_review_rejects_placeholder_qualification_digest() ->
 def test_statistical_method_review_must_precede_execution() -> None:
     with pytest.raises(ValidationError, match="before execution"):
         _review(reviewed_at_utc="2025-02-01T00:00:00Z")
+
+
+@pytest.mark.parametrize(
+    "byte_input",
+    ("manifest_bytes", "benchmark_bytes", "registered_protocol_bytes"),
+)
+def test_statistical_method_review_builder_rejects_bytes_for_different_models(
+    byte_input: str,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    supplied: object = b"{}\n"
+    if byte_input == "registered_protocol_bytes":
+        supplied = {condition_id: b"{}\n" for condition_id in fixture.protocols}
+
+    with pytest.raises(ValueError, match="bytes do not exactly encode the supplied model"):
+        _review(**{byte_input: supplied})
 
 
 @pytest.mark.parametrize(

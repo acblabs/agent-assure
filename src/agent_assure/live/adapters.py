@@ -607,6 +607,7 @@ class ExternalScriptAdapter:
         base_dir: Path,
         trust: TrustedLiveExecution | None = None,
         resource_snapshot: LiveAdapterResourceSnapshot | None = None,
+        provider_dispatch_guard: Callable[[], None] | None = None,
     ) -> None:
         require_live_adapter_trust(config, trust)
         if config.script_path is None:
@@ -650,6 +651,7 @@ class ExternalScriptAdapter:
         )
         self._environment = tuple((item.name, item.value) for item in config.script_env)
         self._environment_allowlist = tuple(config.script_env_allowlist)
+        self._provider_dispatch_guard = provider_dispatch_guard
 
     def complete(self, request: LiveProviderRequest) -> LiveProviderResponse:
         payload: dict[str, object] = {
@@ -710,7 +712,14 @@ class ExternalScriptAdapter:
                 cwd_device=cwd.device,
                 cwd_inode=cwd.inode,
             )
-            completed = run_external_script(invocation)
+            # Reject before entering the process harness. The harness repeats
+            # this check at the OS launch boundary after its own preparation.
+            if self._provider_dispatch_guard is not None:
+                self._provider_dispatch_guard()
+            completed = run_external_script(
+                invocation,
+                dispatch_guard=self._provider_dispatch_guard,
+            )
         try:
             loaded = loads_json_bounded(
                 completed.stdout,
@@ -826,6 +835,7 @@ def build_adapter(
             base_dir=base_dir,
             trust=trust,
             resource_snapshot=resource_snapshot,
+            provider_dispatch_guard=network_dispatch_guard,
         )
     raise AssertionError("live adapter registry and builder are inconsistent")
 

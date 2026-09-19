@@ -38,6 +38,7 @@ from agent_assure.study.readiness import (
     EmpiricalReadinessAssessment,
     assess_empirical_readiness,
 )
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_bundle import ValidatedStudyBundle
 from agent_assure.study_execution_review import build_study_execution_review_receipt
 from agent_assure.study_method_review import build_study_statistical_method_review_receipt
@@ -147,8 +148,14 @@ def _verified_study(
     ):
         statistical_method_review_receipt = build_study_statistical_method_review_receipt(
             manifest=actual_manifest,
+            manifest_bytes=published_model_json_bytes(actual_manifest),
             benchmark=fixture.benchmark,
+            benchmark_bytes=published_model_json_bytes(fixture.benchmark),
             protocols=actual_protocols,
+            registered_protocol_bytes={
+                condition_id: published_model_json_bytes(protocol)
+                for condition_id, protocol in actual_protocols.items()
+            },
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=registration_review_receipt,
             independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,

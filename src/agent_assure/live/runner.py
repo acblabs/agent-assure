@@ -197,6 +197,21 @@ class _LiveAttemptState:
     rate_limit_events: int = 0
 
 
+@dataclass(slots=True)
+class _LiveProviderAttemptReserve:
+    config: LiveRunConfig
+    attempt_index: int | None = None
+
+    def begin_attempt(self, attempt_index: int) -> None:
+        _remaining_provider_attempt_chain_seconds(self.config, attempt_index)
+        self.attempt_index = attempt_index
+
+    def minimum_remaining_seconds(self) -> Decimal:
+        if self.attempt_index is None:
+            raise RuntimeError("provider attempt reserve is not bound to an active attempt")
+        return _remaining_provider_attempt_chain_seconds(self.config, self.attempt_index)
+
+
 @dataclass(frozen=True)
 class LiveAttemptNotification:
     """Privacy-safe synchronous notification around one actual adapter call."""
@@ -263,19 +278,42 @@ class _StudyBoundAttemptJournalExecutionCapability:
         provider_dispatch_guard: LiveProviderDispatchGuard | None,
     ) -> None:
         with self._lock:
-            if self._consumed:
-                raise ValueError(
-                    "study dispatch authorization was already consumed; refusing replay"
-                )
-            if attempt_observer is not self._attempt_observer:
-                raise ValueError(
-                    "study dispatch authorization does not match its durable attempt observer"
-                )
-            if provider_dispatch_guard is not self._provider_dispatch_guard:
-                raise ValueError(
-                    "study dispatch authorization does not match its journal-owned dispatch guard"
-                )
+            self._validate_callbacks_locked(
+                attempt_observer=attempt_observer,
+                provider_dispatch_guard=provider_dispatch_guard,
+            )
             self._consumed = True
+
+    def validate_callbacks(
+        self,
+        *,
+        attempt_observer: LiveAttemptObserver | None,
+        provider_dispatch_guard: LiveProviderDispatchGuard | None,
+    ) -> None:
+        """Validate the one-shot binding without consuming the reserved journal arm."""
+
+        with self._lock:
+            self._validate_callbacks_locked(
+                attempt_observer=attempt_observer,
+                provider_dispatch_guard=provider_dispatch_guard,
+            )
+
+    def _validate_callbacks_locked(
+        self,
+        *,
+        attempt_observer: LiveAttemptObserver | None,
+        provider_dispatch_guard: LiveProviderDispatchGuard | None,
+    ) -> None:
+        if self._consumed:
+            raise ValueError("study dispatch authorization was already consumed; refusing replay")
+        if attempt_observer is not self._attempt_observer:
+            raise ValueError(
+                "study dispatch authorization does not match its durable attempt observer"
+            )
+        if provider_dispatch_guard is not self._provider_dispatch_guard:
+            raise ValueError(
+                "study dispatch authorization does not match its journal-owned dispatch guard"
+            )
 
     def __copy__(self) -> _StudyBoundAttemptJournalExecutionCapability:
         return self
@@ -376,7 +414,7 @@ def _issue_study_bound_live_execution_authorization(
     )
 
 
-def _consume_study_bound_live_execution_authorization(
+def _validate_study_bound_live_execution_authorization(
     config: LiveRunConfig,
     authorization: _StudyBoundLiveExecutionAuthorization | None,
     *,
@@ -416,10 +454,30 @@ def _consume_study_bound_live_execution_authorization(
         evidence_sensitivity_design_digest=authorization.evidence_sensitivity_design_digest,
         configuration_digest=authorization.configuration_digest,
     )
-    authorization._journal_execution_capability.consume(
+    authorization._journal_execution_capability.validate_callbacks(
         attempt_observer=attempt_observer,
         provider_dispatch_guard=provider_dispatch_guard,
     )
+
+
+def _consume_study_bound_live_execution_authorization(
+    config: LiveRunConfig,
+    authorization: _StudyBoundLiveExecutionAuthorization | None,
+    *,
+    attempt_observer: LiveAttemptObserver | None,
+    provider_dispatch_guard: LiveProviderDispatchGuard | None,
+) -> None:
+    _validate_study_bound_live_execution_authorization(
+        config,
+        authorization,
+        attempt_observer=attempt_observer,
+        provider_dispatch_guard=provider_dispatch_guard,
+    )
+    if authorization is not None:
+        authorization._journal_execution_capability.consume(
+            attempt_observer=attempt_observer,
+            provider_dispatch_guard=provider_dispatch_guard,
+        )
 
 
 def _validate_study_bound_live_execution_configuration(
@@ -431,7 +489,7 @@ def _validate_study_bound_live_execution_configuration(
     if config.execution_profile == ORDINARY_LIVE_EXECUTION_PROFILE:
         return
     if authorization is None:
-        raise ValueError("study-bound live execution has no consumed dispatch authorization")
+        raise ValueError("study-bound live execution has no dispatch authorization")
     if authorization.configuration_digest != configuration_digest:
         raise ValueError("study dispatch authorization does not match the executable live config")
     require_validated_study_dispatch_authorization(
@@ -445,15 +503,23 @@ def _validate_study_bound_live_execution_configuration(
 def _authorized_provider_dispatch_guard(
     authorization: _StudyBoundLiveExecutionAuthorization | None,
     provider_dispatch_guard: LiveProviderDispatchGuard | None,
+    *,
+    minimum_remaining_seconds: Decimal | Callable[[], Decimal],
 ) -> LiveProviderDispatchGuard | None:
     if authorization is None:
         return provider_dispatch_guard
     assert provider_dispatch_guard is not None
 
     def guard() -> None:
+        required_seconds = (
+            minimum_remaining_seconds()
+            if callable(minimum_remaining_seconds)
+            else minimum_remaining_seconds
+        )
         require_validated_study_dispatch_window_open(
             authorization._validated_preflight,
             boundary="live provider attempt",
+            minimum_remaining_seconds=required_seconds,
         )
         provider_dispatch_guard()
 
@@ -1040,15 +1106,22 @@ def run_live_suite(
     compiled = CompiledSuite.model_validate(compiled.model_dump(mode="json"))
     config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
     protocol = LiveProtocolRecord.model_validate(protocol.model_dump(mode="json"))
-    _consume_study_bound_live_execution_authorization(
+    _validate_study_bound_live_execution_authorization(
         config,
         _study_dispatch_authorization,
         attempt_observer=attempt_observer,
         provider_dispatch_guard=provider_dispatch_guard,
     )
-    provider_dispatch_guard = _authorized_provider_dispatch_guard(
+    provider_attempt_reserve = _LiveProviderAttemptReserve(config)
+    authorized_provider_dispatch_guard = _authorized_provider_dispatch_guard(
         _study_dispatch_authorization,
         provider_dispatch_guard,
+        minimum_remaining_seconds=provider_attempt_reserve.minimum_remaining_seconds,
+    )
+    authorized_provider_completion_guard = _authorized_provider_dispatch_guard(
+        _study_dispatch_authorization,
+        provider_dispatch_guard,
+        minimum_remaining_seconds=Decimal("0"),
     )
     _validate_cases(compiled, config)
     _validate_protocol_config(compiled, config, protocol)
@@ -1088,8 +1161,8 @@ def run_live_suite(
         resource_snapshot=snapshot.adapter_resource,
         network_dispatch_guard=(
             lambda: (
-                _run_provider_dispatch_guard(provider_dispatch_guard)
-                if provider_dispatch_guard is not None
+                _run_provider_dispatch_guard(authorized_provider_dispatch_guard)
+                if authorized_provider_dispatch_guard is not None
                 else None
             )
         ),
@@ -1110,6 +1183,15 @@ def run_live_suite(
     terminal_stop_reason: str | None = None
     runs: list[AgentRunRecord] = []
     emergency_records: list[EmergencyProcessRecord] = []
+    # Consume the reserved journal arm only after all local configuration,
+    # snapshot, and adapter validation has succeeded. From this point forward,
+    # execution may emit durable attempt records or dispatch provider work.
+    _consume_study_bound_live_execution_authorization(
+        config,
+        _study_dispatch_authorization,
+        attempt_observer=attempt_observer,
+        provider_dispatch_guard=provider_dispatch_guard,
+    )
     for schedule_index, prompt_case, repetition_index in schedule:
         prompt = prompts[prompt_case.case_id]
         prompt_digest = _provider_input_digest(
@@ -1352,8 +1434,10 @@ def run_live_suite(
                 rate_limit_budget=rate_limit_budget,
                 attempt_state=attempt_state,
                 before_attempt=pace_attempt,
+                begin_provider_attempt=provider_attempt_reserve.begin_attempt,
                 attempt_observer=attempt_observer,
-                provider_dispatch_guard=provider_dispatch_guard,
+                provider_dispatch_guard=authorized_provider_dispatch_guard,
+                provider_completion_guard=authorized_provider_completion_guard,
             )
             latency_ms = monotonic_ms(start)
             completed = completed or _completion_utc(started)
@@ -1940,6 +2024,29 @@ def _planned_observation_count(config: LiveRunConfig) -> int:
     return len(config.cases) * config.repetitions
 
 
+def maximum_provider_attempt_chain_seconds(config: LiveRunConfig) -> Decimal:
+    """Bound one observation's full timeout-and-retry chain conservatively."""
+
+    return _remaining_provider_attempt_chain_seconds(config, 1)
+
+
+def _remaining_provider_attempt_chain_seconds(
+    config: LiveRunConfig,
+    attempt_index: int,
+) -> Decimal:
+    """Bound the current attempt and every retry still available after it."""
+
+    max_attempts = config.max_retries + 1
+    if type(attempt_index) is not int or not 1 <= attempt_index <= max_attempts:
+        raise ValueError("provider attempt index is outside the configured retry chain")
+    remaining_attempts = max_attempts - attempt_index + 1
+    remaining_backoffs = remaining_attempts - 1
+    return (
+        Decimal(config.adapter.timeout_seconds) * remaining_attempts
+        + Decimal(config.retry_max_backoff_seconds) * remaining_backoffs
+    )
+
+
 def _schedule(config: LiveRunConfig) -> Iterator[tuple[int, LivePromptCase, int]]:
     rng = random.Random(config.randomization_seed)
     schedule_index = 0
@@ -1960,12 +2067,15 @@ def _complete_with_retries(
     rate_limit_budget: _LiveRateLimitBudget,
     attempt_state: _LiveAttemptState,
     before_attempt: Callable[[], None],
+    begin_provider_attempt: Callable[[int], None],
     attempt_observer: LiveAttemptObserver | None = None,
     provider_dispatch_guard: LiveProviderDispatchGuard | None = None,
+    provider_completion_guard: LiveProviderDispatchGuard | None = None,
 ) -> LiveProviderResponse:
     max_attempts = config.max_retries + 1
     last_exc: Exception | None = None
     for attempt in range(1, max_attempts + 1):
+        begin_provider_attempt(attempt)
         before_attempt()
         _run_provider_dispatch_guard(provider_dispatch_guard)
         request_budget.consume()
@@ -2037,7 +2147,11 @@ def _complete_with_retries(
         # Persist the response commitment before enforcing the post-call
         # boundary. If a call straddles the window end, its evidence remains
         # auditable but this exception prevents every subsequent attempt.
-        _run_provider_dispatch_guard(provider_dispatch_guard)
+        _run_provider_dispatch_guard(
+            provider_completion_guard
+            if provider_completion_guard is not None
+            else provider_dispatch_guard
+        )
         return response
     if last_exc is None:
         raise RuntimeError("live adapter failed without an exception")

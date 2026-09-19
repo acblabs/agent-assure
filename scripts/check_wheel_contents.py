@@ -213,6 +213,14 @@ class _BoundedTarInfo(tarfile.TarInfo):
         return super()._proc_member(archive)  # type: ignore[misc,no-any-return]
 
 
+RELEASE_TRUST_SOURCE_ROOT = ROOT / "study" / "registration"
+RELEASE_TRUST_FILENAMES = (
+    "frozen-non-grid-benchmark.json",
+    "frozen-non-grid-benchmark-statistical-method-review.json",
+)
+RELEASE_TRUST_WHEEL_ROOT = "agent_assure/release_trust/v0_6_6"
+
+
 BASE_REQUIRED_ARCHIVE_PATHS = (
     "agent_assure/__init__.py",
     "agent_assure/cli/main.py",
@@ -703,10 +711,31 @@ def _validate_sdist_privacy(sdist: Path) -> None:
             remaining_lines -= scanned_lines
 
 
-def required_archive_paths(
+def _release_trust_anchor_filenames(source_root: Path) -> tuple[str, ...]:
+    present: list[str] = []
+    for filename in RELEASE_TRUST_FILENAMES:
+        path = source_root / filename
+        try:
+            metadata = path.lstat()
+        except FileNotFoundError:
+            continue
+        if (
+            not stat.S_ISREG(metadata.st_mode)
+            or stat.S_ISLNK(metadata.st_mode)
+            or bool(
+                getattr(metadata, "st_file_attributes", 0) & _WINDOWS_FILE_ATTRIBUTE_REPARSE_POINT
+            )
+        ):
+            raise ValueError(f"release trust anchor is not a regular file: {path}")
+        present.append(filename)
+    return tuple(present)
+
+
+def _required_archive_paths(
     *,
-    schema_root: Path = SCHEMA_ROOT,
-    schema_versions: tuple[str, ...] | None = None,
+    schema_root: Path,
+    schema_versions: tuple[str, ...] | None,
+    release_trust_filenames: tuple[str, ...],
 ) -> tuple[str, ...]:
     versions = schema_versions or frozen_schema_versions(schema_root)
     schema_dirs = tuple(f"agent_assure/schema_resources/{version}/" for version in versions)
@@ -714,24 +743,58 @@ def required_archive_paths(
         schema_root=schema_root,
         schema_versions=versions,
     )
-    return (*BASE_REQUIRED_ARCHIVE_PATHS, *schema_dirs, *schema_paths)
+    trust_paths = tuple(
+        f"{RELEASE_TRUST_WHEEL_ROOT}/{filename}" for filename in release_trust_filenames
+    )
+    return (*BASE_REQUIRED_ARCHIVE_PATHS, *schema_dirs, *schema_paths, *trust_paths)
+
+
+def required_archive_paths(
+    *,
+    schema_root: Path = SCHEMA_ROOT,
+    schema_versions: tuple[str, ...] | None = None,
+    release_trust_source_root: Path | None = None,
+) -> tuple[str, ...]:
+    trust_source_root = (
+        RELEASE_TRUST_SOURCE_ROOT
+        if release_trust_source_root is None
+        else release_trust_source_root
+    )
+    return _required_archive_paths(
+        schema_root=schema_root,
+        schema_versions=schema_versions,
+        release_trust_filenames=_release_trust_anchor_filenames(trust_source_root),
+    )
 
 
 def required_sdist_paths(
     *,
     schema_root: Path = SCHEMA_ROOT,
     schema_versions: tuple[str, ...] | None = None,
+    release_trust_source_root: Path | None = None,
 ) -> tuple[str, ...]:
     """Return source-tree paths that must back every required installed resource."""
     versions = schema_versions or frozen_schema_versions(schema_root)
-    required = required_archive_paths(
+    trust_source_root = (
+        RELEASE_TRUST_SOURCE_ROOT
+        if release_trust_source_root is None
+        else release_trust_source_root
+    )
+    trust_filenames = _release_trust_anchor_filenames(trust_source_root)
+    required = _required_archive_paths(
         schema_root=schema_root,
         schema_versions=versions,
+        release_trust_filenames=trust_filenames,
     )
     generated_schema_prefixes = tuple(
         f"agent_assure/schema_resources/{version}/" for version in versions
     )
-    mapped: list[str] = ["LICENSE", "README.md", "pyproject.toml"]
+    mapped: list[str] = [
+        "LICENSE",
+        "README.md",
+        "pyproject.toml",
+        *(f"study/registration/{filename}" for filename in trust_filenames),
+    ]
     for path in required:
         if path.startswith(generated_schema_prefixes):
             mapped.append("schemas/" + path.removeprefix("agent_assure/schema_resources/"))
@@ -803,6 +866,10 @@ def validate_distribution_payload_equivalence(
                 "distribution payload equivalence requires safe archives: "
                 + "; ".join(archive_findings)
             )
+        _validate_sdist_release_trust_mirrors(
+            sdist_archive,
+            sdist_regular_names,
+        )
 
         wheel_members = {
             name: wheel_archive.getinfo(name)
@@ -864,6 +931,32 @@ def validate_distribution_payload_equivalence(
                 raise ValueError(f"wheel/sdist payload bytes differ: {wheel_name}")
             manifest[wheel_name] = hashlib.sha256(wheel_payload).hexdigest()
     return manifest
+
+
+def _validate_sdist_release_trust_mirrors(
+    archive: tarfile.TarFile,
+    regular_names: frozenset[str],
+) -> None:
+    by_stripped_name = {_strip_sdist_root(name): name for name in regular_names}
+    for filename in RELEASE_TRUST_FILENAMES:
+        canonical_name = f"study/registration/{filename}"
+        packaged_name = f"src/{RELEASE_TRUST_WHEEL_ROOT}/{filename}"
+        canonical_member_name = by_stripped_name.get(canonical_name)
+        packaged_member_name = by_stripped_name.get(packaged_name)
+        if canonical_member_name is None and packaged_member_name is None:
+            continue
+        if canonical_member_name is None or packaged_member_name is None:
+            raise ValueError(f"sdist release trust anchor pair is incomplete: {filename}")
+        canonical = _read_tar_member_bytes(
+            archive,
+            archive.getmember(canonical_member_name),
+        )
+        packaged = _read_tar_member_bytes(
+            archive,
+            archive.getmember(packaged_member_name),
+        )
+        if canonical != packaged:
+            raise ValueError(f"sdist release trust anchor mirrors differ: {filename}")
 
 
 def validate_wheel_archive_equivalence(

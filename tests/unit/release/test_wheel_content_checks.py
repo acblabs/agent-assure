@@ -133,6 +133,44 @@ def test_required_archive_paths_include_v061_campaign_contracts(
     assert "agent_assure/schema_resources/v0.6.1/run-set.schema.json" in required
 
 
+def test_release_trust_assets_become_required_in_both_distributions_when_frozen(
+    tmp_path: Path,
+) -> None:
+    trust_source = tmp_path / "study" / "registration"
+    trust_source.mkdir(parents=True)
+    benchmark_name = "frozen-non-grid-benchmark.json"
+    review_name = "frozen-non-grid-benchmark-statistical-method-review.json"
+
+    unfrozen_wheel = required_archive_paths(release_trust_source_root=trust_source)
+    unfrozen_sdist = required_sdist_paths(release_trust_source_root=trust_source)
+    assert not any("release_trust/v0_6_6" in path for path in unfrozen_wheel)
+    assert not any(path.startswith("study/registration/") for path in unfrozen_sdist)
+
+    (trust_source / benchmark_name).write_text("{}\n", encoding="utf-8")
+    benchmark_wheel_path = f"agent_assure/release_trust/v0_6_6/{benchmark_name}"
+    benchmark_sdist_mirror = f"src/{benchmark_wheel_path}"
+    benchmark_sdist_source = f"study/registration/{benchmark_name}"
+    assert benchmark_wheel_path in required_archive_paths(release_trust_source_root=trust_source)
+    benchmark_sdist_paths = required_sdist_paths(release_trust_source_root=trust_source)
+    assert benchmark_sdist_source in benchmark_sdist_paths
+    assert benchmark_sdist_mirror in benchmark_sdist_paths
+
+    (trust_source / review_name).write_text("{}\n", encoding="utf-8")
+    frozen_wheel = required_archive_paths(release_trust_source_root=trust_source)
+    frozen_sdist = required_sdist_paths(release_trust_source_root=trust_source)
+    assert f"agent_assure/release_trust/v0_6_6/{review_name}" in frozen_wheel
+    assert f"study/registration/{review_name}" in frozen_sdist
+    assert f"src/agent_assure/release_trust/v0_6_6/{review_name}" in frozen_sdist
+
+
+def test_release_trust_source_asset_must_be_a_regular_file(tmp_path: Path) -> None:
+    trust_source = tmp_path / "study" / "registration"
+    (trust_source / "frozen-non-grid-benchmark.json").mkdir(parents=True)
+
+    with pytest.raises(ValueError, match="release trust anchor is not a regular file"):
+        required_archive_paths(release_trust_source_root=trust_source)
+
+
 def test_frozen_schema_versions_are_discovered_from_schema_root(tmp_path: Path) -> None:
     schema_root = tmp_path / "schemas"
     for version in ("v0.3.1", "v0.1.0", "unreleased", "v0.2.0"):
@@ -680,6 +718,64 @@ def test_distribution_payload_equivalence_maps_every_installable_source_byte(
             b"{}\n"
         ).hexdigest(),
     }
+
+
+def test_distribution_payload_equivalence_binds_release_trust_mirror_bytes(
+    tmp_path: Path,
+) -> None:
+    filename = "frozen-non-grid-benchmark.json"
+    canonical_name = f"study/registration/{filename}"
+    packaged_source_name = f"src/agent_assure/release_trust/v0_6_6/{filename}"
+    wheel_name = f"agent_assure/release_trust/v0_6_6/{filename}"
+    trust_bytes = b'{"synthetic":"trust-anchor"}\n'
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist={
+            canonical_name: trust_bytes,
+            packaged_source_name: trust_bytes,
+        },
+        extra_wheel={wheel_name: trust_bytes},
+    )
+
+    manifest = validate_distribution_payload_equivalence(
+        wheel,
+        sdist,
+        schema_versions=("v0.6.4",),
+    )
+
+    assert manifest[wheel_name] == hashlib.sha256(trust_bytes).hexdigest()
+
+
+@pytest.mark.parametrize("failure", ("incomplete", "drifted"))
+def test_distribution_payload_equivalence_rejects_invalid_release_trust_pair(
+    tmp_path: Path,
+    failure: str,
+) -> None:
+    filename = "frozen-non-grid-benchmark.json"
+    canonical_name = f"study/registration/{filename}"
+    packaged_source_name = f"src/agent_assure/release_trust/v0_6_6/{filename}"
+    wheel_name = f"agent_assure/release_trust/v0_6_6/{filename}"
+    canonical_bytes = b'{"synthetic":"canonical"}\n'
+    packaged_bytes = b'{"synthetic":"packaged"}\n'
+    extra_sdist = {canonical_name: canonical_bytes}
+    extra_wheel: dict[str, bytes] = {}
+    expected = "pair is incomplete"
+    if failure == "drifted":
+        extra_sdist[packaged_source_name] = packaged_bytes
+        extra_wheel[wheel_name] = packaged_bytes
+        expected = "mirrors differ"
+    wheel, sdist = _write_payload_pair(
+        tmp_path,
+        extra_sdist=extra_sdist,
+        extra_wheel=extra_wheel,
+    )
+
+    with pytest.raises(ValueError, match=expected):
+        validate_distribution_payload_equivalence(
+            wheel,
+            sdist,
+            schema_versions=("v0.6.4",),
+        )
 
 
 def test_wheel_privacy_scan_rejects_undecodable_binary_leak(tmp_path: Path) -> None:

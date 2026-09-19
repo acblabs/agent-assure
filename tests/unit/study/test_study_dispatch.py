@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import json
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from decimal import Decimal
 from pathlib import Path
 from typing import cast
 
@@ -17,12 +18,17 @@ from agent_assure.cli import rag_cmd as rag_cmd_module
 from agent_assure.cli.main import app
 from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
 from agent_assure.rag import repeated_sensitivity as repeated_workflow
-from agent_assure.rag.repeated_sensitivity import run_repeated_live_study
+from agent_assure.rag.repeated_sensitivity import (
+    load_repeated_sensitivity_protocol_with_bytes,
+    run_repeated_live_study,
+)
 from agent_assure.schema.live import LiveProtocolRecord
 from agent_assure.schema.run import RunSet
 from agent_assure.schema.stochastic_sensitivity import RepeatedEvidenceSensitivityProtocol
 from agent_assure.schema.study import (
+    MAX_STUDY_CONDITIONS,
     StudyRegistrationReviewReceipt,
+    StudyReviewerQualificationBasisType,
     StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.schema.suite import CompiledSuite
@@ -43,8 +49,14 @@ RUNNER = CliRunner()
 def _method_review(fixture: StudyFixture):  # type: ignore[no-untyped-def]
     return build_study_statistical_method_review_receipt(
         manifest=fixture.manifest,
+        manifest_bytes=published_model_json_bytes(fixture.manifest),
         benchmark=fixture.benchmark,
+        benchmark_bytes=published_model_json_bytes(fixture.benchmark),
         protocols=fixture.protocols,
+        registered_protocol_bytes={
+            condition_id: published_model_json_bytes(protocol)
+            for condition_id, protocol in fixture.protocols.items()
+        },
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
         independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
@@ -52,7 +64,9 @@ def _method_review(fixture: StudyFixture):  # type: ignore[no-untyped-def]
         reviewed_at_utc="2025-01-03T00:00:00Z",
         reviewer_pseudonym="independent-statistical-reviewer",
         reviewer_statistical_qualification_confirmed=True,
-        reviewer_qualification_basis_types=("professional_statistical_practice",),
+        reviewer_qualification_basis_types=(
+            StudyReviewerQualificationBasisType.professional_statistical_practice,
+        ),
         reviewer_qualification_evidence_digest="0123456789abcdef" * 4,
         reviewer_qualification_basis=(
             "The reviewer has applied expertise in clustered binomial inference, "
@@ -130,6 +144,49 @@ def _config(fixture: StudyFixture, condition_id: str, *, variant_id: str) -> Liv
         max_requests=1,
         max_retries=0,
     )
+
+
+def _study_dispatch_cli_arguments(
+    paths: dict[str, Path],
+    *,
+    condition_id: str,
+    protocol_specs: tuple[str, ...] = (),
+) -> list[str]:
+    arguments = [
+        "rag",
+        "sensitivity",
+        "run",
+        "--protocol",
+        str(paths["protocol"]),
+        "--compiled-suite",
+        str(paths["suite"]),
+        "--baseline-config",
+        str(paths["baseline"]),
+        "--counterfactual-config",
+        str(paths["counterfactual"]),
+        "--live-protocol",
+        str(paths["live"]),
+        "--out",
+        str(paths["out"]),
+        "--network-opt-in",
+        "--study-manifest",
+        str(paths["manifest"]),
+        "--benchmark",
+        str(paths["benchmark"]),
+        "--study-condition-id",
+        condition_id,
+        "--study-registration-record",
+        str(paths["registration"]),
+        "--study-registration-review",
+        str(paths["registration_review"]),
+        "--study-independence-audit",
+        str(paths["audit"]),
+        "--study-statistical-method-review",
+        str(paths["method_review"]),
+    ]
+    for spec in protocol_specs:
+        arguments.extend(("--study-protocol", spec))
+    return arguments
 
 
 def _arm_config(
@@ -306,6 +363,70 @@ def test_dispatch_proof_authorizes_only_registered_arms_and_rechecks_window(
         require_validated_study_dispatch_window_open(
             proof,
             boundary="test provider attempt",
+        )
+
+
+def test_dispatch_proof_requires_more_remaining_window_than_reserved(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    monkeypatch.setattr(
+        study_dispatch,
+        "_utc_now",
+        lambda: datetime(2025, 2, 10, 12, tzinfo=UTC),
+    )
+    proof = validate_study_dispatch_preflight(
+        manifest=fixture.manifest,
+        benchmark=fixture.benchmark,
+        evidence=_evidence(fixture),
+    )
+    window_end = datetime.fromisoformat(
+        fixture.manifest.execution_window.end.replace("Z", "+00:00")
+    )
+    monkeypatch.setattr(
+        study_dispatch,
+        "_utc_now",
+        lambda: window_end - timedelta(seconds=10),
+    )
+
+    with pytest.raises(ValueError, match="lacks the required provider-attempt reserve"):
+        require_validated_study_dispatch_window_open(
+            proof,
+            boundary="test provider attempt",
+            minimum_remaining_seconds=Decimal("10"),
+        )
+    require_validated_study_dispatch_window_open(
+        proof,
+        boundary="test provider attempt",
+        minimum_remaining_seconds=Decimal("9.999999"),
+    )
+
+
+@pytest.mark.parametrize(
+    "minimum_remaining_seconds",
+    (Decimal("-0.000001"), Decimal("NaN"), Decimal("Infinity")),
+)
+def test_dispatch_proof_rejects_invalid_remaining_window_reserve(
+    minimum_remaining_seconds: Decimal,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    monkeypatch.setattr(
+        study_dispatch,
+        "_utc_now",
+        lambda: datetime(2025, 2, 10, 12, tzinfo=UTC),
+    )
+    proof = validate_study_dispatch_preflight(
+        manifest=fixture.manifest,
+        benchmark=fixture.benchmark,
+        evidence=_evidence(fixture),
+    )
+
+    with pytest.raises(ValueError, match="must be finite and nonnegative"):
+        require_validated_study_dispatch_window_open(
+            proof,
+            boundary="test provider attempt",
+            minimum_remaining_seconds=minimum_remaining_seconds,
         )
 
 
@@ -529,6 +650,105 @@ def test_outside_execution_window_fails_before_live_runner(
     assert dispatches == []
 
 
+def test_first_observation_reserve_is_required_before_attempt_id_is_consumed(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    condition_id = next(iter(fixture.protocols))
+    protocol = fixture.protocols[condition_id]
+    protocol_path = tmp_path / "registered-protocol.json"
+    protocol_path.write_bytes(published_model_json_bytes(protocol))
+    compiled = compile_suite(Path("examples/expense_approval_minimal/suite.yaml"))
+    baseline_config = _arm_config(
+        fixture,
+        condition_id,
+        arm_id="baseline_evidence",
+    )
+    counterfactual_config = _arm_config(
+        fixture,
+        condition_id,
+        arm_id="counterfactual_evidence",
+    )
+    counterfactual_config = counterfactual_config.model_copy(
+        update={"adapter": counterfactual_config.adapter.model_copy(update={"timeout_seconds": 61})}
+    )
+    baseline_reserve = Decimal("60")
+    counterfactual_reserve = Decimal("61")
+    assert (
+        repeated_workflow.maximum_provider_attempt_chain_seconds(baseline_config)
+        == baseline_reserve
+    )
+    assert (
+        repeated_workflow.maximum_provider_attempt_chain_seconds(counterfactual_config)
+        == counterfactual_reserve
+    )
+
+    window_end = datetime.fromisoformat(
+        fixture.manifest.execution_window.end.replace("Z", "+00:00")
+    )
+    monkeypatch.setattr(
+        study_dispatch,
+        "_utc_now",
+        lambda: window_end - timedelta(seconds=61),
+    )
+    monkeypatch.setattr(
+        study_analysis,
+        "bind_study_manifest_to_live_config",
+        lambda **values: values["config"],
+    )
+    monkeypatch.setattr(
+        repeated_workflow,
+        "_validate_operational_protocol_binding",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        repeated_workflow,
+        "prepare_live_execution_snapshot",
+        lambda *_args, **_kwargs: object(),
+    )
+    monkeypatch.setattr(
+        repeated_workflow,
+        "validate_live_arm_prebinding",
+        lambda *_args, **_kwargs: None,
+    )
+    monkeypatch.setattr(
+        repeated_workflow,
+        "_validate_live_pair_schedule",
+        lambda *_args, **_kwargs: None,
+    )
+    dispatches: list[str] = []
+
+    def unexpected_dispatch(*_args: object, **_kwargs: object) -> RunSet:
+        dispatches.append("called")
+        raise AssertionError("insufficient reserve reached provider dispatch")
+
+    monkeypatch.setattr(repeated_workflow, "run_live_suite", unexpected_dispatch)
+
+    with pytest.raises(
+        ValueError,
+        match="lacks the required provider-attempt reserve at execution-attempt reservation",
+    ):
+        run_repeated_live_study(
+            compiled=compiled,
+            protocol=protocol,
+            baseline_config=baseline_config,
+            counterfactual_config=counterfactual_config,
+            operational_protocol=_operational_protocol(compiled),
+            baseline_config_dir=tmp_path,
+            counterfactual_config_dir=tmp_path,
+            registered_protocol_path=protocol_path,
+            study_manifest=fixture.manifest,
+            study_benchmark=fixture.benchmark,
+            study_condition_id=condition_id,
+            study_dispatch_evidence=_evidence(fixture),
+        )
+
+    journal_path = repeated_workflow.execution_attempt_journal_path(protocol_path, protocol)
+    assert dispatches == []
+    assert not journal_path.exists()
+
+
 def test_incomplete_study_baseline_abandons_attempt_before_counterfactual_dispatch(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -665,6 +885,36 @@ def test_repeated_run_cli_assembles_exact_full_study_preflight(
     baseline_config = _config(fixture, condition_id, variant_id="baseline")
     counterfactual_config = _config(fixture, condition_id, variant_id="counterfactual")
     captured: dict[str, object] = {}
+    aggregate_evidence_bytes = sum(
+        path.stat().st_size for path in (*artifact_paths.values(), *protocol_paths.values())
+    )
+    monkeypatch.setattr(
+        rag_cmd_module,
+        "MAX_STUDY_BUNDLE_TOTAL_BYTES",
+        aggregate_evidence_bytes,
+    )
+    real_protocol_loader = load_repeated_sensitivity_protocol_with_bytes
+    protocol_read_counts: dict[Path, int] = {}
+
+    def load_protocol_once(
+        path: Path,
+        *,
+        max_bytes: int,
+    ) -> tuple[RepeatedEvidenceSensitivityProtocol, bytes]:
+        resolved = path.resolve()
+        protocol_read_counts[resolved] = protocol_read_counts.get(resolved, 0) + 1
+        return real_protocol_loader(path, max_bytes=max_bytes)
+
+    monkeypatch.setattr(
+        rag_cmd_module,
+        "load_repeated_sensitivity_protocol_with_bytes",
+        load_protocol_once,
+    )
+    monkeypatch.setattr(
+        repeated_workflow,
+        "load_repeated_sensitivity_protocol_with_bytes",
+        load_protocol_once,
+    )
 
     monkeypatch.setattr(rag_cmd_module, "load_compiled_suite", lambda _path: object())
     monkeypatch.setattr(
@@ -742,6 +992,183 @@ def test_repeated_run_cli_assembles_exact_full_study_preflight(
     assert assembled.statistical_method_review_receipt == evidence.statistical_method_review_receipt
     assert assembled.protocols == evidence.protocols
     assert assembled.registered_protocol_bytes == evidence.registered_protocol_bytes
+    assert protocol_read_counts == {path.resolve(): 1 for path in protocol_paths.values()}
+
+
+def test_repeated_run_cli_rejects_oversized_manifest_before_condition_path_io(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    condition_id = fixture.manifest.conditions[0].condition_id
+    names = (
+        "protocol",
+        "suite",
+        "baseline",
+        "counterfactual",
+        "live",
+        "manifest",
+        "benchmark",
+        "registration",
+        "registration_review",
+        "audit",
+        "method_review",
+    )
+    paths = {name: tmp_path / f"{name}.json" for name in names}
+    paths["out"] = tmp_path / "run-output"
+    for name, path in paths.items():
+        if name != "out":
+            path.write_text("{}\n", encoding="utf-8")
+    manifest_payload = fixture.manifest.model_dump(mode="json")
+    manifest_payload["conditions"] = [
+        manifest_payload["conditions"][0] for _ in range(MAX_STUDY_CONDITIONS + 1)
+    ]
+    paths["manifest"].write_text(
+        json.dumps(manifest_payload),
+        encoding="utf-8",
+    )
+    resolved_condition_paths: list[Path] = []
+
+    def record_condition_path_resolution(path: Path) -> Path:
+        resolved_condition_paths.append(path)
+        return path
+
+    monkeypatch.setattr(
+        rag_cmd_module,
+        "_resolve_study_protocol_path",
+        record_condition_path_resolution,
+    )
+
+    result = RUNNER.invoke(
+        app,
+        _study_dispatch_cli_arguments(paths, condition_id=condition_id),
+    )
+
+    assert result.exit_code == 2
+    assert "maximum supported condition count" in result.output
+    assert resolved_condition_paths == []
+
+
+@pytest.mark.parametrize("include_unexpected_condition", (False, True))
+def test_repeated_run_cli_requires_exact_condition_keys_before_path_resolution(
+    include_unexpected_condition: bool,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    condition_id = fixture.manifest.conditions[0].condition_id
+    names = (
+        "protocol",
+        "suite",
+        "baseline",
+        "counterfactual",
+        "live",
+        "manifest",
+        "benchmark",
+        "registration",
+        "registration_review",
+        "audit",
+        "method_review",
+    )
+    paths = {name: tmp_path / f"{name}.json" for name in names}
+    paths["out"] = tmp_path / "run-output"
+    for name, path in paths.items():
+        if name != "out":
+            path.write_text("{}\n", encoding="utf-8")
+    paths["manifest"].write_bytes(published_model_json_bytes(fixture.manifest))
+    protocol_specs: tuple[str, ...] = ()
+    if include_unexpected_condition:
+        protocol_specs = tuple(
+            f"{item.condition_id}={tmp_path / (item.condition_id + '.json')}"
+            for item in fixture.manifest.conditions
+            if item.condition_id != condition_id
+        ) + (f"unexpected-condition={tmp_path / 'unexpected.json'}",)
+    resolved_condition_paths: list[Path] = []
+
+    def record_condition_path_resolution(path: Path) -> Path:
+        resolved_condition_paths.append(path)
+        return path
+
+    monkeypatch.setattr(
+        rag_cmd_module,
+        "_resolve_study_protocol_path",
+        record_condition_path_resolution,
+    )
+
+    result = RUNNER.invoke(
+        app,
+        _study_dispatch_cli_arguments(
+            paths,
+            condition_id=condition_id,
+            protocol_specs=protocol_specs,
+        ),
+    )
+
+    assert result.exit_code == 2
+    assert "must exactly cover the manifest condition IDs" in result.output
+    assert resolved_condition_paths == []
+
+
+def test_repeated_run_cli_rejects_aggregate_study_evidence_over_budget(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    fixture = _fixture(real_provider_execution=True)
+    evidence = _evidence(fixture)
+    condition_id = fixture.manifest.conditions[0].condition_id
+    names = (
+        "protocol",
+        "suite",
+        "baseline",
+        "counterfactual",
+        "live",
+        "manifest",
+        "benchmark",
+        "registration",
+        "registration_review",
+        "audit",
+        "method_review",
+    )
+    paths = {name: tmp_path / f"{name}.json" for name in names}
+    paths["out"] = tmp_path / "run-output"
+    for name, path in paths.items():
+        if name != "out":
+            path.write_text("{}\n", encoding="utf-8")
+    paths["manifest"].write_bytes(evidence.manifest_bytes)
+    paths["benchmark"].write_bytes(evidence.benchmark_bytes)
+    paths["registration"].write_bytes(evidence.registration_record_bytes)
+    paths["registration_review"].write_bytes(
+        published_model_json_bytes(evidence.registration_review_receipt)
+    )
+    paths["audit"].write_bytes(evidence.independence_audit_artifact_bytes)
+    paths["method_review"].write_bytes(
+        published_model_json_bytes(evidence.statistical_method_review_receipt)
+    )
+    paths["protocol"].write_bytes(evidence.registered_protocol_bytes[condition_id])
+    protocol_specs: list[str] = []
+    for other_condition_id, protocol_bytes in evidence.registered_protocol_bytes.items():
+        if other_condition_id == condition_id:
+            continue
+        other_path = tmp_path / f"{other_condition_id}.protocol.json"
+        other_path.write_bytes(protocol_bytes)
+        protocol_specs.append(f"{other_condition_id}={other_path}")
+    monkeypatch.setattr(
+        rag_cmd_module,
+        "MAX_STUDY_BUNDLE_TOTAL_BYTES",
+        len(evidence.manifest_bytes),
+    )
+
+    result = RUNNER.invoke(
+        app,
+        _study_dispatch_cli_arguments(
+            paths,
+            condition_id=condition_id,
+            protocol_specs=tuple(protocol_specs),
+        ),
+    )
+
+    assert result.exit_code == 2
+    assert "study dispatch evidence exceeds the maximum aggregate size" in result.output
 
 
 def test_repeated_run_cli_rejects_partial_study_preflight_without_dispatch(

@@ -15,6 +15,7 @@ from agent_assure.live.adapters import (
     ExternalScriptAdapter,
     LiveProviderRequest,
     TrustedLiveExecution,
+    build_adapter,
 )
 from agent_assure.live.config import LiveAdapterConfig
 from agent_assure.runner import subprocess_harness
@@ -180,6 +181,109 @@ print(json.dumps({
     assert response.total_tokens == 7
     assert response.resolved_model == "script-model@local"
     assert response.provider_response_payload_scope == "complete_external_script_stdout"
+
+
+def test_external_script_adapter_rechecks_guard_immediately_before_launch(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = tmp_path / "adapter.py"
+    script.write_text("print('{}')\n", encoding="utf-8")
+    guard_checks: list[bool] = []
+    harness_calls: list[ExternalScriptInvocation] = []
+
+    def guard() -> None:
+        guard_checks.append(True)
+        if len(guard_checks) > 1:
+            raise RuntimeError("execution window closed before script launch")
+
+    def guarded_harness(
+        invocation: ExternalScriptInvocation,
+        *,
+        dispatch_guard: object,
+    ) -> object:
+        harness_calls.append(invocation)
+        assert callable(dispatch_guard)
+        dispatch_guard()
+        raise AssertionError("closed execution window reached process launch")
+
+    monkeypatch.setattr(
+        "agent_assure.live.adapters.run_external_script",
+        guarded_harness,
+    )
+    adapter = build_adapter(
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path=script.name,
+            script_executable=sys.executable,
+        ),
+        base_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_external_script=True),
+        network_dispatch_guard=guard,
+    )
+
+    with pytest.raises(RuntimeError, match="closed before script launch"):
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-guarded",
+                observation_id="obs-guarded",
+                case_id="case-guarded",
+                repetition_index=0,
+                prompt="summarize the request",
+                provider="local-script",
+                model="script-model",
+            )
+        )
+
+    assert guard_checks == [True, True]
+    assert len(harness_calls) == 1
+
+
+def test_external_script_harness_rechecks_guard_after_prelaunch_preparation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    script = tmp_path / "adapter.py"
+    script.write_text("print('{}')\n", encoding="utf-8")
+    invocation = ExternalScriptInvocation(
+        argv=(sys.executable, str(script)),
+        cwd=tmp_path,
+        timeout_seconds=3,
+        request_payload={},
+        observation_id="obs-prelaunch-guard",
+        run_id="run-prelaunch-guard",
+        case_id="case-prelaunch-guard",
+        adapter_id="external-script",
+    )
+    window_open = True
+    popen_calls: list[bool] = []
+
+    def close_window_after_preparation(_invocation: ExternalScriptInvocation) -> None:
+        nonlocal window_open
+        window_open = False
+
+    def guard() -> None:
+        if not window_open:
+            raise RuntimeError("execution window closed during process preparation")
+
+    def unexpected_popen(*args: object, **kwargs: object) -> object:
+        del args, kwargs
+        popen_calls.append(True)
+        raise AssertionError("closed execution window reached Popen")
+
+    monkeypatch.setattr(
+        subprocess_harness,
+        "_validate_bound_cwd",
+        close_window_after_preparation,
+    )
+    monkeypatch.setattr(subprocess_harness.subprocess, "Popen", unexpected_popen)
+
+    with pytest.raises(RuntimeError, match="closed during process preparation"):
+        run_external_script(invocation, dispatch_guard=guard)
+
+    assert popen_calls == []
 
 
 def test_external_script_failure_creates_redacted_emergency_record(tmp_path: Path) -> None:

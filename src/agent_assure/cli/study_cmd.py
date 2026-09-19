@@ -22,6 +22,7 @@ from agent_assure.fixtures.loader import load_compiled_suite
 from agent_assure.io_limits import (
     MAX_ARTIFACT_JSON_BYTES,
     MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+    load_json_bytes_bounded,
     loads_json_bounded,
     read_bytes_bounded_from_filesystem_root,
 )
@@ -31,6 +32,7 @@ from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.privacy.persistence import assert_persisted_payload_safe
 from agent_assure.rag.repeated_sensitivity import (
     load_repeated_sensitivity_protocol,
+    load_repeated_sensitivity_protocol_with_bytes,
     load_repeated_sensitivity_protocol_with_size,
 )
 from agent_assure.reporting.study import (
@@ -56,6 +58,7 @@ from agent_assure.schema.study import (
 from agent_assure.schema.validation import (
     load_validated_artifact_payload_with_size,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
 )
 from agent_assure.study.analysis import (
     StudyConditionEvidence,
@@ -472,46 +475,69 @@ def review_statistics(
             outputs=(out,),
             config_output_pairs=(),
         )
-        manifest = _load_artifact(
+        input_budget = _StudyInputByteBudget()
+        manifest, manifest_bytes = _load_artifact_with_bytes(
             manifest_path,
             kind="real-model-study-manifest",
             model=RealModelStudyManifest,
+            byte_budget=input_budget,
         )
-        benchmark = _load_artifact(
+        benchmark, benchmark_bytes = _load_artifact_with_bytes(
             benchmark_path,
             kind="process-equivalence-benchmark",
             model=ProcessEquivalenceBenchmarkManifest,
+            byte_budget=input_budget,
         )
         registration_record_bytes = read_bytes_bounded_from_filesystem_root(
             registration_record_path,
-            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
             label="study registration record",
         )
+        input_budget.consume_bytes(len(registration_record_bytes))
         registration_review_receipt = _load_artifact(
             registration_review_path,
             kind="real-model-study-registration-review",
             model=StudyRegistrationReviewReceipt,
+            byte_budget=input_budget,
         )
         independence_audit_artifact_bytes = read_bytes_bounded_from_filesystem_root(
             independence_audit_path,
-            max_bytes=MAX_ARTIFACT_JSON_BYTES,
+            max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
             label="study independence audit artifact",
         )
+        input_budget.consume_bytes(len(independence_audit_artifact_bytes))
+        protocol_snapshots: dict[
+            str,
+            tuple[RepeatedEvidenceSensitivityProtocol, bytes],
+        ] = {}
+        for condition_id, path in protocol_paths.items():
+            snapshot = load_repeated_sensitivity_protocol_with_bytes(
+                path,
+                max_bytes=input_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES),
+            )
+            input_budget.consume_bytes(len(snapshot[1]))
+            protocol_snapshots[condition_id] = snapshot
         protocols = {
-            condition_id: load_repeated_sensitivity_protocol(path)
-            for condition_id, path in protocol_paths.items()
+            condition_id: snapshot[0] for condition_id, snapshot in protocol_snapshots.items()
+        }
+        registered_protocol_bytes = {
+            condition_id: snapshot[1] for condition_id, snapshot in protocol_snapshots.items()
         }
         validate_study_manifest_inputs(manifest, benchmark, protocols)
         authored = _StudyStatisticalMethodReviewTemplate.model_validate(
             _load_authoring_mapping(
                 template_path,
                 label="study statistical-method review template",
+                byte_budget=input_budget,
             )
         )
         receipt = build_study_statistical_method_review_receipt(
             manifest=manifest,
+            manifest_bytes=manifest_bytes,
             benchmark=benchmark,
+            benchmark_bytes=benchmark_bytes,
             protocols=protocols,
+            registered_protocol_bytes=registered_protocol_bytes,
             registration_record_bytes=registration_record_bytes,
             registration_review_receipt=registration_review_receipt,
             independence_audit_artifact_bytes=independence_audit_artifact_bytes,
@@ -1227,6 +1253,37 @@ def _load_authoring_mapping(
     if not isinstance(payload, dict):
         raise TypeError(f"{label} must be a mapping")
     return payload
+
+
+def _load_artifact_with_bytes(
+    path: Path,
+    *,
+    kind: str,
+    model: type[ArtifactModelT],
+    byte_budget: _StudyInputByteBudget | None = None,
+) -> tuple[ArtifactModelT, bytes]:
+    """Project one artifact from the same bounded bytes returned to its caller."""
+
+    max_bytes = (
+        MAX_ARTIFACT_JSON_BYTES
+        if byte_budget is None
+        else byte_budget.next_read_limit(MAX_ARTIFACT_JSON_BYTES)
+    )
+    data = read_bytes_bounded_from_filesystem_root(
+        path,
+        max_bytes=max_bytes,
+        label=f"{kind} JSON",
+    )
+    payload = load_json_bytes_bounded(
+        data,
+        max_bytes=max_bytes,
+        label=f"{kind} JSON",
+    )
+    validate_loaded_artifact_payload(payload, kind)
+    result = project_validated_artifact_payload(payload, model, kind=kind)
+    if byte_budget is not None:
+        byte_budget.consume_bytes(len(data))
+    return result, data
 
 
 def _load_artifact(

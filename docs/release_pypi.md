@@ -234,8 +234,11 @@ The exact shipped v0.2 digest is a known shared-template parameter grid and is
 mechanically ineligible for confirmatory independent-cluster inference. It is
 not a release trust anchor. Until a genuinely non-grid frame has been written
 byte-for-byte to both benchmark paths, the checker emits
-`canonical-confirmatory-benchmark-not-frozen`. If that pair exists but the
-positive review pair does not, it emits
+`canonical-confirmatory-benchmark-not-frozen`. Invalid or nonidentical benchmark
+mirror bytes emit `canonical-confirmatory-benchmark-invalid-or-mismatched`.
+Once a canonical trust-anchor file exists, distribution verification requires
+its packaged wheel mirror and both source/package copies in the sdist. If the
+benchmark pair exists but the positive review pair does not, the checker emits
 `canonical-confirmatory-benchmark-approval-not-frozen`; invalid, mismatched, or
 non-confirmatory review bytes emit
 `canonical-confirmatory-benchmark-approval-invalid-or-mismatched`. A
@@ -247,6 +250,13 @@ cryptographic reviewer authentication: the receipt explicitly records
 `reviewer_identity_authentication=out_of_band_not_machine_verified`, and its
 human claims still require out-of-band verification. The v0.2 frame and shipped manifest template remain
 available for descriptive conformance, which cannot unlock this checkpoint.
+
+The review timestamps are self-declared artifact fields. Before the execution
+window opens, merge the exact benchmark and positive-review mirror pairs through
+the protected public repository and retain that commit identity in the study's
+registration evidence. The independently hosted commit time provides external
+ordering evidence; this checker does not query or authenticate repository-host
+timestamps.
 
 The checker pins one closed, link-free pilot bundle, enforces per-file and
 aggregate bounds, verifies every byte digest, validates the wheel

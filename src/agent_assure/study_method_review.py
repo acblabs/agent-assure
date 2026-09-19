@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from hashlib import sha256
@@ -28,13 +29,18 @@ from agent_assure.schema.study import (
     require_resolved_independence_justification,
 )
 from agent_assure.study_artifact_serialization import (
-    published_model_json_bytes,
     require_published_model_json_bytes,
 )
 from agent_assure.study_registration import validate_study_registration
 from agent_assure.timestamps import parse_rfc3339_timestamp
 
 STUDY_INDEPENDENCE_AUDIT_FILENAME = "study-independence-audit.md"
+
+
+def _normalized_review_prose(value: str) -> str:
+    """Normalize deterministic presentation variants without fuzzy matching."""
+
+    return " ".join(unicodedata.normalize("NFKC", value).casefold().split())
 
 
 def _study_design_audit_binding(
@@ -83,7 +89,7 @@ def validate_study_independence_audit_artifact(
     *,
     manifest: RealModelStudyManifest,
     artifact_bytes: bytes | None,
-) -> ValidatedStudyIndependenceAuditArtifact | None:
+) -> ValidatedStudyIndependenceAuditArtifact:
     """Validate the exact persisted audit artifact committed by ``manifest``."""
 
     expected_digest = _study_design_audit_binding(manifest)[0]
@@ -164,8 +170,11 @@ def statistical_method_review_explicitly_approves_confirmatory_benchmark(
 def build_study_statistical_method_review_receipt(
     *,
     manifest: RealModelStudyManifest,
+    manifest_bytes: bytes,
     benchmark: ProcessEquivalenceBenchmarkManifest,
+    benchmark_bytes: bytes,
     protocols: Mapping[str, RepeatedEvidenceSensitivityProtocol],
+    registered_protocol_bytes: Mapping[str, bytes],
     registration_record_bytes: bytes,
     registration_review_receipt: StudyRegistrationReviewReceipt,
     independence_audit_artifact_bytes: bytes,
@@ -194,7 +203,23 @@ def build_study_statistical_method_review_receipt(
     population_inference_prohibition_reviewed: Literal[True] | None = None,
     negative_control_design_reviewed: Literal[True],
 ) -> StudyStatisticalMethodReviewReceipt:
-    """Build a self-digested approval bound to the exact registered design."""
+    """Build a self-digested approval bound to exact reviewed design bytes."""
+
+    exact_manifest_bytes = require_published_model_json_bytes(
+        manifest_bytes,
+        manifest,
+        label="study manifest",
+    )
+    exact_benchmark_bytes = require_published_model_json_bytes(
+        benchmark_bytes,
+        benchmark,
+        label="study benchmark",
+    )
+    expected_conditions = _expected_conditions(
+        manifest=manifest,
+        protocols=protocols,
+        registered_protocol_bytes=registered_protocol_bytes,
+    )
 
     (
         _expected_audit_digest,
@@ -213,8 +238,6 @@ def build_study_statistical_method_review_receipt(
         manifest=manifest,
         artifact_bytes=independence_audit_artifact_bytes,
     )
-    if validated_audit is None:  # pragma: no cover - resolved schema invariant
-        raise ValueError("statistical-method review requires a digest-bound independence audit")
     audit_digest = validated_audit.artifact_sha256
     approval_disposition = (
         StudyMethodReviewApprovalDisposition.approved_confirmatory_independent_clusters
@@ -271,9 +294,9 @@ def build_study_statistical_method_review_receipt(
         study_id=manifest.study_id,
         study_manifest_digest=manifest.manifest_digest,
         registration_review_receipt_digest=(registration.review_receipt.review_receipt_digest),
-        study_manifest_sha256=sha256(published_model_json_bytes(manifest)).hexdigest(),
+        study_manifest_sha256=sha256(exact_manifest_bytes).hexdigest(),
         benchmark_digest=benchmark.benchmark_digest,
-        benchmark_sha256=sha256(published_model_json_bytes(benchmark)).hexdigest(),
+        benchmark_sha256=sha256(exact_benchmark_bytes).hexdigest(),
         protocol_set_digest=manifest.protocol_set_digest,
         hypothesis_decision_rule_digest=manifest.hypothesis_decision_rule_digest,
         registered_at_utc=manifest.registration.registered_at_utc,
@@ -299,7 +322,7 @@ def build_study_statistical_method_review_receipt(
             semantic_near_duplicate_pseudoreplication_rejected
         ),
         semantic_near_duplicate_review_rationale=semantic_near_duplicate_review_rationale,
-        conditions=_expected_conditions(manifest=manifest, protocols=protocols),
+        conditions=expected_conditions,
         benchmark_cluster_assignments_reviewed=benchmark_cluster_assignments_reviewed,
         sampling_frame_and_estimand_reviewed=sampling_frame_and_estimand_reviewed,
         negative_control_design_reviewed=negative_control_design_reviewed,
@@ -314,6 +337,9 @@ def build_study_statistical_method_review_receipt(
         registration_review_receipt=registration.review_receipt,
         review_receipt=receipt,
         independence_audit_artifact_bytes=validated_audit.data,
+        manifest_bytes=exact_manifest_bytes,
+        benchmark_bytes=exact_benchmark_bytes,
+        registered_protocol_bytes=registered_protocol_bytes,
     )
     return receipt
 
@@ -375,8 +401,6 @@ def validate_study_statistical_method_review(
         manifest=manifest,
         artifact_bytes=independence_audit_artifact_bytes,
     )
-    if validated_audit is None:  # pragma: no cover - resolved schema invariant
-        raise ValueError("statistical-method review requires a digest-bound independence audit")
     audit_digest = validated_audit.artifact_sha256
     expected_approval_disposition = (
         StudyMethodReviewApprovalDisposition.approved_confirmatory_independent_clusters
@@ -384,11 +408,15 @@ def validate_study_statistical_method_review(
         is StudyInferenceScope.confirmatory_independent_clusters
         else StudyMethodReviewApprovalDisposition.approved_fixed_frame_descriptive_conformance
     )
-    if receipt.design_review_rationale == author_design_basis:
+    if _normalized_review_prose(receipt.design_review_rationale) == _normalized_review_prose(
+        author_design_basis
+    ):
         raise ValueError(
             "qualified review rationale must add independent analysis, not copy the author basis"
         )
-    if receipt.semantic_near_duplicate_review_rationale == author_dependence_risks:
+    if _normalized_review_prose(
+        receipt.semantic_near_duplicate_review_rationale
+    ) == _normalized_review_prose(author_dependence_risks):
         raise ValueError(
             "near-duplicate review rationale must add independent analysis, not copy author prose"
         )

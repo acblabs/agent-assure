@@ -267,14 +267,39 @@ def test_canonical_benchmark_requires_an_eligible_byte_identical_packaged_mirror
 def test_canonical_benchmark_rejects_semantically_equal_nonidentical_mirror_bytes(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     _install_synthetic_canonical_benchmark(tmp_path, monkeypatch)
     readiness_gate.PACKAGED_BENCHMARK_PATH.write_bytes(
         readiness_gate.PACKAGED_BENCHMARK_PATH.read_bytes() + b"\n"
     )
 
-    with pytest.raises(ValueError, match="canonical benchmark and packaged mirror differ"):
+    with pytest.raises(
+        readiness_gate.CanonicalConfirmatoryBenchmarkInvalidError,
+        match="canonical benchmark and packaged mirror differ",
+    ):
         readiness_gate._load_canonical_confirmatory_benchmark_trust()
+
+    exit_code = readiness_gate.main(
+        [
+            "--study-bundle-root",
+            "study-bundle",
+            "--external-pilot-bundle-root",
+            "pilot-bundle",
+            "--external-pilot-evidence",
+            "pilot-evidence.json",
+            "--external-pilot-review-receipt",
+            "pilot-review.json",
+            "--expected-release",
+            "0.6.6",
+        ]
+    )
+    assert exit_code == 1
+    assert json.loads(capsys.readouterr().out) == {
+        "blocking_reasons": ["canonical-confirmatory-benchmark-invalid-or-mismatched"],
+        "checkpoint_ready": False,
+        "failure_category": "CanonicalConfirmatoryBenchmarkInvalidError",
+    }
 
 
 def test_canonical_positive_review_requires_a_byte_identical_packaged_mirror(

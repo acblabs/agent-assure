@@ -52,6 +52,7 @@ from agent_assure.study.analysis import (
     analyze_real_model_study,
     validate_study_manifest_inputs,
 )
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_dispatch import StudyDispatchPreflightEvidence
 from agent_assure.study_method_review import (
     build_study_statistical_method_review_receipt,
@@ -326,6 +327,47 @@ def _fixed_frame_evidence(
         )
         for condition_id, source in fixture.evidence_by_condition.items()
     }
+
+
+def _analyze_fixed_frame_with_condition_fingerprints(
+    fixture: StudyFixture,
+    manifest: RealModelStudyManifest,
+    protocols: dict[str, RepeatedEvidenceSensitivityProtocol],
+    fingerprints: dict[str, str | None],
+) -> RealModelStudyReport:
+    def set_fingerprint(value: str | None):  # type: ignore[no-untyped-def]
+        def transform(payload: dict[str, Any]) -> dict[str, Any]:
+            if value is None:
+                payload.pop("provider_serving_fingerprint", None)
+            else:
+                payload["provider_serving_fingerprint"] = value
+            return payload
+
+        return transform
+
+    evidence = _fixed_frame_evidence(fixture, manifest, protocols)
+    bindings = {item.condition_id: item for item in manifest.conditions}
+    for condition_id, fingerprint in fingerprints.items():
+        source = evidence[condition_id]
+        evidence[condition_id] = _condition_evidence(
+            manifest=manifest,
+            binding=bindings[condition_id],
+            protocol=protocols[condition_id],
+            baseline_runset=_replace_runset_records(
+                source.baseline_runset,
+                set_fingerprint(fingerprint),
+            ),
+            counterfactual_runset=_replace_runset_records(
+                source.counterfactual_runset,
+                set_fingerprint(fingerprint),
+            ),
+        )
+    return analyze_real_model_study(
+        manifest=manifest,
+        benchmark=fixture.benchmark,
+        protocols=protocols,
+        evidence=evidence,
+    )
 
 
 def test_fixed_frame_downscope_is_analyzable_but_never_classified() -> None:
@@ -774,8 +816,14 @@ def test_statistical_method_review_rejects_unresolved_synthetic_manifest() -> No
     with pytest.raises(ValueError, match="positive design-based independence"):
         build_study_statistical_method_review_receipt(
             manifest=manifest,
+            manifest_bytes=published_model_json_bytes(manifest),
             benchmark=fixture.benchmark,
+            benchmark_bytes=published_model_json_bytes(fixture.benchmark),
             protocols=fixture.protocols,
+            registered_protocol_bytes={
+                condition_id: published_model_json_bytes(protocol)
+                for condition_id, protocol in fixture.protocols.items()
+            },
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=fixture.registration_review_receipt,
             independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
@@ -897,6 +945,70 @@ def test_model_matched_cross_condition_fingerprint_partial_coverage_invalidates_
         for result in report.conditions
     )
     assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert report.protocol_valid is False
+
+
+def test_fixed_frame_target_control_fingerprint_drift_invalidates_group() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    protocols = {
+        condition_id: _fixed_frame_protocol(protocol)
+        for condition_id, protocol in fixture.protocols.items()
+    }
+    manifest = _fixed_frame_manifest(fixture, protocols)
+    targets = set(manifest.hypothesis_decision_rule.target_task_model_conditions)
+    controls = set(manifest.hypothesis_decision_rule.negative_control_conditions)
+    condition_ids = {condition.condition_id for condition in manifest.conditions}
+    assert targets
+    assert controls
+    assert targets | controls == condition_ids
+
+    report = _analyze_fixed_frame_with_condition_fingerprints(
+        fixture,
+        manifest,
+        protocols,
+        {
+            condition.condition_id: (
+                "fp-target-2025-04-14"
+                if condition.condition_id in targets
+                else "fp-control-2025-04-14"
+            )
+            for condition in manifest.conditions
+        },
+    )
+
+    assert all(
+        result.state is StudyConditionState.invalidated
+        and "provider-serving-fingerprint-group-drift" in result.deviation_codes
+        for result in report.conditions
+    )
+    assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert report.inferential_statistics_applicable is False
+    assert report.protocol_valid is False
+
+
+def test_fixed_frame_cross_condition_fingerprint_partial_coverage_invalidates_group() -> None:
+    fixture = _fixture(real_provider_execution=True)
+    protocols = {
+        condition_id: _fixed_frame_protocol(protocol)
+        for condition_id, protocol in fixture.protocols.items()
+    }
+    manifest = _fixed_frame_manifest(fixture, protocols)
+    first_condition_id = manifest.conditions[0].condition_id
+
+    report = _analyze_fixed_frame_with_condition_fingerprints(
+        fixture,
+        manifest,
+        protocols,
+        {first_condition_id: "fp-partial-2025-04-14"},
+    )
+
+    assert all(
+        result.state is StudyConditionState.invalidated
+        and "provider-serving-fingerprint-group-incomplete" in result.deviation_codes
+        for result in report.conditions
+    )
+    assert report.hypothesis_classification is StudyHypothesisClassification.not_measured
+    assert report.inferential_statistics_applicable is False
     assert report.protocol_valid is False
 
 

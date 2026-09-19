@@ -39,6 +39,13 @@ sampling_frame_and_estimand_reviewed: false
 # These three assertions are specific to the shipped fixed-frame descriptive
 # manifest. A confirmatory design must instead supply the four inferential
 # attestations documented in the schema reference; the two sets are exclusive.
+# Before approving a future confirmatory design, independently reproduce its
+# operating-characteristic table across plausible true target rates, including
+# supported/contradicted/inconclusive probabilities, and verify that
+# inconclusive is accepted as a planned outcome. Also review the joint clean-gate
+# probability for all zero-tolerance controls at plausible spontaneous-flip
+# rates. Any noise-floor calibration must be separate, pre-freeze, and excluded
+# from the confirmatory observations.
 fixed_frame_completeness_reviewed: false
 descriptive_count_and_rate_derivation_reviewed: false
 population_inference_prohibition_reviewed: false

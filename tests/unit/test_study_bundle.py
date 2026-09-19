@@ -13,6 +13,7 @@ from agent_assure.schema.study import (
     StudyStatisticalMethodReviewReceipt,
 )
 from agent_assure.study.analysis import StudyConditionEvidence, analyze_real_model_study
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_bundle import (
     MAX_STUDY_BUNDLE_FILES,
     ValidatedStudyBundle,
@@ -60,8 +61,14 @@ def _write_bundle(
     method_review_receipt = (
         build_study_statistical_method_review_receipt(
             manifest=fixture.manifest,
+            manifest_bytes=published_model_json_bytes(fixture.manifest),
             benchmark=fixture.benchmark,
+            benchmark_bytes=published_model_json_bytes(fixture.benchmark),
             protocols=fixture.protocols,
+            registered_protocol_bytes={
+                condition_id: published_model_json_bytes(protocol)
+                for condition_id, protocol in fixture.protocols.items()
+            },
             registration_record_bytes=fixture.registration_record_bytes,
             registration_review_receipt=fixture.registration_review_receipt,
             independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,

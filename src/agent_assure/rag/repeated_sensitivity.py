@@ -6,7 +6,9 @@ import re
 from datetime import UTC, datetime
 from decimal import Decimal
 from pathlib import Path
-from typing import Literal, cast
+from threading import Lock
+from typing import Literal, NamedTuple, cast
+from weakref import WeakKeyDictionary
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.canonical.digests import sha256_hexdigest
@@ -33,6 +35,7 @@ from agent_assure.live.runner import (
     _StudyBoundAttemptJournalExecutionCapability,
     calculate_live_execution_configuration_digest,
     calculate_live_prompt_manifest_digest,
+    maximum_provider_attempt_chain_seconds,
     prepare_live_execution_snapshot,
     run_live_suite,
     validate_live_execution_snapshot,
@@ -115,6 +118,65 @@ _POST_RESPONSE_IDENTITY_FIELDS = (
 
 _ATTEMPT_JOURNAL_DIRECTORY = ".agent-assure-attempt-journals"
 _ATTEMPT_JOURNAL_VERSION = "1.0.0"
+
+
+class RegisteredRepeatedSensitivityProtocolSnapshot:
+    """Opaque, identity-issued snapshot of one registered protocol file."""
+
+    __slots__ = ("__weakref__",)
+
+    def __new__(cls) -> RegisteredRepeatedSensitivityProtocolSnapshot:
+        del cls
+        raise TypeError(
+            "registered protocol snapshots must be issued by "
+            "load_registered_repeated_sensitivity_protocol_snapshot"
+        )
+
+    @property
+    def resolved_path(self) -> Path:
+        return _registered_protocol_snapshot_record(self).resolved_path
+
+    @property
+    def protocol(self) -> RepeatedEvidenceSensitivityProtocol:
+        return _registered_protocol_snapshot_record(self).protocol
+
+    @property
+    def data(self) -> bytes:
+        return _registered_protocol_snapshot_record(self).data
+
+
+class _RegisteredProtocolSnapshotRecord(NamedTuple):
+    resolved_path: Path
+    protocol: RepeatedEvidenceSensitivityProtocol
+    data: bytes
+
+
+_REGISTERED_PROTOCOL_SNAPSHOT_LOCK = Lock()
+_REGISTERED_PROTOCOL_SNAPSHOT_RECORDS: WeakKeyDictionary[
+    RegisteredRepeatedSensitivityProtocolSnapshot,
+    _RegisteredProtocolSnapshotRecord,
+] = WeakKeyDictionary()
+
+
+def _registered_protocol_snapshot_record(
+    snapshot: RegisteredRepeatedSensitivityProtocolSnapshot,
+) -> _RegisteredProtocolSnapshotRecord:
+    if type(snapshot) is not RegisteredRepeatedSensitivityProtocolSnapshot:
+        raise ValueError("registered protocol snapshot is invalid")
+    with _REGISTERED_PROTOCOL_SNAPSHOT_LOCK:
+        try:
+            return _REGISTERED_PROTOCOL_SNAPSHOT_RECORDS[snapshot]
+        except (KeyError, TypeError) as exc:
+            raise ValueError("registered protocol snapshot is invalid") from exc
+
+
+def _issue_registered_protocol_snapshot(
+    record: _RegisteredProtocolSnapshotRecord,
+) -> RegisteredRepeatedSensitivityProtocolSnapshot:
+    snapshot = object.__new__(RegisteredRepeatedSensitivityProtocolSnapshot)
+    with _REGISTERED_PROTOCOL_SNAPSHOT_LOCK:
+        _REGISTERED_PROTOCOL_SNAPSHOT_RECORDS[snapshot] = record
+    return snapshot
 
 
 class _DurableAttemptJournal:
@@ -374,6 +436,56 @@ def load_repeated_sensitivity_protocol_with_bytes(
     return RepeatedEvidenceSensitivityProtocol.model_validate(payload), contents.data
 
 
+def _resolve_registered_protocol_path(path: Path) -> Path:
+    try:
+        resolved_path = path.resolve(strict=True)
+    except (OSError, RuntimeError) as exc:
+        raise ValueError("registered protocol path cannot be resolved") from exc
+    if not resolved_path.is_file():
+        raise ValueError("registered protocol path must identify a regular file")
+    return resolved_path
+
+
+def load_registered_repeated_sensitivity_protocol_snapshot(
+    path: Path,
+    *,
+    max_bytes: int = MAX_ARTIFACT_JSON_BYTES,
+) -> RegisteredRepeatedSensitivityProtocolSnapshot:
+    """Resolve and load an execution protocol into one issued exact-byte snapshot."""
+
+    if type(max_bytes) is not int or max_bytes <= 0:
+        raise ValueError("registered protocol byte limit must be a positive integer")
+    effective_max_bytes = min(max_bytes, MAX_ARTIFACT_JSON_BYTES)
+    resolved_path = _resolve_registered_protocol_path(path)
+    protocol, data = load_repeated_sensitivity_protocol_with_bytes(
+        resolved_path,
+        max_bytes=effective_max_bytes,
+    )
+    if type(data) is not bytes or len(data) > effective_max_bytes:
+        raise ValueError("registered protocol exceeds the maximum artifact size")
+    return _issue_registered_protocol_snapshot(
+        _RegisteredProtocolSnapshotRecord(
+            resolved_path=resolved_path,
+            protocol=protocol,
+            data=data,
+        )
+    )
+
+
+def _validate_registered_protocol_snapshot(
+    snapshot: RegisteredRepeatedSensitivityProtocolSnapshot,
+) -> _RegisteredProtocolSnapshotRecord:
+    record = _registered_protocol_snapshot_record(snapshot)
+    if (
+        not record.resolved_path.is_absolute()
+        or type(record.protocol) is not RepeatedEvidenceSensitivityProtocol
+        or type(record.data) is not bytes
+        or len(record.data) > MAX_ARTIFACT_JSON_BYTES
+    ):
+        raise ValueError("registered protocol snapshot is invalid")
+    return record
+
+
 def calculate_case_manifest_digest(config: LiveRunConfig) -> str:
     config = LiveRunConfig.model_validate(config.model_dump(mode="json"))
     return sha256_hexdigest(
@@ -514,6 +626,7 @@ def run_repeated_live_study(
     baseline_trust: TrustedLiveExecution | None = None,
     counterfactual_trust: TrustedLiveExecution | None = None,
     registered_protocol_path: Path | None = None,
+    registered_protocol_snapshot: RegisteredRepeatedSensitivityProtocolSnapshot | None = None,
     study_manifest: RealModelStudyManifest | None = None,
     study_benchmark: ProcessEquivalenceBenchmarkManifest | None = None,
     study_condition_id: str | None = None,
@@ -545,10 +658,19 @@ def run_repeated_live_study(
         raise ValueError("paired live protocol has no registered execution attempt identity")
     if registered_protocol_path is None:
         raise ValueError("paired live execution requires its exact registered protocol path")
-    registered_protocol_path = registered_protocol_path.resolve(strict=True)
-    registered_protocol, registered_protocol_bytes = load_repeated_sensitivity_protocol_with_bytes(
-        registered_protocol_path
-    )
+    if registered_protocol_snapshot is None:
+        registered_protocol_snapshot = load_registered_repeated_sensitivity_protocol_snapshot(
+            registered_protocol_path
+        )
+    else:
+        resolved_execution_path = _resolve_registered_protocol_path(registered_protocol_path)
+        snapshot_record = _validate_registered_protocol_snapshot(registered_protocol_snapshot)
+        if resolved_execution_path != snapshot_record.resolved_path:
+            raise ValueError("registered protocol snapshot path does not match the execution path")
+    snapshot_record = _validate_registered_protocol_snapshot(registered_protocol_snapshot)
+    registered_protocol_path = snapshot_record.resolved_path
+    registered_protocol = snapshot_record.protocol
+    registered_protocol_bytes = snapshot_record.data
     if registered_protocol != protocol:
         raise ValueError("registered protocol path does not contain the exact execution protocol")
     study_manifest_digest = baseline_config.study_manifest_digest
@@ -697,26 +819,30 @@ def run_repeated_live_study(
         baseline_snapshot,
         counterfactual_snapshot,
     )
+    operational_protocol_digest = sha256_hexdigest(operational_protocol)
+    reservation_record: dict[str, object] = {
+        "event_type": "attempt_reserved",
+        "journal_version": _ATTEMPT_JOURNAL_VERSION,
+        "execution_attempt_id": protocol.execution_attempt_id,
+        "repeated_protocol_digest": protocol.protocol_digest,
+        "operational_protocol_digest": operational_protocol_digest,
+        "study_manifest_digest": baseline_config.study_manifest_digest,
+        "baseline_configuration_digest": protocol.baseline_arm.configuration_digest,
+        "counterfactual_configuration_digest": (protocol.counterfactual_arm.configuration_digest),
+    }
     if study_manifest is not None:
+        reservation_reserve = max(
+            maximum_provider_attempt_chain_seconds(baseline_config),
+            maximum_provider_attempt_chain_seconds(counterfactual_config),
+        )
         require_study_execution_window_open(
             study_manifest,
             boundary="execution-attempt reservation",
+            minimum_remaining_seconds=reservation_reserve,
         )
-    operational_protocol_digest = sha256_hexdigest(operational_protocol)
     journal = _DurableAttemptJournal(
         attempt_journal_path,
-        {
-            "event_type": "attempt_reserved",
-            "journal_version": _ATTEMPT_JOURNAL_VERSION,
-            "execution_attempt_id": protocol.execution_attempt_id,
-            "repeated_protocol_digest": protocol.protocol_digest,
-            "operational_protocol_digest": operational_protocol_digest,
-            "study_manifest_digest": baseline_config.study_manifest_digest,
-            "baseline_configuration_digest": protocol.baseline_arm.configuration_digest,
-            "counterfactual_configuration_digest": (
-                protocol.counterfactual_arm.configuration_digest
-            ),
-        },
+        reservation_record,
     )
 
     def baseline_attempt_observer(notification: LiveAttemptNotification) -> None:
@@ -2124,12 +2250,15 @@ def _source_artifact_identifier(value: str, *, namespace: str) -> str:
 
 
 __all__ = [
+    "RegisteredRepeatedSensitivityProtocolSnapshot",
     "assemble_paired_observations",
     "build_paired_runset_dependencies",
     "calculate_case_manifest_digest",
     "calculate_live_arm_binding_facts",
     "execution_attempt_journal_path",
+    "load_registered_repeated_sensitivity_protocol_snapshot",
     "load_repeated_sensitivity_protocol",
+    "load_repeated_sensitivity_protocol_with_bytes",
     "load_repeated_sensitivity_protocol_with_size",
     "run_repeated_live_study",
     "validate_live_arm_prebinding",

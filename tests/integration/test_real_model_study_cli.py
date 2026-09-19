@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 from dataclasses import replace
 from pathlib import Path
@@ -19,6 +20,7 @@ from agent_assure.schema.study import (
     StudyRegistrationReviewReceipt,
     StudyStatisticalMethodReviewReceipt,
 )
+from agent_assure.study_artifact_serialization import published_model_json_bytes
 from agent_assure.study_execution_review import build_study_execution_review_receipt
 from agent_assure.study_method_review import (
     build_study_statistical_method_review_receipt,
@@ -87,8 +89,14 @@ def _paired_study_config(config: LiveRunConfig, fixture: StudyFixture) -> LiveRu
 def _method_review_receipt(fixture: StudyFixture) -> StudyStatisticalMethodReviewReceipt:
     return build_study_statistical_method_review_receipt(
         manifest=fixture.manifest,
+        manifest_bytes=published_model_json_bytes(fixture.manifest),
         benchmark=fixture.benchmark,
+        benchmark_bytes=published_model_json_bytes(fixture.benchmark),
         protocols=fixture.protocols,
+        registered_protocol_bytes={
+            condition_id: published_model_json_bytes(protocol)
+            for condition_id, protocol in fixture.protocols.items()
+        },
         registration_record_bytes=fixture.registration_record_bytes,
         registration_review_receipt=fixture.registration_review_receipt,
         independence_audit_artifact_bytes=fixture.independence_audit_artifact_bytes,
@@ -292,8 +300,8 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     independence_audit_path = tmp_path / "study-independence-audit.md"
     template_path = tmp_path / "statistical-method-review.json"
     receipt_path = tmp_path / "statistical-method-review-receipt.json"
-    _write_json(manifest_path, fixture.manifest)
-    _write_json(benchmark_path, fixture.benchmark)
+    manifest_path.write_bytes(published_model_json_bytes(fixture.manifest))
+    benchmark_path.write_bytes(published_model_json_bytes(fixture.benchmark))
     registration_record_path.write_bytes(fixture.registration_record_bytes)
     _write_json(registration_review_path, fixture.registration_review_receipt)
     independence_audit_path.write_bytes(fixture.independence_audit_artifact_bytes)
@@ -333,7 +341,7 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     protocol_paths: dict[str, Path] = {}
     for index, (condition_id, protocol) in enumerate(fixture.protocols.items()):
         protocol_path = tmp_path / f"protocol-{index:03d}.json"
-        _write_json(protocol_path, protocol)
+        protocol_path.write_bytes(published_model_json_bytes(protocol))
         protocol_paths[condition_id] = protocol_path
     monkeypatch.setattr(rag_cmd_module, "run_repeated_live_study", _reject_dispatch)
     arguments = [
@@ -367,6 +375,31 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
     assert "Input should be True" in untouched.output
     assert not receipt_path.exists()
 
+    load_artifact_snapshot = study_cmd_module._load_artifact_with_bytes
+
+    def _load_then_replace_artifact(path: Path, **kwargs: object):  # type: ignore[no-untyped-def]
+        snapshot = load_artifact_snapshot(path, **kwargs)  # type: ignore[arg-type]
+        if path in {manifest_path, benchmark_path}:
+            path.write_bytes(b"{}\n")
+        return snapshot
+
+    load_protocol_snapshot = study_cmd_module.load_repeated_sensitivity_protocol_with_bytes
+
+    def _load_then_replace_protocol(path: Path, **kwargs: object):  # type: ignore[no-untyped-def]
+        snapshot = load_protocol_snapshot(path, **kwargs)  # type: ignore[arg-type]
+        path.write_bytes(b"{}\n")
+        return snapshot
+
+    monkeypatch.setattr(
+        study_cmd_module,
+        "_load_artifact_with_bytes",
+        _load_then_replace_artifact,
+    )
+    monkeypatch.setattr(
+        study_cmd_module,
+        "load_repeated_sensitivity_protocol_with_bytes",
+        _load_then_replace_protocol,
+    )
     result = RUNNER.invoke(app, arguments)
 
     assert result.exit_code == 0, result.output
@@ -374,6 +407,14 @@ def test_study_review_statistics_binds_exact_design_without_dispatch(
         receipt_path.read_text(encoding="utf-8")
     )
     assert receipt.study_manifest_digest == fixture.manifest.manifest_digest
+    assert (
+        receipt.study_manifest_sha256
+        == hashlib.sha256(published_model_json_bytes(fixture.manifest)).hexdigest()
+    )
+    assert (
+        receipt.benchmark_sha256
+        == hashlib.sha256(published_model_json_bytes(fixture.benchmark)).hexdigest()
+    )
     assert receipt.protocol_set_digest == fixture.manifest.protocol_set_digest
     assert len(receipt.conditions) == len(fixture.manifest.conditions)
 

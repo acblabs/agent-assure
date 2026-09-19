@@ -315,6 +315,20 @@ socket operations. It is not a monotonic end-to-end request deadline, does not
 bound synchronous DNS resolution, and a peer that continually makes progress
 may keep a response open longer. Use an independently enforced outer
 process/job deadline when a whole-operation wall-clock bound is required.
+Before the paired-study workflow creates its exclusive durable attempt
+reservation, it requires the frozen execution window to retain more time than
+one complete observation's configured timeout-and-maximum-backoff reserve,
+using the larger bound from the two arms. This rejects reservations that are
+already too late and reduces the risk of consuming the frozen attempt identity
+before any provider call can be issued; journal persistence, setup, and pacing
+still occur afterward, and the check does not reserve enough time for the
+entire paired study. At each provider-attempt boundary, the runner then requires
+only the still-available configured chain: the current timeout, every remaining
+timeout, and the maximum backoffs between them. The reserve therefore shrinks
+after each failed attempt, while a final allowed attempt still requires one
+full configured timeout. These checks are admission slack derived from declared
+limits, not wall-clock upper bounds; the independently enforced outer deadline
+remains necessary for a hard completion bound.
 
 `study analyze` consumes a relative-path descriptor with exactly one sorted
 entry per frozen condition:
@@ -374,6 +388,16 @@ mutually exclusive truth regions. This is not simultaneous two-sided confidence-
 interval coverage. Byte identity and privacy checks do not establish that the
 audit's independence argument or the human confirmation is true. Reviewer
 identity and qualifications remain out-of-band trust inputs.
+
+Any future confirmatory promotion should preregister an operating-characteristic
+table for plausible true target rates, including the probabilities of
+`supported`, `contradicted`, and `inconclusive`; an inconclusive result is a
+valid planned outcome, not a failed execution. For a zero-tolerance
+negative-control gate, the preregistration should also quantify the probability
+that every control remains clean at plausible spontaneous-flip noise rates. If
+that noise floor is uncertain, calibrate it in a separate, clearly labeled run
+before freezing the confirmatory frame, and do not reuse calibration outcomes as
+confirmatory observations.
 
 Exit `0` means the factory-verified closed bundle is study-publication-ready:
 the direct same-decision analysis and invariant controls satisfy the frozen

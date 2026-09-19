@@ -13,6 +13,7 @@ import sys
 import tempfile
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from pathlib import Path
@@ -220,7 +221,11 @@ def _collected_output(
     )
 
 
-def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptCompleted:
+def run_external_script(
+    invocation: ExternalScriptInvocation,
+    *,
+    dispatch_guard: Callable[[], None] | None = None,
+) -> ExternalScriptCompleted:
     if not invocation.argv:
         emergency = _emergency_record(
             invocation,
@@ -264,6 +269,8 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 ):
                     inherited_descriptors.append(invocation.cwd_descriptor)
                 process_options["pass_fds"] = tuple(inherited_descriptors)
+            if dispatch_guard is not None:
+                dispatch_guard()
             process = subprocess.Popen(
                 list(launch_argv),
                 cwd=(
@@ -304,6 +311,13 @@ def run_external_script(invocation: ExternalScriptInvocation) -> ExternalScriptC
                 if bound_script is not None:
                     _require_bound_script_path_unchanged(invocation, bound_script)
                 _validate_bound_cwd(invocation)
+                if dispatch_guard is not None:
+                    try:
+                        dispatch_guard()
+                    except BaseException:
+                        _terminate_process_tree(process)
+                        _wait_for_terminated_process(process)
+                        raise
             if not _resume_windows_suspended_process(process):
                 _terminate_process_tree(process)
                 _wait_for_terminated_process(process)

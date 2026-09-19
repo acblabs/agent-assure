@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from decimal import ROUND_CEILING, Decimal
 
 from agent_assure.schema.benchmark import ProcessEquivalenceBenchmarkManifest
 from agent_assure.schema.stochastic_sensitivity import RepeatedEvidenceSensitivityProtocol
@@ -158,11 +159,16 @@ def require_validated_study_dispatch_window_open(
     proof: ValidatedStudyDispatchPreflight,
     *,
     boundary: str,
+    minimum_remaining_seconds: Decimal = Decimal("0"),
 ) -> None:
     """Recheck the proof-bound manifest window at a provider-call boundary."""
 
     capability = _validated_study_dispatch_capability(proof)
-    require_study_execution_window_open(capability.manifest, boundary=boundary)
+    require_study_execution_window_open(
+        capability.manifest,
+        boundary=boundary,
+        minimum_remaining_seconds=minimum_remaining_seconds,
+    )
 
 
 def _validated_study_dispatch_capability(
@@ -183,8 +189,9 @@ def require_study_execution_window_open(
     manifest: RealModelStudyManifest,
     *,
     boundary: str,
+    minimum_remaining_seconds: Decimal = Decimal("0"),
 ) -> None:
-    """Require ``start <= system UTC < end`` at one spend-adjacent boundary."""
+    """Require an open window with the requested conservative time reserve."""
 
     observed_at = _utc_now()
     if not isinstance(observed_at, datetime):
@@ -200,10 +207,29 @@ def require_study_execution_window_open(
         manifest.execution_window.end,
         field_name="study execution window end",
     )
+    if (
+        isinstance(minimum_remaining_seconds, bool)
+        or not isinstance(minimum_remaining_seconds, Decimal)
+        or not minimum_remaining_seconds.is_finite()
+        or minimum_remaining_seconds < 0
+    ):
+        raise ValueError("minimum remaining study-window seconds must be finite and nonnegative")
     if observed_at < starts_at:
         raise ValueError(f"study execution window has not opened at {boundary}")
     if observed_at >= ends_at:
         raise ValueError(f"study execution window is closed at {boundary}")
+    required_microseconds = int(
+        (minimum_remaining_seconds * Decimal(1_000_000)).to_integral_value(rounding=ROUND_CEILING)
+    )
+    remaining = ends_at - observed_at
+    remaining_microseconds = (
+        remaining.days * 86_400 + remaining.seconds
+    ) * 1_000_000 + remaining.microseconds
+    # The window end is exclusive, so exact equality is not enough reserve.
+    if remaining_microseconds <= required_microseconds:
+        raise ValueError(
+            f"study execution window lacks the required provider-attempt reserve at {boundary}"
+        )
 
 
 def _utc_now() -> datetime:

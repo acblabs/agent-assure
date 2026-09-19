@@ -79,6 +79,10 @@ class CanonicalConfirmatoryBenchmarkNotFrozenError(RuntimeError):
     """The committed and packaged benchmark pair is incomplete."""
 
 
+class CanonicalConfirmatoryBenchmarkInvalidError(RuntimeError):
+    """The benchmark trust anchor is invalid or differs from its packaged mirror."""
+
+
 class CanonicalConfirmatoryBenchmarkIneligibleError(RuntimeError):
     """The benchmark has a registered confirmatory structural bar."""
 
@@ -155,17 +159,26 @@ def _load_canonical_confirmatory_benchmark_trust() -> CanonicalConfirmatoryBench
             "the confirmatory benchmark trust-anchor pair has not been frozen"
         ) from exc
     if canonical_bytes != packaged_bytes:
-        raise ValueError("canonical benchmark and packaged mirror differ")
-    canonical = _load_benchmark_bytes(
-        canonical_bytes,
-        label="canonical process-equivalence benchmark",
-    )
-    packaged = _load_benchmark_bytes(
-        packaged_bytes,
-        label="packaged process-equivalence benchmark mirror",
-    )
+        raise CanonicalConfirmatoryBenchmarkInvalidError(
+            "canonical benchmark and packaged mirror differ"
+        )
+    try:
+        canonical = _load_benchmark_bytes(
+            canonical_bytes,
+            label="canonical process-equivalence benchmark",
+        )
+        packaged = _load_benchmark_bytes(
+            packaged_bytes,
+            label="packaged process-equivalence benchmark mirror",
+        )
+    except (TypeError, ValueError) as exc:
+        raise CanonicalConfirmatoryBenchmarkInvalidError(
+            "canonical benchmark trust anchor is invalid"
+        ) from exc
     if canonical != packaged:
-        raise ValueError("canonical benchmark and packaged mirror do not validate identically")
+        raise CanonicalConfirmatoryBenchmarkInvalidError(
+            "canonical benchmark and packaged mirror do not validate identically"
+        )
     if registered_confirmatory_benchmark_bar_reason(canonical) is not None:
         raise CanonicalConfirmatoryBenchmarkIneligibleError(
             "the canonical benchmark has a registered confirmatory structural bar"
@@ -452,6 +465,13 @@ def main(argv: list[str] | None = None) -> int:
         ready = False
         result = {
             "blocking_reasons": ["canonical-confirmatory-benchmark-not-frozen"],
+            "checkpoint_ready": False,
+            "failure_category": exc.__class__.__name__,
+        }
+    except CanonicalConfirmatoryBenchmarkInvalidError as exc:
+        ready = False
+        result = {
+            "blocking_reasons": ["canonical-confirmatory-benchmark-invalid-or-mismatched"],
             "checkpoint_ready": False,
             "failure_category": exc.__class__.__name__,
         }

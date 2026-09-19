@@ -502,6 +502,46 @@ def test_live_config_requires_complete_pricing_and_bounded_retry_delays() -> Non
         )
 
 
+def test_study_window_reserve_shrinks_with_the_remaining_retry_chain() -> None:
+    config = _config(
+        tokens_per_minute=20,
+        max_output_tokens=7,
+        retry_max_backoff_seconds="5.000000",
+    )
+    payload = config.model_dump(mode="json")
+    payload["max_retries"] = 3
+    cast(dict[str, object], payload["adapter"])["timeout_seconds"] = 7
+    config = LiveRunConfig.model_validate(payload)
+
+    assert live_runner.maximum_provider_attempt_chain_seconds(config) == Decimal("43.000000")
+    assert tuple(
+        live_runner._remaining_provider_attempt_chain_seconds(config, attempt_index)
+        for attempt_index in range(1, 5)
+    ) == (
+        Decimal("43.000000"),
+        Decimal("31.000000"),
+        Decimal("19.000000"),
+        Decimal("7.000000"),
+    )
+
+
+@pytest.mark.parametrize("attempt_index", (True, 0, 5))
+def test_study_window_reserve_rejects_invalid_attempt_indices(
+    attempt_index: int,
+) -> None:
+    config = _config(
+        tokens_per_minute=20,
+        max_output_tokens=7,
+        retry_max_backoff_seconds="5.000000",
+    )
+    payload = config.model_dump(mode="json")
+    payload["max_retries"] = 3
+    config = LiveRunConfig.model_validate(payload)
+
+    with pytest.raises(ValueError, match="outside the configured retry chain"):
+        live_runner._remaining_provider_attempt_chain_seconds(config, attempt_index)
+
+
 def test_openai_cost_estimate_is_unavailable_without_complete_usage() -> None:
     config = LiveAdapterConfig(
         adapter_id="openai-chat-completions",
@@ -1410,6 +1450,7 @@ def test_study_dispatch_authorization_is_bound_to_exact_executable_config(
         )
 
     assert adapter_constructed is False
+    assert journal_capability._consumed is False
 
 
 def test_study_authorization_binds_callbacks_is_single_use_and_defers_backlinks(
@@ -1458,10 +1499,16 @@ def test_study_authorization_binds_callbacks_is_single_use_and_defers_backlinks(
         "require_validated_study_dispatch_authorization",
         lambda *args, **kwargs: None,
     )
+    window_reserves: list[Decimal] = []
+
+    def record_window_reserve(*args: object, **kwargs: object) -> None:
+        del args
+        window_reserves.append(cast(Decimal, kwargs["minimum_remaining_seconds"]))
+
     monkeypatch.setattr(
         live_runner,
         "require_validated_study_dispatch_window_open",
-        lambda *args, **kwargs: None,
+        record_window_reserve,
     )
     notifications: list[live_runner.LiveAttemptNotification] = []
     guard_checks: list[bool] = []
@@ -1523,6 +1570,9 @@ def test_study_authorization_binds_callbacks_is_single_use_and_defers_backlinks(
     assert all(run.provenance.study_manifest_digest is None for run in runset.runs)
     assert [notification.phase for notification in notifications] == ["issued", "succeeded"]
     assert guard_checks
+    assert window_reserves[-1] == Decimal("0")
+    assert window_reserves[:-1]
+    assert all(reserve > 0 for reserve in window_reserves[:-1])
 
     with pytest.raises(ValueError, match="already consumed"):
         run_live_suite(
@@ -1535,6 +1585,181 @@ def test_study_authorization_binds_callbacks_is_single_use_and_defers_backlinks(
             provider_dispatch_guard=journal_capability.provider_dispatch_guard,
             _study_dispatch_authorization=authorization,
         )
+
+
+def test_study_retry_guards_use_remaining_chain_and_reset_for_each_observation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    prompt = tmp_path / "prompt.txt"
+    prompt.write_text("Return an expense decision.", encoding="utf-8")
+    protocol_payload = _protocol_payload(compiled)
+    protocol_payload.update(
+        {
+            "planned_observations": 2,
+            "planned_repetitions": 2,
+            "planned_observations_per_cluster": "2.000000",
+            "design_effect": "1.200000",
+            "planned_effective_n": "1.666667",
+            "max_requests": 4,
+            "max_retries": 1,
+            "max_total_cost_usd": "4.000000",
+            "retry_initial_backoff_seconds": "5.000000",
+            "retry_max_backoff_seconds": "5.000000",
+        }
+    )
+    protocol = LiveProtocolRecord.model_validate(protocol_payload)
+    config = LiveRunConfig(
+        variant_id="study-retry-live",
+        pipeline_id="expense-live",
+        execution_profile="preregistered_paired_study",
+        tool_schema_digest="7" * 64,
+        policy_bundle_digest="8" * 64,
+        evidence_sensitivity_design_digest="9" * 64,
+        study_manifest_digest="a" * 64,
+        adapter=LiveAdapterConfig(
+            adapter_id="fake",
+            provider="fake-provider",
+            model="fake-model",
+            timeout_seconds=7,
+            max_output_tokens=10,
+        ),
+        cases=(
+            LivePromptCase(
+                case_id="exp-001",
+                prompt_path=prompt.name,
+                input_summary="expense request",
+            ),
+        ),
+        repetitions=2,
+        max_requests=4,
+        max_total_cost_usd="4.000000",
+        max_cost_per_observation_usd="1.000000",
+        max_retries=1,
+        retry_initial_backoff_seconds="5.000000",
+        retry_max_backoff_seconds="5.000000",
+        protocol_id=protocol.protocol_id,
+        protocol_digest=sha256_hexdigest(protocol),
+    )
+    snapshot = prepare_live_execution_snapshot(compiled, config, config_dir=tmp_path)
+    monkeypatch.setattr(
+        live_runner,
+        "require_validated_study_dispatch_authorization",
+        lambda *args, **kwargs: None,
+    )
+    available_seconds = Decimal("20")
+    window_reserves: list[Decimal] = []
+
+    def enforce_window_reserve(*args: object, **kwargs: object) -> None:
+        del args
+        reserve = cast(Decimal, kwargs["minimum_remaining_seconds"])
+        window_reserves.append(reserve)
+        if available_seconds <= reserve:
+            raise ValueError("study execution window lacks the requested reserve")
+
+    monkeypatch.setattr(
+        live_runner,
+        "require_validated_study_dispatch_window_open",
+        enforce_window_reserve,
+    )
+    notifications: list[live_runner.LiveAttemptNotification] = []
+    journal_capability = live_runner._create_study_bound_attempt_journal_execution_capability(
+        attempt_observer=notifications.append,
+        provider_dispatch_guard=lambda: None,
+    )
+    authorization = live_runner._issue_study_bound_live_execution_authorization(
+        config=config,
+        configuration_digest=live_runner.calculate_live_execution_configuration_digest(
+            compiled,
+            config,
+            config_dir=tmp_path,
+            execution_snapshot=snapshot,
+        ),
+        journal_execution_capability=journal_capability,
+        validated_preflight=cast(ValidatedStudyDispatchPreflight, object()),
+    )
+
+    class RetryOncePerObservationAdapter:
+        adapter_id = "fake"
+
+        def __init__(self, network_guard: Callable[[], None]) -> None:
+            self._network_guard = network_guard
+            self.calls = 0
+
+        def complete(self, _request: LiveProviderRequest) -> LiveProviderResponse:
+            nonlocal available_seconds
+            self._network_guard()
+            self.calls += 1
+            if self.calls in {1, 3}:
+                available_seconds = Decimal("8")
+                raise LiveProviderRequestError(
+                    "transient provider failure",
+                    status_code=503,
+                )
+            available_seconds = Decimal("20")
+            return LiveProviderResponse(
+                content=json.dumps(
+                    {
+                        "recommendation": "approve",
+                        "outcome": "approve",
+                        "output_summary": "approved",
+                    }
+                ),
+                provider="fake-provider",
+                model="fake-model",
+                provider_response_payload_sha256="a" * 64,
+                provider_response_payload_scope="complete_adapter_declared_response_bytes",
+            )
+
+    adapter: RetryOncePerObservationAdapter | None = None
+
+    def build_retry_adapter(*args: object, **kwargs: object) -> RetryOncePerObservationAdapter:
+        nonlocal adapter
+        del args
+        network_guard = kwargs["network_dispatch_guard"]
+        assert callable(network_guard)
+        adapter = RetryOncePerObservationAdapter(network_guard)
+        return adapter
+
+    monkeypatch.setattr(live_runner, "build_adapter", build_retry_adapter)
+    monkeypatch.setattr(live_runner, "_sleep_before_retry", lambda *_args: None)
+
+    runset = run_live_suite(
+        compiled,
+        config,
+        protocol=protocol,
+        config_dir=tmp_path,
+        execution_snapshot=snapshot,
+        attempt_observer=journal_capability.attempt_observer,
+        provider_dispatch_guard=journal_capability.provider_dispatch_guard,
+        _study_dispatch_authorization=authorization,
+    )
+
+    expected_observation_reserves = [
+        Decimal("19.000000"),
+        Decimal("19.000000"),
+        Decimal("19.000000"),
+        Decimal("7.000000"),
+        Decimal("7.000000"),
+        Decimal("7.000000"),
+        Decimal("0"),
+    ]
+    assert window_reserves == expected_observation_reserves * 2
+    assert adapter is not None
+    assert adapter.calls == 4
+    assert [record.attempt_count for record in runset.runs] == [2, 2]
+    assert [record.retry_count for record in runset.runs] == [1, 1]
+    assert [item.phase for item in notifications] == [
+        "issued",
+        "failed",
+        "issued",
+        "succeeded",
+        "issued",
+        "failed",
+        "issued",
+        "succeeded",
+    ]
 
 
 def test_static_jsonl_without_capabilities_requires_no_trust() -> None:

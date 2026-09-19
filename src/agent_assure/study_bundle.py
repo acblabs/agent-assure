@@ -426,15 +426,10 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
             RealModelStudyManifest,
             label="real-model study manifest",
         )
-        expected_entries = list(STUDY_BUNDLE_BASE_FILENAMES)
-        rule = manifest.hypothesis_decision_rule
-        has_independence_audit = (
-            rule.independence_justification.design_audit_artifact_sha256 is not None
-            if isinstance(rule, StudyHypothesisDecisionRule)
-            else isinstance(rule, StudyFixedFrameDescriptiveRule)
-        )
-        if has_independence_audit:
-            expected_entries.append(STUDY_INDEPENDENCE_AUDIT_FILENAME)
+        expected_entries = [
+            *STUDY_BUNDLE_BASE_FILENAMES,
+            STUDY_INDEPENDENCE_AUDIT_FILENAME,
+        ]
         has_execution_review = STUDY_EXECUTION_REVIEW_FILENAME in initial_entry_set
         if has_execution_review:
             expected_entries.append(STUDY_EXECUTION_REVIEW_FILENAME)
@@ -492,13 +487,9 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
         )
         independence_audit = validate_study_independence_audit_artifact(
             manifest=manifest,
-            artifact_bytes=(
-                read_child(
-                    STUDY_INDEPENDENCE_AUDIT_FILENAME,
-                    label="study independence audit artifact",
-                )
-                if has_independence_audit
-                else None
+            artifact_bytes=read_child(
+                STUDY_INDEPENDENCE_AUDIT_FILENAME,
+                label="study independence audit artifact",
             ),
         )
         report_bytes = read_child(
@@ -690,10 +681,8 @@ def load_and_validate_study_bundle(path: Path) -> ValidatedStudyBundle:
         execution_review_receipt=execution_review_receipt,
         registration_record_sha256=registration.record_sha256,
         registration_evidence_verified=True,
-        design_audit_artifact_sha256=(
-            independence_audit.artifact_sha256 if independence_audit is not None else None
-        ),
-        independence_audit_artifact_verified=independence_audit is not None,
+        design_audit_artifact_sha256=independence_audit.artifact_sha256,
+        independence_audit_artifact_verified=True,
         statistical_method_review_verified=statistical_method_review_verified,
         execution_review_verified=execution_review_verified,
         file_count=len(expected_entries),

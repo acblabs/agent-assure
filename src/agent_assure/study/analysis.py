@@ -1871,6 +1871,7 @@ def _invalidate_inconsistent_provider_serving_fingerprint_groups(
     eligible_states = {
         StudyConditionState.analyzed,
         StudyConditionState.control_failed,
+        StudyConditionState.fixed_frame_descriptive,
         StudyConditionState.underpowered,
     }
     members_by_identity: dict[

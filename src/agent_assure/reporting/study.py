@@ -202,8 +202,7 @@ def write_real_model_study_artifacts(
         "study-registration-review.json",
         _safe_model_json_text(registration.review_receipt),
     )
-    if independence_audit is not None:
-        artifacts.add(STUDY_INDEPENDENCE_AUDIT_FILENAME, independence_audit.text)
+    artifacts.add(STUDY_INDEPENDENCE_AUDIT_FILENAME, independence_audit.text)
     artifacts.add("real-model-study-report.json", _safe_model_json_text(report))
     artifacts.add("real-model-study-report.md", render_real_model_study_markdown(report))
     for index, binding in enumerate(manifest.conditions):
@@ -323,7 +322,7 @@ def _preflight_study_artifact_sizes(
     report: RealModelStudyReport,
     registration_record_text: str,
     registration_review_receipt: StudyRegistrationReviewReceipt,
-    independence_audit: ValidatedStudyIndependenceAuditArtifact | None,
+    independence_audit: ValidatedStudyIndependenceAuditArtifact,
     statistical_method_review_receipt: StudyStatisticalMethodReviewReceipt | None,
     execution_review_receipt: StudyExecutionReviewReceipt | None,
 ) -> None:
@@ -334,8 +333,7 @@ def _preflight_study_artifact_sizes(
     budget.add_model("process-equivalence-benchmark.json", benchmark)
     budget.add_text("study-registration-record.json", registration_record_text)
     budget.add_model("study-registration-review.json", registration_review_receipt)
-    if independence_audit is not None:
-        budget.add_bytes(STUDY_INDEPENDENCE_AUDIT_FILENAME, independence_audit.data)
+    budget.add_bytes(STUDY_INDEPENDENCE_AUDIT_FILENAME, independence_audit.data)
     budget.add_model("real-model-study-report.json", report)
     budget.add_text("real-model-study-report.md", render_real_model_study_markdown(report))
     for index, binding in enumerate(manifest.conditions):
