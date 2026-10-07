@@ -216,6 +216,9 @@ def test_adk_smoke_installs_locked_dependency_and_cannot_silently_skip() -> None
 
     lockfile = (ROOT / "requirements-adk.lock").read_text(encoding="utf-8")
     assert "\ngoogle-adk==" in lockfile
+    generator_command = lockfile.splitlines()[1]
+    assert "--universal" in generator_command
+    assert "--python-platform" not in generator_command
 
 
 def test_langgraph_smoke_runs_the_full_real_equivalence_file() -> None:
@@ -250,6 +253,9 @@ def test_otel_contract_installs_locked_dependencies_and_cannot_silently_skip() -
     assert "\nopentelemetry-api==1.44.0" in lockfile
     assert "\nopentelemetry-sdk==1.44.0" in lockfile
     assert "\nopentelemetry-exporter-otlp-proto-http==1.44.0" in lockfile
+    generator_command = lockfile.splitlines()[1]
+    assert "--universal" in generator_command
+    assert "--python-platform" not in generator_command
 
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
     assert project["project"]["optional-dependencies"]["otel"] == [

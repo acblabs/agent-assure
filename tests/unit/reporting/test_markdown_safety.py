@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
+import pytest
+
+from agent_assure.reporting.markdown_safety import (
+    markdown_code_span,
+    markdown_sha256_code_span,
+    markdown_text,
+)
 
 
 def test_markdown_text_escapes_links_html_and_newlines() -> None:
@@ -24,6 +30,21 @@ def test_markdown_code_span_cannot_break_out_of_a_table_cell() -> None:
 
     assert rendered == "<code>left &#124; right &lt;unsafe&gt;</code>"
     assert "|" not in rendered
+
+
+def test_markdown_sha256_code_span_preserves_valid_card_shaped_digest() -> None:
+    digest = "cd18620ee20204105499754aa35d7ff45d9c37483cfb06df8ab3b461571d7993"
+
+    assert markdown_code_span(digest) == (
+        "`cd18620ee[REDACTED]aa35d7ff45d9c37483cfb06df8ab3b461571d7993`"
+    )
+    assert markdown_sha256_code_span(digest) == f"`{digest}`"
+
+
+def test_markdown_sha256_code_span_fails_closed_for_invalid_value() -> None:
+    with pytest.raises(ValueError, match="lowercase 64-character hex"):
+        markdown_sha256_code_span("A" * 64)
+    assert markdown_sha256_code_span(None) == "`not_recorded`"
 
 
 def test_markdown_rendering_preserves_ordinary_escaping() -> None:
