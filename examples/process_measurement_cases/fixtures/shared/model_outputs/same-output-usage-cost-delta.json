@@ -13,6 +13,7 @@
     "usage": {
       "completion_tokens": 25,
       "estimated_cost_microusd": 150,
+      "estimated_cost_picousd": 150000000,
       "latency_ms": 100,
       "prompt_tokens": 75,
       "retry_count": 0,
@@ -34,6 +35,7 @@
     "usage": {
       "completion_tokens": 80,
       "estimated_cost_microusd": 430,
+      "estimated_cost_picousd": 430000000,
       "latency_ms": 180,
       "prompt_tokens": 170,
       "retry_count": 0,

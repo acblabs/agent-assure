@@ -24,14 +24,14 @@
       "additionalProperties": false,
       "properties": {
         "content_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Sha256",
           "type": "string"
         },
         "entry_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Entry Id",
           "type": "string"
         },
@@ -41,14 +41,14 @@
         "option_name": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Option Name",
           "type": "string"
         },
         "option_value": {
           "maxLength": 2048,
           "minLength": 1,
-          "pattern": "^[^\\x00\\r\\n]+$",
+          "pattern": "^[^\\x00\\r\\n]+(?![\\s\\S])",
           "title": "Option Value",
           "type": "string"
         },
@@ -56,7 +56,7 @@
           "$ref": "#/$defs/PilotInputOrigin"
         },
         "semantic_identity_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Semantic Identity Digest",
           "type": "string"
         },
@@ -102,7 +102,7 @@
     "configuration_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -126,7 +126,7 @@
     "data_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {

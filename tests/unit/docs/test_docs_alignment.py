@@ -74,6 +74,50 @@ def test_release_metadata_checkers_accept_current_files() -> None:
     assert docs_alignment._check_readme_release_pins() == []
 
 
+def test_claim_evidence_status_docs_match_runtime_domain_and_applicability() -> None:
+    assert docs_alignment._check_claim_evidence_status_docs() == []
+
+
+def test_trajectory_exclusion_docs_publish_order_and_failure_provenance() -> None:
+    release_documents = (
+        ROOT / "CHANGELOG.md",
+        ROOT / "docs" / "release_notes" / "v0.7.0.md",
+    )
+    provenance_contract = (
+        "derive only from reason codes on failed policy results when the source "
+        "`policy_results` field has a trusted, control-eligible origin"
+    )
+
+    for document in release_documents:
+        normalized = " ".join(document.read_text(encoding="utf-8").split())
+        assert "Reviewed exclusions preserve `human_review → [emergency] → excluded`" in normalized
+        assert provenance_contract in normalized
+
+    schema_reference = " ".join(
+        (ROOT / "docs" / "schema_reference.md").read_text(encoding="utf-8").split()
+    )
+    assert (
+        "`start → request_assembly → [human_review] → [emergency] → excluded`" in schema_reference
+    )
+    assert provenance_contract in schema_reference
+
+
+def test_claim_evidence_status_docs_reject_included_approval_scope_mutation() -> None:
+    mutated = (
+        "Excluded paths are `not_evaluated`; included non-approval paths are "
+        "`not_applicable`; all approval paths may be `complete`, `incomplete`, or "
+        "`unobservable`."
+    )
+
+    assert docs_alignment._check_claim_evidence_status_doc_text(
+        mutated,
+        document_name="mutated.md",
+    ) == [
+        "mutated.md must state claim-evidence applicability: only included approvals may be "
+        "`complete`, `incomplete`, or `unobservable`"
+    ]
+
+
 def test_testpypi_runbook_pins_rc_and_stable_golden_regeneration_order() -> None:
     runbook = (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8")
     project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
@@ -222,6 +266,57 @@ def test_publication_docs_state_cross_platform_deadline_and_host_boundary() -> N
     assert "60-second monotonic deadline" not in normalized_sensitivity
 
 
+def test_dns_cache_security_and_performance_contract_is_documented() -> None:
+    documents = {
+        path: " ".join((ROOT / path).read_text(encoding="utf-8").split())
+        for path in (
+            "CHANGELOG.md",
+            "docs/limitations.md",
+            "docs/cli_contract.md",
+            "docs/threat_model.md",
+        )
+    }
+
+    for text in documents.values():
+        assert "bounded single-flight cache" in text
+        assert "non-sliding" in text
+        assert "original hostname" in text
+        assert "TLS" in text
+
+    for path in ("CHANGELOG.md", "docs/limitations.md", "docs/cli_contract.md"):
+        assert "timeout window" in documents[path]
+    assert (
+        "Each OpenAI-compatible request resolves and screens"
+        not in documents["docs/limitations.md"]
+    )
+    assert "requests repeat that screen immediately" not in documents["docs/cli_contract.md"]
+    assert "requests repeat DNS screening" not in documents["docs/threat_model.md"]
+
+
+def test_live_cli_contract_uses_current_bounded_rare_event_methods() -> None:
+    cli_contract = (ROOT / "docs" / "cli_contract.md").read_text(encoding="utf-8")
+    normalized = " ".join(cli_contract.split())
+
+    assert (
+        "bounded-work one-sided binomial upper bounds for binary event incidence over "
+        "independence clusters"
+    ) in normalized
+    assert "Exact Clopper--Pearson inversion is used through 1,000 clusters" in normalized
+    assert "larger zero-event samples use its exact closed-form boundary" in normalized
+    assert (
+        "larger nonzero samples use a separately labeled conservative one-sided Bernoulli "
+        "KL-Chernoff inversion" in normalized
+    )
+    assert "rational logarithm enclosures" in normalized
+    assert "work bounded independently of the cluster count" in normalized
+    assert "not an exact Clopper--Pearson/binomial-tail inversion" in normalized
+    assert "Hoeffding" not in normalized
+    assert "Bonferroni rare-event endpoints use the endpoint-adjusted alpha" in normalized
+    assert "persisted upper endpoints are rounded outward" in normalized
+    assert "one-sided Poisson upper bounds" not in normalized
+    assert "Bonferroni Poisson endpoints" not in normalized
+
+
 def test_readme_local_image_asset_checker_rejects_missing_asset(
     tmp_path: Path,
     monkeypatch,
@@ -304,8 +399,7 @@ def test_release_metadata_checkers_reject_version_drift(
         encoding="utf-8",
     )
     (tmp_path / "README.md").write_text(
-        "pip install agent-assure==1.2.3\n"
-        "uses: acblabs/agent-assure/.github/actions/agent-assure@v1.2.3\n",
+        _release_readme("1.2.3"),
         encoding="utf-8",
     )
     monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
@@ -317,7 +411,92 @@ def test_release_metadata_checkers_reject_version_drift(
     ]
     assert docs_alignment._check_readme_release_pins() == [
         "README.md package pin '1.2.3' does not match latest released version '1.2.2'",
-        "README.md action pin '1.2.3' does not match latest released version '1.2.2'",
+        "README.md action version comment '1.2.3' does not match latest released version '1.2.2'",
+    ]
+
+
+def test_citation_semantic_gate_rejects_duplicate_nested_yaml_keys(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## Unreleased\n\n## 1.2.3 - 2026-01-02\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CITATION.cff").write_text(
+        "cff-version: 1.2.0\n"
+        "authors:\n"
+        "  - name: First\n"
+        "    name: Duplicate\n"
+        "version: 1.2.3\n"
+        "date-released: 2026-01-02\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    failures = docs_alignment._check_citation_version()
+
+    assert len(failures) == 1
+    assert "CITATION.cff semantic YAML validation failed" in failures[0]
+    assert "duplicate key 'name'" in failures[0]
+
+
+def test_citation_semantic_gate_rejects_invalid_closed_scalar_syntax(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## Unreleased\n\n## 1.2.3 - 2026-01-02\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "CITATION.cff").write_text(
+        'title: "closed" trailing\nversion: 1.2.3\ndate-released: 2026-01-02\n',
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    failures = docs_alignment._check_citation_version()
+
+    assert len(failures) == 1
+    assert "CITATION.cff semantic YAML validation failed" in failures[0]
+
+
+def test_readme_release_pin_checker_rejects_movable_action_tag(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## Unreleased\n\n## 1.2.2 - 2026-01-01\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "README.md").write_text(
+        _release_readme("1.2.2", action_ref="v1.2.2"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    assert docs_alignment._check_readme_release_pins() == [
+        "README.md must pin the published composite action to a full commit SHA "
+        "with its release-version comment"
+    ]
+
+
+def test_readme_release_pin_checker_fails_closed_without_git_repository(
+    tmp_path: Path,
+    monkeypatch,
+) -> None:
+    (tmp_path / "CHANGELOG.md").write_text(
+        "# Changelog\n\n## Unreleased\n\n## 1.2.2 - 2026-01-01\n",
+        encoding="utf-8",
+    )
+    (tmp_path / "README.md").write_text(
+        _release_readme("1.2.2"),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(docs_alignment, "ROOT", tmp_path)
+
+    assert docs_alignment._check_readme_release_pins() == [
+        "README.md action source cannot be verified: Git repository is unavailable"
     ]
 
 
@@ -644,3 +823,118 @@ def _protocol_fixture(
         sections.append(f"{heading}\n\n{content}")
     header = "# Experiment Protocol\n\nProtocol status: live statistical protocol.\n\n"
     return header + "\n\n".join(sections)
+
+
+def _release_readme(
+    package_version: str,
+    *,
+    action_version: str | None = None,
+    action_ref: str | None = None,
+) -> str:
+    resolved_action_version = action_version or package_version
+    resolved_action_ref = action_ref or "a" * 40
+    return (
+        "## Integrate your agent\n\n"
+        "### GitHub Actions example using the bundled fixture\n\n"
+        "```yaml\n"
+        f"- run: pip install agent-assure=={package_version}\n"
+        f"# agent-assure v{resolved_action_version}\n"
+        "- uses: acblabs/agent-assure/.github/actions/agent-assure@"
+        f"{resolved_action_ref}\n"
+        "```\n\n"
+        "### Next section\n"
+    )
+
+
+def test_v070_release_notes_name_every_operator_visible_break() -> None:
+    notes = (ROOT / "docs" / "release_notes" / "v0.7.0.md").read_text(encoding="utf-8")
+    changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
+
+    required_fragments = (
+        "--authorized-endpoint-host",
+        "--authorized-api-key-env",
+        "cost_per_million_prompt_tokens_usd",
+        "input_million_tokens_usd",
+        "octal-looking",
+        "90 days",
+        "actual current local or UTC date",
+        "persistent_failure",
+    )
+    for fragment in required_fragments:
+        assert fragment in notes
+        assert fragment in changelog
+
+
+def test_public_docs_state_the_qualified_platform_and_dependency_matrix() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+    notes = (ROOT / "docs" / "release_notes" / "v0.7.0.md").read_text(encoding="utf-8")
+
+    for text in (readme, notes):
+        assert "Ubuntu 24.04" in text
+        assert "Windows Server 2025" in text
+        assert "macOS is not" in text
+        assert "requirements*.lock" in text
+        assert "compatibility intent" in text
+
+
+def test_security_support_language_does_not_promise_an_unavailable_patch_path() -> None:
+    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+
+    assert "Active maintenance means" in security
+    assert "may wait for the next standard release" in security
+    assert "There is no maintenance publication bypass" in security
+    assert "emergency path is rooted outside" in security
+
+
+def test_codeowners_has_broad_source_test_and_governance_coverage() -> None:
+    owners = (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8")
+
+    assert "/src/agent_assure/** @acblabs" in owners
+    assert "/tests/** @acblabs" in owners
+    assert "/docs/** @acblabs" in owners
+    assert "/requirements-min.constraints.txt @acblabs" in owners
+    assert "/.gitleaksignore @acblabs" in owners
+
+
+def test_release_security_authority_inputs_are_documented_for_review() -> None:
+    security = (ROOT / "SECURITY.md").read_text(encoding="utf-8")
+
+    assert "`requirements-min.constraints.txt`" in security
+    assert "`.gitleaksignore`" in security
+    assert "exact reviewed historical fingerprints" in security
+
+
+def test_public_docs_fail_closed_for_historical_decision_roots() -> None:
+    documents = {
+        path: " ".join((ROOT / path).read_text(encoding="utf-8").split())
+        for path in (
+            "CHANGELOG.md",
+            "docs/cli_contract.md",
+            "docs/evidence_packets.md",
+            "docs/limitations.md",
+            "docs/release_notes/v0.7.0.md",
+            "docs/schema_evolution.md",
+        )
+    }
+
+    for text in documents.values():
+        assert "archival-only" in text.lower()
+        assert "through v0.6.5" in text
+
+    for path in ("CHANGELOG.md", "docs/release_notes/v0.7.0.md"):
+        text = documents[path]
+        for artifact_kind in (
+            "evaluation-summary",
+            "evaluation-report",
+            "comparison-summary",
+            "comparison-report",
+            "evidence-packet",
+        ):
+            assert artifact_kind in text
+
+    packet_docs = documents["docs/evidence_packets.md"]
+    cli_docs = documents["docs/cli_contract.md"]
+    assert "public packet loader, writer, artifact validator, and CI gate reject" in packet_docs
+    assert "public packet loader, writer, `validate` command, and `ci gate` reject" in cli_docs
+    assert "Coherent legacy packets remain readable" not in packet_docs
+    assert "coherent supported legacy output" not in cli_docs

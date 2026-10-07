@@ -66,7 +66,7 @@ def test_tagged_schema_reports_changed_removed_and_added_files(tmp_path: Path) -
 
 @pytest.mark.parametrize(
     ("release_tag", "schema_version"),
-    [("v0.4.2", "v0.3.1"), ("v0.4.4", "v0.4.3")],
+    [("v0.4.2", "v0.3.1"), ("v0.4.4", "v0.4.3"), ("v0.7.0", "v0.6.6")],
 )
 def test_package_only_release_tag_protects_mapped_schema_version(
     tmp_path: Path,

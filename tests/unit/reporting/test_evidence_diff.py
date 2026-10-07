@@ -6,7 +6,7 @@ from agent_assure.reporting.evidence_diff_html import render_evidence_diff_html
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
-from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.run import AgentRunRecord, Provenance, RunSet
 
 _DIGEST = "0" * 64
 
@@ -45,8 +45,8 @@ def test_evidence_diff_marks_missing_candidate_case_as_changed() -> None:
             candidate_runset_digest=runset_digest(candidate),
             privacy_profile_id=PRIVACY_PROFILE_ID,
             privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
-            classification=ComparisonClassification.not_evaluated,
-            fixture_equivalence_state=GateState.not_evaluated,
+            classification=ComparisonClassification.invalid_comparison,
+            fixture_equivalence_state=GateState.fail,
             baseline_state=GateState.pass_,
             candidate_state=GateState.pass_,
         ),
@@ -67,6 +67,7 @@ def _run(case_id: str, *, outcome: str) -> AgentRunRecord:
         outcome=outcome,
         input_summary="fixture input",
         output_summary="fixture output",
+        provenance=Provenance(fixture_manifest_digest=_DIGEST),
     )
 
 

@@ -27,7 +27,7 @@
         "dependency_inventory_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -84,7 +84,7 @@
         "lockfile_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -173,6 +173,43 @@
       "title": "InstalledPackage",
       "type": "object"
     },
+    "UsageMetricCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_cost_microusd": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "total_latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Latency Ms",
+          "type": "integer"
+        },
+        "total_retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Retries",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        },
+        "total_tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "UsageMetricCoverage",
+      "type": "object"
+    },
     "UsageSummary": {
       "additionalProperties": false,
       "allOf": [
@@ -217,6 +254,98 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "aggregation_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_basis"
+                  ]
+                },
+                {
+                  "required": [
+                    "source_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_counts"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method",
+              "coverage_basis",
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -232,9 +361,175 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tokens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tokens": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tool_calls": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tool_calls"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tool_calls": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_retries": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_retries"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_retries": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_latency_ms": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_latency_ms"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_latency_ms": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "estimated_cost_microusd": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
         }
       ],
       "properties": {
+        "aggregation_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "sum_known_fields_v1",
+                "sum_complete_fields_v2"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aggregation Method"
+        },
         "artifact_kind": {
           "const": "usage-summary",
           "default": "usage-summary",
@@ -262,9 +557,37 @@
           "default": null,
           "title": "Cost Observation Count"
         },
+        "coverage_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "usage_segment",
+                "usage_summary",
+                "run_record"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Basis"
+        },
+        "coverage_counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageMetricCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -281,6 +604,19 @@
           "default": null,
           "title": "Estimated Cost Microusd"
         },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -292,7 +628,7 @@
         "pricing_snapshot_digests": {
           "default": [],
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Pricing Snapshot Digests",
@@ -307,10 +643,23 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
+        },
+        "source_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Count"
         },
         "total_latency_ms": {
           "anyOf": [
@@ -421,6 +770,37 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_cost_picousd_delta"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd_delta_bps"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd_delta": {
                 "type": "integer"
               }
@@ -435,6 +815,82 @@
                 "const": "USD"
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_picousd_delta": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "currency": {
+                "const": "USD"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd_delta": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd_delta"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_picousd_delta": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_microusd_delta"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_picousd_delta_bps": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd_delta_bps"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
           }
         }
       ],
@@ -465,7 +921,7 @@
         },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -493,6 +949,30 @@
           "default": null,
           "title": "Estimated Cost Microusd Delta Bps"
         },
+        "estimated_cost_picousd_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd Delta"
+        },
+        "estimated_cost_picousd_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd Delta Bps"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -502,8 +982,8 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -706,6 +1186,29 @@
       }
     },
     {
+      "if": {
+        "properties": {
+          "fixture_equivalence_state": {
+            "const": "fail"
+          },
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        },
+        "required": [
+          "schema_version",
+          "fixture_equivalence_state"
+        ]
+      },
+      "then": {
+        "properties": {
+          "classification": {
+            "const": "invalid_comparison"
+          }
+        }
+      }
+    },
+    {
       "else": {
         "not": {
           "anyOf": [
@@ -770,7 +1273,7 @@
     "baseline_runset_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -803,7 +1306,7 @@
     "candidate_runset_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -852,7 +1355,7 @@
       "default": "not_evaluated"
     },
     "privacy_profile_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Privacy Profile Digest",
       "type": "string"
     },

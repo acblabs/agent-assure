@@ -15,6 +15,7 @@ from agent_assure.io_limits import (
     load_json_bounded,
     read_text_bounded,
 )
+from agent_assure.onboarding.diagnostics import bounded_error, bounded_text, display_path
 from agent_assure.privacy.redaction import assert_runset_payload_safe_for_persistence
 from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.telemetry import MAX_OTEL_SPANS_PER_EXPORT, SpanPlan
@@ -35,7 +36,7 @@ from agent_assure.telemetry.otel_sdk import (
 from agent_assure.telemetry.privacy_filter import assert_span_plan_safe_for_export
 
 app = typer.Typer(help="OpenTelemetry-aligned preview utilities.")
-console = Console()
+console = Console(markup=False)
 OTelProtocol = Literal["otlp-http", "console"]
 
 
@@ -66,13 +67,13 @@ def preview(
         )
         span_plan = run_record_to_span_plan(record)
     except (TypeError, ValueError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     payload = json.dumps(span_plan.model_dump(mode="json"), indent=2, sort_keys=True) + "\n"
     if out is None:
         console.print(payload)
         return
     write_text_atomic(out, payload)
-    console.print(f"span plan: {out}")
+    console.print(f"span plan: {display_path(out)}")
 
 
 @app.command("export")
@@ -140,13 +141,13 @@ def export(
         )
         result = emit_span_plans(plans, config)
     except (OpenTelemetryExportError, OpenTelemetryUnavailable) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     except (TypeError, ValueError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     console.print(
         "otel export: "
         f"spans={result.span_count} protocol={result.protocol} "
-        f"endpoint={result.endpoint or 'none'}"
+        f"endpoint={bounded_text(result.endpoint or 'none')}"
     )
 
 

@@ -645,7 +645,7 @@ def test_ci_coverage_gate_is_complete_branch_enabled_and_fail_closed() -> None:
         for step in shards["steps"]
         if str(step.get("uses", "")).startswith("actions/upload-artifact@")
     )
-    assert upload["uses"].endswith("@ea165f8d65b6e75b540449e92b4886f43607fa02")
+    assert upload["uses"].endswith("@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a")
     assert upload["if"] == "${{ always() }}"
     assert upload["with"]["name"] == "coverage-${{ matrix.shard }}"
     assert upload["with"]["path"] == ".coverage.${{ matrix.shard }}"
@@ -667,7 +667,7 @@ def test_ci_coverage_gate_is_complete_branch_enabled_and_fail_closed() -> None:
         for step in gate["steps"]
         if str(step.get("uses", "")).startswith("actions/download-artifact@")
     )
-    assert download["uses"].endswith("@d3f86a106a0bac45b974a628896c90dbdf5c8093")
+    assert download["uses"].endswith("@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c")
     assert download["with"] == {
         "pattern": "coverage-*",
         "path": ".coverage-data",

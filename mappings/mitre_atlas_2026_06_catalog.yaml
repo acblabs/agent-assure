@@ -1,14 +1,26 @@
-# Compact offline ID catalog derived from the pinned MITRE ATLAS YAML at:
-# https://atlas.mitre.org/atlas-data/dist/v6/ATLAS-2026.06.yaml
-# Refresh this file whenever docs/threat_coverage_matrix.yaml pins a new
-# ATLAS release. Regenerate it by extracting tactic and technique IDs/names
-# from that release's v6 YAML, then preserving the manifest release date and
-# YAML artifact modified date below.
-source: https://atlas.mitre.org/atlas-data/dist/v6/ATLAS-2026.06.yaml
+# Production validation catalog derived from the pinned MITRE ATLAS v2026.06
+# release asset. The full immutable provenance fields below are authenticated by
+# agent_assure.atlas_catalog before these identifiers are used.
+#
+# This intentionally contains only stable identifier/name pairs needed for
+# offline artifact validation. Update the release metadata, catalog contents,
+# and the integrity digest in agent_assure.atlas_catalog together.
+source: https://github.com/mitre-atlas/atlas-data/releases/download/v2026.06/ATLAS-2026.06.yaml
+upstream_repository: https://github.com/mitre-atlas/atlas-data
+upstream_release_tag: v2026.06
+upstream_commit: 651dad90d3c007e797c89356fa1f4d8732f90c8d
+upstream_asset_sha256: b771de8b1489564b2838a709c7429849a9575dbd94073928817fe1a21661e70a
 release: "2026.06"
 release_date: "2026-06-30"
 artifact_modified_date: "2026-05-27"
 format_version: "6.0.0"
+release_announcement_tactic_count: 16
+release_announcement_technique_count: 104
+release_announcement_sub_technique_count: 69
+verified_tactic_count: 16
+verified_base_technique_count: 103
+verified_sub_technique_count: 70
+catalog_technique_id_count: 173
 tactics:
   AML.TA0000: AI Model Access
   AML.TA0001: AI Attack Staging

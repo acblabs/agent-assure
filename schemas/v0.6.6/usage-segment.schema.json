@@ -29,6 +29,32 @@
     {
       "if": {
         "properties": {
+          "schema_version": {
+            "enum": [
+              "0.3.1",
+              "0.4.3"
+            ]
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "estimated_cost_picousd"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "estimated_cost_microusd": {
             "type": "integer"
           }
@@ -48,6 +74,35 @@
         },
         "required": [
           "limitations"
+        ]
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "model": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+          },
+          "provider": {
+            "maxLength": 256,
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "schema_version": {
+            "enum": [
+              "0.3.1",
+              "0.4.3"
+            ]
+          }
+        },
+        "required": [
+          "schema_version"
         ]
       }
     }
@@ -111,7 +166,7 @@
     },
     "currency": {
       "default": "USD",
-      "pattern": "^[A-Z]{3}$",
+      "pattern": "^[A-Z]{3}(?![\\s\\S])",
       "title": "Currency",
       "type": "string"
     },
@@ -127,6 +182,19 @@
       ],
       "default": null,
       "title": "Estimated Cost Microusd"
+    },
+    "estimated_cost_picousd": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Cost Picousd"
     },
     "event_range_end": {
       "anyOf": [
@@ -214,7 +282,7 @@
     "pricing_snapshot_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -300,8 +368,8 @@
       "title": "Run Id"
     },
     "schema_version": {
-      "const": "0.4.3",
-      "default": "0.4.3",
+      "const": "0.6.6",
+      "default": "0.6.6",
       "title": "Schema Version",
       "type": "string"
     },

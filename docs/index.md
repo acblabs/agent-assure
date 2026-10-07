@@ -39,6 +39,7 @@ evidence link. The CI gate blocks that process regression as expected.
 - [External pilot reviewer guide](external_pilot_review.md)
 - [Evidence diff](evidence_diff.md)
 - [Claim boundary](claim_boundary.md)
+- [Security correction containment and risk acceptance](security_release_containment.md)
 
 ## Governance Crosswalks
 

@@ -16,6 +16,7 @@ for import_path in (ROOT, SRC):
         sys.path.insert(0, str(import_path))
 
 from agent_assure.io_limits import read_file_bounded_at  # noqa: E402
+from agent_assure.onboarding.diagnostics import bounded_error  # noqa: E402
 from agent_assure.release_evidence import load_digest_replay  # noqa: E402
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
 from agent_assure.schema.validation import (  # noqa: E402
@@ -82,7 +83,10 @@ def main(argv: Sequence[str] | None = None) -> int:
         )
         findings = _compare_release_bundle_indexes(downloaded, rebuilt)
     except (OSError, RuntimeError, ValueError) as exc:
-        print(f"release bundle reproducibility check failed closed: {exc}", file=sys.stderr)
+        print(
+            f"release bundle reproducibility check failed closed: {bounded_error(exc)}",
+            file=sys.stderr,
+        )
         return 1
     if findings:
         print(
@@ -115,7 +119,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 expected_sha256=downloaded,
             )
         except (OSError, RuntimeError, ValueError) as exc:
-            print(f"verified release bundle staging failed closed: {exc}", file=sys.stderr)
+            print(
+                f"verified release bundle staging failed closed: {bounded_error(exc)}",
+                file=sys.stderr,
+            )
             return 1
     print(f"release signing inputs byte-reproducible: {len(rebuilt)} artifacts")
     return 0

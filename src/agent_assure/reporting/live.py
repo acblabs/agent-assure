@@ -10,70 +10,122 @@ from agent_assure.privacy.redaction import (
 )
 from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.schema.live import (
+    LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
     LiveComparisonReport,
     LiveDriftReport,
     LiveEvaluationReport,
     LiveTrajectoryReport,
+    trajectory_path_is_included,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
+
+_SUPPORTED_DRIFT_REPORT_ORDERING_VARIABLES = frozenset({"window_index", "window_start_utc"})
 
 
 def write_live_evaluation_json(report: LiveEvaluationReport, out_dir: Path) -> Path:
+    report = _validated_live_evaluation_report_for_reporting(report)
+    payload = redact_artifact_payload(
+        report.model_dump(mode="json", warnings="error"),
+        preserve_keys=PRESERVE_PACKET_KEYS,
+    )
+    report = _validated_live_evaluation_report_for_reporting(
+        LiveEvaluationReport.model_validate(payload)
+    )
+    safe_payload = report.model_dump(mode="json", warnings="error")
+    validate_loaded_artifact_payload(safe_payload, "live-evaluation-report")
+    rendered = _json_text(safe_payload)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-evaluation-report.json"
-    _write_json(report.model_dump(mode="json"), path)
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_comparison_json(report: LiveComparisonReport, out_dir: Path) -> Path:
+    report = _validated_live_comparison_report_for_reporting(report)
+    payload = redact_artifact_payload(
+        report.model_dump(mode="json", warnings="error"),
+        preserve_keys=PRESERVE_PACKET_KEYS,
+    )
+    report = _validated_live_comparison_report_for_reporting(
+        LiveComparisonReport.model_validate(payload)
+    )
+    safe_payload = report.model_dump(mode="json", warnings="error")
+    validate_loaded_artifact_payload(safe_payload, "live-comparison-report")
+    rendered = _json_text(safe_payload)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-comparison-report.json"
-    _write_json(report.model_dump(mode="json"), path)
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_drift_json(report: LiveDriftReport, out_dir: Path) -> Path:
+    report = _validated_live_drift_report_for_reporting(report)
+    payload = redact_artifact_payload(
+        report.model_dump(mode="json", warnings="error"),
+        preserve_keys=PRESERVE_PACKET_KEYS,
+    )
+    report = _validated_live_drift_report_for_reporting(LiveDriftReport.model_validate(payload))
+    safe_payload = report.model_dump(mode="json", warnings="error")
+    validate_loaded_artifact_payload(safe_payload, "live-drift-report")
+    rendered = _json_text(safe_payload)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-drift-report.json"
-    _write_json(report.model_dump(mode="json"), path)
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_trajectory_json(report: LiveTrajectoryReport, out_dir: Path) -> Path:
+    report = _validated_live_trajectory_report_for_reporting(report)
+    payload = redact_artifact_payload(
+        report.model_dump(mode="json", warnings="error"),
+        preserve_keys=PRESERVE_PACKET_KEYS,
+    )
+    report = _validated_live_trajectory_report_for_reporting(
+        LiveTrajectoryReport.model_validate(payload)
+    )
+    safe_payload = report.model_dump(mode="json", warnings="error")
+    validate_loaded_artifact_payload(safe_payload, "live-trajectory-report")
+    rendered = _json_text(safe_payload)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-trajectory-report.json"
-    _write_json(report.model_dump(mode="json"), path)
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_evaluation_markdown(report: LiveEvaluationReport, out_dir: Path) -> Path:
+    rendered = render_live_evaluation_markdown(report)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-evaluation-report.md"
-    write_text_atomic(path, render_live_evaluation_markdown(report))
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_comparison_markdown(report: LiveComparisonReport, out_dir: Path) -> Path:
+    rendered = render_live_comparison_markdown(report)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-comparison-report.md"
-    write_text_atomic(path, render_live_comparison_markdown(report))
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_drift_markdown(report: LiveDriftReport, out_dir: Path) -> Path:
+    rendered = render_live_drift_markdown(report)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-drift-report.md"
-    write_text_atomic(path, render_live_drift_markdown(report))
+    write_text_atomic(path, rendered)
     return path
 
 
 def write_live_trajectory_markdown(report: LiveTrajectoryReport, out_dir: Path) -> Path:
+    rendered = render_live_trajectory_markdown(report)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "live-trajectory-report.md"
-    write_text_atomic(path, render_live_trajectory_markdown(report))
+    write_text_atomic(path, rendered)
     return path
 
 
 def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
+    report = _validated_live_evaluation_report_for_reporting(report)
     lines = [
         "# Live Evaluation Report",
         "",
@@ -90,7 +142,9 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
         f"- Completion status: {markdown_code_span(report.completion_status)}",
         f"- Stop reasons: {markdown_code_span(', '.join(report.stop_reasons) or 'none')}",
         f"- Observations: `{report.overall.observations}`",
-        f"- Expectation pass rate: `{report.overall.expectation_pass_rate.rate}`",
+        "- Observation-level expectation pass rate "
+        "(passing observations / included observations): "
+        f"`{report.overall.expectation_pass_rate.rate}`",
         f"- Cluster mean pass rate: `{report.overall.expectation_pass_rate.cluster_mean_rate}`",
         f"- Mean-cluster design effect: `{report.overall.expectation_pass_rate.design_effect}`",
         "- Largest-cluster sensitivity: "
@@ -140,11 +194,15 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
     lines.extend(["", "## Statistical Invariants", ""])
     if report.statistical_invariants:
         for invariant in report.statistical_invariants:
+            rendered_limitations: set[str] = set()
             lines.append(
                 f"- {markdown_code_span(invariant.endpoint_id)} "
                 f"{markdown_code_span(invariant.interpretation)} "
                 f"{markdown_code_span(invariant.prerequisite_status)} "
-                f"rate=`{invariant.rate}` clusters=`{invariant.cluster_count}` "
+                "observation_event_rate="
+                f"`{invariant.rate}` observations="
+                f"`{invariant.numerator}/{invariant.denominator}` "
+                f"independence_clusters=`{invariant.cluster_count}` "
                 f"method={markdown_code_span(invariant.analysis_method)}"
             )
             if invariant.rare_event_bound is not None:
@@ -152,9 +210,17 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
                 lines.append(
                     f"  - {markdown_code_span(bound.interval_sidedness)} "
                     f"{markdown_code_span(bound.confidence_level)} bound: "
-                    f"events=`{bound.observed_events}` exposure=`{bound.exposure}` "
-                    f"upper_rate=`{bound.upper_rate_bound}`"
+                    "cluster_incidence_events="
+                    f"`{bound.observed_events}` "
+                    f"independence_cluster_exposure=`{bound.exposure}` "
+                    f"exposure_unit={markdown_code_span(bound.exposure_unit)} "
+                    "cluster_incidence_upper_rate="
+                    f"`{bound.upper_rate_bound}`"
                 )
+                for limitation in bound.limitations:
+                    if limitation not in rendered_limitations:
+                        lines.append("    - rare-event limitation: " + markdown_text(limitation))
+                        rendered_limitations.add(limitation)
             if invariant.cluster_correlation is not None:
                 correlation = invariant.cluster_correlation
                 lines.append(
@@ -165,6 +231,16 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
                     f"`{correlation.ci_upper or 'not_evaluated'}` "
                     f"confirmatory_use=`{correlation.confirmatory_use}`"
                 )
+                for limitation in correlation.limitations:
+                    if limitation not in rendered_limitations:
+                        lines.append(
+                            "    - cluster-correlation limitation: " + markdown_text(limitation)
+                        )
+                        rendered_limitations.add(limitation)
+            for limitation in invariant.limitations:
+                if limitation not in rendered_limitations:
+                    lines.append("  - endpoint limitation: " + markdown_text(limitation))
+                    rendered_limitations.add(limitation)
     else:
         lines.append("No advanced statistical endpoints were declared.")
     lines.extend(["", "## Observation Findings", ""])
@@ -188,6 +264,7 @@ def render_live_evaluation_markdown(report: LiveEvaluationReport) -> str:
 
 
 def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
+    report = _validated_live_comparison_report_for_reporting(report)
     lines = [
         "# Live Comparison Report",
         "",
@@ -211,6 +288,11 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
         "",
         "## Operational Deltas",
         "",
+        f"- Verification boundary: {LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION}.",
+        "- Baseline evaluation digest: "
+        f"{markdown_code_span(report.baseline_evaluation_digest or 'not_recorded')}",
+        "- Candidate evaluation digest: "
+        f"{markdown_code_span(report.candidate_evaluation_digest or 'not_recorded')}",
         f"- p50 latency difference ms: `{report.latency_p50_difference_ms or 'not_evaluated'}`",
         f"- total cost difference USD: `{report.cost_total_difference_usd or 'not_evaluated'}`",
         "",
@@ -241,6 +323,7 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
 
 
 def render_live_drift_markdown(report: LiveDriftReport) -> str:
+    report = _validated_live_drift_report_for_reporting(report)
     lines = [
         "# Live Drift Report",
         "",
@@ -325,6 +408,7 @@ def render_live_drift_markdown(report: LiveDriftReport) -> str:
 
 
 def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
+    report = _validated_live_trajectory_report_for_reporting(report)
     lines = [
         "# Live Trajectory Report",
         "",
@@ -348,13 +432,17 @@ def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
         "",
     ]
     for path in report.paths:
+        observation_status = "included" if trajectory_path_is_included(path) else "excluded"
         lines.append(
             f"- {markdown_code_span(path.case_id)} repetition=`{path.repetition_index}` "
+            f"observation={markdown_code_span(observation_status)} "
             f"terminal={markdown_code_span(path.terminal_state)} "
             f"transitions=`{path.transition_count}` "
             f"states={markdown_code_span(' -> '.join(path.states))} "
             f"tools=`{path.tool_count}` claims=`{path.claim_count}` "
             f"links=`{path.claim_evidence_link_count}` "
+            f"claim_evidence={markdown_code_span(path.claim_evidence_status or 'unknown')} "
+            f"approval={markdown_code_span(str(path.approval_outcome).lower())} "
             f"review_required={markdown_code_span(str(path.human_review_required).lower())} "
             f"review_performed={markdown_code_span(str(path.human_review_performed).lower())}"
         )
@@ -374,7 +462,8 @@ def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
             f"{markdown_code_span(invariant.category)} "
             f"{markdown_code_span(invariant.prerequisite_status)} "
             f"state={markdown_code_span(invariant.state.value)} affected="
-            f"`{invariant.affected_observations}` / `{invariant.evaluated_observations}`"
+            f"`{invariant.affected_observations}` / `{invariant.evaluated_observations}` "
+            f"unobservable=`{invariant.unobservable_observations or 0}`"
         )
     lines.extend(["", "## History-Dependent Checks", ""])
     for check in report.history_dependent_checks:
@@ -400,13 +489,43 @@ def render_live_trajectory_markdown(report: LiveTrajectoryReport) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _write_json(payload: dict[str, object], path: Path) -> None:
-    write_text_atomic(
-        path,
-        json.dumps(
-            redact_artifact_payload(payload, preserve_keys=PRESERVE_PACKET_KEYS),
-            indent=2,
-            sort_keys=True,
-        )
-        + "\n",
-    )
+def _json_text(payload: dict[str, object]) -> str:
+    return json.dumps(payload, indent=2, sort_keys=True) + "\n"
+
+
+def _validated_live_evaluation_report_for_reporting(
+    report: LiveEvaluationReport,
+) -> LiveEvaluationReport:
+    payload = report.model_dump(mode="json", warnings="error")
+    validated = LiveEvaluationReport.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "live-evaluation-report")
+    return validated
+
+
+def _validated_live_comparison_report_for_reporting(
+    report: LiveComparisonReport,
+) -> LiveComparisonReport:
+    payload = report.model_dump(mode="json", warnings="error")
+    validated = LiveComparisonReport.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "live-comparison-report")
+    return validated
+
+
+def _validated_live_drift_report_for_reporting(
+    report: LiveDriftReport,
+) -> LiveDriftReport:
+    payload = report.model_dump(mode="json", warnings="error")
+    validated = LiveDriftReport.model_validate(payload)
+    if validated.ordering_variable not in _SUPPORTED_DRIFT_REPORT_ORDERING_VARIABLES:
+        raise ValueError("drift reporting supports only window_index or window_start_utc ordering")
+    validate_loaded_artifact_payload(payload, "live-drift-report")
+    return validated
+
+
+def _validated_live_trajectory_report_for_reporting(
+    report: LiveTrajectoryReport,
+) -> LiveTrajectoryReport:
+    payload = report.model_dump(mode="json", warnings="error")
+    validated = LiveTrajectoryReport.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "live-trajectory-report")
+    return validated

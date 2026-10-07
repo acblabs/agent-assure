@@ -42,8 +42,8 @@ Implemented live-mode pieces include:
   design-effect, effective-sample-size reporting, interval-center metadata,
   and largest-cluster sensitivity;
 - optional advanced statistical endpoint plans bound into the live protocol
-  digest, with confirmatory/exploratory endpoint labels, rare-event Poisson
-  upper bounds, observed cluster-correlation summaries with uncertainty,
+  digest, with confirmatory/exploratory endpoint labels, bounded-work binomial
+  rare-event upper bounds, observed cluster-correlation summaries with uncertainty,
   Bonferroni multiplicity controls, and paired exact or Monte Carlo
   randomization tests with structural pairing checks and deterministic integer
   resampling seeds when exchangeability is predeclared;
@@ -64,7 +64,9 @@ Implemented live-mode pieces include:
   records, and budget stops. The transition profiles are analogous to
   Markov-style observable state summaries, while the history-dependent checks
   represent non-Markov conditions such as required review before approval or
-  complete claim-evidence history across retries;
+  complete claim-evidence history across retries. The plan's method set is
+  authoritative: sequence and event-process families are omitted unless
+  declared, and confirmatory plans require the complete supported set;
 - burst-window operational event-process screens for retry cascades,
   rate-limit storms, malformed outputs, runtime failures, and emergency
   records. These are exploratory reliability diagnostics; the current release

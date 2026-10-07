@@ -98,10 +98,15 @@ behavior.
 
 ## Quickstart
 
-Requires Python 3.11 or newer.
+Requires Python 3.11 or newer. The release-qualified matrix is the full suite
+on Ubuntu 24.04 with Python 3.11 through 3.14, plus the native containment
+subset on Windows Server 2025 with Python 3.11 and 3.14. macOS is not currently
+CI-qualified. The five hashed `requirements*.lock` files are the dependency
+sets exercised for release; the broader ranges in `pyproject.toml` express
+compatibility intent, not exhaustive version-combination qualification.
 
 ```bash
-pip install agent-assure
+pip install agent-assure==0.6.5
 agent-assure demo flagship --out .tmp/demo/flagship --clean
 ```
 
@@ -354,58 +359,96 @@ links for the material claims they intend to satisfy.
 [Review the public API surface](docs/api_surface.md) ·
 [Understand evidence packets](docs/evidence_packets.md)
 
-<details>
-<summary><strong>GitHub Actions example using the bundled fixture</strong></summary>
+### GitHub Actions example using the bundled fixture
 
-Pin both the package and composite action in release workflows. The example
-uses the latest published tag, v0.6.5; move both pins together only after a
-newer tag is published. Replace the example suite and variant paths with your
+Pin the runner image, GitHub-owned actions, package, and composite action in
+release workflows. This runnable example stays on v0.6.5, the latest published
+release. The stricter v0.7.0 action contract described below remains unavailable
+until v0.7.0 is published. Replace the example suite and variant paths with your
 own controlled materials.
 
 ```yaml
 name: agent-assure
 on: [pull_request]
 
+permissions:
+  contents: read
+
 jobs:
   assure:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      # actions/setup-python@v7.0.0
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: "3.11"
       - run: python -m pip install agent-assure==0.6.5
-      - uses: acblabs/agent-assure/.github/actions/agent-assure@v0.6.5
+      # agent-assure v0.6.5
+      - uses: acblabs/agent-assure/.github/actions/agent-assure@18bef8be4117c75268c67ede8cf781daaf75b893
         with:
           suite: examples/prior_auth_synthetic/suite.yaml
           baseline-variant: examples/prior_auth_synthetic/variants/baseline.yaml
           candidate-variant: examples/prior_auth_synthetic/variants/candidate_evidence_normalization.yaml
           report-mode: full
+          upload-reports: "true"
 ```
 
 `full` produces the complete review artifacts; `fail-fast` gives shorter
-blocking feedback. The published v0.6.5 action shown above predates the
-efficacy-required default and is a fixture smoke example, not evidence of
-control efficacy. After v0.6.6 or a later version is published, move both pins
-together. Its composite action fails closed because it does not construct
-control-efficacy evidence; fixture-only, evaluation-only migration jobs must
-explicitly set `allow-missing-efficacy-for-migration: "true"`. An assurance
-workflow must instead construct an efficacy-bearing packet and gate it with a
-separate verifier-owned policy. The configured gate follows declared
-expectations and policies, the selected gate profile, and explicit strictness
-flags.
-The composite action uploads only the packet, its privacy-filtered assurance
-evidence graph, manifest, summaries, and CI diagnostics by default. Set
-`upload-full-artifacts: "true"` only when the workflow is approved to retain
-compiled suites, fixture data, and RunSets; the default retention period is 14
-days.
+blocking feedback. The pinned v0.6.5 example uses only inputs available in that
+published action. Its bundled fixture invocation is explicitly a non-assurance
+smoke example, not evidence of control efficacy. The unreleased v0.7.0
+candidate composite action has two mutually exclusive paths. Its strict path
+requires both `control-efficacy-report` and `efficacy-policy`, rebuilds the
+current evaluation packet with that report, and strictly re-verifies it against
+the separately trusted policy. Repository CI qualifies that strict path on a
+hosted Ubuntu runner with a deterministic passing efficacy campaign and repeats
+the strict packet gate; a separate runner job retains the explicitly labeled
+non-assurance migration smoke. This qualifies action behavior, not the
+independence of production evidence. Keep the production policy under verifier
+control (for example, in a separately protected checkout placed beneath
+`GITHUB_WORKSPACE`); a policy supplied by the candidate is not independent
+authority. Fixture-only, evaluation-only jobs must instead opt into
+`allow-missing-efficacy-for-migration: "true"`, which remains a labeled
+non-assurance result. Omitting both paths, supplying only one strict input, or
+combining strict inputs with the migration flag fails closed. Baseline-bearing
+runs remain blocking for both `new_failure` and `persistent_failure`
+dispositions; an exact waiver does not authorize either comparison result. The
+v0.7.0 action accepts `out-dir` only as a strict descendant of
+`GITHUB_WORKSPACE` or `RUNNER_TEMP` and rejects traversal, roots, and
+linked/reparse-point ancestors. Strict efficacy mode further requires the
+output beneath `GITHUB_WORKSPACE`, matching the packet verification root.
+In the unreleased v0.7.0 action, reports remain local to the runner by default.
+Published v0.6.5 uploads reports by default, so the example states that choice
+explicitly. For v0.7.0, set `upload-reports: "true"` only after approving GitHub
+artifact retention; that opt-in uploads the packet, its privacy-filtered
+assurance evidence graph, manifest, summaries, and CI diagnostics. Set
+`upload-full-artifacts: "true"` only when the workflow is also approved to
+retain compiled suites, fixture data, and RunSets. The default retention period
+for either explicit upload is 14 days.
 
-</details>
+### Runtime coordination locks
+
+Atomic publishers intentionally leave hidden coordination files beside their
+output targets so another process cannot exploit lock unlink/replacement races.
+If that parent directory is inside your repository, add this narrow rule to
+**your repository's** `.gitignore` (the package cannot update it for you):
+
+```gitignore
+.agent-assure-*.lock
+```
+
+These lock files contain no assurance evidence or credentials and normally
+remain on disk for reuse. Do not replace the rule with `*.lock`, which would
+also hide dependency lockfiles and unrelated project state.
 
 ## Integrations and maturity
 
 **Current published release: `v0.6.5` on GitHub and PyPI. This checkout is the
-unreleased `0.6.6` candidate and must not be described or installed as a
+unreleased `0.7.0` candidate and must not be described or installed as a
 published release until the empirical publish gate passes.**
 
 The CLI, YAML authoring format, persisted versioned JSON artifacts, and
@@ -497,7 +540,7 @@ and [security guidance](SECURITY.md).
 - **Integrations:** [LangGraph](docs/integrations/langgraph.md) · [Google ADK](docs/integrations/google_adk.md) · [Adapter contract](docs/adapters/adapter_contract.md)
 - **Assurance:** [What this measures](docs/what_this_measures.md) · [Control efficacy](docs/control_efficacy.md) · [Evidence packets](docs/evidence_packets.md) · [Live calibration](docs/live_calibration.md)
 - **Evidence-carrying releases:** [Core mutation catalog](docs/mutation_catalog.md) · [Minimal evidence graph](docs/evidence_graph.md) · [Contracts and campaign guide](docs/evidence_carrying_releases.md) · [Architecture](docs/architecture.md) · [CLI contract](docs/cli_contract.md)
-- **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
+- **Security and governance:** [Claim boundary](docs/claim_boundary.md) · [Threat model](docs/threat_model.md) · [Security correction containment](docs/security_release_containment.md) · [Governance crosswalks](docs/threat_coverage_matrix.yaml)
 - **Project:** [Contributing](CONTRIBUTING.md) · [Changelog](CHANGELOG.md) · [License](LICENSE)
 
 <details>

@@ -83,6 +83,37 @@ from tests.stochastic_source_support import (
 _ArmId = Literal["baseline_evidence", "counterfactual_evidence"]
 
 
+def test_packet_builder_rejects_unsafe_typed_evaluation_before_derivation() -> None:
+    forged = _evaluation().model_copy(update={"artifact_kind": "forged-evaluation"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        build_evidence_packet(forged)
+
+
+def test_packet_source_binding_rejects_public_invalid_typed_runset() -> None:
+    sufficiency, stochastic, sources = _reports(journal_bound=True)
+    packet = build_evidence_packet(
+        _evaluation(sufficiency),
+        statistical_sufficiency=sufficiency,
+        stochastic_evidence_sensitivity=stochastic,
+        artifact_digests=_artifact_digests(),
+    )
+    expanded_payload = sources[0].model_dump(mode="json", warnings="error")
+    expanded_payload["schema_version"] = "0.6.5"
+    expanded_source = RunSet.model_validate(expanded_payload)
+
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        packet_reporting._unchanged_privacy_safe_runset(expanded_source)
+
+    assert (
+        packet_reporting.stochastic_source_runsets_binding_error(
+            packet,
+            source_runsets=(expanded_source, sources[1]),
+        )
+        == "stochastic source RunSets could not be safely revalidated"
+    )
+
+
 def test_packet_projects_bound_stochastic_evidence_without_raw_decisions() -> None:
     sufficiency, stochastic, _ = _reports()
     evaluation = _evaluation(sufficiency)
@@ -123,6 +154,8 @@ def test_packet_projects_bound_stochastic_evidence_without_raw_decisions() -> No
     assert "## Stochastic Evidence Sensitivity" in markdown
     assert "Sufficiency state: `satisfied`" in markdown
     assert "Gate effect: `pass`" in markdown
+    assert "Protocol-conditional population inference permitted by authored checks" in markdown
+    assert "does not independently verify exchangeability" in markdown
     assert "Estimated independent-cluster response rate: `1.000000`" in markdown
     assert sufficiency.report_digest in markdown
     assert stochastic.report_digest in markdown
@@ -184,7 +217,7 @@ def test_packet_requires_atomic_reports_exact_digests_and_exact_dependency() -> 
         )
 
     legacy_evaluation = evaluation.model_copy(update={"schema_version": "0.6.4"})
-    with pytest.raises(ValidationError, match="evaluation.schema_version '0.6.6'"):
+    with pytest.raises(ValueError, match="schema_version '0.6.4'"):
         build_evidence_packet(
             legacy_evaluation,
             statistical_sufficiency=sufficiency,
@@ -403,8 +436,11 @@ def test_stochastic_summary_snapshots_bind_exact_files(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    sufficiency, stochastic, sources = _reports(schema_version="0.6.5")
-    evaluation = _evaluation(sufficiency).model_copy(update={"schema_version": "0.6.5"})
+    sufficiency, stochastic, sources = _reports(
+        schema_version="0.6.6",
+        journal_bound=True,
+    )
+    evaluation = _evaluation(sufficiency)
     evaluation_path = tmp_path / "evaluation.json"
     sufficiency_path = tmp_path / "sufficiency.json"
     stochastic_path = tmp_path / "stochastic.json"
@@ -470,36 +506,30 @@ def test_stochastic_summary_snapshots_bind_exact_files(
             counterfactual_snapshot,
         ),
     )
-    release_artifacts = tuple(
-        artifact.model_copy(update={"schema_version": "0.6.5"}) for artifact in release_artifacts
-    )
-    artifact_digests = tuple(
-        digest.model_copy(update={"schema_version": "0.6.5"})
-        for digest in (
-            packet_artifact_digest_from_snapshot(
-                "evaluation-summary",
-                evaluation_snapshot,
-            ),
-            packet_artifact_digest_from_snapshot(
-                "statistical-sufficiency-report",
-                sufficiency_snapshot,
-            ),
-            packet_artifact_digest_from_snapshot(
-                "stochastic-evidence-sensitivity-report",
-                stochastic_snapshot,
-            ),
-            PacketArtifactDigest(
-                role="stochastic-baseline-source-runset",
-                sha256=baseline_snapshot.contents.sha256,
-            ),
-            PacketArtifactDigest(
-                role="stochastic-counterfactual-source-runset",
-                sha256=counterfactual_snapshot.contents.sha256,
-            ),
-        )
+    artifact_digests = (
+        packet_artifact_digest_from_snapshot(
+            "evaluation-summary",
+            evaluation_snapshot,
+        ),
+        packet_artifact_digest_from_snapshot(
+            "statistical-sufficiency-report",
+            sufficiency_snapshot,
+        ),
+        packet_artifact_digest_from_snapshot(
+            "stochastic-evidence-sensitivity-report",
+            stochastic_snapshot,
+        ),
+        PacketArtifactDigest(
+            role="stochastic-baseline-source-runset",
+            sha256=baseline_snapshot.contents.sha256,
+        ),
+        PacketArtifactDigest(
+            role="stochastic-counterfactual-source-runset",
+            sha256=counterfactual_snapshot.contents.sha256,
+        ),
     )
     packet = EvidencePacket(
-        schema_version="0.6.5",
+        schema_version="0.6.6",
         packet_id="stochastic-packet-snapshots",
         interpretation=DEFAULT_INTERPRETATION,
         limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -507,11 +537,11 @@ def test_stochastic_summary_snapshots_bind_exact_files(
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         release_manifest=ReleaseArtifactManifest(
-            schema_version="0.6.5",
+            schema_version="0.6.6",
             manifest_id="stochastic-packet-snapshots",
             artifacts=release_artifacts,
             environment=EnvironmentInfo(
-                schema_version="0.6.5",
+                schema_version="0.6.6",
                 platform="test",
                 python_version="3.12",
             ),
@@ -649,20 +679,20 @@ def test_stochastic_summary_snapshots_bind_exact_files(
     swapped_release_artifacts = (
         *summary_release_artifacts,
         ReleaseArtifact(
-            schema_version="0.6.5",
+            schema_version="0.6.6",
             role="stochastic-baseline-source-runset",
             path=counterfactual_snapshot.relative_path,
             sha256=counterfactual_snapshot.contents.sha256,
         ),
         ReleaseArtifact(
-            schema_version="0.6.5",
+            schema_version="0.6.6",
             role="stochastic-counterfactual-source-runset",
             path=baseline_snapshot.relative_path,
             sha256=baseline_snapshot.contents.sha256,
         ),
     )
     swapped_packet = EvidencePacket(
-        schema_version="0.6.5",
+        schema_version="0.6.6",
         packet_id="stochastic-packet-swapped-sources",
         interpretation=DEFAULT_INTERPRETATION,
         limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -670,18 +700,18 @@ def test_stochastic_summary_snapshots_bind_exact_files(
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         release_manifest=ReleaseArtifactManifest(
-            schema_version="0.6.5",
+            schema_version="0.6.6",
             manifest_id="stochastic-packet-swapped-sources",
             artifacts=swapped_release_artifacts,
             environment=EnvironmentInfo(
-                schema_version="0.6.5",
+                schema_version="0.6.6",
                 platform="test",
                 python_version="3.12",
             ),
         ),
         artifact_digests=tuple(
             PacketArtifactDigest(
-                schema_version="0.6.5",
+                schema_version="0.6.6",
                 role=cast(PacketArtifactRole, artifact.role),
                 sha256=artifact.sha256,
             )
@@ -701,7 +731,7 @@ def test_stochastic_summary_snapshots_bind_exact_files(
         match="release manifest.*stochastic-baseline-source-runset",
     ):
         EvidencePacket(
-            schema_version="0.6.5",
+            schema_version="0.6.6",
             packet_id="stochastic-packet-missing-source-role",
             interpretation=DEFAULT_INTERPRETATION,
             limitations=DEFAULT_PACKET_LIMITATIONS,
@@ -709,7 +739,7 @@ def test_stochastic_summary_snapshots_bind_exact_files(
             statistical_sufficiency=sufficiency,
             stochastic_evidence_sensitivity=stochastic,
             release_manifest=ReleaseArtifactManifest(
-                schema_version="0.6.5",
+                schema_version="0.6.6",
                 manifest_id="stochastic-packet-missing-source-role",
                 artifacts=tuple(
                     artifact
@@ -717,7 +747,7 @@ def test_stochastic_summary_snapshots_bind_exact_files(
                     if artifact.role != "stochastic-baseline-source-runset"
                 ),
                 environment=EnvironmentInfo(
-                    schema_version="0.6.5",
+                    schema_version="0.6.6",
                     platform="test",
                     python_version="3.12",
                 ),

@@ -913,11 +913,14 @@ def _rebuild_protocol(
 def _replace_runset_records(
     runset: RunSet,
     transform: Any,
+    *,
+    runset_updates: dict[str, Any] | None = None,
 ) -> RunSet:
     payload = runset.model_dump(mode="json")
     payload["runs"] = tuple(
         AgentRunRecord.model_validate(transform(run.model_dump(mode="json"))) for run in runset.runs
     )
+    payload.update(runset_updates or {})
     return RunSet.model_validate(payload)
 
 
@@ -2418,10 +2421,12 @@ def test_replay_and_external_script_records_cannot_prove_provider_dispatch(
     baseline = _replace_runset_records(
         fixture.evidence.baseline_runset,
         replace_adapter,
+        runset_updates={"network_authority_receipt": None},
     )
     counterfactual = _replace_runset_records(
         fixture.evidence.counterfactual_runset,
         replace_adapter,
+        runset_updates={"network_authority_receipt": None},
     )
     provenance = derive_study_observed_execution_provenance(
         manifest=fixture.manifest,

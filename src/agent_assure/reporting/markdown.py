@@ -7,12 +7,17 @@ from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
 from agent_assure.reporting.usage import prefixed_usage_summary_lines, usage_summary_lines
+from agent_assure.reporting.validation import (
+    validated_comparison_report_for_reporting,
+    validated_evaluation_report_for_reporting,
+)
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.evaluation import Finding
 from agent_assure.usage.aggregation import format_usage_delta
 
 
 def render_evaluation_markdown(report: EvaluationReport) -> str:
+    report = validated_evaluation_report_for_reporting(report)
     summary = report.candidate_vs_expectations
     lines = [
         "# Evaluation Report",
@@ -81,15 +86,16 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
             f"- Evaluated cases: `{report.metrics.evaluated_cases}`",
             f"- Unevaluated cases: `{report.metrics.unevaluated_cases}`",
             f"- Passed cases: `{report.metrics.passed_cases}`",
+            f"- Warning cases: `{report.metrics.warning_cases}`",
             f"- Failed cases: `{report.metrics.failed_cases}`",
             f"- Blocking findings: `{report.metrics.blocking_findings}`",
             f"- Global blocking findings: `{report.metrics.global_blocking_findings}`",
             f"- Warning findings: `{report.metrics.warning_findings}`",
             "",
-            "Warn-only and waived case findings do not count as failed cases. "
-            "Gate-profile-filtered fail findings count as failed cases and warning controls. "
-            "Passed, failed, and unevaluated cases partition total cases. "
-            "Global gate failures are reported separately from case pass/fail counts.",
+            "Warn-only, waived, and gate-profile-filtered fail findings count as "
+            "warning cases rather than clean passes or failed cases. Passed, warning, "
+            "failed, and unevaluated cases partition total cases. Global gate failures "
+            "are reported separately from case outcome counts.",
             "",
             "## Measured Usage",
             "",
@@ -108,13 +114,15 @@ def render_evaluation_markdown(report: EvaluationReport) -> str:
 
 
 def write_evaluation_markdown(report: EvaluationReport, out_dir: Path) -> Path:
+    rendered = render_evaluation_markdown(report)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "evaluation-report.md"
-    write_text_atomic(path, render_evaluation_markdown(report))
+    write_text_atomic(path, rendered)
     return path
 
 
 def render_comparison_markdown(report: ComparisonReport) -> str:
+    report = validated_comparison_report_for_reporting(report)
     summary = report.comparison_summary
     lines = [
         "# Comparison Report",
@@ -237,9 +245,10 @@ def render_comparison_markdown(report: ComparisonReport) -> str:
 
 
 def write_comparison_markdown(report: ComparisonReport, out_dir: Path) -> Path:
+    rendered = render_comparison_markdown(report)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / "comparison-report.md"
-    write_text_atomic(path, render_comparison_markdown(report))
+    write_text_atomic(path, rendered)
     return path
 
 

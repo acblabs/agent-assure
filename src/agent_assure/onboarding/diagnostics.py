@@ -14,12 +14,22 @@ def bounded_error(
     fallback: str = "bounded validation error",
 ) -> str:
     """Return one redacted, single-line, terminal-safe diagnostic summary."""
-    return _safe_summary(str(exc), fallback=fallback)
+    return bounded_text(exc, fallback=fallback)
+
+
+def bounded_text(
+    value: object,
+    *,
+    fallback: str = "bounded diagnostic",
+) -> str:
+    """Return bounded terminal-safe text for a non-path diagnostic value."""
+
+    return _safe_summary(str(value), fallback=fallback)
 
 
 def display_path(path: Path) -> str:
     """Return a redacted, single-line, terminal-safe display path."""
-    return _safe_summary(str(path), fallback="<local-path>")
+    return bounded_text(path, fallback="<local-path>")
 
 
 def _safe_summary(value: str, *, fallback: str) -> str:

@@ -74,7 +74,7 @@ def test_frozen_v065_stochastic_protocol_replays_relational_validation() -> None
 
     assert (
         validate_artifact_payload(payload, "repeated-evidence-sensitivity-protocol")
-        == "frozen-jsonschema"
+        == "frozen-jsonschema+semantic-replay"
     )
 
     payload["planned_pairs"] = protocol.planned_pairs + 1

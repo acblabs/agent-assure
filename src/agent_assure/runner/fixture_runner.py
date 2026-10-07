@@ -48,6 +48,7 @@ from agent_assure.schema.suite import (
     FixtureManifestEntry,
     SuiteCase,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 # This is intentionally public demo material. run_suite permits it only when the
 # suite and every fixture byte match a bundled synthetic example identity.
@@ -84,7 +85,7 @@ _BUNDLED_SYNTHETIC_SUITE_IDENTITIES = {
     ),
     "process-measurement-cases": _BundledSyntheticSuiteIdentity(
         compiled_suite_digest="7bb8f097a65a23ebdff34ab38a47bf96f8008b812fa095f396ef04dc8604f049",
-        fixture_manifest_digest="07f6a56a66b1798cc18c3c92a4703603edc48a894e7e3f0ad37dcc2c14d6d08b",
+        fixture_manifest_digest="4951eb5689fe5be1d8827a92c7032ce737bab47921faf53fd19cf5a174e669c4",
         allowed_runner_ids=frozenset({"process_measurement.synthetic"}),
     ),
 }
@@ -317,15 +318,18 @@ def load_case_fixtures(case: SuiteCase, context: RunnerContext) -> LoadedFixture
 
 
 def write_runset(runset: RunSet, path: Path) -> None:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    payload = redact_runset_payload(runset.model_dump(mode="json"))
+    payload = redact_runset_payload(runset.model_dump(mode="json", warnings="error"))
     assert_runset_payload_safe_for_persistence(payload)
-    RunSet.model_validate(payload)
-    rendered = json.dumps(payload, indent=2, sort_keys=True) + "\n"
+    validated = RunSet.model_validate(payload)
+    safe_payload = validated.model_dump(mode="json", warnings="error")
+    assert_runset_payload_safe_for_persistence(safe_payload)
+    validate_loaded_artifact_payload(safe_payload, "run-set")
+    rendered = json.dumps(safe_payload, indent=2, sort_keys=True) + "\n"
     if len(rendered.encode("utf-8")) > MAX_ARTIFACT_JSON_BYTES:
         raise ValueError(
             f"run set exceeds the {MAX_ARTIFACT_JSON_BYTES}-byte artifact loader limit"
         )
+    path.parent.mkdir(parents=True, exist_ok=True)
     write_text_atomic(path, rendered)
 
 

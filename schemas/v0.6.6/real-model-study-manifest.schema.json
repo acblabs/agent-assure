@@ -107,7 +107,7 @@
         "adapter_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Adapter Id",
           "type": "string"
         },
@@ -115,12 +115,12 @@
           "$ref": "#/$defs/StudyConditionAnalysisRole"
         },
         "baseline_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Configuration Digest",
           "type": "string"
         },
         "baseline_provider_input_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Provider Input Manifest Digest",
           "type": "string"
         },
@@ -128,7 +128,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -139,22 +139,22 @@
         "condition_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Condition Id",
           "type": "string"
         },
         "counterfactual_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Configuration Digest",
           "type": "string"
         },
         "counterfactual_provider_input_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Provider Input Manifest Digest",
           "type": "string"
         },
         "design_commitment_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Design Commitment Digest",
           "type": "string"
         },
@@ -163,7 +163,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -180,7 +180,7 @@
         "expected_resolved_model": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Expected Resolved Model",
           "type": "string"
         },
@@ -191,14 +191,14 @@
           "type": "string"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
         "pipeline_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Pipeline Id",
           "type": "string"
         },
@@ -215,21 +215,21 @@
           "type": "integer"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
         "protocol_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Protocol Id",
           "type": "string"
         },
         "provider": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Provider",
           "type": "string"
         },
@@ -238,7 +238,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -253,7 +253,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -268,7 +268,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -287,7 +287,7 @@
         "requested_model": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Requested Model",
           "type": "string"
         },
@@ -298,7 +298,7 @@
           "type": "string"
         },
         "study_knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Study Knowledge Contract Digest",
           "type": "string"
         },
@@ -306,7 +306,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -354,13 +354,13 @@
       "properties": {
         "end": {
           "maxLength": 64,
-          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
           "title": "End",
           "type": "string"
         },
         "start": {
           "maxLength": 64,
-          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
           "title": "Start",
           "type": "string"
         }
@@ -377,7 +377,7 @@
       "description": "Machine-readable acknowledgement that a frozen frame is not a population sample.",
       "properties": {
         "dependence_audit_artifact_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Dependence Audit Artifact Sha256",
           "type": "string"
         },
@@ -486,7 +486,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 64,
@@ -504,7 +504,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 64,
@@ -569,7 +569,7 @@
           "type": "string"
         },
         "familywise_alpha": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Familywise Alpha",
           "type": "string"
         },
@@ -612,7 +612,7 @@
           "type": "string"
         },
         "materiality_threshold": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Materiality Threshold",
           "type": "string"
         },
@@ -638,7 +638,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 64,
@@ -662,7 +662,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 64,
@@ -714,7 +714,7 @@
         "design_audit_artifact_sha256": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -846,7 +846,7 @@
       "additionalProperties": false,
       "properties": {
         "evidence_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Evidence Digest",
           "type": "string"
         },
@@ -862,13 +862,13 @@
         "reference_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Reference Id",
           "type": "string"
         },
         "registered_at_utc": {
           "maxLength": 64,
-          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
           "title": "Registered At Utc",
           "type": "string"
         }
@@ -917,14 +917,14 @@
       "type": "string"
     },
     "benchmark_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Benchmark Digest",
       "type": "string"
     },
     "benchmark_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Benchmark Id",
       "type": "string"
     },
@@ -980,7 +980,7 @@
       "title": "Hypothesis Decision Rule"
     },
     "hypothesis_decision_rule_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Hypothesis Decision Rule Digest",
       "type": "string"
     },
@@ -1004,7 +1004,7 @@
       "type": "array"
     },
     "manifest_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Manifest Digest",
       "type": "string"
     },
@@ -1015,7 +1015,7 @@
       "type": "string"
     },
     "protocol_set_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Protocol Set Digest",
       "type": "string"
     },
@@ -1053,7 +1053,7 @@
     "study_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Study Id",
       "type": "string"
     }

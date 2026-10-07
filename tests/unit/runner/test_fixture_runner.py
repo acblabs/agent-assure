@@ -26,11 +26,17 @@ from agent_assure.runner.fixture_runner import (
 from agent_assure.runner.ids import DeterministicIds
 from agent_assure.schema.common import ReasonCode
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.usage.aggregation import usage_summary_for_runset
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
 BASELINE = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
 RAG_SUITE = Path("examples/prior_auth_synthetic/rag_suite.yaml")
 RAG_BASELINE = Path("examples/prior_auth_synthetic/variants/rag_baseline.yaml")
+PROCESS_MEASUREMENT_SUITE = Path("examples/process_measurement_cases/suite.yaml")
+PROCESS_MEASUREMENT_VARIANTS = (
+    Path("examples/process_measurement_cases/variants/baseline.yaml"),
+    Path("examples/process_measurement_cases/variants/candidate_process_regressions.yaml"),
+)
 
 
 @pytest.mark.parametrize(
@@ -147,6 +153,39 @@ def test_run_suite_is_deterministic_for_same_inputs() -> None:
     first = run_suite(compiled, variant, SUITE.parent)
     second = run_suite(compiled, variant, SUITE.parent)
     assert first == second
+
+
+@pytest.mark.parametrize("variant_path", PROCESS_MEASUREMENT_VARIANTS)
+def test_process_measurement_fixtures_have_complete_exact_usage_coverage(
+    variant_path: Path,
+) -> None:
+    compiled = compile_suite(PROCESS_MEASUREMENT_SUITE)
+    runset = run_suite(
+        compiled,
+        load_variant_config(variant_path),
+        PROCESS_MEASUREMENT_SUITE.parent,
+    )
+
+    assert len(runset.runs) == len(compiled.cases)
+    for run in runset.runs:
+        assert run.usage_ledger is not None
+        assert len(run.usage_ledger.segments) == 1
+        segment = run.usage_ledger.segments[0]
+        assert segment.run_id == run.run_id
+        assert segment.estimated_cost_picousd is not None
+        assert run.usage_summary is not None
+        assert run.usage_summary.source_count == 1
+        assert run.usage_summary.estimated_cost_picousd is not None
+
+    rollup = usage_summary_for_runset(runset)
+
+    assert rollup is not None
+    assert rollup.coverage_basis == "run_record"
+    assert rollup.source_count == len(runset.runs)
+    assert rollup.coverage_counts is not None
+    assert rollup.coverage_counts.total_tokens == len(runset.runs)
+    assert rollup.coverage_counts.estimated_cost_microusd == len(runset.runs)
+    assert rollup.estimated_cost_picousd is not None
 
 
 def test_default_fixture_hmac_key_is_limited_to_bundled_synthetic_suites() -> None:
@@ -384,6 +423,64 @@ def test_write_runset_refuses_an_artifact_the_loader_cannot_reopen(
     assert not destination.exists()
 
 
+def test_write_runset_revalidates_before_creating_output_directory(tmp_path: Path) -> None:
+    record = AgentRunRecord(
+        run_id="run-001",
+        case_id="case-001",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="plain",
+        output_summary="plain",
+    )
+    runset = RunSet(
+        runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(record,),
+    ).model_copy(update={"runset_id": ""})
+    output_dir = tmp_path / "not-created"
+
+    with pytest.raises(ValidationError):
+        write_runset(runset, output_dir / "runset.json")
+
+    assert not output_dir.exists()
+
+
+def test_write_runset_rejects_public_invalid_historical_wire_before_output(
+    tmp_path: Path,
+) -> None:
+    record = AgentRunRecord(
+        run_id="run-001",
+        case_id="case-001",
+        pipeline_id="pipeline",
+        recommendation="approve",
+        outcome="approve",
+        input_summary="plain",
+        output_summary="plain",
+    )
+    runset = RunSet(
+        runset_id="runset-001",
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        suite_id="suite-001",
+        suite_version="0.1.0",
+        suite_digest="0" * 64,
+        fixture_manifest_digest="1" * 64,
+        runs=(record,),
+    ).model_copy(update={"schema_version": "0.6.5"})
+    output_dir = tmp_path / "not-created"
+
+    with pytest.raises(ValueError):
+        write_runset(runset, output_dir / "runset.json")
+
+    assert not output_dir.exists()
+
+
 def test_write_runset_rejects_sensitive_preserved_decision_fields(tmp_path) -> None:  # type: ignore[no-untyped-def]
     record = AgentRunRecord(
         artifact_kind="agent-run-record",
@@ -423,7 +520,7 @@ def test_write_runset_rejects_sensitive_preserved_provider_metadata(tmp_path) ->
         outcome="approve",
         input_summary="plain",
         output_summary="plain",
-        provider_response_id="authorization=abcdef1234567890",
+        provider_response_id="ghp_abcdefghijklmnopqrstuvwxyzABCDEFGH",
     )
     runset = RunSet(
         artifact_kind="run-set",

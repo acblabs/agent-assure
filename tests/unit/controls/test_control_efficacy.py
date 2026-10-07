@@ -908,7 +908,7 @@ def test_report_builder_rejects_bypassed_noncanonical_campaign_result_order() ->
 
     with pytest.raises(
         ValidationError,
-        match="operator outcomes and pending IDs must partition selection",
+        match="campaign_digest|operator outcomes and pending IDs must partition selection",
     ):
         build_control_efficacy_report(
             reversed_campaign,
@@ -916,6 +916,36 @@ def test_report_builder_rejects_bypassed_noncanonical_campaign_result_order() ->
             _manifest(critical=False),
             required_operator_ids=(_DROP_OPERATOR,),
         )
+
+
+def test_report_builder_rejects_unsafe_campaign_result_copy() -> None:
+    execution = _campaign(operator_ids=(_DROP_OPERATOR,))
+    entry = execution.campaign.operator_results[0]
+    forged_result = entry.result.model_copy(update={"state": MutationResultState.survived})
+    forged_entry = entry.model_copy(update={"result": forged_result})
+    forged_campaign = execution.campaign.model_copy(update={"operator_results": (forged_entry,)})
+
+    with pytest.raises(ValidationError):
+        build_control_efficacy_report(
+            forged_campaign,
+            execution.catalog,
+            _manifest(critical=False),
+            required_operator_ids=(_DROP_OPERATOR,),
+        )
+
+
+def test_efficacy_gate_rejects_unsafe_report_copy() -> None:
+    execution = _campaign(operator_ids=(_DROP_OPERATOR,))
+    report = build_control_efficacy_report(
+        execution.campaign,
+        execution.catalog,
+        _manifest(critical=False),
+        required_operator_ids=(_DROP_OPERATOR,),
+    )
+    forged = report.model_copy(update={"required_survivor_operator_ids": (_DROP_OPERATOR,)})
+
+    with pytest.raises(ValidationError):
+        evaluate_control_efficacy_gate(forged, _profile())
 
 
 def test_report_rejects_omitted_zero_count_invariant_family_stratum() -> None:

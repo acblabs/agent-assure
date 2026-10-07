@@ -9,7 +9,7 @@ from agent_assure.policies.catalog import BUILT_IN_CONTROL_IDS
 
 ROOT = Path(__file__).resolve().parents[3]
 MATRIX = ROOT / "docs" / "threat_coverage_matrix.yaml"
-MITRE_ATLAS_IDS = ROOT / "tests" / "vectors" / "mitre_atlas" / "atlas_2026_06_ids.yaml"
+MITRE_ATLAS_IDS = ROOT / "mappings" / "mitre_atlas_2026_06_catalog.yaml"
 MITRE_ATLAS_DOC = ROOT / "docs" / "governance_crosswalk_mitre_atlas.md"
 ISO_IEC_42001_DOC = ROOT / "docs" / "governance_crosswalk_iso42001.md"
 NIST_AI_RMF_DOC = ROOT / "docs" / "governance_crosswalk_nist_ai_rmf.md"
@@ -21,6 +21,7 @@ CONTROL_MAPPING_STRENGTHS = {"direct", "partial", "adjacent", "not_applicable"}
 UNCOVERED_MAPPING_STRENGTHS = {"gap", "not_applicable"}
 VALID_OWASP_LLM_RISKS = {f"LLM{index:02d}" for index in range(1, 11)}
 VALID_NIST_AI_RMF_FUNCTIONS = {"Govern", "Map", "Measure", "Manage"}
+VALID_ASSESSMENT_SCOPES = {"system_under_test", "tool_integrity"}
 PUBLIC_GAP_LABELS = {
     "live-adapter-attestation": "live adapter producer verification",
     "safety-or-regulatory-certification": "safety or regulatory status",
@@ -52,15 +53,26 @@ def test_threat_coverage_matrix_pins_mitre_atlas_snapshot() -> None:
     assert snapshot["artifact_modified_date"] == atlas_ids["artifact_modified_date"]
     assert snapshot["format_version"] == atlas_ids["format_version"] == "6.0.0"
     assert snapshot["source"] == atlas_ids["source"]
+    for field_name in (
+        "release_announcement_tactic_count",
+        "release_announcement_technique_count",
+        "release_announcement_sub_technique_count",
+        "verified_tactic_count",
+        "verified_base_technique_count",
+        "verified_sub_technique_count",
+    ):
+        assert snapshot[field_name] == atlas_ids[field_name]
+    assert snapshot["release_tag"] == atlas_ids["upstream_release_tag"]
+    assert snapshot["release_commit"] == atlas_ids["upstream_commit"]
+    assert snapshot["asset_sha256"] == atlas_ids["upstream_asset_sha256"]
 
 
-def test_mitre_atlas_vector_documents_offline_refresh_path() -> None:
+def test_mitre_atlas_production_catalog_documents_offline_refresh_path() -> None:
     text = MITRE_ATLAS_IDS.read_text(encoding="utf-8")
 
-    assert "derived from the pinned MITRE ATLAS YAML" in text
-    assert "Refresh this file whenever docs/threat_coverage_matrix.yaml pins a new" in text
-    assert "manifest release date" in text
-    assert "YAML artifact modified date" in text
+    assert "Production validation catalog derived from the pinned MITRE ATLAS v2026.06" in text
+    assert "Update the release metadata, catalog contents" in text
+    assert "integrity digest in agent_assure.atlas_catalog together" in text
 
 
 def test_governance_crosswalk_docs_are_linked_from_public_docs() -> None:
@@ -104,7 +116,11 @@ def test_other_taxonomy_tags_use_expected_shapes() -> None:
     entries = matrix["controls"] + matrix["uncovered"]
 
     for entry in matrix["controls"]:
-        assert entry["owasp_risks"], f"{entry['id']} is missing OWASP LLM risks"
+        scope = _assessment_scope(matrix, entry["id"])
+        if scope == "tool_integrity":
+            assert entry["owasp_risks"] == []
+        else:
+            assert entry["owasp_risks"], f"{entry['id']} is missing OWASP LLM risks"
         assert set(entry["owasp_risks"]).issubset(VALID_OWASP_LLM_RISKS)
         assert entry["iso_iec_42001_areas"], f"{entry['id']} is missing ISO areas"
         assert all(isinstance(area, str) and area.strip() for area in entry["iso_iec_42001_areas"])
@@ -112,6 +128,17 @@ def test_other_taxonomy_tags_use_expected_shapes() -> None:
     for entry in entries:
         assert entry["nist_ai_rmf"], f"{entry['id']} is missing NIST AI RMF functions"
         assert set(entry["nist_ai_rmf"]).issubset(VALID_NIST_AI_RMF_FUNCTIONS)
+
+
+def test_assessment_scopes_partition_all_controls() -> None:
+    matrix = _load_matrix()
+    controls = {entry["id"] for entry in matrix["controls"]}
+    scopes = matrix["assessment_scopes"]
+
+    assert set(scopes) == VALID_ASSESSMENT_SCOPES
+    scoped = [control_id for scope in scopes.values() for control_id in scope]
+    assert len(scoped) == len(set(scoped))
+    assert set(scoped) == controls
 
 
 def test_prompt_injection_mapping_uses_current_atlas_prompt_techniques() -> None:
@@ -174,6 +201,9 @@ def test_mitre_atlas_crosswalk_doc_matches_yaml_source_of_truth() -> None:
     normalized_doc = " ".join(doc.split())
 
     assert f"- Source: `{snapshot['source']}`" in doc
+    assert f"- Release tag: `{snapshot['release_tag']}`" in doc
+    assert f"- Release commit: `{snapshot['release_commit']}`" in doc
+    assert f"- Release asset SHA-256: `{snapshot['asset_sha256']}`" in doc
     assert f"- ATLAS release: `{snapshot['release']}`" in doc
     assert f"- Release date: `{snapshot['release_date']}`" in doc
     assert f"- Artifact modified date: `{snapshot['artifact_modified_date']}`" in doc
@@ -184,7 +214,7 @@ def test_mitre_atlas_crosswalk_doc_matches_yaml_source_of_truth() -> None:
     assert "Tactics and techniques are listed as control-level unions." in doc
     assert "partially evaluated for one local boundary while remaining a gap" in normalized_doc
     assert "ATLAS is an adversary technique catalog" in doc
-    assert "used for non-adversarial controls" in doc
+    assert "self-ID identifies the row and is not an asserted crosswalk" in doc
     assert "not ATLAS technique emulations" in doc
 
     control_rows = [_format_control_row(control, atlas_ids) for control in matrix["controls"]]
@@ -280,7 +310,19 @@ def _format_nist_control_row(control: dict[str, Any]) -> str:
 def _format_owasp_control_row(control: dict[str, Any]) -> str:
     risks = _format_ids(control["owasp_risks"])
     threats = _format_ids(control["project_threats"])
-    return f"| `{control['id']}` | `{control['status']}` | {risks} | {threats} |"
+    matrix = _load_matrix()
+    scope = _assessment_scope(matrix, control["id"])
+    return f"| `{control['id']}` | `{control['status']}` | `{scope}` | {risks} | {threats} |"
+
+
+def _assessment_scope(matrix: dict[str, Any], control_id: str) -> str:
+    matches = [
+        scope
+        for scope, control_ids in matrix["assessment_scopes"].items()
+        if control_id in control_ids
+    ]
+    assert len(matches) == 1, control_id
+    return cast(str, matches[0])
 
 
 def _format_names(ids: list[str], names: dict[str, str]) -> str:

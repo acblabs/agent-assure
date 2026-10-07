@@ -9,6 +9,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from agent_assure.onboarding.diagnostics import display_path  # noqa: E402
 from agent_assure.schema.export import export_json_schemas  # noqa: E402
 
 DEFAULT_OUT = ROOT / "schemas" / "unreleased"
@@ -19,11 +20,15 @@ def main(argv: list[str] | None = None) -> int:
     written = export_json_schemas(args.out)
     schema_files = tuple(path for path in written if path.name.endswith(".schema.json"))
     if not schema_files:
-        print(f"schema-staging: no schema files exported to {args.out}", file=sys.stderr)
+        print(
+            f"schema-staging: no schema files exported to {display_path(args.out)}",
+            file=sys.stderr,
+        )
         return 1
     print(
         "schema-staging: ok "
-        f"({len(schema_files)} schemas exported to {args.out}; drift is not checked)"
+        f"({len(schema_files)} schemas exported to {display_path(args.out)}; "
+        "drift is not checked)"
     )
     return 0
 

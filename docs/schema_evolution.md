@@ -4,9 +4,10 @@ Current released schema snapshot: `schemas/v0.6.5/`. It is immutable because
 the matching `v0.6.5` tag exists.
 
 Current released persisted artifact `schema_version`: `0.6.5`. Current
-development models and evidence-carrying roots emit `0.6.6`. No v0.6.6 tag or
-release exists; its versioned schema directory remains a mutable candidate
-until an explicitly authorized release freezes it.
+development models and evidence-carrying roots emit `0.6.6`. The unreleased
+package candidate is v0.7.0; no v0.7.0 tag or release exists. Its versioned
+schema directory remains a mutable candidate until an explicitly authorized
+package release freezes it.
 
 An active release candidate is exported to its versioned `schemas/vX.Y.Z/`
 directory. `schemas/unreleased/` is a non-gating exporter smoke-test target,
@@ -28,16 +29,18 @@ Use these directories as the release lifecycle:
 - `schemas/v0.6.3/` contains the released v0.6.3 snapshot and is immutable.
 - `schemas/v0.6.4/` contains the released v0.6.4 snapshot and is immutable.
 - `schemas/v0.6.5/` contains the released v0.6.5 snapshot and is immutable.
-- `schemas/v0.6.6/` contains the untagged current development-writer
-  candidate and remains mutable until a matching release is created.
+- `schemas/v0.6.6/` contains the current development-writer candidate emitted
+  by package candidate v0.7.0 and remains mutable until that mapped package
+  release is created.
 - `schemas/unreleased/` is a disposable development-export smoke target.
 
-Before a matching release tag exists, an active versioned directory is a
-release candidate and may be regenerated as the candidate schema changes. Once
-that tag exists, the directory is immutable: subsequent schema changes must
-bump `SCHEMA_VERSION` and use a new `schemas/vX.Y.Z/` directory. Schema checks
-enforce both current-schema parity and released-snapshot immutability. The
-historical `v0.1.0` snapshot predates this policy and uses `v0.2.0`, when that
+Before a package release mapped to it exists, an active versioned directory is
+a release candidate and may be regenerated as the candidate schema changes.
+Once that mapped tag exists, the directory is immutable: subsequent schema
+changes must bump `SCHEMA_VERSION` and use a new `schemas/vX.Y.Z/` directory.
+Schema checks enforce both current-schema parity and released-snapshot
+immutability. The historical `v0.1.0` snapshot predates this policy and uses
+`v0.2.0`, when that
 snapshot stabilized, as its immutable baseline.
 
 Automation has complementary checks:
@@ -91,7 +94,10 @@ when the legacy RunSet was originally persisted.
 
 ## Privacy Detector Producer Contract
 
-Current contract ID: `agent-assure/privacy-detectors/v3`.
+Current contract ID: `agent-assure/privacy-detectors/v9`.
+
+Current contract digest:
+`c14c0f46e64c25be871235d93c6123c3a3bf3e92fa86824bbf33dbe8bc2a720d`.
 
 Current producers persist the profile ID and the SHA-256 digest of the RFC 8785
 canonical detector manifest. The manifest binds ordered pattern IDs,
@@ -104,6 +110,21 @@ document whether cross-profile comparison is supported. The current comparator
 supports only identical profiles implemented by the running package; it fails
 closed rather than treating cross-profile results as equivalent.
 
+The v0.6.5 package writer emitted profile v3. The v0.7.0 development package
+emits schema version 0.6.6 with privacy profile v9.
+Profile v9 additionally binds UTF-8 percent-encoded confusable normalization,
+complete multi-secret URL redaction, and ASCII-digit PAN boundary and
+candidate-selection rules into the canonical manifest.
+The intervening hardening adds credential forms, fixed-depth percent-aware
+bounded forward URL scanning, 13–19 digit Luhn-filtered card detection, bounded
+email syntax, and fail-closed handling when substitution makes an initially
+bounded scalar exceed the scan limit. Frozen v0.6.5 artifacts are still
+schema-replayable, but they are not silently upgraded or accepted as v9
+evaluation input. Migration requires regeneration from the original suite and
+source material under the current writer. Historical verification may instead
+remain pinned to the v0.6.5 package; outputs from the two detector profiles
+must not be mixed in one comparison or release claim.
+
 The release tag validator expects package and schema versions to match unless
 the package version is listed in its explicit release-to-schema mapping. The
 v0.4.0 through v0.4.2 package releases map to schema version `0.3.1` because
@@ -113,7 +134,9 @@ release adds the `control-coverage-report` persisted root and therefore emits
 `schema_version: 0.4.3`. The v0.4.4 package release keeps the persisted schema
 at `0.4.3` because its release surface is process-positioning documentation,
 fixture demos, report rendering, and control-map behavior hardening rather than
-a new persisted JSON artifact shape.
+a new persisted JSON artifact shape. The v0.7.0 package candidate is explicitly
+mapped to schema version `0.6.6`: it advances the package release line without
+renaming the current persisted JSON shape.
 
 Because v0.3.0 does not change persisted artifact shape, the JSON Schema `$id`
 values inside `schemas/v0.3.0/` still point to the `v0.2.0` schema namespace.
@@ -127,16 +150,56 @@ the release schema snapshots in `schemas/v0.1.0/`, `schemas/v0.2.0/`,
 `schemas/v0.3.0/`, `schemas/v0.3.1/`, `schemas/v0.4.3/`,
 `schemas/v0.5.0/`, `schemas/v0.6.0/`, `schemas/v0.6.1/`,
 `schemas/v0.6.2/`, `schemas/v0.6.3/`, `schemas/v0.6.4/`, and
-`schemas/v0.6.5/`. v0.6.5 is the latest published writer surface. The
-untagged v0.6.6 development writer accepts those frozen versions, while
-historical replay remains bounded to tagged snapshots; current-schema checks
-target `schemas/v0.6.6/`.
+`schemas/v0.6.5/`. v0.6.5 is the latest published package and writer surface.
+The untagged v0.7.0 package emits schema version 0.6.6 and accepts those frozen
+versions only where the artifact-specific compatibility contract permits it,
+while historical replay remains bounded to tagged snapshots; current-schema
+checks target `schemas/v0.6.6/`. Frozen-schema availability does not imply
+assurance-valid replay. Evaluation summaries and reports, comparison summaries
+and reports, and evidence packets through v0.6.5 remain archival structural
+resources because they lack a complete version-specific semantic replay.
+Pre-v0.6 live protocol, evaluation, comparison, drift, and trajectory roots are
+also archival structural resources. Historical drift and trajectory roots
+remain archival through v0.6.5 because their plans and exact sources are not
+bound in the persisted wire forms. The current assurance validator rejects
+these categories instead of certifying a shape-only result. Historical release
+manifests and digest replays are likewise archival-only at the public assurance
+boundary. Their separately documented release-reproduction path can check
+frozen shape, retained role/path uniqueness, and digests, but is explicitly an
+integrity-only operation rather than assurance validation.
 
-Persisted inputs are checked against their frozen schema before typed runtime
-projection. The v0.1 `release-digest-replay` contract is shape-identical to
-v0.2; after frozen v0.1 validation, the loader projects only its root and child
-schema labels to v0.2 so the current typed verifier can consume it. The source
-file and its referenced digest material are not rewritten.
+Current `release-digest-replay` envelopes cannot mix historical persisted JSON
+roots into a current semantic replay. The trusted envelope version is carried
+through direct role replay and release-manifest recursion, and every mapped JSON
+child root must match the current writer schema version exactly. Historical
+envelopes continue to validate their children against the exact frozen schema
+for integrity-only reproduction; that path does not confer assurance validity.
+
+Every exported frozen `(artifact kind, schema version)` pair has an exhaustive,
+default-deny public-validation policy: complete semantic replay or
+archival-only. Adding a frozen schema without adding its pair to that registry
+fails the registry parity test and an unregistered runtime pair fails closed.
+The trusted requested kind and parsed schema version select the policy; optional
+historical identity fields cannot select or bypass it. Supported non-archival
+inputs are checked against their immutable frozen schema before typed semantic
+projection. Archival-only roots first establish that exact frozen wire identity
+and are then rejected at the public assurance boundary; callers may use the
+frozen schemas directly only for structural inspection. Successful historical
+assurance validation is labeled `frozen-jsonschema+semantic-replay`; the plain
+`frozen-jsonschema` label is reserved for internal structural inspection.
+
+Compatibility parsing is not itself semantic assurance. In particular, the
+v0.6.0-v0.6.5 live-protocol vocabulary can represent historical trajectory
+states that the replay evaluator does not implement. The public assurance
+validator accepts `required_review_for_approval` only with
+`required_state: human_review` for those versions; other historical values may
+still be parsed for archival inspection, but fail closed at semantic replay.
+
+The v0.1 `release-digest-replay` contract is shape-identical to v0.2; the
+integrity-only release loader validates frozen v0.1 shape and role/path
+uniqueness, then projects only root and child schema labels to v0.2 so the typed
+digest verifier can consume it. The source file and referenced digest material
+are not rewritten, and this projection does not authorize an assurance claim.
 
 Default core-role enforcement is also replay-versioned. The normalized v0.1
 contract and supported schemas through v0.6.2 use the historical four-role
@@ -151,19 +214,42 @@ version-exact at every nested persisted-model boundary; frozen-schema replay is
 a separate read path and does not make historical labels valid current wire
 output.
 
-Evidence packets apply that split recursively. Current development v0.6.6 and
-frozen v0.6.5, v0.6.4, v0.6.3, v0.6.2, and v0.6.1 packets enforce the nested persisted-artifact
-versions required by their writer or frozen schemas, with separately versioned
-usage artifacts as the explicit exception. The writer validates the complete
-post-redaction payload under the schema selected by the packet root version
-before persistence.
+Historical v0.6.0-v0.6.5 live evaluation and comparison reports receive a
+version-aware semantic projection after frozen-schema validation. The runtime
+rederives group identity, cardinality, included/excluded counts, pooled rates,
+cluster counts and means, largest-cluster size, and reason-code rates from
+embedded observations. The old wire format did not retain enough source RunSet
+or protocol state to reconstruct every outcome rate, latency/cost distribution,
+or confidence-interval kernel; those historical fields are compatibility
+evidence only and are not treated as confirmatory statistics by the current
+verifier.
+
+The compatibility models can still recheck recoverable portions of historical
+v0.6.0-v0.6.5 drift and trajectory payloads for migration tooling, including
+some comparability, trend, path, and count identities. That partial projection
+cannot prove that plan-declared diagnostics or governance findings were not
+omitted. The public assurance validator therefore rejects both historical
+families outright, even when the recoverable subset is internally consistent.
+Frozen v0.2.0-v0.5.0 schemas and v0.6.0-v0.6.5 schemas remain immutable for
+direct archival shape inspection; regenerate current, source-bound evidence
+before making an assurance decision.
+
+Evidence packets apply that split recursively. Current schema v0.6.6 enforces
+the nested persisted-artifact versions required by the writer, with separately
+versioned usage artifacts as the explicit exception, and the writer validates
+the complete post-redaction payload against the pinned current schema before
+persistence. Frozen packet schemas through v0.6.5 remain available for direct
+structural inspection and explicit non-assurance migration work. The public
+packet loader, writer, assurance validator, and gate reject those historical
+packet roots before projection or persistence.
 
 The authored `controls-mutation-onboarding-config` is outside this replay
 window. It is package-bound input for the onboarding workflow, not an exported
 evidence root, and therefore has no frozen JSON Schema compatibility promise.
 
 The golden check follows the same split: unversioned flagship compiled-suite
-and fixture-manifest goldens track the current v0.6.6 producer, while explicitly
+and fixture-manifest goldens track the current v0.7.0 package producer and its
+schema version 0.6.6, while explicitly
 named `*.v0.5.0.*.json` and `*.v0.6.3.*.json` goldens are byte-pinned and
 replayed through their corresponding frozen JSON Schemas. `--update-golden`
 never rewrites those legacy fixtures.
@@ -224,7 +310,8 @@ pair closes authenticated comparison-to-RunSet binding while allowing
 producer-local environment metadata to remain outside the controlled
 sensitivity semantic projection.
 
-The untagged v0.6.6 development writer adds eight persisted roots:
+The untagged schema v0.6.6 development writer emitted by package candidate
+v0.7.0 adds eight persisted roots:
 `ProcessEquivalenceBenchmark/v1`, `RealModelStudyManifest/v1`,
 `StudyRegistrationReviewReceipt/v1`, `StudyExecutionReviewReceipt/v1`,
 `RealModelStudyReport/v1`, `ExternalPilotEvidence/v1`,
@@ -252,19 +339,20 @@ friction, remediation, consent, and privacy evidence. Its schema fixes
 pre-candidate pilot evidence to learning/remediation-only and makes every
 later exact-candidate gate-eligibility field false. These additions are
 development contracts; they do not imply that a real-model study or external
-pilot ran, and they do not create a v0.6.6 release.
+pilot ran, and they do not create a v0.7.0 release.
 The typed pilot input manifest maps every input-bearing workflow argv value to
 a privacy-safe content digest and derives separate configuration/data aggregate
 digests. Each recorded command binds that manifest, the exact tested wheel
 digest, and the declared source revision; the closed-bundle verifier rejects
 dangling, unused, or mismatched argv bindings.
 
-The v0.6.6 RunSet persistence boundary is intentionally stricter than earlier
-writers: structural credential names, headers, and URI forms are checked on
-all non-exempt strings rather than only by the narrower sensitive-value
-detector. This can reject an older producer's credential-shaped identifiers or
-free text. The canonical HMAC-pseudonym `input_summary` grammar is implemented
-once and shared by both RunSet-specific and generic durable-payload checks;
+The schema v0.6.6 RunSet persistence boundary is intentionally stricter than
+earlier writers: structural credential names, headers, and URI forms are
+checked on all non-exempt strings rather than only by the narrower
+sensitive-value detector. This can reject an older producer's
+credential-shaped identifiers or free text. The canonical HMAC-pseudonym
+`input_summary` grammar is implemented once and shared by both RunSet-specific
+and generic durable-payload checks;
 there is no broader token-name exemption.
 
 Every raw persisted v0.6.0, v0.6.1, v0.6.2, v0.6.3, v0.6.4, v0.6.5, or
@@ -352,7 +440,11 @@ artifacts persist cross-window comparability results, ordered-window summaries,
 trend, adjacent-step, separate serial-dependence, AR(1), and EWMA monitoring
 diagnostics when their declared window-count prerequisites are met. Drift
 report fields are derived review evidence and do not make drift signals release
-verdicts or deterministic fixture-mode obligations.
+verdicts or deterministic fixture-mode obligations. `analysis_methods` is
+authoritative: every metric declares the descriptive-trend basis, optional
+dependence and EWMA outputs are emitted only when declared, and a confirmatory
+plan must contain at least one confirmatory metric. Exploratory metric
+shortfalls do not downgrade an otherwise met confirmatory monitoring status.
 The live protocol can also carry an optional trajectory analysis plan. Those
 sequence-invariant and event-process declarations are included in the protocol
 digest. `live-trajectory-report` artifacts persist privacy-filtered observable
@@ -361,7 +453,15 @@ invariant results, and operational event-process summaries. These fields are
 derived review evidence with `not_evaluated` gate state; they do not persist raw
 prompts, raw outputs, tool arguments, sensitive identifiers, or unredacted
 summaries, and they do not replace expectation, policy, invariant, or configured
-comparison gates.
+comparison gates. Observable transitions are the required base method;
+sequence findings and event-process/burst outputs appear only when their method
+families are declared. Confirmatory trajectory plans require the complete
+supported method set and at least one confirmatory invariant target;
+exploratory plans cannot contain confirmatory invariants. A trajectory status
+cannot be `valid` without a persisted confirmatory target. Zero observed events
+with adequate exposure are a met zero-count process, while positive
+under-threshold or incompletely timestamped processes cannot assert a no-burst
+conclusion.
 
 The v0.2 schema release adds `schemas/v0.2.0`, updates JSON Schema `$id`
 values, and keeps the v0.1 release schemas in `schemas/v0.1.0` for replay of
@@ -422,9 +522,13 @@ evaluation, comparison, and packet artifacts. The additive model is
 baseline-to-candidate comparisons. Usage segments include `span_id`,
 `parent_span_id`, `event_range_start`, and `event_range_end` so future streaming
 ingestion can attach usage to ordered events without redesigning the schema.
-The usage artifact roots are introduced in v0.3.1. v0.4.3 producers emit usage
-roots with `schema_version: "0.4.3"` and still accept v0.3.1 usage roots for
-replay; v0.4.3-only fields are rejected when labeled as v0.3.1. Container
+The usage artifact roots are introduced in v0.3.1. Usage segments, summaries,
+and summary deltas continue to emit `schema_version: "0.4.3"` and accept
+v0.3.1 roots for replay; v0.4.3-only fields are rejected when labeled as
+v0.3.1. New usage ledgers emit `schema_version: "0.6.6"` because
+`sum_complete_fields_v2` is a new aggregation contract. Historical v0.4.3
+ledgers remain readable with `sum_known_fields_v1`; a v0.4.3 label cannot claim
+the v2 method. Container
 artifacts that carry usage fields use `schema_version: "0.3.1"` or later;
 legacy-labeled containers reject direct and nested usage evidence.
 Segment-level pricing snapshot digests are v0.4.3-only and cannot be attached
@@ -437,9 +541,13 @@ failure. Generated wording must stay on measured usage, usage delta, declared
 estimated cost, and per-cost-observation evidence when a matched denominator is
 declared, and must not claim business impact. Micro-USD cost evidence is
 USD-only by design in this release even though the `currency` field remains for
-schema continuity. Declared pricing snapshots use explicit
-`usage-pricing-snapshot` artifacts with integer micro-USD token rates, optional
-cached-input and reasoning-token rates, USD-only currency, and limitations. The
+schema continuity. New declared pricing snapshots use v0.6.6
+`usage-pricing-snapshot` artifacts with canonical six-place decimal dollars per
+million tokens, optional cached-input and reasoning-token rates, USD-only
+currency, and limitations. The implementation converts those strings to fixed
+point integers and applies round-half-even only at the final micro-USD boundary.
+Legacy v0.4.3 integer micro-USD-per-token snapshots remain readable, but their
+rate family cannot be relabeled or mixed with v0.6.6 rates. The
 pricing helper refuses total-token-only inputs; callers must provide
 prompt/completion splits and token-class rates for cached or reasoning tokens.
 Demo fixtures must say they are demo pricing and not live provider pricing.
@@ -447,9 +555,10 @@ Cost deltas require matching declared cost basis, pricing snapshot IDs, and
 pricing snapshot content digests on both sides; missing or mismatched provenance
 is carried as a limitation instead of a cost delta.
 When a usage ledger and summary are both present, the summary must match the
-ledger-derived values and include the ledger-derived limitations. Partial
-missingness is carried into summaries and deltas so known-field totals are not
-read as complete observations. Exported JSON Schema enforces the
+ledger-derived values and include the ledger-derived limitations. The v0.6.6
+ledger suppresses any metric total unless every segment supplies that metric;
+summary-to-summary aggregation applies the same complete-coverage rule.
+Consequently incomplete metrics cannot produce a comparison delta. Exported JSON Schema enforces the
 cost-bearing-segment limitation requirement and the legacy-container usage
 field gate; ledger missingness equality is a derived invariant enforced by
 Pydantic validation. Baseline-to-candidate percentage-style usage deltas are

@@ -17,12 +17,12 @@ from agent_assure.fixtures.manifest import (
     load_fixture_manifest,
     write_fixture_manifest,
 )
-from agent_assure.onboarding.diagnostics import bounded_error
+from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.common import ExecutionMode, coerce_enum
 
 app = typer.Typer(help="Suite authoring and compilation.")
-console = Console()
+console = Console(markup=False)
 
 
 @app.command("lint")
@@ -36,7 +36,7 @@ def lint(path: Annotated[Path, typer.Argument(exists=True, readable=True)]) -> N
         compile_suite(path)
     except Exception as exc:
         raise typer.BadParameter(f"suite lint failed: {bounded_error(exc)}") from exc
-    console.print(f"lint ok: {path} ({len(warnings)} warning(s))")
+    console.print(f"lint ok: {display_path(path)} ({len(warnings)} warning(s))")
 
 
 @app.command("compile")
@@ -65,10 +65,10 @@ def compile_cmd(
     except (OSError, TypeError, ValueError) as exc:
         raise typer.BadParameter(bounded_error(exc)) from exc
     write_compiled_suite(compiled, out)
-    console.print(f"compiled suite: {out}")
+    console.print(f"compiled suite: {display_path(out)}")
     if manifest is not None and fixture_manifest is not None:
         write_fixture_manifest(fixture_manifest, manifest)
-        console.print(f"fixture manifest: {manifest}")
+        console.print(f"fixture manifest: {display_path(manifest)}")
 
 
 @app.command("run")
@@ -130,7 +130,7 @@ def run_cmd(
     except (KeyError, OSError, TypeError, ValueError) as exc:
         raise typer.BadParameter(bounded_error(exc)) from exc
     write_runset(runset, out)
-    console.print(f"run set: {out}")
+    console.print(f"run set: {display_path(out)}")
 
 
 def _infer_suite_root(compiled_suite: Path, variant: Path) -> Path:

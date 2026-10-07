@@ -107,6 +107,22 @@ The final record binds:
 - consent status and publication scope; and
 - explicit privacy assertions, limitations, and non-gating semantics.
 
+The reference loader does not trust those descriptor claims in isolation. It
+parses complete extra-forbidding contracts for the environment, control,
+execution, friction, remediation, and consent bytes and rebinds every duplicated
+claim to the authoritative evidence graph. It requires one shared opaque token
+whose prefixes derive the pilot and environment IDs, exact per-role inventories,
+the exact wheel and input-manifest digests and command results, one non-bundled
+participant waiver-set input consumed by the command, matching friction and
+later-source remediation state, and consent over the complete artifact plus
+future-receipt inventory. Identityless JSON, generic text, extra fields,
+unreferenced typed records, and semantically contradictory records fail closed.
+
+Stage 1 builds the capture in a private sibling staging directory. Only a fully
+validated capture is renamed to the requested destination; a late command,
+privacy, provenance, or model-validation failure removes the staged bytes and
+leaves no partial destination to poison a retry.
+
 To turn the safe template into an observed attempt, first replace the subject,
 distribution, environment, component, and input placeholders with reviewed
 facts. After the external execution:
@@ -231,7 +247,7 @@ missing receipt, producing:
 evidence/empirical/external-pilot/
   external-pilot-evidence.json
   external-pilot-independence-review.json
-  agent_assure-0.6.6-py3-none-any.whl
+  agent_assure-0.7.0-py3-none-any.whl
   <one direct-child file for every artifacts[].path>
 ```
 
@@ -318,7 +334,7 @@ python scripts/check_empirical_readiness.py \
   --external-pilot-bundle-root evidence/empirical/external-pilot \
   --external-pilot-evidence external-pilot-evidence.json \
   --external-pilot-review-receipt external-pilot-independence-review.json \
-  --expected-release 0.6.6rc1
+  --expected-release 0.7.0rc1
 ```
 
 The Python readiness projection follows the same boundary:
@@ -356,7 +372,7 @@ Those values are invariant even for a qualifying, completed external pilot.
 For the Sprint 7 empirical checkpoint, the release checker additionally
 requires `subject.implementation_id: agent-assure` and compares the base
 release of `subject.implementation_version` with the expected release line.
-Thus `0.6.6rc1` and `0.6.6` both bind to the `0.6.6` line, while another base
+Thus `0.7.0rc1` and `0.7.0` both bind to the `0.7.0` line, while another base
 version fails with a distinct blocker. The independence-review receipt binds
 that same base line plus the consent artifact; the exact friction category and
 remediation state, including applied-remediation source and prior-candidate

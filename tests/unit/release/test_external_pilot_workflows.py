@@ -21,10 +21,10 @@ ZERO_REVISION = "0" * 40
 EXPECTED_EXECUTION_SOURCE_REVISION = "c742546f80c7bae998f5dc648b54e89f3ec556ab"
 UPSTREAM_REF = re.compile(r"repository: acblabs/agent-assure\n\s+ref: ([0-9a-f]{40})")
 PINNED_ACTIONS = {
-    "actions/checkout": "34e114876b0b11c390a56381ad16ebd13914f8d5",
-    "actions/download-artifact": "d3f86a106a0bac45b974a628896c90dbdf5c8093",
-    "actions/setup-python": "a26af69be951a213d495a4c3e4e4022e16d87065",
-    "actions/upload-artifact": "ea165f8d65b6e75b540449e92b4886f43607fa02",
+    "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+    "actions/download-artifact": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    "actions/setup-python": "5fda3b95a4ea91299a34e894583c3862153e4b97",
+    "actions/upload-artifact": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
 }
 
 
@@ -245,14 +245,18 @@ def test_reviewer_template_requires_deliberate_attestations() -> None:
     assert "review_outcome: replace-after-review" in template
 
 
-def test_pilot_only_pushes_skip_unrelated_jobs_without_weakening_pr_or_schedule() -> None:
+def test_pilot_only_pushes_skip_costly_ci_but_never_the_history_secret_scan() -> None:
     workflows = {path.name: path.read_text(encoding="utf-8") for path in CI_WORKFLOWS}
 
-    for workflow in workflows.values():
+    for workflow_name in ("ci.yml", "docs.yml"):
+        workflow = workflows[workflow_name]
         assert 'paths-ignore:\n      - "agent-assure-pilot/**"' in workflow
         assert "pull_request:" in workflow
-    assert "schedule:" in workflows["security.yml"]
-    assert "workflow_dispatch:" in workflows["security.yml"]
+    security = workflows["security.yml"]
+    assert "pull_request:" in security
+    assert "paths-ignore:" not in security.split("permissions:", maxsplit=1)[0]
+    assert "schedule:" in security
+    assert "workflow_dispatch:" in security
 
 
 def test_capture_requires_informed_temporary_storage_consent() -> None:

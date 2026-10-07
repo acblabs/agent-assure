@@ -35,6 +35,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from agent_assure import __version__
 from agent_assure.artifact_io import git_file_bytes, git_output
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.cli._publication import bounded_model_json
 from agent_assure.cli.waivers import load_waivers
@@ -51,7 +52,7 @@ from agent_assure.onboarding.controls_mutation import (
     SUITE_FILENAME,
     scaffold_controls_mutation,
 )
-from agent_assure.onboarding.diagnostics import bounded_error
+from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.pilot_bundle import (
     MAX_PILOT_BUNDLE_ARTIFACT_BYTES,
     MAX_PILOT_BUNDLE_FILES,
@@ -60,6 +61,10 @@ from agent_assure.pilot_bundle import (
     validate_external_pilot_artifact_bytes,
 )
 from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.privacy.structural_fields import (
+    git_revision_privacy_probe,
+    sha256_digest_privacy_probe,
+)
 from agent_assure.reporting.campaign import MUTATION_CAMPAIGN_FILENAME
 from agent_assure.rooted_io import portable_relative_path_parts
 from agent_assure.schema.base import FrozenStrictModel
@@ -68,6 +73,11 @@ from agent_assure.schema.common import (
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     MachineIdentifier,
+)
+from agent_assure.schema.evaluation import (
+    MAX_WAIVER_VALIDITY_DAYS,
+    validate_current_waiver_governance,
+    waiver_expiry_horizon,
 )
 from agent_assure.schema.mutation import SelfDigestedArtifact
 from agent_assure.schema.pilot import (
@@ -121,10 +131,12 @@ _PARTICIPANT_INPUT_PREFIX = "agent-assure-pilot/"
 _PARTICIPANT_INPUT_FILENAME = "participant-waiver.yaml"
 _PARTICIPANT_RATIONALE_PLACEHOLDER = "replace-with-a-short-benign-participant-rationale"
 _PARTICIPANT_RATIONALE_MAX_CHARS = 256
-_BENIGN_WAIVER_EXPIRY = date(2099, 12, 31)
+_PARTICIPANT_REVIEWER_PLACEHOLDER = "replace-negative-control-reviewer-label"
+_PARTICIPANT_EXPIRY_PLACEHOLDER = "replace-with-iso-expiry-within-90-days"
 _PACKAGE_CODE_SUFFIXES = (".py", ".pyi")
 _PILOT_COMMAND_ID = "mutate"
 _ZERO_DIGEST = "0" * 64
+_MAX_OPAQUE_BINDING_GENERATION_ATTEMPTS = 32
 
 
 class _CIIdentityDigests(FrozenStrictModel):
@@ -180,9 +192,13 @@ class ExternalPilotCapture(SelfDigestedArtifact):
 
     @model_validator(mode="after")
     def _validate_capture(self) -> Self:
-        payload = self.model_dump(mode="json", warnings="error")
-        if redact_packet_payload(payload) != payload:
-            raise ValueError("external pilot capture must contain only privacy-filtered metadata")
+        if (
+            self.pilot_id != f"external-controls-{self.opaque_pilot_binding[:24]}"
+            or self.environment.environment_id != f"github-actions-{self.opaque_pilot_binding[:20]}"
+        ):
+            raise ValueError(
+                "external pilot capture identities must derive from its opaque binding"
+            )
         if self.artifacts != tuple(sorted(self.artifacts, key=lambda item: item.artifact_id)):
             raise ValueError("external pilot capture artifacts must use canonical ordering")
         if len({item.artifact_id for item in self.artifacts}) != len(self.artifacts):
@@ -221,6 +237,29 @@ class ExternalPilotCapture(SelfDigestedArtifact):
             raise ValueError("external pilot capture subject does not bind its wheel")
         if self.command.implementation_source_revision != self.subject.source_revision:
             raise ValueError("external pilot capture command source revision mismatch")
+        payload = self.model_dump(mode="json", warnings="error")
+        subject_payload = payload["subject"]
+        command_payload = payload["command"]
+        ci_digest_payload = payload["ci_identity_digests"]
+        if (
+            not isinstance(subject_payload, dict)
+            or not isinstance(command_payload, dict)
+            or not isinstance(ci_digest_payload, dict)
+        ):
+            raise TypeError("external pilot capture serialization shape is unavailable")
+        payload["participant_repository_revision"] = git_revision_privacy_probe(
+            self.participant_repository_revision
+        )
+        subject_payload["source_revision"] = git_revision_privacy_probe(
+            self.subject.source_revision
+        )
+        command_payload["implementation_source_revision"] = git_revision_privacy_probe(
+            self.command.implementation_source_revision
+        )
+        for field_name, digest in self.ci_identity_digests:
+            ci_digest_payload[field_name] = sha256_digest_privacy_probe(digest)
+        if redact_packet_payload(payload) != payload:
+            raise ValueError("external pilot capture must contain only privacy-filtered metadata")
         return self
 
 
@@ -247,7 +286,45 @@ def capture_external_pilot(
     non_maintainer_control_attested: bool,
     environment: Mapping[str, str] | None = None,
 ) -> ExternalPilotCapture:
-    """Execute and capture one externally controlled CI attempt without raw streams."""
+    """Build privately and publish one complete capture without partial target state."""
+
+    _require_new_directory_target(capture_root, label="external pilot capture")
+    with tempfile.TemporaryDirectory(
+        prefix=".agent-assure-external-pilot-capture-",
+        dir=capture_root.parent,
+    ) as staging_parent:
+        staging_root = Path(staging_parent) / "capture"
+        capture = _capture_external_pilot_into_directory(
+            capture_root=staging_root,
+            participant_repository_root=participant_repository_root,
+            participant_input_repository_path=participant_input_repository_path,
+            participant_input_template=participant_input_template,
+            wheel_path=wheel_path,
+            source_revision=source_revision,
+            participant_pseudonym=participant_pseudonym,
+            temporary_storage_consent_granted=temporary_storage_consent_granted,
+            non_maintainer_control_attested=non_maintainer_control_attested,
+            environment=environment,
+        )
+        _require_new_directory_target(capture_root, label="external pilot capture")
+        staging_root.rename(capture_root)
+        return capture
+
+
+def _capture_external_pilot_into_directory(
+    *,
+    capture_root: Path,
+    participant_repository_root: Path,
+    participant_input_repository_path: str,
+    participant_input_template: Path,
+    wheel_path: Path,
+    source_revision: str,
+    participant_pseudonym: str,
+    temporary_storage_consent_granted: bool,
+    non_maintainer_control_attested: bool,
+    environment: Mapping[str, str] | None = None,
+) -> ExternalPilotCapture:
+    """Execute one attempt into a private staging directory."""
 
     if temporary_storage_consent_granted is not True:
         raise ValueError("temporary capture storage consent was not granted")
@@ -296,7 +373,7 @@ def capture_external_pilot(
         implementation_version=__version__,
     )
     _validate_running_agent_assure_code_matches_wheel(wheel_bytes)
-    opaque_pilot_binding = secrets.token_hex(32)
+    opaque_pilot_binding = _privacy_safe_opaque_pilot_binding()
 
     capture_root.mkdir(mode=0o700)
     wheel_output = capture_root / expected_wheel_name
@@ -324,6 +401,11 @@ def capture_external_pilot(
         scaffold_controls_mutation(scaffold_root)
         participant_work_path = work_root / _PARTICIPANT_INPUT_FILENAME
         _write_new_bytes(participant_work_path, participant_bytes)
+        authored_payload = safe_load_yaml_text(
+            participant_bytes.decode("utf-8"),
+            label="external pilot participant waiver YAML",
+        )
+        _validate_participant_authored_fields(authored_payload)
         waivers = load_waivers((participant_work_path,))
         _validate_benign_participant_waiver(
             waivers,
@@ -535,6 +617,25 @@ def capture_external_pilot(
     _write_new_bytes(capture_root / CAPTURE_FILENAME, _json_bytes(capture))
     _verify_capture_directory(capture_root, capture)
     return capture
+
+
+def _privacy_safe_opaque_pilot_binding() -> str:
+    """Generate a public correlation token that is stable under privacy filtering."""
+
+    for _attempt in range(_MAX_OPAQUE_BINDING_GENERATION_ATTEMPTS):
+        candidate = secrets.token_hex(32)
+        if _FULL_SHA256.fullmatch(candidate) is None:
+            raise ValueError("opaque pilot binding generator returned a noncanonical token")
+        probe = {
+            "opaque_pilot_binding": candidate,
+            "pilot_id": f"external-controls-{candidate[:24]}",
+            "environment_id": f"github-actions-{candidate[:20]}",
+        }
+        if redact_packet_payload(probe) == probe:
+            return candidate
+    raise ValueError(
+        "could not generate a privacy-safe opaque pilot binding within the bounded attempt limit"
+    )
 
 
 def finalize_external_pilot_capture(
@@ -970,6 +1071,7 @@ def _verify_capture_directory(root: Path, capture: ExternalPilotCapture) -> None
             data,
             implementation_id=capture.subject.implementation_id,
             implementation_version=capture.subject.implementation_version,
+            expected_source_revision=capture.subject.source_revision,
         )
     total += (root / CAPTURE_FILENAME).stat().st_size
     if total > MAX_PILOT_BUNDLE_TOTAL_BYTES:
@@ -1068,7 +1170,12 @@ def _read_committed_participant_input(
         max_bytes=MAX_CONFIG_TEXT_BYTES,
         label="external pilot participant input",
     )
-    committed_bytes = git_file_bytes(repository_root, revision, repository_path)
+    committed_bytes = git_file_bytes(
+        repository_root,
+        revision,
+        repository_path,
+        max_bytes=MAX_CONFIG_TEXT_BYTES,
+    )
     if len(committed_bytes) > MAX_CONFIG_TEXT_BYTES:
         raise ValueError("external pilot participant input exceeds maximum supported size")
     if committed_bytes != filesystem_bytes:
@@ -1132,19 +1239,63 @@ def _validate_benign_participant_waiver(
         raise ValueError("external pilot participant input must contain exactly one waiver")
     waiver = waivers[0]
     expected_id = f"external-pilot-{participant_pseudonym}"
+    owner = getattr(waiver, "owner", None)
+    reviewer = getattr(waiver, "reviewer", None)
     rationale = getattr(waiver, "rationale", None)
+    expires_on = getattr(waiver, "expires_on", None)
     if (
         getattr(waiver, "waiver_id", None) != expected_id
-        or getattr(waiver, "owner", None) != participant_pseudonym
-        or getattr(waiver, "reviewer", None) != participant_pseudonym
+        or owner != participant_pseudonym
         or getattr(getattr(waiver, "reason_code", None), "value", None) != "FORBIDDEN_TOOL"
         or getattr(waiver, "finding_id", None) != "pilot-nonmatching-finding"
         or getattr(waiver, "artifact_digest", None) != _ZERO_DIGEST
-        or getattr(waiver, "expires_on", date.min) != _BENIGN_WAIVER_EXPIRY
     ):
         raise ValueError(
             "participant waiver must retain the documented benign non-matching boundary"
         )
+    rationale = _validate_participant_rationale(rationale)
+    if (
+        not isinstance(reviewer, str)
+        or reviewer == _PARTICIPANT_REVIEWER_PLACEHOLDER
+        or _PARTICIPANT_PSEUDONYM.fullmatch(reviewer) is None
+    ):
+        raise ValueError(
+            "participant waiver reviewer label must be a personalized 1-64 character pseudonym"
+        )
+    validate_current_waiver_governance(
+        owner,
+        reviewer,
+        rationale,
+        context="external pilot participant input",
+    )
+    today = date.today()
+    if (
+        not isinstance(expires_on, date)
+        or expires_on < today
+        or expires_on > waiver_expiry_horizon(today)
+    ):
+        raise ValueError(
+            "participant waiver expires_on must be current and no more than "
+            f"{MAX_WAIVER_VALIDITY_DAYS} days after capture"
+        )
+
+
+def _validate_participant_authored_fields(payload: object) -> None:
+    candidate = payload
+    if isinstance(candidate, Mapping) and "waivers" in candidate:
+        candidate = candidate["waivers"]
+    if isinstance(candidate, list) and len(candidate) == 1:
+        candidate = candidate[0]
+    if not isinstance(candidate, Mapping):
+        return
+    _validate_participant_rationale(candidate.get("rationale"))
+    if candidate.get("reviewer") == _PARTICIPANT_REVIEWER_PLACEHOLDER:
+        raise ValueError("participant waiver reviewer label must be participant-authored")
+    if candidate.get("expires_on") == _PARTICIPANT_EXPIRY_PLACEHOLDER:
+        raise ValueError("participant waiver expires_on must be participant-authored")
+
+
+def _validate_participant_rationale(rationale: object) -> str:
     if (
         not isinstance(rationale, str)
         or not rationale
@@ -1157,6 +1308,7 @@ def _validate_benign_participant_waiver(
             "participant waiver rationale must be participant-authored, printable, and at "
             "most 256 characters"
         )
+    return rationale
 
 
 def _validate_running_agent_assure_code_matches_wheel(wheel_bytes: bytes) -> None:
@@ -1406,7 +1558,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 non_maintainer_control_attested=args.non_maintainer_control_attested,
             )
             print(f"external pilot capture digest: {capture.capture_digest}")
-            print(f"external pilot capture: {args.capture_root}")
+            print(f"external pilot capture: {display_path(args.capture_root)}")
         else:
             evidence = finalize_external_pilot_capture(
                 capture_root=args.capture_root,
@@ -1423,7 +1575,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 non_maintainer_control_attested=args.non_maintainer_control_attested,
             )
             print(f"external pilot evidence digest: {evidence.pilot_evidence_digest}")
-            print(f"external pilot candidate bundle: {args.bundle_root}")
+            print(f"external pilot candidate bundle: {display_path(args.bundle_root)}")
     except (OSError, subprocess.SubprocessError, TypeError, ValueError) as exc:
         print(f"external pilot kit failed: {bounded_error(exc)}", file=sys.stderr)
         return 2

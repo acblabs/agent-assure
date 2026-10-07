@@ -44,8 +44,8 @@ PRICING_SNAPSHOT = UsagePricingSnapshot(
         UsagePricingModel(
             provider=PROVIDER,
             model=MODEL,
-            input_token_microusd=1,
-            output_token_microusd=3,
+            input_million_tokens_usd="1.000000",
+            output_million_tokens_usd="3.000000",
         ),
     ),
     limitations=("Demo fixture pricing only; not live provider pricing.",),

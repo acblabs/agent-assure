@@ -40,7 +40,8 @@ def test_frozen_v062_threat_manifest_replays_relational_validation() -> None:
     payload = manifest.model_dump(mode="json")
 
     assert (
-        validate_artifact_payload(payload, "threat-applicability-manifest") == "frozen-jsonschema"
+        validate_artifact_payload(payload, "threat-applicability-manifest")
+        == "frozen-jsonschema+semantic-replay"
     )
 
     payload["present_control_ids"] = list(reversed(payload["present_control_ids"]))
@@ -78,7 +79,10 @@ def test_frozen_v062_control_efficacy_report_replays_relational_validation() -> 
     )
     payload = legacy_report.model_dump(mode="json")
 
-    assert validate_artifact_payload(payload, "control-efficacy-report") == "frozen-jsonschema"
+    assert (
+        validate_artifact_payload(payload, "control-efficacy-report")
+        == "frozen-jsonschema+semantic-replay"
+    )
 
     payload["caught_operator_count"] += 1
     _rehash(payload, "report_digest")

@@ -22,14 +22,17 @@ from dataclasses import dataclass, field
 from pathlib import Path, PurePosixPath
 
 ROOT = Path(__file__).resolve().parents[1]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+SRC = ROOT / "src"
+for import_path in (ROOT, SRC):
+    if str(import_path) not in sys.path:
+        sys.path.insert(0, str(import_path))
 
 from agent_assure.io_limits import (  # noqa: E402
     open_directory_at,
     read_file_bounded,
     read_file_bounded_at,
 )
+from agent_assure.onboarding.diagnostics import bounded_error, bounded_text  # noqa: E402
 from agent_assure.rooted_io import RootedDirectoryDescriptor  # noqa: E402
 from scripts.check_wheel_contents import (  # noqa: E402
     inspect_sdist,
@@ -702,10 +705,10 @@ def main(argv: list[str] | None = None) -> int:
         ValueError,
         zipfile.BadZipFile,
     ) as exc:
-        print(f"wheel-smoke: {exc}", file=sys.stderr)
+        print(f"wheel-smoke: {bounded_error(exc)}", file=sys.stderr)
         return 1
 
-    print(f"distribution-smoke: ok ({wheel.name}, {sdist.name})")
+    print(f"distribution-smoke: ok ({bounded_text(wheel.name)}, {bounded_text(sdist.name)})")
     return 0
 
 

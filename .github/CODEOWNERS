@@ -4,9 +4,19 @@
 /.github/** @acblabs
 /pyproject.toml @acblabs
 /requirements*.lock @acblabs
+/requirements-min.constraints.txt @acblabs
+/.gitleaksignore @acblabs
 /Makefile @acblabs
 /examples/** @acblabs
 /SECURITY.md @acblabs
+# Broad ownership prevents newly added package modules, tests, or governance
+# documents from silently falling outside review. More-specific entries below
+# remain as an auditable inventory of especially sensitive surfaces.
+/src/agent_assure/** @acblabs
+/tests/** @acblabs
+/docs/** @acblabs
+/compat/** @acblabs
+/mappings/** @acblabs
 /src/agent_assure/examples/** @acblabs
 /src/agent_assure/artifact_io.py @acblabs
 /src/agent_assure/rooted_io.py @acblabs

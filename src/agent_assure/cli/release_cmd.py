@@ -32,7 +32,7 @@ from agent_assure.release_evidence import (
 )
 from agent_assure.reporting.text_safety import sanitize_display_text
 from agent_assure.rooted_io import portable_relative_path_parts
-from agent_assure.schema.base import StrictModel
+from agent_assure.schema.base import SCHEMA_VERSION, StrictModel
 from agent_assure.schema.common import (
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     MachineIdentifier,
@@ -43,7 +43,7 @@ from agent_assure.schema.pilot import ExternalPilotEvidence, PilotWorkflowDispat
 app = typer.Typer(help="Release evidence utilities.")
 pilot_app = typer.Typer(help="Finalize externally operated pilot evidence.")
 app.add_typer(pilot_app, name="pilot")
-console = Console()
+console = Console(markup=False)
 
 
 class _PilotWorkflowRunTemplate(StrictModel):
@@ -312,7 +312,7 @@ def replay(
             else ()
         )
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     required_roles = tuple(require_role or ())
     required_roles = (*core_roles, *required_roles)
     verification = verify_digest_replay(
@@ -340,8 +340,12 @@ def replay(
         }
         typer.echo(json.dumps(payload, sort_keys=True))
         raise typer.Exit(1)
+    if replay_artifact.schema_version == SCHEMA_VERSION:
+        trust_label = "current semantic replay"
+    else:
+        trust_label = "historical archival integrity-only replay; not assurance validation"
     console.print(
-        "release digest replay verified: "
+        f"release digest replay verified ({trust_label}): "
         f"{len(replay_artifact.artifacts)} artifacts from {digest_replay}"
     )
 

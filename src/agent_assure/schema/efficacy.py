@@ -1139,7 +1139,14 @@ def derive_control_efficacy_gate_decision(
     profile: ControlEfficacyGateProfile,
 ) -> ControlEfficacyGateDecision:
     """Derive the complete policy projection for a report and exact profile."""
-    profile = ControlEfficacyGateProfile.model_validate(profile.model_dump(mode="json"))
+    from agent_assure.schema.validation import validate_loaded_artifact_payload
+
+    report_payload = report.model_dump(mode="json", warnings="error")
+    report = ControlEfficacyReport.model_validate(report_payload)
+    validate_loaded_artifact_payload(report_payload, "control-efficacy-report")
+    profile = ControlEfficacyGateProfile.model_validate(
+        profile.model_dump(mode="json", warnings="error")
+    )
     if profile.required_catalog != report.catalog_id:
         raise ValueError("gate profile required catalog does not match the report")
     if profile.required_operators != report.required_operator_ids:

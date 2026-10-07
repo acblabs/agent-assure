@@ -1,13 +1,17 @@
 # PyPI Release Runbook
 
 This runbook covers the conditional Python package upload path for
-`agent-assure` v0.6.6.
-The default path is GitHub Trusted Publishing with OIDC. Local `twine upload`
-is a fallback only when Trusted Publishing is unavailable.
+`agent-assure` v0.7.0.
+Every TestPyPI and PyPI upload uses GitHub Trusted Publishing with OIDC. Local
+credential-based upload is prohibited. If Trusted Publishing is unavailable,
+publication is blocked until the protected publisher can be restored or an
+applicable repository-declared recovery workflow succeeds.
 
-> **Release status:** v0.6.6 is currently untagged and unpublished. Every step
-> below remains conditional on all empirical and release gates passing and on
-> explicit human approval. This runbook does not imply that v0.6.6 has shipped.
+> **Release status:** v0.7.0 is currently untagged and unpublished. Every
+> release, including a security correction, remains conditional on all empirical and release gates passing,
+> including efficacy, empirical-readiness, engineering, and publication checks. The workflow
+> exposes no alternate maintenance publication profile.
+> This runbook does not imply that v0.7.0 has shipped.
 
 ## Release Shape
 
@@ -29,32 +33,45 @@ unprivileged job downloads the exact immutable IDs, repeats signature and
 coherent-binding verification from a captured private snapshot, and requires
 the separate two-file distribution artifact to byte-match the wheel and sdist in
 the full bundle. It exposes those same IDs only after success and does not
-reupload them. The PyPI job has only two steps: download that exact verified
-distribution artifact ID and invoke Trusted Publishing. It does not check out,
-rebuild, import, or smoke-test package code.
+reupload them. The PyPI and GitHub Release jobs then wait for a protected,
+checkout-free provenance job to attest all 22 verified release assets. That job
+only downloads an immutable 22-line checksum artifact emitted after fresh
+verification and invokes a SHA-pinned GitHub attestation action; it has no shell
+or project execution. The PyPI job has only two steps: download that exact
+verified distribution artifact ID and invoke Trusted Publishing. It does not
+check out, rebuild, import, or smoke-test package code.
 
 The workflows have distinct roles:
 
 - `.github/workflows/release.yml` separates unprivileged build, fresh-job
-  reproduction, minimal OIDC signing, non-OIDC verification/staging, GitHub
-  release creation, and PyPI publication. GitHub releases are created once;
-  existing releases and assets are never replaced by the workflow. Its tagged
-  production path accepts only stable `vX.Y.Z` versions and rejects release
-  candidate tags. Its protected `prepare-tag` operation first checks out an
-  exact default-branch commit SHA, runs the empirical and release gates, and
-  reproduces the release bytes before it creates the immutable annotated tag.
+  reproduction, exact-source candidate qualification, minimal OIDC signing,
+  non-OIDC verification/staging, least-privilege SLSA provenance, GitHub
+  release creation, and PyPI publication. Candidate qualification runs the
+  complete lower-bound suite on Python 3.11 and 3.14 and audits all five
+  release locks on Ubuntu 24.04 and Windows Server 2025 at both Python edges.
+  GitHub releases are created once; existing releases and assets are never
+  replaced by the workflow. Its tagged production path accepts only stable
+  `vX.Y.Z` versions and rejects release candidate tags. Its protected
+  `prepare-tag` operation first checks out an exact default-branch commit SHA,
+  runs the standard fail-closed gates, reproduces the release bytes, and
+  requires every candidate-qualification matrix cell before it creates the
+  immutable annotated tag. The tagged publication run repeats those gates
+  before signing.
 - `.github/workflows/publish-testpypi.yml` manually publishes a separately
-  built TestPyPI candidate from the selected ref. Use a unique package version
-  for each TestPyPI candidate. The workflow validates the requested version
-  through a strict release-version parser before building or uploading.
+  built TestPyPI candidate from the selected ref. Its reproduction, payload
+  scan, lower-bound suite, and cross-platform lock audits are all bound to the
+  build job's immutable source SHA, and all must succeed before the OIDC-enabled
+  publication job becomes eligible. Use a unique package version for each
+  TestPyPI candidate. The workflow validates the requested version through a
+  strict release-version parser before building or uploading.
 
 Release, evidence, and TestPyPI workflows use the exact Python 3.14.6 canonical
 producer, matching the checked-in `requirements.lock` generator version. The
 compatibility CI matrix remains minor-version based. The tag validator checks the
 package version, exported schema version constants, and matching frozen schema
-directory before package upload. For the v0.6.6 package release, the active
-schema is `0.6.6` and the candidate schema directory is `schemas/v0.6.6` until
-the matching tag freezes it.
+directory before package upload. For the v0.7.0 package release, the active
+schema remains `0.6.6` and the candidate schema directory is
+`schemas/v0.6.6` until the mapped v0.7.0 tag freezes it.
 
 The `coverage-gate` status is a separate canonical Ubuntu 24.04/Python 3.11
 lane. It requires all five exact coverage shards; it rejects missing or extra
@@ -95,39 +112,38 @@ Complete this setup before the first TestPyPI publish attempt:
    the aggregate: the aggregate is the fail-closed check for complete shard
    success and exact artifact inventory.
 7. Restrict environment deployment branches/tags to the intended release refs.
-8. Do not store PyPI API tokens unless Trusted Publishing is unavailable.
+8. Do not create or retain TestPyPI or PyPI upload tokens. Revoke any legacy
+   upload tokens, keep owner and maintainer roles to the reviewed minimum, and
+   review the repository's upload history before the first publication attempt.
 
 ## Credential Timing
 
 1. Complete account creation, 2FA setup, Trusted Publisher configuration, and
    GitHub environment setup during release-owner onboarding.
-2. Use Trusted Publishing/OIDC as the default release path. In that path, do
-   not create, paste, store, or commit a PyPI API token, and do not run local
-   `twine upload`.
-3. Use a PyPI API token only as a high-alert manual fallback if Trusted
-   Publishing is unavailable. Create the token immediately before the manual
-   upload step, after the relevant release checks have passed and the package
-   files are present.
-4. For a first manual upload to an unregistered package name, an account-scoped
-   token may be required because the project does not exist yet. After the
-   package exists, replace that with project-scoped tokens for future uploads.
-   TestPyPI and PyPI use separate accounts, projects, and tokens.
-5. Manual fallback upload creates or registers the package on the first
-   successful upload. Use `python -m twine upload --repository testpypi dist/*`
-   for a TestPyPI candidate built from the candidate ref. For the final PyPI
-   release, use Trusted Publishing from `.github/workflows/release.yml`; if a
-   manual fallback is unavoidable, upload the package files from the release
-   bundle directory, for example `.tmp/release/dist/*.whl` and
-   `.tmp/release/dist/*.tar.gz`. Username is `__token__`; password is the copied
-   token value, including the `pypi-` prefix.
-6. A final manual PyPI upload must not bypass the release evidence ledger. Build
-   the release bundle first, verify its digest replay, and attach the release
-   manifest, assurance evidence graph, SBOM, evidence packet, digest replay
-   file, distributions, and signature bundles to the GitHub release before or
-   alongside the manual upload. Record the manual-upload reason in the release
-   notes.
-7. Never add PyPI tokens to repository files, GitHub workflow YAML, shell
-   history snippets, logs, release notes, or docs examples with real values.
+2. Publish only through the repository's protected Trusted Publishing jobs.
+   The publisher must use a short-lived OIDC identity, download the exact
+   verifier-promoted distribution artifact by immutable artifact ID, and must
+   not check out, rebuild, import, or execute project code.
+3. An OIDC outage, missing Trusted Publisher registration, unavailable
+   protected environment, or failed publisher blocks publication. Correct the
+   configuration or transient failure, then rerun the failed publisher job from
+   the same workflow run so it consumes the same content-addressed artifact.
+4. If an immutable tagged workflow has a publisher-only defect, use only an
+   applicable recovery operation already declared in the repository. That
+   operation must bind the exact tag, commit, source run, artifact IDs, artifact
+   digests, and verified distribution bytes; require distinct protected
+   approval; reverify signatures and byte identity outside the publishing job;
+   and finish with a checkout-free OIDC publisher. If no such recovery exists,
+   publication remains blocked. Do not improvise a local publisher or rebuild
+   an already-versioned distribution.
+5. Revoke legacy TestPyPI and PyPI upload tokens, including account-scoped
+   tokens. Review project-owner and maintainer membership, account 2FA status,
+   Trusted Publisher registrations, and recent upload history before release.
+   Investigate any unexplained publisher identity or file digest before
+   continuing.
+6. Never place publishing credentials in repository files, workflow YAML,
+   command history, logs, release notes, documentation examples, or local
+   configuration committed to source control.
 
 ## Local Verification
 
@@ -144,7 +160,7 @@ agent-assure schema export --out "${schema_review_dir}/v0.6.6"
 git diff --no-index -- schemas/v0.6.6 "${schema_review_dir}/v0.6.6"
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.6
+python scripts/check_version_matches_tag.py v0.7.0 --require-stable
 rm -rf "${schema_review_dir}"
 ```
 
@@ -163,7 +179,7 @@ agent-assure schema export --out $SchemaReview
 git diff --no-index -- schemas/v0.6.6 $SchemaReview
 make schema-check
 make release-check
-python scripts/check_version_matches_tag.py v0.6.6
+python scripts/check_version_matches_tag.py v0.7.0 --require-stable
 Remove-Item -LiteralPath $SchemaReviewRoot -Recurse -Force
 ```
 
@@ -178,7 +194,7 @@ run the ordered publish gate:
 
 ```bash
 make release-publish-check \
-  EXPECTED_RELEASE=0.6.6rc1 \
+  EXPECTED_RELEASE=0.7.0rc1 \
   RELEASE_EFFICACY_PACKET=evidence/empirical/release-control-efficacy/evidence-packet.json \
   RELEASE_EFFICACY_POLICY=evidence/empirical/release-control-efficacy/controls-mutation.yaml \
   RELEASE_EFFICACY_ARTIFACT_ROOT=. \
@@ -201,7 +217,7 @@ descriptor, a separately persisted human independence-review receipt, every
 referenced pilot artifact byte, and the fixed confirmatory benchmark trust
 anchor. The Make target does not expose a benchmark override: the checker loads
 `study/registration/frozen-non-grid-benchmark.json` and its packaged mirror at
-`src/agent_assure/release_trust/v0_6_6/frozen-non-grid-benchmark.json`, requires
+`src/agent_assure/release_trust/v0_7_0/frozen-non-grid-benchmark.json`, requires
 byte-for-byte mirror parity, validates both through the benchmark schema and
 self-digest contract, and rejects any registered confirmatory-ineligible
 structure. Absence of a registered bar is not eligibility. A second
@@ -218,8 +234,8 @@ match. It also requires an eligible
  fingerprints on every study run and in every independently reviewed condition,
  a genuinely external independently controlled CI attempt for implementation
 `agent-assure`, a pilot implementation version on the `EXPECTED_RELEASE` base
-line, and captured pilot learning. An RC such as `0.6.6rc1` and stable `0.6.6`
-share base line `0.6.6`; a different base version fails closed with a distinct
+line, and captured pilot learning. An RC such as `0.7.0rc1` and stable `0.7.0`
+share base line `0.7.0`; a different base version fails closed with a distinct
 reason.
 
 An all-absent serving-fingerprint result remains honest, replayable
@@ -374,15 +390,15 @@ requires the introduction commit to be in the release commit's ancestry and
 each target control's `first_seen_commit` to precede the operator introduction.
 A remaining `git:uncommitted` value is an intentional hard release blocker. An
 operator intended for an RC must truthfully name that RC or an earlier version;
-a stable `0.6.6` introduction is correctly considered newer than `0.6.6rc2`.
+a stable `0.7.0` introduction is correctly considered newer than `0.7.0rc2`.
 
 TestPyPI package versions are immutable. A second upload of the same version
 will fail, so each release candidate needs a unique version such as
-`0.6.6rc1`, then `0.6.6rc2` if another candidate is needed.
+`0.7.0rc1`, then `0.7.0rc2` if another candidate is needed.
 
 1. Create a candidate ref whose package metadata already contains the unique
-   candidate version, for example `project.version = "0.6.6rc1"` and
-   `agent_assure.__version__ = "0.6.6rc1"`.
+   candidate version, for example `project.version = "0.7.0rc1"` and
+   `agent_assure.__version__ = "0.7.0rc1"`.
 2. Regenerate the version-bound deterministic goldens with
    `python scripts/update_golden.py --update-golden`. The evidence-sensitivity
    reports carry `producer_version`, so changing to an RC intentionally changes
@@ -394,14 +410,14 @@ will fail, so each release candidate needs a unique version such as
    The TestPyPI workflow repeats the empirical gate, version-bound golden check,
    and release checks and rejects stale or uncommitted candidate evidence.
 4. Run the `Publish to TestPyPI` workflow manually from that ref and set
-   `expected-version` explicitly to the same value, for example `0.6.6rc1`.
+   `expected-version` explicitly to the same value, for example `0.7.0rc1`.
    The workflow intentionally has no default version because the selected ref
    must already contain matching package metadata. Dispatch it from the
-   candidate branch or commit; do not create or push a `v0.6.6rcN` tag.
+   candidate branch or commit; do not create or push a `v0.7.0rcN` tag.
 5. Install the release candidate from a clean environment.
 
 After the TestPyPI candidate passes install checks, restore the final package
-version to `0.6.6`, run `python scripts/update_golden.py --update-golden` again,
+version to `0.7.0`, run `python scripts/update_golden.py --update-golden` again,
 review and commit the stable-version golden regeneration, then run
 `python scripts/update_golden.py` and `make release-publish-check` from the
 clean final commit before dispatching the protected `prepare-tag` operation.
@@ -416,7 +432,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps \
   --index-url https://test.pypi.org/simple/ \
-  agent-assure==0.6.6rc1
+  agent-assure==0.7.0rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out /tmp/agent-assure-testpypi-schemas
@@ -440,7 +456,7 @@ python -m pip install --upgrade pip
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps `
   --index-url https://test.pypi.org/simple/ `
-  agent-assure==0.6.6rc1
+  agent-assure==0.7.0rc1
 python -m pip check
 agent-assure --version
 agent-assure schema export --out $SchemaTemp
@@ -468,42 +484,91 @@ $ExpenseOut = Join-Path $env:TEMP "agent-assure-testpypi-expense"
 agent-assure demo expense --out $ExpenseOut --clean
 ```
 
+### One fail-closed release profile
+
+The protected release workflow has no security-maintenance selector, no
+maintenance base-tag input, and no Make target that can omit empirical
+checkpoints. Every standard, tag-preparation, tag-resume, and tag-bound
+publication run executes `make release-publish-check`, including releases whose
+only product change is a security correction. That ordered gate requires
+control-efficacy verification and empirical readiness before the engineering,
+schema, provenance, build, wheel-inspection, and smoke-install checks.
+
+A historical maintenance-diff checker may be used as a non-authorizing review
+diagnostic. It is not connected to Make or GitHub publication automation, and a
+successful diagnostic result cannot replace any publish gate or authorize tag
+creation, signing, GitHub Release creation, or Trusted Publishing.
+
+If a supported deployment remains exposed while a correction is blocked, use
+the [security correction containment and risk-acceptance
+runbook](security_release_containment.md). Its independently approved,
+time-bounded record can govern temporary operation under verified compensating
+controls; it has no publication authority. It must never be supplied to a
+release job, interpreted as a successful gate, or used to relax
+`make release-publish-check`. At expiry, publish only through this standard
+path, activate a separately approved successor record, or place the affected
+capability in its documented safe state.
+
 ## Final PyPI Release
 
-Before selecting the final tag target, prepare and review one release commit
-that:
+Before selecting the final tag target, prepare and review two ordered commits.
+First, create an **action-freeze commit** that finalizes
+`.github/actions/agent-assure`; record its full 40-hex commit SHA. Then create a
+descendant **final collateral commit** that does not modify that action tree
+and:
 
-1. moves the release entries from `Unreleased` under a dated `## 0.6.6`
+1. moves the release entries from `Unreleased` under a dated `## 0.7.0`
    changelog heading;
-2. creates `docs/release_notes/v0.6.6.md` and adds it to `mkdocs.yml`;
-3. updates `CITATION.cff`, README package/action pins and maturity wording, and
-   the released-schema wording in `docs/for_engineers.md` and
-   `docs/schema_evolution.md`;
-4. records separately authorized remediation in the approved private governance
+2. creates `docs/release_notes/v0.7.0.md` and adds it to `mkdocs.yml`;
+3. updates `CITATION.cff`, the README package pin and maturity wording, and the
+   released-schema wording in `docs/for_engineers.md` and
+   `docs/schema_evolution.md`; the README action pin must name the action-freeze
+   commit, not the self-referential final collateral commit;
+4. replaces point-in-time support claims in `SECURITY.md` with the exact
+   truth-preserving transition rows `0.7.0` **Supported upon publication;
+   unsupported before publication** and `0.6.5` **Supported only until 0.7.0
+   is published; unsupported thereafter** without claiming that v0.7.0 has
+   already been published;
+5. records separately authorized remediation in the approved private governance
    record without exposing internal planning metadata in public files; and
-5. passes docs alignment, schema parity, release checks, and a clean-worktree
-   check from the exact commit that will receive the tag.
+6. passes docs alignment, schema parity, release checks, and a clean-worktree
+   check from the exact final collateral commit that will receive the tag.
+
+The collateral validator resolves the README action pin as a commit, requires
+it to be an ancestor of the release target, and compares the exact Git tree OID
+for `.github/actions/agent-assure` at both commits. Before the tag exists, the
+release target is the final collateral `HEAD`; after tag creation, the immutable
+`v0.7.0` commit is authoritative. Missing objects, non-commit pins,
+non-ancestry, tree divergence, and Git inspection errors all fail closed. This
+two-commit sequence avoids an impossible requirement for README bytes to name
+the SHA of the commit that contains those same bytes.
+
+The `--require-stable` version/tag check reads `SECURITY.md` only on production
+stable-tag paths. It requires the target version to be the highest explicit
+version row and its immediate predecessor to carry the matching conditional
+retirement statement. A stale "current stable" or "unreleased candidate" row
+is a tag-creation blocker, not post-publication cleanup.
 
 Do not tag an implementation checkpoint that lacks this collateral. After the
-release commit is reviewed and the TestPyPI install checks pass, record its
-exact SHA and dispatch the protected pre-tag operation from the default-branch
-workflow definition:
+action-freeze and final collateral commits are reviewed and the TestPyPI install
+checks pass, record the final collateral commit's exact SHA and dispatch the
+protected pre-tag operation from the default-branch workflow definition:
 
 ```bash
 git checkout main
 git pull
 make schema-check
 make release-publish-check
-python scripts/check_version_matches_tag.py v0.6.6
+python scripts/check_version_matches_tag.py v0.7.0 --require-stable
 release_sha="$(git rev-parse HEAD)"
 test "${release_sha}" = "$(git rev-parse origin/main)"
 gh workflow run release.yml --ref main \
   -f operation=prepare-tag \
   -f source-sha="${release_sha}" \
-  -f expected-version=0.6.6
+  -f expected-version=0.7.0
 ```
 
-Do not create or push `v0.6.6` manually. The pre-tag run checks that the SHA is
+Do not create or push `v0.7.0` manually. The pre-tag run checks that the SHA is
 a full commit ID on the default branch, the stable version and collateral match,
 the tag does not already exist, the worktree is clean, the strict release
 efficacy and empirical checkpoints pass, and a fresh job reproduces every
@@ -530,15 +595,16 @@ workflow from that immutable tag with the exact same SHA and version using the
 explicit recovery operation:
 
 ```bash
-release_tag="v0.6.6"
+release_tag="v0.7.0"
 gh workflow run release.yml --ref "${release_tag}" \
   -f operation=resume-tag \
   -f source-sha="${release_sha}" \
-  -f expected-version=0.6.6
+  -f expected-version=0.7.0
 ```
 
-`resume-tag` repeats the empirical, release, and independent-reproduction gates,
-then requires its own workflow ref, GitHub run SHA, checked-out commit, and
+`resume-tag` repeats the standard fail-closed gates and the independent
+reproduction gate, then requires its own workflow ref, GitHub run SHA,
+checked-out commit, and
 peeled annotated-tag commit to equal the requested release identity. It verifies
 through the GitHub API that the existing ref's name and annotation contract also
 match. It never writes tag content. Before dispatching, it performs a bounded
@@ -554,8 +620,8 @@ as authorization.
 
 The release workflow runs its signing and publishing jobs only on matching,
 protected-provenance tags. It blocks
-if `v0.6.6` does not match `project.version = "0.6.6"` and
-`agent_assure.__version__ = "0.6.6"`, if the active schema constants do not
+if `v0.7.0` does not match `project.version = "0.7.0"` and
+`agent_assure.__version__ = "0.7.0"`, if the active schema constants do not
 match the mapped release schema version `0.6.6`, or if `schemas/v0.6.6` is
 missing. The tag must resolve to `GITHUB_SHA`, be an ancestor of the default
 branch, have matching release notes, and start and finish generation with a
@@ -576,14 +642,29 @@ promotes both the complete verified signed bundle and an exact
 `.whl`/`.tar.gz` pair. A fresh post-upload job then downloads both immutable
 artifact IDs, repeats full signature and binding verification, and proves that
 the separate two-file distribution view is byte-identical by filename to the
-full bundle's distributions. GitHub Release and PyPI consume those same IDs only
-after this job succeeds; no new artifact is uploaded after the final check.
-Neither publisher reads the mutable verifier input or executes project code.
+full bundle's distributions. A tag-only job protected by the `signing`
+environment downloads only the verifier's immutable 22-line checksum artifact
+and uses the SHA-pinned `actions/attest` action to register SLSA v1 provenance
+for the exact 22-asset GitHub Release allowlist. It has no checkout, setup,
+dependency installation, shell, or project execution. GitHub Release and PyPI
+consume the same verified payload IDs only after both verification and
+attestation succeed; the checksum handoff is not release payload. Neither
+publisher reads the mutable verifier input or executes project code.
 
 PyPI receives only the wheel and source distribution. The packet-bound
 evaluation and comparison summaries, assurance evidence graph, release packet,
 manifest, SBOM, digest replay file, and signature bundles live on the GitHub
 release and are the cryptographic provenance chain for the package files.
+GitHub's attestation service separately binds every published asset, including
+the wheel and source distribution, to the tag-bound release workflow. This is
+workflow-level provenance; it does not identify the build or reproduction job
+as a separately isolated low-level builder, and it is not an
+independent-builder or SLSA Build Level 3 claim.
+
+The fixed `recover-v0.6.0` route does not retroactively claim v0.7.0 workflow
+provenance for historical bytes. It remains governed by its pinned original-run
+identity, cosign bundles, reverified byte allowlist, and separate recovery
+environments.
 
 If publication fails after verification succeeds, rerun the failed publisher
 job from the same workflow run so it downloads the same content-addressed
@@ -596,8 +677,10 @@ contains a publisher-only defect, use only the exact, repository-declared
 recovery operation for that failed run. The v0.6.0 recovery is fixed to the
 original run, attempt, commit, artifact IDs, artifact digests, tag, workflow
 identity, and a separately protected recovery ref. Its unprivileged verifier
-rechecks GitHub metadata, keyless signatures, exact bytes, and unpublished
-state, then promotes new content-addressed artifacts for the minimal
+first audits all four frozen locks on Ubuntu and Windows under Python 3.11 and
+3.14, then reconstructs the historical SBOM from the manifest environment and
+exact distribution bytes. It also rechecks GitHub metadata, keyless signatures,
+exact bytes, and unpublished state, then promotes new content-addressed artifacts for the minimal
 GitHub-release and PyPI jobs. GitHub denies `GITHUB_TOKEN` release creation in
 some cases when the tagged commit's workflow differs from the default branch.
 For this exception, the release owner downloads the verifier-promoted artifact
@@ -616,7 +699,7 @@ CI, WSL, or Git Bash:
 python -m venv /tmp/agent-assure-pypi
 source /tmp/agent-assure-pypi/bin/activate
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.6.6
+python -m pip install agent-assure==0.7.0
 agent-assure --version
 agent-assure demo flagship --out /tmp/agent-assure-pypi-flagship --clean
 deactivate
@@ -631,7 +714,7 @@ $FlagshipOut = Join-Path $env:TEMP "agent-assure-pypi-flagship"
 python -m venv $InstallTemp
 & (Join-Path $InstallTemp "Scripts\Activate.ps1")
 python -m pip install --upgrade pip
-python -m pip install agent-assure==0.6.6
+python -m pip install agent-assure==0.7.0
 agent-assure --version
 agent-assure demo flagship --out $FlagshipOut --clean
 deactivate

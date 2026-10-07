@@ -1,5 +1,5 @@
 name: agent-assure
-description: Compile, run, evaluate, packetize, gate, and upload deterministic assurance reports.
+description: Compile, run, evaluate, packetize, gate, and optionally upload deterministic assurance reports.
 inputs:
   suite:
     description: Suite YAML path.
@@ -12,7 +12,7 @@ inputs:
     required: false
     default: ""
   out-dir:
-    description: Output directory for compiled artifacts, runsets, reports, packet, dependency inventory, and manifest.
+    description: Output directory below GITHUB_WORKSPACE; the non-assurance migration profile may also use RUNNER_TEMP.
     required: false
     default: .tmp/agent-assure
   report-mode:
@@ -23,14 +23,22 @@ inputs:
     description: Explicitly allow evaluation-only CI without control-efficacy evidence; this is a non-assurance migration profile.
     required: false
     default: "false"
+  control-efficacy-report:
+    description: Precomputed control-efficacy report JSON for the strict assurance path; requires efficacy-policy.
+    required: false
+    default: ""
+  efficacy-policy:
+    description: Separately trusted verifier-owned controls-mutation YAML for packet construction and strict re-verification; requires control-efficacy-report.
+    required: false
+    default: ""
   upload-name:
     description: GitHub artifact upload name.
     required: false
     default: agent-assure-reports
   upload-reports:
-    description: Upload the selected report artifact even when the gate fails.
+    description: Opt in to uploading the selected report artifact even when the gate fails.
     required: false
-    default: "true"
+    default: "false"
   upload-full-artifacts:
     description: Opt in to uploading raw compiled suites, fixtures, and RunSets in addition to reports.
     required: false
@@ -42,45 +50,113 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: Verify action and CLI version binding
+      shell: bash
+      env:
+        AGENT_ASSURE_ACTION_EXPECTED_VERSION: "0.7.0"
+        AGENT_ASSURE_ACTION_REF: ${{ github.action_ref }}
+      run: |
+        set -euo pipefail
+        installed_version="$(agent-assure --version)"
+        if [ "${installed_version}" != "${AGENT_ASSURE_ACTION_EXPECTED_VERSION}" ]; then
+          echo "installed agent-assure version does not match this action release" >&2
+          exit 2
+        fi
+        if [[ "${AGENT_ASSURE_ACTION_REF}" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(rc[1-9][0-9]*)?$ ]] &&
+          [ "${AGENT_ASSURE_ACTION_REF}" != "v${AGENT_ASSURE_ACTION_EXPECTED_VERSION}" ]; then
+          echo "composite action tag does not match its declared implementation version" >&2
+          exit 2
+        fi
+    - name: Validate assurance profile
+      shell: bash
+      env:
+        AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY: ${{ inputs.allow-missing-efficacy-for-migration }}
+        AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT: ${{ inputs.control-efficacy-report }}
+        AGENT_ASSURE_ACTION_EFFICACY_POLICY: ${{ inputs.efficacy-policy }}
+      run: |
+        set -euo pipefail
+        case "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" in
+          true|false) ;;
+          *)
+            echo "allow-missing-efficacy-for-migration must be true or false" >&2
+            exit 2
+            ;;
+        esac
+        if { [ -n "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" ] && \
+          [ -z "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}" ]; } || \
+          { [ -z "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" ] && \
+          [ -n "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}" ]; }; then
+          echo "control-efficacy-report and efficacy-policy must be provided together" >&2
+          exit 2
+        fi
+        if [ -n "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" ] && \
+          [ "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" = "true" ]; then
+          echo "strict efficacy inputs cannot be combined with the non-assurance migration profile" >&2
+          exit 2
+        fi
+        if [ -z "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" ] && \
+          [ "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" != "true" ]; then
+          echo "provide control-efficacy-report plus efficacy-policy, or explicitly select the non-assurance migration profile" >&2
+          exit 2
+        fi
     - name: Prepare output directory
       id: prepare
       shell: bash
       env:
         AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
         AGENT_ASSURE_ACTION_CANDIDATE_VARIANT: ${{ inputs.candidate-variant }}
+        AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT: ${{ inputs.control-efficacy-report }}
+        AGENT_ASSURE_ACTION_EFFICACY_POLICY: ${{ inputs.efficacy-policy }}
         AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
         AGENT_ASSURE_ACTION_SUITE: ${{ inputs.suite }}
       run: |
         set -euo pipefail
-        case "${AGENT_ASSURE_ACTION_OUT_DIR}" in
-          *$'\r'*|*$'\n'*)
-            echo "agent-assure refuses output directories containing CR or LF" >&2
-            exit 2
-            ;;
-        esac
+        for input_path in \
+          "${AGENT_ASSURE_ACTION_OUT_DIR}" \
+          "${AGENT_ASSURE_ACTION_SUITE}" \
+          "${AGENT_ASSURE_ACTION_CANDIDATE_VARIANT}" \
+          "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" \
+          "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" \
+          "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}"; do
+          case "${input_path}" in
+            *$'\r'*|*$'\n'*)
+              echo "agent-assure refuses input paths containing CR or LF" >&2
+              exit 2
+              ;;
+          esac
+        done
         if [ -z "${AGENT_ASSURE_ACTION_OUT_DIR}" ]; then
           echo "agent-assure refuses an empty or root output directory" >&2
           exit 2
         fi
-        canonical_out_dir="$(realpath -m -- "${AGENT_ASSURE_ACTION_OUT_DIR}")"
-        if [ "${canonical_out_dir}" = "/" ]; then
-          echo "agent-assure refuses an empty or root output directory" >&2
+        if [ -z "${GITHUB_WORKSPACE:-}" ] || [ -z "${RUNNER_TEMP:-}" ]; then
+          echo "agent-assure requires GitHub workspace and runner-temp roots" >&2
           exit 2
         fi
-        path_to_check="${AGENT_ASSURE_ACTION_OUT_DIR}"
-        while [ -n "${path_to_check}" ] &&
-          [ "${path_to_check}" != "." ] &&
-          [ "${path_to_check}" != "/" ]; do
-          if [ -L "${path_to_check}" ]; then
-            echo "agent-assure refuses linked output directories" >&2
-            exit 2
-          fi
-          parent="$(dirname -- "${path_to_check}")"
-          if [ "${parent}" = "${path_to_check}" ]; then
-            break
-          fi
-          path_to_check="${parent}"
-        done
+        canonical_path() {
+          python -c 'import os, sys; sys.stdout.write(os.path.normcase(os.path.abspath(sys.argv[1])))' "$1"
+        }
+        validate_output_path() {
+          python "${GITHUB_ACTION_PATH}/validate_output_path.py" \
+            --candidate "$1" \
+            --allowed-root "${GITHUB_WORKSPACE}" \
+            --allowed-root "${RUNNER_TEMP}"
+        }
+        validate_workspace_output_path() {
+          python "${GITHUB_ACTION_PATH}/validate_output_path.py" \
+            --candidate "$1" \
+            --allowed-root "${GITHUB_WORKSPACE}"
+        }
+        if ! validate_output_path "${AGENT_ASSURE_ACTION_OUT_DIR}"; then
+          echo "agent-assure output directory must be below the workspace or runner temp root" >&2
+          exit 2
+        fi
+        if [ -n "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" ] && \
+          [ -n "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}" ] && \
+          ! validate_workspace_output_path "${AGENT_ASSURE_ACTION_OUT_DIR}"; then
+          echo "agent-assure strict efficacy mode requires an output directory below GITHUB_WORKSPACE" >&2
+          exit 2
+        fi
         owned_outputs=(
           "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json"
           "${AGENT_ASSURE_ACTION_OUT_DIR}/fixtures.json"
@@ -102,24 +178,34 @@ runs:
         for source_input in \
           "${AGENT_ASSURE_ACTION_SUITE}" \
           "${AGENT_ASSURE_ACTION_CANDIDATE_VARIANT}" \
-          "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}"; do
+          "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" \
+          "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}" \
+          "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}"; do
           if [ -z "${source_input}" ]; then
             continue
           fi
           for output_path in "${owned_outputs[@]}"; do
-            if [ "$(realpath -m -- "${source_input}")" = \
-              "$(realpath -m -- "${output_path}")" ] ||
+            if [ "$(canonical_path "${source_input}")" = \
+              "$(canonical_path "${output_path}")" ] ||
               { [ -e "${output_path}" ] && [ "${source_input}" -ef "${output_path}" ]; }; then
               echo "agent-assure input aliases an owned output path" >&2
               exit 2
             fi
           done
         done
-        if [ -L "${AGENT_ASSURE_ACTION_OUT_DIR}/reports" ]; then
-          echo "agent-assure refuses linked output directories" >&2
+        if ! validate_output_path "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"; then
+          echo "agent-assure refuses an unsafe reports output directory" >&2
           exit 2
         fi
         mkdir -p "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"
+        if ! validate_output_path "${AGENT_ASSURE_ACTION_OUT_DIR}"; then
+          echo "agent-assure output directory escaped its approved root" >&2
+          exit 2
+        fi
+        if ! validate_output_path "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"; then
+          echo "agent-assure reports directory escaped its approved root" >&2
+          exit 2
+        fi
         rm -f -- "${owned_outputs[@]}"
         printf 'out_dir=%s\n' "${AGENT_ASSURE_ACTION_OUT_DIR}" >> "${GITHUB_OUTPUT}"
     - name: Compile suite
@@ -156,42 +242,67 @@ runs:
           --variant "${AGENT_ASSURE_ACTION_CANDIDATE_VARIANT}" \
           --manifest "${AGENT_ASSURE_ACTION_OUT_DIR}/fixtures.json" \
           --out "${AGENT_ASSURE_ACTION_OUT_DIR}/candidate.runset.json"
-    - name: Evaluate and gate
+    - name: Evaluate and assemble base packet
       shell: bash
       env:
-        AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY: ${{ inputs.allow-missing-efficacy-for-migration }}
         AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
         AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
         AGENT_ASSURE_ACTION_REPORT_MODE: ${{ inputs.report-mode }}
       run: |
         set -euo pipefail
-        case "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" in
-          true|false) ;;
-          *)
-            echo "allow-missing-efficacy-for-migration must be true or false" >&2
-            exit 2
-            ;;
-        esac
         args=(
           agent-assure ci "${AGENT_ASSURE_ACTION_OUT_DIR}/candidate.runset.json"
           --suite "${AGENT_ASSURE_ACTION_OUT_DIR}/suite.compiled.json"
           --out-dir "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"
           --report-mode "${AGENT_ASSURE_ACTION_REPORT_MODE}"
+          --fail-on-warn
+          --allow-missing-efficacy-for-migration
         )
         if [ -n "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" ]; then
           args+=(--baseline "${AGENT_ASSURE_ACTION_OUT_DIR}/baseline.runset.json")
         fi
-        if [ "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" = "true" ]; then
-          args+=(--allow-missing-efficacy-for-migration)
-        fi
         "${args[@]}"
+    - name: Build and strictly gate efficacy-bearing packet
+      if: inputs.control-efficacy-report != '' && inputs.efficacy-policy != ''
+      shell: bash
+      env:
+        AGENT_ASSURE_ACTION_BASELINE_VARIANT: ${{ inputs.baseline-variant }}
+        AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT: ${{ inputs.control-efficacy-report }}
+        AGENT_ASSURE_ACTION_EFFICACY_POLICY: ${{ inputs.efficacy-policy }}
+        AGENT_ASSURE_ACTION_OUT_DIR: ${{ inputs.out-dir }}
+      run: |
+        set -euo pipefail
+        packet_args=(
+          agent-assure packet build
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evaluation-summary.json"
+          --out "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.json"
+          --markdown-out "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.md"
+          --manifest-out "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/release-artifact-manifest.json"
+          --graph-out "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/assurance-evidence-graph.json"
+          --project-root "${GITHUB_WORKSPACE}"
+          --control-efficacy "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}"
+          --efficacy-config "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}"
+        )
+        if [ -n "${AGENT_ASSURE_ACTION_BASELINE_VARIANT}" ]; then
+          packet_args+=(
+            --comparison "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/comparison-summary.json"
+          )
+        fi
+        "${packet_args[@]}"
+        agent-assure ci gate \
+          "${AGENT_ASSURE_ACTION_OUT_DIR}/reports/evidence-packet.json" \
+          --artifact-root "${GITHUB_WORKSPACE}" \
+          --efficacy-policy "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}" \
+          --require-efficacy \
+          --fail-on-warn \
+          --fail-on-not-evaluated
     - name: Upload minimal reports
       if: >-
         always() && steps.prepare.outcome == 'success' &&
         inputs.upload-reports == 'true' &&
         inputs.upload-full-artifacts != 'true'
-      # actions/upload-artifact@v4
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      # actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: ${{ inputs.upload-name }}
         path: |
@@ -209,8 +320,8 @@ runs:
         always() && steps.prepare.outcome == 'success' &&
         inputs.upload-reports == 'true' &&
         inputs.upload-full-artifacts == 'true'
-      # actions/upload-artifact@v4
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      # actions/upload-artifact@v7
+      uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
       with:
         name: ${{ inputs.upload-name }}
         path: |

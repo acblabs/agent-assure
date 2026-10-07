@@ -12,12 +12,15 @@ import re
 import stat
 import zipfile
 import zlib
-from collections.abc import Iterator, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from contextlib import ExitStack
 from dataclasses import dataclass, field
 from email import policy
 from email.parser import BytesParser
 from pathlib import Path
+from typing import Literal, Self
+
+from pydantic import Field, field_validator, model_validator
 
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.io_limits import (
@@ -35,13 +38,26 @@ from agent_assure.privacy.distribution import (
     validate_distribution_member_privacy,
     validate_zip_metadata_absent,
 )
-from agent_assure.privacy.redaction import redact_packet_payload
+from agent_assure.privacy.persistence import (
+    UnsafePersistedTextError,
+    assert_persisted_payload_safe,
+)
+from agent_assure.privacy.structural_fields import (
+    git_revision_privacy_probe,
+)
 from agent_assure.rooted_io import PinnedDirectoryFile, portable_relative_path_parts
-from agent_assure.schema.common import PACKAGE_RELEASE_VERSION_PATTERN
+from agent_assure.schema.base import FrozenStrictModel
+from agent_assure.schema.common import (
+    PACKAGE_RELEASE_VERSION_PATTERN,
+    STRICT_RFC3339_TIMESTAMP_PATTERN,
+    DigestHex,
+    MachineIdentifier,
+)
 from agent_assure.schema.pilot import (
     MAX_PILOT_ARTIFACTS,
     ExternalPilotEvidence,
     ExternalPilotIndependenceReviewReceipt,
+    GitRevision,
     PilotArtifactDigest,
     PilotArtifactRole,
     PilotFrictionCategory,
@@ -67,10 +83,253 @@ MAX_PILOT_WHEEL_MEMBERS = 4_096
 MAX_PILOT_WHEEL_EXPANDED_BYTES = 128 * 1024 * 1024
 MAX_PILOT_WHEEL_METADATA_BYTES = 1 * 1024 * 1024
 MAX_PILOT_WHEEL_COMPRESSED_TAGS = 64
-MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES = 500_000
 MAX_PILOT_WHEEL_PYTHON_MEMBER_BYTES = 2 * 1024 * 1024
-MAX_PILOT_WHEEL_PYTHON_MEMBER_LINES = 25_000
+# Keep the per-member line ceiling materially below the fixed aggregate reserve.
+# This is still more than three times the largest Python member in the reviewed
+# 0.7.0 wheel, while ensuring a complete maximum-size member can be added and
+# scanned without weakening the aggregate denial-of-service bound.
+MAX_PILOT_WHEEL_PYTHON_MEMBER_LINES = 20_000
 MAX_PILOT_WHEEL_PYTHON_MEMBER_TOKENS = 200_000
+# Historical schema resources consume the reviewed 500,000-line baseline. The
+# aggregate ceiling remains fixed at its reviewed 550,000-line bound; the
+# independent expanded-byte and per-member byte/line/token ceilings still apply.
+MAX_PILOT_WHEEL_STRUCTURAL_SCAN_LINES = 550_000
+_TYPED_PILOT_METADATA_ROLES = frozenset(
+    {
+        PilotArtifactRole.environment_manifest,
+        PilotArtifactRole.environment_control_evidence,
+        PilotArtifactRole.execution_evidence,
+        PilotArtifactRole.friction_assessment,
+        PilotArtifactRole.remediation_record,
+        PilotArtifactRole.consent_record,
+    }
+)
+
+
+class _PilotEnvironmentManifestRecord(FrozenStrictModel):
+    artifact_kind: Literal["external-pilot-environment-manifest"]
+    contract_id: Literal["ExternalPilotEnvironmentManifest/v1"]
+    execution_context: Literal["continuous_integration"]
+    ci_provider: Literal["github-actions"]
+    runner_environment: Literal["github-hosted"]
+    runner_os: str = Field(min_length=1, max_length=128)
+    runner_arch: str = Field(min_length=1, max_length=128)
+    python_implementation: Literal["cpython"]
+    python_version: str = Field(min_length=1, max_length=128)
+    agent_assure_version: str = Field(pattern=PACKAGE_RELEASE_VERSION_PATTERN)
+    implementation_source_revision: GitRevision
+    credential_values_persisted: Literal[False]
+
+
+class _PilotEnvironmentControlEvidenceRecord(FrozenStrictModel):
+    artifact_kind: Literal["external-pilot-environment-control-evidence"]
+    contract_id: Literal["ExternalPilotEnvironmentControlEvidence/v1"]
+    classification: Literal["independently_controlled_non_maintainer"]
+    repository_is_direct_upstream_fork: Literal[True]
+    upstream_maintainer_operated_run: Literal[False]
+    participant_control_attested: Literal[True]
+    opaque_pilot_binding: DigestHex
+    participant_input_repository_path: Literal["agent-assure-pilot/participant-waiver.yaml"]
+    implementation_source_revision: GitRevision
+    identity_authentication: Literal["out_of_band_not_machine_verified"]
+    manual_review_required: Literal[True]
+
+
+class _PilotCommandExecutionEvidenceRecord(FrozenStrictModel):
+    artifact_kind: Literal["external-pilot-command-execution-evidence"]
+    contract_id: Literal["ExternalPilotCommandExecutionEvidence/v1"]
+    command_id: MachineIdentifier
+    opaque_pilot_binding: DigestHex
+    implementation_source_revision: GitRevision
+    tested_distribution_sha256: DigestHex
+    input_manifest_sha256: DigestHex
+    started_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)
+    finished_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)
+    exit_code: int
+    stdout: Literal["discarded_at_capture_boundary"]
+    stderr: Literal["discarded_at_capture_boundary"]
+    raw_output_persisted: Literal[False]
+
+    @model_validator(mode="after")
+    def _validate_time_order(self) -> Self:
+        if parse_rfc3339_timestamp(
+            self.finished_at,
+            field_name="pilot command finished_at",
+        ) < parse_rfc3339_timestamp(
+            self.started_at,
+            field_name="pilot command started_at",
+        ):
+            raise ValueError("pilot command finish time cannot precede its start time")
+        return self
+
+
+class _PilotFrictionAssessmentRecord(FrozenStrictModel):
+    artifact_kind: Literal["external-pilot-friction-assessment"]
+    contract_id: Literal["ExternalPilotFrictionAssessment/v1"]
+    pilot_id: MachineIdentifier
+    participant_pseudonym: MachineIdentifier
+    opaque_pilot_binding: DigestHex
+    assessment: Literal["friction_observed", "no_friction_observed"]
+    category: (
+        Literal[
+            "installation",
+            "configuration",
+            "diagnostics",
+            "continuous_integration",
+            "runtime",
+            "documentation",
+            "other",
+        ]
+        | None
+    )
+    command_exit_code: int = Field(ge=-255, le=255)
+    assessment_method: Literal["post_attempt_participant_workflow_dispatch"]
+    assessed_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)
+
+    @model_validator(mode="after")
+    def _validate_assessment_category(self) -> Self:
+        if (self.assessment == "friction_observed") != (self.category is not None):
+            raise ValueError(
+                "pilot friction category is required exactly when friction was observed"
+            )
+        return self
+
+
+class _PilotRemediationRecord(FrozenStrictModel):
+    artifact_kind: Literal["external-pilot-remediation-record"]
+    contract_id: Literal["ExternalPilotRemediationRecord/v1"]
+    pilot_id: MachineIdentifier
+    opaque_pilot_binding: DigestHex
+    friction_category: Literal[
+        "installation",
+        "configuration",
+        "diagnostics",
+        "continuous_integration",
+        "runtime",
+        "documentation",
+        "other",
+    ]
+    area: Literal["onboarding"]
+    disposition: Literal["applied", "planned", "deferred", "no_change_required"]
+    remediation_source_revision: GitRevision | None
+    prior_planned_candidate_evidence_digest: DigestHex | None
+    statement: Literal[
+        "A later upstream remediation and the prior immutable planned candidate are bound here "
+        "for independent review.",
+        "Maintainer follow-up is required; this record does not assert that a remediation was "
+        "applied.",
+    ]
+    recorded_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)
+
+    @model_validator(mode="after")
+    def _validate_remediation_bindings(self) -> Self:
+        applied = self.disposition == "applied"
+        if applied and (
+            self.remediation_source_revision is None
+            or self.prior_planned_candidate_evidence_digest is None
+        ):
+            raise ValueError(
+                "pilot remediation source and prior digest are required exactly when applied"
+            )
+        if not applied and (
+            self.remediation_source_revision is not None
+            or self.prior_planned_candidate_evidence_digest is not None
+        ):
+            raise ValueError(
+                "pilot remediation source and prior digest are required exactly when applied"
+            )
+        expected_statement = (
+            "A later upstream remediation and the prior immutable planned candidate are bound "
+            "here for independent review."
+            if applied
+            else "Maintainer follow-up is required; this record does not assert that a "
+            "remediation was applied."
+        )
+        if self.statement != expected_statement:
+            raise ValueError("pilot remediation statement does not match its disposition")
+        return self
+
+
+class _PilotConsentCoveredArtifact(FrozenStrictModel):
+    artifact_id: MachineIdentifier
+    path: str = Field(min_length=1, max_length=255)
+    role: Literal[
+        "tested_distribution",
+        "environment_manifest",
+        "environment_control_evidence",
+        "input_manifest",
+        "execution_evidence",
+        "assurance_output",
+        "friction_assessment",
+        "remediation_record",
+        "consent_record",
+    ]
+
+
+class _PilotPublicationConsentRecord(FrozenStrictModel):
+    artifact_kind: Literal["external-pilot-publication-consent"]
+    contract_id: Literal["ExternalPilotPublicationConsent/v1"]
+    participant_pseudonym: MachineIdentifier
+    opaque_pilot_binding: DigestHex
+    decision: Literal["granted"]
+    publication_scope: Literal["privacy_filtered_record"]
+    temporary_actions_storage_days: Literal[14]
+    temporary_actions_storage_access: Literal["participant_fork_repository_read_access"]
+    cross_stage_correlation: Literal["shared_opaque_pilot_binding"]
+    public_fork_correlation: Literal["committed_input_digests_can_match_public_bytes"]
+    covered_bundle_files: tuple[str, ...] = Field(min_length=1, max_length=MAX_PILOT_ARTIFACTS + 2)
+    covered_artifacts: tuple[_PilotConsentCoveredArtifact, ...] = Field(
+        min_length=1,
+        max_length=MAX_PILOT_ARTIFACTS,
+    )
+    statement: str = Field(min_length=1, max_length=2_048)
+    granted_at: str = Field(pattern=STRICT_RFC3339_TIMESTAMP_PATTERN)
+
+    @field_validator("covered_bundle_files", "covered_artifacts", mode="before")
+    @classmethod
+    def _coerce_sequences(cls, value: object) -> object:
+        if isinstance(value, list | tuple):
+            return tuple(value)
+        return value
+
+    @model_validator(mode="after")
+    def _validate_canonical_inventory(self) -> Self:
+        if len(set(self.covered_bundle_files)) != len(self.covered_bundle_files):
+            raise ValueError("pilot publication consent bundle paths must be unique")
+        artifact_ids = tuple(item.artifact_id for item in self.covered_artifacts)
+        if artifact_ids != tuple(sorted(artifact_ids)) or len(set(artifact_ids)) != len(
+            artifact_ids
+        ):
+            raise ValueError("pilot publication consent artifacts must use canonical unique IDs")
+        if len({item.path.casefold() for item in self.covered_artifacts}) != len(
+            self.covered_artifacts
+        ):
+            raise ValueError("pilot publication consent artifact paths must be unique")
+        return self
+
+
+_PilotTypedMetadataRecord = (
+    _PilotEnvironmentManifestRecord
+    | _PilotEnvironmentControlEvidenceRecord
+    | _PilotCommandExecutionEvidenceRecord
+    | _PilotFrictionAssessmentRecord
+    | _PilotRemediationRecord
+    | _PilotPublicationConsentRecord
+)
+
+_PILOT_PUBLICATION_CONSENT_STATEMENT = (
+    "The participant prospectively authorizes publication of the complete "
+    "privacy-filtered inventory listed here, its future evidence descriptor, and "
+    "its future byte-bound human review receipt. This names the publication scope "
+    "before those final bytes exist and does not claim the participant reviewed "
+    "them. It also covers up to 14 days of candidate storage in the participant "
+    "fork under GitHub repository read-access rules and the shared opaque binding "
+    "that can correlate the two stages. The committed-input content and semantic "
+    "digests can also be matched to bytes in the participant's public fork. This "
+    "is learning evidence, not an endorsement or validation claim."
+)
+
+
 _WHEEL_FORBIDDEN_BASENAMES = frozenset(
     {
         ".env",
@@ -266,6 +525,7 @@ def validate_external_pilot_artifact_bytes(
     *,
     implementation_id: str,
     implementation_version: str,
+    expected_source_revision: str | None = None,
 ) -> Mapping[str, object] | None:
     """Apply the publication verifier's byte-local checks to one artifact.
 
@@ -291,61 +551,277 @@ def validate_external_pilot_artifact_bytes(
     validated_payload = _validate_declared_schema_contract(artifact, data)
     if artifact.role is PilotArtifactRole.assurance_output and validated_payload is None:
         raise ValueError("external pilot assurance outputs require a supported schema contract")
-    _validate_privacy_safe_artifact(artifact, data)
+    _validate_privacy_safe_artifact(
+        artifact,
+        data,
+        expected_source_revision=expected_source_revision,
+    )
     return validated_payload
 
 
 def _validate_pilot_remediation_record(
-    data: bytes,
+    record: _PilotRemediationRecord,
     *,
     evidence: ExternalPilotEvidence,
 ) -> _ValidatedPilotRemediationRecord:
-    payload = load_json_bytes_bounded(
-        data,
-        max_bytes=MAX_PILOT_BUNDLE_ARTIFACT_BYTES,
-        label="external pilot remediation record",
-    )
-    if (
-        payload.get("artifact_kind") != "external-pilot-remediation-record"
-        or payload.get("contract_id") != "ExternalPilotRemediationRecord/v1"
-        or payload.get("pilot_id") != evidence.pilot_id
-    ):
+    if record.pilot_id != evidence.pilot_id:
         raise ValueError("external pilot remediation record identity does not match the evidence")
-    raw_category = payload.get("friction_category")
-    raw_disposition = payload.get("disposition")
-    if not isinstance(raw_category, str) or not isinstance(raw_disposition, str):
-        raise ValueError(
-            "external pilot remediation record has an unsupported category or disposition"
-        )
-    try:
-        category = PilotFrictionCategory(raw_category)
-        disposition = PilotRemediationDisposition(raw_disposition)
-    except (TypeError, ValueError) as exc:
-        raise ValueError(
-            "external pilot remediation record has an unsupported category or disposition"
-        ) from exc
-    source_revision = payload.get("remediation_source_revision")
-    prior_digest = payload.get("prior_planned_candidate_evidence_digest")
-    if disposition is PilotRemediationDisposition.applied:
-        if (
-            not isinstance(source_revision, str)
-            or re.fullmatch(r"[a-f0-9]{40}", source_revision) is None
-            or not isinstance(prior_digest, str)
-            or re.fullmatch(r"[a-f0-9]{64}", prior_digest) is None
-        ):
-            raise ValueError(
-                "applied pilot remediation record requires canonical source and prior digest"
-            )
-    elif source_revision is not None or prior_digest is not None:
-        raise ValueError(
-            "non-applied pilot remediation record cannot claim source or prior-candidate bindings"
-        )
+    category = PilotFrictionCategory(record.friction_category)
+    disposition = PilotRemediationDisposition(record.disposition)
+    source_revision = record.remediation_source_revision
+    prior_digest = record.prior_planned_candidate_evidence_digest
+    if source_revision == evidence.subject.source_revision:
+        raise ValueError("applied pilot remediation must postdate the tested source revision")
     return _ValidatedPilotRemediationRecord(
         friction_category=category,
         disposition=disposition,
         remediation_source_revision=source_revision,
         prior_planned_candidate_evidence_digest=prior_digest,
     )
+
+
+def _validate_pilot_metadata_bindings(
+    evidence: ExternalPilotEvidence,
+    input_manifest: PilotInputManifest,
+    records: Mapping[str, _PilotTypedMetadataRecord],
+    *,
+    evidence_name: str,
+    receipt_name: str | None,
+) -> dict[str, _ValidatedPilotRemediationRecord]:
+    """Bind every duplicated metadata claim back to the authoritative evidence graph."""
+
+    artifact_by_id = {artifact.artifact_id: artifact for artifact in evidence.artifacts}
+    expected_record_ids = {
+        artifact.artifact_id
+        for artifact in evidence.artifacts
+        if artifact.role in _TYPED_PILOT_METADATA_ROLES
+    }
+    if set(records) != expected_record_ids:
+        raise ValueError("pilot typed metadata inventory does not match the evidence")
+
+    def record_for(
+        artifact_id: str,
+        expected_type: type[_PilotTypedMetadataRecord],
+    ) -> _PilotTypedMetadataRecord:
+        record = records.get(artifact_id)
+        if record is None or not isinstance(record, expected_type):
+            raise ValueError("pilot typed metadata role does not match its evidence reference")
+        return record
+
+    environment_record = record_for(
+        evidence.environment.environment_manifest_artifact_id,
+        _PilotEnvironmentManifestRecord,
+    )
+    assert isinstance(environment_record, _PilotEnvironmentManifestRecord)
+    observed_environment_ids = {
+        artifact_id
+        for artifact_id, record in records.items()
+        if isinstance(record, _PilotEnvironmentManifestRecord)
+    }
+    if observed_environment_ids != {evidence.environment.environment_manifest_artifact_id}:
+        raise ValueError("pilot environment-manifest inventory does not match the evidence")
+    components = {item.component_id: item.version for item in evidence.environment.components}
+    if (
+        environment_record.execution_context != evidence.environment.execution_context.value
+        or environment_record.agent_assure_version != evidence.subject.implementation_version
+        or components.get("agent-assure") != environment_record.agent_assure_version
+        or components.get("python") != environment_record.python_version
+        or components.get("github-actions") != environment_record.runner_environment
+        or evidence.environment.platform
+        != (
+            f"{environment_record.runner_environment}-actions-"
+            f"{environment_record.runner_os}-{environment_record.runner_arch}"
+        )
+    ):
+        raise ValueError("pilot environment manifest does not bind the evidence environment")
+
+    opaque_records = tuple(
+        record
+        for record in records.values()
+        if isinstance(
+            record,
+            (
+                _PilotEnvironmentControlEvidenceRecord,
+                _PilotCommandExecutionEvidenceRecord,
+                _PilotFrictionAssessmentRecord,
+                _PilotRemediationRecord,
+                _PilotPublicationConsentRecord,
+            ),
+        )
+    )
+    opaque_bindings = {record.opaque_pilot_binding for record in opaque_records}
+    if len(opaque_bindings) > 1:
+        raise ValueError("pilot metadata records do not share one opaque pilot binding")
+    if opaque_bindings:
+        opaque_binding = next(iter(opaque_bindings))
+        if (
+            evidence.pilot_id != f"external-controls-{opaque_binding[:24]}"
+            or evidence.environment.environment_id != f"github-actions-{opaque_binding[:20]}"
+        ):
+            raise ValueError("pilot opaque binding does not derive the evidence identities")
+
+    control_id = evidence.environment.control_evidence_artifact_id
+    observed_control_ids = {
+        artifact_id
+        for artifact_id, record in records.items()
+        if isinstance(record, _PilotEnvironmentControlEvidenceRecord)
+    }
+    expected_control_ids = set() if control_id is None else {control_id}
+    if observed_control_ids != expected_control_ids:
+        raise ValueError("pilot environment-control inventory does not match the evidence")
+    if control_id is not None:
+        control_record = record_for(control_id, _PilotEnvironmentControlEvidenceRecord)
+        assert isinstance(control_record, _PilotEnvironmentControlEvidenceRecord)
+        if control_record.classification != evidence.environment.control.value:
+            raise ValueError("pilot environment-control record does not bind the environment")
+        waiver_entries = tuple(
+            entry for entry in input_manifest.entries if entry.option_name == "waiver"
+        )
+        if (
+            len(waiver_entries) != 1
+            or waiver_entries[0].input_kind is not PilotInputKind.configuration
+            or waiver_entries[0].origin is not PilotInputOrigin.non_bundled
+            or waiver_entries[0].option_value != "participant-waiver.yaml"
+            or waiver_entries[0].semantic_identity_kind is not PilotInputIdentityKind.waiver_set
+            or sum(
+                waiver_entries[0].entry_id in command.consumed_input_entry_ids
+                for command in evidence.commands
+            )
+            != 1
+        ):
+            raise ValueError(
+                "pilot environment-control record requires one consumed participant waiver"
+            )
+
+    execution_ids = {command.execution_evidence_artifact_id for command in evidence.commands}
+    observed_execution_ids = {
+        artifact_id
+        for artifact_id, record in records.items()
+        if isinstance(record, _PilotCommandExecutionEvidenceRecord)
+    }
+    if observed_execution_ids != execution_ids:
+        raise ValueError("pilot command-execution record inventory does not match the evidence")
+    for command in evidence.commands:
+        execution_record = record_for(
+            command.execution_evidence_artifact_id,
+            _PilotCommandExecutionEvidenceRecord,
+        )
+        assert isinstance(execution_record, _PilotCommandExecutionEvidenceRecord)
+        if (
+            execution_record.command_id != command.command_id
+            or execution_record.tested_distribution_sha256 != command.tested_distribution_digest
+            or execution_record.input_manifest_sha256 != evidence.inputs.input_manifest_digest
+            or execution_record.started_at != command.started_at
+            or execution_record.finished_at != command.finished_at
+            or execution_record.exit_code != command.exit_code
+        ):
+            raise ValueError("pilot command-execution record does not bind its command")
+
+    friction_ids = {
+        artifact_id
+        for artifact_id in (
+            evidence.friction_assessment_artifact_id,
+            *(
+                artifact_id
+                for finding in evidence.friction_findings
+                for artifact_id in finding.evidence_artifact_ids
+            ),
+        )
+        if artifact_id is not None
+    }
+    observed_friction_ids = {
+        artifact_id
+        for artifact_id, record in records.items()
+        if isinstance(record, _PilotFrictionAssessmentRecord)
+    }
+    if observed_friction_ids != friction_ids:
+        raise ValueError("pilot friction-assessment inventory does not match the evidence")
+    if friction_ids and len(evidence.commands) != 1:
+        raise ValueError("pilot friction assessment requires exactly one bound command")
+    command_exit_code = evidence.commands[0].exit_code if evidence.commands else None
+    for artifact_id in friction_ids:
+        friction_record = record_for(artifact_id, _PilotFrictionAssessmentRecord)
+        assert isinstance(friction_record, _PilotFrictionAssessmentRecord)
+        categories = {
+            finding.category.value
+            for finding in evidence.friction_findings
+            if artifact_id in finding.evidence_artifact_ids
+        }
+        expected_category = next(iter(categories)) if len(categories) == 1 else None
+        if (
+            friction_record.pilot_id != evidence.pilot_id
+            or friction_record.participant_pseudonym != evidence.participant_pseudonym
+            or friction_record.assessment != evidence.friction_assessment.value
+            or friction_record.category != expected_category
+            or friction_record.command_exit_code != command_exit_code
+            or friction_record.assessed_at != evidence.recorded_at
+        ):
+            raise ValueError("pilot friction-assessment record does not bind the evidence")
+
+    remediation_records: dict[str, _ValidatedPilotRemediationRecord] = {}
+    expected_remediation_ids = {
+        remediation.remediation_artifact_id for remediation in evidence.remediations
+    }
+    observed_remediation_ids = {
+        artifact_id
+        for artifact_id, record in records.items()
+        if isinstance(record, _PilotRemediationRecord)
+    }
+    if observed_remediation_ids != expected_remediation_ids:
+        raise ValueError("pilot remediation record inventory does not match the evidence")
+    for remediation in evidence.remediations:
+        typed_record = record_for(
+            remediation.remediation_artifact_id,
+            _PilotRemediationRecord,
+        )
+        assert isinstance(typed_record, _PilotRemediationRecord)
+        if (typed_record.area,) != tuple(
+            area.value for area in remediation.areas
+        ) or typed_record.recorded_at != evidence.recorded_at:
+            raise ValueError("pilot remediation record does not bind its evidence reference")
+        remediation_records[remediation.remediation_artifact_id] = (
+            _validate_pilot_remediation_record(typed_record, evidence=evidence)
+        )
+
+    consent_id = evidence.publication.consent_artifact_id
+    observed_consent_ids = {
+        artifact_id
+        for artifact_id, record in records.items()
+        if isinstance(record, _PilotPublicationConsentRecord)
+    }
+    expected_consent_ids = set() if consent_id is None else {consent_id}
+    if observed_consent_ids != expected_consent_ids:
+        raise ValueError("pilot publication-consent inventory does not match the evidence")
+    if consent_id is not None:
+        consent_record = record_for(consent_id, _PilotPublicationConsentRecord)
+        assert isinstance(consent_record, _PilotPublicationConsentRecord)
+        expected_artifacts = tuple(
+            (artifact.artifact_id, artifact.path, artifact.role.value)
+            for artifact in evidence.artifacts
+        )
+        observed_artifacts = tuple(
+            (item.artifact_id, item.path, item.role) for item in consent_record.covered_artifacts
+        )
+        declared_files = set(consent_record.covered_bundle_files)
+        current_files = {evidence_name, *(artifact.path for artifact in evidence.artifacts)}
+        future_receipt_files = declared_files - current_files
+        expected_receipt_files = (
+            {receipt_name} if receipt_name is not None else future_receipt_files
+        )
+        if (
+            consent_record.participant_pseudonym != evidence.participant_pseudonym
+            or consent_record.decision != evidence.publication.consent_status.value
+            or consent_record.publication_scope != evidence.publication.publication_scope.value
+            or consent_record.granted_at != evidence.recorded_at
+            or consent_record.statement != _PILOT_PUBLICATION_CONSENT_STATEMENT
+            or observed_artifacts != expected_artifacts
+            or set(evidence.publication.published_artifact_ids) != set(artifact_by_id)
+            or len(future_receipt_files) != 1
+            or declared_files != current_files | expected_receipt_files
+        ):
+            raise ValueError("pilot publication-consent record does not bind the exact bundle")
+
+    return remediation_records
 
 
 def _validate_pilot_remediation_bindings(
@@ -469,7 +945,7 @@ def _load_validated_pilot_materials(
         artifact_by_id = {artifact.artifact_id: artifact for artifact in evidence.artifacts}
         input_manifest: PilotInputManifest | None = None
         validated_output_payloads: dict[str, Mapping[str, object]] = {}
-        remediation_records: dict[str, _ValidatedPilotRemediationRecord] = {}
+        typed_metadata_records: dict[str, _PilotTypedMetadataRecord] = {}
         for artifact in evidence.artifacts:
             artifact_bytes = read_child(
                 artifact.path,
@@ -481,6 +957,7 @@ def _load_validated_pilot_materials(
                 artifact_bytes,
                 implementation_id=evidence.subject.implementation_id,
                 implementation_version=evidence.subject.implementation_version,
+                expected_source_revision=evidence.subject.source_revision,
             )
             if artifact.role is PilotArtifactRole.input_manifest:
                 if input_manifest is not None:
@@ -494,11 +971,16 @@ def _load_validated_pilot_materials(
                 if validated_payload is None:  # pragma: no cover - shared validator guards this
                     raise RuntimeError("external pilot assurance output was not validated")
                 validated_output_payloads[artifact.artifact_id] = validated_payload
-            if artifact.role is PilotArtifactRole.remediation_record:
-                remediation_records[artifact.artifact_id] = _validate_pilot_remediation_record(
+            if artifact.role in _TYPED_PILOT_METADATA_ROLES:
+                metadata_payload = load_json_bytes_bounded(
                     artifact_bytes,
-                    evidence=evidence,
+                    max_bytes=MAX_PILOT_BUNDLE_ARTIFACT_BYTES,
+                    label="external pilot typed metadata artifact",
                 )
+                metadata_record = _typed_pilot_metadata_record(artifact, metadata_payload)
+                if metadata_record is None:  # pragma: no cover - strict role guards this
+                    raise RuntimeError("pilot typed metadata parser returned no record")
+                typed_metadata_records[artifact.artifact_id] = metadata_record
 
         if input_manifest is None:
             raise ValueError("external pilot bundle has no typed input manifest")
@@ -507,6 +989,13 @@ def _load_validated_pilot_materials(
             evidence,
             input_manifest,
             validated_output_payloads,
+        )
+        remediation_records = _validate_pilot_metadata_bindings(
+            evidence,
+            input_manifest,
+            typed_metadata_records,
+            evidence_name=evidence_name,
+            receipt_name=receipt_name,
         )
         _validate_pilot_remediation_bindings(evidence, remediation_records)
 
@@ -1088,6 +1577,8 @@ def _validate_declared_schema_contract(
 def _validate_privacy_safe_artifact(
     artifact: PilotArtifactDigest,
     data: bytes,
+    *,
+    expected_source_revision: str | None,
 ) -> None:
     # The tested wheel/sdist is the sole intentionally binary evidence role.
     # Every other artifact claims metadata-only/privacy-filtered content and
@@ -1102,17 +1593,156 @@ def _validate_privacy_safe_artifact(
         raise ValueError("external pilot metadata artifact must not be empty")
     try:
         payload = loads_json_bounded(text, label="external pilot metadata artifact")
-    except ValueError:
+    except ValueError as exc:
+        if artifact.role in _TYPED_PILOT_METADATA_ROLES:
+            raise ValueError("external pilot typed metadata artifact must be valid JSON") from exc
         lines = text.splitlines() or [text]
         if _contains_sensitive_scalar(text) or any(
             _contains_sensitive_scalar(line) for line in lines
         ):
             raise ValueError("external pilot artifact failed privacy review") from None
         return
-    if redact_packet_payload(payload) != payload or any(
-        _contains_sensitive_scalar(value) for value in _string_values(payload)
+    privacy_probe = _pilot_metadata_privacy_probe(
+        artifact,
+        payload,
+        expected_source_revision=expected_source_revision,
+    )
+    try:
+        assert_persisted_payload_safe(privacy_probe, owner="external pilot metadata artifact")
+    except UnsafePersistedTextError:
+        raise ValueError("external pilot artifact failed privacy review") from None
+
+
+def _typed_pilot_metadata_record(
+    artifact: PilotArtifactDigest,
+    payload: object,
+) -> _PilotTypedMetadataRecord | None:
+    """Parse contract-owned metadata, rejecting role/contract confusion."""
+
+    typed_role = artifact.role in _TYPED_PILOT_METADATA_ROLES
+    if not isinstance(payload, Mapping):
+        if typed_role:
+            raise ValueError("external pilot typed metadata artifact must be a JSON mapping")
+        return None
+    artifact_kind = payload.get("artifact_kind")
+    contract_id = payload.get("contract_id")
+    if not isinstance(artifact_kind, str) or not isinstance(contract_id, str):
+        if typed_role:
+            raise ValueError("external pilot typed metadata artifact lacks its contract identity")
+        return None
+    identity = (artifact_kind, contract_id)
+    known_identities = {
+        (
+            "external-pilot-environment-manifest",
+            "ExternalPilotEnvironmentManifest/v1",
+        ),
+        (
+            "external-pilot-environment-control-evidence",
+            "ExternalPilotEnvironmentControlEvidence/v1",
+        ),
+        (
+            "external-pilot-command-execution-evidence",
+            "ExternalPilotCommandExecutionEvidence/v1",
+        ),
+        (
+            "external-pilot-friction-assessment",
+            "ExternalPilotFrictionAssessment/v1",
+        ),
+        (
+            "external-pilot-remediation-record",
+            "ExternalPilotRemediationRecord/v1",
+        ),
+        (
+            "external-pilot-publication-consent",
+            "ExternalPilotPublicationConsent/v1",
+        ),
+    }
+    if artifact.role is PilotArtifactRole.environment_manifest:
+        if identity != (
+            "external-pilot-environment-manifest",
+            "ExternalPilotEnvironmentManifest/v1",
+        ):
+            raise ValueError("pilot environment manifest has an invalid contract identity")
+        return _PilotEnvironmentManifestRecord.model_validate(payload)
+    elif artifact.role is PilotArtifactRole.environment_control_evidence:
+        if identity != (
+            "external-pilot-environment-control-evidence",
+            "ExternalPilotEnvironmentControlEvidence/v1",
+        ):
+            raise ValueError("pilot environment-control evidence has an invalid contract identity")
+        return _PilotEnvironmentControlEvidenceRecord.model_validate(payload)
+    elif artifact.role is PilotArtifactRole.execution_evidence:
+        if identity != (
+            "external-pilot-command-execution-evidence",
+            "ExternalPilotCommandExecutionEvidence/v1",
+        ):
+            raise ValueError("pilot command-execution evidence has an invalid contract identity")
+        return _PilotCommandExecutionEvidenceRecord.model_validate(payload)
+    elif artifact.role is PilotArtifactRole.friction_assessment:
+        if identity != (
+            "external-pilot-friction-assessment",
+            "ExternalPilotFrictionAssessment/v1",
+        ):
+            raise ValueError("pilot friction assessment has an invalid contract identity")
+        return _PilotFrictionAssessmentRecord.model_validate(payload)
+    elif artifact.role is PilotArtifactRole.remediation_record:
+        if identity != (
+            "external-pilot-remediation-record",
+            "ExternalPilotRemediationRecord/v1",
+        ):
+            raise ValueError("pilot remediation record has an invalid contract identity")
+        return _PilotRemediationRecord.model_validate(payload)
+    elif artifact.role is PilotArtifactRole.consent_record:
+        if identity != (
+            "external-pilot-publication-consent",
+            "ExternalPilotPublicationConsent/v1",
+        ):
+            raise ValueError("pilot publication consent has an invalid contract identity")
+        return _PilotPublicationConsentRecord.model_validate(payload)
+    elif identity in known_identities:
+        raise ValueError("pilot metadata contract identity is incompatible with its artifact role")
+    return None
+
+
+def _pilot_metadata_privacy_probe(
+    artifact: PilotArtifactDigest,
+    payload: object,
+    *,
+    expected_source_revision: str | None,
+) -> object:
+    """Project structural IDs only after exact contract and relational validation."""
+
+    record = _typed_pilot_metadata_record(artifact, payload)
+    if record is None:
+        return payload
+
+    projected = record.model_dump(mode="json", warnings="error")
+    if isinstance(record, _PilotRemediationRecord):
+        if record.remediation_source_revision is not None:
+            projected["remediation_source_revision"] = git_revision_privacy_probe(
+                record.remediation_source_revision
+            )
+        return projected
+    if isinstance(
+        record,
+        (
+            _PilotEnvironmentManifestRecord,
+            _PilotEnvironmentControlEvidenceRecord,
+            _PilotCommandExecutionEvidenceRecord,
+        ),
     ):
-        raise ValueError("external pilot artifact failed privacy review")
+        if (
+            expected_source_revision is None
+            or record.implementation_source_revision != expected_source_revision
+        ):
+            raise ValueError(
+                "pilot metadata implementation source revision does not match its evidence subject"
+            )
+        projected["implementation_source_revision"] = git_revision_privacy_probe(
+            record.implementation_source_revision
+        )
+        return projected
+    return projected
 
 
 def _validate_tested_distribution(
@@ -1432,22 +2062,6 @@ def _validate_wheel_member_privacy(
         )
     except ValueError as exc:
         raise ValueError(f"external pilot wheel {exc}") from exc
-
-
-def _string_values(value: object) -> Iterator[str]:
-    pending = [value]
-    while pending:
-        candidate = pending.pop()
-        if isinstance(candidate, str):
-            yield candidate
-        elif isinstance(candidate, Mapping):
-            pending.extend(candidate.keys())
-            pending.extend(candidate.values())
-        elif isinstance(candidate, Sequence) and not isinstance(
-            candidate,
-            bytes | bytearray,
-        ):
-            pending.extend(candidate)
 
 
 def _contains_sensitive_scalar(value: str) -> bool:

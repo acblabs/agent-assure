@@ -5,8 +5,6 @@ on:
   push:
     branches:
       - main
-    paths-ignore:
-      - "agent-assure-pilot/**"
   schedule:
     - cron: "23 11 * * 1"
   workflow_dispatch:
@@ -17,12 +15,13 @@ permissions:
 jobs:
   dependency-review:
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     permissions:
       contents: read
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # actions/dependency-review-action@v5.0.0
@@ -32,42 +31,246 @@ jobs:
 
   dependency-audit:
     # Dependency review covers pull-request deltas, while direct main updates
-    # still need a complete audit of every release lockfile before a tag is cut.
+    # still need every supported Python/OS marker branch of every release
+    # lockfile audited before a tag is cut.
     if: >-
       github.event_name == 'push' ||
       github.event_name == 'schedule' ||
       github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
+    name: Audit all release locks / ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        lockfile:
-          - requirements.lock
-          - requirements-langgraph.lock
-          - requirements-adk.lock
-          - requirements-otel.lock
+        os: [ubuntu-24.04, windows-2025]
+        python-version: ["3.11", "3.14"]
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
       # pypa/gh-action-pip-audit@v1.1.0
       - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
         with:
-          inputs: ${{ matrix.lockfile }}
+          inputs: requirements.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-min.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-langgraph.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-adk.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-otel.lock
           require-hashes: true
           no-deps: true
 
+  repository-history-secret-scan:
+    name: Scan complete Git history for credential material
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prove the digest-pinned Gitleaks image detects a committed canary
+        shell: bash
+        run: |
+          set -euo pipefail
+          canary_repo="$(mktemp -d)"
+          canary_log="$(mktemp)"
+          cleanup() {
+            rm -rf -- "${canary_repo}"
+            rm -f -- "${canary_log}"
+          }
+          trap cleanup EXIT
+
+          git -C "${canary_repo}" init --quiet
+          git -C "${canary_repo}" config user.name "Agent Assure security canary"
+          git -C "${canary_repo}" config user.email "security-canary@example.invalid"
+          git -C "${canary_repo}" config commit.gpgsign false
+          git -C "${canary_repo}" config core.hooksPath /dev/null
+          printf '%s\n' 'benign base' > "${canary_repo}/canary.txt"
+          git -C "${canary_repo}" add canary.txt
+          git -C "${canary_repo}" commit --quiet -m "gitleaks canary base"
+          base_commit="$(git -C "${canary_repo}" rev-parse HEAD)"
+          git -C "${canary_repo}" checkout --quiet -b canary-left
+          printf '%s\n' 'left parent' > "${canary_repo}/left.txt"
+          git -C "${canary_repo}" add left.txt
+          git -C "${canary_repo}" commit --quiet -m "gitleaks canary left parent"
+          git -C "${canary_repo}" checkout --quiet -b canary-right "${base_commit}"
+          printf '%s\n' 'right parent' > "${canary_repo}/right.txt"
+          git -C "${canary_repo}" add right.txt
+          git -C "${canary_repo}" commit --quiet -m "gitleaks canary right parent"
+          git -C "${canary_repo}" checkout --quiet canary-left
+          git -C "${canary_repo}" merge --quiet --no-ff --no-commit canary-right
+          # Assemble the deterministic detector canary only in the merge result.
+          # Neither parent nor this workflow source contains the matching token.
+          printf '%s%s\n' 'ghp_' 'wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS' \
+            > "${canary_repo}/canary.txt"
+          git -C "${canary_repo}" add canary.txt
+          git -C "${canary_repo}" commit --quiet -m "gitleaks merge-result detection canary"
+          if [[ "$(git -C "${canary_repo}" cat-file -p HEAD | grep -c '^parent ')" -ne 2 ]]; then
+            echo "Gitleaks canary setup did not produce a merge commit" >&2
+            exit 1
+          fi
+
+          set +e
+          docker run --rm --platform linux/amd64 \
+            --user "$(id -u):$(id -g)" \
+            --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --env HOME=/tmp \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --mount "type=bind,source=${canary_repo},target=/repo,readonly" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
+            git --no-banner --redact --verbose --exit-code=23 \
+            --log-opts="--no-textconv --full-history --all --diff-merges=first-parent" \
+            /repo > "${canary_log}" 2>&1
+          canary_status=$?
+          set -e
+          if [[ "${canary_status}" -ne 23 ]]; then
+            sed -E 's/(ghp_)[[:alnum:]]+/\1REDACTED/g' "${canary_log}"
+            echo "Gitleaks canary was not detected with the dedicated leak exit code" >&2
+            exit 1
+          fi
+
+      - name: Scan every reachable commit with a digest-pinned Gitleaks image
+        shell: bash
+        run: |
+          set -euo pipefail
+          reachable_commits="$(git rev-list --count --all)"
+          if [[ ! "${reachable_commits}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Git history enumeration was empty or malformed: ${reachable_commits}" >&2
+            exit 1
+          fi
+          scan_tmp="$(mktemp -d)"
+          trap 'rm -rf -- "${scan_tmp}"' EXIT
+          expected_units_log="${scan_tmp}/expected-units.log"
+          scan_log="${scan_tmp}/gitleaks.log"
+          # Gitleaks counts patch-bearing commits, not deletion-only commits.
+          # Count that unit independently with the same merge projection and
+          # fail if either the scanner or this Git enumeration sees no history.
+          git log --format='%H' --no-textconv --full-history --all \
+            --diff-merges=first-parent --diff-filter=d --no-patch \
+            > "${expected_units_log}"
+          if [[ ! -s "${expected_units_log}" ]] || grep -Evq '^[0-9a-f]{40}$' "${expected_units_log}"; then
+            echo "Git patch-unit enumeration emitted empty or malformed commit identities" >&2
+            exit 1
+          fi
+          expected_scan_units="$(wc -l < "${expected_units_log}" | tr -d '[:space:]')"
+          unique_scan_units="$(sort -u "${expected_units_log}" | wc -l | tr -d '[:space:]')"
+          if [[ ! "${expected_scan_units}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Git patch-unit enumeration was empty or malformed: ${expected_scan_units}" >&2
+            exit 1
+          fi
+          if [[ "${unique_scan_units}" -ne "${expected_scan_units}" ]]; then
+            echo "Git patch-unit enumeration contained duplicate commit identities" >&2
+            exit 1
+          fi
+          if [[ "${expected_scan_units}" -gt "${reachable_commits}" ]]; then
+            echo "Git patch-unit enumeration exceeds reachable history" >&2
+            exit 1
+          fi
+          git fsck --strict --no-dangling
+
+          set +e
+          docker run --rm --platform linux/amd64 \
+            --user "$(id -u):$(id -g)" \
+            --network none --read-only --cap-drop ALL \
+            --security-opt no-new-privileges --env HOME=/tmp \
+            --tmpfs /tmp:rw,noexec,nosuid,size=64m \
+            --mount "type=bind,source=${GITHUB_WORKSPACE},target=/repo,readonly" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb \
+            git --no-banner --redact --verbose --exit-code=23 \
+            --gitleaks-ignore-path=/repo/.gitleaksignore \
+            --log-opts="--no-textconv --full-history --all --diff-merges=first-parent" \
+            /repo 2>&1 | tee "${scan_log}"
+          scan_status=${PIPESTATUS[0]}
+          set -e
+          if [[ "${scan_status}" -ne 0 ]]; then
+            echo "Gitleaks history scan failed with status ${scan_status}" >&2
+            exit "${scan_status}"
+          fi
+          if grep -Eq 'ERR|stderr is not empty' "${scan_log}"; then
+            echo "Gitleaks reported an internal Git/scanner error" >&2
+            exit 1
+          fi
+          scan_stat="$(grep -Eo '[0-9]+ commits scanned\.' "${scan_log}" | tail -n 1 || true)"
+          scanned_units="${scan_stat%% *}"
+          if [[ ! "${scanned_units}" =~ ^[1-9][0-9]*$ ]]; then
+            echo "Gitleaks did not prove that it scanned a nonzero commit history" >&2
+            exit 1
+          fi
+          if [[ "${scanned_units}" -ne "${expected_scan_units}" ]]; then
+            echo "Gitleaks scanned ${scanned_units} patch units; expected ${expected_scan_units}" >&2
+            exit 1
+          fi
+
+  release-payload-credential-scan:
+    name: Scan exact source-built release payload for credential material
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: "3.14.6"
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      - name: Build exact candidate distributions
+        run: python -m build --no-isolation
+      - name: Scan wheel and sdist with the repository credential detector
+        run: python scripts/check_wheel_contents.py --dist dist
+      - name: Require unchanged exact source checkout
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          dirty="$(git -c core.fsmonitor=false status --porcelain=v1 --untracked-files=all)"
+          test -z "${dirty}"
+
   codeql:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     permissions:
       contents: read
       security-events: write
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
       # github/codeql-action/init@v4.35.2

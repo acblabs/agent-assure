@@ -15,6 +15,11 @@ for import_path in (ROOT, SRC, SCRIPTS):
         sys.path.insert(0, str(import_path))
 
 from agent_assure.artifact_io import git_output  # noqa: E402
+from agent_assure.onboarding.diagnostics import (  # noqa: E402
+    bounded_error,
+    bounded_text,
+    display_path,
+)
 from agent_assure.release_evidence import build_digest_replay, write_digest_replay  # noqa: E402
 from agent_assure.reporting.environment import (  # noqa: E402
     build_release_manifest,
@@ -27,7 +32,11 @@ from agent_assure.reporting.packet import (  # noqa: E402
     write_evidence_packet,
     write_evidence_packet_markdown,
 )
-from agent_assure.reporting.sbom import build_sbom, write_sbom  # noqa: E402
+from agent_assure.reporting.sbom import (  # noqa: E402
+    build_sbom,
+    load_and_validate_sbom,
+    write_sbom,
+)
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest  # noqa: E402
 from agent_assure.schema.validation import (  # noqa: E402
     load_validated_artifact_payload,
@@ -89,7 +98,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     if provenance_failures:
         print("release provenance validation failed:", file=sys.stderr)
         for failure in provenance_failures:
-            print(f"- {failure}", file=sys.stderr)
+            print(f"- {bounded_text(failure)}", file=sys.stderr)
         return 2
 
     out = args.out
@@ -103,7 +112,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             artifact_prefix=args.artifact_prefix,
         )
     except ValueError as exc:
-        print(f"release input error: {exc}", file=sys.stderr)
+        print(f"release input error: {bounded_error(exc)}", file=sys.stderr)
         return 2
     command_exit = run_release_commands(
         commands,
@@ -135,8 +144,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     if args.require_clean_source and not _require_clean_source("after release generation"):
         return 2
 
-    print(f"release bundle artifacts: {out}")
-    print(f"release digest replay: {replay_path}")
+    print(f"release bundle artifacts: {display_path(out)}")
+    print(f"release digest replay: {display_path(replay_path)}")
     print("release manifest extras: " + ", ".join(artifact.role for artifact in extra_artifacts))
     return 0
 
@@ -154,7 +163,7 @@ def _build_distributions(dist_dir: Path, *, logs_dir: Path) -> tuple[int, tuple[
     try:
         artifacts = _validated_distribution_paths(dist_dir)
     except ValueError as exc:
-        print(f"release distribution error: {exc}", file=sys.stderr)
+        print(f"release distribution error: {bounded_error(exc)}", file=sys.stderr)
         return 2, ()
     return 0, artifacts
 
@@ -194,7 +203,7 @@ def _require_clean_source(stage: str) -> bool:
         return False
     if status:
         print(f"release source validation failed {stage}: source tree is dirty", file=sys.stderr)
-        print(status, file=sys.stderr)
+        print(bounded_text(status, fallback="dirty source details unavailable"), file=sys.stderr)
         return False
     return True
 
@@ -231,6 +240,14 @@ def _write_release_sbom_and_manifest(
             project_root=ROOT,
         ),
         sbom_path,
+    )
+    # Reopen the exact persisted bytes and reconcile every referenced local
+    # lock/distribution digest before the SBOM can enter the release manifest.
+    load_and_validate_sbom(
+        sbom_path,
+        artifact_root=ROOT,
+        expected_environment=environment,
+        expected_distribution_paths=distribution_paths,
     )
     extra_artifacts = (
         *tuple(_existing_release_artifacts(out, artifact_prefix=artifact_prefix)),

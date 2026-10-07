@@ -6,20 +6,34 @@ from inspect import signature
 from pathlib import Path
 
 import pytest
+from jsonschema import Draft202012Validator
+from jsonschema.exceptions import ValidationError as JsonSchemaValidationError
 from pydantic import ValidationError
 
+import agent_assure.ci as ci_module
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.ci import gate_evaluation_summary
 from agent_assure.evaluation.evaluator import (
+    EvaluationCaseOutcome,
     EvaluationReport,
+    EvaluationSourceVerificationError,
     evaluate_runset,
     load_runset,
     load_runset_with_size,
     runset_digest,
+    verify_evaluation_report_sources,
 )
+from agent_assure.evaluation.expectations import ExpectationResolver
+from agent_assure.evaluation.invariants import evaluate_case
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
-from agent_assure.policies.base import ControlResult, GateProfile, Waiver, rollup_state
+from agent_assure.policies.base import (
+    ControlResult,
+    GateProfile,
+    Waiver,
+    control_finding_id,
+    rollup_state,
+)
 from agent_assure.policies.evidence import (
     claim_finding_target,
     evaluate_material_claim_evidence,
@@ -29,7 +43,6 @@ from agent_assure.reporting.markdown import render_evaluation_markdown
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.common import (
     BLOCKED_PROVIDER_SELECTION,
-    ExecutionMode,
     GateState,
     ReasonCode,
     Severity,
@@ -44,12 +57,14 @@ from agent_assure.schema.run import (
     ClaimEvidenceLink,
     EvidenceItem,
     EvidenceRef,
+    LiveNetworkAuthorityReceipt,
     PolicyResult,
     RunSet,
     StructuredFieldOrigin,
     StructuredFieldOrigins,
 )
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import validate_artifact_payload
 
 SUITE = Path("examples/prior_auth_synthetic/suite.yaml")
 BASELINE = Path("examples/prior_auth_synthetic/variants/baseline.yaml")
@@ -58,6 +73,7 @@ EVIDENCE_CANDIDATE = Path(
 )
 PROVIDER_CANDIDATE = Path("examples/prior_auth_synthetic/variants/candidate_provider_policy.yaml")
 SMOKE_CANDIDATE = Path("examples/prior_auth_synthetic/variants/candidate_smoke_fail.yaml")
+AUTHORIZED_EVALUATION_DATE = date(2026, 1, 15)
 
 
 def test_baseline_evaluation_passes_with_not_evaluated_capabilities_separate() -> None:
@@ -76,6 +92,478 @@ def test_baseline_evaluation_passes_with_not_evaluated_capabilities_separate() -
         capability.state is GateState.not_evaluated
         for capability in report.not_evaluated_capabilities
     )
+    assert len(report.case_outcomes) == report.metrics.total_cases
+    assert all(outcome.state is GateState.pass_ for outcome in report.case_outcomes)
+    assert {capability.capability_id for capability in report.capability_coverage} == {
+        "live_stochastic_model_quality_regression",
+        "production_runtime_isolation",
+        "raw_payload_persistence_forbidden",
+        "regulatory_compliance_certification",
+        "tool_allowlist",
+    }
+    assert (
+        next(
+            capability
+            for capability in report.capability_coverage
+            if capability.capability_id == "tool_allowlist"
+        ).state
+        is GateState.pass_
+    )
+    assert report.source_projection is not None
+    assert tuple(item.case_id for item in report.source_projection.cases) == tuple(
+        item.case_id for item in report.case_outcomes
+    )
+    assert all(item.record_status == "included" for item in report.source_projection.cases)
+
+
+def test_evaluate_runset_rejects_unsafe_nested_source_before_scoring() -> None:
+    compiled, runset = _runset(BASELINE)
+    ref_id = "typed-boundary-ref"
+    source_id = "typed-boundary-source"
+    forged_link = ClaimEvidenceLink(
+        artifact_kind="claim-evidence-link",
+        claim_id="typed-boundary-claim",
+        evidence_ref_id=ref_id,
+    ).model_copy(update={"artifact_kind": "evidence-ref"})
+    first_run = runset.runs[0]
+    unsafe_run = first_run.model_copy(
+        update={
+            "evidence_refs": (
+                *first_run.evidence_refs,
+                EvidenceRef(
+                    artifact_kind="evidence-ref",
+                    ref_id=ref_id,
+                    source_id=source_id,
+                ),
+            ),
+            "evidence_items": (
+                *first_run.evidence_items,
+                EvidenceItem(
+                    artifact_kind="evidence-item",
+                    ref_id=ref_id,
+                    source_id=source_id,
+                    content_digest="a" * 64,
+                ),
+            ),
+            "claim_evidence_links": (*first_run.claim_evidence_links, forged_link),
+        }
+    )
+    unsafe_runset = runset.model_copy(update={"runs": (unsafe_run, *runset.runs[1:])})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        evaluate_runset(compiled, unsafe_runset)
+
+
+@pytest.mark.parametrize("mutation", ("delete-passing-case", "relabel-passing-case"))
+def test_source_projection_rejects_coordinated_case_outcome_mutations(
+    mutation: str,
+) -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    if mutation == "delete-passing-case":
+        payload["case_outcomes"].pop()
+        payload["metrics"]["total_cases"] -= 1
+        payload["metrics"]["evaluated_cases"] -= 1
+        payload["metrics"]["passed_cases"] -= 1
+    else:
+        payload["case_outcomes"][-1]["case_id"] = "relabelled-passing-case"
+
+    with pytest.raises(
+        ValidationError,
+        match="must exactly cover the persisted source suite cases",
+    ):
+        EvaluationReport.model_validate(payload)
+    with pytest.raises((ValueError, JsonSchemaValidationError)):
+        validate_artifact_payload(payload, "evaluation-report")
+
+
+def test_source_projection_rejects_coordinated_tool_capability_upgrade() -> None:
+    _, _, report = _no_tool_policy_report()
+    payload = report.model_dump(mode="json")
+    tool = next(
+        item for item in payload["capability_coverage"] if item["capability_id"] == "tool_allowlist"
+    )
+    tool.update(
+        {
+            "state": "pass",
+            "reason": (
+                "suite or case expectations configure a tool policy; per-case evaluation "
+                "is reported separately"
+            ),
+        }
+    )
+    payload["not_evaluated_capabilities"] = [
+        item
+        for item in payload["not_evaluated_capabilities"]
+        if item["capability_id"] != "tool_allowlist"
+    ]
+
+    with pytest.raises(
+        ValidationError,
+        match="tool_allowlist capability state must match persisted source policy coverage",
+    ):
+        EvaluationReport.model_validate(payload)
+    with pytest.raises((ValueError, JsonSchemaValidationError)):
+        validate_artifact_payload(payload, "evaluation-report")
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("delete-passing-case", "relabel-passing-case", "upgrade-tool-capability"),
+)
+def test_trusted_source_verification_rejects_fully_coordinated_projection_rewrites(
+    mutation: str,
+) -> None:
+    if mutation == "upgrade-tool-capability":
+        compiled, runset, report = _no_tool_policy_report()
+    else:
+        compiled, runset = _runset(BASELINE)
+        report = evaluate_runset(compiled, runset, today=AUTHORIZED_EVALUATION_DATE)
+    payload = report.model_dump(mode="json")
+
+    if mutation == "delete-passing-case":
+        payload["source_projection"]["cases"].pop()
+        payload["case_outcomes"].pop()
+        payload["metrics"]["total_cases"] -= 1
+        payload["metrics"]["evaluated_cases"] -= 1
+        payload["metrics"]["passed_cases"] -= 1
+    elif mutation == "relabel-passing-case":
+        payload["source_projection"]["cases"][-1]["case_id"] = "relabelled-passing-case"
+        payload["case_outcomes"][-1]["case_id"] = "relabelled-passing-case"
+    else:
+        payload["source_projection"]["tool_policy_configured"] = True
+        tool = next(
+            item
+            for item in payload["capability_coverage"]
+            if item["capability_id"] == "tool_allowlist"
+        )
+        tool.update(
+            {
+                "state": "pass",
+                "reason": (
+                    "suite or case expectations configure a tool policy; per-case evaluation "
+                    "is reported separately"
+                ),
+            }
+        )
+        payload["not_evaluated_capabilities"] = [
+            item
+            for item in payload["not_evaluated_capabilities"]
+            if item["capability_id"] != "tool_allowlist"
+        ]
+
+    internally_consistent = EvaluationReport.model_validate(payload)
+    with pytest.raises(
+        EvaluationSourceVerificationError,
+        match="does not match the trusted suite and RunSet",
+    ):
+        verify_evaluation_report_sources(
+            internally_consistent,
+            compiled,
+            runset,
+            gate_profile=GateProfile(),
+            waivers=(),
+            evaluation_date=AUTHORIZED_EVALUATION_DATE,
+        )
+
+
+def test_trusted_source_verification_accepts_exact_inputs() -> None:
+    compiled, runset = _runset(BASELINE)
+    gate_profile = GateProfile()
+    report = evaluate_runset(
+        compiled,
+        runset,
+        gate_profile=gate_profile,
+        today=AUTHORIZED_EVALUATION_DATE,
+    )
+
+    verified = verify_evaluation_report_sources(
+        report,
+        compiled,
+        runset,
+        gate_profile=gate_profile,
+        waivers=(),
+        evaluation_date=AUTHORIZED_EVALUATION_DATE,
+    )
+
+    assert verified == report.source_projection
+
+
+def test_trusted_source_verification_rejects_coordinated_fail_to_pass_rewrite() -> None:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    report = evaluate_runset(compiled, runset, today=AUTHORIZED_EVALUATION_DATE)
+    payload = report.model_dump(mode="json")
+    assert len(payload["candidate_vs_expectations"]["findings"]) == 1
+    failing_case_id = payload["candidate_vs_expectations"]["findings"][0]["case_id"]
+
+    payload["candidate_vs_expectations"]["state"] = "pass"
+    payload["candidate_vs_expectations"]["findings"] = []
+    payload["failed_controls"] = []
+    outcome = next(item for item in payload["case_outcomes"] if item["case_id"] == failing_case_id)
+    outcome["state"] = "pass"
+    payload["metrics"].update(
+        {
+            "passed_cases": payload["metrics"]["passed_cases"] + 1,
+            "failed_cases": payload["metrics"]["failed_cases"] - 1,
+            "blocking_findings": 0,
+            "warning_findings": 0,
+            "global_blocking_findings": 0,
+            "findings_by_reason": {},
+            "findings_by_control": {},
+        }
+    )
+
+    internally_consistent = EvaluationReport.model_validate(payload)
+    with pytest.raises(
+        EvaluationSourceVerificationError,
+        match="decision evidence does not match trusted-source replay",
+    ):
+        verify_evaluation_report_sources(
+            internally_consistent,
+            compiled,
+            runset,
+            gate_profile=GateProfile(),
+            waivers=(),
+            evaluation_date=AUTHORIZED_EVALUATION_DATE,
+        )
+
+
+def test_trusted_source_verification_rejects_report_selected_permissive_profile() -> None:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    attacker_profile = GateProfile(
+        profile_id="attacker-permissive",
+        fail_severities=(Severity.info,),
+    )
+    attacker_report = evaluate_runset(
+        compiled,
+        runset,
+        gate_profile=attacker_profile,
+        today=AUTHORIZED_EVALUATION_DATE,
+    )
+    assert attacker_report.candidate_vs_expectations.state is GateState.warn
+
+    with pytest.raises(
+        EvaluationSourceVerificationError,
+        match="decision evidence does not match trusted-source replay",
+    ):
+        verify_evaluation_report_sources(
+            attacker_report,
+            compiled,
+            runset,
+            gate_profile=GateProfile(),
+            waivers=(),
+            evaluation_date=AUTHORIZED_EVALUATION_DATE,
+        )
+
+
+def test_trusted_source_verification_rejects_report_selected_self_waiver() -> None:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    initial_report = evaluate_runset(compiled, runset, today=AUTHORIZED_EVALUATION_DATE)
+    finding = initial_report.candidate_vs_expectations.findings[0]
+    attacker_waiver = Waiver(
+        waiver_id="attacker-self-waiver",
+        owner="attacker-owner",
+        reviewer="attacker-reviewer",
+        rationale="self-asserted authorization must not cross the verifier boundary",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(runset),
+        expires_on=AUTHORIZED_EVALUATION_DATE + timedelta(days=1),
+    )
+    attacker_report = evaluate_runset(
+        compiled,
+        runset,
+        waivers=(attacker_waiver,),
+        today=AUTHORIZED_EVALUATION_DATE,
+    )
+    assert attacker_report.candidate_vs_expectations.state is GateState.warn
+
+    with pytest.raises(
+        EvaluationSourceVerificationError,
+        match="decision evidence does not match trusted-source replay",
+    ):
+        verify_evaluation_report_sources(
+            attacker_report,
+            compiled,
+            runset,
+            gate_profile=GateProfile(),
+            waivers=(),
+            evaluation_date=AUTHORIZED_EVALUATION_DATE,
+        )
+
+
+def test_current_evaluation_report_rejects_falsified_per_case_counts() -> None:
+    payload = _report(EVIDENCE_CANDIDATE).model_dump(mode="json")
+    assert payload["metrics"]["passed_cases"] == 9
+    assert payload["metrics"]["failed_cases"] == 1
+    payload["metrics"].update({"passed_cases": 10, "failed_cases": 0})
+
+    with pytest.raises(
+        ValidationError,
+        match="passed_cases must match exhaustive case outcomes",
+    ):
+        EvaluationReport.model_validate(payload)
+
+
+def test_current_evaluation_report_rejects_erased_unevaluated_case() -> None:
+    compiled, runset = _runset(BASELINE)
+    report = evaluate_runset(compiled, runset.model_copy(update={"runs": runset.runs[1:]}))
+    payload = report.model_dump(mode="json")
+    assert payload["metrics"]["unevaluated_cases"] == 1
+    payload["metrics"].update(
+        {
+            "evaluated_cases": 10,
+            "unevaluated_cases": 0,
+            "passed_cases": 10,
+        }
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="evaluated_cases must match exhaustive case outcomes",
+    ):
+        EvaluationReport.model_validate(payload)
+
+
+def test_current_evaluation_report_rejects_false_global_blocker_count() -> None:
+    compiled, runset = _runset(BASELINE)
+    incomplete = runset.model_copy(
+        update={"completion_status": "incomplete", "stop_reasons": ("operator-stop",)}
+    )
+    payload = evaluate_runset(compiled, incomplete).model_dump(mode="json")
+    assert payload["metrics"]["global_blocking_findings"] == 1
+    payload["metrics"]["global_blocking_findings"] = 0
+
+    with pytest.raises(
+        ValidationError,
+        match="global_blocking_findings must equal fail-state findings outside exhaustive",
+    ):
+        EvaluationReport.model_validate(payload)
+
+
+def test_current_evaluation_report_rejects_duplicate_or_incoherent_case_outcomes() -> None:
+    report = _report(EVIDENCE_CANDIDATE)
+    payload = report.model_dump(mode="json")
+    payload["case_outcomes"][0]["case_id"] = payload["case_outcomes"][1]["case_id"]
+    with pytest.raises(ValidationError, match="duplicate case_id"):
+        EvaluationReport.model_validate(payload)
+
+    payload = report.model_dump(mode="json")
+    failed_outcome = next(
+        outcome for outcome in payload["case_outcomes"] if outcome["state"] == "fail"
+    )
+    failed_outcome["state"] = "pass"
+    payload["metrics"]["passed_cases"] += 1
+    payload["metrics"]["failed_cases"] -= 1
+    with pytest.raises(ValidationError, match="state must match its scoped findings"):
+        EvaluationReport.model_validate(payload)
+
+    payload = report.model_dump(mode="json")
+    payload["case_outcomes"].append(
+        EvaluationCaseOutcome(case_id="*", state=GateState.pass_).model_dump(mode="json")
+    )
+    payload["metrics"]["total_cases"] += 1
+    payload["metrics"]["evaluated_cases"] += 1
+    payload["metrics"]["passed_cases"] += 1
+    with pytest.raises(ValidationError, match=r"reserve '\*' for global findings"):
+        EvaluationReport.model_validate(payload)
+
+
+@pytest.mark.parametrize(
+    "mutation",
+    ("delete", "pass-state", "relabel", "duplicate"),
+)
+def test_current_evaluation_report_rejects_capability_boundary_mutations(
+    mutation: str,
+) -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    if mutation == "delete":
+        payload["not_evaluated_capabilities"] = []
+        message = "must exactly project capability_coverage"
+    elif mutation == "pass-state":
+        payload["not_evaluated_capabilities"][0]["state"] = "pass"
+        message = "may contain only not_evaluated states"
+    elif mutation == "relabel":
+        payload["capability_coverage"][0]["capability_id"] = "invented-capability"
+        message = "must exactly contain every mandatory built-in capability"
+    else:
+        payload["capability_coverage"][1]["capability_id"] = payload["capability_coverage"][0][
+            "capability_id"
+        ]
+        message = "duplicate capability_id"
+
+    with pytest.raises(ValidationError, match=message):
+        EvaluationReport.model_validate(payload)
+
+
+@pytest.mark.parametrize("mutation", ("delete", "pass-state", "relabel", "duplicate"))
+def test_current_evaluation_report_json_schema_rejects_capability_boundary_mutations(
+    mutation: str,
+) -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    if mutation == "delete":
+        payload["not_evaluated_capabilities"] = []
+    elif mutation == "pass-state":
+        payload["not_evaluated_capabilities"][0]["state"] = "pass"
+    elif mutation == "relabel":
+        payload["capability_coverage"][0]["capability_id"] = "invented-capability"
+    else:
+        payload["capability_coverage"][1]["capability_id"] = payload["capability_coverage"][0][
+            "capability_id"
+        ]
+
+    errors = tuple(
+        Draft202012Validator(EvaluationReport.model_json_schema(mode="validation")).iter_errors(
+            payload
+        )
+    )
+    assert errors, f"JSON Schema accepted {mutation} capability evidence mutation"
+
+
+@pytest.mark.parametrize("variant", (BASELINE, EVIDENCE_CANDIDATE))
+def test_current_evaluation_report_json_schema_accepts_emitted_integrity_evidence(
+    variant: Path,
+) -> None:
+    payload = _report(variant).model_dump(mode="json")
+
+    errors = tuple(
+        Draft202012Validator(EvaluationReport.model_json_schema(mode="validation")).iter_errors(
+            payload
+        )
+    )
+
+    assert errors == ()
+
+
+def test_tool_allowlist_capability_coverage_is_explicit_when_not_configured() -> None:
+    _, _, report = _no_tool_policy_report()
+
+    coverage = {capability.capability_id: capability for capability in report.capability_coverage}
+    assert coverage["tool_allowlist"].state is GateState.not_evaluated
+    assert "tool_allowlist" in {
+        capability.capability_id for capability in report.not_evaluated_capabilities
+    }
+
+
+def test_current_evaluation_report_requires_suite_bound_replay_context() -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload["candidate_vs_expectations"].pop("replay_context")
+
+    with pytest.raises(ValidationError, match="require replay context binding the suite digest"):
+        EvaluationReport.model_validate(payload)
+
+
+def test_current_evaluation_report_requires_persisted_source_projection() -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload.pop("source_projection")
+
+    with pytest.raises(ValidationError, match="require a persisted source projection"):
+        EvaluationReport.model_validate(payload)
+    errors = tuple(
+        Draft202012Validator(EvaluationReport.model_json_schema(mode="validation")).iter_errors(
+            payload
+        )
+    )
+    assert errors
 
 
 def test_evaluator_rejects_unchecked_empty_current_artifacts() -> None:
@@ -117,6 +605,16 @@ def test_v06_evaluation_report_binds_exact_runset_content() -> None:
         "waiver_dispositions",
     }
     assert report_schema["properties"]["waiver_dispositions"]["maxItems"] == 4096
+    current_waiver_condition = next(
+        condition
+        for condition in report_schema["allOf"]
+        if condition.get("if", {}).get("properties", {}).get("schema_version", {}).get("const")
+        == "0.6.6"
+        and "waiver_dispositions" in condition.get("then", {}).get("properties", {})
+    )
+    assert (
+        current_waiver_condition["then"]["properties"]["waiver_dispositions"]["uniqueItems"] is True
+    )
 
 
 def test_evaluation_report_rejects_conflicting_nested_runset_digest() -> None:
@@ -132,6 +630,163 @@ def test_evaluation_report_rejects_conflicting_nested_runset_digest() -> None:
         EvaluationReport.model_validate(
             report.model_dump(mode="python") | {"candidate_vs_expectations": conflicting_summary}
         )
+
+
+def test_current_evaluation_report_rejects_impossible_case_arithmetic() -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload["metrics"].update(
+        {
+            "total_cases": 0,
+            "evaluated_cases": 0,
+            "unevaluated_cases": 0,
+            "passed_cases": 999,
+            "warning_cases": 0,
+            "failed_cases": 0,
+        }
+    )
+
+    with pytest.raises(
+        ValidationError,
+        match="current evaluation reports require at least one total case",
+    ):
+        EvaluationReport.model_validate(payload)
+    with pytest.raises(
+        ValueError,
+        match="evaluation-report artifact failed model validation",
+    ):
+        validate_artifact_payload(payload, "evaluation-report")
+
+
+@pytest.mark.parametrize(
+    ("metric_updates", "message"),
+    (
+        ({"total_cases": 11}, "total_cases must equal evaluated_cases plus unevaluated_cases"),
+        (
+            {"total_cases": 11, "evaluated_cases": 11},
+            "evaluated_cases must equal passed_cases plus warning_cases plus failed_cases",
+        ),
+        (
+            {"global_blocking_findings": 1},
+            "global_blocking_findings cannot exceed blocking_findings",
+        ),
+        (
+            {"passed_cases": 9, "warning_cases": 1},
+            "warning_cases cannot exceed warning_findings",
+        ),
+    ),
+)
+def test_current_evaluation_report_rejects_mismatched_metric_counts(
+    metric_updates: dict[str, int],
+    message: str,
+) -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload["metrics"].update(metric_updates)
+
+    with pytest.raises(ValidationError, match=message):
+        EvaluationReport.model_validate(payload)
+
+
+def test_current_evaluation_report_reconciles_finding_counts_and_indexes() -> None:
+    payload = _report(EVIDENCE_CANDIDATE).model_dump(mode="json")
+    payload["metrics"]["blocking_findings"] += 1
+    with pytest.raises(
+        ValidationError,
+        match="blocking_findings must equal fail-state summary findings",
+    ):
+        EvaluationReport.model_validate(payload)
+
+    payload = _report(EVIDENCE_CANDIDATE).model_dump(mode="json")
+    payload["metrics"]["findings_by_reason"] = {}
+    with pytest.raises(
+        ValidationError,
+        match="findings_by_reason must match evaluation summary findings",
+    ):
+        EvaluationReport.model_validate(payload)
+
+    payload = _report(EVIDENCE_CANDIDATE).model_dump(mode="json")
+    payload["metrics"]["findings_by_control"] = {}
+    with pytest.raises(
+        ValidationError,
+        match="findings_by_control must match evaluation summary findings",
+    ):
+        EvaluationReport.model_validate(payload)
+
+
+def test_current_evaluation_report_reconciles_control_projections() -> None:
+    failed_payload = _report(EVIDENCE_CANDIDATE).model_dump(mode="json")
+    assert failed_payload["failed_controls"]
+    failed_payload["failed_controls"] = []
+    with pytest.raises(
+        ValidationError,
+        match="failed_controls must exactly project fail-state evaluation summary findings",
+    ):
+        EvaluationReport.model_validate(failed_payload)
+
+    tampered_payload = _report(EVIDENCE_CANDIDATE).model_dump(mode="json")
+    tampered_payload["failed_controls"][0]["message"] = "tampered projection"
+    with pytest.raises(
+        ValidationError,
+        match="must match its evaluation summary finding",
+    ):
+        EvaluationReport.model_validate(tampered_payload)
+
+    warning_payload = _active_waived_report().model_dump(mode="json")
+    assert warning_payload["warning_controls"]
+    warning_payload["warning_controls"] = []
+    with pytest.raises(
+        ValidationError,
+        match="warning_controls must exactly project warn-state evaluation summary findings",
+    ):
+        EvaluationReport.model_validate(warning_payload)
+
+
+def test_current_evaluation_report_reconciles_embedded_summary_identity() -> None:
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload["candidate_vs_expectations"]["runset_id"] = "different-runset"
+    with pytest.raises(
+        ValidationError,
+        match="runset_id must match its evaluation summary",
+    ):
+        EvaluationReport.model_validate(payload)
+
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload["environment"] = {
+        "artifact_kind": "environment-info",
+        "schema_version": "0.6.6",
+        "platform": "linux",
+        "python_version": "3.11",
+        "installed_packages": [],
+    }
+    with pytest.raises(
+        ValidationError,
+        match="environment must match its evaluation summary",
+    ):
+        EvaluationReport.model_validate(payload)
+
+    payload = _report(BASELINE).model_dump(mode="json")
+    payload["gate_profile"] = "different-profile"
+    with pytest.raises(
+        ValidationError,
+        match="gate_profile must match its evaluation summary replay context",
+    ):
+        EvaluationReport.model_validate(payload)
+
+
+def test_evaluation_gate_revalidates_tampered_network_authority_receipt() -> None:
+    summary = _report(BASELINE).candidate_vs_expectations
+    receipt = LiveNetworkAuthorityReceipt(
+        endpoint_host="api.openai.com",
+        api_key_env="OPENAI_TEST_KEY",
+    )
+    forged_receipt = receipt.model_copy(update={"api_key_env": "GITHUB_TOKEN"})
+    forged_summary = summary.model_copy(update={"network_authority_receipt": forged_receipt})
+
+    decision = gate_evaluation_summary(forged_summary)
+
+    assert decision.exit_code == 2
+    assert decision.outcome.value == "invalid"
+    assert "failed trusted model revalidation" in decision.message
+    assert "high-privilege ambient CI or cloud credential" in decision.message
 
 
 def test_load_runset_requires_explicit_current_wire_identity(tmp_path: Path) -> None:
@@ -322,7 +977,6 @@ def test_persisted_policy_result_failure_is_verdict_bearing() -> None:
     first_run = runset.runs[0]
     bad_run = first_run.model_copy(
         update={
-            "execution_mode": ExecutionMode.live,
             "policy_results": (
                 PolicyResult(
                     artifact_kind="policy-result",
@@ -389,22 +1043,28 @@ def test_reducing_policy_origin_trust_never_erases_nonpass_signal(
         }
     )
     untrusted = AgentRunRecord.model_validate(untrusted_payload)
-    untrusted_report = evaluate_runset(
-        compiled,
-        runset.model_copy(update={"runs": (untrusted, *runset.runs[1:])}),
+    case_expectation = next(
+        item
+        for item in ExpectationResolver(compiled).cases()
+        if item.case.case_id == untrusted.case_id
+    )
+    untrusted_results = evaluate_case(
+        case_expectation,
+        untrusted,
+        allowed_tools=compiled.defaults.allowed_tools,
+        required_policy_ids=compiled.defaults.required_policy_ids,
     )
 
     assert trusted_report.candidate_vs_expectations.state is not GateState.pass_
-    assert untrusted_report.candidate_vs_expectations.state is not GateState.pass_
     finding = next(
         finding
-        for finding in untrusted_report.candidate_vs_expectations.findings
+        for finding in untrusted_results
         if finding.control_id == "policy_result:self_reported.negative"
     )
     assert finding.state is signal_state
     assert any(
         finding.control_id == "required_policy_evaluated" and finding.case_id == untrusted.case_id
-        for finding in untrusted_report.candidate_vs_expectations.findings
+        for finding in untrusted_results
     )
 
 
@@ -469,6 +1129,58 @@ def test_fixture_policy_result_warning_is_reported() -> None:
         if finding.control_id == "policy_result:fixture.declared_warning"
     )
     assert finding.state is GateState.warn
+
+
+def test_native_warning_waiver_is_unmatched_and_cannot_authorize_strict_gate() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    warned_run = first_run.model_copy(
+        update={
+            "policy_results": (
+                *first_run.policy_results,
+                PolicyResult(
+                    artifact_kind="policy-result",
+                    policy_id="fixture.native-warning-waiver",
+                    state=GateState.warn,
+                    reason_codes=(ReasonCode.POLICY_FAILED,),
+                    severity=Severity.warning,
+                    message="native warning must remain advisory rather than waived",
+                ),
+            )
+        }
+    )
+    warned = runset.model_copy(update={"runs": (warned_run, *runset.runs[1:])})
+    initial_report = evaluate_runset(compiled, warned)
+    finding = next(
+        finding
+        for finding in initial_report.candidate_vs_expectations.findings
+        if finding.control_id == "policy_result:fixture.native-warning-waiver"
+    )
+    today = ci_module._current_gate_verification_date()
+    waiver = Waiver(
+        waiver_id="native-warning-does-not-apply",
+        owner="native-warning-owner",
+        rationale="prove an already advisory result cannot gain waiver authority",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(warned),
+        expires_on=today + timedelta(days=1),
+        reviewer="native-warning-reviewer",
+    )
+
+    report = evaluate_runset(compiled, warned, waivers=(waiver,), today=today)
+    context = report.candidate_vs_expectations.replay_context
+    assert context is not None
+    assert context.waivers == ()
+    assert report.waiver_dispositions[0].status is WaiverDispositionStatus.unmatched_finding
+
+    decision = gate_evaluation_summary(
+        report.candidate_vs_expectations,
+        fail_on_warn=True,
+    )
+    assert decision.exit_code == 1
+    assert decision.outcome.value == "fail"
+    assert decision.waiver_authorization.value == "not_applicable"
 
 
 @pytest.mark.parametrize(
@@ -822,6 +1534,50 @@ def test_required_policy_not_evaluated_fails_under_the_default_ci_gate() -> None
     assert gate_evaluation_summary(report.candidate_vs_expectations).exit_code == 1
 
 
+def test_case_scoped_not_evaluated_partitions_as_advisory_warning_or_strict_failure() -> None:
+    compiled, runset = _runset(BASELINE)
+    first_run = runset.runs[0]
+    mutated = runset.model_copy(
+        update={
+            "runs": (
+                first_run.model_copy(update={"tools": ()}),
+                *runset.runs[1:],
+            )
+        }
+    )
+
+    advisory = evaluate_runset(compiled, mutated)
+    strict = evaluate_runset(
+        compiled,
+        mutated,
+        gate_profile=GateProfile(fail_on_not_evaluated=True),
+    )
+
+    assert advisory.metrics.warning_cases == 1
+    assert advisory.metrics.failed_cases == 0
+    assert advisory.metrics.passed_cases == advisory.metrics.evaluated_cases - 1
+    assert advisory.metrics.warning_findings == 1
+    assert strict.metrics.warning_cases == 0
+    assert strict.metrics.failed_cases == 1
+    assert strict.metrics.passed_cases == strict.metrics.evaluated_cases - 1
+    assert advisory.failed_controls == ()
+    assert advisory.warning_controls == ()
+    strict_case_finding = next(
+        finding
+        for finding in strict.failed_controls
+        if finding.control_id == "tool_allowlist" and finding.case_id == first_run.case_id
+    )
+    assert strict_case_finding.state is GateState.not_evaluated
+    assert strict.warning_controls == ()
+    for report in (advisory, strict):
+        assert report.metrics.total_cases == (
+            report.metrics.passed_cases
+            + report.metrics.warning_cases
+            + report.metrics.failed_cases
+            + report.metrics.unevaluated_cases
+        )
+
+
 def test_missing_record_counts_as_unevaluated_case_and_blocking_finding() -> None:
     compiled, runset = _runset(BASELINE)
     mutated = runset.model_copy(update={"runs": runset.runs[1:]})
@@ -930,7 +1686,7 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
     compiled, runset = _runset(EVIDENCE_CANDIDATE)
     initial_report = evaluate_runset(compiled, runset)
     finding = initial_report.candidate_vs_expectations.findings[0]
-    today = date(2026, 7, 3)
+    today = ci_module._current_gate_verification_date()
     waiver = Waiver(
         waiver_id="waiver-active",
         owner="private-owner-waiver-active-729",
@@ -946,6 +1702,8 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
 
     assert report.candidate_vs_expectations.state is GateState.warn
     assert report.metrics.blocking_findings == 0
+    assert report.metrics.warning_cases == 1
+    assert report.metrics.passed_cases == report.metrics.evaluated_cases - 1
     assert report.candidate_vs_expectations.findings[0].state is GateState.warn
     assert len(report.waiver_dispositions) == 1
     disposition = report.waiver_dispositions[0]
@@ -954,17 +1712,189 @@ def test_active_waiver_downgrades_matching_failure_to_warning() -> None:
     assert disposition.finding_id == finding.finding_id
     assert disposition.reason_code is waiver.reason_code
     assert disposition.expires_on == waiver.expires_on
+    assert disposition.owner == waiver.owner
+    assert disposition.reviewer == waiver.reviewer
+    assert disposition.rationale == waiver.rationale
     assert set(disposition.model_dump()) == {
         "waiver_id",
+        "owner",
+        "reviewer",
+        "rationale",
         "status",
         "reason_code",
         "finding_id",
         "expires_on",
     }
+    assert (
+        verify_evaluation_report_sources(
+            report,
+            compiled,
+            runset,
+            gate_profile=GateProfile(),
+            waivers=(waiver,),
+            evaluation_date=today,
+        )
+        == report.source_projection
+    )
     rendered = render_evaluation_markdown(report)
     assert waiver.owner not in rendered
     assert waiver.reviewer not in rendered
     assert waiver.rationale not in rendered
+
+    strict_report = evaluate_runset(
+        compiled,
+        runset,
+        gate_profile=GateProfile(fail_on_warn=True),
+        waivers=(waiver,),
+        today=today,
+    )
+    assert strict_report.candidate_vs_expectations.replay_context is not None
+    assert tuple(
+        item.waiver_id for item in strict_report.candidate_vs_expectations.replay_context.waivers
+    ) == (waiver.waiver_id,)
+    assert strict_report.candidate_vs_expectations.state is GateState.warn
+    assert strict_report.metrics.blocking_findings == 0
+    assert (
+        gate_evaluation_summary(
+            strict_report.candidate_vs_expectations,
+            fail_on_warn=True,
+        ).exit_code
+        == 0
+    )
+    authorized = gate_evaluation_summary(
+        strict_report.candidate_vs_expectations,
+        fail_on_warn=True,
+    )
+    assert authorized.artifact_kind == "evaluation-summary"
+    assert authorized.waiver_authorization.value == "authorized_exact"
+
+    historical_date = today - timedelta(days=2)
+    historical_waiver = waiver.model_copy(
+        update={"expires_on": historical_date + timedelta(days=1)}
+    )
+    historical_report = evaluate_runset(
+        compiled,
+        runset,
+        gate_profile=GateProfile(fail_on_warn=True),
+        waivers=(historical_waiver,),
+        today=historical_date,
+    )
+    expired = gate_evaluation_summary(
+        historical_report.candidate_vs_expectations,
+        fail_on_warn=True,
+    )
+
+    future_date = today + timedelta(days=1)
+    future_waiver = waiver.model_copy(update={"expires_on": future_date + timedelta(days=1)})
+    future_report = evaluate_runset(
+        compiled,
+        runset,
+        gate_profile=GateProfile(fail_on_warn=True),
+        waivers=(future_waiver,),
+        today=future_date,
+    )
+    future_dated = gate_evaluation_summary(
+        future_report.candidate_vs_expectations,
+        fail_on_warn=True,
+    )
+
+    assert expired.exit_code == 1
+    assert expired.waiver_authorization.value == "not_applicable"
+    assert future_dated.exit_code == 1
+    assert future_dated.waiver_authorization.value == "not_applicable"
+    waived_finding = strict_report.candidate_vs_expectations.findings[0]
+    rebound_finding = waived_finding.model_copy(update={"target": "rebound-waiver-target"})
+    rebound_summary = strict_report.candidate_vs_expectations.model_copy(
+        update={"findings": (rebound_finding,)}
+    )
+    rebound_decision = gate_evaluation_summary(rebound_summary, fail_on_warn=True)
+    assert rebound_decision.outcome.value == "invalid"
+    assert rebound_decision.exit_code == 2
+    assert "noncanonical finding_id" in rebound_decision.message
+
+    duplicate_summary = strict_report.candidate_vs_expectations.model_copy(
+        update={"findings": (waived_finding, waived_finding)}
+    )
+    duplicate_decision = gate_evaluation_summary(duplicate_summary, fail_on_warn=True)
+    assert duplicate_decision.outcome.value == "invalid"
+    assert duplicate_decision.exit_code == 2
+    assert "duplicate finding_id" in duplicate_decision.message
+
+    unrelated_not_evaluated = waived_finding.model_copy(
+        update={
+            "finding_id": control_finding_id(
+                waived_finding.case_id,
+                waived_finding.control_id,
+                ReasonCode.NOT_EVALUATED,
+                waived_finding.target,
+            ),
+            "state": GateState.not_evaluated,
+            "reason_code": ReasonCode.NOT_EVALUATED,
+        }
+    )
+    mixed_summary = strict_report.candidate_vs_expectations.model_copy(
+        update={
+            "findings": (
+                *strict_report.candidate_vs_expectations.findings,
+                unrelated_not_evaluated,
+            )
+        }
+    )
+    assert (
+        gate_evaluation_summary(
+            mixed_summary,
+            fail_on_warn=True,
+            fail_on_not_evaluated=True,
+        ).exit_code
+        == 1
+    )
+
+
+def test_current_evaluation_report_rejects_ambiguous_waiver_audit_evidence() -> None:
+    report = _active_waived_report()
+
+    duplicate = report.model_dump(mode="json")
+    duplicate["waiver_dispositions"].append(
+        duplicate["waiver_dispositions"][0] | {"status": "expired"}
+    )
+    with pytest.raises(ValidationError, match="duplicate waiver disposition ID"):
+        EvaluationReport.model_validate(duplicate)
+
+    conflicting = report.model_dump(mode="json")
+    conflicting["waiver_dispositions"][0]["rationale"] = "different reviewed rationale"
+    with pytest.raises(ValidationError, match="does not match its report disposition"):
+        EvaluationReport.model_validate(conflicting)
+
+    orphaned = report.model_dump(mode="json")
+    orphaned["candidate_vs_expectations"]["replay_context"]["waivers"] = []
+    with pytest.raises(
+        ValidationError,
+        match="must exactly match replay-context waiver IDs",
+    ):
+        EvaluationReport.model_validate(orphaned)
+
+    rebound = report.model_dump(mode="json")
+    rebound["candidate_vs_expectations"]["replay_context"]["waivers"][0]["artifact_digest"] = (
+        "0" * 64
+    )
+    with pytest.raises(ValidationError, match="must match report runset_digest"):
+        EvaluationReport.model_validate(rebound)
+
+
+def test_strict_summary_gate_blocks_any_unwaived_warning() -> None:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    report = evaluate_runset(
+        compiled,
+        runset,
+        gate_profile=GateProfile(fail_severities=(Severity.blocker,)),
+    )
+
+    decision = gate_evaluation_summary(
+        report.candidate_vs_expectations,
+        fail_on_warn=True,
+    )
+
+    assert decision.exit_code == 1
 
 
 def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None:
@@ -1019,13 +1949,22 @@ def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None
         mode="json", exclude={"replay_context"}
     )
     assert report.candidate_vs_expectations.replay_context is not None
-    assert tuple(
-        waiver.waiver_id for waiver in report.candidate_vs_expectations.replay_context.waivers
-    ) == tuple(waiver.waiver_id for waiver in waivers)
+    assert report.candidate_vs_expectations.replay_context.waivers == ()
     assert report.metrics == initial_report.metrics
     assert report.failed_controls == initial_report.failed_controls
     assert report.warning_controls == initial_report.warning_controls
     assert report.waiver_dispositions == reordered_report.waiver_dispositions
+    assert (
+        verify_evaluation_report_sources(
+            report,
+            compiled,
+            runset,
+            gate_profile=GateProfile(),
+            waivers=waivers,
+            evaluation_date=today,
+        )
+        == report.source_projection
+    )
     assert {
         disposition.waiver_id: disposition.status for disposition in report.waiver_dispositions
     } == {
@@ -1037,7 +1976,17 @@ def test_unmatched_waivers_are_auditable_without_changing_gate_results() -> None
     assert isinstance(payload, list)
     assert len(payload) == len(waivers)
     assert all(
-        set(disposition) == {"waiver_id", "status", "reason_code", "finding_id", "expires_on"}
+        set(disposition)
+        == {
+            "waiver_id",
+            "owner",
+            "reviewer",
+            "rationale",
+            "status",
+            "reason_code",
+            "finding_id",
+            "expires_on",
+        }
         for disposition in payload
     )
 
@@ -1064,6 +2013,10 @@ def test_expired_waiver_fails_closed() -> None:
     assert report.metrics.global_blocking_findings == 1
     assert len(report.waiver_dispositions) == 1
     assert report.waiver_dispositions[0].status is WaiverDispositionStatus.expired
+    assert report.candidate_vs_expectations.replay_context is not None
+    assert tuple(
+        item.waiver_id for item in report.candidate_vs_expectations.replay_context.waivers
+    ) == (waiver.waiver_id,)
 
 
 def test_fail_on_not_evaluated_marks_capabilities_blocking() -> None:
@@ -1197,7 +2150,14 @@ def test_nonblocking_failure_rolls_up_as_warning_not_clean_pass() -> None:
     assert report.metrics.warning_findings == 1
     assert report.metrics.evaluated_cases == 10
     assert report.metrics.passed_cases == 9
-    assert report.metrics.failed_cases == 1
+    assert report.metrics.warning_cases == 1
+    assert report.metrics.failed_cases == 0
+    assert report.metrics.total_cases == (
+        report.metrics.passed_cases
+        + report.metrics.warning_cases
+        + report.metrics.failed_cases
+        + report.metrics.unevaluated_cases
+    )
 
 
 def test_gate_profile_rejects_empty_fail_filters() -> None:
@@ -1345,6 +2305,45 @@ def test_claim_evidence_links_accept_complete_content_addressed_evidence_pair() 
     )
 
     assert evaluate_material_claim_evidence(run, expectation) == ()
+
+
+def _active_waived_report() -> EvaluationReport:
+    compiled, runset = _runset(EVIDENCE_CANDIDATE)
+    initial_report = evaluate_runset(compiled, runset)
+    finding = initial_report.candidate_vs_expectations.findings[0]
+    evaluation_date = date(2026, 7, 3)
+    waiver = Waiver(
+        waiver_id="waiver-report-integrity",
+        owner="quality-owner",
+        reviewer="independent-reviewer",
+        rationale="bounded accepted risk for report-integrity testing",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(runset),
+        expires_on=evaluation_date + timedelta(days=1),
+    )
+    return evaluate_runset(compiled, runset, waivers=(waiver,), today=evaluation_date)
+
+
+def _no_tool_policy_report() -> tuple[CompiledSuite, RunSet, EvaluationReport]:
+    compiled, runset = _runset(BASELINE)
+    no_tool_policy = compiled.model_copy(
+        update={
+            "defaults": compiled.defaults.model_copy(update={"allowed_tools": ()}),
+            "resolved_expectations": tuple(
+                expectation.model_copy(
+                    update={
+                        "allowed_tools": (),
+                        "allowed_tools_override": False,
+                        "forbidden_tools": (),
+                    }
+                )
+                for expectation in compiled.resolved_expectations
+            ),
+        }
+    )
+    bound_runset = runset.model_copy(update={"suite_digest": compiled_suite_digest(no_tool_policy)})
+    return no_tool_policy, bound_runset, evaluate_runset(no_tool_policy, bound_runset)
 
 
 def _report(variant: Path) -> EvaluationReport:

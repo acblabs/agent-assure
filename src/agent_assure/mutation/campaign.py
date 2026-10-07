@@ -37,6 +37,7 @@ from agent_assure.schema.mutation import (
     finding_target_digest,
 )
 from agent_assure.schema.suite import CompiledSuite
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 _CATALOG_LIMITATIONS = (
     "The finite mutation catalog does not represent every possible agent failure.",
@@ -252,6 +253,9 @@ def _is_strict_json_value(value: object) -> bool:
 
 def mutation_campaign_exit_code(campaign: AssuranceMutationCampaign) -> int:
     """Return the stable campaign exit code using worst-state precedence."""
+    payload = campaign.model_dump(mode="json", warnings="error")
+    campaign = AssuranceMutationCampaign.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "assurance-mutation-campaign")
     states = tuple(item.result.state for item in campaign.operator_results)
     if MutationResultState.execution_error in states:
         return 4

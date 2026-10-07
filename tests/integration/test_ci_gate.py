@@ -4,13 +4,14 @@ import json
 import subprocess
 from datetime import date, timedelta
 from pathlib import Path
+from unittest.mock import Mock
 
 import pytest
 from click import unstyle
 from typer.testing import CliRunner
 
 import agent_assure.ci as ci_module
-from agent_assure.artifact_io import file_sha256
+from agent_assure.artifact_io import file_sha256, unlink_file_if_exists
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.ci import run_ci
 from agent_assure.cli.main import app
@@ -18,11 +19,13 @@ from agent_assure.evaluation.evaluator import evaluate_runset, runset_digest
 from agent_assure.fixtures.loader import write_compiled_suite
 from agent_assure.policies.base import GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
+from agent_assure.reporting.graph import write_evidence_graph
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite, write_runset
 from agent_assure.schema.common import ComparisonClassification, GateState, Severity
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.graph import AssuranceEvidenceGraph
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 
@@ -84,7 +87,7 @@ def test_ci_gate_passes_and_fails_evaluation_summaries(tmp_path: Path) -> None:
     )
 
     assert RUNNER.invoke(app, ["ci", "gate", str(passing)]).exit_code == 0
-    assert RUNNER.invoke(app, ["ci", "gate", str(warning)]).exit_code == 0
+    assert RUNNER.invoke(app, ["ci", "gate", str(warning)]).exit_code == 1
     assert RUNNER.invoke(app, ["ci", "gate", str(warning), "--fail-on-warn"]).exit_code == 1
     assert RUNNER.invoke(app, ["ci", "gate", str(failing)]).exit_code == 1
 
@@ -107,7 +110,23 @@ def test_direct_evaluation_gate_revalidates_model_copy_tampering() -> None:
     assert "failed trusted model revalidation" in decision.message
 
 
-def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
+def test_programmatic_evaluation_gate_retains_advisory_warning_default() -> None:
+    summary = EvaluationSummary(
+        artifact_kind="evaluation-summary",
+        runset_id="library-caller",
+        runset_digest="d" * 64,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.warn,
+    )
+
+    decision = ci_module.gate_evaluation_summary(summary)
+
+    assert decision.exit_code == 0
+    assert decision.outcome.value == "review"
+
+
+def test_ci_gate_warning_stdout_is_blocking_by_default(
     tmp_path: Path,
 ) -> None:
     summary_path = tmp_path / "warn.json"
@@ -125,21 +144,22 @@ def test_ci_gate_nonblocking_state_stdout_uses_explicit_outcome_labels(
 
     result = RUNNER.invoke(app, ["ci", "gate", str(summary_path)])
 
-    assert result.exit_code == 0, result.output
-    assert result.output.strip() == "ci gate review: evaluation-summary candidate state=warn"
+    assert result.exit_code == 1, result.output
+    assert result.output.strip() == "ci gate fail: evaluation-summary candidate state=warn"
 
 
 @pytest.mark.parametrize(
-    ("state", "expected_outcome"),
+    ("state", "expected_outcome", "expected_exit_code"),
     (
-        (GateState.pass_, "pass"),
-        (GateState.warn, "review"),
+        (GateState.pass_, "pass", 0),
+        (GateState.warn, "fail", 1),
     ),
 )
-def test_ci_gate_json_output_exposes_every_nonblocking_outcome(
+def test_ci_gate_json_output_exposes_strict_default_outcome(
     tmp_path: Path,
     state: GateState,
     expected_outcome: str,
+    expected_exit_code: int,
 ) -> None:
     summary_path = tmp_path / f"{state.value}.json"
     _write_json(
@@ -159,16 +179,18 @@ def test_ci_gate_json_output_exposes_every_nonblocking_outcome(
         ["ci", "gate", str(summary_path), "--format", "json"],
     )
 
-    assert result.exit_code == 0, result.output
+    assert result.exit_code == expected_exit_code, result.output
     decision = json.loads(result.output)
+    assert decision["envelope_version"] == "1.0.0"
     assert decision["outcome"] == expected_outcome
-    assert decision["exit_code"] == 0
+    assert decision["exit_code"] == expected_exit_code
     assert decision["artifact_kind"] == "evaluation-summary"
     assert decision["artifact_path"] == str(summary_path)
-    assert decision["reason_code"] is None
+    assert decision["reason_code"] == (None if state is GateState.pass_ else "POLICY_FAILED")
     assert decision["efficacy_evidence"] == "not_applicable"
     assert decision["efficacy_verification"] == "not_requested"
     assert decision["efficacy_required"] is False
+    assert decision["waiver_authorization"] == "not_applicable"
 
 
 def test_ci_gate_not_evaluated_fails_closed_with_explicit_advisory_escape(
@@ -258,11 +280,32 @@ def test_ci_gate_json_output_reports_invalid_artifact_load_structurally(
 
     assert result.exit_code == 2, result.output
     decision = json.loads(result.output)
+    assert decision["envelope_version"] == "1.0.0"
     assert decision["outcome"] == "invalid"
     assert decision["exit_code"] == 2
     assert decision["artifact_path"] == str(malformed)
     assert decision["efficacy_verification"] == "strict"
     assert decision["reason_code"] is None
+
+
+def test_ci_gate_json_output_redacts_sensitive_artifact_paths(tmp_path: Path) -> None:
+    secret = "sk-proj-" + ("a" * 32)
+    secret_directory = tmp_path / secret
+    secret_directory.mkdir()
+    malformed = secret_directory / "malformed.json"
+    malformed.write_text('{"artifact_kind":', encoding="utf-8", newline="\n")
+
+    result = RUNNER.invoke(
+        app,
+        ["ci", "gate", str(malformed), "--format", "json"],
+    )
+
+    assert result.exit_code == 2, result.output
+    assert secret not in result.output
+    decision = json.loads(result.output)
+    assert decision["envelope_version"] == "1.0.0"
+    assert "[REDACTED]" in decision["artifact_path"]
+    assert secret not in decision["message"]
 
 
 def test_ci_gate_exits_two_for_invalid_comparison(tmp_path: Path) -> None:
@@ -316,7 +359,7 @@ def test_ci_gate_blocks_new_failure_even_when_candidate_state_is_warn(
     assert "disposition=blocking-new-failure" in decision["message"]
 
 
-def test_ci_gate_legacy_unbound_comparison_requires_explicit_compatibility(
+def test_ci_gate_rejects_archival_comparison_even_with_legacy_compatibility_option(
     tmp_path: Path,
 ) -> None:
     packet = _legacy_unbound_comparison_packet()
@@ -356,16 +399,8 @@ def test_ci_gate_legacy_unbound_comparison_requires_explicit_compatibility(
         ],
     )
 
-    assert rejected.exit_code == 2, rejected.output
-    assert "without authenticated baseline and candidate RunSet digests" in rejected.output
-    assert allowed.exit_code == 0, allowed.output
-    assert "legacy_unbound_comparison=allowed" in allowed.output
-    assert standalone_rejected.exit_code == 2, standalone_rejected.output
-    assert (
-        "without authenticated baseline and candidate RunSet digests" in standalone_rejected.output
-    )
-    assert standalone_allowed.exit_code == 0, standalone_allowed.output
-    assert "legacy_unbound_comparison=allowed" in standalone_allowed.output
+    for result in (rejected, allowed, standalone_rejected, standalone_allowed):
+        assert result.exit_code == 2, result.output
 
 
 def test_legacy_unbound_comparison_option_is_rejected_outside_ci_gate() -> None:
@@ -702,31 +737,23 @@ def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
 ) -> None:
     compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
     out_dir = tmp_path / "swap-after-summary-snapshot"
-    original_release_artifact = ci_module.release_artifact
+    original_write_graph = write_evidence_graph
     swapped = False
 
-    def swap_summary_after_snapshot(
-        role: str,
-        path: Path,
-        *,
-        project_root: Path,
-    ) -> object:
+    def swap_summary_after_snapshot(graph: AssuranceEvidenceGraph, path: Path) -> None:
         nonlocal swapped
-        artifact = original_release_artifact(role, path, project_root=project_root)
-        evaluation_path = out_dir / "evaluation-summary.json"
-        if role == "compiled-suite" and not swapped and evaluation_path.exists():
-            swapped = True
-            replacement = EvaluationSummary(
-                runset_id="post-snapshot-replacement",
-                runset_digest="f" * 64,
-                privacy_profile_id=PRIVACY_PROFILE_ID,
-                privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
-                state=GateState.pass_,
-            )
-            _write_json(evaluation_path, replacement.model_dump(mode="json"))
-        return artifact
+        original_write_graph(graph, path)
+        swapped = True
+        replacement = EvaluationSummary(
+            runset_id="post-snapshot-replacement",
+            runset_digest="f" * 64,
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            state=GateState.pass_,
+        )
+        _write_json(path.parent / "evaluation-summary.json", replacement.model_dump(mode="json"))
 
-    monkeypatch.setattr(ci_module, "release_artifact", swap_summary_after_snapshot)
+    monkeypatch.setattr(ci_module, "write_evidence_graph", swap_summary_after_snapshot)
 
     result = run_ci(
         baseline_path,
@@ -740,7 +767,7 @@ def test_run_ci_trusted_gate_rejects_summary_swap_after_creation_snapshot(
     assert result.decision.outcome.value == "invalid"
     assert "source file digest does not match release manifest" in result.decision.message
     assert result.decision.artifact_path == ""
-    assert not (out_dir / "evidence-packet.json").exists()
+    assert not out_dir.exists()
 
 
 def test_ci_packet_publication_rolls_back_graph_and_packet_on_late_failure(
@@ -776,6 +803,89 @@ def test_ci_packet_publication_rolls_back_graph_and_packet_on_late_failure(
         assert not (out_dir / filename).exists()
 
 
+@pytest.mark.parametrize("invalid_input", ("suite", "candidate"))
+@pytest.mark.parametrize("seed_prior_outputs", (False, True))
+def test_run_ci_invalid_inputs_never_mutate_the_public_output_generation(
+    tmp_path: Path,
+    invalid_input: str,
+    seed_prior_outputs: bool,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    invalid_path = tmp_path / f"invalid-{invalid_input}.json"
+    _write_json(invalid_path, {})
+    out_dir = tmp_path / f"invalid-{invalid_input}-output-{seed_prior_outputs}"
+    prior = _seed_complete_ci_generation(out_dir) if seed_prior_outputs else None
+
+    with pytest.raises(ValueError):
+        run_ci(
+            invalid_path if invalid_input == "candidate" else baseline_path,
+            suite_path=invalid_path if invalid_input == "suite" else compiled_path,
+            out_dir=out_dir,
+            allow_missing_efficacy_for_migration=True,
+        )
+
+    if prior is None:
+        assert not out_dir.exists()
+    else:
+        assert _capture_directory_files(out_dir) == prior
+
+
+@pytest.mark.parametrize("seed_prior_outputs", (False, True))
+def test_run_ci_late_render_failure_preserves_the_complete_public_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    seed_prior_outputs: bool,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / f"late-render-output-{seed_prior_outputs}"
+    prior = _seed_complete_ci_generation(out_dir) if seed_prior_outputs else None
+
+    def fail_markdown_write(*_args: object, **_kwargs: object) -> None:
+        raise OSError("injected late CI packet render failure")
+
+    monkeypatch.setattr(ci_module, "write_evidence_packet_markdown", fail_markdown_write)
+
+    with pytest.raises(OSError, match="injected late CI packet render failure"):
+        run_ci(
+            baseline_path,
+            suite_path=compiled_path,
+            out_dir=out_dir,
+            allow_missing_efficacy_for_migration=True,
+        )
+
+    if prior is None:
+        assert not out_dir.exists()
+    else:
+        assert _capture_directory_files(out_dir) == prior
+
+
+def test_run_ci_publication_failure_restores_replaced_and_deleted_owned_outputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "publication-rollback"
+    prior = _seed_complete_ci_generation(out_dir)
+    original_unlink = unlink_file_if_exists
+
+    def fail_after_first_stale_delete(path: Path) -> None:
+        if path.name == "comparison-summary.json":
+            raise OSError("injected stale-output deletion failure")
+        original_unlink(path)
+
+    monkeypatch.setattr(ci_module, "unlink_file_if_exists", fail_after_first_stale_delete)
+
+    with pytest.raises(OSError, match="injected stale-output deletion failure"):
+        run_ci(
+            baseline_path,
+            suite_path=compiled_path,
+            out_dir=out_dir,
+            allow_missing_efficacy_for_migration=True,
+        )
+
+    assert _capture_directory_files(out_dir) == prior
+
+
 def test_full_ci_fails_closed_when_generated_packet_lacks_efficacy(tmp_path: Path) -> None:
     compiled_path, baseline_path, _candidate_path = _write_inputs(tmp_path)
     out_dir = tmp_path / "default-missing-efficacy"
@@ -803,6 +913,45 @@ def test_full_ci_fails_closed_when_generated_packet_lacks_efficacy(tmp_path: Pat
     assert "default evidence-packet gate" in decision["message"]
 
 
+def test_full_ci_preserves_control_failure_when_generated_packet_lacks_efficacy(
+    tmp_path: Path,
+) -> None:
+    compiled_path, _baseline_path, candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "failed-control-and-missing-efficacy"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 2, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "invalid"
+    assert decision["reason_code"] == "MATERIAL_CLAIM_MISSING_EVIDENCE"
+    assert decision["efficacy_evidence"] == "absent"
+    assert "default evidence-packet gate" in decision["message"]
+    assert "underlying packet component decision preserved" in decision["message"]
+    assert "outcome=fail" in decision["message"]
+    assert decision["control_decision"]["outcome"] == "fail"
+    assert decision["control_decision"]["reason_code"] == "MATERIAL_CLAIM_MISSING_EVIDENCE"
+    assert decision["efficacy_decision"]["outcome"] == "invalid"
+    assert decision["efficacy_decision"]["reason_code"] is None
+    diagnostics = json.loads((out_dir / "ci-diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics["reason_code"] == "MATERIAL_CLAIM_MISSING_EVIDENCE"
+    assert diagnostics["efficacy_evidence"] == "absent"
+    assert diagnostics["control_decision"] == decision["control_decision"]
+    assert diagnostics["efficacy_decision"] == decision["efficacy_decision"]
+
+
 def test_full_ci_blocks_configured_not_evaluated_control_by_default(
     tmp_path: Path,
 ) -> None:
@@ -818,6 +967,29 @@ def test_full_ci_blocks_configured_not_evaluated_control_by_default(
     candidate_path = tmp_path / "tool-policy-no-observations.json"
     write_compiled_suite(compiled, compiled_path)
     write_runset(no_tool_observations, candidate_path)
+    today = ci_module._current_gate_verification_date()
+    not_evaluated_findings = tuple(
+        finding
+        for finding in evaluate_runset(
+            compiled, no_tool_observations
+        ).candidate_vs_expectations.findings
+        if finding.state is GateState.not_evaluated
+    )
+    waivers = tuple(
+        Waiver(
+            waiver_id=f"not-evaluated-waiver-{index}",
+            owner=f"not-evaluated-owner-{index}",
+            rationale="prove a waiver cannot convert missing evaluation into authorization",
+            reason_code=finding.reason_code,
+            finding_id=finding.finding_id,
+            artifact_digest=runset_digest(no_tool_observations),
+            expires_on=today + timedelta(days=1),
+            reviewer=f"not-evaluated-reviewer-{index}",
+        )
+        for index, finding in enumerate(not_evaluated_findings)
+    )
+    waiver_path = tmp_path / "not-evaluated-waivers.json"
+    _write_json(waiver_path, [waiver.model_dump(mode="json") for waiver in waivers])
 
     blocked = RUNNER.invoke(
         app,
@@ -848,6 +1020,24 @@ def test_full_ci_blocks_configured_not_evaluated_control_by_default(
             "json",
         ],
     )
+    attempted_waiver = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(tmp_path / "waived-tool-policy"),
+            "--waiver",
+            str(waiver_path),
+            "--today",
+            today.isoformat(),
+            "--allow-missing-efficacy-for-migration",
+            "--format",
+            "json",
+        ],
+    )
 
     assert blocked.exit_code == 1, blocked.output
     blocked_decision = json.loads(blocked.output)
@@ -867,6 +1057,22 @@ def test_full_ci_blocks_configured_not_evaluated_control_by_default(
     advisory_decision = json.loads(advisory.output)
     assert advisory_decision["outcome"] == "not_evaluated"
     assert advisory_decision["exit_code"] == 0
+
+    assert attempted_waiver.exit_code == 1, attempted_waiver.output
+    waiver_decision = json.loads(attempted_waiver.output)
+    assert waiver_decision["outcome"] == "fail"
+    assert waiver_decision["waiver_authorization"] == "not_applicable"
+    waived_report = json.loads(
+        (tmp_path / "waived-tool-policy" / "evaluation-report.json").read_text(encoding="utf-8")
+    )
+    assert all(
+        finding["state"] == "not_evaluated"
+        for finding in waived_report["candidate_vs_expectations"]["findings"]
+    )
+    assert {disposition["status"] for disposition in waived_report["waiver_dispositions"]} == {
+        "unmatched_finding"
+    }
+    assert waived_report["candidate_vs_expectations"]["replay_context"]["waivers"] == []
 
 
 def test_successful_non_assurance_full_ci_json_exposes_structural_decision(
@@ -900,6 +1106,71 @@ def test_successful_non_assurance_full_ci_json_exposes_structural_decision(
     assert "policy_profile=non-assurance-migration" in decision["message"]
 
 
+def test_full_ci_authorizes_exact_waived_warning_and_preserves_reports(
+    tmp_path: Path,
+) -> None:
+    compiled_path, _baseline_path, candidate_path = _write_inputs(tmp_path)
+    compiled = compile_suite(SUITE)
+    candidate = run_suite(
+        compiled,
+        load_variant_config(EVIDENCE_CANDIDATE),
+        SUITE.parent,
+    )
+    finding = evaluate_runset(compiled, candidate).candidate_vs_expectations.findings[0]
+    today = date.today()
+    waiver = Waiver(
+        waiver_id="strict-ci-warning-waiver",
+        owner="ci-security-owner",
+        rationale="retain the finding for review while proving CI remains blocking",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(candidate),
+        expires_on=today + timedelta(days=1),
+        reviewer="ci-security-reviewer",
+    )
+    waiver_path = tmp_path / "waiver.json"
+    _write_json(waiver_path, waiver.model_dump(mode="json"))
+    out_dir = tmp_path / "strict-warning-ci"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "ci",
+            str(candidate_path),
+            "--suite",
+            str(compiled_path),
+            "--out-dir",
+            str(out_dir),
+            "--waiver",
+            str(waiver_path),
+            "--today",
+            today.isoformat(),
+            "--allow-missing-efficacy-for-migration",
+            "--format",
+            "json",
+        ],
+    )
+
+    assert result.exit_code == 0, result.output
+    decision = json.loads(result.output)
+    assert decision["outcome"] == "review"
+    assert decision["exit_code"] == 0
+    assert decision["waiver_authorization"] == "authorized_exact"
+    assert "authorized-exact-waiver" in decision["message"]
+    for filename in (
+        "evaluation-report.json",
+        "evaluation-summary.json",
+        "evidence-packet.json",
+    ):
+        assert (out_dir / filename).is_file()
+    assert not (out_dir / "ci-diagnostics.json").exists()
+    summary = json.loads((out_dir / "evaluation-summary.json").read_text(encoding="utf-8"))
+    assert summary["state"] == "warn"
+    assert summary["replay_context"]["gate_profile"]["fail_on_warn"] is True
+    report = json.loads((out_dir / "evaluation-report.json").read_text(encoding="utf-8"))
+    assert any(item["state"] == "warn" for item in report["warning_controls"])
+
+
 def test_run_ci_publishes_exact_replay_context_for_active_waiver(
     tmp_path: Path,
 ) -> None:
@@ -911,7 +1182,7 @@ def test_run_ci_publishes_exact_replay_context_for_active_waiver(
         SUITE.parent,
     )
     finding = evaluate_runset(compiled, candidate).candidate_vs_expectations.findings[0]
-    today = date(2026, 8, 27)
+    today = ci_module._current_gate_verification_date()
     waiver = Waiver(
         waiver_id="ci-replay-waiver",
         owner="private-owner-not-persisted",
@@ -945,14 +1216,62 @@ def test_run_ci_publishes_exact_replay_context_for_active_waiver(
             "artifact_digest": runset_digest(candidate),
             "expires_on": waiver.expires_on.isoformat(),
             "finding_id": waiver.finding_id,
+            "owner": waiver.owner,
+            "rationale": waiver.rationale,
             "reason_code": waiver.reason_code.value,
+            "reviewer": waiver.reviewer,
             "waiver_id": waiver.waiver_id,
         }
     ]
     rendered = json.dumps(context)
-    assert waiver.owner not in rendered
-    assert waiver.rationale not in rendered
-    assert waiver.reviewer not in rendered
+    assert waiver.owner in rendered
+    assert waiver.rationale in rendered
+    assert waiver.reviewer in rendered
+
+
+def test_run_ci_cannot_backdate_waiver_authorization(
+    tmp_path: Path,
+) -> None:
+    compiled_path, _baseline_path, candidate_path = _write_inputs(tmp_path)
+    compiled = compile_suite(SUITE)
+    candidate = run_suite(
+        compiled,
+        load_variant_config(EVIDENCE_CANDIDATE),
+        SUITE.parent,
+    )
+    finding = evaluate_runset(compiled, candidate).candidate_vs_expectations.findings[0]
+    verification_date = ci_module._current_gate_verification_date()
+    historical_date = verification_date - timedelta(days=2)
+    waiver = Waiver(
+        waiver_id="ci-backdated-waiver",
+        owner="ci-backdated-owner",
+        rationale="prove replay date cannot revive expired release authority",
+        reason_code=finding.reason_code,
+        finding_id=finding.finding_id,
+        artifact_digest=runset_digest(candidate),
+        expires_on=historical_date + timedelta(days=1),
+        reviewer="ci-backdated-reviewer",
+    )
+    out_dir = tmp_path / "backdated-waiver-ci"
+
+    result = run_ci(
+        candidate_path,
+        suite_path=compiled_path,
+        out_dir=out_dir,
+        gate_profile=GateProfile(fail_on_warn=True),
+        waivers=(waiver,),
+        today=historical_date,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    assert result.decision.exit_code == 1
+    assert result.decision.outcome.value == "fail"
+    assert result.decision.waiver_authorization.value == "not_applicable"
+    packet = json.loads(result.packet_path.read_text(encoding="utf-8"))
+    assert packet["evaluation"]["state"] == "warn"
+    assert packet["evaluation"]["replay_context"]["evaluation_date"] == (
+        historical_date.isoformat()
+    )
 
 
 def test_run_ci_publishes_exact_replay_context_for_custom_gate_profile(
@@ -988,6 +1307,122 @@ def test_run_ci_publishes_exact_replay_context_for_custom_gate_profile(
         "fail_severities": ["blocker"],
         "profile_id": profile.profile_id,
     }
+
+
+def test_run_ci_custom_fail_on_warn_blocks_advisory_candidate_and_packet(
+    tmp_path: Path,
+) -> None:
+    compiled_path, _baseline_path, candidate_path = _write_inputs(tmp_path)
+    profile = GateProfile(
+        profile_id="strict-custom-warning-policy",
+        fail_severities=(Severity.blocker,),
+        fail_reason_codes=(),
+        fail_on_warn=True,
+    )
+    out_dir = tmp_path / "strict-custom-warning-ci"
+
+    result = run_ci(
+        candidate_path,
+        suite_path=compiled_path,
+        out_dir=out_dir,
+        gate_profile=profile,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    summary = json.loads((out_dir / "evaluation-summary.json").read_text(encoding="utf-8"))
+    packet = json.loads((out_dir / "evidence-packet.json").read_text(encoding="utf-8"))
+    assert summary["state"] == "warn"
+    assert summary["replay_context"]["gate_profile"]["fail_on_warn"] is True
+    assert packet["evaluation"]["state"] == "warn"
+    assert result.decision.exit_code == 1
+    assert result.decision.outcome.value == "fail"
+    assert result.decision.artifact_kind == "evidence-packet"
+    assert "state=warn" in result.decision.message
+
+
+def test_run_ci_fail_fast_stops_before_baseline_for_custom_warning_policy(
+    tmp_path: Path,
+) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    profile = GateProfile(
+        profile_id="strict-custom-warning-fail-fast",
+        fail_severities=(Severity.blocker,),
+        fail_reason_codes=(),
+        fail_on_warn=True,
+    )
+    out_dir = tmp_path / "strict-custom-warning-fail-fast"
+
+    result = run_ci(
+        candidate_path,
+        suite_path=compiled_path,
+        baseline_runset_path=baseline_path,
+        out_dir=out_dir,
+        report_mode="fail-fast",
+        gate_profile=profile,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    summary = json.loads((out_dir / "evaluation-summary.json").read_text(encoding="utf-8"))
+    assert summary["state"] == "warn"
+    assert result.decision.exit_code == 1
+    assert not (out_dir / "comparison-report.json").exists()
+    assert not (out_dir / "comparison-summary.json").exists()
+
+
+def test_run_ci_propagates_custom_warning_policy_through_persistent_comparison(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    baseline = run_suite(
+        compiled,
+        load_variant_config(EVIDENCE_CANDIDATE),
+        SUITE.parent,
+    )
+    candidate = baseline.model_copy(update={"runset_id": f"{baseline.runset_id}-candidate"})
+    compiled_path = tmp_path / "suite.compiled.json"
+    baseline_path = tmp_path / "persistent-baseline.json"
+    candidate_path = tmp_path / "persistent-candidate.json"
+    write_compiled_suite(compiled, compiled_path)
+    write_runset(baseline, baseline_path)
+    write_runset(candidate, candidate_path)
+    profile = GateProfile(
+        profile_id="strict-persistent-warning",
+        fail_severities=(Severity.blocker,),
+        fail_reason_codes=(),
+        fail_on_warn=True,
+    )
+    evaluation_gate = Mock(wraps=ci_module.gate_evaluation_summary)
+    comparison_gate = Mock(wraps=ci_module.gate_comparison_summary)
+    packet_gate = Mock(wraps=ci_module.gate_evidence_packet)
+    monkeypatch.setattr(ci_module, "gate_evaluation_summary", evaluation_gate)
+    monkeypatch.setattr(ci_module, "gate_comparison_summary", comparison_gate)
+    monkeypatch.setattr(ci_module, "gate_evidence_packet", packet_gate)
+    out_dir = tmp_path / "strict-persistent-warning-ci"
+
+    result = run_ci(
+        candidate_path,
+        suite_path=compiled_path,
+        baseline_runset_path=baseline_path,
+        out_dir=out_dir,
+        gate_profile=profile,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    comparison = json.loads((out_dir / "comparison-summary.json").read_text(encoding="utf-8"))
+    assert comparison["classification"] == "persistent_failure"
+    assert comparison["baseline_state"] == "warn"
+    assert comparison["candidate_state"] == "warn"
+    assert result.decision.exit_code == 1
+    assert [call.kwargs.get("fail_on_warn") for call in evaluation_gate.call_args_list] == [
+        True,
+        True,
+    ]
+    assert [call.kwargs.get("fail_on_warn") for call in comparison_gate.call_args_list] == [
+        True,
+        True,
+    ]
+    assert [call.kwargs.get("fail_on_warn") for call in packet_gate.call_args_list] == [True]
 
 
 def test_ci_command_removes_outputs_that_are_stale_for_the_next_run(
@@ -1429,7 +1864,7 @@ def _write_release_bound_packet(
     _write_json(packet_path, packet.model_dump(mode="json"))
 
 
-def _write_json(path: Path, payload: dict[str, object]) -> None:
+def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8", newline="\n")
 
 
@@ -1444,6 +1879,22 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     write_runset(baseline, baseline_path)
     write_runset(candidate, candidate_path)
     return compiled_path, baseline_path, candidate_path
+
+
+def _seed_complete_ci_generation(out_dir: Path) -> dict[str, bytes]:
+    out_dir.mkdir(parents=True)
+    for index, name in enumerate(ci_module._CI_OUTPUT_FILENAMES):
+        (out_dir / name).write_bytes(f"prior-owned-{index}:{name}\n".encode())
+    (out_dir / "operator-notes.txt").write_bytes(b"unrelated operator evidence\n")
+    return _capture_directory_files(out_dir)
+
+
+def _capture_directory_files(out_dir: Path) -> dict[str, bytes]:
+    return {
+        path.name: path.read_bytes()
+        for path in sorted(out_dir.iterdir(), key=lambda item: item.name)
+        if path.is_file()
+    }
 
 
 def _init_git_repo(path: Path) -> None:

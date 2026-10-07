@@ -14,10 +14,11 @@ from jsonschema.exceptions import (
 from pydantic import ValidationError as PydanticValidationError
 from rich.console import Console
 
+from agent_assure.onboarding.diagnostics import display_path
 from agent_assure.privacy.redaction import redact_text
 from agent_assure.schema.validation import validate_artifact
 
-console = Console()
+console = Console(markup=False)
 MAX_VALIDATION_ERROR_CHARS = 500
 _BAD_PARAMETER_PREFIX_ALLOWANCE = 32
 _SAFE_RULE_NAME = re.compile(r"^[A-Za-z0-9_.-]{1,64}$")
@@ -38,7 +39,10 @@ def validate(
         ValueError,
     ) as exc:
         raise typer.BadParameter(_safe_validation_error(exc)) from exc
-    console.print(f"valid {kind}: {path} (validator={validator})")
+    console.print(
+        f"artifact-internal validation passed for {kind}: {display_path(path)} "
+        f"(external source/authenticity not established; validator={validator})"
+    )
 
 
 def _safe_validation_error(exc: BaseException) -> str:

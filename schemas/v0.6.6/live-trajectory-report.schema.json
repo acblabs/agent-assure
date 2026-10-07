@@ -1,5 +1,521 @@
 {
+  "$comment": "Current live trajectory reports require source RunSet and evaluation digests, a bound current protocol, the effective trajectory plan, the named derivation contract, an explicit operational-event projection, and applicability-aware claim-evidence status. Runtime validation exactly replays all conclusions. Source truth additionally requires trusted-source reconciliation.",
   "$defs": {
+    "AdvancedAnalysisPlan": {
+      "$comment": "For schema_version 0.6.6 (including the model default when omitted), the runtime model rejects a Bonferroni-adjusted alpha below the persisted six-decimal precision using ROUND_FLOOR and requires independence-cluster exposure for every embedded exact-binomial endpoint, including endpoints with historical schema labels. Released 0.6.5 parent artifacts retain their historical behavior. JSON Schema can express the exposure constraint and reject a zero familywise alpha, but Draft 2020-12 cannot express division by the number of confirmatory endpoints; consumers must also run model validation for that relational constraint.",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "multiplicity_method": {
+                "const": "bonferroni"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "multiplicity_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "familywise_alpha": {
+                "not": {
+                  "const": "0.000000"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "endpoints": {
+                "items": {
+                  "if": {
+                    "properties": {
+                      "analysis_method": {
+                        "const": "clopper_pearson_exact_one_sided"
+                      }
+                    },
+                    "required": [
+                      "analysis_method"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "exposure_unit": {
+                        "const": "independence_cluster"
+                      }
+                    },
+                    "required": [
+                      "exposure_unit"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "endpoints": {
+                "items": {
+                  "not": {
+                    "properties": {
+                      "analysis_method": {
+                        "const": "poisson_upper_bound"
+                      }
+                    },
+                    "required": [
+                      "analysis_method"
+                    ]
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "advanced-analysis-plan",
+          "default": "advanced-analysis-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "endpoints": {
+          "items": {
+            "$ref": "#/$defs/StatisticalEndpointPlan"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Endpoints",
+          "type": "array"
+        },
+        "familywise_alpha": {
+          "default": "0.050000",
+          "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Familywise Alpha",
+          "type": "string"
+        },
+        "multiplicity_method": {
+          "default": "none",
+          "enum": [
+            "none",
+            "single_endpoint",
+            "bonferroni"
+          ],
+          "title": "Multiplicity Method",
+          "type": "string"
+        },
+        "observed_icc_confirmatory_use": {
+          "default": "disabled",
+          "enum": [
+            "disabled",
+            "large_cluster_threshold",
+            "external_review"
+          ],
+          "title": "Observed Icc Confirmatory Use",
+          "type": "string"
+        },
+        "observed_icc_large_cluster_threshold": {
+          "anyOf": [
+            {
+              "minimum": 30,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Icc Large Cluster Threshold"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoints",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "AdvancedAnalysisPlan",
+      "type": "object"
+    },
+    "DriftMetricPlan": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "uniqueItems": true
+              },
+              "reason_codes": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "analysis_methods": {
+              "contains": {
+                "const": "descriptive_trend"
+              },
+              "minContains": 1,
+              "uniqueItems": true
+            }
+          }
+        }
+      ],
+      "properties": {
+        "analysis_methods": {
+          "default": [
+            "descriptive_trend"
+          ],
+          "items": {
+            "enum": [
+              "descriptive_trend",
+              "lag1_autocorrelation",
+              "ar1_summary",
+              "state_space_ewma"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Analysis Methods",
+          "type": "array"
+        },
+        "ar1_review_threshold": {
+          "default": "0.500000",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
+          "title": "Ar1 Review Threshold",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "drift-metric-plan",
+          "default": "drift-metric-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "autocorrelation_review_threshold": {
+          "default": "0.500000",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
+          "title": "Autocorrelation Review Threshold",
+          "type": "string"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "metric": {
+          "enum": [
+            "expectation_pass_rate",
+            "reason_code_rate",
+            "exclusion_rate",
+            "retry_rate",
+            "rate_limit_rate",
+            "latency_p50_ms",
+            "cost_total_usd"
+          ],
+          "title": "Metric",
+          "type": "string"
+        },
+        "minimum_dependence_windows": {
+          "default": 8,
+          "minimum": 8,
+          "title": "Minimum Dependence Windows",
+          "type": "integer"
+        },
+        "minimum_observations_per_window": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Observations Per Window",
+          "type": "integer"
+        },
+        "minimum_state_space_windows": {
+          "default": 6,
+          "minimum": 6,
+          "title": "Minimum State Space Windows",
+          "type": "integer"
+        },
+        "minimum_windows": {
+          "default": 6,
+          "minimum": 2,
+          "title": "Minimum Windows",
+          "type": "integer"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "maxItems": 22,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "slope_review_threshold": {
+          "default": "0.050000",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Slope Review Threshold",
+          "type": "string"
+        },
+        "state_space_alpha": {
+          "default": "0.300000",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
+          "title": "State Space Alpha",
+          "type": "string"
+        },
+        "step_review_threshold": {
+          "default": "0.100000",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Step Review Threshold",
+          "type": "string"
+        }
+      },
+      "required": [
+        "metric",
+        "label",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "DriftMetricPlan",
+      "type": "object"
+    },
+    "DriftMonitoringPlan": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "ordering_variable": {
+                "enum": [
+                  "window_index",
+                  "window_start_utc"
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "drift_hypothesis": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "metrics": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "drift_hypothesis"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "metrics": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "drift_hypothesis": {
+                "not": {
+                  "type": "null"
+                }
+              },
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation",
+              "drift_hypothesis"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "allow_bounded_sensitivity_on_comparability_failure": {
+          "default": false,
+          "title": "Allow Bounded Sensitivity On Comparability Failure",
+          "type": "boolean"
+        },
+        "artifact_kind": {
+          "const": "drift-monitoring-plan",
+          "default": "drift-monitoring-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "comparability_mode": {
+          "default": "strict_protocol_digest",
+          "enum": [
+            "strict_protocol_digest",
+            "material_fields"
+          ],
+          "title": "Comparability Mode",
+          "type": "string"
+        },
+        "drift_hypothesis": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Drift Hypothesis"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "known_provider_version_unknowns": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Known Provider Version Unknowns",
+          "type": "array"
+        },
+        "metrics": {
+          "items": {
+            "$ref": "#/$defs/DriftMetricPlan"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Metrics",
+          "type": "array"
+        },
+        "ordering_variable": {
+          "default": "window_index",
+          "enum": [
+            "window_index",
+            "window_start_utc",
+            "release_sequence",
+            "provider_version_window"
+          ],
+          "title": "Ordering Variable",
+          "type": "string"
+        },
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "metrics",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "DriftMonitoringPlan",
+      "type": "object"
+    },
     "GateState": {
       "enum": [
         "pass",
@@ -18,6 +534,7 @@
           "items": {
             "type": "string"
           },
+          "maxItems": 4096,
           "title": "Affected Observation Ids",
           "type": "array"
         },
@@ -77,6 +594,532 @@
       "title": "HistoryDependentTrajectoryCheck",
       "type": "object"
     },
+    "LiveProtocolRecord": {
+      "$comment": "Current protocol records require current-version nested plans and plan items. Runtime validation also applies corrected Bonferroni floor arithmetic and independence-cluster rare-event exposure. JSON Schema expresses the version and rare-event constraints; adjusted-alpha division remains a runtime relational constraint.",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "allowed_exclusion_reasons": {
+                "uniqueItems": true
+              },
+              "provider_version_capture": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "advanced_analysis_plan": {
+                "properties": {
+                  "endpoints": {
+                    "items": {
+                      "if": {
+                        "properties": {
+                          "analysis_method": {
+                            "const": "clopper_pearson_exact_one_sided"
+                          }
+                        },
+                        "required": [
+                          "analysis_method"
+                        ]
+                      },
+                      "properties": {
+                        "schema_version": {
+                          "const": "0.6.6"
+                        }
+                      },
+                      "then": {
+                        "properties": {
+                          "exposure_unit": {
+                            "const": "independence_cluster"
+                          }
+                        },
+                        "required": [
+                          "exposure_unit"
+                        ]
+                      }
+                    }
+                  },
+                  "schema_version": {
+                    "const": "0.6.6"
+                  }
+                }
+              },
+              "drift_monitoring_plan": {
+                "properties": {
+                  "metrics": {
+                    "items": {
+                      "properties": {
+                        "schema_version": {
+                          "const": "0.6.6"
+                        }
+                      }
+                    }
+                  },
+                  "schema_version": {
+                    "const": "0.6.6"
+                  }
+                }
+              },
+              "trajectory_analysis_plan": {
+                "properties": {
+                  "invariants": {
+                    "items": {
+                      "properties": {
+                        "schema_version": {
+                          "const": "0.6.6"
+                        }
+                      }
+                    }
+                  },
+                  "schema_version": {
+                    "const": "0.6.6"
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "advanced_analysis_plan": {
+                "properties": {
+                  "endpoints": {
+                    "items": {
+                      "not": {
+                        "properties": {
+                          "analysis_method": {
+                            "const": "poisson_upper_bound"
+                          }
+                        },
+                        "required": [
+                          "analysis_method"
+                        ]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "advanced_analysis_plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/AdvancedAnalysisPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "allowed_exclusion_reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Allowed Exclusion Reasons",
+          "type": "array"
+        },
+        "analysis_digest": {
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
+          "title": "Analysis Digest",
+          "type": "string"
+        },
+        "analysis_method": {
+          "default": "paired_cluster_t_interval",
+          "enum": [
+            "paired_cluster_t_interval",
+            "paired_cluster_bootstrap_percentile",
+            "paired_cluster_permutation_exact",
+            "paired_cluster_permutation_monte_carlo",
+            "fixed_reference_cluster_t_interval",
+            "cluster_t_interval",
+            "exploratory"
+          ],
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "approved_data_boundary": {
+          "minLength": 1,
+          "title": "Approved Data Boundary",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "live-protocol-record",
+          "default": "live-protocol-record",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "assumed_intraclass_correlation": {
+          "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Assumed Intraclass Correlation",
+          "type": "string"
+        },
+        "baseline_group_id": {
+          "default": "overall",
+          "title": "Baseline Group Id",
+          "type": "string"
+        },
+        "baseline_mode": {
+          "default": "concurrent_paired",
+          "enum": [
+            "concurrent_paired",
+            "fixed_reference"
+          ],
+          "title": "Baseline Mode",
+          "type": "string"
+        },
+        "candidate_group_id": {
+          "default": "overall",
+          "title": "Candidate Group Id",
+          "type": "string"
+        },
+        "cluster_by": {
+          "default": "case_id",
+          "enum": [
+            "case_id",
+            "source_group_id"
+          ],
+          "title": "Cluster By",
+          "type": "string"
+        },
+        "confidence_level": {
+          "const": "0.950000",
+          "default": "0.950000",
+          "title": "Confidence Level",
+          "type": "string"
+        },
+        "design_effect": {
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Design Effect",
+          "type": "string"
+        },
+        "drift_monitoring_plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/DriftMonitoringPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "exclusion_policy": {
+          "minLength": 1,
+          "title": "Exclusion Policy",
+          "type": "string"
+        },
+        "fixed_reference_pass_rate": {
+          "anyOf": [
+            {
+              "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Fixed Reference Pass Rate"
+        },
+        "hypothesis_family": {
+          "default": "governance_control_non_inferiority",
+          "enum": [
+            "governance_control_non_inferiority",
+            "provider_model_comparison",
+            "regression_detection"
+          ],
+          "title": "Hypothesis Family",
+          "type": "string"
+        },
+        "max_cost_per_observation_usd": {
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Max Cost Per Observation Usd",
+          "type": "string"
+        },
+        "max_exclusion_rate": {
+          "default": "0.000000",
+          "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Max Exclusion Rate",
+          "type": "string"
+        },
+        "max_generated_tokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Generated Tokens"
+        },
+        "max_rate_limit_events": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Max Rate Limit Events",
+          "type": "integer"
+        },
+        "max_requests": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Max Requests",
+          "type": "integer"
+        },
+        "max_retries": {
+          "default": 2,
+          "minimum": 0,
+          "title": "Max Retries",
+          "type": "integer"
+        },
+        "max_total_cost_usd": {
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Max Total Cost Usd",
+          "type": "string"
+        },
+        "max_total_tokens": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Max Total Tokens"
+        },
+        "non_inferiority_margin": {
+          "pattern": "^0\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Non Inferiority Margin",
+          "type": "string"
+        },
+        "planned_clusters": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Clusters",
+          "type": "integer"
+        },
+        "planned_effective_n": {
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Planned Effective N",
+          "type": "string"
+        },
+        "planned_observations": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Observations",
+          "type": "integer"
+        },
+        "planned_observations_per_cluster": {
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Planned Observations Per Cluster",
+          "type": "string"
+        },
+        "planned_repetitions": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Planned Repetitions",
+          "type": "integer"
+        },
+        "policy_bundle_digest": {
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
+          "title": "Policy Bundle Digest",
+          "type": "string"
+        },
+        "primary_endpoint": {
+          "default": "expectation_pass_rate",
+          "enum": [
+            "expectation_pass_rate",
+            "reason_code_rate"
+          ],
+          "title": "Primary Endpoint",
+          "type": "string"
+        },
+        "protocol_id": {
+          "minLength": 1,
+          "title": "Protocol Id",
+          "type": "string"
+        },
+        "provider_version_capture": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Provider Version Capture",
+          "type": "array"
+        },
+        "randomization_blocking": {
+          "const": "balanced_case_blocks",
+          "default": "balanced_case_blocks",
+          "title": "Randomization Blocking",
+          "type": "string"
+        },
+        "randomization_seed": {
+          "minimum": 0,
+          "title": "Randomization Seed",
+          "type": "integer"
+        },
+        "requests_per_minute": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Requests Per Minute"
+        },
+        "retry_initial_backoff_seconds": {
+          "default": "1.000000",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Retry Initial Backoff Seconds",
+          "type": "string"
+        },
+        "retry_max_backoff_seconds": {
+          "default": "8.000000",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
+          "title": "Retry Max Backoff Seconds",
+          "type": "string"
+        },
+        "safety_limits": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Safety Limits",
+          "type": "array"
+        },
+        "sample_size_rationale": {
+          "minLength": 1,
+          "title": "Sample Size Rationale",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "stopping_rules": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Stopping Rules",
+          "type": "array"
+        },
+        "suite_digest": {
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
+          "title": "Suite Digest",
+          "type": "string"
+        },
+        "suite_id": {
+          "minLength": 1,
+          "title": "Suite Id",
+          "type": "string"
+        },
+        "suite_version": {
+          "minLength": 1,
+          "title": "Suite Version",
+          "type": "string"
+        },
+        "tokens_per_minute": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Tokens Per Minute"
+        },
+        "tool_schema_digest": {
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
+          "title": "Tool Schema Digest",
+          "type": "string"
+        },
+        "trajectory_analysis_plan": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/TrajectoryAnalysisPlan"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "protocol_id",
+        "suite_id",
+        "suite_version",
+        "suite_digest",
+        "non_inferiority_margin",
+        "planned_observations",
+        "planned_clusters",
+        "planned_observations_per_cluster",
+        "assumed_intraclass_correlation",
+        "design_effect",
+        "planned_effective_n",
+        "sample_size_rationale",
+        "planned_repetitions",
+        "randomization_seed",
+        "max_requests",
+        "max_total_cost_usd",
+        "max_cost_per_observation_usd",
+        "exclusion_policy",
+        "tool_schema_digest",
+        "policy_bundle_digest",
+        "analysis_digest",
+        "approved_data_boundary",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "LiveProtocolRecord",
+      "type": "object"
+    },
     "OperationalEventProcessSummary": {
       "additionalProperties": false,
       "properties": {
@@ -111,7 +1154,8 @@
           "type": "integer"
         },
         "event_rate": {
-          "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+          "description": "Observed events per exposure unit. This is a non-negative count rate, not a probability, and may exceed 1.000000.",
+          "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
           "title": "Event Rate",
           "type": "string"
         },
@@ -155,7 +1199,7 @@
         "mean_interarrival_seconds": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -173,7 +1217,7 @@
         "observation_window_seconds": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -226,14 +1270,854 @@
       "title": "OperationalEventProcessSummary",
       "type": "object"
     },
+    "ReasonCode": {
+      "enum": [
+        "EXPECTED_OUTCOME_MISMATCH",
+        "FORBIDDEN_OUTCOME",
+        "MATERIAL_CLAIM_MISSING_EVIDENCE",
+        "EVIDENCE_PROVENANCE_MISMATCH",
+        "REQUIRED_SOURCE_MISSING",
+        "POLICY_FAILED",
+        "REQUIRED_HUMAN_REVIEW_ABSENT",
+        "REVIEW_BOUNDARY_FAILED",
+        "FORBIDDEN_PROVIDER",
+        "FORBIDDEN_TOOL",
+        "STRUCTURED_OUTPUT_INVALID",
+        "REDACTION_FAILED",
+        "RAW_SENSITIVE_CONTENT",
+        "PROMPT_INJECTION_BOUNDARY",
+        "RUNTIME_FAILED",
+        "RUNSET_INCOMPLETE",
+        "VALID_RECORD_MISSING",
+        "FIXTURE_EQUIVALENCE_FAILED",
+        "NON_NFC_STRING",
+        "NON_FINITE_NUMBER",
+        "LLM_JUDGE_VERDICT_BEARING_NOT_SUPPORTED",
+        "NOT_EVALUATED"
+      ],
+      "title": "ReasonCode",
+      "type": "string"
+    },
+    "StatisticalEndpointPlan": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "reason_codes": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_method": {
+                "const": "clopper_pearson_exact_one_sided"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "analysis_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "exposure_unit": {
+                "const": "independence_cluster"
+              }
+            },
+            "required": [
+              "exposure_unit"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "not": {
+              "properties": {
+                "analysis_method": {
+                  "const": "poisson_upper_bound"
+                }
+              },
+              "required": [
+                "analysis_method"
+              ]
+            }
+          }
+        }
+      ],
+      "properties": {
+        "analysis_method": {
+          "default": "descriptive_rate",
+          "enum": [
+            "cluster_t_interval",
+            "cluster_bootstrap_percentile",
+            "clopper_pearson_exact_one_sided",
+            "poisson_upper_bound",
+            "hierarchical_binomial_summary",
+            "beta_binomial_cluster_summary",
+            "descriptive_rate"
+          ],
+          "title": "Analysis Method",
+          "type": "string"
+        },
+        "artifact_kind": {
+          "const": "statistical-endpoint-plan",
+          "default": "statistical-endpoint-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "endpoint_id": {
+          "minLength": 1,
+          "title": "Endpoint Id",
+          "type": "string"
+        },
+        "endpoint_kind": {
+          "enum": [
+            "expectation_pass_rate",
+            "reason_code_rate",
+            "critical_event_rate",
+            "exclusion_rate",
+            "outcome_rate"
+          ],
+          "title": "Endpoint Kind",
+          "type": "string"
+        },
+        "exchangeability_assumption": {
+          "default": "not_applicable",
+          "enum": [
+            "not_applicable",
+            "baseline_candidate_relabeling"
+          ],
+          "title": "Exchangeability Assumption",
+          "type": "string"
+        },
+        "exposure_unit": {
+          "default": "observation",
+          "minLength": 1,
+          "title": "Exposure Unit",
+          "type": "string"
+        },
+        "family_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Family Id"
+        },
+        "hierarchy_rank": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Hierarchy Rank"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "confirmatory",
+            "exploratory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "minimum_clusters": {
+          "default": 30,
+          "minimum": 1,
+          "title": "Minimum Clusters",
+          "type": "integer"
+        },
+        "minimum_events": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Minimum Events",
+          "type": "integer"
+        },
+        "minimum_observations": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Observations",
+          "type": "integer"
+        },
+        "outcome": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Outcome"
+        },
+        "reason_codes": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/ReasonCode"
+          },
+          "maxItems": 22,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "role": {
+          "default": "secondary",
+          "enum": [
+            "primary",
+            "secondary",
+            "diagnostic"
+          ],
+          "title": "Role",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_id",
+        "label",
+        "endpoint_kind",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "StatisticalEndpointPlan",
+      "type": "object"
+    },
+    "TrajectoryAnalysisPlan": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "properties": {
+            "analysis_methods": {
+              "contains": {
+                "const": "observable_transition_profile"
+              },
+              "minContains": 1,
+              "uniqueItems": true
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "event_process_summary"
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "analysis_methods"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "burst_window_count"
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "burst_window_count"
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "analysis_methods"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "event_process_summary"
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "invariants": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "invariants"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "contains": {
+                  "const": "sequence_invariant_check"
+                },
+                "minContains": 1
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          },
+          "then": {
+            "properties": {
+              "analysis_methods": {
+                "allOf": [
+                  {
+                    "contains": {
+                      "const": "burst_window_count"
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "const": "event_process_summary"
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "const": "observable_transition_profile"
+                    },
+                    "minContains": 1
+                  },
+                  {
+                    "contains": {
+                      "const": "sequence_invariant_check"
+                    },
+                    "minContains": 1
+                  }
+                ],
+                "maxItems": 4,
+                "minItems": 4
+              },
+              "invariants": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "invariants"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "invariants": {
+                "contains": {
+                  "properties": {
+                    "interpretation": {
+                      "const": "confirmatory"
+                    }
+                  },
+                  "required": [
+                    "interpretation"
+                  ]
+                },
+                "minContains": 1
+              }
+            },
+            "required": [
+              "invariants"
+            ]
+          },
+          "then": {
+            "properties": {
+              "interpretation": {
+                "const": "confirmatory"
+              }
+            },
+            "required": [
+              "interpretation"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "analysis_methods": {
+          "default": [
+            "observable_transition_profile",
+            "sequence_invariant_check",
+            "event_process_summary",
+            "burst_window_count"
+          ],
+          "items": {
+            "enum": [
+              "observable_transition_profile",
+              "sequence_invariant_check",
+              "event_process_summary",
+              "burst_window_count"
+            ],
+            "type": "string"
+          },
+          "maxItems": 4,
+          "minItems": 1,
+          "title": "Analysis Methods",
+          "type": "array"
+        },
+        "artifact_kind": {
+          "const": "trajectory-analysis-plan",
+          "default": "trajectory-analysis-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "burst_count_threshold": {
+          "default": 3,
+          "minimum": 2,
+          "title": "Burst Count Threshold",
+          "type": "integer"
+        },
+        "burst_window_seconds": {
+          "default": 60,
+          "minimum": 1,
+          "title": "Burst Window Seconds",
+          "type": "integer"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "exploratory",
+            "confirmatory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "invariants": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/TrajectoryInvariantPlan"
+          },
+          "maxItems": 64,
+          "title": "Invariants",
+          "type": "array"
+        },
+        "minimum_event_count": {
+          "default": 3,
+          "minimum": 0,
+          "title": "Minimum Event Count",
+          "type": "integer"
+        },
+        "minimum_event_exposure": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Event Exposure",
+          "type": "integer"
+        },
+        "minimum_observations": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Observations",
+          "type": "integer"
+        },
+        "minimum_transition_support": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Transition Support",
+          "type": "integer"
+        },
+        "plan_id": {
+          "minLength": 1,
+          "title": "Plan Id",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "plan_id",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "TrajectoryAnalysisPlan",
+      "type": "object"
+    },
+    "TrajectoryInvariantPlan": {
+      "$comment": "required_review_for_approval currently supports only the observable human_review state. Other invariant types must not carry required_state or before_state. Runtime validation additionally applies the same conditional contract.",
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "forbidden_states": {
+                "uniqueItems": true
+              }
+            }
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "before_state": {
+                "type": "null"
+              },
+              "required_state": {
+                "type": "null"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "invariant_type": {
+                "const": "required_review_for_approval"
+              }
+            },
+            "required": [
+              "invariant_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "before_state": {
+                "type": "null"
+              },
+              "required_state": {
+                "not": {
+                  "type": "null"
+                }
+              }
+            },
+            "required": [
+              "required_state"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "invariant_type": {
+                "const": "required_review_for_approval"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "invariant_type"
+            ]
+          },
+          "then": {
+            "properties": {
+              "required_state": {
+                "const": "human_review"
+              }
+            }
+          }
+        }
+      ],
+      "properties": {
+        "artifact_kind": {
+          "const": "trajectory-invariant-plan",
+          "default": "trajectory-invariant-plan",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "before_state": {
+          "anyOf": [
+            {
+              "enum": [
+                "start",
+                "request_assembly",
+                "provider_call",
+                "tool_call",
+                "evidence_check",
+                "policy_check",
+                "redaction_check",
+                "human_review",
+                "verdict",
+                "excluded",
+                "emergency"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Before State"
+        },
+        "category": {
+          "default": "governance_control_failure",
+          "enum": [
+            "governance_control_failure",
+            "operational_reliability_warning"
+          ],
+          "title": "Category",
+          "type": "string"
+        },
+        "forbidden_states": {
+          "default": [],
+          "items": {
+            "enum": [
+              "start",
+              "request_assembly",
+              "provider_call",
+              "tool_call",
+              "evidence_check",
+              "policy_check",
+              "redaction_check",
+              "human_review",
+              "verdict",
+              "excluded",
+              "emergency"
+            ],
+            "type": "string"
+          },
+          "maxItems": 11,
+          "title": "Forbidden States",
+          "type": "array"
+        },
+        "interpretation": {
+          "default": "exploratory",
+          "enum": [
+            "exploratory",
+            "confirmatory"
+          ],
+          "title": "Interpretation",
+          "type": "string"
+        },
+        "invariant_id": {
+          "minLength": 1,
+          "title": "Invariant Id",
+          "type": "string"
+        },
+        "invariant_type": {
+          "enum": [
+            "forbidden_state",
+            "required_review_for_approval",
+            "claim_evidence_before_approval",
+            "attempt_retry_consistency"
+          ],
+          "title": "Invariant Type",
+          "type": "string"
+        },
+        "label": {
+          "minLength": 1,
+          "title": "Label",
+          "type": "string"
+        },
+        "minimum_observations": {
+          "default": 1,
+          "minimum": 1,
+          "title": "Minimum Observations",
+          "type": "integer"
+        },
+        "required_state": {
+          "anyOf": [
+            {
+              "enum": [
+                "start",
+                "request_assembly",
+                "provider_call",
+                "tool_call",
+                "evidence_check",
+                "policy_check",
+                "redaction_check",
+                "human_review",
+                "verdict",
+                "excluded",
+                "emergency"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Required State"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "invariant_id",
+        "label",
+        "invariant_type",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "TrajectoryInvariantPlan",
+      "type": "object"
+    },
     "TrajectoryInvariantResult": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "unobservable_observation_ids": {
+                "type": "array"
+              },
+              "unobservable_observations": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "unobservable_observations",
+              "unobservable_observation_ids"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "unobservable_observations": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "unobservable_observations"
+            ]
+          },
+          "then": {
+            "properties": {
+              "invariant_type": {
+                "const": "claim_evidence_before_approval"
+              },
+              "limitations": {
+                "contains": {
+                  "const": "one or more applicable approvals have unobservable claim-evidence controls; the invariant cannot establish completeness"
+                }
+              },
+              "prerequisite_status": {
+                "enum": [
+                  "exploratory",
+                  "invalid"
+                ]
+              },
+              "state": {
+                "enum": [
+                  "fail",
+                  "warn"
+                ]
+              }
+            },
+            "required": [
+              "invariant_type",
+              "prerequisite_status",
+              "state",
+              "limitations",
+              "unobservable_observation_ids"
+            ]
+          }
+        }
+      ],
       "properties": {
         "affected_observation_ids": {
           "default": [],
           "items": {
             "type": "string"
           },
+          "maxItems": 4096,
           "title": "Affected Observation Ids",
           "type": "array"
         },
@@ -315,6 +2199,37 @@
         "state": {
           "$ref": "#/$defs/GateState",
           "default": "not_evaluated"
+        },
+        "unobservable_observation_ids": {
+          "anyOf": [
+            {
+              "items": {
+                "type": "string"
+              },
+              "maxItems": 4096,
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Observation IDs counted by unobservable_observations.",
+          "title": "Unobservable Observation Ids"
+        },
+        "unobservable_observations": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Applicable observations excluded from evaluated_observations because the claim-evidence controls were unobservable.",
+          "title": "Unobservable Observations"
         }
       },
       "required": [
@@ -332,14 +2247,2302 @@
       "title": "TrajectoryInvariantResult",
       "type": "object"
     },
-    "TrajectoryPathSummary": {
+    "TrajectoryOperationalEvent": {
       "additionalProperties": false,
       "properties": {
+        "artifact_kind": {
+          "const": "trajectory-operational-event",
+          "default": "trajectory-operational-event",
+          "title": "Artifact Kind",
+          "type": "string"
+        },
+        "count": {
+          "maximum": 4096,
+          "minimum": 1,
+          "title": "Count",
+          "type": "integer"
+        },
+        "event_type": {
+          "enum": [
+            "retry",
+            "rate_limit",
+            "exclusion",
+            "runtime_failure",
+            "malformed_output",
+            "emergency_process",
+            "budget_stop"
+          ],
+          "title": "Event Type",
+          "type": "string"
+        },
+        "observation_id": {
+          "anyOf": [
+            {
+              "minLength": 1,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observation Id"
+        },
+        "schema_version": {
+          "const": "0.6.6",
+          "default": "0.6.6",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "timestamp_utc": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Timestamp Utc"
+        }
+      },
+      "required": [
+        "event_type",
+        "count",
+        "artifact_kind",
+        "schema_version"
+      ],
+      "title": "TrajectoryOperationalEvent",
+      "type": "object"
+    },
+    "TrajectoryPathSummary": {
+      "additionalProperties": false,
+      "allOf": [
+        {
+          "else": {
+            "properties": {
+              "claim_evidence_status": {
+                "anyOf": [
+                  {
+                    "enum": [
+                      "complete",
+                      "incomplete",
+                      "unobservable"
+                    ]
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "allOf": [
+              {
+                "else": {
+                  "else": {
+                    "properties": {
+                      "claim_evidence_status": {
+                        "const": "not_applicable"
+                      }
+                    }
+                  },
+                  "if": {
+                    "properties": {
+                      "approval_outcome": {
+                        "const": true
+                      }
+                    },
+                    "required": [
+                      "approval_outcome"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "claim_evidence_status": {
+                        "enum": [
+                          "complete",
+                          "incomplete",
+                          "unobservable"
+                        ]
+                      }
+                    }
+                  }
+                },
+                "if": {
+                  "properties": {
+                    "states": {
+                      "contains": {
+                        "const": "excluded"
+                      }
+                    }
+                  },
+                  "required": [
+                    "states"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "claim_evidence_status": {
+                      "const": "not_evaluated"
+                    }
+                  }
+                }
+              },
+              {
+                "oneOf": [
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "excluded"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "excluded"
+                      },
+                      "transition_count": {
+                        "const": 2
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "human_review",
+                          "excluded"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "excluded"
+                      },
+                      "transition_count": {
+                        "const": 3
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "emergency",
+                          "excluded"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "excluded"
+                      },
+                      "transition_count": {
+                        "const": 3
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "human_review",
+                          "emergency",
+                          "excluded"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "excluded"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 3
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 8
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 4
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": false
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 8
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 5
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 8
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 6
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 8
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 7
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 8
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 8
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  },
+                  {
+                    "properties": {
+                      "human_review_performed": {
+                        "const": true
+                      },
+                      "states": {
+                        "const": [
+                          "start",
+                          "request_assembly",
+                          "provider_call",
+                          "tool_call",
+                          "evidence_check",
+                          "policy_check",
+                          "redaction_check",
+                          "human_review",
+                          "emergency",
+                          "verdict"
+                        ]
+                      },
+                      "terminal_state": {
+                        "const": "verdict"
+                      },
+                      "transition_count": {
+                        "const": 9
+                      }
+                    },
+                    "required": [
+                      "states",
+                      "terminal_state",
+                      "transition_count",
+                      "human_review_performed"
+                    ]
+                  }
+                ]
+              },
+              {
+                "if": {
+                  "properties": {
+                    "limitations": {
+                      "contains": {
+                        "const": "claim-evidence control fields are not fully observable; completeness is unknown"
+                      },
+                      "minContains": 1
+                    }
+                  },
+                  "required": [
+                    "limitations"
+                  ]
+                },
+                "then": {
+                  "properties": {
+                    "claim_evidence_status": {
+                      "const": "unobservable"
+                    }
+                  },
+                  "required": [
+                    "claim_evidence_status"
+                  ]
+                }
+              }
+            ],
+            "properties": {
+              "claim_evidence_complete": {
+                "type": "boolean"
+              },
+              "claim_evidence_status": {
+                "enum": [
+                  "not_evaluated",
+                  "not_applicable",
+                  "complete",
+                  "incomplete",
+                  "unobservable"
+                ]
+              },
+              "states": {
+                "uniqueItems": true
+              }
+            },
+            "required": [
+              "claim_evidence_complete",
+              "claim_evidence_status"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "claim_evidence_status": {
+                "const": "complete"
+              }
+            },
+            "required": [
+              "claim_evidence_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "claim_evidence_complete": {
+                "const": true
+              }
+            },
+            "required": [
+              "claim_evidence_complete"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "claim_evidence_status": {
+                "enum": [
+                  "not_evaluated",
+                  "not_applicable",
+                  "incomplete",
+                  "unobservable"
+                ]
+              }
+            },
+            "required": [
+              "claim_evidence_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "claim_evidence_complete": {
+                "const": false
+              }
+            },
+            "required": [
+              "claim_evidence_complete"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "claim_evidence_status": {
+                "const": "unobservable"
+              }
+            },
+            "required": [
+              "claim_evidence_status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "limitations": {
+                "contains": {
+                  "const": "claim-evidence control fields are not fully observable; completeness is unknown"
+                }
+              }
+            },
+            "required": [
+              "limitations"
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "approval_outcome": {
+          "default": false,
+          "title": "Approval Outcome",
+          "type": "boolean"
+        },
         "artifact_kind": {
           "const": "trajectory-path-summary",
           "default": "trajectory-path-summary",
           "title": "Artifact Kind",
           "type": "string"
+        },
+        "attempt_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Attempt Count"
         },
         "case_id": {
           "minLength": 1,
@@ -351,10 +4554,43 @@
           "title": "Claim Count",
           "type": "integer"
         },
+        "claim_evidence_complete": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Backward-compatible projection of claim_evidence_status. True only for complete; all other statuses project to false.",
+          "title": "Claim Evidence Complete"
+        },
         "claim_evidence_link_count": {
           "minimum": 0,
           "title": "Claim Evidence Link Count",
           "type": "integer"
+        },
+        "claim_evidence_status": {
+          "anyOf": [
+            {
+              "enum": [
+                "not_evaluated",
+                "not_applicable",
+                "complete",
+                "incomplete",
+                "unobservable"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Evaluator-aligned evidence status. Excluded observations are not_evaluated; included non-approvals are not_applicable; only included approvals can be complete, incomplete, or unobservable.",
+          "title": "Claim Evidence Status"
         },
         "cluster_id": {
           "minLength": 1,
@@ -389,6 +4625,11 @@
           "title": "Limitations",
           "type": "array"
         },
+        "malformed_output": {
+          "default": false,
+          "title": "Malformed Output",
+          "type": "boolean"
+        },
         "observation_id": {
           "minLength": 1,
           "title": "Observation Id",
@@ -399,15 +4640,39 @@
           "title": "Policy Result Count",
           "type": "integer"
         },
+        "rate_limit_event_count": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Rate Limit Event Count",
+          "type": "integer"
+        },
         "repetition_index": {
           "minimum": 0,
           "title": "Repetition Index",
           "type": "integer"
         },
+        "retry_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Retry Count"
+        },
         "run_id": {
           "minLength": 1,
           "title": "Run Id",
           "type": "string"
+        },
+        "runtime_failed": {
+          "default": false,
+          "title": "Runtime Failed",
+          "type": "boolean"
         },
         "schema_version": {
           "const": "0.6.6",
@@ -432,6 +4697,7 @@
             ],
             "type": "string"
           },
+          "maxItems": 11,
           "minItems": 2,
           "title": "States",
           "type": "array"
@@ -494,7 +4760,7 @@
           "type": "string"
         },
         "conditional_frequency": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Conditional Frequency",
           "type": "string"
         },
@@ -583,12 +4849,362 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/live-trajectory-report.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "allOf": [
+          {
+            "if": {
+              "properties": {
+                "source_runset_completion_status": {
+                  "const": "incomplete"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "source_evaluation_completion_status": {
+                  "const": "incomplete"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_evaluation_stop_reasons": {
+                  "minItems": 1
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "source_evaluation_completion_status": {
+                  "const": "incomplete"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "source_evaluation_stop_reasons": {
+                  "maxItems": 0
+                },
+                "source_runset_completion_status": {
+                  "const": "complete"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "source_evaluation_completion_status": {
+                  "const": "complete"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "trajectory_status": {
+                  "const": "valid"
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "source_evaluation_completion_status": {
+                  "const": "complete"
+                },
+                "source_evaluation_exploratory": {
+                  "const": false
+                },
+                "source_runset_completion_status": {
+                  "const": "complete"
+                }
+              }
+            }
+          },
+          {
+            "if": {
+              "properties": {
+                "paths": {
+                  "contains": {
+                    "properties": {
+                      "claim_evidence_status": {
+                        "const": "unobservable"
+                      }
+                    },
+                    "required": [
+                      "claim_evidence_status"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "paths"
+              ]
+            },
+            "then": {
+              "properties": {
+                "limitations": {
+                  "contains": {
+                    "const": "one or more approval paths have unobservable claim-evidence controls; evidence completeness is unknown and requires review"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "else": {
+              "properties": {
+                "history_dependent_checks": {
+                  "maxItems": 0
+                },
+                "invariants": {
+                  "maxItems": 0
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "trajectory_plan": {
+                  "properties": {
+                    "analysis_methods": {
+                      "contains": {
+                        "const": "sequence_invariant_check"
+                      },
+                      "minContains": 1
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "history_dependent_checks": {
+                  "maxItems": 3,
+                  "minItems": 3
+                }
+              }
+            }
+          },
+          {
+            "else": {
+              "properties": {
+                "event_processes": {
+                  "maxItems": 0
+                }
+              }
+            },
+            "if": {
+              "properties": {
+                "trajectory_plan": {
+                  "properties": {
+                    "analysis_methods": {
+                      "contains": {
+                        "const": "event_process_summary"
+                      },
+                      "minContains": 1
+                    }
+                  }
+                }
+              }
+            },
+            "then": {
+              "properties": {
+                "event_processes": {
+                  "maxItems": 7,
+                  "minItems": 7
+                }
+              }
+            }
+          }
+        ],
+        "properties": {
+          "derivation_contract": {
+            "const": "agent-assure/live-trajectory/v1"
+          },
+          "event_processes": {
+            "items": {
+              "properties": {
+                "schema_version": {
+                  "const": "0.6.6"
+                }
+              }
+            }
+          },
+          "history_dependent_checks": {
+            "items": {
+              "properties": {
+                "schema_version": {
+                  "const": "0.6.6"
+                }
+              }
+            }
+          },
+          "invariants": {
+            "items": {
+              "properties": {
+                "schema_version": {
+                  "const": "0.6.6"
+                }
+              },
+              "required": [
+                "unobservable_observations",
+                "unobservable_observation_ids"
+              ]
+            }
+          },
+          "limitations": {
+            "contains": {
+              "const": "source RunSet and evaluation digests are external linkage; source truth requires resolving both artifacts and running trusted-source reconciliation"
+            },
+            "maxContains": 1,
+            "minContains": 1
+          },
+          "operational_events": {
+            "items": {
+              "properties": {
+                "schema_version": {
+                  "const": "0.6.6"
+                }
+              }
+            }
+          },
+          "paths": {
+            "items": {
+              "properties": {
+                "schema_version": {
+                  "const": "0.6.6"
+                }
+              },
+              "required": [
+                "approval_outcome",
+                "claim_evidence_complete",
+                "claim_evidence_status",
+                "attempt_count",
+                "retry_count",
+                "rate_limit_event_count",
+                "runtime_failed",
+                "malformed_output"
+              ]
+            }
+          },
+          "protocol": {
+            "not": {
+              "type": "null"
+            },
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "source_evaluation_completion_status": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "source_evaluation_digest": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "source_evaluation_exploratory": {
+            "type": "boolean"
+          },
+          "source_evaluation_stop_reasons": {
+            "not": {
+              "type": "null"
+            },
+            "uniqueItems": true
+          },
+          "source_runset_completion_status": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "source_runset_digest": {
+            "not": {
+              "type": "null"
+            }
+          },
+          "trajectory_plan": {
+            "not": {
+              "type": "null"
+            },
+            "properties": {
+              "invariants": {
+                "items": {
+                  "properties": {
+                    "schema_version": {
+                      "const": "0.6.6"
+                    }
+                  }
+                }
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "analysis_methods"
+            ]
+          },
+          "transitions": {
+            "items": {
+              "properties": {
+                "schema_version": {
+                  "const": "0.6.6"
+                }
+              }
+            }
+          }
+        },
+        "required": [
+          "derivation_contract",
+          "source_runset_digest",
+          "source_evaluation_digest",
+          "source_runset_completion_status",
+          "source_evaluation_completion_status",
+          "source_evaluation_stop_reasons",
+          "source_evaluation_exploratory",
+          "protocol",
+          "trajectory_plan",
+          "operational_events",
+          "limitations"
+        ]
+      }
+    }
+  ],
   "properties": {
     "artifact_kind": {
       "const": "live-trajectory-report",
       "default": "live-trajectory-report",
       "title": "Artifact Kind",
       "type": "string"
+    },
+    "derivation_contract": {
+      "anyOf": [
+        {
+          "const": "agent-assure/live-trajectory/v1",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Derivation Contract"
     },
     "evaluation_report_id": {
       "minLength": 1,
@@ -599,6 +5215,7 @@
       "items": {
         "$ref": "#/$defs/OperationalEventProcessSummary"
       },
+      "maxItems": 7,
       "title": "Event Processes",
       "type": "array"
     },
@@ -611,6 +5228,7 @@
       "items": {
         "$ref": "#/$defs/HistoryDependentTrajectoryCheck"
       },
+      "maxItems": 64,
       "title": "History Dependent Checks",
       "type": "array"
     },
@@ -632,6 +5250,7 @@
       "items": {
         "$ref": "#/$defs/TrajectoryInvariantResult"
       },
+      "maxItems": 64,
       "title": "Invariants",
       "type": "array"
     },
@@ -652,17 +5271,38 @@
       "title": "Observations",
       "type": "integer"
     },
+    "operational_events": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/TrajectoryOperationalEvent"
+      },
+      "maxItems": 32768,
+      "title": "Operational Events",
+      "type": "array"
+    },
     "paths": {
       "items": {
         "$ref": "#/$defs/TrajectoryPathSummary"
       },
+      "maxItems": 4096,
       "title": "Paths",
       "type": "array"
+    },
+    "protocol": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveProtocolRecord"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "protocol_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -700,6 +5340,91 @@
       "title": "Schema Version",
       "type": "string"
     },
+    "source_evaluation_completion_status": {
+      "anyOf": [
+        {
+          "enum": [
+            "complete",
+            "incomplete"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Evaluation Completion Status"
+    },
+    "source_evaluation_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Evaluation Digest"
+    },
+    "source_evaluation_exploratory": {
+      "anyOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Evaluation Exploratory"
+    },
+    "source_evaluation_stop_reasons": {
+      "anyOf": [
+        {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Evaluation Stop Reasons"
+    },
+    "source_runset_completion_status": {
+      "anyOf": [
+        {
+          "enum": [
+            "complete",
+            "incomplete"
+          ],
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Runset Completion Status"
+    },
+    "source_runset_digest": {
+      "anyOf": [
+        {
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Runset Digest"
+    },
     "state": {
       "$ref": "#/$defs/GateState",
       "default": "not_evaluated"
@@ -713,6 +5438,17 @@
       "minLength": 1,
       "title": "Suite Version",
       "type": "string"
+    },
+    "trajectory_plan": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/TrajectoryAnalysisPlan"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
     },
     "trajectory_plan_id": {
       "anyOf": [
@@ -754,6 +5490,7 @@
       "items": {
         "$ref": "#/$defs/TrajectoryTransitionSummary"
       },
+      "maxItems": 121,
       "title": "Transitions",
       "type": "array"
     }

@@ -187,8 +187,9 @@ invalid input, and `0` for pass or review-only output. The report is still
 written when its configured gate blocks so reviewers and CI can inspect the
 evidence.
 
-For `ci gate`, `--fail-on-warn` turns review findings such as
-`CRITICAL_THREAT_UNCOVERED` into exit `1`. Invalid/error findings remain
+For `ci gate`, review findings such as `CRITICAL_THREAT_UNCOVERED` are blocking
+with exit `1` by default. `--fail-on-warn` remains accepted as an idempotent
+compatibility restatement of that CI contract. Invalid/error findings remain
 blocking regardless of advisory profile settings. Not-evaluated outcomes block
 by default and both independent semantic dimensions are checked.
 `--allow-not-evaluated` is the explicit non-release advisory opt-out.
@@ -239,7 +240,10 @@ threat scope for present efficacy evidence is invalid input with exit `2`.
 The returned `GateDecision` and CLI gate message always record whether
 efficacy evidence was `not_applicable`, `absent`, or `present`, whether its
 verification was `not_requested`, `advisory`, or `strict`, and whether efficacy
-was required.
+was required. If required efficacy is absent, the decision also carries the
+underlying packet control result and the missing-efficacy result as separate
+`control_decision` and `efficacy_decision` objects. The message repeats this
+context for people, but automation should consume the structured objects.
 
 ## Evidence Packets and CI
 

@@ -93,7 +93,7 @@
           "type": "string"
         },
         "contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Contract Digest",
           "type": "string"
         },
@@ -115,7 +115,7 @@
         "operator_id": {
           "maxLength": 512,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Operator Id",
           "type": "string"
         },
@@ -253,19 +253,19 @@
         "component_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Component Id",
           "type": "string"
         },
         "relative_path": {
           "maxLength": 512,
           "minLength": 1,
-          "pattern": "^(?:agent_assure/(?:[A-Za-z0-9_./-]+\\.py|mutation/introduction_snapshots\\.json)|schemas/v[0-9]+\\.[0-9]+\\.[0-9]+/[A-Za-z0-9_.-]+\\.schema\\.json)$",
+          "pattern": "^(?:agent_assure/(?:[A-Za-z0-9_./-]+\\.py|mutation/introduction_snapshots\\.json)|schemas/v[0-9]+\\.[0-9]+\\.[0-9]+/[A-Za-z0-9_.-]+\\.schema\\.json)(?![\\s\\S])",
           "title": "Relative Path",
           "type": "string"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         }
@@ -318,7 +318,7 @@
         "precondition_id": {
           "maxLength": 512,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Precondition Id",
           "type": "string"
         },
@@ -424,14 +424,14 @@
           "type": "array"
         },
         "implementation_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Implementation Digest",
           "type": "string"
         },
         "introduced_at_commit": {
           "anyOf": [
             {
-              "pattern": "^git:(?:[a-f0-9]{40}|uncommitted)$",
+              "pattern": "^git:(?:[a-f0-9]{40}|uncommitted)(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -444,7 +444,7 @@
         "introduced_in_release": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+              "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -464,12 +464,12 @@
         "operator_id": {
           "maxLength": 512,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Operator Id",
           "type": "string"
         },
         "operator_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Operator Version",
           "type": "string"
         },
@@ -553,12 +553,12 @@
           "type": "string"
         },
         "digest_at_operator_creation": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Digest At Operator Creation",
           "type": "string"
         },
         "first_seen_commit": {
-          "pattern": "^git:(?:[a-f0-9]{40}|uncommitted)$",
+          "pattern": "^git:(?:[a-f0-9]{40}|uncommitted)(?![\\s\\S])",
           "title": "First Seen Commit",
           "type": "string"
         }
@@ -619,7 +619,7 @@
       "$ref": "#/$defs/ExpectedDetectionContract"
     },
     "implementation_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Implementation Digest",
       "type": "string"
     },
@@ -633,19 +633,19 @@
       "type": "string"
     },
     "operator_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Operator Digest",
       "type": "string"
     },
     "operator_id": {
       "maxLength": 512,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Operator Id",
       "type": "string"
     },
     "operator_version": {
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
       "title": "Operator Version",
       "type": "string"
     },
@@ -653,7 +653,7 @@
       "items": {
         "maxLength": 8192,
         "minLength": 1,
-        "pattern": "^(?:/(?:(?:[^~/]|~[01]))*)+$",
+        "pattern": "^(?:/(?:(?:[^~/]|~[01]))*)+(?![\\s\\S])",
         "type": "string"
       },
       "minItems": 1,

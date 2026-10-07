@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -14,6 +15,7 @@ MAX_YAML_BYTES = 1_048_576
 MAX_YAML_NODE_COUNT = 100_000
 MAX_YAML_DEPTH = 80
 MAX_YAML_DIAGNOSTIC_CHARS = 512
+MAX_YAML_CANONICAL_INTEGER_DIGITS = 4_096
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,12 @@ AMBIGUOUS_TAGS = {
     "tag:yaml.org,2002:float",
     "tag:yaml.org,2002:timestamp",
 }
+_SUPPORTED_SCALAR_TAGS = AMBIGUOUS_TAGS | {
+    "tag:yaml.org,2002:str",
+    "tag:yaml.org,2002:bool",
+    "tag:yaml.org,2002:null",
+}
+_CANONICAL_DECIMAL_INTEGER = re.compile(r"(?:0|[1-9][0-9]*|-[1-9][0-9]*)\Z")
 
 
 def load_yaml_nodes(path: Path, *, label: str = "suite YAML") -> LoadedYaml:
@@ -80,13 +88,14 @@ def validate_yaml_nodes_text(text: str, *, label: str = "suite YAML") -> None:
 
 
 def safe_load_yaml_text(text: str, *, label: str) -> Any:
-    validate_yaml_nodes_text(text, label=label)
-    try:
-        return yaml.safe_load(text)
-    except RecursionError as exc:
-        raise ValueError(f"{label} exceeds maximum supported nesting depth") from exc
-    except yaml.YAMLError as exc:
-        raise ValueError(f"{label} is invalid YAML") from exc
+    node = _compose_yaml(text, label=label)
+    return _convert_node(
+        node,
+        "$",
+        [],
+        state=_YamlConversionState(label=label),
+        depth=0,
+    )
 
 
 def _compose_yaml(text: str, *, label: str) -> yaml.Node | None:
@@ -110,6 +119,8 @@ def _convert_node(
         return {}
     _record_node_visit(node, path, state=state, depth=depth)
     if isinstance(node, yaml.MappingNode):
+        if node.tag != "tag:yaml.org,2002:map":
+            raise ValueError(f"{state.label} is invalid YAML: unsupported mapping tag")
         result: dict[str, Any] = {}
         for key_node, value_node in node.value:
             if key_node.tag == "tag:yaml.org,2002:merge":
@@ -151,7 +162,9 @@ def _convert_node(
             )
         return result
     if isinstance(node, yaml.SequenceNode):
-        return tuple(
+        if node.tag != "tag:yaml.org,2002:seq":
+            raise ValueError(f"{state.label} is invalid YAML: unsupported sequence tag")
+        return [
             _convert_node(
                 item,
                 f"{path}[]",
@@ -160,8 +173,10 @@ def _convert_node(
                 depth=depth + 1,
             )
             for item in node.value
-        )
+        ]
     if isinstance(node, yaml.ScalarNode):
+        if node.tag not in _SUPPORTED_SCALAR_TAGS:
+            raise ValueError(f"{state.label} is invalid YAML: unsupported scalar tag")
         if unicodedata.normalize("NFC", node.value) != node.value:
             warnings.append(
                 YamlWarning(
@@ -171,6 +186,14 @@ def _convert_node(
                     column=node.start_mark.column + 1,
                 )
             )
+        if node.tag == "tag:yaml.org,2002:int" and _CANONICAL_DECIMAL_INTEGER.fullmatch(node.value):
+            digits = node.value.removeprefix("-")
+            if len(digits) > MAX_YAML_CANONICAL_INTEGER_DIGITS:
+                raise ValueError(
+                    f"{state.label} canonical integer exceeds maximum supported digit count "
+                    f"at {_safe_yaml_path(path)}"
+                )
+            return int(node.value, 10)
         if node.tag in AMBIGUOUS_TAGS:
             warnings.append(
                 YamlWarning(

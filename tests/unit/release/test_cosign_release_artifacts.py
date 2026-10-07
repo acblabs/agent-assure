@@ -1143,7 +1143,7 @@ def test_signature_verification_is_unprivileged_and_precedes_publish() -> None:
     uploaded_verify_job = workflow.split(
         "  verify-uploaded-artifacts:\n",
         maxsplit=1,
-    )[1].split("  github-release:\n", maxsplit=1)[0]
+    )[1].split("  attest-release-provenance:\n", maxsplit=1)[0]
     pypi_job = workflow.split("  pypi-publish:\n", maxsplit=1)[1]
 
     assert "id-token: write" not in verify_job
@@ -1154,8 +1154,12 @@ def test_signature_verification_is_unprivileged_and_precedes_publish() -> None:
     assert "id-token: write" not in uploaded_verify_job
     assert "cosign_release_artifacts.py verify-uploaded" in uploaded_verify_job
     assert "--distributions-dir .tmp/distributions" in uploaded_verify_job
-    assert "actions/upload-artifact@" not in uploaded_verify_job
-    assert "needs: [verify-uploaded-artifacts, github-release]" in pypi_job
+    assert uploaded_verify_job.count("uses: actions/upload-artifact@") == 1
+    assert "Upload exact verified provenance subject list" in uploaded_verify_job
+    assert "path: .tmp/release-provenance-subjects.sha256" in uploaded_verify_job
+    assert (
+        "needs: [verify-uploaded-artifacts, attest-release-provenance, github-release]" in pypi_job
+    )
 
 
 def test_release_workflow_uses_canonical_release_gate() -> None:
@@ -1163,7 +1167,8 @@ def test_release_workflow_uses_canonical_release_gate() -> None:
     build_job = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
 
     assert "make release-publish-check EXPECTED_RELEASE=" in build_job
-    assert "Require empirical checkpoint and run release checks" in build_job
+    assert "Run standard fail-closed release checks" in build_job
+    assert "make release-security-maintenance-check" not in build_job
     assert "\n      - run: python scripts/update_golden.py\n" in build_job
     assert "\n      - run: mypy src\n" not in build_job
 

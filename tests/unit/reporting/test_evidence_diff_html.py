@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import cast
 
 import pytest
+from pydantic import ValidationError
 
 from agent_assure.evaluation.evaluator import runset_digest
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
@@ -15,12 +16,15 @@ from agent_assure.reporting.evidence_diff_html import (
     _raw_html,
     _SafeHtml,
     render_evidence_diff_html,
+    write_evidence_diff_html,
 )
+from agent_assure.reporting.evidence_diff_view import build_evidence_diff_presentation
 from agent_assure.schema.common import ComparisonClassification, GateState, ReasonCode
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary, Finding
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.provenance import Provenance
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
 from agent_assure.schema.run import (
     AgentRunRecord,
@@ -31,6 +35,7 @@ from agent_assure.schema.run import (
     RunSet,
 )
 from agent_assure.schema.usage import UsageSummary, UsageSummaryDelta
+from agent_assure.schema.validation import ArchivalOnlyArtifactError
 
 ROOT = Path(__file__).resolve().parents[3]
 if str(ROOT) not in sys.path:
@@ -67,6 +72,9 @@ def test_evidence_diff_html_surfaces_punchline_without_raw_json() -> None:
     )
 
     assert THESIS_TITLE in html
+    assert 'http-equiv="Content-Security-Policy"' in html
+    assert "default-src 'none'" in html
+    assert 'name="referrer" content="no-referrer"' in html
     assert "This report is not a compliance attestation." in html
     assert "This artifact does not certify safety." in html
     assert "CI Gate Blocked Candidate Regression" in html
@@ -210,7 +218,7 @@ def test_evidence_diff_html_rejects_mismatched_packet_binding() -> None:
     stale_evaluation = packet.evaluation.model_copy(update={"runset_id": "stale-candidate"})
     stale_packet = packet.model_copy(update={"evaluation": stale_evaluation})
 
-    with pytest.raises(ValueError, match="packet.evaluation.runset_id"):
+    with pytest.raises(ValueError, match="runset_id"):
         render_evidence_diff_html(
             baseline=baseline,
             candidate=candidate,
@@ -219,13 +227,199 @@ def test_evidence_diff_html_rejects_mismatched_packet_binding() -> None:
         )
 
 
+def test_evidence_diff_html_rejects_same_id_runset_substitution() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    substituted_run = candidate.runs[0].model_copy(
+        update={"output_summary": "different privacy-filtered output"}
+    )
+    substituted_candidate = candidate.model_copy(update={"runs": (substituted_run,)})
+    assert substituted_candidate.runset_id == candidate.runset_id
+    assert runset_digest(substituted_candidate) != runset_digest(candidate)
+
+    with pytest.raises(ValueError, match="candidate canonical digest"):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=substituted_candidate,
+            comparison_summary=comparison,
+            packet=packet,
+        )
+
+
+def test_evidence_diff_writer_rejects_substitution_before_creating_output(
+    tmp_path: Path,
+) -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    substituted_candidate = candidate.model_copy(
+        update={
+            "runs": (
+                candidate.runs[0].model_copy(
+                    update={"output_summary": "different privacy-filtered output"}
+                ),
+            )
+        }
+    )
+    output = tmp_path / "must-not-exist" / "evidence-diff.html"
+
+    with pytest.raises(ValueError, match="candidate canonical digest"):
+        write_evidence_diff_html(
+            baseline=baseline,
+            candidate=substituted_candidate,
+            comparison_summary=comparison,
+            packet=packet,
+            out=output,
+        )
+
+    assert not output.parent.exists()
+
+
+def test_evidence_diff_html_binds_all_supplied_evaluation_digests() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    baseline_summary = EvaluationSummary(
+        runset_id=baseline.runset_id,
+        runset_digest=runset_digest(baseline),
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=comparison.baseline_state,
+    )
+    stale_baseline_summary = baseline_summary.model_copy(update={"runset_digest": "f" * 64})
+    stale_candidate_summary = packet.evaluation.model_copy(update={"runset_digest": "f" * 64})
+    stale_packet = packet.model_copy(update={"evaluation": stale_candidate_summary})
+
+    with pytest.raises(ValueError, match="baseline_summary.runset_digest"):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=candidate,
+            comparison_summary=comparison,
+            baseline_summary=stale_baseline_summary,
+        )
+    with pytest.raises(ValueError, match="candidate_summary.runset_digest"):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=candidate,
+            comparison_summary=comparison,
+            candidate_summary=stale_candidate_summary,
+        )
+    with pytest.raises(
+        ValueError,
+        match="packet.evaluation.runset_digest|evaluation runset_digest",
+    ):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=candidate,
+            comparison_summary=comparison,
+            packet=stale_packet,
+        )
+
+
+def test_evidence_diff_presentation_rejects_unsafe_typed_comparison() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    forged = comparison.model_copy(update={"artifact_kind": "forged-summary"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        build_evidence_diff_presentation(
+            baseline=baseline,
+            candidate=candidate,
+            comparison_summary=forged,
+            baseline_summary=None,
+            candidate_summary=None,
+            packet=packet,
+        )
+
+
+def test_evidence_diff_html_rederives_fixture_equivalence_state() -> None:
+    baseline, candidate, comparison, _packet = _artifacts()
+    changed_fixture_digest = "b" * 64
+    changed_run = candidate.runs[0].model_copy(
+        update={
+            "provenance": candidate.runs[0].provenance.model_copy(
+                update={"fixture_manifest_digest": changed_fixture_digest}
+            )
+        }
+    )
+    changed_candidate = candidate.model_copy(
+        update={
+            "fixture_manifest_digest": changed_fixture_digest,
+            "runs": (changed_run,),
+        }
+    )
+    stale_comparison = comparison.model_copy(
+        update={"candidate_runset_digest": runset_digest(changed_candidate)}
+    )
+
+    with pytest.raises(ValueError, match="derived fixture equivalence state"):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=changed_candidate,
+            comparison_summary=stale_comparison,
+        )
+
+
+def test_evidence_diff_html_rejects_archival_decision_roots() -> None:
+    baseline, candidate, comparison, _packet = _artifacts()
+    historical_payload = comparison.model_dump(mode="json")
+    historical_payload["schema_version"] = "0.6.5"
+    historical = ComparisonSummary.model_validate(historical_payload)
+
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        render_evidence_diff_html(
+            baseline=baseline,
+            candidate=candidate,
+            comparison_summary=historical,
+        )
+
+
+def test_evidence_diff_html_revalidates_every_supplied_model() -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    baseline_summary = EvaluationSummary(
+        runset_id=baseline.runset_id,
+        runset_digest=runset_digest(baseline),
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.pass_,
+    )
+    candidate_summary = packet.evaluation
+    valid_inputs = {
+        "baseline": baseline,
+        "candidate": candidate,
+        "comparison_summary": comparison,
+        "baseline_summary": baseline_summary,
+        "candidate_summary": candidate_summary,
+        "packet": packet,
+    }
+
+    for field_name, model in valid_inputs.items():
+        supplied = dict(valid_inputs)
+        supplied[field_name] = model.model_copy(update={"artifact_kind": "forged-artifact"})
+        with pytest.raises(ValidationError, match="artifact_kind"):
+            render_evidence_diff_html(**supplied)  # type: ignore[arg-type]
+
+    assert "Agent Assure Evidence Diff" in render_evidence_diff_html(**valid_inputs)  # type: ignore[arg-type]
+
+
+def test_evidence_diff_writer_revalidates_before_creating_output(tmp_path: Path) -> None:
+    baseline, candidate, comparison, packet = _artifacts()
+    forged_baseline = baseline.model_copy(update={"artifact_kind": "forged-artifact"})
+    output = tmp_path / "must-not-exist" / "evidence-diff.html"
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        write_evidence_diff_html(
+            baseline=forged_baseline,
+            candidate=candidate,
+            comparison_summary=comparison,
+            packet=packet,
+            out=output,
+        )
+
+    assert not output.parent.exists()
+
+
 def test_evidence_diff_html_rejects_packet_state_contradicting_comparison() -> None:
     baseline, candidate, comparison, packet = _artifacts()
     contradictory_packet = packet.model_copy(
         update={"evaluation": packet.evaluation.model_copy(update={"state": GateState.pass_})}
     )
 
-    with pytest.raises(ValueError, match="packet.evaluation.state"):
+    with pytest.raises(ValueError, match="state"):
         render_evidence_diff_html(
             baseline=baseline,
             candidate=candidate,
@@ -465,6 +659,7 @@ def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
                 total_retries=0,
                 total_latency_ms=100,
                 estimated_cost_microusd=150,
+                estimated_cost_picousd=150_000_000,
                 cost_basis_ids=("declared_fixture_v1",),
                 pricing_snapshot_ids=("snapshot-v1",),
                 pricing_snapshot_digests=("a" * 64,),
@@ -482,6 +677,7 @@ def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
                 total_retries=3,
                 total_latency_ms=350,
                 estimated_cost_microusd=230,
+                estimated_cost_picousd=230_000_000,
                 cost_basis_ids=("declared_fixture_v1",),
                 pricing_snapshot_ids=("snapshot-v1",),
                 pricing_snapshot_digests=("a" * 64,),
@@ -510,6 +706,7 @@ def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
             total_retries_delta=3,
             total_latency_ms_delta=250,
             estimated_cost_microusd_delta=80,
+            estimated_cost_picousd_delta=80_000_000,
         ),
     )
 
@@ -526,7 +723,7 @@ def test_evidence_diff_html_surfaces_operational_and_usage_changes() -> None:
     assert "<code>measured usage</code>" in html
     assert "attempts=4; retries=3; latency_ms=350" in html
     assert "tokens=140; tools=not_observed; retries=3" in html
-    assert "declared estimated cost delta +80 micro-USD" in html
+    assert "declared estimated cost delta +80000000 pico-USD" in html
 
 
 def test_evidence_diff_html_surfaces_source_id_only_process_change() -> None:
@@ -739,4 +936,5 @@ def _run(
         ),
         claim_evidence_links=claim_evidence_links,
         tools=("benefit-policy-lookup",),
+        provenance=Provenance(fixture_manifest_digest=_DIGEST),
     )

@@ -1,17 +1,21 @@
 from __future__ import annotations
 
 from pathlib import Path
-from types import SimpleNamespace
 from typing import cast
 
 import yaml
 
 from agent_assure.mutation import execution as mutation_execution
-from agent_assure.schema.common import ReasonCode
+from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.mutation import (
     AssuranceMutationResult,
     EvidenceEvaluationBasis,
     MutationResultState,
+    ObservedFinding,
+    OperatorAuthorship,
+    OperatorOrigin,
+    OperatorProvenance,
+    finding_target_digest,
 )
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -34,36 +38,7 @@ RESULT_DIGEST_PLACEHOLDER = "<mutation-result-digest-64-lowercase-hex>"
 
 def test_caught_descriptor_example_tracks_the_producer_shape() -> None:
     """Keep the RFC example aligned with producer-owned values and fields."""
-    result = cast(
-        AssuranceMutationResult,
-        SimpleNamespace(
-            state=MutationResultState.caught,
-            observed_findings=(
-                SimpleNamespace(
-                    reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
-                ),
-            ),
-            source_digest="a" * 64,
-            result_digest="b" * 64,
-            evaluator_method_id="assurance-mutation/core/v1",
-            evaluator_implementation_digest="c" * 64,
-            evaluator_implementation_version="0.6.1",
-            evaluator_evaluation_basis=EvidenceEvaluationBasis.deterministic,
-            evaluator_protocol_digest=None,
-            evaluator_population_id="deterministic-fixture-v1",
-            gate_profile_id="default",
-            gate_profile_digest="e" * 64,
-            waiver_set_digest="f" * 64,
-            evaluation_date="2026-07-20",
-            matched_finding_ids=("finding-material-claim-missing-evidence",),
-            limitations=(
-                "Detection is scoped to this deterministic operator, subject, suite, "
-                "and gate profile.",
-                "The finite operator does not represent every evidence-link failure.",
-                "The operator challenges one deterministically selected material claim.",
-            ),
-        ),
-    )
+    result = _caught_result()
 
     descriptor = mutation_execution.build_evidence_descriptor(
         result,
@@ -98,6 +73,64 @@ def test_caught_descriptor_example_tracks_the_producer_shape() -> None:
     producer["version"] = documented_version
 
     assert documented == descriptor
+
+
+def _caught_result() -> AssuranceMutationResult:
+    target_digest = finding_target_digest("claim:documentation-example")
+    provenance = OperatorProvenance(
+        operator_id="documentation-example-operator",
+        operator_version="1.0.0",
+        implementation_digest="0" * 64,
+        implementation_components=(),
+        introduction_components=(),
+        origin=OperatorOrigin(
+            kind="unknown",
+            references=("Documentation-only validated fixture.",),
+        ),
+        target_controls=(),
+        authorship=OperatorAuthorship(relationship_to_control_author="unknown"),
+    )
+    return AssuranceMutationResult.build(
+        source_digest="a" * 64,
+        mutated_digest="1" * 64,
+        operator_id=provenance.operator_id,
+        operator_version=provenance.operator_version,
+        operator_digest="2" * 64,
+        implementation_digest=provenance.implementation_digest,
+        expected_detection_contract_digest="3" * 64,
+        expected_finding_target_digest=target_digest,
+        evaluator_method_id="assurance-mutation/core/v1",
+        evaluator_implementation_digest="c" * 64,
+        evaluator_implementation_version="0.6.1",
+        evaluator_evaluation_basis=EvidenceEvaluationBasis.deterministic,
+        evaluator_protocol_digest=None,
+        evaluator_population_id="deterministic-fixture-v1",
+        gate_profile_id="default",
+        gate_profile_digest="e" * 64,
+        waiver_set_digest="f" * 64,
+        evaluation_date="2026-07-20",
+        seed=17,
+        changed_paths=("/runs/0/claim_evidence_links/0",),
+        observed_findings=(
+            ObservedFinding(
+                finding_id="finding-material-claim-missing-evidence",
+                control_id="material_claims_have_evidence",
+                state=GateState.fail,
+                reason_code=ReasonCode.MATERIAL_CLAIM_MISSING_EVIDENCE,
+                target_digest=target_digest,
+            ),
+        ),
+        matched_finding_ids=("finding-material-claim-missing-evidence",),
+        state=MutationResultState.caught,
+        provenance=provenance,
+        independence_class="unknown",
+        diagnostic_code=None,
+        limitations=(
+            "Detection is scoped to this deterministic operator, subject, suite, and gate profile.",
+            "The finite operator does not represent every evidence-link failure.",
+            "The operator challenges one deterministically selected material claim.",
+        ),
+    )
 
 
 def _documented_descriptor() -> dict[str, object]:

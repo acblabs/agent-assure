@@ -30,6 +30,7 @@ nav:
   - Claim boundary: claim_boundary.md
   - Privacy model: privacy_model.md
   - Threat model: threat_model.md
+  - Security correction containment: security_release_containment.md
   - NIST AI RMF crosswalk: governance_crosswalk_nist_ai_rmf.md
   - OWASP LLM Top 10 crosswalk: governance_crosswalk_owasp_llm.md
   - ISO/IEC 42001 crosswalk: governance_crosswalk_iso42001.md
@@ -40,6 +41,7 @@ nav:
   - Google ADK integration: integrations/google_adk.md
   - PyPI release: release_pypi.md
   - Release notes:
+      - v0.7.0 candidate: release_notes/v0.7.0.md
       - v0.6.5: release_notes/v0.6.5.md
       - v0.6.4: release_notes/v0.6.4.md
       - v0.6.3: release_notes/v0.6.3.md

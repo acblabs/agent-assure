@@ -15,7 +15,7 @@ repository secret, or maintainer access is needed. GitHub supplies its normal
 short-lived, read-only workflow token.
 
 The public PyPI/GitHub release remains `0.6.5`. This workflow evaluates an
-unreleased `0.6.6` pre-candidate built from the exact execution-source revision
+unreleased `0.7.0` pre-candidate built from the exact execution-source revision
 named below; it must not be described as a published release or release
 candidate.
 
@@ -92,13 +92,21 @@ pseudonym. Stage-2 publication consent expressly covers that disclosure.
    `docs/templates/external_pilot_participant_waiver.yaml` to
    `agent-assure-pilot/participant-waiver.yaml` in your fork.
 4. Replace every `replace-participant-pseudonym` occurrence with your chosen
-   pseudonym. Replace `replace-with-a-short-benign-participant-rationale` with
-   your own short, printable explanation of why you are running the pilot.
-   Leave `reason_code`, `finding_id`, `artifact_digest`, and `expires_on`
-   unchanged. The fixed zero digest is designed and validated not to match the
-   scaffold finding.
+   pseudonym. Replace `replace-negative-control-reviewer-label` yourself with a
+   second, distinct 1-64 character pseudonymous label. This label exercises the
+   waiver schema; it is not a second person's approval and conveys no
+   authorization because the fixed zero digest is designed and validated not
+   to match the scaffold finding. Replace
+   `replace-with-a-short-benign-participant-rationale` with your own short,
+   printable explanation of why you are running the pilot, and replace
+   `replace-with-iso-expiry-within-90-days` with an ISO date from the capture
+   date through 90 days later. Leave `reason_code`, `finding_id`, and
+   `artifact_digest` unchanged. The capture rejects identical owner/reviewer
+   labels, expired input, and an expiry beyond the 90-day governance horizon.
 5. Commit that new file to your fork. The workflow refuses an uncommitted file
-   or an unchanged template.
+   or an unchanged template. Capture resolves the full run-head commit and
+   independently rehashes its commit-to-tree-to-blob object chain before using
+   the file, with strict path, byte, and time limits.
 6. In the fork's **Actions** tab, run **external pilot 1 - capture** on the
    branch containing your commit. Enter the pseudonym. Read and accept the
    temporary-storage scope only if you consent to it, then attest environment
@@ -107,13 +115,20 @@ pseudonym. Stage-2 publication consent expressly covers that disclosure.
 The recruitment handoff names two immutable revisions. The
 `TRUSTED_WORKFLOW_REVISION` identifies the upstream workflow and documentation
 bytes you must copy and run. The distinct `EXECUTION_SOURCE_REVISION`, pinned
-inside those workflow bytes, identifies the upstream unreleased `0.6.6`
+inside those workflow bytes, identifies the upstream unreleased `0.7.0`
 pre-candidate source used to build the tested wheel. A workflow revision cannot
 generally equal the source revision it embeds. The capture workflow builds that
 immutable execution source,
 runs one exact catalog-based `controls mutate` command, and uploads a 14-day
 artifact named `external-pilot-capture-<run-id>-<attempt>`. Record the numeric
 run ID and attempt number from the run page.
+
+The capture run head necessarily includes your committed waiver and therefore
+must differ from both the trusted workflow revision and the execution-source
+revision. Stage 2 must use a distinct Actions run ID. Capture bytes are staged
+privately and published to the requested directory only after complete
+validation, so a late failure leaves no partial capture directory to block a
+corrected retry.
 
 The action persists the tested wheel, exact input and semantic digests,
 privacy-filtered runner metadata, linkable pseudonymous repository/run bindings,

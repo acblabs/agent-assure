@@ -7,14 +7,20 @@ from importlib import resources
 from pathlib import Path
 from typing import Any, Self
 
-import yaml
 from pydantic import Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.canonical.digests import sha256_hexdigest
+from agent_assure.atlas_catalog import load_mitre_atlas_2026_06_catalog
+from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
 from agent_assure.policies.base import control_finding_id
 from agent_assure.schema.base import StrictModel
 from agent_assure.schema.common import GateState, coerce_enum, coerce_tuple
+from agent_assure.schema.controls import (
+    CLAIM_BOUNDARY as _CLAIM_BOUNDARY,
+)
+from agent_assure.schema.controls import (
+    MITRE_ATLAS_BOUNDARY as _MITRE_ATLAS_BOUNDARY,
+)
 from agent_assure.schema.controls import (
     ControlConditionEvaluation,
     ControlCoverageItem,
@@ -23,20 +29,20 @@ from agent_assure.schema.controls import (
     ControlEvidenceRef,
     ControlFramework,
     ControlMappingStrength,
+    _control_coverage_semantic_items,
+    _derive_control_coverage_report_id,
+    _project_control_coverage_limitations,
+    _validate_control_framework_version,
+    _validate_coverage_state_path,
+    _validate_mitre_mapping_identifiers,
+    _validate_unique_lexicographic_identifiers,
 )
 from agent_assure.schema.evaluation import Finding
 from agent_assure.schema.packet import EvidencePacket
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
-CLAIM_BOUNDARY = (
-    "This report maps observed `agent-assure` evidence to selected framework concepts "
-    "for human review. It is not a compliance attestation, certification, audit "
-    "opinion, legal conclusion, regulatory conclusion, or safety claim."
-)
-MITRE_ATLAS_BOUNDARY = (
-    "MITRE ATLAS mappings are planning crosswalks only and are not adversary-emulation "
-    "results, ATLAS coverage claims, validation results, endorsements, or "
-    "threat-resistance claims."
-)
+CLAIM_BOUNDARY = _CLAIM_BOUNDARY
+MITRE_ATLAS_BOUNDARY = _MITRE_ATLAS_BOUNDARY
 
 _MAPPING_FILES: dict[ControlFramework, str] = {
     ControlFramework.nist_ai_rmf: "nist_ai_rmf.yaml",
@@ -85,6 +91,11 @@ class MappingRule(StrictModel):
     ) -> tuple[MappingRequirement, ...]:
         if not value:
             raise ValueError("mapping rules require at least one packet signal")
+        requirement_ids = tuple(
+            (requirement.signal, requirement.condition) for requirement in value
+        )
+        if len(requirement_ids) != len(set(requirement_ids)):
+            raise ValueError("mapping rule signal and condition requirements must be unique")
         return value
 
     @field_validator("coverage_state_when_true", "coverage_state_when_false", mode="before")
@@ -93,11 +104,15 @@ class MappingRule(StrictModel):
         return coerce_enum(ControlCoverageState, value)
 
     @model_validator(mode="after")
-    def _validate_contradiction_path(self) -> Self:
-        if self.coverage_state_when_false is ControlCoverageState.contradictory_evidence_observed:
-            raise ValueError(
-                "contradictory_evidence_observed must be authored on true mapping paths"
-            )
+    def _validate_observation_paths(self) -> Self:
+        _validate_coverage_state_path(
+            observed=True,
+            coverage_state=self.coverage_state_when_true,
+        )
+        _validate_coverage_state_path(
+            observed=False,
+            coverage_state=self.coverage_state_when_false,
+        )
         return self
 
 
@@ -131,6 +146,29 @@ class MappingControl(StrictModel):
     def _coerce_sequences(cls, value: object) -> object:
         return coerce_tuple(value)
 
+    @field_validator("evidence_rules")
+    @classmethod
+    def _require_unique_rule_ids(
+        cls,
+        value: tuple[MappingRule, ...],
+    ) -> tuple[MappingRule, ...]:
+        rule_ids = tuple(rule.rule_id for rule in value)
+        if len(rule_ids) != len(set(rule_ids)):
+            raise ValueError("mapping control rule_id values must be unique")
+        return value
+
+    @field_validator("atlas_tactic_ids", "atlas_technique_ids")
+    @classmethod
+    def _require_canonical_atlas_ids(
+        cls,
+        value: tuple[str, ...],
+    ) -> tuple[str, ...]:
+        _validate_unique_lexicographic_identifiers(
+            value,
+            owner="mapping control ATLAS identifiers",
+        )
+        return value
+
 
 class SourceReview(StrictModel):
     reviewed_on: str = Field(min_length=1)
@@ -163,15 +201,90 @@ class FrameworkMapping(StrictModel):
 
     @model_validator(mode="after")
     def _validate_framework_specific_controls(self) -> Self:
-        if self.framework is ControlFramework.mitre_atlas_2026_06:
-            missing_strength = [
-                control.id for control in self.controls if control.mapping_strength is None
-            ]
-            if missing_strength:
-                joined = ", ".join(missing_strength)
+        control_ids = tuple(control.id for control in self.controls)
+        if len(control_ids) != len(set(control_ids)):
+            raise ValueError("framework mapping control IDs must be unique")
+        _validate_control_framework_version(
+            self.framework,
+            self.framework_version,
+            owner="framework mapping",
+        )
+        if self.framework is not ControlFramework.mitre_atlas_2026_06:
+            strength_ids = tuple(
+                control.id for control in self.controls if control.mapping_strength is not None
+            )
+            atlas_ids = tuple(
+                control.id
+                for control in self.controls
+                if control.atlas_tactic_ids or control.atlas_technique_ids
+            )
+            if strength_ids:
                 raise ValueError(
-                    f"MITRE ATLAS mappings require mapping_strength for every control: {joined}"
+                    "non-MITRE framework mappings must not declare mapping_strength: "
+                    + ", ".join(strength_ids)
                 )
+            if atlas_ids:
+                raise ValueError(
+                    "non-MITRE framework mappings must not declare ATLAS identifiers: "
+                    + ", ".join(atlas_ids)
+                )
+            return self
+
+        missing_strength = [
+            control.id for control in self.controls if control.mapping_strength is None
+        ]
+        if missing_strength:
+            joined = ", ".join(missing_strength)
+            raise ValueError(
+                f"MITRE ATLAS mappings require mapping_strength for every control: {joined}"
+            )
+        catalog = load_mitre_atlas_2026_06_catalog()
+        unknown_control_ids = tuple(
+            control.id for control in self.controls if control.id not in catalog.technique_ids
+        )
+        unknown_tactic_ids = sorted(
+            {
+                identifier
+                for control in self.controls
+                for identifier in control.atlas_tactic_ids
+                if identifier not in catalog.tactic_ids
+            }
+        )
+        unknown_technique_ids = sorted(
+            {
+                identifier
+                for control in self.controls
+                for identifier in control.atlas_technique_ids
+                if identifier not in catalog.technique_ids
+            }
+        )
+        if unknown_control_ids:
+            raise ValueError(
+                "MITRE ATLAS mapping control IDs are absent from the pinned 2026.06 catalog: "
+                + ", ".join(unknown_control_ids)
+            )
+        if unknown_tactic_ids:
+            raise ValueError(
+                "MITRE ATLAS mapping tactic identifiers are absent from the pinned 2026.06 "
+                "catalog: " + ", ".join(unknown_tactic_ids)
+            )
+        if unknown_technique_ids:
+            raise ValueError(
+                "MITRE ATLAS mapping technique identifiers are absent from the pinned "
+                "2026.06 catalog: " + ", ".join(unknown_technique_ids)
+            )
+        for control in self.controls:
+            if control.mapping_strength is None:  # pragma: no cover - checked above
+                continue
+            _validate_mitre_mapping_identifiers(
+                control_id=control.id,
+                title=control.title,
+                expected_title=catalog.technique_names[control.id],
+                mapping_strength=control.mapping_strength,
+                atlas_tactic_ids=control.atlas_tactic_ids,
+                atlas_technique_ids=control.atlas_technique_ids,
+                owner="MITRE ATLAS mapping control",
+            )
         return self
 
 
@@ -195,36 +308,36 @@ def build_control_coverage_report(
     framework: ControlFramework | str,
     evidence_packet_digest: str,
 ) -> ControlCoverageReport:
+    packet_payload = packet.model_dump(mode="json", warnings="error")
+    packet = EvidencePacket.model_validate(packet_payload)
+    validate_loaded_artifact_payload(packet_payload, "evidence-packet")
     resolved_framework = _coerce_framework(framework)
     loaded = load_framework_mapping(resolved_framework)
     mapping = loaded.mapping
     context = _PacketContext(packet, evidence_packet_digest=evidence_packet_digest)
     items = tuple(_coverage_item(control, context) for control in mapping.controls)
-    counts = Counter(item.coverage_state.value for item in items)
+    counts = Counter(item.coverage_state for item in items)
     limitations = _report_limitations(mapping)
-    report_key = {
-        "framework": mapping.framework.value,
-        "framework_version": mapping.framework_version,
-        "mapping_digest": loaded.digest,
-        "evidence_packet_digest": evidence_packet_digest,
-        "items": [
-            {
-                "control_id": item.control_id,
-                "coverage_state": item.coverage_state.value,
-            }
-            for item in items
-        ],
-    }
     return ControlCoverageReport(
         artifact_kind="control-coverage-report",
-        report_id=f"control-map-{sha256_hexdigest(report_key)[:16]}",
+        report_id=_derive_control_coverage_report_id(
+            framework=mapping.framework,
+            framework_version=mapping.framework_version,
+            mapping_version=mapping.mapping_version,
+            mapping_digest=loaded.digest,
+            evidence_packet_id=packet.packet_id,
+            evidence_packet_digest=evidence_packet_digest,
+            item_states=tuple((item.control_id, item.coverage_state) for item in items),
+            item_semantics=_control_coverage_semantic_items(items),
+            limitations=limitations,
+        ),
         framework=mapping.framework,
         framework_version=mapping.framework_version,
         mapping_version=mapping.mapping_version,
         mapping_digest=loaded.digest,
         evidence_packet_id=packet.packet_id,
         evidence_packet_digest=evidence_packet_digest,
-        coverage_state_counts=dict(sorted(counts.items())),
+        coverage_state_counts=dict(sorted(counts.items(), key=lambda item: item[0].value)),
         items=items,
         limitations=limitations,
     )
@@ -234,7 +347,10 @@ def load_framework_mapping(framework: ControlFramework | str) -> LoadedFramework
     resolved_framework = _coerce_framework(framework)
     filename = _MAPPING_FILES[resolved_framework]
     payload, source = _mapping_bytes(filename)
-    data = yaml.safe_load(payload.decode("utf-8"))
+    data = safe_load_yaml_text(
+        payload.decode("utf-8"),
+        label=f"built-in framework mapping {filename}",
+    )
     if not isinstance(data, dict):
         raise ValueError(f"mapping {filename} must contain a YAML object")
     mapping = FrameworkMapping.model_validate(data)
@@ -413,10 +529,10 @@ def _dedupe_evidence_refs(refs: Any) -> tuple[ControlEvidenceRef, ...]:
 
 
 def _report_limitations(mapping: FrameworkMapping) -> tuple[str, ...]:
-    limitations = [CLAIM_BOUNDARY, *mapping.limitations]
-    if mapping.framework is ControlFramework.mitre_atlas_2026_06:
-        limitations.append(MITRE_ATLAS_BOUNDARY)
-    return tuple(dict.fromkeys(limitations))
+    return _project_control_coverage_limitations(
+        mapping.framework,
+        mapping.limitations,
+    )
 
 
 class _PacketContext:

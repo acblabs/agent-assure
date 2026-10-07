@@ -3,7 +3,9 @@
 Release evidence consists of the flagship fixture-mode outputs, an evidence
 packet, its assurance evidence graph, a release artifact manifest, a digest
 replay file, an SBOM, Python distribution artifacts, and optional keyless
-cosign bundles created by GitHub Actions workflows.
+cosign bundles created by GitHub Actions workflows. Standard production tag
+releases also register GitHub artifact attestations for the exact published
+asset set.
 
 The digest replay file records raw SHA-256 file digests for replay-stable
 source artifacts, such as the compiled suite and fixture manifest. For
@@ -31,6 +33,7 @@ From a clean checkout:
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 python scripts/build_release_bundle.py --expected-release 0.6.3 --out .tmp/release --write-digests .tmp/release/release-digest-replay.json
+python scripts/check_sbom.py --sbom .tmp/release/sbom.cdx.json --artifact-root .
 agent-assure release replay .tmp/release/release-digest-replay.json --artifact-root . --require-current-commit
 ```
 
@@ -51,6 +54,7 @@ git checkout "${TAG}"
 python -m pip install --require-hashes -r requirements.lock
 python -m pip install --no-deps --no-build-isolation -e .
 python scripts/build_release_bundle.py --expected-release "${RELEASE}" --out .tmp/release --write-digests .tmp/release/release-digest-replay.actual.json --source-ref "refs/tags/${TAG}"
+python scripts/check_sbom.py --sbom .tmp/release/sbom.cdx.json --artifact-root .
 agent-assure release replay path/to/downloaded/release-digest-replay.json --artifact-root . --expect-ref "refs/tags/${TAG}" --require-current-commit
 ```
 
@@ -67,6 +71,35 @@ evidence-packet, and release-artifact-manifest roles. The v0.6.3 writer also
 requires assurance-evidence-graph. Unknown version policies fail closed;
 explicit `--require-role` options add requirements without replacing that
 versioned core set.
+
+Historical bundle reproduction is intentionally separate from public assurance
+validation. `agent-assure validate` rejects historical release replays and their
+historical decision-bearing children as archival-only. `release replay` instead
+uses a bounded integrity-only reader selected by the trusted role-to-kind map:
+it validates each input against its exact frozen schema, checks release-root
+role/path uniqueness, confines paths, and recomputes the recorded digests. This
+proves reproduction of published bytes and stable projections only. It neither
+reconstructs omitted historical findings nor turns those artifacts into
+assurance-valid evidence. Successful historical CLI output is explicitly marked
+`historical archival integrity-only replay; not assurance validation`;
+current-version replay inputs remain subject to the full public semantic
+validator.
+
+A current-schema replay envelope is version-homogeneous at every persisted
+JSON boundary. Each direct replay artifact and each role-mapped JSON artifact
+reached through a release manifest must carry the exact current writer schema
+version. A historical child under a current envelope fails before its digest
+can be accepted; there is no per-role downgrade exception. Historical replay
+envelopes retain their exact frozen-schema, integrity-only compatibility path.
+
+Replay reads every top-level artifact and manifest child through a bounded,
+trusted-root descriptor walk that rejects links and reparse points in every
+path component. JSON validation, the raw SHA-256 check, and any stable
+projection digest are derived from the same immutable byte snapshot, so a path
+or file replacement cannot make validation and hashing observe different
+contents. RunSet JSON uses its explicit 64 MiB journal-bearing ceiling; other
+JSON uses its trusted artifact-kind limit, and raw release files use the
+existing 64 MiB per-artifact release ceiling.
 
 Reviewer-oriented Markdown and HTML are deliberately not semantic core roles.
 They are deterministic projections where practical, but may include
@@ -138,7 +171,13 @@ independent implementation or diverse toolchain. The signer downloads only
 that ID and has no checkout, Python setup, dependency installation, package
 import, or package execution. It is tag-only and protected by the `signing`
 environment. A separate job without OIDC verifies the exact workflow identity
-and promotes the verified signed bundle. Signed blobs include:
+and promotes the verified signed bundle. A final, checkout-free attestation job
+downloads only an immutable 22-line checksum artifact emitted by the fresh
+verifier and generates one SLSA v1 provenance statement covering all 22 GitHub
+Release assets. The job is tag-only, uses the protected `signing` environment,
+and contains no shell, package install, or project-code execution. GitHub
+Release and PyPI publication both fail closed unless it succeeds. Signed blobs
+include:
 
 Both signing workflows require a `v*` tag. The evidence workflow also checks
 that the tag resolves to the workflow commit, matches the package version, and
@@ -167,6 +206,39 @@ requires exact byte equality.
 
 The repository workflow pins the cosign binary to `v3.0.6` through the
 `cosign-release` installer input.
+
+## Verify GitHub Artifact Provenance
+
+GitHub stores the production release provenance separately from the release
+assets. Verify a downloaded asset against the exact repository, workflow, tag,
+and source commit. The default `gh attestation verify` predicate is
+`https://slsa.dev/provenance/v1`:
+
+```bash
+REPO=acblabs/agent-assure
+TAG=v0.7.0
+SHA=<release-commit-sha>
+ARTIFACT=agent_assure-0.7.0-py3-none-any.whl
+
+gh attestation verify "${ARTIFACT}" \
+  --repo "${REPO}" \
+  --signer-workflow "${REPO}/.github/workflows/release.yml" \
+  --source-ref "refs/tags/${TAG}" \
+  --source-digest "${SHA}" \
+  --deny-self-hosted-runners
+```
+
+This is workflow-level provenance for the release pipeline. It complements the
+byte-for-byte fresh-job reproduction and cosign identity checks; it does not
+identify either earlier job as a separately isolated low-level builder, or
+claim an independent builder, a diverse toolchain, or SLSA Build Level 3.
+The workflow pins `actions/attest` v4.2.2 by its full commit SHA. GitHub's
+generation and verification guidance is at
+https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations
+and https://cli.github.com/manual/gh_attestation_verify. The job intentionally
+omits `artifact-metadata: write`: it creates file attestations in GitHub's
+attestation service and does not push an OCI subject or create a registry
+storage record.
 
 ## Verify Workflow Identity
 
@@ -246,8 +318,16 @@ project-code execution.
 ## Limits
 
 Signed release evidence says that a specific workflow identity signed exact
-bytes. The SBOM records the local release build environment and distribution
-file hashes; it is not a vulnerability assessment or supply-chain attestation.
+bytes. The production release attestation additionally binds those exact assets
+to the tag-bound GitHub Actions workflow. The SBOM records a digest-verified
+lock graph, available declared licenses, package-coordinate archive hash sets,
+scope classifications, the local release build environment, and exact
+distribution-file hashes. Supplier and vulnerability status remain explicitly
+unknown where independent evidence is absent. The SBOM itself is not a
+vulnerability assessment, VEX document, or provenance statement, and it does
+not identify the exact locked wheel used to create each installed package. The
+SLSA predicate describes workflow provenance; it does not independently
+establish the truth of project-generated evidence content.
 Replay cross-checks manifest-listed digests when the files are available under
 the artifact root, but it is still not a signature and does not replace cosign
 verification. Signed release evidence does not establish safety assurance,

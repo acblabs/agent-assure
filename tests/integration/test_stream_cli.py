@@ -4,8 +4,10 @@ import json
 from pathlib import Path
 
 import pytest
+from click.testing import Result
 from typer.testing import CliRunner
 
+from agent_assure.cli import stream_cmd
 from agent_assure.cli.main import app
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.stream import StreamIngestionDiagnostics, StreamRunRecord
@@ -150,6 +152,88 @@ def test_stream_cli_rejects_sensitive_privacy_filtered_attributes(tmp_path: Path
     assert not stream_path.exists()
 
 
+def test_stream_evaluate_invalid_input_does_not_create_output_directory(
+    tmp_path: Path,
+) -> None:
+    stream_path = tmp_path / "invalid-stream-run.json"
+    stream_path.write_text("{}\n", encoding="utf-8")
+    report_dir = tmp_path / "report"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "stream",
+            "evaluate",
+            str(stream_path),
+            "--suite",
+            str(STREAMING_EXAMPLE / "suite.yaml"),
+            "--out-dir",
+            str(report_dir),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert not report_dir.exists()
+
+
+def test_stream_evaluate_invalid_waiver_does_not_create_output_directory(
+    tmp_path: Path,
+) -> None:
+    stream_path = _ingest_example_stream(tmp_path)
+    waiver_path = tmp_path / "invalid-waiver.json"
+    waiver_path.write_text('{"waivers": [}\n', encoding="utf-8")
+    report_dir = tmp_path / "report"
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "stream",
+            "evaluate",
+            str(stream_path),
+            "--suite",
+            str(STREAMING_EXAMPLE / "suite.yaml"),
+            "--waiver",
+            str(waiver_path),
+            "--out-dir",
+            str(report_dir),
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert not report_dir.exists()
+
+
+def test_stream_evaluate_late_render_failure_preserves_prior_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    stream_path = _ingest_example_stream(tmp_path)
+    report_dir = tmp_path / "existing-report"
+    initial = _evaluate_example_stream(stream_path, report_dir)
+    assert initial.exit_code == 0, initial.output
+    (report_dir / "unrelated.txt").write_bytes(b"preserve me\n")
+    before = {entry.name: entry.read_bytes() for entry in report_dir.iterdir() if entry.is_file()}
+
+    def fail_markdown_render(*_args: object, **_kwargs: object) -> Path:
+        raise RuntimeError("injected late markdown failure")
+
+    monkeypatch.setattr(stream_cmd, "write_evaluation_markdown", fail_markdown_render)
+
+    failed_existing = _evaluate_example_stream(stream_path, report_dir)
+
+    assert failed_existing.exit_code == 1
+    assert isinstance(failed_existing.exception, RuntimeError)
+    after = {entry.name: entry.read_bytes() for entry in report_dir.iterdir() if entry.is_file()}
+    assert after == before
+
+    absent_report_dir = tmp_path / "absent-report"
+    failed_absent = _evaluate_example_stream(stream_path, absent_report_dir)
+
+    assert failed_absent.exit_code == 1
+    assert isinstance(failed_absent.exception, RuntimeError)
+    assert not absent_report_dir.exists()
+
+
 @pytest.mark.parametrize(
     ("scenario", "expected_exit", "expected_reason_codes"),
     (
@@ -227,6 +311,39 @@ def _write_jsonl(path: Path, events: list[dict[str, object]]) -> None:
         "".join(json.dumps(event, sort_keys=True) + "\n" for event in events),
         encoding="utf-8",
         newline="\n",
+    )
+
+
+def _ingest_example_stream(tmp_path: Path) -> Path:
+    stream_path = tmp_path / "stream-run.json"
+    result = RUNNER.invoke(
+        app,
+        [
+            "stream",
+            "ingest",
+            str(STREAMING_EXAMPLE / "events" / "baseline.jsonl"),
+            "--sequence-scope",
+            "global",
+            "--out",
+            str(stream_path),
+        ],
+    )
+    assert result.exit_code == 0, result.output
+    return stream_path
+
+
+def _evaluate_example_stream(stream_path: Path, report_dir: Path) -> Result:
+    return RUNNER.invoke(
+        app,
+        [
+            "stream",
+            "evaluate",
+            str(stream_path),
+            "--suite",
+            str(STREAMING_EXAMPLE / "suite.yaml"),
+            "--out-dir",
+            str(report_dir),
+        ],
     )
 
 

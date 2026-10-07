@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 import tomllib
 from pathlib import Path
 
@@ -24,7 +25,8 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
         "  schema-immutability:\n", maxsplit=1
     )[0]
 
-    assert "runs-on: windows-latest" in job
+    assert "runs-on: windows-2025" in job
+    assert "windows-latest" not in workflow
     assert 'python-version: ["3.11", "3.14"]' in job
     assert "tests/unit/runner" in job
     assert "tests/unit/test_rooted_io.py" in job
@@ -48,6 +50,136 @@ def test_windows_containment_ci_covers_native_boundaries_without_full_release_ma
     assert "test_post_spawn_validation_failure_terminates_and_reaps_suspended_process" in job
     assert "test_windows_external_script_success_kills_descendant_when_job_closes" in job
     assert "make release-check" not in job
+
+
+def test_ci_qualifies_declared_dependency_lower_bounds_on_supported_python_edges() -> None:
+    workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+    job = workflow["jobs"]["dependency-lower-bounds"]
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert 120 <= job["timeout-minutes"] <= 180
+    assert job["strategy"] == {
+        "fail-fast": False,
+        "matrix": {"python-version": ["3.11", "3.14"]},
+    }
+    steps = job["steps"]
+    checkout = next(
+        step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"]["persist-credentials"] is False
+    setup = next(
+        step for step in steps if str(step.get("uses", "")).startswith("actions/setup-python@")
+    )
+    assert setup["with"]["python-version"] == "${{ matrix.python-version }}"
+
+    commands = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "python -m pip install --require-hashes -r requirements-min.lock" in commands
+    assert "python -m pip install --no-deps --no-build-isolation ." in commands
+    assert "python -m pip install --no-deps --no-build-isolation -e ." not in commands
+    assert (
+        "python scripts/check_dependency_lock_freshness.py --verify-installed-minimums"
+    ) in commands
+    assert "python -m pip check" in commands
+    assert "python -m pytest -q -p no:cacheprovider" in commands
+    assert "$RUNNER_TEMP/pytest-dependency-lower-bounds" in commands
+    assert commands.index(
+        "python -m pip install --no-deps --no-build-isolation ."
+    ) < commands.index("python scripts/check_dependency_lock_freshness.py")
+    assert commands.index("python scripts/check_dependency_lock_freshness.py") < commands.index(
+        "python -m pip check"
+    )
+    assert commands.index("python -m pip check") < commands.index("python -m pytest")
+    for forbidden in (
+        "make check",
+        "make release-check",
+        "python -m build",
+        "scripts/update_golden.py",
+    ):
+        assert forbidden not in commands
+    assert not any(
+        str(step.get("uses", "")).startswith("actions/upload-artifact@") for step in steps
+    )
+
+
+def test_ci_runs_local_composite_action_migration_profile_on_a_real_runner() -> None:
+    workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+    assert workflow["permissions"] == {"contents": "read"}
+
+    job = workflow["jobs"]["composite-action-smoke"]
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert 0 < job["timeout-minutes"] <= 30
+    steps = job["steps"]
+    action_step = next(
+        step for step in steps if step.get("uses") == "./.github/actions/agent-assure"
+    )
+    assert "continue-on-error" not in action_step
+    assert action_step["with"] == {
+        "suite": "examples/prior_auth_synthetic/suite.yaml",
+        "candidate-variant": "examples/prior_auth_synthetic/variants/baseline.yaml",
+        "out-dir": "${{ runner.temp }}/agent-assure-composite-smoke",
+        "report-mode": "full",
+        "allow-missing-efficacy-for-migration": "true",
+        "upload-reports": "false",
+        "upload-full-artifacts": "false",
+    }
+    commands = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "pip install --require-hashes -r requirements.lock" in commands
+    assert "reports/evidence-packet.json" in commands
+    assert "reports/release-artifact-manifest.json" in commands
+    assert "agent-assure validate" in commands
+    assert "--kind evidence-packet" in commands
+    assert not any(
+        str(step.get("uses", "")).startswith("actions/upload-artifact@") for step in steps
+    )
+
+
+def test_ci_runs_local_composite_action_strict_profile_on_a_real_runner() -> None:
+    workflow_path = ROOT / ".github" / "workflows" / "ci.yml"
+    workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+
+    job = workflow["jobs"]["composite-action-strict-smoke"]
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert 0 < job["timeout-minutes"] <= 30
+    steps = job["steps"]
+    action_step = next(
+        step for step in steps if step.get("uses") == "./.github/actions/agent-assure"
+    )
+    assert "continue-on-error" not in action_step
+    assert action_step["with"] == {
+        "suite": "examples/prior_auth_synthetic/suite.yaml",
+        "candidate-variant": "examples/prior_auth_synthetic/variants/baseline.yaml",
+        "out-dir": ".tmp/agent-assure-composite-strict",
+        "report-mode": "full",
+        "control-efficacy-report": (
+            ".tmp/composite-strict-efficacy/control-efficacy/control-efficacy-report.json"
+        ),
+        "efficacy-policy": ".tmp/composite-strict-efficacy/controls-mutation.yaml",
+        "upload-reports": "false",
+        "upload-full-artifacts": "false",
+    }
+    assert "allow-missing-efficacy-for-migration" not in action_step["with"]
+    assert "runner.temp" not in action_step["with"]["out-dir"]
+
+    commands = "\n".join(str(step.get("run", "")) for step in steps)
+    assert "agent-assure init controls-mutation" in commands
+    assert "agent-assure controls mutate" in commands
+    assert "agent-assure controls efficacy" in commands
+    assert "reports/evidence-packet.json" in commands
+    assert "reports/assurance-evidence-graph.json" in commands
+    assert "reports/release-artifact-manifest.json" in commands
+    assert "agent-assure validate" in commands
+    assert "--kind evidence-packet" in commands
+    assert "agent-assure ci gate" in commands
+    assert "--efficacy-policy" in commands
+    assert "--require-efficacy" in commands
+    assert "--fail-on-warn" in commands
+    assert "--fail-on-not-evaluated" in commands
+    assert "--allow-missing-efficacy-for-migration" not in commands
+    assert not any(
+        str(step.get("uses", "")).startswith("actions/upload-artifact@") for step in steps
+    )
 
 
 def test_evidence_build_and_reproduction_jobs_fetch_full_history() -> None:
@@ -114,14 +246,28 @@ def test_otel_contract_installs_locked_dependencies_and_cannot_silently_skip() -
 
 def test_testpypi_schema_checks_have_full_history_and_cannot_silently_skip() -> None:
     workflow = (ROOT / ".github" / "workflows" / "publish-testpypi.yml").read_text(encoding="utf-8")
+    parsed_workflow = yaml.safe_load(workflow)
 
-    assert workflow.count("fetch-depth: 0") == 2
+    assert workflow.count("fetch-depth: 0") == 3
     assert (
         workflow.count("python scripts/check_tagged_schema_immutability.py --require-release-tags")
         == 2
     )
     assert workflow.count('make release-publish-check EXPECTED_RELEASE="${EXPECTED_VERSION}"') == 1
     assert 'make release-publish-check EXPECTED_RELEASE="${EXPECTED_RELEASE}"' in workflow
+    reproduce = parsed_workflow["jobs"]["reproduce"]
+    checkout = next(
+        step
+        for step in reproduce["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"] == {
+        "fetch-depth": 0,
+        "persist-credentials": False,
+        "ref": "${{ needs.build.outputs.source_sha }}",
+    }
+    commands = "\n".join(str(step.get("run", "")) for step in reproduce["steps"])
+    assert 'test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"' in commands
 
 
 def test_testpypi_checks_committed_version_bound_goldens_before_release_checks() -> None:
@@ -147,10 +293,44 @@ def test_every_checkout_disables_persisted_credentials() -> None:
         ), path.name
 
 
+def test_github_owned_javascript_actions_use_verified_node24_pins() -> None:
+    expected = {
+        "actions/attest": "1e69f48acb82d1966a394da916b4c1698aa569d6",
+        "actions/checkout": "3d3c42e5aac5ba805825da76410c181273ba90b1",
+        "actions/setup-python": "5fda3b95a4ea91299a34e894583c3862153e4b97",
+        "actions/upload-artifact": "043fb46d1a93c77aae656e7c1c64a875d1fc6a0a",
+        "actions/download-artifact": "3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c",
+    }
+    paths = tuple((ROOT / ".github").rglob("*.yml"))
+    seen: set[str] = set()
+
+    for path in paths:
+        workflow = path.read_text(encoding="utf-8")
+        for action, revision in re.findall(
+            r"uses:\s+(actions/(?:attest|checkout|setup-python|upload-artifact|"
+            r"download-artifact))@([^\s#]+)",
+            workflow,
+        ):
+            seen.add(action)
+            assert revision == expected[action], (path.name, action)
+    assert seen == set(expected)
+
+
+def test_every_linux_workflow_job_pins_ubuntu_2404() -> None:
+    for path in (ROOT / ".github" / "workflows").glob("*.yml"):
+        text = path.read_text(encoding="utf-8")
+        assert "ubuntu-latest" not in text, path.name
+        workflow = yaml.safe_load(text)
+        for job in workflow.get("jobs", {}).values():
+            runner = job.get("runs-on")
+            if isinstance(runner, str) and runner.startswith("ubuntu-"):
+                assert runner == "ubuntu-24.04", (path.name, runner)
+
+
 def test_artifact_id_downloads_merge_into_the_exact_requested_path() -> None:
     expected_downloads = {
-        "release.yml": 11,
-        "publish-testpypi.yml": 2,
+        "release.yml": 14,
+        "publish-testpypi.yml": 3,
         "evidence.yml": 4,
     }
 
@@ -195,14 +375,27 @@ def test_release_fresh_job_verifies_and_forwards_the_exact_uploaded_ids() -> Non
         "distributions_artifact_id": (
             "${{ steps.verify-uploaded.outputs.distributions_artifact_id }}"
         ),
+        "provenance_subjects_artifact_id": (
+            "${{ steps.upload-provenance-subjects.outputs.artifact-id }}"
+        ),
         "verified_signed_bundle_artifact_id": (
             "${{ steps.verify-uploaded.outputs.verified_signed_bundle_artifact_id }}"
         ),
     }
     assert all("continue-on-error" not in step for step in fresh["steps"])
-    assert not any(
-        str(step.get("uses", "")).startswith("actions/upload-artifact@") for step in fresh["steps"]
-    )
+    uploads = [
+        step
+        for step in fresh["steps"]
+        if str(step.get("uses", "")).startswith("actions/upload-artifact@")
+    ]
+    assert len(uploads) == 1
+    assert uploads[0]["id"] == "upload-provenance-subjects"
+    assert uploads[0]["with"] == {
+        "name": "release-provenance-subjects-${{ github.run_id }}-${{ github.run_attempt }}",
+        "path": ".tmp/release-provenance-subjects.sha256",
+        "if-no-files-found": "error",
+        "retention-days": 30,
+    }
     assert not any(
         "pip install --no-deps --no-build-isolation -e ." in str(step.get("run", ""))
         for step in fresh["steps"]
@@ -221,7 +414,7 @@ def test_release_fresh_job_verifies_and_forwards_the_exact_uploaded_ids() -> Non
         "${{ needs.verify-signatures.outputs.distributions_artifact_id }}"
     )
 
-    validation = fresh["steps"][-1]
+    validation = next(step for step in fresh["steps"] if step.get("id") == "verify-uploaded")
     assert validation["id"] == "verify-uploaded"
     assert validation["env"] == {
         "DISTRIBUTIONS_ARTIFACT_ID": (
@@ -239,17 +432,122 @@ def test_release_fresh_job_verifies_and_forwards_the_exact_uploaded_ids() -> Non
     assert 'test "${VERIFIED_BUNDLE_ARTIFACT_ID}" != ' in command
     assert "ARTIFACT_DIGEST" not in command
     assert "artifact_digest" not in command
+    assert 'test "${#release_assets[@]}" -eq 22' in command
+    assert "release-provenance-subjects.sha256" in command
+    assert '[[ "${digest}" =~ ^[0-9a-f]{64}$ ]]' in command
+    assert "sort -u | wc -l" in command
+    assert command.index("cosign_release_artifacts.py verify-uploaded") < command.index(
+        "release_assets=("
+    )
+    assert fresh["steps"].index(validation) < fresh["steps"].index(uploads[0])
 
     github_release = jobs["github-release"]
-    assert github_release["needs"] == "verify-uploaded-artifacts"
+    assert github_release["needs"] == [
+        "verify-uploaded-artifacts",
+        "attest-release-provenance",
+    ]
     assert github_release["steps"][0]["with"]["artifact-ids"] == (
         "${{ needs.verify-uploaded-artifacts.outputs.verified_signed_bundle_artifact_id }}"
     )
     pypi = jobs["pypi-publish"]
-    assert pypi["needs"] == ["verify-uploaded-artifacts", "github-release"]
+    assert pypi["needs"] == [
+        "verify-uploaded-artifacts",
+        "attest-release-provenance",
+        "github-release",
+    ]
     assert pypi["steps"][0]["with"]["artifact-ids"] == (
         "${{ needs.verify-uploaded-artifacts.outputs.distributions_artifact_id }}"
     )
+
+
+def test_release_attestation_is_exact_least_privilege_and_fail_closed() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    )
+    jobs = workflow["jobs"]
+    job = jobs["attest-release-provenance"]
+
+    assert job["needs"] == "verify-uploaded-artifacts"
+    assert job["environment"] == {"name": "signing"}
+    assert job["permissions"] == {
+        "attestations": "write",
+        "contents": "read",
+        "id-token": "write",
+    }
+    assert job["runs-on"] == "ubuntu-24.04"
+    assert 0 < job["timeout-minutes"] <= 15
+    assert "startsWith(github.ref, 'refs/tags/v')" in job["if"]
+    assert "inputs.operation == 'standard'" in job["if"]
+
+    steps = job["steps"]
+    assert len(steps) == 2
+    assert all("continue-on-error" not in step for step in steps)
+    assert all("run" not in step for step in steps)
+    assert all("env" not in step for step in steps)
+    assert all("actions/checkout@" not in str(step.get("uses", "")) for step in steps)
+    assert all("actions/setup-python@" not in str(step.get("uses", "")) for step in steps)
+
+    download, attest = steps
+    assert download["uses"] == (
+        "actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c"
+    )
+    assert download["with"] == {
+        "artifact-ids": (
+            "${{ needs.verify-uploaded-artifacts.outputs.provenance_subjects_artifact_id }}"
+        ),
+        "merge-multiple": True,
+        "path": ".tmp/provenance-subjects",
+    }
+    assert attest["uses"] == "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6"
+    assert attest["with"] == {
+        "subject-checksums": (".tmp/provenance-subjects/release-provenance-subjects.sha256")
+    }
+
+    verification = next(
+        step
+        for step in jobs["verify-uploaded-artifacts"]["steps"]
+        if step.get("id") == "verify-uploaded"
+    )
+    command = verification["run"]
+    expected_assets = {
+        ".tmp/release/reports/evidence-packet.json",
+        ".tmp/release/reports/evidence-packet.json.bundle",
+        ".tmp/release/reports/evidence-packet.md",
+        ".tmp/release/reports/evidence-packet.md.bundle",
+        ".tmp/release/reports/evaluation-summary.json",
+        ".tmp/release/reports/evaluation-summary.json.bundle",
+        ".tmp/release/reports/comparison-summary.json",
+        ".tmp/release/reports/comparison-summary.json.bundle",
+        ".tmp/release/reports/assurance-evidence-graph.json",
+        ".tmp/release/reports/assurance-evidence-graph.json.bundle",
+        ".tmp/release/reports/release-artifact-manifest.json",
+        ".tmp/release/reports/release-artifact-manifest.json.bundle",
+        ".tmp/release/release-digest-replay.json",
+        ".tmp/release/release-digest-replay.json.bundle",
+        ".tmp/release/release-notes.md",
+        ".tmp/release/release-notes.md.bundle",
+        ".tmp/release/sbom.cdx.json",
+        ".tmp/release/sbom.cdx.json.bundle",
+    }
+    assert all(asset in command for asset in expected_assets)
+    assert "-name '*.whl'" in command
+    assert "-name '*.whl.bundle'" in command
+    assert "-name '*.tar.gz'" in command
+    assert "-name '*.tar.gz.bundle'" in command
+    assert 'test "${#distributions[@]}" -eq 4' in command
+    assert 'test "${#release_assets[@]}" -eq 22' in command
+    assert 'test "$(wc -l < .tmp/release-provenance-subjects.sha256)" -eq 22' in command
+    assert "sort -u | wc -l" in command
+
+    assert jobs["github-release"]["needs"] == [
+        "verify-uploaded-artifacts",
+        "attest-release-provenance",
+    ]
+    assert jobs["pypi-publish"]["needs"] == [
+        "verify-uploaded-artifacts",
+        "attest-release-provenance",
+        "github-release",
+    ]
 
 
 def test_evidence_fresh_job_verifies_the_exact_uploaded_id_without_reupload() -> None:
@@ -320,8 +618,11 @@ def test_release_privileges_are_split_from_build_and_verification() -> None:
         "  sign:\n", maxsplit=1
     )[0]
     sign = workflow.split("  sign:\n", maxsplit=1)[1].split("  verify-signatures:\n", maxsplit=1)[0]
+    attest = workflow.split("  attest-release-provenance:\n", maxsplit=1)[1].split(
+        "  github-release:\n", maxsplit=1
+    )[0]
     pypi = workflow.split("  pypi-publish:\n", maxsplit=1)[1].split(
-        "  recover-verify:\n", maxsplit=1
+        "  recover-audit-locks:\n", maxsplit=1
     )[0]
 
     assert "id-token: write" not in build
@@ -336,6 +637,13 @@ def test_release_privileges_are_split_from_build_and_verification() -> None:
     assert "actions/checkout" not in sign
     assert "setup-python" not in sign
     assert "pip install" not in sign
+    assert "id-token: write" in attest
+    assert "attestations: write" in attest
+    assert "environment:\n      name: signing" in attest
+    assert "actions/checkout" not in attest
+    assert "setup-python" not in attest
+    assert "run:" not in attest
+    assert "actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6" in attest
     assert "actions/checkout" not in pypi
     assert "setup-python" not in pypi
     assert "run:" not in pypi
@@ -361,6 +669,12 @@ def test_checkout_free_github_release_commands_name_the_repository() -> None:
 
 def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    recover_audit = workflow.split("  recover-audit-locks:\n", maxsplit=1)[1].split(
+        "  recover-validate-sbom:\n", maxsplit=1
+    )[0]
+    recover_sbom = workflow.split("  recover-validate-sbom:\n", maxsplit=1)[1].split(
+        "  recover-verify:\n", maxsplit=1
+    )[0]
     recover_verify = workflow.split("  recover-verify:\n", maxsplit=1)[1].split(
         "  recover-github-release:\n", maxsplit=1
     )[0]
@@ -372,9 +686,9 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     assert "recover-v0.6.0" in workflow
     assert "inputs.operation == 'standard' ||" in workflow
     assert "inputs.operation == 'prepare-tag'" in workflow
-    assert (
-        "if: github.event_name == 'workflow_dispatch' && inputs.operation == 'recover-v0.6.0'"
-    ) in recover_verify
+    assert "needs: [recover-audit-locks, recover-validate-sbom]" in recover_verify
+    assert "needs.recover-audit-locks.result == 'success'" in recover_verify
+    assert "needs.recover-validate-sbom.result == 'success'" in recover_verify
     assert "RECOVERY_REF: refs/tags/release-recovery/v0.6.0-30170334180" in (recover_verify)
     assert 'test "${GITHUB_REF}" = "${RECOVERY_REF}"' in recover_verify
     assert 'ORIGINAL_RUN_ID: "30170334180"' in recover_verify
@@ -412,6 +726,76 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
     assert recover_verify.count("run-id: 30170334180") == 2
     assert "python scripts/build_release_bundle.py" not in recover_verify
     assert "python -m build" not in recover_verify
+    parsed_workflow = yaml.safe_load(workflow)
+    audit_job = parsed_workflow["jobs"]["recover-audit-locks"]
+    assert audit_job["strategy"] == {
+        "fail-fast": False,
+        "matrix": {
+            "os": ["ubuntu-24.04", "windows-2025"],
+            "python-version": ["3.11", "3.14"],
+        },
+    }
+    assert audit_job["runs-on"] == "${{ matrix.os }}"
+    assert audit_job["permissions"] == {"contents": "read"}
+    checkout = next(
+        step
+        for step in audit_job["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"] == {
+        "ref": "2c83bafc0e53f25ee27f72179797331d0d7fc5d4",
+        "persist-credentials": False,
+    }
+    setup = next(
+        step
+        for step in audit_job["steps"]
+        if str(step.get("uses", "")).startswith("actions/setup-python@")
+    )
+    assert setup["with"]["python-version"] == "${{ matrix.python-version }}"
+    recovery_audit_inputs = {
+        step["with"]["inputs"]
+        for step in audit_job["steps"]
+        if str(step.get("uses", "")).startswith("pypa/gh-action-pip-audit@")
+    }
+    assert recovery_audit_inputs == {
+        "requirements.lock",
+        "requirements-langgraph.lock",
+        "requirements-adk.lock",
+        "requirements-otel.lock",
+    }
+    for step in audit_job["steps"]:
+        if str(step.get("uses", "")).startswith("pypa/gh-action-pip-audit@"):
+            assert step["uses"] == (
+                "pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266"
+            )
+            assert step["with"]["require-hashes"] is True
+            assert step["with"]["no-deps"] is True
+    assert "gh-action-pip-audit" not in recover_verify
+    assert "ubuntu-24.04" in recover_audit
+    assert "windows-2025" in recover_audit
+    semantic_job = parsed_workflow["jobs"]["recover-validate-sbom"]
+    assert semantic_job["needs"] == "recover-audit-locks"
+    assert semantic_job["permissions"] == {"actions": "read", "contents": "read"}
+    semantic_checkout = next(
+        step
+        for step in semantic_job["steps"]
+        if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert semantic_checkout["with"] == {
+        "ref": "${{ github.sha }}",
+        "persist-credentials": False,
+    }
+    semantic_download = next(
+        step
+        for step in semantic_job["steps"]
+        if str(step.get("uses", "")).startswith("actions/download-artifact@")
+    )
+    assert semantic_download["with"]["artifact-ids"] == 8622776891
+    assert semantic_download["with"]["run-id"] == 30170334180
+    assert semantic_download["with"]["repository"] == "acblabs/agent-assure"
+    assert "check_legacy_recovery_sbom.py" in recover_sbom
+    assert 'test "${GITHUB_REF}" = "${RECOVERY_REF}"' in recover_sbom
+    assert 'test "$(git rev-parse HEAD)" = "${GITHUB_SHA}"' in recover_sbom
     assert 'name: "Create immutable GitHub release"' in recover_verify
     assert 'name: "Create release once without replacing assets"' in recover_verify
     assert 'conclusion: "failure"' in recover_verify
@@ -473,14 +857,17 @@ def test_v060_recovery_is_exact_reverification_not_a_rebuild() -> None:
         "artifact-ids: "
         "${{ needs.recover-verify.outputs.distributions_artifact_id }}" in recover_pypi
     )
+    assert parsed_workflow["jobs"]["recover-pypi-publish"]["permissions"] == {"id-token": "write"}
 
 
 def test_release_tag_creation_is_sha_bound_and_runs_after_unprivileged_gates() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    parsed_workflow = yaml.safe_load(workflow)
     build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
     prepare_tag = workflow.split("  prepare-release-tag:\n", maxsplit=1)[1].split(
         "  resume-release-tag:\n", maxsplit=1
     )[0]
+    prepare_job = parsed_workflow["jobs"]["prepare-release-tag"]
 
     assert "source-sha:" in workflow
     assert "expected-version:" in workflow
@@ -498,8 +885,16 @@ def test_release_tag_creation_is_sha_bound_and_runs_after_unprivileged_gates() -
     assert 'git merge-base --is-ancestor "${source_sha}"' in build
     assert build.index("make release-publish-check") < build.index("Upload exact unsigned")
 
-    assert "needs: [build, reproduce]" in prepare_tag
-    assert "needs.reproduce.result == 'success'" in prepare_tag
+    required_gates = [
+        "build",
+        "reproduce",
+        "candidate-security",
+        "candidate-lower-bounds",
+        "candidate-platform-audit",
+    ]
+    assert prepare_job["needs"] == required_gates
+    for gate in required_gates:
+        assert f"needs.{gate}.result == 'success'" in prepare_job["if"]
     assert "environment:\n      name: release-tag" in prepare_tag
     assert "contents: write" in prepare_tag
     assert "persist-credentials" not in prepare_tag
@@ -523,6 +918,8 @@ def test_release_tag_creation_is_sha_bound_and_runs_after_unprivileged_gates() -
     assert "-f 'inputs[operation]=standard'" in prepare_tag
     assert '-f "inputs[authorization-run-id]=${GITHUB_RUN_ID}"' in prepare_tag
     assert '-f "inputs[authorization-run-attempt]=${GITHUB_RUN_ATTEMPT}"' in prepare_tag
+    assert "inputs[release-profile]" not in prepare_tag
+    assert "inputs[security-maintenance-base-tag]" not in prepare_tag
     assert prepare_tag.index('"repos/${GITHUB_REPOSITORY}/git/tags"') < prepare_tag.index(
         '"repos/${GITHUB_REPOSITORY}/git/refs"'
     )
@@ -554,6 +951,7 @@ def test_release_tag_operations_share_tag_bound_concurrency_across_dispatch_refs
 
 def test_release_tag_recovery_revalidates_and_dispatches_idempotently() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    parsed_workflow = yaml.safe_load(workflow)
     runbook = (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8")
     build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
     resume_tag = workflow.split("  resume-release-tag:\n", maxsplit=1)[1].split(
@@ -571,8 +969,17 @@ def test_release_tag_recovery_revalidates_and_dispatches_idempotently() -> None:
     assert 'test "${GITHUB_SHA}" = "${REQUESTED_SOURCE_SHA}"' in build
     assert 'test "$(git cat-file -t "refs/tags/${release_tag}")" = "tag"' in build
     assert 'test "$(git rev-parse "refs/tags/${release_tag}^{commit}")"' in build
-    assert "needs: [build, reproduce]" in resume_tag
-    assert "needs.reproduce.result == 'success'" in resume_tag
+    required_gates = [
+        "build",
+        "reproduce",
+        "candidate-security",
+        "candidate-lower-bounds",
+        "candidate-platform-audit",
+    ]
+    resume_job = parsed_workflow["jobs"]["resume-release-tag"]
+    assert resume_job["needs"] == required_gates
+    for gate in required_gates:
+        assert f"needs.{gate}.result == 'success'" in resume_job["if"]
     assert "environment:\n      name: release-tag" in resume_tag
     assert "actions: write" in resume_tag
     assert "contents: read" in resume_tag
@@ -623,13 +1030,15 @@ def test_release_tag_recovery_revalidates_and_dispatches_idempotently() -> None:
     assert "-f 'inputs[operation]=standard'" in resume_tag
     assert '-f "inputs[authorization-run-id]=${GITHUB_RUN_ID}"' in resume_tag
     assert '-f "inputs[authorization-run-attempt]=${GITHUB_RUN_ATTEMPT}"' in resume_tag
+    assert "inputs[release-profile]" not in resume_tag
+    assert "inputs[security-maintenance-base-tag]" not in resume_tag
     assert resume_tag.index("actions/runs/${preflight_run_id}") < resume_tag.index(
         "actions/workflows/release.yml/runs?"
     )
     assert resume_tag.index("actions/workflows/release.yml/runs?") < resume_tag.index(
         "actions/workflows/release.yml/dispatches"
     )
-    assert 'release_tag="v0.6.6"' in runbook
+    assert 'release_tag="v0.7.0"' in runbook
     assert 'gh workflow run release.yml --ref "${release_tag}"' in runbook
     assert "workflow from that immutable tag" in runbook
 
@@ -644,8 +1053,24 @@ def test_prepare_and_resume_tag_dispatches_cannot_enter_signing_directly() -> No
     assert "inputs.operation == 'resume-tag'" not in sign
 
 
+def test_release_workflow_exposes_only_standard_fail_closed_publication() -> None:
+    workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    build = workflow.split("  build:\n", maxsplit=1)[1].split("  reproduce:\n", maxsplit=1)[0]
+
+    assert "release-profile:" not in workflow
+    assert "security-maintenance-base-tag:" not in workflow
+    assert "security-maintenance" not in workflow
+    assert "release-security-maintenance-check" not in workflow
+    assert "RELEASE_PROFILE" not in workflow
+    assert "SECURITY_MAINTENANCE_BASE_TAG" not in workflow
+    assert "Run standard fail-closed release checks" in build
+    assert build.count("make release-publish-check") == 1
+    assert workflow.count("profile standard; preflight run ") == 4
+
+
 def test_every_standard_tag_route_requires_protected_attempt_provenance_before_signing() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    parsed_workflow = yaml.safe_load(workflow)
     provenance = workflow.split("  verify-release-tag-provenance:\n", maxsplit=1)[1].split(
         "  sign:\n", maxsplit=1
     )[0]
@@ -653,7 +1078,17 @@ def test_every_standard_tag_route_requires_protected_attempt_provenance_before_s
 
     assert "authorization-run-id:" in workflow
     assert "authorization-run-attempt:" in workflow
-    assert "needs: [build, reproduce]" in provenance
+    required_gates = [
+        "build",
+        "reproduce",
+        "candidate-security",
+        "candidate-lower-bounds",
+        "candidate-platform-audit",
+    ]
+    provenance_job = parsed_workflow["jobs"]["verify-release-tag-provenance"]
+    assert provenance_job["needs"] == required_gates
+    for gate in required_gates:
+        assert f"needs.{gate}.result == 'success'" in provenance_job["if"]
     assert "actions: read" in provenance
     assert "contents: read" in provenance
     assert "id-token: write" not in provenance
@@ -675,7 +1110,7 @@ def test_every_standard_tag_route_requires_protected_attempt_provenance_before_s
     assert 'authorization_ref="${DEFAULT_BRANCH}"' in provenance
     assert 'authorization_ref="${RELEASE_TAG}"' in provenance
     assert '--arg expected_branch "${authorization_ref}"' in provenance
-    assert "standard publication lacks a successful protected authorization attempt" in provenance
+    assert "tag-bound publication lacks a successful protected authorization attempt" in provenance
     assert "-gt 100" in provenance
     assert "needs: [reproduce, verify-release-tag-provenance]" in sign
 
@@ -683,7 +1118,9 @@ def test_every_standard_tag_route_requires_protected_attempt_provenance_before_s
 def test_release_requires_reproduction_before_signing_and_publication() -> None:
     workflow = (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
 
-    assert "needs: [verify-uploaded-artifacts, github-release]" in workflow
+    assert (
+        "needs: [verify-uploaded-artifacts, attest-release-provenance, github-release]" in workflow
+    )
     assert "python scripts/assert_dist_reproducible.py" in workflow
     assert workflow.count("--expected-release") == 2
     assert ".tmp/published\n          .tmp/release" in workflow
@@ -749,7 +1186,7 @@ def test_github_release_consumes_only_freshly_verified_uploaded_artifact() -> No
         "  pypi-publish:\n", maxsplit=1
     )[0]
 
-    assert "needs: verify-uploaded-artifacts" in publish
+    assert "needs: [verify-uploaded-artifacts, attest-release-provenance]" in publish
     assert (
         "artifact-ids: "
         "${{ needs.verify-uploaded-artifacts.outputs.verified_signed_bundle_artifact_id }}"
@@ -824,34 +1261,340 @@ def test_oidc_signing_is_tag_only_and_environment_protected() -> None:
 
 def test_security_monitoring_is_repository_declared_and_sha_pinned() -> None:
     workflow = (ROOT / ".github" / "workflows" / "security.yml").read_text(encoding="utf-8")
+    parsed_workflow = yaml.safe_load(workflow)
 
     assert "github/codeql-action/init@95e58e9a2cdfd71adc6e0353d5c52f41a045d225" in workflow
     assert "actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294" in workflow
     assert "pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266" in workflow
-    audit = workflow.split("  dependency-audit:\n", maxsplit=1)[1].split("  codeql:\n", maxsplit=1)[
-        0
-    ]
-    assert "github.event_name == 'push'" in audit
-    for lockfile in (
+    job = parsed_workflow["jobs"]["dependency-audit"]
+    assert job["runs-on"] == "${{ matrix.os }}"
+    assert job["permissions"] == {"contents": "read"}
+    assert job["strategy"] == {
+        "fail-fast": False,
+        "matrix": {
+            "os": ["ubuntu-24.04", "windows-2025"],
+            "python-version": ["3.11", "3.14"],
+        },
+    }
+    for event_name in ("push", "schedule", "workflow_dispatch"):
+        assert f"github.event_name == '{event_name}'" in job["if"]
+    checkout = next(
+        step for step in job["steps"] if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"] == {"persist-credentials": False}
+    setup = next(
+        step
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("actions/setup-python@")
+    )
+    assert setup["with"]["python-version"] == "${{ matrix.python-version }}"
+    expected_locks = {
         "requirements.lock",
+        "requirements-min.lock",
         "requirements-langgraph.lock",
         "requirements-adk.lock",
         "requirements-otel.lock",
-    ):
-        assert f"          - {lockfile}" in audit
-    assert "inputs: ${{ matrix.lockfile }}" in audit
-    assert "require-hashes: true" in audit
-    assert "no-deps: true" in audit
-    assert "disable-pip" not in audit
+    }
+    audit_steps = [
+        step
+        for step in job["steps"]
+        if str(step.get("uses", "")).startswith("pypa/gh-action-pip-audit@")
+    ]
+    assert {step["with"]["inputs"] for step in audit_steps} == expected_locks
+    assert len(audit_steps) == len(expected_locks)
+    for step in audit_steps:
+        assert step["uses"] == ("pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266")
+        assert step["with"]["require-hashes"] is True
+        assert step["with"]["no-deps"] is True
+        assert "continue-on-error" not in step
+    assert "disable-pip" not in workflow
     assert (ROOT / ".github" / "dependabot.yml").is_file()
 
 
-def test_composite_action_uploads_minimal_reports_by_default() -> None:
+def test_security_workflow_scans_the_exact_source_built_release_payload() -> None:
+    workflow = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "security.yml").read_text(encoding="utf-8")
+    )
+    job = workflow["jobs"]["release-payload-credential-scan"]
+
+    assert job["permissions"] == {"contents": "read"}
+    checkout = next(
+        step for step in job["steps"] if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    commands = "\n".join(str(step.get("run", "")) for step in job["steps"])
+    assert "python -m build --no-isolation" in commands
+    assert "python scripts/check_wheel_contents.py --dist dist" in commands
+    assert "status --porcelain=v1 --untracked-files=all" in commands
+
+
+def test_security_workflow_scans_complete_history_with_digest_pinned_gitleaks() -> None:
+    workflow_text = (ROOT / ".github" / "workflows" / "security.yml").read_text(encoding="utf-8")
+    workflow = yaml.safe_load(workflow_text)
+    job = workflow["jobs"]["repository-history-secret-scan"]
+
+    trigger_block = workflow_text.split("permissions:", maxsplit=1)[0]
+    assert "push:\n    branches:\n      - main" in trigger_block
+    assert "paths-ignore:" not in trigger_block
+    assert job["permissions"] == {"contents": "read"}
+    assert 0 < job["timeout-minutes"] <= 30
+    checkout = next(
+        step for step in job["steps"] if str(step.get("uses", "")).startswith("actions/checkout@")
+    )
+    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
+    commands = "\n".join(str(step.get("run", "")) for step in job["steps"])
+    assert (
+        "ghcr.io/gitleaks/gitleaks:v8.30.1@"
+        "sha256:b109bc5f8f76a38196a3e413704fc5b9e3c32360bce4e4b603bd6f45b3721dbb"
+    ) in commands
+    assert "--platform linux/amd64" in commands
+    assert "target=/repo,readonly" in commands
+    assert "--gitleaks-ignore-path=/repo/.gitleaksignore" in commands
+    log_opts = '--log-opts="--no-textconv --full-history --all --diff-merges=first-parent"'
+    assert commands.count(log_opts) == 2
+    assert "--diff-filter=tuxdb" not in commands
+    assert "--redact" in commands
+    assert commands.count("--exit-code=23") == 2
+    assert "git rev-list --count --all" in commands
+    assert "git log --format='%H' --no-textconv --full-history --all" in commands
+    assert "--diff-merges=first-parent --diff-filter=d --no-patch" in commands
+    assert "git fsck --strict --no-dangling" in commands
+    assert "reachable_commits" in commands
+    assert "expected_scan_units" in commands
+    assert "unique_scan_units" in commands
+    assert "grep -Evq '^[0-9a-f]{40}$'" in commands
+    assert 'sort -u "${expected_units_log}"' in commands
+    assert "commits scanned\\." in commands
+    assert "scanned_units" in commands
+    assert '"${scanned_units}" -ne "${expected_scan_units}"' in commands
+    assert "stderr is not empty" in commands
+    assert "Gitleaks reported an internal Git/scanner error" in commands
+    assert "Gitleaks did not prove that it scanned a nonzero commit history" in commands
+    assert "gitleaks merge-result detection canary" in commands
+    assert "merge --quiet --no-ff --no-commit canary-right" in commands
+    assert "cat-file -p HEAD" in commands
+    assert "did not produce a merge commit" in commands
+    assert "canary_status" in commands
+    assert "canary_status}" in commands
+    assert "-ne 23" in commands
+    canary_prefix = "ghp_"
+    canary_body = "wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS"
+    assert canary_prefix + canary_body not in commands
+    assert "printf '%s%s\\n' 'ghp_' 'wA9mK2pLxN4vRtQzY6bC8dEfGhJlM0oPq1rS'" in commands
+    assert commands.count('--user "$(id -u):$(id -g)"') == 2
+    assert commands.count("--network none --read-only --cap-drop ALL") == 2
+    assert commands.count("--security-opt no-new-privileges") == 2
+    assert commands.count("--env HOME=/tmp") == 2
+    assert commands.count("--tmpfs /tmp:rw,noexec,nosuid,size=64m") == 2
+
+    ignored = tuple(
+        line
+        for line in (ROOT / ".gitleaksignore").read_text(encoding="utf-8").splitlines()
+        if line and not line.startswith("#")
+    )
+    assert len(ignored) == len(set(ignored))
+    assert all(len(fingerprint.split(":")) >= 4 for fingerprint in ignored)
+
+
+def test_publication_security_jobs_bind_exact_source_artifacts_and_every_release_lock() -> None:
+    for workflow_name, artifact_output, artifact_path in (
+        ("release.yml", "bundle_artifact_id", ".tmp/security-release"),
+        ("publish-testpypi.yml", "distributions_artifact_id", ".tmp/security-dist"),
+    ):
+        workflow = yaml.safe_load(
+            (ROOT / ".github" / "workflows" / workflow_name).read_text(encoding="utf-8")
+        )
+        job = workflow["jobs"]["candidate-security"]
+
+        assert job["needs"] == "build"
+        assert job["permissions"] == {"contents": "read"}
+        checkout = next(
+            step
+            for step in job["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+        assert checkout["with"]["ref"] == "${{ needs.build.outputs.source_sha }}"
+        assert checkout["with"]["persist-credentials"] is False
+        download = next(
+            step
+            for step in job["steps"]
+            if str(step.get("uses", "")).startswith("actions/download-artifact@")
+        )
+        assert download["with"]["artifact-ids"] == (
+            f"${{{{ needs.build.outputs.{artifact_output} }}}}"
+        )
+        assert download["with"]["path"] == artifact_path
+        assert download["with"]["merge-multiple"] is True
+        commands = "\n".join(str(step.get("run", "")) for step in job["steps"])
+        assert 'test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"' in commands
+        assert "check_wheel_contents.py --dist" in commands
+        audit_inputs = {
+            step["with"]["inputs"]
+            for step in job["steps"]
+            if str(step.get("uses", "")).startswith("pypa/gh-action-pip-audit@")
+        }
+        assert audit_inputs == {
+            "requirements.lock",
+            "requirements-min.lock",
+            "requirements-langgraph.lock",
+            "requirements-adk.lock",
+            "requirements-otel.lock",
+        }
+        for step in job["steps"]:
+            if str(step.get("uses", "")).startswith("pypa/gh-action-pip-audit@"):
+                assert step["uses"] == (
+                    "pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266"
+                )
+                assert step["with"]["require-hashes"] is True
+                assert step["with"]["no-deps"] is True
+                assert "continue-on-error" not in step
+
+
+def test_publication_candidate_qualification_is_sha_bound_and_cross_platform() -> None:
+    expected_locks = {
+        "requirements.lock",
+        "requirements-min.lock",
+        "requirements-langgraph.lock",
+        "requirements-adk.lock",
+        "requirements-otel.lock",
+    }
+    expected_action = "pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266"
+
+    for workflow_name in ("release.yml", "publish-testpypi.yml"):
+        workflow = yaml.safe_load(
+            (ROOT / ".github" / "workflows" / workflow_name).read_text(encoding="utf-8")
+        )
+
+        lower = workflow["jobs"]["candidate-lower-bounds"]
+        assert lower["needs"] == "build"
+        assert lower["runs-on"] == "ubuntu-24.04"
+        assert 120 <= lower["timeout-minutes"] <= 180
+        assert lower["permissions"] == {"contents": "read"}
+        assert lower["strategy"] == {
+            "fail-fast": False,
+            "matrix": {"python-version": ["3.11", "3.14"]},
+        }
+        assert "continue-on-error" not in lower
+        lower_checkout = next(
+            step
+            for step in lower["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+        assert lower_checkout["with"] == {
+            "persist-credentials": False,
+            "ref": "${{ needs.build.outputs.source_sha }}",
+        }
+        lower_setup = next(
+            step
+            for step in lower["steps"]
+            if str(step.get("uses", "")).startswith("actions/setup-python@")
+        )
+        assert lower_setup["with"]["python-version"] == "${{ matrix.python-version }}"
+        lower_commands = "\n".join(str(step.get("run", "")) for step in lower["steps"])
+        assert 'test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"' in lower_commands
+        assert "python -m pip install --require-hashes -r requirements-min.lock" in lower_commands
+        assert "python -m pip install --no-deps --no-build-isolation ." in lower_commands
+        assert "--verify-installed-minimums" in lower_commands
+        assert "python -m pip check" in lower_commands
+        assert "python -m pytest -q -p no:cacheprovider" in lower_commands
+        assert not any("continue-on-error" in step for step in lower["steps"])
+
+        platform = workflow["jobs"]["candidate-platform-audit"]
+        assert platform["needs"] == "build"
+        assert platform["runs-on"] == "${{ matrix.os }}"
+        assert platform["permissions"] == {"contents": "read"}
+        assert platform["strategy"] == {
+            "fail-fast": False,
+            "matrix": {
+                "os": ["ubuntu-24.04", "windows-2025"],
+                "python-version": ["3.11", "3.14"],
+            },
+        }
+        assert "continue-on-error" not in platform
+        platform_checkout = next(
+            step
+            for step in platform["steps"]
+            if str(step.get("uses", "")).startswith("actions/checkout@")
+        )
+        assert platform_checkout["with"] == {
+            "persist-credentials": False,
+            "ref": "${{ needs.build.outputs.source_sha }}",
+        }
+        platform_setup = next(
+            step
+            for step in platform["steps"]
+            if str(step.get("uses", "")).startswith("actions/setup-python@")
+        )
+        assert platform_setup["with"]["python-version"] == "${{ matrix.python-version }}"
+        platform_commands = "\n".join(str(step.get("run", "")) for step in platform["steps"])
+        assert 'test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"' in platform_commands
+        platform_audits = [
+            step for step in platform["steps"] if step.get("uses") == expected_action
+        ]
+        assert {step["with"]["inputs"] for step in platform_audits} == expected_locks
+        assert len(platform_audits) == len(expected_locks)
+        for step in platform_audits:
+            assert step["with"]["require-hashes"] is True
+            assert step["with"]["no-deps"] is True
+            assert "continue-on-error" not in step
+
+
+def test_publication_dags_require_every_candidate_gate_before_privilege() -> None:
+    required_gates = [
+        "build",
+        "reproduce",
+        "candidate-security",
+        "candidate-lower-bounds",
+        "candidate-platform-audit",
+    ]
+
+    release = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "release.yml").read_text(encoding="utf-8")
+    )
+    for job_name in (
+        "prepare-release-tag",
+        "resume-release-tag",
+        "verify-release-tag-provenance",
+    ):
+        job = release["jobs"][job_name]
+        assert job["needs"] == required_gates
+        for gate in required_gates:
+            assert f"needs.{gate}.result == 'success'" in job["if"]
+    assert release["jobs"]["sign"]["needs"] == ["reproduce", "verify-release-tag-provenance"]
+    assert release["jobs"]["pypi-publish"]["permissions"] == {"id-token": "write"}
+
+    testpypi = yaml.safe_load(
+        (ROOT / ".github" / "workflows" / "publish-testpypi.yml").read_text(encoding="utf-8")
+    )
+    publish = testpypi["jobs"]["testpypi-publish"]
+    assert publish["needs"] == required_gates
+    assert publish["permissions"] == {"id-token": "write"}
+    assert "continue-on-error" not in publish
+
+
+def test_every_workflow_job_has_a_finite_timeout() -> None:
+    workflow_root = ROOT / ".github" / "workflows"
+    for workflow_path in sorted(workflow_root.glob("*.yml")):
+        workflow = yaml.safe_load(workflow_path.read_text(encoding="utf-8"))
+        for job_name, job in workflow.get("jobs", {}).items():
+            timeout = job.get("timeout-minutes")
+            assert isinstance(timeout, int) and 0 < timeout <= 360, (
+                workflow_path.name,
+                job_name,
+            )
+
+
+def test_composite_action_requires_explicit_report_upload_consent() -> None:
     action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
         encoding="utf-8"
     )
 
     assert "upload-full-artifacts:" in action
+    report_input = action.split("  upload-reports:\n", maxsplit=1)[1].split(
+        "  upload-full-artifacts:\n", maxsplit=1
+    )[0]
+    assert 'default: "false"' in report_input
+    assert "Opt in to uploading" in report_input
     full_input = action.split("  upload-full-artifacts:\n", maxsplit=1)[1].split(
         "  retention-days:\n", maxsplit=1
     )[0]
@@ -867,7 +1610,47 @@ def test_composite_action_uploads_minimal_reports_by_default() -> None:
     assert "retention-days: ${{ inputs.retention-days }}" in minimal
 
 
-def test_composite_action_requires_explicit_non_assurance_efficacy_migration() -> None:
+def test_composite_action_confines_outputs_to_workspace_or_runner_temp() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    prepare = action.split(
+        "    - name: Prepare output directory\n",
+        maxsplit=1,
+    )[1].split("    - name: Compile suite\n", maxsplit=1)[0]
+
+    assert 'python "${GITHUB_ACTION_PATH}/validate_output_path.py"' in prepare
+    assert '--allowed-root "${GITHUB_WORKSPACE}"' in prepare
+    assert '--allowed-root "${RUNNER_TEMP}"' in prepare
+    assert "validate_workspace_output_path" in prepare
+    assert "strict efficacy mode requires an output directory below GITHUB_WORKSPACE" in prepare
+    assert ")' +" not in prepare
+    assert "must be below the workspace or runner temp root" in prepare
+    assert "output directory escaped its approved root" in prepare
+    assert prepare.index("mkdir -p") < prepare.rindex("validate_output_path")
+
+
+def test_composite_action_binds_the_installed_cli_to_its_release_version() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    expected_version = project["project"]["version"]
+    verify = action.split(
+        "    - name: Verify action and CLI version binding\n",
+        maxsplit=1,
+    )[1].split("    - name: Validate assurance profile\n", maxsplit=1)[0]
+
+    assert f'AGENT_ASSURE_ACTION_EXPECTED_VERSION: "{expected_version}"' in verify
+    assert "AGENT_ASSURE_ACTION_REF: ${{ github.action_ref }}" in verify
+    assert 'installed_version="$(agent-assure --version)"' in verify
+    assert '[ "${installed_version}" != "${AGENT_ASSURE_ACTION_EXPECTED_VERSION}" ]' in verify
+    assert (
+        '[ "${AGENT_ASSURE_ACTION_REF}" != "v${AGENT_ASSURE_ACTION_EXPECTED_VERSION}" ]'
+    ) in verify
+
+
+def test_composite_action_requires_one_explicit_efficacy_profile() -> None:
     action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
         encoding="utf-8"
     )
@@ -876,7 +1659,17 @@ def test_composite_action_requires_explicit_non_assurance_efficacy_migration() -
         "  allow-missing-efficacy-for-migration:\n",
         maxsplit=1,
     )[1].split("  upload-name:\n", maxsplit=1)[0]
-    evaluate = action.split("    - name: Evaluate and gate\n", maxsplit=1)[1].split(
+    profile = action.split("    - name: Validate assurance profile\n", maxsplit=1)[1].split(
+        "    - name: Prepare output directory\n",
+        maxsplit=1,
+    )[0]
+    evaluate = action.split("    - name: Evaluate and assemble base packet\n", maxsplit=1)[1].split(
+        "    - name: Build and strictly gate efficacy-bearing packet\n",
+        maxsplit=1,
+    )[0]
+    strict = action.split(
+        "    - name: Build and strictly gate efficacy-bearing packet\n", maxsplit=1
+    )[1].split(
         "    - name: Upload minimal reports\n",
         maxsplit=1,
     )[0]
@@ -886,11 +1679,76 @@ def test_composite_action_requires_explicit_non_assurance_efficacy_migration() -
     assert (
         "AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY: "
         "${{ inputs.allow-missing-efficacy-for-migration }}"
-    ) in evaluate
-    assert "true|false) ;;" in evaluate
-    assert "allow-missing-efficacy-for-migration must be true or false" in evaluate
-    assert 'if [ "${AGENT_ASSURE_ACTION_ALLOW_MISSING_EFFICACY}" = "true" ]; then' in evaluate
-    assert "args+=(--allow-missing-efficacy-for-migration)" in evaluate
+    ) in profile
+    assert "true|false) ;;" in profile
+    validation_messages = (
+        "allow-missing-efficacy-for-migration must be true or false",
+        "control-efficacy-report and efficacy-policy must be provided together",
+        "strict efficacy inputs cannot be combined",
+        "explicitly select the non-assurance migration profile",
+    )
+    for message in validation_messages:
+        assert message in profile
+        assert action.count(message) == 1
+        assert message not in evaluate
+    # The base CI transaction must be allowed to produce its efficacy-free
+    # intermediate packet. Assurance mode immediately replaces and strictly
+    # re-gates that packet in the following step.
+    assert "--allow-missing-efficacy-for-migration" in evaluate
+    assert "--fail-on-warn" in evaluate
+    assert "if: inputs.control-efficacy-report != '' && inputs.efficacy-policy != ''" in strict
+    assert "agent-assure packet build" in strict
+    assert '--control-efficacy "${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}"' in strict
+    assert '--efficacy-config "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}"' in strict
+    assert "agent-assure ci gate" in strict
+    assert '--efficacy-policy "${AGENT_ASSURE_ACTION_EFFICACY_POLICY}"' in strict
+    assert "--require-efficacy" in strict
+    assert "--fail-on-warn" in strict
+    assert "--fail-on-not-evaluated" in strict
+
+
+def test_composite_action_validates_profile_before_output_or_execution_side_effects() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+
+    profile_index = action.index("    - name: Validate assurance profile\n")
+    prepare_index = action.index("    - name: Prepare output directory\n")
+    compile_index = action.index("    - name: Compile suite\n")
+    profile = action[profile_index:prepare_index]
+
+    assert profile_index < prepare_index < compile_index
+    assert "mkdir -p" not in profile
+    assert "rm -f" not in profile
+    assert "agent-assure suite compile" not in profile
+    assert "agent-assure suite run" not in profile
+    assert profile_index < action.index("mkdir -p", prepare_index)
+    assert profile_index < action.index("rm -f", prepare_index)
+    assert profile_index < action.index("agent-assure suite compile", compile_index)
+    assert profile_index < action.index("agent-assure suite run", compile_index)
+
+
+def test_composite_action_strict_efficacy_inputs_are_rooted_and_not_expression_executed() -> None:
+    action = (ROOT / ".github" / "actions" / "agent-assure" / "action.yml").read_text(
+        encoding="utf-8"
+    )
+    prepare = action.split("    - name: Prepare output directory\n", maxsplit=1)[1].split(
+        "    - name: Compile suite\n", maxsplit=1
+    )[0]
+    strict = action.split(
+        "    - name: Build and strictly gate efficacy-bearing packet\n", maxsplit=1
+    )[1].split("    - name: Upload minimal reports\n", maxsplit=1)[0]
+
+    assert "AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT: ${{ inputs.control-efficacy-report }}" in (
+        prepare
+    )
+    assert "AGENT_ASSURE_ACTION_EFFICACY_POLICY: ${{ inputs.efficacy-policy }}" in prepare
+    assert prepare.count("${AGENT_ASSURE_ACTION_CONTROL_EFFICACY_REPORT}") >= 2
+    assert prepare.count("${AGENT_ASSURE_ACTION_EFFICACY_POLICY}") >= 2
+    assert '--project-root "${GITHUB_WORKSPACE}"' in strict
+    assert '--artifact-root "${GITHUB_WORKSPACE}"' in strict
+    assert "${{ inputs.control-efficacy-report }}" not in strict.split("run: |", maxsplit=1)[1]
+    assert "${{ inputs.efficacy-policy }}" not in strict.split("run: |", maxsplit=1)[1]
 
 
 def test_composite_action_refuses_root_and_linked_output_directories() -> None:
@@ -898,9 +1756,11 @@ def test_composite_action_refuses_root_and_linked_output_directories() -> None:
         encoding="utf-8"
     )
 
-    assert 'if [ "${canonical_out_dir}" = "/" ]; then' in action
-    assert 'if [ -L "${AGENT_ASSURE_ACTION_OUT_DIR}/reports" ]; then' in action
-    assert "agent-assure refuses linked output directories" in action
+    assert 'python "${GITHUB_ACTION_PATH}/validate_output_path.py"' in action
+    reports_check = 'validate_output_path "${AGENT_ASSURE_ACTION_OUT_DIR}/reports"'
+    assert action.count(reports_check) == 2
+    assert "agent-assure refuses an unsafe reports output directory" in action
+    assert "agent-assure reports directory escaped its approved root" in action
 
 
 def test_composite_action_rejects_multiline_output_before_always_uploads() -> None:
@@ -915,7 +1775,7 @@ def test_composite_action_rejects_multiline_output_before_always_uploads() -> No
 
     assert "      id: prepare\n" in prepare
     assert "*$'\\r'*|*$'\\n'*)" in prepare
-    assert "agent-assure refuses output directories containing CR or LF" in prepare
+    assert "agent-assure refuses input paths containing CR or LF" in prepare
     assert "printf 'out_dir=%s\\n'" in prepare
     assert prepare_index < upload_index
     assert uploads.count("steps.prepare.outcome == 'success'") == 2
@@ -953,6 +1813,9 @@ def test_composite_action_clears_owned_outputs_before_any_producer_runs() -> Non
     assert "baseline.runset.json" in prepare
     assert "comparison-summary.json" in prepare
     assert "ci-diagnostics.json" in prepare
-    assert "refuses linked output directories" in prepare
-    assert 'realpath -m -- "${source_input}"' in prepare
+    assert "refuses an unsafe reports output directory" in prepare
+    assert "reports directory escaped its approved root" in prepare
+    assert "realpath" not in prepare
+    assert "os.path.normcase(os.path.abspath(sys.argv[1]))" in prepare
+    assert 'canonical_path "${source_input}"' in prepare
     assert "input aliases an owned output path" in prepare

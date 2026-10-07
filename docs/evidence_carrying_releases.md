@@ -35,7 +35,8 @@ The contract set has seven durable JSON objects:
 
 Current development roots use persisted `schema_version: 0.6.6`, a
 `contract_id` ending in `/v1`, and `contract_version: 1.0.0`; v0.6.5 remains
-the latest published release. Contracts introduced in v0.6.0 also accept their
+the latest published package, while the unreleased package candidate is v0.7.0.
+Contracts introduced in v0.6.0 also accept their
 frozen historical representations through version-aware reads. The graph was
 introduced on the v0.6.3 writer surface and accepts that frozen wire form.
 Current builders emit v0.6.6 by default, and official writers validate the
@@ -192,7 +193,7 @@ dependencies:
     digest: "<mutation-result-digest-64-lowercase-hex>"
 producer:
   name: agent-assure
-  version: 0.6.6
+  version: 0.7.0
 ```
 <!-- END: emitted-caught-evidence-descriptor -->
 

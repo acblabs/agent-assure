@@ -33,7 +33,7 @@
         "dimension": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Dimension",
           "type": "string"
         },
@@ -72,7 +72,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Confounding Dimensions",
@@ -180,7 +180,7 @@
           "type": "string"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         },
@@ -228,7 +228,7 @@
           "$ref": "#/$defs/RAGSensitivityFixtureRole"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         },
@@ -273,7 +273,7 @@
         "claim_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Claim Id",
           "type": "string"
         },
@@ -286,14 +286,14 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         },
         "request_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Request Id",
           "type": "string"
         }
@@ -311,14 +311,14 @@
       "additionalProperties": false,
       "properties": {
         "agent_implementation_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Agent Implementation Digest",
           "type": "string"
         },
         "agent_implementation_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Agent Implementation Id",
           "type": "string"
         },
@@ -359,33 +359,33 @@
           "$ref": "#/$defs/RAGSensitivitySubjectMode"
         },
         "model_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Model Digest",
           "type": "string"
         },
         "model_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Model Id",
           "type": "string"
         },
         "prompt_template_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Prompt Template Digest",
           "type": "string"
         },
         "prompt_template_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Prompt Template Id",
           "type": "string"
         },
         "subject_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Subject Id",
           "type": "string"
         }
@@ -422,14 +422,14 @@
           "type": "string"
         },
         "attestation_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Attestation Digest",
           "type": "string"
         },
         "attestation_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Attestation Id",
           "type": "string"
         },
@@ -459,7 +459,7 @@
         },
         "corpus_digests": {
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 2,
@@ -469,7 +469,7 @@
         },
         "corpus_snapshot_digests": {
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 2,
@@ -484,12 +484,12 @@
           "type": "string"
         },
         "fixture_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Fixture Manifest Digest",
           "type": "string"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
@@ -518,7 +518,7 @@
           "type": "string"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         }
@@ -558,12 +558,12 @@
         "tool_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Tool Id",
           "type": "string"
         },
         "tool_schema_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Tool Schema Digest",
           "type": "string"
         },
@@ -596,7 +596,7 @@
   "additionalProperties": false,
   "properties": {
     "agent_implementation_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Agent Implementation Digest",
       "type": "string"
     },
@@ -618,61 +618,61 @@
       "type": "array"
     },
     "baseline_corpus_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Corpus Digest",
       "type": "string"
     },
     "baseline_corpus_document_catalog_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Corpus Document Catalog Digest",
       "type": "string"
     },
     "baseline_corpus_manifest_file_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Corpus Manifest File Sha256",
       "type": "string"
     },
     "baseline_corpus_query_family_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Baseline Corpus Query Family Id",
       "type": "string"
     },
     "baseline_corpus_snapshot_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Corpus Snapshot Digest",
       "type": "string"
     },
     "baseline_evidence_set_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Evidence Set Digest",
       "type": "string"
     },
     "baseline_governing_evidence_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Governing Evidence Digest",
       "type": "string"
     },
     "baseline_governing_retrieval_identity_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Governing Retrieval Identity Digest",
       "type": "string"
     },
     "baseline_non_governing_evidence_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Baseline Non Governing Evidence Digest",
       "type": "string"
     },
     "baseline_retrieval_algorithm_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Baseline Retrieval Algorithm Id",
       "type": "string"
     },
     "baseline_retrieval_algorithm_version": {
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
       "title": "Baseline Retrieval Algorithm Version",
       "type": "string"
     },
@@ -685,7 +685,7 @@
     "case_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Case Id",
       "type": "string"
     },
@@ -705,61 +705,61 @@
       "$ref": "#/$defs/EvidenceSensitivityDifferenceManifest"
     },
     "counterfactual_corpus_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Corpus Digest",
       "type": "string"
     },
     "counterfactual_corpus_document_catalog_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Corpus Document Catalog Digest",
       "type": "string"
     },
     "counterfactual_corpus_manifest_file_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Corpus Manifest File Sha256",
       "type": "string"
     },
     "counterfactual_corpus_query_family_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Counterfactual Corpus Query Family Id",
       "type": "string"
     },
     "counterfactual_corpus_snapshot_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Corpus Snapshot Digest",
       "type": "string"
     },
     "counterfactual_evidence_set_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Evidence Set Digest",
       "type": "string"
     },
     "counterfactual_governing_evidence_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Governing Evidence Digest",
       "type": "string"
     },
     "counterfactual_governing_retrieval_identity_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Governing Retrieval Identity Digest",
       "type": "string"
     },
     "counterfactual_non_governing_evidence_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Counterfactual Non Governing Evidence Digest",
       "type": "string"
     },
     "counterfactual_retrieval_algorithm_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Counterfactual Retrieval Algorithm Id",
       "type": "string"
     },
     "counterfactual_retrieval_algorithm_version": {
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
       "title": "Counterfactual Retrieval Algorithm Version",
       "type": "string"
     },
@@ -791,7 +791,7 @@
     "fixture_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Fixture Id",
       "type": "string"
     },
@@ -799,7 +799,7 @@
       "$ref": "#/$defs/FixtureManifest"
     },
     "fixture_manifest_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Fixture Manifest Digest",
       "type": "string"
     },
@@ -813,7 +813,7 @@
       "type": "array"
     },
     "knowledge_contract_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Knowledge Contract Digest",
       "type": "string"
     },
@@ -829,37 +829,37 @@
       "type": "array"
     },
     "model_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Model Digest",
       "type": "string"
     },
     "model_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
       "title": "Model Id",
       "type": "string"
     },
     "producer_version": {
       "default": "0.6.6",
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?(?![\\s\\S])",
       "title": "Producer Version",
       "type": "string"
     },
     "prompt_template_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Prompt Template Digest",
       "type": "string"
     },
     "protocol_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Protocol Digest",
       "type": "string"
     },
     "protocol_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Protocol Id",
       "type": "string"
     },
@@ -876,14 +876,14 @@
       "type": "string"
     },
     "query_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Query Digest",
       "type": "string"
     },
     "query_family_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Query Family Id",
       "type": "string"
     },
@@ -891,7 +891,7 @@
       "$ref": "#/$defs/RAGSensitivityRequest"
     },
     "request_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Request Digest",
       "type": "string"
     },
@@ -929,7 +929,7 @@
       "$ref": "#/$defs/RAGSensitivitySubjectConfig"
     },
     "subject_configuration_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Subject Configuration Digest",
       "type": "string"
     },
@@ -942,19 +942,19 @@
     "subject_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Subject Id",
       "type": "string"
     },
     "suite_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Suite Digest",
       "type": "string"
     },
     "suite_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Suite Id",
       "type": "string"
     },
@@ -972,7 +972,7 @@
     "synthetic_data_attestation_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -989,19 +989,19 @@
       "$ref": "#/$defs/RAGSensitivityToolConfig"
     },
     "tool_configuration_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Tool Configuration Digest",
       "type": "string"
     },
     "tool_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Tool Id",
       "type": "string"
     },
     "tool_schema_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Tool Schema Digest",
       "type": "string"
     }

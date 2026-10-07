@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 import tracemalloc
+from collections import Counter
 from collections.abc import Callable, Mapping
 from copy import deepcopy
 from dataclasses import replace
@@ -212,7 +213,10 @@ def test_core_catalog_json_schema_rejects_substituted_operator_identity() -> Non
 def test_frozen_v061_catalog_applies_self_digest_validation_after_shape() -> None:
     payload = _v061_evidence_root_payload(build_core_catalog().model_dump(mode="json"))
 
-    assert validate_artifact_payload(payload, "assurance-mutation-catalog") == "frozen-jsonschema"
+    assert (
+        validate_artifact_payload(payload, "assurance-mutation-catalog")
+        == "frozen-jsonschema+semantic-replay"
+    )
 
     payload["catalog_digest"] = "0" * 64
     frozen_schema = json.loads(
@@ -621,7 +625,10 @@ def test_frozen_v061_campaign_applies_self_digest_validation_after_shape() -> No
         ).campaign.model_dump(mode="json")
     )
 
-    assert validate_artifact_payload(payload, "assurance-mutation-campaign") == "frozen-jsonschema"
+    assert (
+        validate_artifact_payload(payload, "assurance-mutation-campaign")
+        == "frozen-jsonschema+semantic-replay"
+    )
 
     payload["campaign_digest"] = "0" * 64
     frozen_schema = json.loads(
@@ -946,14 +953,7 @@ def test_prohibited_substitute_is_explicit_and_never_counts_as_caught() -> None:
             reason_code=ReasonCode.RUNTIME_FAILED,
             message="synthetic substitute only",
         )
-        summary = report.candidate_vs_expectations.model_copy(update={"findings": (substitute,)})
-        return report.model_copy(
-            update={
-                "candidate_vs_expectations": summary,
-                "failed_controls": (substitute,),
-                "warning_controls": (),
-            }
-        )
+        return _reproject_report_findings(report, (substitute,))
 
     execution = _campaign(
         suite,
@@ -1017,6 +1017,19 @@ def test_mixed_caught_and_inapplicable_campaign_exits_successfully() -> None:
     )
     # Exit 3 is reserved for a campaign where no selected challenge applies.
     assert mutation_campaign_exit_code(execution.campaign) == 0
+
+
+def test_mutation_campaign_exit_code_rejects_forged_typed_campaign() -> None:
+    suite, source = _fixture(required_human_review=False)
+    campaign = _campaign(
+        suite,
+        source,
+        seed=17,
+        operator_ids=("bypass-required-human-review",),
+    ).campaign.model_copy(update={"artifact_kind": "forged-campaign"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        mutation_campaign_exit_code(campaign)
 
 
 def test_core_fixture_campaign_and_persistence_stay_within_catastrophic_runtime_budget(
@@ -1179,26 +1192,91 @@ def _without_detector(
             for finding in report.candidate_vs_expectations.findings
             if not (finding.control_id == control_id and finding.reason_code is reason_code)
         )
-        failed = tuple(
-            finding
-            for finding in report.failed_controls
-            if not (finding.control_id == control_id and finding.reason_code is reason_code)
-        )
-        warnings = tuple(
-            finding
-            for finding in report.warning_controls
-            if not (finding.control_id == control_id and finding.reason_code is reason_code)
-        )
-        summary = report.candidate_vs_expectations.model_copy(update={"findings": findings})
-        return report.model_copy(
-            update={
-                "candidate_vs_expectations": summary,
-                "failed_controls": failed,
-                "warning_controls": warnings,
-            }
-        )
+        return _reproject_report_findings(report, findings)
 
     return evaluate_without_detector
+
+
+def _reproject_report_findings(
+    report: EvaluationReport,
+    findings: tuple[Finding, ...],
+) -> EvaluationReport:
+    """Build a self-consistent synthetic evaluator report for mutation tests."""
+
+    assert report.source_projection is not None
+    source_status = {
+        source_case.case_id: source_case.record_status
+        for source_case in report.source_projection.cases
+    }
+    findings_by_case = {
+        outcome.case_id: tuple(
+            finding for finding in findings if finding.case_id == outcome.case_id
+        )
+        for outcome in report.case_outcomes
+    }
+
+    def case_state(case_id: str) -> GateState:
+        if source_status[case_id] != "included":
+            return GateState.not_evaluated
+        scoped = findings_by_case[case_id]
+        if any(finding.state is GateState.fail for finding in scoped):
+            return GateState.fail
+        if any(finding.state in (GateState.warn, GateState.not_evaluated) for finding in scoped):
+            return GateState.warn
+        return GateState.pass_
+
+    case_outcomes = tuple(
+        outcome.model_copy(update={"state": case_state(outcome.case_id)})
+        for outcome in report.case_outcomes
+    )
+    outcome_counts = Counter(outcome.state for outcome in case_outcomes)
+    if any(finding.state is GateState.fail for finding in findings):
+        summary_state = GateState.fail
+    elif any(finding.state is GateState.warn for finding in findings):
+        summary_state = GateState.warn
+    elif any(finding.state is GateState.not_evaluated for finding in findings):
+        summary_state = GateState.not_evaluated
+    else:
+        summary_state = GateState.pass_
+    summary = report.candidate_vs_expectations.model_copy(
+        update={"findings": findings, "state": summary_state}
+    )
+    case_ids = set(findings_by_case)
+    reason_counts = Counter(finding.reason_code.value for finding in findings)
+    control_counts = Counter(finding.control_id for finding in findings)
+    metrics = report.metrics.model_copy(
+        update={
+            "total_cases": len(case_outcomes),
+            "evaluated_cases": len(case_outcomes) - outcome_counts[GateState.not_evaluated],
+            "unevaluated_cases": outcome_counts[GateState.not_evaluated],
+            "passed_cases": outcome_counts[GateState.pass_],
+            "warning_cases": outcome_counts[GateState.warn],
+            "failed_cases": outcome_counts[GateState.fail],
+            "warning_findings": sum(
+                finding.state in (GateState.warn, GateState.not_evaluated) for finding in findings
+            ),
+            "blocking_findings": sum(finding.state is GateState.fail for finding in findings),
+            "global_blocking_findings": sum(
+                finding.state is GateState.fail and finding.case_id not in case_ids
+                for finding in findings
+            ),
+            "findings_by_reason": dict(sorted(reason_counts.items())),
+            "findings_by_control": dict(sorted(control_counts.items())),
+        }
+    )
+    return report.model_copy(
+        update={
+            "candidate_vs_expectations": summary,
+            "metrics": metrics,
+            "case_outcomes": case_outcomes,
+            "failed_controls": tuple(
+                finding for finding in findings if finding.state is GateState.fail
+            ),
+            "warning_controls": tuple(
+                finding for finding in findings if finding.state is GateState.warn
+            ),
+        }
+    )
 
 
 def _bound_evaluator(

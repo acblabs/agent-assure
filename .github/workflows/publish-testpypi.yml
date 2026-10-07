@@ -32,22 +32,32 @@ env:
 jobs:
   build:
     name: Build distributions without OIDC
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
     permissions:
       contents: read
     outputs:
       distributions_artifact_id: ${{ steps.upload.outputs.artifact-id }}
       distributions_artifact_digest: ${{ steps.upload.outputs.artifact-digest }}
+      source_sha: ${{ steps.source-identity.outputs.value }}
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
+      - name: Bind build to the dispatched source commit
+        id: source-identity
+        shell: bash
+        run: |
+          set -euo pipefail
+          source_sha="$(git rev-parse HEAD)"
+          test "${source_sha}" = "${GITHUB_SHA}"
+          printf 'value=%s\n' "${source_sha}" >> "${GITHUB_OUTPUT}"
       - name: Require clean source before build
         shell: bash
         run: |
@@ -79,8 +89,8 @@ jobs:
           test -z "${dirty}"
       - name: Upload exact candidate distributions
         id: upload
-        # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: testpypi-distributions-${{ github.run_id }}-${{ github.run_attempt }}
           path: dist
@@ -90,23 +100,32 @@ jobs:
   reproduce:
     name: Fresh-job rebuild candidate
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
     permissions:
       contents: read
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+          ref: ${{ needs.build.outputs.source_sha }}
+      - name: Verify exact candidate checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
-      # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.build.outputs.distributions_artifact_id }}
           merge-multiple: true
@@ -141,19 +160,190 @@ jobs:
           dirty="$(git -c core.fsmonitor=false status --porcelain=v1 --untracked-files=all)"
           test -z "${dirty}"
 
+  candidate-security:
+    name: Audit exact candidate dependencies and credential material
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.build.outputs.source_sha }}
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Verify exact candidate checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"
+      - run: python -m pip install --require-hashes -r requirements.lock
+      - run: python -m pip install --no-deps --no-build-isolation -e .
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
+        with:
+          artifact-ids: ${{ needs.build.outputs.distributions_artifact_id }}
+          merge-multiple: true
+          path: .tmp/security-dist
+      - name: Scan exact wheel and sdist for embedded credential material
+        run: python scripts/check_wheel_contents.py --dist .tmp/security-dist
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-min.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-langgraph.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-adk.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-otel.lock
+          require-hashes: true
+          no-deps: true
+
+  candidate-lower-bounds:
+    name: Qualify exact candidate lower bounds / Python ${{ matrix.python-version }}
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.11", "3.14"]
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.build.outputs.source_sha }}
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Verify exact candidate checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"
+      - run: python -m pip install --require-hashes -r requirements-min.lock
+      - run: python -m pip install --no-deps --no-build-isolation .
+      - name: Verify installed direct dependencies equal declared floors
+        run: python scripts/check_dependency_lock_freshness.py --verify-installed-minimums
+      - run: python -m pip check
+      - name: Run the complete suite against the exact candidate lower bounds
+        run: >-
+          python -m pytest -q -p no:cacheprovider
+          --basetemp "${RUNNER_TEMP}/pytest-testpypi-lower-bounds"
+
+  candidate-platform-audit:
+    name: Audit exact candidate locks / ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-2025]
+        python-version: ["3.11", "3.14"]
+    steps:
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+          ref: ${{ needs.build.outputs.source_sha }}
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Verify exact candidate checkout
+        env:
+          EXPECTED_SOURCE_SHA: ${{ needs.build.outputs.source_sha }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(git rev-parse HEAD)" = "${EXPECTED_SOURCE_SHA}"
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-min.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-langgraph.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-adk.lock
+          require-hashes: true
+          no-deps: true
+      # pypa/gh-action-pip-audit@v1.1.0
+      - uses: pypa/gh-action-pip-audit@1220774d901786e6f652ae159f7b6bc8fea6d266
+        with:
+          inputs: requirements-otel.lock
+          require-hashes: true
+          no-deps: true
+
   testpypi-publish:
     name: Publish verified distributions to TestPyPI
-    needs: [build, reproduce]
-    runs-on: ubuntu-latest
+    needs:
+      [
+        build,
+        reproduce,
+        candidate-security,
+        candidate-lower-bounds,
+        candidate-platform-audit,
+      ]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
     environment:
       name: testpypi
       url: https://test.pypi.org/p/agent-assure
     permissions:
-      contents: read
       id-token: write
     steps:
-      # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.build.outputs.distributions_artifact_id }}
           merge-multiple: true

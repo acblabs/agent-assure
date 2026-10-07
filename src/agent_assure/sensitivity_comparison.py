@@ -3,6 +3,7 @@ from __future__ import annotations
 from agent_assure.compare.runsets import compare_runsets
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.sensitivity import RAGSensitivityReport
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.sensitivity_contract import SENSITIVITY_EVALUATION_DATE
 
 
@@ -15,6 +16,9 @@ def derive_sensitivity_comparison(
     those objects, rather than their human-readable IDs, makes the comparison a
     deterministic projection of the same evidence carried by the report.
     """
+    report_payload = report.model_dump(mode="json", warnings="error")
+    report = RAGSensitivityReport.model_validate(report_payload)
+    validate_loaded_artifact_payload(report_payload, "evidence-sensitivity-report")
     return compare_runsets(
         report.compiled_suite,
         report.baseline_runset,
@@ -34,8 +38,12 @@ def sensitivity_comparison_binding_error(
     controlled sensitivity comparison. Every other persisted comparison field remains
     in the exact canonical comparison below.
     """
-    validated_comparison = ComparisonSummary.model_validate(comparison.model_dump(mode="json"))
-    validated_report = RAGSensitivityReport.model_validate(report.model_dump(mode="json"))
+    comparison_payload = comparison.model_dump(mode="json", warnings="error")
+    validated_comparison = ComparisonSummary.model_validate(comparison_payload)
+    validate_loaded_artifact_payload(comparison_payload, "comparison-summary")
+    report_payload = report.model_dump(mode="json", warnings="error")
+    validated_report = RAGSensitivityReport.model_validate(report_payload)
+    validate_loaded_artifact_payload(report_payload, "evidence-sensitivity-report")
     expected = derive_sensitivity_comparison(validated_report)
     if validated_comparison.baseline_runset_digest != validated_report.baseline_arm.runset_digest:
         return (

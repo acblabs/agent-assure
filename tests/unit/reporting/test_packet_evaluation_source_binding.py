@@ -19,13 +19,14 @@ from agent_assure.reporting.packet import (
     packet_summary_files_binding_error,
 )
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
+from agent_assure.schema import StructuredFieldOrigin, StructuredFieldOrigins
 from agent_assure.schema.common import GateState
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
-from agent_assure.schema.run import RunSet
+from agent_assure.schema.run import AgentRunRecord, LiveNetworkAuthorityReceipt, RunSet
 from agent_assure.schema.suite import CompiledSuite
 
 SUITE_PATH = Path("examples/prior_auth_synthetic/suite.yaml")
@@ -114,6 +115,98 @@ def test_gate_rejects_unauthenticated_fail_to_warn_rewrite(
     assert decision.outcome is GateOutcome.invalid
     assert decision.exit_code == 2
     assert "does not match independent evaluation" in decision.message
+
+
+def test_gate_rejects_network_authority_receipt_not_present_in_bound_runset(
+    tmp_path: Path,
+) -> None:
+    suite, candidate = _runset(BASELINE_VARIANT)
+    evaluation = evaluate_runset(suite, candidate).candidate_vs_expectations
+    forged = evaluation.model_copy(
+        update={
+            "network_authority_receipt": LiveNetworkAuthorityReceipt(
+                endpoint_host="api.openai.com",
+                api_key_env="OPENAI_TEST_KEY",
+            )
+        }
+    )
+    packet = _write_bound_packet(tmp_path, suite, candidate, forged)
+
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.exit_code == 2
+    assert "does not match independent evaluation" in decision.message
+
+
+def test_gate_rejects_openai_live_runset_with_omitted_network_authority_receipt(
+    tmp_path: Path,
+) -> None:
+    suite, fixture_candidate = _runset(BASELINE_VARIANT)
+    record_payload = fixture_candidate.runs[0].model_dump(mode="json")
+    record_payload.update(
+        {
+            "execution_mode": "live",
+            "observation_id": "obs-network-authority",
+            "repetition_index": 0,
+            "schedule_index": 0,
+            "randomization_block_id": "repetition:0",
+            "cluster_id": fixture_candidate.runs[0].case_id,
+            "adapter_id": "openai-chat-completions",
+            "cost_budget_committed_usd": "0.000000",
+            "generated_token_budget_committed": 0,
+            "total_token_budget_committed": 0,
+            "structured_field_origins": StructuredFieldOrigins.uniform(
+                StructuredFieldOrigin.model_self_report
+            ).model_dump(mode="json"),
+        }
+    )
+    live_record = AgentRunRecord.model_validate(record_payload)
+    candidate_payload = fixture_candidate.model_dump(mode="json")
+    candidate_payload.update(
+        {
+            "execution_mode": "live",
+            "protocol_id": "protocol-network-authority",
+            "protocol_digest": "2" * 64,
+            "network_authority_receipt": {
+                "endpoint_host": "api.openai.com",
+                "api_key_env": "OPENAI_TEST_KEY",
+            },
+            "runs": [live_record.model_dump(mode="json")],
+        }
+    )
+    valid_candidate = RunSet.model_validate(candidate_payload)
+    valid_evaluation = evaluate_runset(
+        suite,
+        valid_candidate,
+    ).candidate_vs_expectations
+    forged_candidate = valid_candidate.model_copy(update={"network_authority_receipt": None})
+    forged_evaluation = valid_evaluation.model_copy(
+        update={
+            "network_authority_receipt": None,
+            "runset_digest": runset_digest(forged_candidate),
+        }
+    )
+    packet = _write_bound_packet(
+        tmp_path,
+        suite,
+        forged_candidate,
+        forged_evaluation,
+    )
+
+    decision = gate_evidence_packet(
+        packet,
+        artifact_root=tmp_path,
+        allow_missing_efficacy_for_migration=True,
+    )
+
+    assert decision.outcome is GateOutcome.invalid
+    assert decision.exit_code == 2
+    assert "RunSets could not be safely verified" in decision.message
 
 
 def test_gate_rejects_suite_substitution_after_all_advertised_digests_are_rebound(

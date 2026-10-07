@@ -67,6 +67,42 @@ _COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].append(
         },
     }
 )
+_COMPARISON_SUMMARY_JSON_SCHEMA_EXTRA["allOf"].append(
+    {
+        "if": {
+            "required": ["schema_version", "fixture_equivalence_state"],
+            "properties": {
+                "schema_version": {"const": SCHEMA_VERSION},
+                "fixture_equivalence_state": {"const": GateState.fail.value},
+            },
+        },
+        "then": {
+            "properties": {
+                "classification": {
+                    "const": ComparisonClassification.invalid_comparison.value,
+                }
+            }
+        },
+    }
+)
+
+
+def comparison_summary_coherence_error(
+    *,
+    classification: ComparisonClassification,
+    fixture_equivalence_state: GateState,
+) -> str | None:
+    """Return an error when fixture validity contradicts the comparison verdict."""
+
+    if (
+        fixture_equivalence_state is GateState.fail
+        and classification is not ComparisonClassification.invalid_comparison
+    ):
+        return (
+            "comparison summaries with failed fixture equivalence must use "
+            "classification 'invalid_comparison'"
+        )
+    return None
 
 
 class ComparisonSummary(PersistedArtifact):
@@ -168,6 +204,18 @@ class ComparisonSummary(PersistedArtifact):
                 f"comparison summaries at schema_version={self.schema_version} require "
                 "authenticated baseline and candidate RunSet digests"
             )
+        return self
+
+    @model_validator(mode="after")
+    def _validate_current_fixture_equivalence(self) -> ComparisonSummary:
+        if self.schema_version != SCHEMA_VERSION:
+            return self
+        error = comparison_summary_coherence_error(
+            classification=self.classification,
+            fixture_equivalence_state=self.fixture_equivalence_state,
+        )
+        if error is not None:
+            raise ValueError(error)
         return self
 
     @field_validator("provenance_changes", "verdict_findings", mode="before")

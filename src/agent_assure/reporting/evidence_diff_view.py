@@ -2,11 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from agent_assure.compare.runsets import verify_fixture_equivalence
+from agent_assure.evaluation.evaluator import runset_digest
 from agent_assure.schema.common import ComparisonClassification, GateState
 from agent_assure.schema.comparison import ComparisonSummary
 from agent_assure.schema.evaluation import EvaluationSummary
 from agent_assure.schema.packet import EvidencePacket
 from agent_assure.schema.run import AgentRunRecord, RunSet
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 
 @dataclass(frozen=True)
@@ -53,6 +56,27 @@ def build_evidence_diff_presentation(
     candidate_summary: EvaluationSummary | None,
     packet: EvidencePacket | None,
 ) -> EvidenceDiffPresentation:
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    candidate_payload = candidate.model_dump(mode="json", warnings="error")
+    candidate = RunSet.model_validate(candidate_payload)
+    validate_loaded_artifact_payload(candidate_payload, "run-set")
+    comparison_payload = comparison_summary.model_dump(mode="json", warnings="error")
+    comparison_summary = ComparisonSummary.model_validate(comparison_payload)
+    validate_loaded_artifact_payload(comparison_payload, "comparison-summary")
+    if baseline_summary is not None:
+        baseline_summary_payload = baseline_summary.model_dump(mode="json", warnings="error")
+        baseline_summary = EvaluationSummary.model_validate(baseline_summary_payload)
+        validate_loaded_artifact_payload(baseline_summary_payload, "evaluation-summary")
+    if candidate_summary is not None:
+        candidate_summary_payload = candidate_summary.model_dump(mode="json", warnings="error")
+        candidate_summary = EvaluationSummary.model_validate(candidate_summary_payload)
+        validate_loaded_artifact_payload(candidate_summary_payload, "evaluation-summary")
+    if packet is not None:
+        packet_payload = packet.model_dump(mode="json", warnings="error")
+        packet = EvidencePacket.model_validate(packet_payload)
+        validate_loaded_artifact_payload(packet_payload, "evidence-packet")
     resolved_baseline_summary = _baseline_summary(comparison_summary, baseline_summary)
     resolved_candidate_summary = _candidate_summary(
         comparison_summary,
@@ -109,6 +133,8 @@ def _validate_evidence_diff_inputs(
     packet: EvidencePacket | None,
 ) -> None:
     errors: list[str] = []
+    baseline_digest = runset_digest(baseline)
+    candidate_digest = runset_digest(candidate)
     _require_equal(
         errors,
         "baseline.runset_id",
@@ -122,6 +148,35 @@ def _validate_evidence_diff_inputs(
         candidate.runset_id,
         "comparison.candidate_runset_id",
         comparison_summary.candidate_runset_id,
+    )
+    _require_equal(
+        errors,
+        "baseline canonical digest",
+        baseline_digest,
+        "comparison.baseline_runset_digest",
+        comparison_summary.baseline_runset_digest,
+    )
+    _require_equal(
+        errors,
+        "candidate canonical digest",
+        candidate_digest,
+        "comparison.candidate_runset_digest",
+        comparison_summary.candidate_runset_digest,
+    )
+    for field_name in ("suite_id", "suite_version", "suite_digest"):
+        _require_equal(
+            errors,
+            f"baseline.{field_name}",
+            getattr(baseline, field_name),
+            f"candidate.{field_name}",
+            getattr(candidate, field_name),
+        )
+    _require_state_equal(
+        errors,
+        "derived fixture equivalence state",
+        verify_fixture_equivalence(baseline, candidate).state,
+        "comparison.fixture_equivalence_state",
+        comparison_summary.fixture_equivalence_state,
     )
     _require_privacy_profile_equal(
         errors,
@@ -160,6 +215,13 @@ def _validate_evidence_diff_inputs(
             "baseline.runset_id",
             baseline.runset_id,
         )
+        _require_equal(
+            errors,
+            "baseline_summary.runset_digest",
+            baseline_summary.runset_digest,
+            "baseline canonical digest",
+            baseline_digest,
+        )
         _require_state_equal(
             errors,
             "baseline_summary.state",
@@ -184,6 +246,13 @@ def _validate_evidence_diff_inputs(
             "candidate.runset_id",
             candidate.runset_id,
         )
+        _require_equal(
+            errors,
+            "candidate_summary.runset_digest",
+            candidate_summary.runset_digest,
+            "candidate canonical digest",
+            candidate_digest,
+        )
         _require_state_equal(
             errors,
             "candidate_summary.state",
@@ -207,6 +276,13 @@ def _validate_evidence_diff_inputs(
             packet.evaluation.runset_id,
             "candidate.runset_id",
             candidate.runset_id,
+        )
+        _require_equal(
+            errors,
+            "packet.evaluation.runset_digest",
+            packet.evaluation.runset_digest,
+            "candidate canonical digest",
+            candidate_digest,
         )
         _require_state_equal(
             errors,

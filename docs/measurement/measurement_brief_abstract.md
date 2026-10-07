@@ -12,7 +12,7 @@ JSON schemas, lexeme-preserving YAML compilation, canonical digest projection,
 privacy-filtered reports, CI gates, evidence packets, release replay artifacts,
 OpenTelemetry-aligned span-plan previews, and protocol-bound live reports.
 The live path includes cluster-aware rates, design-effect/effective-sample
-metadata, rare-event Poisson upper bounds, observed intraclass-correlation
+metadata, bounded-work one-sided binomial rare-event bounds, observed intraclass-correlation
 summaries, Bonferroni-controlled endpoint families, paired exact or Monte Carlo
 randomization tests, trajectory-state summaries, drift signals, and operational
 event-process review outputs. The flagship fixture result shows a candidate

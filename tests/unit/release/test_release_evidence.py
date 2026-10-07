@@ -6,11 +6,14 @@ from pathlib import Path
 from typing import get_args
 
 import pytest
+from pydantic import ValidationError
 from typer.testing import CliRunner
 
 from agent_assure import release_evidence
 from agent_assure.cli.main import app
 from agent_assure.graph.builder import build_evidence_graph
+from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES, BoundedFileContents
+from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
 from agent_assure.release_evidence import (
     CORE_RELEASE_ROLES,
     LEGACY_CORE_RELEASE_ROLES,
@@ -19,13 +22,37 @@ from agent_assure.release_evidence import (
     verify_digest_replay,
     write_digest_replay,
 )
-from agent_assure.schema.base import SchemaVersion
+from agent_assure.schema.base import SCHEMA_VERSION, SchemaVersion
+from agent_assure.schema.common import ComparisonClassification, GateState
+from agent_assure.schema.comparison import ComparisonSummary
+from agent_assure.schema.environment import EnvironmentInfo
+from agent_assure.schema.evaluation import EvaluationSummary
+from agent_assure.schema.expectation import Expectation
 from agent_assure.schema.graph import EvidenceGraphSubjectPayload
-from agent_assure.schema.release import ReleaseArtifact, ReleaseDigestReplay
+from agent_assure.schema.packet import EvidencePacket, PacketArtifactDigest
+from agent_assure.schema.release import (
+    ReleaseArtifact,
+    ReleaseArtifactManifest,
+    ReleaseDigestReplay,
+    ReleaseReplayArtifact,
+)
+from agent_assure.schema.run import AgentRunRecord, RunSet
 from agent_assure.schema.sensitivity import RAGSensitivityReport
+from agent_assure.schema.suite import CompiledSuite, FixtureManifest, SuiteCase, SuiteDefaults
+from agent_assure.schema.validation import ArchivalOnlyArtifactError
 
 RUNNER = CliRunner()
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def test_digest_replay_verifier_rejects_unsafe_typed_replay_before_verification(
+    tmp_path: Path,
+) -> None:
+    replay = build_digest_replay((), project_root=tmp_path, source_commit="a" * 40)
+    forged = replay.model_copy(update={"artifact_kind": "forged-replay"})
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        verify_digest_replay(forged, artifact_root=tmp_path)
 
 
 def test_sensitivity_bundle_manifest_roles_have_explicit_replay_contracts() -> None:
@@ -61,6 +88,7 @@ def test_sensitivity_release_role_has_environment_stable_projection() -> None:
         "evidence-sensitivity-report",
         path,
         ROOT,
+        replay_schema_version=SCHEMA_VERSION,
     )
 
     baseline_arm = projected["baseline_arm"]
@@ -246,6 +274,216 @@ def test_release_digest_replay_verifies_core_artifacts(tmp_path: Path) -> None:
     ]
 
 
+def test_current_replay_construction_rejects_historical_persisted_json_child(
+    tmp_path: Path,
+) -> None:
+    historical = (
+        ROOT
+        / "tests"
+        / "golden"
+        / "compiled_suites"
+        / ("prior_auth_synthetic.v0.6.3.compiled.json")
+    )
+    child = tmp_path / "compiled-suite.json"
+    child.write_bytes(historical.read_bytes())
+
+    with pytest.raises(ValueError, match="current release replay requires persisted JSON child"):
+        build_digest_replay(
+            (("compiled-suite", child),),
+            project_root=tmp_path,
+            source_commit="abc123",
+        )
+
+
+def test_current_replay_rejects_historical_child_reached_through_manifest(
+    tmp_path: Path,
+) -> None:
+    artifacts = dict(_write_core_artifacts(tmp_path))
+    candidate_path = tmp_path / "candidate-runset.json"
+    candidate = json.loads(candidate_path.read_text(encoding="utf-8"))
+    candidate["schema_version"] = "0.6.5"
+    _write_json(candidate_path, candidate)
+    manifest_path = artifacts["release-artifact-manifest"]
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    candidate_entry = next(
+        item for item in manifest["artifacts"] if item["role"] == "candidate-runset"
+    )
+    candidate_entry["sha256"] = hashlib.sha256(candidate_path.read_bytes()).hexdigest()
+    _write_json(manifest_path, manifest)
+
+    with pytest.raises(ValueError, match="current release replay requires persisted JSON child"):
+        build_digest_replay(
+            (("release-artifact-manifest", manifest_path),),
+            project_root=tmp_path,
+            source_commit="abc123",
+        )
+
+
+def test_release_replay_cli_rejects_current_envelope_with_historical_child(
+    tmp_path: Path,
+) -> None:
+    historical = (
+        ROOT
+        / "tests"
+        / "golden"
+        / "compiled_suites"
+        / ("prior_auth_synthetic.v0.6.3.compiled.json")
+    )
+    child = tmp_path / "compiled-suite.json"
+    child.write_bytes(historical.read_bytes())
+    replay = ReleaseDigestReplay(
+        source_commit="abc123",
+        artifacts=(
+            ReleaseReplayArtifact(
+                role="compiled-suite",
+                path=child.name,
+                sha256=hashlib.sha256(child.read_bytes()).hexdigest(),
+                digest_mode="raw-sha256",
+            ),
+        ),
+    )
+    replay_path = tmp_path / "release-digest-replay.json"
+    write_digest_replay(replay, replay_path)
+
+    result = RUNNER.invoke(
+        app,
+        [
+            "release",
+            "replay",
+            str(replay_path),
+            "--artifact-root",
+            str(tmp_path),
+            "--no-require-core",
+        ],
+    )
+
+    assert result.exit_code == 1
+    payload = json.loads(result.output)
+    assert payload["findings"][0]["actual"] is None
+    assert (
+        "current release replay requires persisted JSON child"
+        in (payload["findings"][0]["message"])
+    )
+    assert "current semantic replay" not in result.output
+
+
+def test_historical_replay_retains_integrity_only_historical_child_compatibility(
+    tmp_path: Path,
+) -> None:
+    historical = (
+        ROOT
+        / "tests"
+        / "golden"
+        / "compiled_suites"
+        / ("prior_auth_synthetic.v0.6.3.compiled.json")
+    )
+    child = tmp_path / "compiled-suite.json"
+    child.write_bytes(historical.read_bytes())
+    replay = ReleaseDigestReplay(
+        schema_version="0.6.3",
+        source_commit="abc123",
+        artifacts=(
+            ReleaseReplayArtifact(
+                schema_version="0.6.3",
+                role="compiled-suite",
+                path=child.name,
+                sha256=hashlib.sha256(child.read_bytes()).hexdigest(),
+                digest_mode="raw-sha256",
+            ),
+        ),
+    )
+
+    verification = verify_digest_replay(replay, artifact_root=tmp_path)
+
+    assert verification.ok
+
+
+def test_raw_runset_replay_uses_journal_bearing_input_limit(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_core_artifacts(tmp_path)
+    runset_path = tmp_path / "baseline-runset.json"
+    observed_limits: list[int] = []
+    original_read = release_evidence.read_file_bounded_at
+
+    def capture_read(
+        root: Path,
+        relative_path: str | Path,
+        *,
+        max_bytes: int,
+        label: str,
+    ) -> BoundedFileContents:
+        observed_limits.append(max_bytes)
+        return original_read(
+            root,
+            relative_path,
+            max_bytes=max_bytes,
+            label=label,
+        )
+
+    monkeypatch.setattr(release_evidence, "read_file_bounded_at", capture_read)
+
+    release_evidence._validated_raw_json_digest(
+        "baseline-runset",
+        runset_path,
+        tmp_path,
+        replay_schema_version=SCHEMA_VERSION,
+    )
+
+    assert observed_limits == [MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES]
+
+
+def test_manifest_replay_uses_one_rooted_snapshot_per_artifact(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifacts = dict(_write_core_artifacts(tmp_path))
+    manifest_path = artifacts["release-artifact-manifest"]
+    evaluation_path = tmp_path / "evaluation-summary.json"
+    observed_paths: list[str] = []
+    original_read = release_evidence.read_file_bounded_at
+
+    def capture_and_mutate(
+        root: Path,
+        relative_path: str | Path,
+        *,
+        max_bytes: int,
+        label: str,
+    ) -> BoundedFileContents:
+        snapshot = original_read(
+            root,
+            relative_path,
+            max_bytes=max_bytes,
+            label=label,
+        )
+        normalized_path = Path(relative_path).as_posix()
+        observed_paths.append(normalized_path)
+        if normalized_path == evaluation_path.name:
+            evaluation_path.write_bytes(b"mutated-after-rooted-snapshot")
+        return snapshot
+
+    monkeypatch.setattr(release_evidence, "read_file_bounded_at", capture_and_mutate)
+
+    replay = build_digest_replay(
+        (("release-artifact-manifest", manifest_path),),
+        project_root=tmp_path,
+        source_commit="abc123",
+    )
+
+    assert len(replay.artifacts) == 1
+    assert len(observed_paths) == len(set(observed_paths))
+    assert set(observed_paths) == {
+        "release-artifact-manifest.json",
+        "compiled-suite.json",
+        "candidate-runset.json",
+        "evaluation-summary.json",
+        "dependency-inventory.json",
+        "baseline-runset.json",
+        "comparison-summary.json",
+    }
+
+
 def test_release_digest_replay_reports_modified_artifact(tmp_path: Path) -> None:
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)
@@ -271,41 +509,10 @@ def test_release_digest_replay_ignores_packet_environment_drift(tmp_path: Path) 
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)
     packet_path = tmp_path / "evidence-packet.json"
-    packet_path.write_text(
-        json.dumps(
-            {
-                "artifact_kind": "evidence-packet",
-                "schema_version": "0.2.0",
-                "packet_id": "packet-demo",
-                "interpretation": ["read candidate state first"],
-                "evaluation": {
-                    "artifact_kind": "evaluation-summary",
-                    "schema_version": "0.2.0",
-                    "runset_id": "candidate",
-                    "state": "fail",
-                    "environment": {
-                        "platform": "different",
-                        "python_version": "3.13",
-                    },
-                },
-                "environment": {
-                    "platform": "different",
-                    "python_version": "3.13",
-                },
-                "artifact_digests": [
-                    {
-                        "role": "evaluation-summary",
-                        "sha256": "1" * 64,
-                    }
-                ],
-                "limitations": ["deterministic fixture-mode evidence only"],
-            },
-            sort_keys=True,
-        )
-        + "\n",
-        encoding="utf-8",
-        newline="\n",
-    )
+    packet = json.loads(packet_path.read_text(encoding="utf-8"))
+    packet["environment"]["platform"] = "different"
+    packet["evaluation"]["environment"]["platform"] = "different"
+    _write_json(packet_path, packet)
 
     verification = verify_digest_replay(
         replay,
@@ -322,10 +529,7 @@ def test_release_digest_replay_ignores_manifest_environment_and_id_drift(
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)
     manifest = json.loads((tmp_path / "release-artifact-manifest.json").read_text())
-    manifest["environment"] = {
-        "platform": "changed",
-        "python_version": "3.13",
-    }
+    manifest["environment"]["platform"] = "changed"
     manifest["manifest_id"] = "manifest-changed"
     _write_json(tmp_path / "release-artifact-manifest.json", manifest)
 
@@ -497,6 +701,36 @@ def test_release_digest_replay_build_rejects_duplicate_roles(tmp_path: Path) -> 
         )
 
 
+def test_release_digest_replay_writer_revalidates_unsafe_copy_before_output(
+    tmp_path: Path,
+) -> None:
+    artifacts = _write_core_artifacts(tmp_path)
+    replay = build_digest_replay(artifacts, project_root=tmp_path)
+    duplicate = replay.artifacts[1].model_copy(update={"role": replay.artifacts[0].role})
+    forged = replay.model_copy(
+        update={"artifacts": (replay.artifacts[0], duplicate, *replay.artifacts[2:])}
+    )
+    output = tmp_path / "output" / "release-digest-replay.json"
+
+    with pytest.raises(ValueError, match="duplicate artifact role"):
+        write_digest_replay(forged, output)
+
+    assert not output.parent.exists()
+
+
+def test_release_digest_replay_writer_rejects_archival_root_before_output(
+    tmp_path: Path,
+) -> None:
+    replay = build_digest_replay(_write_core_artifacts(tmp_path), project_root=tmp_path)
+    archival = replay.model_copy(update={"schema_version": "0.6.5"})
+    output = tmp_path / "output" / "release-digest-replay.json"
+
+    with pytest.raises(ArchivalOnlyArtifactError, match="archival-only"):
+        write_digest_replay(archival, output)
+
+    assert not output.parent.exists()
+
+
 def test_release_digest_replay_build_rejects_hardlink_path_aliases(
     tmp_path: Path,
 ) -> None:
@@ -526,16 +760,12 @@ def test_release_digest_replay_verification_rejects_duplicate_roles(
     duplicate = replay.artifacts[0].model_copy(update={"path": replay.artifacts[1].path})
     tampered = replay.model_copy(update={"artifacts": (*replay.artifacts, duplicate)})
 
-    verification = verify_digest_replay(
-        tampered,
-        artifact_root=tmp_path,
-        required_roles=CORE_RELEASE_ROLES,
-    )
-
-    assert not verification.ok
-    assert any(
-        "duplicate release replay role" in finding.message for finding in verification.findings
-    )
+    with pytest.raises(ValidationError, match="duplicate artifact role"):
+        verify_digest_replay(
+            tampered,
+            artifact_root=tmp_path,
+            required_roles=CORE_RELEASE_ROLES,
+        )
 
 
 def test_release_digest_replay_verification_rejects_resolved_path_aliases(
@@ -572,17 +802,8 @@ def test_release_digest_replay_rejects_raw_role_contract_mismatch(
     artifacts = _write_core_artifacts(tmp_path)
     replay = build_digest_replay(artifacts, project_root=tmp_path)
     compiled_path = dict(artifacts)["compiled-suite"]
-    _write_json(
-        compiled_path,
-        {
-            "artifact_kind": "fixture-manifest",
-            "schema_version": "0.2.0",
-            "suite_id": "demo",
-            "suite_version": "0.1.0",
-            "fixture_roots": [],
-            "entries": [],
-        },
-    )
+    fixture_payload = json.loads((tmp_path / "fixture-manifest.json").read_text(encoding="utf-8"))
+    _write_json(compiled_path, fixture_payload)
     tampered_compiled = replay.artifacts[0].model_copy(
         update={"sha256": hashlib.sha256(compiled_path.read_bytes()).hexdigest()}
     )
@@ -649,6 +870,9 @@ def test_release_replay_cli_accepts_v062_legacy_core_roles(tmp_path: Path) -> No
     )
 
     assert result.exit_code == 0, result.output
+    normalized_output = " ".join(result.output.split())
+    assert "historical archival integrity-only replay" in normalized_output
+    assert "not assurance validation" in normalized_output
 
 
 def test_release_replay_cli_requires_graph_for_current_schema(tmp_path: Path) -> None:
@@ -743,6 +967,7 @@ def test_release_replay_cli_checks_expected_commit_against_replay_file(
     )
 
     assert result.exit_code == 0
+    assert "current semantic replay" in " ".join(result.output.split())
 
 
 def test_release_replay_cli_reports_expected_commit_mismatch(tmp_path: Path) -> None:
@@ -841,82 +1066,86 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
     evidence_packet = tmp_path / "evidence-packet.json"
     release_manifest = tmp_path / "release-artifact-manifest.json"
 
-    _write_json(
-        compiled,
-        {
-            "artifact_kind": "compiled-suite",
-            "schema_version": "0.2.0",
-            "suite_id": "demo",
-            "suite_version": "0.1.0",
-            "cases": [],
-            "resolved_expectations": [],
-            "source_digest": "0" * 64,
-        },
+    suite = CompiledSuite(
+        suite_id="demo",
+        suite_version="1.0.0",
+        defaults=SuiteDefaults(runner_id="release-replay-test"),
+        cases=(
+            SuiteCase(
+                case_id="case-a",
+                title="Release replay case",
+                expectation_id="expectation-a",
+                fixture_id="fixture-a",
+            ),
+        ),
+        resolved_expectations=(
+            Expectation(
+                expectation_id="expectation-a",
+                case_id="case-a",
+                expected_recommendation="approve",
+            ),
+        ),
+        source_digest="0" * 64,
     )
-    _write_json(
-        fixture_manifest,
-        {
-            "artifact_kind": "fixture-manifest",
-            "schema_version": "0.2.0",
-            "suite_id": "demo",
-            "suite_version": "0.1.0",
-            "fixture_roots": [],
-            "entries": [],
-        },
+    fixtures = FixtureManifest(
+        suite_id=suite.suite_id,
+        suite_version=suite.suite_version,
+        fixture_roots=(),
+        entries=(),
     )
-    _write_json(
-        candidate_runset,
-        {
-            "artifact_kind": "run-set",
-            "schema_version": "0.2.0",
-            "runset_id": "candidate",
-            "suite_id": "demo",
-            "suite_version": "0.1.0",
-            "suite_digest": "0" * 64,
-            "fixture_manifest_digest": "1" * 64,
-            "runs": [],
-        },
+    _write_json(compiled, suite.model_dump(mode="json"))
+    _write_json(fixture_manifest, fixtures.model_dump(mode="json"))
+
+    def runset(runset_id: str) -> RunSet:
+        return RunSet(
+            runset_id=runset_id,
+            suite_id=suite.suite_id,
+            suite_version=suite.suite_version,
+            suite_digest="0" * 64,
+            fixture_manifest_digest="1" * 64,
+            privacy_profile_id=PRIVACY_PROFILE_ID,
+            privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+            runs=(
+                AgentRunRecord(
+                    run_id=f"{runset_id}-run",
+                    case_id="case-a",
+                    execution_mode="fixture",
+                    pipeline_id="release-replay-test",
+                    recommendation="approve",
+                    outcome="approve",
+                    input_summary="input",
+                    output_summary="output",
+                ),
+            ),
+        )
+
+    candidate = runset("candidate")
+    baseline = runset("baseline")
+    _write_json(candidate_runset, candidate.model_dump(mode="json"))
+    _write_json(baseline_runset, baseline.model_dump(mode="json"))
+    candidate_digest = hashlib.sha256(candidate_runset.read_bytes()).hexdigest()
+    baseline_digest = hashlib.sha256(baseline_runset.read_bytes()).hexdigest()
+    environment = EnvironmentInfo(platform="original", python_version="3.14")
+    evaluation = EvaluationSummary(
+        runset_id="candidate",
+        runset_digest=candidate_digest,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        state=GateState.not_evaluated,
+        environment=environment,
     )
-    _write_json(
-        baseline_runset,
-        {
-            "artifact_kind": "run-set",
-            "schema_version": "0.2.0",
-            "runset_id": "baseline",
-            "suite_id": "demo",
-            "suite_version": "0.1.0",
-            "suite_digest": "0" * 64,
-            "fixture_manifest_digest": "1" * 64,
-            "runs": [],
-        },
+    comparison = ComparisonSummary(
+        baseline_runset_id="baseline",
+        candidate_runset_id="candidate",
+        baseline_runset_digest=baseline_digest,
+        candidate_runset_digest=candidate_digest,
+        privacy_profile_id=PRIVACY_PROFILE_ID,
+        privacy_profile_digest=PRIVACY_PROFILE_DIGEST,
+        classification=ComparisonClassification.provenance_only_change,
+        environment=environment,
     )
-    _write_json(
-        evaluation_summary,
-        {
-            "artifact_kind": "evaluation-summary",
-            "schema_version": "0.2.0",
-            "runset_id": "candidate",
-            "state": "fail",
-            "environment": {
-                "platform": "original",
-                "python_version": "3.13",
-            },
-        },
-    )
-    _write_json(
-        comparison_summary,
-        {
-            "artifact_kind": "comparison-summary",
-            "schema_version": "0.2.0",
-            "baseline_runset_id": "baseline",
-            "candidate_runset_id": "candidate",
-            "classification": "new_failure",
-            "environment": {
-                "platform": "original",
-                "python_version": "3.13",
-            },
-        },
-    )
+    _write_json(evaluation_summary, evaluation.model_dump(mode="json"))
+    _write_json(comparison_summary, comparison.model_dump(mode="json"))
     _write_json(
         dependency_inventory,
         {
@@ -931,55 +1160,41 @@ def _write_core_artifacts(tmp_path: Path) -> tuple[tuple[str, Path], ...]:
         )
     )
     _write_json(evidence_graph, graph.model_dump(mode="json"))
-    manifest_payload: dict[str, object] = {
-        "artifact_kind": "release-artifact-manifest",
-        "schema_version": "0.2.0",
-        "manifest_id": "manifest-original",
-        "environment": {
-            "platform": "original",
-            "python_version": "3.13",
-        },
-        "artifacts": [
-            _manifest_artifact("compiled-suite", compiled, tmp_path),
-            _manifest_artifact("candidate-runset", candidate_runset, tmp_path),
-            _manifest_artifact("evaluation-summary", evaluation_summary, tmp_path),
-            _manifest_artifact("dependency-inventory", dependency_inventory, tmp_path),
-            _manifest_artifact("baseline-runset", baseline_runset, tmp_path),
-            _manifest_artifact("comparison-summary", comparison_summary, tmp_path),
-        ],
-    }
-    _write_json(release_manifest, manifest_payload)
-    _write_json(
-        evidence_packet,
-        {
-            "artifact_kind": "evidence-packet",
-            "schema_version": "0.2.0",
-            "packet_id": "packet-demo",
-            "interpretation": ["read candidate state first"],
-            "evaluation": {
-                "artifact_kind": "evaluation-summary",
-                "schema_version": "0.2.0",
-                "runset_id": "candidate",
-                "state": "fail",
-                "environment": {
-                    "platform": "original",
-                    "python_version": "3.13",
-                },
-            },
-            "environment": {
-                "platform": "original",
-                "python_version": "3.13",
-            },
-            "release_manifest": manifest_payload,
-            "artifact_digests": [
-                {
-                    "role": "evaluation-summary",
-                    "sha256": "0" * 64,
-                }
-            ],
-            "limitations": ["deterministic fixture-mode evidence only"],
-        },
+    manifest = ReleaseArtifactManifest(
+        manifest_id="manifest-original",
+        environment=environment,
+        artifacts=tuple(
+            ReleaseArtifact.model_validate(item)
+            for item in (
+                _manifest_artifact("compiled-suite", compiled, tmp_path),
+                _manifest_artifact("candidate-runset", candidate_runset, tmp_path),
+                _manifest_artifact("evaluation-summary", evaluation_summary, tmp_path),
+                _manifest_artifact("dependency-inventory", dependency_inventory, tmp_path),
+                _manifest_artifact("baseline-runset", baseline_runset, tmp_path),
+                _manifest_artifact("comparison-summary", comparison_summary, tmp_path),
+            )
+        ),
     )
+    _write_json(release_manifest, manifest.model_dump(mode="json"))
+    packet = EvidencePacket(
+        packet_id="packet-demo",
+        interpretation=("read candidate state first",),
+        evaluation=evaluation,
+        comparison=comparison,
+        environment=environment,
+        artifact_digests=(
+            PacketArtifactDigest(
+                role="evaluation-summary",
+                sha256=hashlib.sha256(evaluation_summary.read_bytes()).hexdigest(),
+            ),
+            PacketArtifactDigest(
+                role="comparison-summary",
+                sha256=hashlib.sha256(comparison_summary.read_bytes()).hexdigest(),
+            ),
+        ),
+        limitations=("deterministic fixture-mode evidence only",),
+    )
+    _write_json(evidence_packet, packet.model_dump(mode="json"))
     return (
         ("compiled-suite", compiled),
         ("fixture-manifest", fixture_manifest),
@@ -996,7 +1211,6 @@ def _manifest_artifact(role: str, path: Path, root: Path) -> dict[str, str]:
         path=path.resolve().relative_to(root.resolve()).as_posix(),
         sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
     ).model_dump(mode="json")
-    payload["schema_version"] = "0.2.0"
     return payload
 
 

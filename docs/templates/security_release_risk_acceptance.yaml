@@ -1,0 +1,269 @@
+# Public blank template only. Store completed records and sensitive evidence in
+# an access-controlled incident or risk system, never in this repository.
+record_schema: agent-assure/security-correction-risk-acceptance/v1
+record_id: ""
+status: draft  # draft | active | rejected | revoked | expired | closed
+confidentiality: restricted
+
+authority_boundary:
+  operational_risk_acceptance_only: true
+  merge: false
+  tag_creation: false
+  signing: false
+  github_release: false
+  testpypi_publication: false
+  pypi_publication: false
+  release_gate_exception: false
+  acknowledgement: >-
+    This record has no publication authority and cannot waive, replace, or
+    satisfy any standard release gate.
+
+intake_policy:
+  policy_id: agent-assure/security-vulnerability-intake/v1
+  policy_revision: v1
+  clock_basis: earliest_report_receipt_or_internal_detection
+  severity_specific_objectives_override_general_targets: true
+  critical:
+    primary_page_delivery_minutes: 5
+    fallback_page_after_no_ack_minutes: 15
+    acknowledgement_minutes: 60
+    initial_assessment_minutes: 240
+    containment_or_safe_state_minutes: 240
+  high:
+    acknowledgement_minutes: 240
+    initial_assessment_minutes: 1440
+    containment_or_safe_state_minutes: 1440
+
+incident_intake:
+  source_channel: ""
+  report_received_at_utc: ""
+  internally_detected_at_utc: ""
+  clock_started_at_utc: ""
+  clock_start_basis: ""  # external_report | internal_detection | simultaneous
+  critical_signal_detected_at_utc: ""
+  primary_page_sent_at_utc: ""
+  primary_page_delivery_confirmed_at_utc: ""
+  fallback_page_due_at_utc: ""
+  fallback_page_sent_at_utc: ""
+  human_acknowledgement_due_at_utc: ""
+  human_acknowledged_at_utc: ""
+  initial_assessment_due_at_utc: ""
+  initial_assessment_completed_at_utc: ""
+  containment_or_safe_state_due_at_utc: ""
+  containment_started_at_utc: ""
+  containment_verified_at_utc: ""
+  no_supported_deployment_affected_determined_at_utc: ""
+  safe_state_entered_at_utc: ""
+  objective_breach_detected_at_utc: ""
+  objective_breach_reason: ""
+
+incident:
+  incident_id: ""
+  private_tracking_uri: ""
+  title: ""
+  discovered_at_utc: ""
+  process_activated_at_utc: ""
+  severity: ""  # critical | high | medium
+  severity_rationale: ""
+  exploitation_status: unknown  # unknown | suspected | confirmed | not_observed
+  vulnerability_identifiers: []
+  threat_intelligence_references: []
+
+release_context:
+  supported_release: ""
+  affected_artifacts:
+    - name: ""
+      version: ""
+      sha256: ""
+  repository_commit: ""
+  unpublished_correction_identifier: ""
+  standard_release_status: blocked
+  blocking_gates:
+    - gate: ""
+      observed_state: ""
+      evidence_reference: ""
+      evidence_sha256: ""
+  next_standard_release_action: ""
+  next_standard_release_check_at_utc: ""
+
+affected_scope:
+  systems: []
+  environments: []
+  regions: []
+  customer_or_tenant_cohorts: []
+  data_classes: []
+  privileges_and_trust_boundaries: []
+  excluded_scope_and_basis: []
+  assumptions: []
+  unknowns: []
+
+risk_decision:
+  decision: pending  # pending | temporarily_accept | reject
+  residual_risk_statement: ""
+  business_need_for_continued_operation: ""
+  alternatives_considered: []
+  safe_state_if_inactive: ""
+  risk_owner_attestation: ""
+
+roles:
+  critical_intake_primary_on_call:
+    durable_role_reference: ""
+    private_routing_reference: ""
+    continuous_coverage_required: true
+  critical_intake_independent_fallback_on_call:
+    durable_role_reference: ""
+    private_routing_reference: ""
+    continuous_coverage_required: true
+    distinct_person_from_primary_required: true
+    independent_route_attestation: ""
+  accountable_incident_owner:
+    name: ""
+    title: ""
+    organization: ""
+    durable_identity: ""
+  independent_security_risk_approver:
+    name: ""
+    title: ""
+    organization: ""
+    durable_identity: ""
+    delegated_authority_reference: ""
+    distinct_person_required: true
+    independence_attestation: ""
+  monitoring_owner:
+    name: ""
+    durable_identity: ""
+  customer_advisory_owner:
+    name: ""
+    durable_identity: ""
+  control_owners: []
+
+timing:
+  requested_at_utc: ""
+  approved_at_utc: ""
+  effective_at_utc: ""
+  expires_at_utc: ""
+  maximum_window_hours: null
+  reevaluation_cadence_hours: null
+  next_reevaluation_at_utc: ""
+  renewal_of_record_id: null
+  renewal_count: 0
+
+containment_controls:
+  - control_id: ""
+    category: ""  # disable | isolate | access | credential | input | version | other
+    description: ""
+    covered_scope: []
+    dependencies_and_common_mode_failures: []
+    owner_identity: ""
+    implemented_at_utc: ""
+    status: planned  # planned | implemented | failed | retired
+    verification_method: ""
+    verifier_identity: ""
+    verifier_is_distinct_from_implementer: null
+    verified_at_utc: ""
+    evidence_reference: ""
+    evidence_sha256: ""
+    failure_signal: ""
+    safe_state_action: ""
+
+monitoring:
+  - monitor_id: ""
+    purpose: ""
+    signal_source: ""
+    query_or_detector_revision: ""
+    alert_threshold: ""
+    owner_identity: ""
+    on_call_destination: ""
+    response_objective_minutes: null
+    retention_reference: ""
+    test_method: ""
+    tested_at_utc: ""
+    test_evidence_reference: ""
+    test_evidence_sha256: ""
+
+coordination:
+  affected_audiences: []
+  upstream_and_downstream_parties: []
+  cve_or_cna_plan: ""
+  disclosure_embargo: ""
+  customer_guidance_reference: ""
+  legal_review_reference: ""
+  privacy_review_reference: ""
+  regulatory_review_reference: ""
+  decisions:
+    - audience: ""
+      decision: ""  # notify | defer | not_applicable
+      rationale: ""
+      owner_identity: ""
+      approver_identity: ""
+      target_at_utc: ""
+      completed_at_utc: ""
+      approved_content_reference: ""
+      approved_content_sha256: ""
+
+approval:
+  supporting_evidence_snapshot_reference: ""
+  supporting_evidence_snapshot_sha256: ""
+  accountable_owner_decision: pending  # pending | attest | withdraw
+  accountable_owner_signed_at_utc: ""
+  accountable_owner_signature_reference: ""
+  independent_approver_decision: pending  # pending | approve | reject | revoke
+  independent_approver_signed_at_utc: ""
+  independent_approver_signature_reference: ""
+
+audit:
+  system_of_record_uri: ""
+  immutable_audit_log_reference: ""
+  record_snapshot_export_reference: ""
+  record_snapshot_media_type: ""
+  record_snapshot_byte_length: null
+  record_snapshot_digest_algorithm: sha256
+  record_snapshot_digest_stored_outside_record: true
+  access_control_policy_reference: ""
+  retention_policy_reference: ""
+# After this record is exported immutably, a later append-only audit event binds
+# record_id, export reference, media type, byte length, algorithm, digest, and
+# event timestamp. The exported record must not contain that later event's ID.
+
+reevaluations: []
+# Append entries; never overwrite prior reviews. Each entry should include:
+# reviewed_at_utc, reviewer_identity, scope_state, control_results,
+# monitoring_results, threat_intelligence_delta, release_gate_state,
+# customer_impact_delta, decision, next_review_at_utc, evidence_reference,
+# and evidence_sha256.
+
+escalation:
+  contacts: []
+  pvr_outage_detected_at_utc: ""
+  primary_delivery_failure_detected_at_utc: ""
+  primary_no_ack_detected_at_utc: ""
+  fallback_activated_at_utc: ""
+  fallback_acknowledged_at_utc: ""
+  executive_escalated_at_utc: ""
+  safe_state_ordered_at_utc: ""
+  revocation_triggers:
+    - exploitation_detected_or_materially_more_likely
+    - affected_scope_expanded
+    - containment_control_failed
+    - monitoring_or_evidence_integrity_lost
+    - accountable_owner_or_approver_changed
+    - legal_or_regulatory_obligation_changed
+    - residual_risk_assumption_invalidated
+    - reevaluation_or_expiry_deadline_missed
+  last_escalated_at_utc: ""
+  escalation_evidence_reference: ""
+  escalation_evidence_sha256: ""
+
+closure:
+  closed_at_utc: ""
+  outcome: ""  # standard_release_deployed | capability_retired
+  published_release: ""
+  release_evidence_reference: ""
+  deployment_verification_reference: ""
+  customer_follow_through_reference: ""
+  disclosure_status: ""
+  remaining_risk: ""
+  lessons_learned_reference: ""
+  follow_up_actions: []
+  retention_policy_reference: ""
+  closure_approver_identity: ""

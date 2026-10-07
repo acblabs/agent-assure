@@ -216,6 +216,8 @@ def test_publish_gate_orders_efficacy_and_empirical_readiness_before_release_wor
     assert '--external-pilot-bundle-root "$(EXTERNAL_PILOT_BUNDLE_ROOT)"' in makefile
     assert '--external-pilot-review-receipt "$(EXTERNAL_PILOT_REVIEW_RECEIPT)"' in makefile
     assert '--expected-release "$(EXPECTED_RELEASE)"' in makefile
+    assert "release-security-maintenance-check" not in makefile
+    assert "check_security_maintenance_release.py" not in makefile
 
 
 def test_publish_workflows_pin_the_closed_empirical_bundle_layouts() -> None:
@@ -243,13 +245,13 @@ def test_release_gate_does_not_use_the_v02_example_as_its_trust_anchor() -> None
         ROOT / "study/registration/frozen-non-grid-benchmark.json"
     )
     assert readiness_gate.PACKAGED_BENCHMARK_PATH == (
-        ROOT / "src/agent_assure/release_trust/v0_6_6/frozen-non-grid-benchmark.json"
+        ROOT / "src/agent_assure/release_trust/v0_7_0/frozen-non-grid-benchmark.json"
     )
     assert readiness_gate.CANONICAL_BENCHMARK_METHOD_REVIEW_PATH == (
         ROOT / "study/registration/frozen-non-grid-benchmark-statistical-method-review.json"
     )
     assert readiness_gate.PACKAGED_BENCHMARK_METHOD_REVIEW_PATH == (
-        ROOT / "src/agent_assure/release_trust/v0_6_6/"
+        ROOT / "src/agent_assure/release_trust/v0_7_0/"
         "frozen-non-grid-benchmark-statistical-method-review.json"
     )
     assert "process_equivalence_benchmark_v0_2" not in str(readiness_gate.CANONICAL_BENCHMARK_PATH)
@@ -291,7 +293,7 @@ def test_canonical_benchmark_rejects_semantically_equal_nonidentical_mirror_byte
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
     assert exit_code == 1
@@ -329,7 +331,7 @@ def test_canonical_positive_review_requires_a_byte_identical_packaged_mirror(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
     assert exit_code == 1
@@ -411,7 +413,7 @@ def test_missing_canonical_benchmark_pair_has_a_specific_release_blocker(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -451,7 +453,7 @@ def test_frozen_benchmark_with_missing_positive_approval_has_distinct_blocker(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -501,7 +503,7 @@ def test_operator_benchmark_override_cannot_replace_committed_trust_anchor(
             "--benchmark",
             "operator-selected.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -534,7 +536,7 @@ def test_empirical_readiness_gate_accepts_only_valid_ready_artifacts(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6rc1",
+            "0.7.0rc1",
         ]
     )
 
@@ -586,7 +588,7 @@ def test_empirical_readiness_gate_accepts_only_valid_ready_artifacts(
         == "out_of_band_not_machine_verified"
     )
     assert result["canonical_benchmark_digest"] == "c" * 64
-    assert result["expected_release"] == "0.6.6rc1"
+    assert result["expected_release"] == "0.7.0rc1"
 
 
 @pytest.mark.parametrize(
@@ -618,7 +620,7 @@ def test_empirical_readiness_gate_emits_only_value_free_failure_categories(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -639,7 +641,7 @@ def test_empirical_readiness_gate_normalizes_corrupt_deflate_without_traceback(
 ) -> None:
     wheel = bytearray(_wheel_bytes(compression=zipfile.ZIP_DEFLATED))
     with zipfile.ZipFile(io.BytesIO(wheel)) as archive:
-        metadata = archive.getinfo("agent_assure-0.6.6.dist-info/METADATA")
+        metadata = archive.getinfo("agent_assure-0.7.0.dist-info/METADATA")
         name_length, extra_length = struct.unpack_from("<HH", wheel, metadata.header_offset + 26)
         compressed_offset = metadata.header_offset + 30 + name_length + extra_length
     wheel[compressed_offset] ^= 0xFF
@@ -664,7 +666,7 @@ def test_empirical_readiness_gate_normalizes_corrupt_deflate_without_traceback(
             "--external-pilot-review-receipt",
             RECEIPT_NAME,
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -704,7 +706,7 @@ def test_missing_bundle_roots_surface_assessor_blocking_reasons(
             "--external-pilot-review-receipt",
             "external-pilot-independence-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -758,7 +760,7 @@ def test_empirical_readiness_gate_fails_closed_without_leaking_invalid_values(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -793,7 +795,7 @@ def test_empirical_readiness_gate_rejects_valid_but_ineligible_evidence(
             "--external-pilot-review-receipt",
             "pilot-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 
@@ -846,7 +848,7 @@ def test_bare_external_evidence_with_fake_hashes_and_no_files_fails_checker(
             "--external-pilot-review-receipt",
             "external-pilot-independence-review.json",
             "--expected-release",
-            "0.6.6",
+            "0.7.0",
         ]
     )
 

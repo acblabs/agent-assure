@@ -6,6 +6,7 @@ import shutil
 from pathlib import Path
 
 import pytest
+from pydantic import ValidationError
 
 import agent_assure.fixtures.manifest as fixture_manifest_module
 from agent_assure.authoring.compiler import compile_suite
@@ -14,7 +15,12 @@ from agent_assure.fixtures.loader import (
     verify_source_digest,
     write_compiled_suite,
 )
-from agent_assure.fixtures.manifest import build_fixture_manifest, verify_fixture_manifest
+from agent_assure.fixtures.manifest import (
+    build_fixture_manifest,
+    load_fixture_manifest,
+    verify_fixture_manifest,
+    write_fixture_manifest,
+)
 from agent_assure.fixtures.resolver import FixturePathError, FixtureResolver
 from agent_assure.runner.fixture_runner import load_variant_config, run_suite
 from agent_assure.schema.suite import CompiledSuite, SuiteDefaults
@@ -177,6 +183,22 @@ def test_fixture_manifest_verification_detects_drift(tmp_path) -> None:  # type:
         verify_fixture_manifest(manifest, compiled, fixture_root)
 
 
+def test_fixture_manifest_builder_rejects_unsafe_suite_before_filesystem_access(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled = compile_suite(SUITE)
+    forged = compiled.model_copy(update={"artifact_kind": "forged-suite"})
+
+    def filesystem_tripwire(_root: Path) -> object:
+        raise AssertionError("fixture filesystem must not be accessed")
+
+    monkeypatch.setattr(fixture_manifest_module, "FixtureResolver", filesystem_tripwire)
+
+    with pytest.raises(ValidationError, match="artifact_kind"):
+        build_fixture_manifest(forged, tmp_path)
+
+
 def test_compiled_suite_loader_and_source_digest_verification(tmp_path) -> None:  # type: ignore[no-untyped-def]
     compiled = compile_suite(SUITE)
     out = tmp_path / "compiled.json"
@@ -184,6 +206,55 @@ def test_compiled_suite_loader_and_source_digest_verification(tmp_path) -> None:
     loaded = load_compiled_suite(out)
     assert loaded == compiled
     verify_source_digest(loaded, SUITE)
+
+
+def test_compiled_suite_writer_revalidates_unsafe_copy_before_output(
+    tmp_path: Path,
+) -> None:
+    compiled = compile_suite(SUITE)
+    forged = compiled.model_copy(update={"cases": ()})
+    output = tmp_path / "output" / "compiled.json"
+
+    with pytest.raises(ValueError, match="at least one case"):
+        write_compiled_suite(forged, output)
+
+    assert not output.parent.exists()
+
+
+def test_compiled_suite_writer_rejects_archival_wire_before_output(tmp_path: Path) -> None:
+    compiled = compile_suite(SUITE)
+    archival = CompiledSuite.model_validate(
+        _rewrite_schema_version(compiled.model_dump(mode="json"), "0.4.3")
+    )
+    output = tmp_path / "output" / "compiled.json"
+
+    with pytest.raises(ValueError, match="compiled-suite artifact"):
+        write_compiled_suite(archival, output)
+
+    assert not output.parent.exists()
+
+
+def test_fixture_manifest_writer_round_trips_valid_manifest(tmp_path: Path) -> None:
+    compiled = compile_suite(SUITE)
+    manifest = build_fixture_manifest(compiled, SUITE.parent)
+    output = tmp_path / "output" / "fixture-manifest.json"
+
+    write_fixture_manifest(manifest, output)
+
+    assert load_fixture_manifest(output) == manifest
+
+
+def test_fixture_manifest_writer_revalidates_unsafe_copy_before_output(
+    tmp_path: Path,
+) -> None:
+    manifest = build_fixture_manifest(compile_suite(SUITE), SUITE.parent)
+    forged = manifest.model_copy(update={"suite_id": ""})
+    output = tmp_path / "output" / "fixture-manifest.json"
+
+    with pytest.raises(ValueError, match="suite_id"):
+        write_fixture_manifest(forged, output)
+
+    assert not output.parent.exists()
 
 
 def test_current_compiled_suite_loader_requires_explicit_runner_id(tmp_path) -> None:
@@ -240,6 +311,21 @@ cases:
         encoding="utf-8",
     )
     return suite
+
+
+def _rewrite_schema_version(value: object, schema_version: str) -> object:
+    if isinstance(value, dict):
+        return {
+            str(key): (
+                schema_version
+                if key == "schema_version"
+                else _rewrite_schema_version(nested, schema_version)
+            )
+            for key, nested in value.items()
+        }
+    if isinstance(value, list):
+        return [_rewrite_schema_version(item, schema_version) for item in value]
+    return value
 
 
 def _make_fixture_dirs(tmp_path: Path, root: str) -> None:

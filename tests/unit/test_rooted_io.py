@@ -662,6 +662,31 @@ def test_rooted_read_pins_nested_file_and_preserves_bounded_metadata(tmp_path: P
     assert load_json_bounded_at(root, "nested/artifact.json") == {"value": "rooted"}
 
 
+@pytest.mark.skipif(os.name == "nt", reason="POSIX directory permissions are required")
+def test_rooted_read_traverses_execute_only_ancestor(tmp_path: Path) -> None:
+    if not hasattr(os, "O_SEARCH") and not hasattr(os, "O_PATH"):
+        pytest.skip("search-only directory descriptors are unavailable")
+    root = tmp_path / "root"
+    ancestor = root / "execute-only"
+    ancestor.mkdir(parents=True)
+    payload = b"rooted"
+    (ancestor / "artifact.bin").write_bytes(payload)
+    ancestor.chmod(0o111)
+
+    try:
+        assert (
+            read_bytes_bounded_at(
+                root,
+                "execute-only/artifact.bin",
+                max_bytes=len(payload),
+                label="execute-only test artifact",
+            )
+            == payload
+        )
+    finally:
+        ancestor.chmod(0o700)
+
+
 def test_rooted_descriptor_lease_rewinds_and_closes_file_descriptor(tmp_path: Path) -> None:
     root = tmp_path / "root"
     root.mkdir()

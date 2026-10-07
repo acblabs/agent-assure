@@ -19,6 +19,7 @@ from agent_assure.schema.run import (
     ClaimRecord,
     EvidenceItem,
     EvidenceRef,
+    Provenance,
     RunSet,
 )
 
@@ -216,6 +217,7 @@ def _run(case_id: str, *, evidence_refs: tuple[EvidenceRef, ...]) -> AgentRunRec
             if any(ref.ref_id == "evidence-duration" for ref in evidence_refs)
             else ()
         ),
+        provenance=Provenance(fixture_manifest_digest=_DIGEST),
     )
 
 

@@ -2,6 +2,66 @@
   "$defs": {
     "ControlConditionEvaluation": {
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "observed": {
+                "const": true
+              }
+            },
+            "required": [
+              "observed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_state": {
+                "enum": [
+                  "conditionally_observed",
+                  "contradictory_evidence_observed",
+                  "not_applicable",
+                  "observed",
+                  "out_of_scope",
+                  "partially_observed"
+                ]
+              },
+              "evidence_refs": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "evidence_refs"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "observed": {
+                "const": false
+              }
+            },
+            "required": [
+              "observed"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_state": {
+                "enum": [
+                  "conditionally_observed",
+                  "not_applicable",
+                  "not_evaluated",
+                  "not_observed",
+                  "out_of_scope",
+                  "partially_observed"
+                ]
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "control-condition-evaluation",
@@ -30,7 +90,8 @@
             "$ref": "#/$defs/ControlEvidenceRef"
           },
           "title": "Evidence Refs",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "observed": {
           "title": "Observed",
@@ -85,7 +146,8 @@
             "type": "string"
           },
           "title": "Atlas Tactic Ids",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "atlas_technique_ids": {
           "default": [],
@@ -93,7 +155,8 @@
             "type": "string"
           },
           "title": "Atlas Technique Ids",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "condition_evaluations": {
           "default": [],
@@ -101,7 +164,8 @@
             "$ref": "#/$defs/ControlConditionEvaluation"
           },
           "title": "Condition Evaluations",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "control_id": {
           "minLength": 1,
@@ -125,7 +189,8 @@
             "type": "string"
           },
           "title": "Limitations",
-          "type": "array"
+          "type": "array",
+          "uniqueItems": true
         },
         "mapping_strength": {
           "anyOf": [
@@ -191,7 +256,7 @@
         "evidence_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -259,6 +324,5056 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/control-coverage-report.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "framework": {
+            "const": "nist-ai-rmf"
+          }
+        },
+        "required": [
+          "framework"
+        ]
+      },
+      "then": {
+        "properties": {
+          "framework_version": {
+            "const": "1.0"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "framework": {
+            "const": "owasp-llm-top-10-2025"
+          }
+        },
+        "required": [
+          "framework"
+        ]
+      },
+      "then": {
+        "properties": {
+          "framework_version": {
+            "const": "2025"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "framework": {
+            "const": "iso-iec-42001"
+          }
+        },
+        "required": [
+          "framework"
+        ]
+      },
+      "then": {
+        "properties": {
+          "framework_version": {
+            "const": "2023"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "framework": {
+            "const": "mitre-atlas-2026-06"
+          }
+        },
+        "required": [
+          "framework"
+        ]
+      },
+      "then": {
+        "properties": {
+          "framework_version": {
+            "const": "2026.06"
+          }
+        }
+      }
+    },
+    {
+      "else": {
+        "properties": {
+          "items": {
+            "items": {
+              "properties": {
+                "atlas_tactic_ids": {
+                  "maxItems": 0
+                },
+                "atlas_technique_ids": {
+                  "maxItems": 0
+                },
+                "mapping_strength": {
+                  "type": "null"
+                }
+              }
+            }
+          },
+          "limitations": {
+            "not": {
+              "contains": {
+                "const": "MITRE ATLAS mappings are planning crosswalks only and are not adversary-emulation results, ATLAS coverage claims, validation results, endorsements, or threat-resistance claims."
+              }
+            }
+          }
+        }
+      },
+      "if": {
+        "properties": {
+          "framework": {
+            "const": "mitre-atlas-2026-06"
+          }
+        },
+        "required": [
+          "framework"
+        ]
+      },
+      "then": {
+        "properties": {
+          "items": {
+            "items": {
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "mapping_strength": {
+                        "const": "not_applicable"
+                      }
+                    },
+                    "required": [
+                      "mapping_strength"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_tactic_ids": {
+                        "maxItems": 0
+                      },
+                      "atlas_technique_ids": {
+                        "maxItems": 1
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Search Open Technical Databases"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0000.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0000.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Journals and Conference Proceedings"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0000.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0000.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Pre-Print Repositories"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0000.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0000.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Technical Blogs"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Search Open AI Vulnerability Analysis"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Acquire Public AI Artifacts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0002.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0002.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Datasets"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0002.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0002.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Models"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0002.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0002.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Configuration"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Search Victim-Owned Websites"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0004"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0004"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Search Application Repositories"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0005"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0005"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Create Proxy AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0005.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0005.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Train Proxy via Gathered AI Artifacts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0005.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0005.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Train Proxy via Replication"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0005.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0005.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Use Pre-Trained Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0006"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0006"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Active Scanning"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0007"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0007"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover AI Artifacts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Acquire Infrastructure"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Development Workspaces"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Consumer Hardware"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Domains"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008.003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008.003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Physical Countermeasures"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008.004"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008.004"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Serverless"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0008.005"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0008.005"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Service Proxies"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Supply Chain Compromise"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Hardware"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Software"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Data"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010.003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010.003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010.004"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010.004"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Container Registry"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0010.005"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0010.005"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Tool"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0011"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0011"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "User Execution"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0011.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0011.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Unsafe AI Artifacts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0011.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0011.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Malicious Package"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0011.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0011.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Poisoned AI Agent Tool"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0011.003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0011.003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Malicious Link"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0012"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0012"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Valid Accounts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0013"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0013"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover AI Model Ontology"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0014"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0014"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover AI Model Family"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0015"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0015"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Evade AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0016"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0016"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Obtain Capabilities"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0016.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0016.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Adversarial AI Attack Implementations"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0016.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0016.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Software Tools"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0016.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0016.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Generative AI"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0017"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0017"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Develop Capabilities"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0017.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0017.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Adversarial AI Attacks"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0018"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0018"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Manipulate AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0018.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0018.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Poison AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0018.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0018.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Modify AI Model Architecture"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0018.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0018.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Embed Malware"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0019"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0019"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Publish Poisoned Datasets"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0020"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0020"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Poison Training Data"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0021"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0021"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Establish Accounts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0024"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0024"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Exfiltration via AI Inference API"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0024.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0024.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Infer Training Data Membership"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0024.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0024.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Invert AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0024.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0024.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Extract AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0025"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0025"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Exfiltration via Cyber Means"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0029"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0029"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Denial of AI Service"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0031"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0031"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Erode AI Model Integrity"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0034"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0034"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Cost Harvesting"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0034.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0034.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Excessive Queries"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0034.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0034.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Resource-Intensive Queries"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0034.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0034.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Agentic Resource Consumption"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0035"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0035"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Artifact Collection"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0036"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0036"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Data from Information Repositories"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0037"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0037"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Data from Local System"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0040"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0040"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Model Inference API Access"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0041"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0041"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Physical Environment Access"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0042"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0042"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Verify Attack"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0043"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0043"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Craft Adversarial Data"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0043.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0043.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "White-Box Optimization"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0043.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0043.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Black-Box Optimization"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0043.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0043.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Black-Box Transfer"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0043.003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0043.003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Manual Modification"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0043.004"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0043.004"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Insert Backdoor Trigger"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0044"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0044"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Full AI Model Access"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0046"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0046"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Spamming AI System with Chaff Data"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0047"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0047"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI-Enabled Product or Service"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0048"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0048"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "External Harms"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0048.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0048.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Financial Harm"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0048.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0048.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Reputational Harm"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0048.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0048.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Societal Harm"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0048.003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0048.003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "User Harm"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0048.004"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0048.004"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Intellectual Property Theft"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0049"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0049"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Exploit Public-Facing Application"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0050"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0050"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Command and Scripting Interpreter"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0051"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0051"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Prompt Injection"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0051.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0051.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Direct"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0051.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0051.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Indirect"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0051.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0051.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Triggered"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0052"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0052"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Phishing"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0052.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0052.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Spearphishing via Social Engineering LLM"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0052.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0052.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Deepfake-Assisted Phishing"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0053"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0053"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Tool Invocation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0054"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0054"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Jailbreak"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0055"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0055"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Unsecured Credentials"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0056"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0056"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Extract LLM System Prompt"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0057"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0057"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Data Leakage"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0058"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0058"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Publish Poisoned Models"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0059"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0059"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Erode Dataset Integrity"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0060"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0060"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Publish Hallucinated Entities"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0061"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0061"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Prompt Self-Replication"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0062"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0062"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover LLM Hallucinations"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0063"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0063"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover AI Model Outputs"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0064"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0064"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Gather RAG-Indexed Targets"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0065"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0065"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Prompt Crafting"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0066"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0066"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Retrieval Content Crafting"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0067"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0067"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Trusted Output Components Manipulation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0067.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0067.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Citations"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0068"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0068"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Prompt Obfuscation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0069"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0069"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover LLM System Information"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0069.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0069.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Special Character Sets"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0069.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0069.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "System Instruction Keywords"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0069.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0069.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "System Prompt"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0070"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0070"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "RAG Poisoning"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0071"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0071"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "False RAG Entry Injection"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0072"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0072"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Reverse Shell"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0073"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0073"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Impersonation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0074"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0074"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Masquerading"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0075"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0075"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Cloud Service Discovery"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0076"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0076"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Corrupt AI Model"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0077"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0077"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "LLM Response Rendering"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0078"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0078"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Drive-by Compromise"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0079"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0079"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Stage Capabilities"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0080"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0080"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Context Poisoning"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0080.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0080.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Memory"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0080.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0080.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Thread"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0081"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0081"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Modify AI Agent Configuration"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0082"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0082"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "RAG Credential Harvesting"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0083"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0083"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Credentials from AI Agent Configuration"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0084"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0084"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Discover AI Agent Configuration"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0084.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0084.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Embedded Knowledge"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0084.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0084.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Tool Definitions"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0084.002"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0084.002"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Activation Triggers"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0084.003"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0084.003"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Call Chains"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0085"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0085"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Data from AI Services"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0085.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0085.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "RAG Databases"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0085.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0085.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Tools"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0086"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0086"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Exfiltration via AI Agent Tool Invocation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0087"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0087"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Gather Victim Identity Information"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0088"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0088"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Generate Deepfakes"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0089"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0089"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Process Discovery"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0090"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0090"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "OS Credential Dumping"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0091"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0091"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Use Alternate Authentication Material"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0091.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0091.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Application Access Token"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0091.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0091.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Web Session Cookie"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0092"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0092"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Manipulate User LLM Chat History"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0093"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0093"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Prompt Infiltration via Public-Facing Application"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0094"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0094"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Delay Execution of LLM Instructions"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0095"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0095"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Search Open Websites/Domains"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0095.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0095.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Code Repositories"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0096"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0096"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Service API"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0097"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0097"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Virtualization/Sandbox Evasion"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0098"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0098"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Tool Credential Harvesting"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0099"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0099"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Tool Data Poisoning"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0100"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0100"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Clickbait"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0101"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0101"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Data Destruction via AI Agent Tool Invocation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0102"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0102"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Generate Malicious Commands"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0103"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0103"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Deploy AI Agent"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0104"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0104"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Publish Poisoned AI Agent Tool"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0105"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0105"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Escape to Host"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0106"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0106"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Exploitation for Credential Access"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0107"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0107"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Exploitation for Defense Evasion"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0108"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0108"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0109"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0109"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Supply Chain Rug Pull"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0110"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0110"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Agent Tool Poisoning"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0111"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0111"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Supply Chain Reputation Inflation"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0112"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0112"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Machine Compromise"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0112.000"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0112.000"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Local AI Agent"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0112.001"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0112.001"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Artifacts"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0113"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0113"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "Steal Web Session Cookie"
+                      }
+                    }
+                  }
+                },
+                {
+                  "if": {
+                    "properties": {
+                      "control_id": {
+                        "const": "AML.T0114"
+                      }
+                    },
+                    "required": [
+                      "control_id"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "atlas_technique_ids": {
+                        "contains": {
+                          "const": "AML.T0114"
+                        },
+                        "maxContains": 1,
+                        "minContains": 1
+                      },
+                      "title": {
+                        "const": "AI Service Web Interface"
+                      }
+                    }
+                  }
+                }
+              ],
+              "properties": {
+                "atlas_tactic_ids": {
+                  "items": {
+                    "enum": [
+                      "AML.TA0000",
+                      "AML.TA0001",
+                      "AML.TA0002",
+                      "AML.TA0003",
+                      "AML.TA0004",
+                      "AML.TA0005",
+                      "AML.TA0006",
+                      "AML.TA0007",
+                      "AML.TA0008",
+                      "AML.TA0009",
+                      "AML.TA0010",
+                      "AML.TA0011",
+                      "AML.TA0012",
+                      "AML.TA0013",
+                      "AML.TA0014",
+                      "AML.TA0015"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "atlas_technique_ids": {
+                  "items": {
+                    "enum": [
+                      "AML.T0000",
+                      "AML.T0000.000",
+                      "AML.T0000.001",
+                      "AML.T0000.002",
+                      "AML.T0001",
+                      "AML.T0002",
+                      "AML.T0002.000",
+                      "AML.T0002.001",
+                      "AML.T0002.002",
+                      "AML.T0003",
+                      "AML.T0004",
+                      "AML.T0005",
+                      "AML.T0005.000",
+                      "AML.T0005.001",
+                      "AML.T0005.002",
+                      "AML.T0006",
+                      "AML.T0007",
+                      "AML.T0008",
+                      "AML.T0008.000",
+                      "AML.T0008.001",
+                      "AML.T0008.002",
+                      "AML.T0008.003",
+                      "AML.T0008.004",
+                      "AML.T0008.005",
+                      "AML.T0010",
+                      "AML.T0010.000",
+                      "AML.T0010.001",
+                      "AML.T0010.002",
+                      "AML.T0010.003",
+                      "AML.T0010.004",
+                      "AML.T0010.005",
+                      "AML.T0011",
+                      "AML.T0011.000",
+                      "AML.T0011.001",
+                      "AML.T0011.002",
+                      "AML.T0011.003",
+                      "AML.T0012",
+                      "AML.T0013",
+                      "AML.T0014",
+                      "AML.T0015",
+                      "AML.T0016",
+                      "AML.T0016.000",
+                      "AML.T0016.001",
+                      "AML.T0016.002",
+                      "AML.T0017",
+                      "AML.T0017.000",
+                      "AML.T0018",
+                      "AML.T0018.000",
+                      "AML.T0018.001",
+                      "AML.T0018.002",
+                      "AML.T0019",
+                      "AML.T0020",
+                      "AML.T0021",
+                      "AML.T0024",
+                      "AML.T0024.000",
+                      "AML.T0024.001",
+                      "AML.T0024.002",
+                      "AML.T0025",
+                      "AML.T0029",
+                      "AML.T0031",
+                      "AML.T0034",
+                      "AML.T0034.000",
+                      "AML.T0034.001",
+                      "AML.T0034.002",
+                      "AML.T0035",
+                      "AML.T0036",
+                      "AML.T0037",
+                      "AML.T0040",
+                      "AML.T0041",
+                      "AML.T0042",
+                      "AML.T0043",
+                      "AML.T0043.000",
+                      "AML.T0043.001",
+                      "AML.T0043.002",
+                      "AML.T0043.003",
+                      "AML.T0043.004",
+                      "AML.T0044",
+                      "AML.T0046",
+                      "AML.T0047",
+                      "AML.T0048",
+                      "AML.T0048.000",
+                      "AML.T0048.001",
+                      "AML.T0048.002",
+                      "AML.T0048.003",
+                      "AML.T0048.004",
+                      "AML.T0049",
+                      "AML.T0050",
+                      "AML.T0051",
+                      "AML.T0051.000",
+                      "AML.T0051.001",
+                      "AML.T0051.002",
+                      "AML.T0052",
+                      "AML.T0052.000",
+                      "AML.T0052.001",
+                      "AML.T0053",
+                      "AML.T0054",
+                      "AML.T0055",
+                      "AML.T0056",
+                      "AML.T0057",
+                      "AML.T0058",
+                      "AML.T0059",
+                      "AML.T0060",
+                      "AML.T0061",
+                      "AML.T0062",
+                      "AML.T0063",
+                      "AML.T0064",
+                      "AML.T0065",
+                      "AML.T0066",
+                      "AML.T0067",
+                      "AML.T0067.000",
+                      "AML.T0068",
+                      "AML.T0069",
+                      "AML.T0069.000",
+                      "AML.T0069.001",
+                      "AML.T0069.002",
+                      "AML.T0070",
+                      "AML.T0071",
+                      "AML.T0072",
+                      "AML.T0073",
+                      "AML.T0074",
+                      "AML.T0075",
+                      "AML.T0076",
+                      "AML.T0077",
+                      "AML.T0078",
+                      "AML.T0079",
+                      "AML.T0080",
+                      "AML.T0080.000",
+                      "AML.T0080.001",
+                      "AML.T0081",
+                      "AML.T0082",
+                      "AML.T0083",
+                      "AML.T0084",
+                      "AML.T0084.000",
+                      "AML.T0084.001",
+                      "AML.T0084.002",
+                      "AML.T0084.003",
+                      "AML.T0085",
+                      "AML.T0085.000",
+                      "AML.T0085.001",
+                      "AML.T0086",
+                      "AML.T0087",
+                      "AML.T0088",
+                      "AML.T0089",
+                      "AML.T0090",
+                      "AML.T0091",
+                      "AML.T0091.000",
+                      "AML.T0091.001",
+                      "AML.T0092",
+                      "AML.T0093",
+                      "AML.T0094",
+                      "AML.T0095",
+                      "AML.T0095.000",
+                      "AML.T0096",
+                      "AML.T0097",
+                      "AML.T0098",
+                      "AML.T0099",
+                      "AML.T0100",
+                      "AML.T0101",
+                      "AML.T0102",
+                      "AML.T0103",
+                      "AML.T0104",
+                      "AML.T0105",
+                      "AML.T0106",
+                      "AML.T0107",
+                      "AML.T0108",
+                      "AML.T0109",
+                      "AML.T0110",
+                      "AML.T0111",
+                      "AML.T0112",
+                      "AML.T0112.000",
+                      "AML.T0112.001",
+                      "AML.T0113",
+                      "AML.T0114"
+                    ],
+                    "type": "string"
+                  },
+                  "minItems": 1
+                },
+                "control_id": {
+                  "enum": [
+                    "AML.T0000",
+                    "AML.T0000.000",
+                    "AML.T0000.001",
+                    "AML.T0000.002",
+                    "AML.T0001",
+                    "AML.T0002",
+                    "AML.T0002.000",
+                    "AML.T0002.001",
+                    "AML.T0002.002",
+                    "AML.T0003",
+                    "AML.T0004",
+                    "AML.T0005",
+                    "AML.T0005.000",
+                    "AML.T0005.001",
+                    "AML.T0005.002",
+                    "AML.T0006",
+                    "AML.T0007",
+                    "AML.T0008",
+                    "AML.T0008.000",
+                    "AML.T0008.001",
+                    "AML.T0008.002",
+                    "AML.T0008.003",
+                    "AML.T0008.004",
+                    "AML.T0008.005",
+                    "AML.T0010",
+                    "AML.T0010.000",
+                    "AML.T0010.001",
+                    "AML.T0010.002",
+                    "AML.T0010.003",
+                    "AML.T0010.004",
+                    "AML.T0010.005",
+                    "AML.T0011",
+                    "AML.T0011.000",
+                    "AML.T0011.001",
+                    "AML.T0011.002",
+                    "AML.T0011.003",
+                    "AML.T0012",
+                    "AML.T0013",
+                    "AML.T0014",
+                    "AML.T0015",
+                    "AML.T0016",
+                    "AML.T0016.000",
+                    "AML.T0016.001",
+                    "AML.T0016.002",
+                    "AML.T0017",
+                    "AML.T0017.000",
+                    "AML.T0018",
+                    "AML.T0018.000",
+                    "AML.T0018.001",
+                    "AML.T0018.002",
+                    "AML.T0019",
+                    "AML.T0020",
+                    "AML.T0021",
+                    "AML.T0024",
+                    "AML.T0024.000",
+                    "AML.T0024.001",
+                    "AML.T0024.002",
+                    "AML.T0025",
+                    "AML.T0029",
+                    "AML.T0031",
+                    "AML.T0034",
+                    "AML.T0034.000",
+                    "AML.T0034.001",
+                    "AML.T0034.002",
+                    "AML.T0035",
+                    "AML.T0036",
+                    "AML.T0037",
+                    "AML.T0040",
+                    "AML.T0041",
+                    "AML.T0042",
+                    "AML.T0043",
+                    "AML.T0043.000",
+                    "AML.T0043.001",
+                    "AML.T0043.002",
+                    "AML.T0043.003",
+                    "AML.T0043.004",
+                    "AML.T0044",
+                    "AML.T0046",
+                    "AML.T0047",
+                    "AML.T0048",
+                    "AML.T0048.000",
+                    "AML.T0048.001",
+                    "AML.T0048.002",
+                    "AML.T0048.003",
+                    "AML.T0048.004",
+                    "AML.T0049",
+                    "AML.T0050",
+                    "AML.T0051",
+                    "AML.T0051.000",
+                    "AML.T0051.001",
+                    "AML.T0051.002",
+                    "AML.T0052",
+                    "AML.T0052.000",
+                    "AML.T0052.001",
+                    "AML.T0053",
+                    "AML.T0054",
+                    "AML.T0055",
+                    "AML.T0056",
+                    "AML.T0057",
+                    "AML.T0058",
+                    "AML.T0059",
+                    "AML.T0060",
+                    "AML.T0061",
+                    "AML.T0062",
+                    "AML.T0063",
+                    "AML.T0064",
+                    "AML.T0065",
+                    "AML.T0066",
+                    "AML.T0067",
+                    "AML.T0067.000",
+                    "AML.T0068",
+                    "AML.T0069",
+                    "AML.T0069.000",
+                    "AML.T0069.001",
+                    "AML.T0069.002",
+                    "AML.T0070",
+                    "AML.T0071",
+                    "AML.T0072",
+                    "AML.T0073",
+                    "AML.T0074",
+                    "AML.T0075",
+                    "AML.T0076",
+                    "AML.T0077",
+                    "AML.T0078",
+                    "AML.T0079",
+                    "AML.T0080",
+                    "AML.T0080.000",
+                    "AML.T0080.001",
+                    "AML.T0081",
+                    "AML.T0082",
+                    "AML.T0083",
+                    "AML.T0084",
+                    "AML.T0084.000",
+                    "AML.T0084.001",
+                    "AML.T0084.002",
+                    "AML.T0084.003",
+                    "AML.T0085",
+                    "AML.T0085.000",
+                    "AML.T0085.001",
+                    "AML.T0086",
+                    "AML.T0087",
+                    "AML.T0088",
+                    "AML.T0089",
+                    "AML.T0090",
+                    "AML.T0091",
+                    "AML.T0091.000",
+                    "AML.T0091.001",
+                    "AML.T0092",
+                    "AML.T0093",
+                    "AML.T0094",
+                    "AML.T0095",
+                    "AML.T0095.000",
+                    "AML.T0096",
+                    "AML.T0097",
+                    "AML.T0098",
+                    "AML.T0099",
+                    "AML.T0100",
+                    "AML.T0101",
+                    "AML.T0102",
+                    "AML.T0103",
+                    "AML.T0104",
+                    "AML.T0105",
+                    "AML.T0106",
+                    "AML.T0107",
+                    "AML.T0108",
+                    "AML.T0109",
+                    "AML.T0110",
+                    "AML.T0111",
+                    "AML.T0112",
+                    "AML.T0112.000",
+                    "AML.T0112.001",
+                    "AML.T0113",
+                    "AML.T0114"
+                  ],
+                  "type": "string"
+                },
+                "mapping_strength": {
+                  "enum": [
+                    "direct",
+                    "partial",
+                    "adjacent",
+                    "gap",
+                    "not_applicable"
+                  ],
+                  "type": "string"
+                }
+              },
+              "required": [
+                "mapping_strength"
+              ]
+            }
+          },
+          "limitations": {
+            "contains": {
+              "const": "MITRE ATLAS mappings are planning crosswalks only and are not adversary-emulation results, ATLAS coverage claims, validation results, endorsements, or threat-resistance claims."
+            },
+            "maxContains": 1,
+            "minContains": 1
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "artifact_kind": {
       "const": "control-coverage-report",
@@ -268,13 +5383,17 @@
     },
     "coverage_state_counts": {
       "additionalProperties": {
+        "minimum": 0,
         "type": "integer"
+      },
+      "propertyNames": {
+        "$ref": "#/$defs/ControlCoverageState"
       },
       "title": "Coverage State Counts",
       "type": "object"
     },
     "evidence_packet_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Evidence Packet Digest",
       "type": "string"
     },
@@ -299,14 +5418,20 @@
       "type": "array"
     },
     "limitations": {
+      "contains": {
+        "const": "This report maps observed `agent-assure` evidence to selected framework concepts for human review. It is not a compliance attestation, certification, audit opinion, legal conclusion, regulatory conclusion, or safety claim."
+      },
       "items": {
         "type": "string"
       },
+      "maxContains": 1,
+      "minContains": 1,
       "title": "Limitations",
-      "type": "array"
+      "type": "array",
+      "uniqueItems": true
     },
     "mapping_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Mapping Digest",
       "type": "string"
     },

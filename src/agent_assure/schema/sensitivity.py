@@ -17,6 +17,7 @@ from agent_assure.schema.common import (
     ExecutionMode,
     GateState,
     MachineIdentifier,
+    ProviderModelIdentifier,
     coerce_enum,
     coerce_tuple,
 )
@@ -702,7 +703,7 @@ class RAGSensitivitySubjectConfig(FrozenStrictModel):
     agent_implementation_digest: DigestHex
     prompt_template_id: MachineIdentifier
     prompt_template_digest: DigestHex
-    model_id: MachineIdentifier
+    model_id: ProviderModelIdentifier
     model_digest: DigestHex
 
     @field_validator("mode", mode="before")
@@ -1043,7 +1044,7 @@ class RAGSensitivityProtocol(SelfDigestedArtifact):
     fixture_id: MachineIdentifier
     subject_id: MachineIdentifier
     provider: Literal["synthetic-fixture"] = "synthetic-fixture"
-    model_id: MachineIdentifier
+    model_id: ProviderModelIdentifier
     tool_id: MachineIdentifier
     fixture_manifest: FixtureManifest
     fixture_snapshots: tuple[RAGSensitivityFixtureFileSnapshot, ...] = Field(

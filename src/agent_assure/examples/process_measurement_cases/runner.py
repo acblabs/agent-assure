@@ -118,6 +118,10 @@ def _usage_segment(
         usage_payload.get("estimated_cost_microusd"),
         "estimated_cost_microusd",
     )
+    estimated_cost_picousd = _optional_non_negative_int(
+        usage_payload.get("estimated_cost_picousd"),
+        "estimated_cost_picousd",
+    )
     kwargs: dict[str, Any] = {
         "segment_id": f"usage-{profile}-{record.case_id}",
         "case_id": record.case_id,
@@ -150,6 +154,7 @@ def _usage_segment(
             "latency_ms",
         ),
         "estimated_cost_microusd": estimated_cost,
+        "estimated_cost_picousd": estimated_cost_picousd,
     }
     if estimated_cost is not None:
         kwargs.update(

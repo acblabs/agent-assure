@@ -93,13 +93,15 @@ def test_langgraph_cheaper_candidate_still_reports_governance_regression() -> No
     assert report.usage_delta.total_tokens_delta_bps == -4000
     assert report.usage_delta.estimated_cost_microusd_delta == -14
     assert report.usage_delta.estimated_cost_microusd_delta_bps == -3888
+    assert report.usage_delta.estimated_cost_picousd_delta == -14_000_000
+    assert report.usage_delta.estimated_cost_picousd_delta_bps == -3888
     assert report.comparison_summary.baseline_usage_summary is not None
     assert report.comparison_summary.candidate_usage_summary is not None
     assert report.comparison_summary.usage_delta == report.usage_delta
 
     markdown = render_comparison_markdown(report)
     assert "declared estimated cost per cost observation" in markdown
-    assert "declared estimated cost delta -14 micro-USD (-3888 bps)" in markdown
+    assert "declared estimated cost delta -14000000 pico-USD (-3888 bps)" in markdown
     assert "ROI" not in markdown
 
     packet = build_evidence_packet(
@@ -114,7 +116,7 @@ def test_langgraph_cheaper_candidate_still_reports_governance_regression() -> No
     assert "Baseline total tokens: `20`" in packet_markdown
     assert "Candidate total tokens: `12`" in packet_markdown
     assert "Baseline declared estimated cost per cost observation" in packet_markdown
-    assert "declared estimated cost delta -14 micro-USD (-3888 bps)" in packet_markdown
+    assert "declared estimated cost delta -14000000 pico-USD (-3888 bps)" in packet_markdown
 
 
 def test_langgraph_higher_usage_candidate_does_not_create_governance_failure() -> None:
@@ -133,6 +135,8 @@ def test_langgraph_higher_usage_candidate_does_not_create_governance_failure() -
     assert report.usage_delta.total_tokens_delta_bps == 5000
     assert report.usage_delta.estimated_cost_microusd_delta == 18
     assert report.usage_delta.estimated_cost_microusd_delta_bps == 5000
+    assert report.usage_delta.estimated_cost_picousd_delta == 18_000_000
+    assert report.usage_delta.estimated_cost_picousd_delta_bps == 5000
 
 
 def test_langgraph_example_records_observed_decision(

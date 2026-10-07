@@ -209,6 +209,7 @@ def test_evaluate_case_invokes_evidence_provenance_identity_control() -> None:
         expectation=Expectation(
             expectation_id="expect-evidence-provenance",
             case_id=run.case_id,
+            expected_recommendation="approve",
         ),
     )
 

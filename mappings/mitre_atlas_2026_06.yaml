@@ -6,7 +6,7 @@ source_review:
   source_refs:
     - docs/governance_crosswalk_mitre_atlas.md
     - docs/threat_coverage_matrix.yaml
-    - tests/vectors/mitre_atlas/atlas_2026_06_ids.yaml
+    - mappings/mitre_atlas_2026_06_catalog.yaml
   notes:
     - Uses pinned ATLAS 2026.06 tactic and technique IDs with short names only.
 limitations:

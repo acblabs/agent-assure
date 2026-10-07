@@ -1,4 +1,5 @@
 {
+  "$comment": "A current stream-run parent revalidates provider and model identifiers across legacy event usage segments and legacy usage ledgers.",
   "$defs": {
     "FrameworkObservation": {
       "additionalProperties": false,
@@ -201,7 +202,37 @@
       "type": "object"
     },
     "StreamEventRecord": {
+      "$comment": "A current stream-event parent revalidates provider and model identifiers on its usage segment even when that segment declares a legacy schema version.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "usage_segment": {
+                "properties": {
+                  "model": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                  },
+                  "provider": {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                  }
+                }
+              }
+            }
+          }
+        }
+      ],
       "properties": {
         "artifact_kind": {
           "const": "stream-event-record",
@@ -223,7 +254,7 @@
           "title": "Case Id"
         },
         "digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Digest",
           "type": "string"
         },
@@ -334,7 +365,7 @@
           "anyOf": [
             {
               "maxLength": 512,
-              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -348,7 +379,7 @@
           "anyOf": [
             {
               "maxLength": 512,
-              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -418,12 +449,121 @@
       "type": "object"
     },
     "UsageLedger": {
-      "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. JSON Schema validates shape and non-negative counts.",
+      "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. A current parent ledger also revalidates provider and model identifiers on every nested segment, including legacy-version segments. JSON Schema mirrors that parent-owned identifier boundary while validating shape and non-negative counts.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_known_fields_v1"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "segments": {
+                "items": {
+                  "properties": {
+                    "model": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                    },
+                    "provider": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        }
+      ],
       "properties": {
         "aggregation_method": {
-          "const": "sum_known_fields_v1",
-          "default": "sum_known_fields_v1",
+          "default": "sum_complete_fields_v2",
+          "enum": [
+            "sum_known_fields_v1",
+            "sum_complete_fields_v2"
+          ],
           "title": "Aggregation Method",
           "type": "string"
         },
@@ -443,8 +583,8 @@
           "type": "object"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -462,6 +602,43 @@
         "schema_version"
       ],
       "title": "UsageLedger",
+      "type": "object"
+    },
+    "UsageMetricCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_cost_microusd": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "total_latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Latency Ms",
+          "type": "integer"
+        },
+        "total_retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Retries",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        },
+        "total_tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "UsageMetricCoverage",
       "type": "object"
     },
     "UsageSegment": {
@@ -493,6 +670,32 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -512,6 +715,35 @@
             },
             "required": [
               "limitations"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "model": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+              },
+              "provider": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
             ]
           }
         }
@@ -575,7 +807,7 @@
         },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -591,6 +823,19 @@
           ],
           "default": null,
           "title": "Estimated Cost Microusd"
+        },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
         },
         "event_range_end": {
           "anyOf": [
@@ -678,7 +923,7 @@
         "pricing_snapshot_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -764,8 +1009,8 @@
           "title": "Run Id"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -865,6 +1110,98 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "aggregation_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_basis"
+                  ]
+                },
+                {
+                  "required": [
+                    "source_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_counts"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method",
+              "coverage_basis",
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -880,9 +1217,175 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tokens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tokens": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tool_calls": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tool_calls"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tool_calls": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_retries": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_retries"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_retries": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_latency_ms": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_latency_ms"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_latency_ms": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "estimated_cost_microusd": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
         }
       ],
       "properties": {
+        "aggregation_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "sum_known_fields_v1",
+                "sum_complete_fields_v2"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aggregation Method"
+        },
         "artifact_kind": {
           "const": "usage-summary",
           "default": "usage-summary",
@@ -910,9 +1413,37 @@
           "default": null,
           "title": "Cost Observation Count"
         },
+        "coverage_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "usage_segment",
+                "usage_summary",
+                "run_record"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Basis"
+        },
+        "coverage_counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageMetricCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -929,6 +1460,19 @@
           "default": null,
           "title": "Estimated Cost Microusd"
         },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -940,7 +1484,7 @@
         "pricing_snapshot_digests": {
           "default": [],
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Pricing Snapshot Digests",
@@ -955,10 +1499,23 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
+        },
+        "source_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Count"
         },
         "total_latency_ms": {
           "anyOf": [
@@ -1024,6 +1581,61 @@
   "$id": "https://acblabs.github.io/agent-assure/schemas/v0.6.6/stream-run.schema.json",
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "events": {
+            "items": {
+              "properties": {
+                "usage_segment": {
+                  "properties": {
+                    "model": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                    },
+                    "provider": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "usage_ledger": {
+            "properties": {
+              "segments": {
+                "items": {
+                  "properties": {
+                    "model": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                    },
+                    "provider": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  ],
   "properties": {
     "accepted_event_count": {
       "minimum": 0,

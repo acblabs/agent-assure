@@ -87,7 +87,8 @@ _STOCHASTIC_PACKET_ARTIFACT_ROLES = (
 _EXACT_PACKET_SCHEMA_VERSION_COHERENCE = frozenset(
     {"0.6.1", "0.6.2", "0.6.3", "0.6.4", "0.6.5", "0.6.6"}
 )
-_USAGE_ARTIFACT_SCHEMA_VERSION = "0.4.3"
+_LEGACY_PACKET_USAGE_ARTIFACT_SCHEMA_VERSION = "0.4.3"
+_CURRENT_PACKET_USAGE_ARTIFACT_SCHEMA_VERSION = "0.6.6"
 
 
 def _canonical_model_digest(model: BaseModel) -> str:
@@ -494,19 +495,23 @@ class EvidencePacket(PersistedArtifact):
         """Keep packet model validation aligned with versioned writer schemas.
 
         The v0.6.1 and later packet schemas pin every nested persisted artifact
-        to the packet version, except the independently versioned usage artifacts,
-        which remain pinned to v0.4.3. Enforcing the same relationship here keeps
+        to the packet version. Independently evolved usage artifacts remain at
+        v0.4.3 inside historical packets and use the coverage-aware v0.6.6
+        contract in current packets. Enforcing that relationship keeps
         current packet construction from accepting a legacy summary that the
         packet writer schema would subsequently reject.
         """
         if self.schema_version not in _EXACT_PACKET_SCHEMA_VERSION_COHERENCE:
             return self
         for path, artifact in _iter_nested_persisted_artifacts(self):
-            expected_version = (
-                _USAGE_ARTIFACT_SCHEMA_VERSION
-                if isinstance(artifact, UsageSummary | UsageSummaryDelta)
-                else self.schema_version
-            )
+            if isinstance(artifact, UsageSummary | UsageSummaryDelta):
+                expected_version = (
+                    _CURRENT_PACKET_USAGE_ARTIFACT_SCHEMA_VERSION
+                    if self.schema_version == "0.6.6"
+                    else _LEGACY_PACKET_USAGE_ARTIFACT_SCHEMA_VERSION
+                )
+            else:
+                expected_version = self.schema_version
             if artifact.schema_version != expected_version:
                 raise ValueError(
                     f"evidence packet schema_version {self.schema_version!r} requires "

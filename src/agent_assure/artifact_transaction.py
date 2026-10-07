@@ -48,6 +48,7 @@ class OutputPublicationRollback:
     path_resolution_error: str
     concurrent_change_error: str
     published_outputs: dict[str, _PublishedOutput | None] = field(default_factory=dict)
+    deleted_outputs: set[str] = field(default_factory=set)
 
     @classmethod
     def capture(
@@ -88,6 +89,8 @@ class OutputPublicationRollback:
 
     def mark_written(self, path: Path) -> None:
         owned_identity = _owned_path_identity(path)
+        if owned_identity in self.deleted_outputs:
+            raise ValueError("an output cannot be both written and deleted in one transaction")
         # Record publication intent before re-reading the path. If validation
         # fails, restore must fail closed instead of treating this output as
         # untouched and partially restoring the rest of the transaction.
@@ -103,8 +106,24 @@ class OutputPublicationRollback:
             inode=contents.inode,
         )
 
+    def mark_deleted(self, path: Path) -> None:
+        """Record a transaction-owned deletion after verifying the entry is absent."""
+
+        owned_identity = _owned_path_identity(path)
+        if owned_identity in self.published_outputs:
+            raise ValueError("an output cannot be both written and deleted in one transaction")
+        if not any(snapshot.owned_identity == owned_identity for snapshot in self.snapshots):
+            raise ValueError("deleted output was not captured by this transaction")
+        try:
+            with self._open_parent(path) as parent:
+                self._require_target_absent(parent, path.name)
+        except (OSError, ValueError) as exc:
+            raise ValueError(self.concurrent_change_error) from exc
+        self.deleted_outputs.add(owned_identity)
+
     def restore(self) -> None:
         pinned: list[_PinnedPublishedOutput] = []
+        deleted: list[tuple[_OutputSnapshot, RootedDirectoryDescriptor]] = []
         with ExitStack() as stack:
             # Pin and verify every transaction-owned inode before mutating any
             # output. A byte-identical replacement is therefore still foreign.
@@ -141,8 +160,70 @@ class OutputPublicationRollback:
                         opened=opened,
                     )
                 )
+            # Deleted entries cannot be pinned, so bind their parents and prove
+            # every target is still absent before restoring any output.
+            for snapshot in self.snapshots:
+                if snapshot.owned_identity not in self.deleted_outputs:
+                    continue
+                try:
+                    parent = stack.enter_context(self._open_parent(snapshot.path))
+                    self._require_target_absent(parent, snapshot.path.name)
+                except (OSError, ValueError) as exc:
+                    raise ValueError(self.concurrent_change_error) from exc
+                deleted.append((snapshot, parent))
+            for snapshot, parent in reversed(deleted):
+                self._restore_deleted(snapshot, parent)
             for item in reversed(pinned):
                 self._restore_pinned(item)
+
+    def _restore_deleted(
+        self,
+        snapshot: _OutputSnapshot,
+        parent: RootedDirectoryDescriptor,
+    ) -> None:
+        if snapshot.contents is None:
+            self._require_target_absent(parent, snapshot.path.name)
+            return
+
+        stage_name = f".agent-assure-restore-{secrets.token_hex(16)}.tmp"
+        stage_descriptor: int | None = None
+        stage_metadata: os.stat_result | None = None
+        stage_installed = False
+        try:
+            stage_descriptor, stage_metadata = parent.open_regular_file_exclusive_with_metadata(
+                stage_name,
+                mode=0o600,
+            )
+            with os.fdopen(stage_descriptor, "wb", closefd=False) as handle:
+                handle.write(snapshot.contents)
+                handle.flush()
+                os.fsync(handle.fileno())
+            parent.move_regular_file_no_replace(
+                stage_name,
+                snapshot.path.name,
+                source_descriptor=stage_descriptor,
+                expected_device=stage_metadata.st_dev,
+                expected_inode=stage_metadata.st_ino,
+            )
+            stage_installed = True
+        except BaseException:
+            if stage_descriptor is not None:
+                try:
+                    os.close(stage_descriptor)
+                finally:
+                    if not stage_installed and stage_metadata is not None:
+                        try:
+                            parent.unlink_entry_no_follow(
+                                stage_name,
+                                expected_device=stage_metadata.st_dev,
+                                expected_inode=stage_metadata.st_ino,
+                            )
+                        except FileNotFoundError:
+                            pass
+            raise
+        else:
+            assert stage_descriptor is not None
+            os.close(stage_descriptor)
 
     def _restore_pinned(self, item: _PinnedPublishedOutput) -> None:
         snapshot = item.snapshot

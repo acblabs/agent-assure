@@ -4,22 +4,22 @@
       "additionalProperties": false,
       "properties": {
         "achieved_power": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Achieved Power",
           "type": "string"
         },
         "achieved_type_i_error": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Achieved Type I Error",
           "type": "string"
         },
         "adjusted_alpha": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Adjusted Alpha",
           "type": "string"
         },
         "alternative_response_rate": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Alternative Response Rate",
           "type": "string"
         },
@@ -47,7 +47,7 @@
           "type": "integer"
         },
         "desired_power": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Desired Power",
           "type": "string"
         },
@@ -58,18 +58,18 @@
           "type": "string"
         },
         "familywise_alpha": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Familywise Alpha",
           "type": "string"
         },
         "maximum_exclusion_rate": {
           "default": "0.000000",
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Maximum Exclusion Rate",
           "type": "string"
         },
         "minimum_detectable_difference": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Minimum Detectable Difference",
           "type": "string"
         },
@@ -94,7 +94,7 @@
           "type": "string"
         },
         "null_response_rate": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Null Response Rate",
           "type": "string"
         },
@@ -126,14 +126,14 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
         "cluster_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Cluster Id",
           "type": "string"
         }
@@ -761,7 +761,7 @@
         "provider_seed_sharing_evidence_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -886,12 +886,12 @@
         "claim_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Claim Id",
           "type": "string"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
@@ -902,21 +902,21 @@
           "$ref": "#/$defs/RAGSensitivityOutcome"
         },
         "governing_content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Governing Content Digest",
           "type": "string"
         },
         "governing_ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Governing Ref Id",
           "type": "string"
         },
         "governing_source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Governing Source Id",
           "type": "string"
         }
@@ -949,7 +949,7 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
@@ -967,7 +967,7 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         }
@@ -1004,7 +1004,7 @@
         "adapter_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Adapter Id",
           "type": "string"
         },
@@ -1017,17 +1017,17 @@
           "type": "string"
         },
         "case_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Case Manifest Digest",
           "type": "string"
         },
         "configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Configuration Digest",
           "type": "string"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
@@ -1038,31 +1038,31 @@
           "$ref": "#/$defs/RAGSensitivityDecision"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
         "pipeline_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Pipeline Id",
           "type": "string"
         },
         "policy_bundle_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Policy Bundle Digest",
           "type": "string"
         },
         "prompt_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Prompt Manifest Digest",
           "type": "string"
         },
         "provider": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Provider",
           "type": "string"
         },
@@ -1071,7 +1071,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1086,7 +1086,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1101,7 +1101,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1114,7 +1114,7 @@
         "requested_model": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Requested Model",
           "type": "string"
         },
@@ -1123,7 +1123,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1134,7 +1134,7 @@
           "title": "Resolved Model"
         },
         "tool_schema_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Tool Schema Digest",
           "type": "string"
         }
@@ -1582,7 +1582,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "title": "Allowed Exclusion Reasons",
@@ -1683,7 +1683,7 @@
       "title": "Design"
     },
     "design_commitment_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Design Commitment Digest",
       "type": "string"
     },
@@ -1698,7 +1698,7 @@
         {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -1748,7 +1748,7 @@
         {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -1797,7 +1797,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 10000,
@@ -1809,7 +1809,7 @@
       "items": {
         "maxLength": 256,
         "minLength": 1,
-        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
         "type": "string"
       },
       "maxItems": 10000,
@@ -1824,14 +1824,14 @@
       "type": "integer"
     },
     "protocol_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Protocol Digest",
       "type": "string"
     },
     "protocol_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Protocol Id",
       "type": "string"
     },

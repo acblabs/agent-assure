@@ -6,12 +6,12 @@
   ],
   "models": [
     {
-      "input_token_microusd": 1,
+      "input_million_tokens_usd": "1.000000",
       "model": "expense-risk-v1",
-      "output_token_microusd": 3,
+      "output_million_tokens_usd": "3.000000",
       "provider": "approved-expense-model"
     }
   ],
   "pricing_snapshot_id": "langgraph-expense-demo-pricing-v1",
-  "schema_version": "0.4.3"
+  "schema_version": "0.6.6"
 }

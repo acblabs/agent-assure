@@ -22,19 +22,20 @@ env:
 jobs:
   build:
     name: Build evidence without OIDC
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
     permissions:
       contents: read
     outputs:
       bundle_artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Resolve expected package release
@@ -87,8 +88,8 @@ jobs:
           test -z "${dirty}"
       - name: Upload unsigned evidence bundle
         id: upload
-        # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: unsigned-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -98,19 +99,20 @@ jobs:
   reproduce:
     name: Reproduce and promote signing inputs
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
     permissions:
       contents: read
     outputs:
       verified_bundle_artifact_id: ${{ steps.upload-verified.outputs.artifact-id }}
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           fetch-depth: 0
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Resolve expected package release
@@ -123,8 +125,8 @@ jobs:
           printf 'value=%s\n' "${version}" >> "${GITHUB_OUTPUT}"
       - run: python -m pip install --require-hashes -r requirements.lock
       - run: python -m pip install --no-deps --no-build-isolation -e .
-      # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.build.outputs.bundle_artifact_id }}
           merge-multiple: true
@@ -158,8 +160,8 @@ jobs:
           test -z "${dirty}"
       - name: Upload verified signing inputs and replay support
         id: upload-verified
-        # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: verified-unsigned-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-release
@@ -170,7 +172,8 @@ jobs:
     name: Sign fixed evidence blobs only
     needs: reproduce
     if: startsWith(github.ref, 'refs/tags/v')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
     environment:
       name: signing
     permissions:
@@ -179,8 +182,8 @@ jobs:
     outputs:
       signed_bundle_artifact_id: ${{ steps.upload.outputs.artifact-id }}
     steps:
-      # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.reproduce.outputs.verified_bundle_artifact_id }}
           merge-multiple: true
@@ -214,8 +217,8 @@ jobs:
           done
       - name: Upload signed evidence
         id: upload
-        # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: signed-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/release
@@ -225,22 +228,23 @@ jobs:
   verify:
     name: Verify signatures without OIDC
     needs: sign
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     permissions:
       contents: read
     outputs:
       verified_signed_bundle_artifact_id: ${{ steps.upload-verified-bundle.outputs.artifact-id }}
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.sign.outputs.signed_bundle_artifact_id }}
           merge-multiple: true
@@ -267,8 +271,8 @@ jobs:
           --workflow-path .github/workflows/evidence.yml
       - name: Upload promoted signed evidence
         id: upload-verified-bundle
-        # actions/upload-artifact@v4
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        # actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         with:
           name: verified-signed-evidence-${{ github.run_id }}-${{ github.run_attempt }}
           path: .tmp/verified-promotion/release
@@ -278,16 +282,17 @@ jobs:
   verify-uploaded-artifacts:
     name: Fresh-job verify immutable uploaded evidence
     needs: verify
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
     permissions:
       contents: read
     steps:
-      # actions/checkout@v4
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+      # actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
           persist-credentials: false
-      # actions/setup-python@v5
-      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+      # actions/setup-python@v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - run: python -m pip install --require-hashes -r requirements.lock
@@ -296,8 +301,8 @@ jobs:
         uses: sigstore/cosign-installer@faadad0cce49287aee09b3a48701e75088a2c6ad
         with:
           cosign-release: ${{ env.COSIGN_VERSION }}
-      # actions/download-artifact@v4
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+      # actions/download-artifact@v8
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c
         with:
           artifact-ids: ${{ needs.verify.outputs.verified_signed_bundle_artifact_id }}
           merge-multiple: true

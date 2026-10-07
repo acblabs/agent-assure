@@ -19,11 +19,16 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from agent_assure.statistics.binomial_intervals import (
+    BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD,
     CLOPPER_PEARSON_BISECTION_STEPS,
     CLOPPER_PEARSON_METHOD,
     MAX_CLOPPER_PEARSON_AGGREGATE_WORK_UNITS,
     MAX_CLOPPER_PEARSON_TRIALS,
+    MAX_SCALABLE_BINOMIAL_TRIALS,
+    ZERO_EVENT_CLOSED_FORM_METHOD,
+    BinomialUpperBound,
     ClopperPearsonInterval,
+    binomial_upper_bound_one_sided,
     clear_binomial_interval_cache,
     clopper_pearson_interval_pair_work_units,
     clopper_pearson_one_sided,
@@ -51,6 +56,34 @@ def _decimal_upper_tail(
             ),
             start=Decimal("0"),
         )
+
+
+def _decimal_kl_chernoff_upper(
+    successes: int,
+    trials: int,
+    alpha: Decimal,
+) -> Decimal:
+    """Independent high-precision inversion oracle for test vectors."""
+
+    with localcontext() as context:
+        context.prec = 180
+        observed = Decimal(successes) / Decimal(trials)
+        if observed == Decimal("1"):
+            return observed
+        target = -alpha.ln() / Decimal(trials)
+        lower = observed
+        upper = Decimal("1") - Decimal("1e-170")
+        for _ in range(640):
+            midpoint = (lower + upper) / 2
+            divergence = (
+                observed * (observed / midpoint).ln()
+                + (1 - observed) * ((1 - observed) / (1 - midpoint)).ln()
+            )
+            if divergence >= target:
+                upper = midpoint
+            else:
+                lower = midpoint
+        return upper
 
 
 @pytest.mark.parametrize(
@@ -195,6 +228,208 @@ def test_maximum_supported_trial_count_is_computable() -> None:
 
     assert Decimal("0") < result.bound < Decimal("0.5")
     assert result.bisection_steps == CLOPPER_PEARSON_BISECTION_STEPS
+
+
+def test_scalable_dispatch_preserves_exact_small_sample_result() -> None:
+    exact = clopper_pearson_one_sided(5, 10, Decimal("0.050000"), side="upper")
+    selected = binomial_upper_bound_one_sided(5, 10, Decimal("0.050000"))
+
+    assert isinstance(selected, BinomialUpperBound)
+    assert selected.method == CLOPPER_PEARSON_METHOD
+    assert selected.exact is True
+    assert selected.upper_rate_bound == exact.bound.quantize(
+        Decimal("0.000001"), rounding=ROUND_CEILING
+    )
+    assert selected.upper_count_bound == (exact.bound * 10).quantize(
+        Decimal("0.000001"), rounding=ROUND_CEILING
+    )
+
+
+@pytest.mark.parametrize(
+    ("trials", "alpha"),
+    [
+        (1_001, Decimal("0.050000")),
+        (4_096, Decimal("0.050000")),
+        (1_000_000, Decimal("0.000001")),
+        (MAX_SCALABLE_BINOMIAL_TRIALS, Decimal("0.999999")),
+    ],
+)
+def test_large_zero_event_closed_form_is_exact_and_outward(
+    trials: int,
+    alpha: Decimal,
+) -> None:
+    selected = binomial_upper_bound_one_sided(0, trials, alpha)
+    with localcontext() as context:
+        context.prec = 120
+        exact = Decimal("1") - (alpha.ln() / Decimal(trials)).exp()
+        serialized_rate = selected.upper_rate_bound
+        serialized_count = selected.upper_count_bound
+
+    assert selected.method == ZERO_EVENT_CLOSED_FORM_METHOD
+    assert selected.exact is True
+    assert serialized_rate >= exact
+    assert serialized_rate - exact <= Decimal("0.000001000001")
+    assert serialized_count >= exact * Decimal(trials)
+    assert serialized_count - exact * Decimal(trials) <= Decimal("0.000001000001")
+
+
+@pytest.mark.parametrize(
+    ("successes", "trials", "alpha"),
+    [
+        (1, 1_001, Decimal("0.050000")),
+        (5, 4_096, Decimal("0.050000")),
+        (500, 100_000, Decimal("0.000001")),
+    ],
+)
+def test_large_nonzero_kl_chernoff_bound_is_conservative_and_labeled(
+    successes: int,
+    trials: int,
+    alpha: Decimal,
+) -> None:
+    selected = binomial_upper_bound_one_sided(successes, trials, alpha)
+    oracle = _decimal_kl_chernoff_upper(successes, trials, alpha)
+
+    assert selected.method == BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD
+    assert selected.exact is False
+    assert selected.upper_rate_bound >= oracle
+    assert selected.upper_rate_bound - oracle <= Decimal("0.000001000001")
+    assert selected.upper_count_bound >= oracle * Decimal(trials)
+    assert selected.upper_count_bound - oracle * Decimal(trials) <= Decimal("0.0000010001")
+
+
+@pytest.mark.parametrize(
+    ("successes", "trials", "alpha"),
+    [
+        (1, 1_001, Decimal("0.000001")),
+        (2, 1_001, Decimal("0.500000")),
+        (17, 4_096, Decimal("0.010000")),
+        (2_048, 4_096, Decimal("0.050000")),
+        (4_095, 4_096, Decimal("0.999999")),
+        (1, 1_000_000, Decimal("0.999999")),
+        (100_000, 1_000_000, Decimal("0.000001")),
+    ],
+)
+def test_serialized_kl_chernoff_endpoint_carries_an_independent_certificate(
+    successes: int,
+    trials: int,
+    alpha: Decimal,
+) -> None:
+    selected = binomial_upper_bound_one_sided(successes, trials, alpha)
+
+    with localcontext() as context:
+        context.prec = 180
+        observed = Decimal(successes) / Decimal(trials)
+        endpoint = selected.upper_rate_bound
+        divergence = (
+            observed * (observed / endpoint).ln()
+            + (1 - observed) * ((1 - observed) / (1 - endpoint)).ln()
+        )
+
+    assert endpoint >= observed
+    assert Decimal(trials) * divergence >= -alpha.ln()
+
+
+def test_scalable_kl_chernoff_bound_is_monotone_in_events_and_confidence() -> None:
+    trials = 4_096
+    alpha = Decimal("0.050000")
+    by_events = tuple(
+        binomial_upper_bound_one_sided(successes, trials, alpha).upper_rate_bound
+        for successes in (1, 2, 17, 256, 2_048, 4_095, 4_096)
+    )
+    assert all(left <= right for left, right in zip(by_events, by_events[1:], strict=False))
+
+    by_alpha = tuple(
+        binomial_upper_bound_one_sided(17, trials, candidate_alpha).upper_rate_bound
+        for candidate_alpha in (
+            Decimal("0.000001"),
+            Decimal("0.010000"),
+            Decimal("0.050000"),
+            Decimal("0.500000"),
+            Decimal("0.999999"),
+        )
+    )
+    assert all(left >= right for left, right in zip(by_alpha, by_alpha[1:], strict=False))
+
+
+def test_kl_chernoff_switch_removes_large_threshold_cliff() -> None:
+    exact = binomial_upper_bound_one_sided(1, 1_000, Decimal("0.050000"))
+    scalable = binomial_upper_bound_one_sided(1, 1_001, Decimal("0.050000"))
+
+    assert exact.upper_rate_bound == Decimal("0.004735")
+    assert scalable.upper_rate_bound == Decimal("0.005725")
+    assert scalable.upper_rate_bound - exact.upper_rate_bound < Decimal("0.001000")
+
+    with localcontext() as context:
+        context.prec = 120
+        probability = scalable.upper_rate_bound
+        lower_tail = (1 - probability) ** 1_001 + (
+            Decimal(1_001) * probability * (1 - probability) ** 1_000
+        )
+    assert lower_tail <= Decimal("0.050000")
+
+
+def test_large_all_event_kl_chernoff_bound_is_unit_boundary() -> None:
+    selected = binomial_upper_bound_one_sided(1_001, 1_001, Decimal("0.050000"))
+
+    assert selected.method == BERNOULLI_KL_CHERNOFF_UPPER_BOUND_METHOD
+    assert selected.exact is False
+    assert selected.upper_rate_bound == Decimal("1.000000")
+    assert selected.upper_count_bound == Decimal("1001.000000")
+
+
+def test_scalable_bound_is_context_independent_at_maximum_safe_trials() -> None:
+    with localcontext() as context:
+        context.prec = 1
+        context.Emin = -5
+        context.Emax = 5
+        for signal in (Inexact, Overflow, Rounded, Underflow):
+            context.traps[signal] = True
+        first = binomial_upper_bound_one_sided(
+            0,
+            MAX_SCALABLE_BINOMIAL_TRIALS,
+            Decimal("0.050000"),
+        )
+    second = binomial_upper_bound_one_sided(
+        0,
+        MAX_SCALABLE_BINOMIAL_TRIALS,
+        Decimal("0.050000"),
+    )
+
+    assert first == second
+    assert first.upper_rate_bound == Decimal("0.000001")
+    assert first.upper_count_bound == Decimal("2.995733")
+
+
+def test_kl_chernoff_bound_is_context_independent_at_maximum_safe_trials() -> None:
+    with localcontext() as context:
+        context.prec = 1
+        context.Emin = -5
+        context.Emax = 5
+        for signal in (Inexact, Overflow, Rounded, Underflow):
+            context.traps[signal] = True
+        first = binomial_upper_bound_one_sided(
+            1,
+            MAX_SCALABLE_BINOMIAL_TRIALS,
+            Decimal("0.050000"),
+        )
+    second = binomial_upper_bound_one_sided(
+        1,
+        MAX_SCALABLE_BINOMIAL_TRIALS,
+        Decimal("0.050000"),
+    )
+
+    assert first == second
+    assert first.upper_rate_bound == Decimal("0.000001")
+    assert first.upper_count_bound == Decimal("5.743865")
+
+
+def test_scalable_bound_rejects_trials_outside_json_safe_domain() -> None:
+    with pytest.raises(ValueError, match="trials must be in"):
+        binomial_upper_bound_one_sided(
+            0,
+            MAX_SCALABLE_BINOMIAL_TRIALS + 1,
+            Decimal("0.050000"),
+        )
 
 
 def test_work_proxy_tracks_analytic_boundaries_and_shorter_exact_tail() -> None:

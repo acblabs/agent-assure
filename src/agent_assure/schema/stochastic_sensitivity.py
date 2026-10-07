@@ -23,6 +23,10 @@ from agent_assure.schema.base import FrozenStrictModel
 from agent_assure.schema.common import (
     DigestHex,
     MachineIdentifier,
+    NonnegativeDecimal6String,
+    ProviderModelIdentifier,
+    SignedUnitInterval6String,
+    UnitInterval6String,
     coerce_enum,
     coerce_tuple,
     decimal_string,
@@ -56,11 +60,8 @@ MAX_PLANNED_CASES = 10_000
 MAX_COUPLING_DIMENSIONS = 64
 MAX_MONTE_CARLO_RESAMPLES = 1_000_000
 CONFIRMATORY_STOCHASTIC_ADAPTER_IDS = frozenset({"openai-chat-completions"})
-UnitDecimalString = Annotated[str, Field(pattern=r"^(0|1)\.[0-9]{6}$")]
-PositiveDecimalString = Annotated[
-    str,
-    Field(pattern=r"^(0|[1-9][0-9]*)\.[0-9]{6}$"),
-]
+UnitDecimalString = UnitInterval6String
+PositiveDecimalString = NonnegativeDecimal6String
 
 _LIVE_REQUIRED_COUPLING_DIMENSIONS = (
     "provider_sampling_randomness",
@@ -564,8 +565,8 @@ class SensitivityArmBinding(FrozenStrictModel):
     case_manifest_digest: DigestHex
     knowledge_contract_digest: DigestHex
     provider: MachineIdentifier
-    requested_model: MachineIdentifier
-    resolved_model: MachineIdentifier | None = None
+    requested_model: ProviderModelIdentifier
+    resolved_model: ProviderModelIdentifier | None = None
     provider_api_version: MachineIdentifier | None = None
     provider_sdk: MachineIdentifier | None = None
     provider_region: MachineIdentifier | None = None
@@ -1577,10 +1578,7 @@ class ClusterBinomialAnalysisResult(FrozenStrictModel):
     responding_clusters: int = Field(ge=0)
     included_pairs: int = Field(ge=0)
     planned_cluster_response_rate: UnitDecimalString
-    planned_cluster_difference_from_null: Annotated[
-        str,
-        Field(pattern=r"^-?(0|1)\.[0-9]{6}$"),
-    ]
+    planned_cluster_difference_from_null: SignedUnitInterval6String
     exact_p_value_expression: ExactBinomialTailExpression
     p_value_upper_bound: UnitDecimalString
     adjusted_alpha: UnitDecimalString

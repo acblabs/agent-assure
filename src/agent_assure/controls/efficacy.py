@@ -34,6 +34,7 @@ from agent_assure.schema.mutation import (
     IndependenceClass,
     MutationResultState,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 DEFAULT_EFFICACY_LIMITATIONS = (
     "Mutation efficacy is bounded to the declared catalog, subject, evaluator, and manifest.",
@@ -96,6 +97,18 @@ def build_control_efficacy_report(
     (``caught`` and ``survived``). Invalid, error, and inapplicable outcomes
     remain first-class counts and cannot be hidden inside that denominator.
     """
+    campaign_payload = campaign.model_dump(mode="json", warnings="error")
+    campaign = AssuranceMutationCampaign.model_validate(campaign_payload)
+    validate_loaded_artifact_payload(campaign_payload, "assurance-mutation-campaign")
+    catalog_payload = catalog.model_dump(mode="json", warnings="error")
+    catalog = AssuranceMutationCatalog.model_validate(catalog_payload)
+    validate_loaded_artifact_payload(catalog_payload, "assurance-mutation-catalog")
+    threat_manifest_payload = threat_manifest.model_dump(mode="json", warnings="error")
+    threat_manifest = ThreatApplicabilityManifest.model_validate(threat_manifest_payload)
+    validate_loaded_artifact_payload(
+        threat_manifest_payload,
+        "threat-applicability-manifest",
+    )
     _validate_catalog_campaign_binding(catalog, campaign)
     required = _validate_required_operator_ids(required_operator_ids, catalog)
     manifest_by_id = {item.threat_id: item for item in threat_manifest.items}

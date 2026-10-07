@@ -1239,6 +1239,12 @@ def build_evidence_descriptor(
     suite_digest: str,
     generated_at: str,
 ) -> AssuranceEvidenceDescriptor:
+    result_payload = cast(
+        dict[str, object],
+        result.model_dump(mode="json", warnings="error"),
+    )
+    result = AssuranceMutationResult.model_validate(result_payload)
+    validate_artifact_payload(result_payload, "assurance-mutation-result")
     state = result.state
     basis_sufficiency_check_id = _basis_sufficiency_check_id(result.evaluator_evaluation_basis)
     completed_assessment = state in {

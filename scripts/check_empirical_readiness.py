@@ -47,7 +47,7 @@ from agent_assure.study_method_review import (  # noqa: E402
 # explicit release blocker rather than an invitation to fall back to v0.2.
 CANONICAL_BENCHMARK_PATH = ROOT / "study" / "registration" / "frozen-non-grid-benchmark.json"
 PACKAGED_BENCHMARK_PATH = (
-    ROOT / "src" / "agent_assure" / "release_trust" / "v0_6_6" / "frozen-non-grid-benchmark.json"
+    ROOT / "src" / "agent_assure" / "release_trust" / "v0_7_0" / "frozen-non-grid-benchmark.json"
 )
 CANONICAL_BENCHMARK_METHOD_REVIEW_PATH = (
     ROOT / "study" / "registration" / "frozen-non-grid-benchmark-statistical-method-review.json"
@@ -57,7 +57,7 @@ PACKAGED_BENCHMARK_METHOD_REVIEW_PATH = (
     / "src"
     / "agent_assure"
     / "release_trust"
-    / "v0_6_6"
+    / "v0_7_0"
     / "frozen-non-grid-benchmark-statistical-method-review.json"
 )
 
@@ -288,7 +288,7 @@ def check_empirical_readiness(
     *,
     expected_release: str,
 ) -> tuple[bool, dict[str, object]]:
-    """Validate exact artifacts and derive the v0.6.6 empirical checkpoint."""
+    """Validate exact artifacts and derive the v0.7.0 empirical checkpoint."""
 
     canonical_trust = _load_canonical_confirmatory_benchmark_trust()
     canonical_benchmark = canonical_trust.benchmark
@@ -417,7 +417,7 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
             "Fail closed unless validated real-model study and external-pilot artifacts "
-            "plus an exact operator-reviewed pilot bundle satisfy the v0.6.6 "
+            "plus an exact operator-reviewed pilot bundle satisfy the v0.7.0 "
             "empirical checkpoint."
         )
     )

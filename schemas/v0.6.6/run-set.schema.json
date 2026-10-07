@@ -77,6 +77,129 @@
           "if": {
             "properties": {
               "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provenance": {
+                "properties": {
+                  "model_identifier": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_api_version": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_region": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_response_id": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_sdk": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resolved_model": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
                 "const": "0.6.1"
               }
             },
@@ -388,6 +511,34 @@
         {
           "if": {
             "properties": {
+              "estimated_cost_picousd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "estimated_cost_usd": {
+                "type": "string"
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_usd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "provider_response_payload_sha256": {
                 "type": "string"
               }
@@ -615,7 +766,7 @@
           "anyOf": [
             {
               "maxLength": 512,
-              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -641,7 +792,7 @@
         "cost_budget_committed_usd": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -650,6 +801,19 @@
           ],
           "default": null,
           "title": "Cost Budget Committed Usd"
+        },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
         },
         "estimated_cost_source": {
           "anyOf": [
@@ -672,7 +836,7 @@
         "estimated_cost_usd": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -883,7 +1047,7 @@
             {
               "maxLength": 64,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9._:-]+$",
+              "pattern": "^[A-Za-z0-9._:-]+(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -938,7 +1102,7 @@
         "provider_response_payload_sha256": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -965,7 +1129,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9._:-]+$",
+              "pattern": "^[A-Za-z0-9._:-]+(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1083,7 +1247,7 @@
           "anyOf": [
             {
               "maxLength": 512,
-              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1141,7 +1305,7 @@
         "traceparent": {
           "anyOf": [
             {
-              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1360,7 +1524,7 @@
           "title": "Case Id"
         },
         "command_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Command Digest",
           "type": "string"
         },
@@ -1536,7 +1700,7 @@
         "traceparent": {
           "anyOf": [
             {
-              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1561,7 +1725,7 @@
         "working_directory_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1631,7 +1795,7 @@
           "type": "string"
         },
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
@@ -1905,14 +2069,14 @@
         },
         "occurred_at_utc": {
           "maxLength": 512,
-          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
           "title": "Occurred At Utc",
           "type": "string"
         },
         "provider_response_id_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1943,7 +2107,7 @@
         "provider_response_payload_sha256": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2017,12 +2181,12 @@
       "description": "Digest-bound exhaustive journal embedded identically in both paired RunSets.",
       "properties": {
         "baseline_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Configuration Digest",
           "type": "string"
         },
         "counterfactual_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Configuration Digest",
           "type": "string"
         },
@@ -2042,7 +2206,7 @@
           "type": "string"
         },
         "journal_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Journal Digest",
           "type": "string"
         },
@@ -2053,12 +2217,12 @@
           "type": "string"
         },
         "operational_protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Operational Protocol Digest",
           "type": "string"
         },
         "repeated_protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Repeated Protocol Digest",
           "type": "string"
         },
@@ -2073,7 +2237,7 @@
         "study_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2095,6 +2259,32 @@
         "journal_digest"
       ],
       "title": "LiveExecutionAttemptJournal",
+      "type": "object"
+    },
+    "LiveNetworkAuthorityReceipt": {
+      "additionalProperties": false,
+      "description": "Non-secret record of the exact egress and credential-name authority used.",
+      "properties": {
+        "api_key_env": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:API_KEY|PROVIDER_KEY|TEST_KEY)(?![\\s\\S])",
+          "title": "Api Key Env",
+          "type": "string"
+        },
+        "endpoint_host": {
+          "maxLength": 253,
+          "minLength": 1,
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|[0-9a-f:]{2,45})(?![\\s\\S])",
+          "title": "Endpoint Host",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_host",
+        "api_key_env"
+      ],
+      "title": "LiveNetworkAuthorityReceipt",
       "type": "object"
     },
     "PolicyResult": {
@@ -2165,7 +2355,7 @@
         "code_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2178,7 +2368,7 @@
         "configuration_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2191,7 +2381,7 @@
         "evidence_sensitivity_design_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2204,7 +2394,7 @@
         "fixture_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2229,7 +2419,7 @@
         "policy_bundle_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2242,7 +2432,7 @@
         "prompt_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2255,7 +2445,7 @@
         "retrieval_corpus_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2274,7 +2464,7 @@
         "study_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2287,7 +2477,7 @@
         "tool_schema_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2406,12 +2596,121 @@
       "type": "object"
     },
     "UsageLedger": {
-      "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. JSON Schema validates shape and non-negative counts.",
+      "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. A current parent ledger also revalidates provider and model identifiers on every nested segment, including legacy-version segments. JSON Schema mirrors that parent-owned identifier boundary while validating shape and non-negative counts.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_known_fields_v1"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "segments": {
+                "items": {
+                  "properties": {
+                    "model": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                    },
+                    "provider": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        }
+      ],
       "properties": {
         "aggregation_method": {
-          "const": "sum_known_fields_v1",
-          "default": "sum_known_fields_v1",
+          "default": "sum_complete_fields_v2",
+          "enum": [
+            "sum_known_fields_v1",
+            "sum_complete_fields_v2"
+          ],
           "title": "Aggregation Method",
           "type": "string"
         },
@@ -2431,8 +2730,8 @@
           "type": "object"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -2450,6 +2749,43 @@
         "schema_version"
       ],
       "title": "UsageLedger",
+      "type": "object"
+    },
+    "UsageMetricCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_cost_microusd": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "total_latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Latency Ms",
+          "type": "integer"
+        },
+        "total_retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Retries",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        },
+        "total_tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "UsageMetricCoverage",
       "type": "object"
     },
     "UsageSegment": {
@@ -2481,6 +2817,32 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -2500,6 +2862,35 @@
             },
             "required": [
               "limitations"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "model": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+              },
+              "provider": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
             ]
           }
         }
@@ -2563,7 +2954,7 @@
         },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -2579,6 +2970,19 @@
           ],
           "default": null,
           "title": "Estimated Cost Microusd"
+        },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
         },
         "event_range_end": {
           "anyOf": [
@@ -2666,7 +3070,7 @@
         "pricing_snapshot_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2752,8 +3156,8 @@
           "title": "Run Id"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -2853,6 +3257,98 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "aggregation_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_basis"
+                  ]
+                },
+                {
+                  "required": [
+                    "source_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_counts"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method",
+              "coverage_basis",
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -2868,9 +3364,175 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tokens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tokens": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tool_calls": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tool_calls"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tool_calls": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_retries": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_retries"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_retries": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_latency_ms": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_latency_ms"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_latency_ms": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "estimated_cost_microusd": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
         }
       ],
       "properties": {
+        "aggregation_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "sum_known_fields_v1",
+                "sum_complete_fields_v2"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aggregation Method"
+        },
         "artifact_kind": {
           "const": "usage-summary",
           "default": "usage-summary",
@@ -2898,9 +3560,37 @@
           "default": null,
           "title": "Cost Observation Count"
         },
+        "coverage_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "usage_segment",
+                "usage_summary",
+                "run_record"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Basis"
+        },
+        "coverage_counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageMetricCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -2917,6 +3607,19 @@
           "default": null,
           "title": "Estimated Cost Microusd"
         },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -2928,7 +3631,7 @@
         "pricing_snapshot_digests": {
           "default": [],
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Pricing Snapshot Digests",
@@ -2943,10 +3646,23 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
+        },
+        "source_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Count"
         },
         "total_latency_ms": {
           "anyOf": [
@@ -3098,6 +3814,353 @@
       }
     },
     {
+      "if": {
+        "properties": {
+          "execution_mode": {
+            "const": "live"
+          },
+          "schema_version": {
+            "enum": [
+              "0.6.6"
+            ]
+          }
+        },
+        "required": [
+          "execution_mode"
+        ]
+      },
+      "then": {
+        "oneOf": [
+          {
+            "properties": {
+              "completion_status": {
+                "const": "complete"
+              },
+              "stop_reasons": {
+                "maxItems": 0
+              }
+            }
+          },
+          {
+            "properties": {
+              "completion_status": {
+                "const": "incomplete"
+              },
+              "stop_reasons": {
+                "minItems": 1
+              }
+            },
+            "required": [
+              "completion_status",
+              "stop_reasons"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_mode": {
+            "const": "live"
+          },
+          "runs": {
+            "contains": {
+              "properties": {
+                "adapter_id": {
+                  "const": "openai-chat-completions"
+                }
+              },
+              "required": [
+                "adapter_id"
+              ]
+            }
+          },
+          "schema_version": {
+            "enum": [
+              "0.6.6"
+            ]
+          }
+        },
+        "required": [
+          "schema_version",
+          "execution_mode",
+          "runs"
+        ]
+      },
+      "then": {
+        "required": [
+          "network_authority_receipt"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "enum": [
+              "0.6.6"
+            ]
+          }
+        }
+      },
+      "then": {
+        "properties": {
+          "runs": {
+            "items": {
+              "properties": {
+                "model": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provenance": {
+                  "properties": {
+                    "model_identifier": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                },
+                "provider": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provider_api_version": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provider_region": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provider_response_id": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "provider_sdk": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                },
+                "resolved_model": {
+                  "anyOf": [
+                    {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "execution_mode": {
+            "const": "live"
+          },
+          "schema_version": {
+            "enum": [
+              "0.6.6"
+            ]
+          }
+        },
+        "required": [
+          "execution_mode"
+        ]
+      },
+      "then": {
+        "properties": {
+          "runs": {
+            "items": {
+              "properties": {
+                "cost_budget_committed_usd": {
+                  "type": "string"
+                },
+                "generated_token_budget_committed": {
+                  "type": "integer"
+                },
+                "total_token_budget_committed": {
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "cost_budget_committed_usd",
+                "generated_token_budget_committed",
+                "total_token_budget_committed"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "enum": [
+              "0.6.6"
+            ]
+          }
+        }
+      },
+      "then": {
+        "$comment": "Runtime validation also enforces one content_digest for each (ref_id, source_id) evidence-item identity; Draft 2020-12 cannot express compound-key functional dependencies.",
+        "properties": {
+          "runs": {
+            "items": {
+              "properties": {
+                "claim_evidence_links": {
+                  "items": {
+                    "properties": {
+                      "claim_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      },
+                      "evidence_ref_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "claims": {
+                  "items": {
+                    "properties": {
+                      "claim_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "evidence_items": {
+                  "items": {
+                    "properties": {
+                      "ref_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      },
+                      "source_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      }
+                    }
+                  }
+                },
+                "evidence_refs": {
+                  "items": {
+                    "properties": {
+                      "claim_ids": {
+                        "items": {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                          "type": "string"
+                        }
+                      },
+                      "ref_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      },
+                      "source_id": {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
       "else": {
         "not": {
           "anyOf": [
@@ -3179,7 +4242,7 @@
     "evidence_sensitivity_design_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -3217,7 +4280,7 @@
     "execution_attempt_journal_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -3232,12 +4295,24 @@
       "default": "fixture"
     },
     "fixture_manifest_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Fixture Manifest Digest",
       "type": "string"
     },
+    "network_authority_receipt": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LiveNetworkAuthorityReceipt"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "Non-secret endpoint host and credential environment-variable name independently authorized for first-party network execution."
+    },
     "privacy_profile_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Privacy Profile Digest",
       "type": "string"
     },
@@ -3249,7 +4324,7 @@
     "protocol_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -3300,7 +4375,7 @@
     "study_manifest_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -3311,7 +4386,7 @@
       "title": "Study Manifest Digest"
     },
     "suite_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Suite Digest",
       "type": "string"
     },

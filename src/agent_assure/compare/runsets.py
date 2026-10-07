@@ -30,7 +30,7 @@ from agent_assure.evaluation.evaluator import (
 from agent_assure.fixtures.loader import compiled_suite_digest
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, ControlResult, GateProfile, Waiver
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
     ComparisonClassification,
     GateState,
@@ -57,6 +57,7 @@ from agent_assure.schema.usage import (
     usage_container_json_schema_extra,
     validate_usage_field_paths_schema_version,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.usage.aggregation import compare_usage_summaries, usage_summary_for_runset
 
 _COMPARISON_REPORT_USAGE_FIELD_PATHS = (
@@ -68,6 +69,34 @@ _COMPARISON_REPORT_USAGE_FIELD_PATHS = (
     ("comparison_summary", "baseline_usage_summary"),
     ("comparison_summary", "candidate_usage_summary"),
     ("comparison_summary", "usage_delta"),
+)
+_COMPARISON_REPORT_JSON_SCHEMA_EXTRA = usage_container_json_schema_extra(
+    *_COMPARISON_REPORT_USAGE_FIELD_PATHS
+)
+_COMPARISON_REPORT_JSON_SCHEMA_EXTRA["allOf"].extend(
+    {
+        "if": {
+            "required": ["schema_version", "fixture_equivalence"],
+            "properties": {
+                "schema_version": {"const": SCHEMA_VERSION},
+                "fixture_equivalence": {
+                    "required": ["state"],
+                    "properties": {"state": {"const": state.value}},
+                },
+            },
+        },
+        "then": {
+            "properties": {
+                "comparison_summary": {
+                    "required": ["fixture_equivalence_state"],
+                    "properties": {
+                        "fixture_equivalence_state": {"const": state.value},
+                    },
+                }
+            }
+        },
+    }
+    for state in GateState
 )
 
 
@@ -94,9 +123,7 @@ class FixtureEquivalenceReport(StrictModel):
 
 
 class ComparisonReport(PersistedArtifact):
-    model_config = ConfigDict(
-        json_schema_extra=usage_container_json_schema_extra(*_COMPARISON_REPORT_USAGE_FIELD_PATHS)
-    )
+    model_config = ConfigDict(json_schema_extra=_COMPARISON_REPORT_JSON_SCHEMA_EXTRA)
 
     artifact_kind: Literal["comparison-report"] = "comparison-report"
     candidate_vs_expectations: EvaluationSummary
@@ -170,6 +197,24 @@ class ComparisonReport(PersistedArtifact):
                 raise ValueError(f"comparison report {error}")
         return self
 
+    @model_validator(mode="after")
+    def _validate_current_fixture_equivalence_binding(self) -> ComparisonReport:
+        if self.schema_version != SCHEMA_VERSION:
+            return self
+        if self.fixture_equivalence.state is not self.comparison_summary.fixture_equivalence_state:
+            raise ValueError(
+                "comparison report fixture equivalence state must match its comparison summary"
+            )
+        if self.baseline_vs_expectations.state is not self.comparison_summary.baseline_state:
+            raise ValueError(
+                "comparison report baseline evaluation state must match its comparison summary"
+            )
+        if self.candidate_vs_expectations.state is not self.comparison_summary.candidate_state:
+            raise ValueError(
+                "comparison report candidate evaluation state must match its comparison summary"
+            )
+        return self
+
 
 def compare_runsets(
     suite: CompiledSuite,
@@ -180,6 +225,22 @@ def compare_runsets(
     waivers: tuple[Waiver, ...] = (),
     today: date | None = None,
 ) -> ComparisonReport:
+    suite_payload = suite.model_dump(mode="json", warnings="error")
+    suite = CompiledSuite.model_validate(suite_payload)
+    validate_loaded_artifact_payload(suite_payload, "compiled-suite")
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    candidate_payload = candidate.model_dump(mode="json", warnings="error")
+    candidate = RunSet.model_validate(candidate_payload)
+    validate_loaded_artifact_payload(candidate_payload, "run-set")
+    gate_profile = GateProfile.model_validate(
+        gate_profile.model_dump(mode="json", warnings="error")
+    )
+    waivers = tuple(
+        Waiver.model_validate(waiver.model_dump(mode="json", warnings="error"))
+        for waiver in waivers
+    )
     _verify_suite_identity(suite, baseline, candidate)
     fixture_equivalence = verify_fixture_equivalence(baseline, candidate)
     if fixture_equivalence.state is GateState.fail:
@@ -289,6 +350,12 @@ def compare_runsets(
 
 
 def verify_fixture_equivalence(baseline: RunSet, candidate: RunSet) -> FixtureEquivalenceReport:
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    candidate_payload = candidate.model_dump(mode="json", warnings="error")
+    candidate = RunSet.model_validate(candidate_payload)
+    validate_loaded_artifact_payload(candidate_payload, "run-set")
     baseline_counts = case_counts(baseline)
     candidate_counts = case_counts(candidate)
     baseline_runs = unique_case_map(baseline)

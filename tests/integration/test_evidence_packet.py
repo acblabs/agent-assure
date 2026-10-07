@@ -128,10 +128,20 @@ def test_packet_markdown_revalidates_model_copy_and_privacy_payload() -> None:
     tampered = packet.model_copy(
         update={"evaluation": evaluation.model_copy(update={"runset_id": ""})}
     )
+    constructed_evaluation_values = {
+        name: getattr(evaluation, name) for name in EvaluationSummary.model_fields
+    }
+    constructed_evaluation_values["runset_id"] = ""
+    constructed_evaluation = EvaluationSummary.model_construct(**constructed_evaluation_values)
+    constructed_values = {name: getattr(packet, name) for name in EvidencePacket.model_fields}
+    constructed_values["evaluation"] = constructed_evaluation
+    constructed = EvidencePacket.model_construct(**constructed_values)
     unsafe = packet.model_copy(update={"interpretation": ("contact reviewer@example.com",)})
 
-    with pytest.raises(ValidationError):
+    with pytest.raises(ValueError):
         render_evidence_packet_markdown(tampered)
+    with pytest.raises(ValueError):
+        render_evidence_packet_markdown(constructed)
     rendered = render_evidence_packet_markdown(unsafe)
     assert "reviewer@example.com" not in rendered
     assert "REDACTED" in rendered
@@ -2337,8 +2347,9 @@ def test_packet_build_rejects_legacy_summary_before_packet_write(tmp_path: Path)
     )
 
     assert result.exit_code == 2
-    assert f"evidence packet schema_version '{SCHEMA_VERSION}' requires" in result.output
-    assert f"evaluation.schema_version '{SCHEMA_VERSION}'; received '0.6.1'" in result.output
+    normalized_output = " ".join(unstyle(result.output).replace(chr(0x2502), " ").split())
+    assert "evaluation-summary schema_version '0.6.1' is archival-only" in normalized_output
+    assert "not valid for an assurance decision; regenerate current evidence" in normalized_output
     assert not packet_path.exists()
 
 
@@ -2758,29 +2769,33 @@ def test_sensitivity_gates_revalidate_model_copy_tampering() -> None:
             PacketArtifactDigest(role="evidence-sensitivity-report", sha256="b" * 64),
         ),
     )
-    forged_report = artifacts.report.model_copy(
-        update={
-            "state": EvidenceSensitivityState.responsive,
-            "gate_effect": EvidenceSensitivityGateEffect.pass_,
-            "verdict_bearing": True,
-            "reason_codes": (),
-            "outcome_classification": (
-                EvidenceSensitivityOutcomeClassification.expected_response_observed
-            ),
-            "endpoint_value": True,
-        }
+    forged_reports = (
+        artifacts.report.model_copy(
+            update={
+                "state": EvidenceSensitivityState.responsive,
+                "gate_effect": EvidenceSensitivityGateEffect.pass_,
+                "verdict_bearing": True,
+                "reason_codes": (),
+                "outcome_classification": (
+                    EvidenceSensitivityOutcomeClassification.expected_response_observed
+                ),
+                "endpoint_value": True,
+            }
+        ),
+        artifacts.report.model_copy(update={"schema_version": "0.6.5"}),
     )
 
-    direct_decision = gate_evidence_sensitivity_report(forged_report)
-    packet_decision = gate_evidence_packet(
-        packet.model_copy(update={"evidence_sensitivity": forged_report}),
-        allow_missing_efficacy_for_migration=True,
-    )
+    for forged_report in forged_reports:
+        direct_decision = gate_evidence_sensitivity_report(forged_report)
+        packet_decision = gate_evidence_packet(
+            packet.model_copy(update={"evidence_sensitivity": forged_report}),
+            allow_missing_efficacy_for_migration=True,
+        )
 
-    for decision in (direct_decision, packet_decision):
-        assert decision.outcome is GateOutcome.invalid
-        assert decision.exit_code == 2
-        assert "failed trusted model revalidation" in decision.message
+        for decision in (direct_decision, packet_decision):
+            assert decision.outcome is GateOutcome.invalid
+            assert decision.exit_code == 2
+            assert "failed trusted model revalidation" in decision.message
 
 
 def test_reversed_sensitivity_packet_markdown_explains_wrong_direction() -> None:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, date, datetime
 from pathlib import Path
 
 import typer
@@ -35,3 +36,18 @@ def load_waivers(paths: tuple[Path, ...]) -> tuple[Waiver, ...]:
             raise typer.BadParameter(f"waiver file must contain an object or list: {path}")
         waivers.extend(Waiver.model_validate(item) for item in raw_waivers)
     return tuple(waivers)
+
+
+def waiver_evaluation_date(
+    requested: date | None,
+    *,
+    waivers: tuple[Waiver, ...],
+) -> date:
+    """Resolve --today while preventing waiver-bearing evaluations from backdating."""
+    local_today = date.today()
+    resolved = requested or local_today
+    if waivers and resolved not in {local_today, datetime.now(UTC).date()}:
+        raise typer.BadParameter(
+            "--today must match the current local or UTC date when waivers are supplied"
+        )
+    return resolved

@@ -5,9 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from click.testing import Result
 from typer.testing import CliRunner
 
 from agent_assure.authoring.compiler import compile_suite
+from agent_assure.cli import compare_cmd
 from agent_assure.cli.main import app
 from agent_assure.compare.runsets import compare_runsets
 from agent_assure.fixtures.loader import write_compiled_suite
@@ -156,6 +158,71 @@ def test_compare_cli_exits_two_for_invalid_fixture_equivalence(tmp_path: Path) -
     assert report["provenance_changes"] == []
 
 
+def test_compare_cli_invalid_input_does_not_create_output_directory(tmp_path: Path) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    candidate_path.write_text("{}\n", encoding="utf-8")
+    out_dir = tmp_path / "reports"
+
+    result = _invoke_compare(compiled_path, baseline_path, candidate_path, out_dir)
+
+    assert result.exit_code == 2
+    assert not out_dir.exists()
+
+
+def test_compare_cli_invalid_waiver_does_not_create_output_directory(tmp_path: Path) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    waiver_path = tmp_path / "invalid-waiver.json"
+    waiver_path.write_text('{"waivers": [}\n', encoding="utf-8")
+    out_dir = tmp_path / "reports"
+
+    result = _invoke_compare(
+        compiled_path,
+        baseline_path,
+        candidate_path,
+        out_dir,
+        waiver_path=waiver_path,
+    )
+
+    assert result.exit_code == 2
+    assert not out_dir.exists()
+
+
+def test_compare_cli_late_render_failure_preserves_prior_generation(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    compiled_path, baseline_path, candidate_path = _write_inputs(tmp_path)
+    out_dir = tmp_path / "existing-reports"
+    initial = _invoke_compare(compiled_path, baseline_path, candidate_path, out_dir)
+    assert initial.exit_code == 1, initial.output
+    (out_dir / "unrelated.txt").write_bytes(b"preserve me\n")
+    before = {entry.name: entry.read_bytes() for entry in out_dir.iterdir() if entry.is_file()}
+
+    def fail_markdown_render(*_args: object, **_kwargs: object) -> Path:
+        raise RuntimeError("injected late markdown failure")
+
+    monkeypatch.setattr(compare_cmd, "write_comparison_markdown", fail_markdown_render)
+
+    failed_existing = _invoke_compare(compiled_path, baseline_path, candidate_path, out_dir)
+
+    assert failed_existing.exit_code == 1
+    assert isinstance(failed_existing.exception, RuntimeError)
+    after = {entry.name: entry.read_bytes() for entry in out_dir.iterdir() if entry.is_file()}
+    assert after == before
+
+    absent_out_dir = tmp_path / "absent-reports"
+    failed_absent = _invoke_compare(
+        compiled_path,
+        baseline_path,
+        candidate_path,
+        absent_out_dir,
+    )
+
+    assert failed_absent.exit_code == 1
+    assert isinstance(failed_absent.exception, RuntimeError)
+    assert not absent_out_dir.exists()
+
+
 def _write_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     compiled = compile_suite(SUITE)
     baseline = run_suite(compiled, load_variant_config(BASELINE), SUITE.parent)
@@ -167,6 +234,28 @@ def _write_inputs(tmp_path: Path) -> tuple[Path, Path, Path]:
     write_runset(baseline, baseline_path)
     write_runset(candidate, candidate_path)
     return compiled_path, baseline_path, candidate_path
+
+
+def _invoke_compare(
+    compiled_path: Path,
+    baseline_path: Path,
+    candidate_path: Path,
+    out_dir: Path,
+    *,
+    waiver_path: Path | None = None,
+) -> Result:
+    arguments = [
+        "compare",
+        str(baseline_path),
+        str(candidate_path),
+        "--suite",
+        str(compiled_path),
+        "--out-dir",
+        str(out_dir),
+    ]
+    if waiver_path is not None:
+        arguments.extend(("--waiver", str(waiver_path)))
+    return RUNNER.invoke(app, arguments)
 
 
 def _bad_fixture_digest(payload: dict[str, object]) -> dict[str, object]:

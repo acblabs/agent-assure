@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import re
 from datetime import UTC, datetime
-from typing import Annotated, Literal
+from typing import Annotated, Any, Literal
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
 from agent_assure.adapters.base import (
@@ -12,13 +12,18 @@ from agent_assure.adapters.base import (
     validate_privacy_filtered_mapping,
     validate_privacy_filtered_usage_segment,
 )
-from agent_assure.schema.base import PersistedArtifact, StrictModel
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact, StrictModel
 from agent_assure.schema.common import (
+    MACHINE_IDENTIFIER_MAX_CHARS,
+    MACHINE_IDENTIFIER_PATTERN,
     MAX_LABEL_CHARS,
     MAX_SUMMARY_CHARS,
+    PROVIDER_MODEL_IDENTIFIER_PATTERN,
     STRICT_RFC3339_TIMESTAMP_PATTERN,
     DigestHex,
     coerce_tuple,
+    validate_machine_identifier,
+    validate_provider_model_identifier,
 )
 from agent_assure.schema.usage import (
     UsageLedger,
@@ -37,6 +42,104 @@ StreamTimestamp = Annotated[
     str,
     Field(max_length=MAX_LABEL_CHARS, pattern=STRICT_RFC3339_TIMESTAMP_PATTERN),
 ]
+_CURRENT_STREAM_SCHEMA_VERSION = SCHEMA_VERSION
+_USAGE_MACHINE_IDENTIFIER_JSON_SCHEMA: dict[str, object] = {
+    "minLength": 1,
+    "maxLength": MACHINE_IDENTIFIER_MAX_CHARS,
+    "pattern": MACHINE_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])",
+}
+
+
+_USAGE_PROVIDER_MODEL_IDENTIFIER_JSON_SCHEMA: dict[str, object] = {
+    "minLength": 1,
+    "maxLength": MACHINE_IDENTIFIER_MAX_CHARS,
+    "pattern": PROVIDER_MODEL_IDENTIFIER_PATTERN.removesuffix("$") + r"(?![\s\S])",
+}
+
+
+def _usage_machine_identifier_properties() -> dict[str, dict[str, object]]:
+    return {
+        "provider": dict(_USAGE_MACHINE_IDENTIFIER_JSON_SCHEMA),
+        "model": dict(_USAGE_PROVIDER_MODEL_IDENTIFIER_JSON_SCHEMA),
+    }
+
+
+_STREAM_EVENT_JSON_SCHEMA_EXTRA: dict[str, Any] = {
+    "$comment": (
+        "A current stream-event parent revalidates provider and model identifiers "
+        "on its usage segment even when that segment declares a legacy schema version."
+    ),
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "schema_version": {"const": _CURRENT_STREAM_SCHEMA_VERSION},
+                },
+            },
+            "then": {
+                "properties": {
+                    "usage_segment": {
+                        "properties": _usage_machine_identifier_properties(),
+                    }
+                }
+            },
+        }
+    ],
+}
+_STREAM_RUN_JSON_SCHEMA_EXTRA: dict[str, Any] = {
+    "$comment": (
+        "A current stream-run parent revalidates provider and model identifiers "
+        "across legacy event usage segments and legacy usage ledgers."
+    ),
+    "allOf": [
+        {
+            "if": {
+                "properties": {
+                    "schema_version": {"const": _CURRENT_STREAM_SCHEMA_VERSION},
+                },
+            },
+            "then": {
+                "properties": {
+                    "events": {
+                        "items": {
+                            "properties": {
+                                "usage_segment": {
+                                    "properties": _usage_machine_identifier_properties(),
+                                }
+                            }
+                        }
+                    },
+                    "usage_ledger": {
+                        "properties": {
+                            "segments": {
+                                "items": {
+                                    "properties": _usage_machine_identifier_properties(),
+                                }
+                            }
+                        }
+                    },
+                }
+            },
+        }
+    ],
+}
+
+
+def _validate_usage_machine_identifiers(
+    segment: UsageSegment,
+    *,
+    field_prefix: str,
+) -> None:
+    if segment.provider is not None:
+        validate_machine_identifier(
+            segment.provider,
+            field_name=f"{field_prefix}.provider",
+        )
+    if segment.model is not None:
+        validate_provider_model_identifier(
+            segment.model,
+            field_name=f"{field_prefix}.model",
+        )
 
 
 def parse_stream_timestamp_utc(value: str, *, owner: str) -> datetime:
@@ -66,6 +169,8 @@ class StreamSequenceContract(StrictModel):
 
 
 class StreamEventRecord(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_STREAM_EVENT_JSON_SCHEMA_EXTRA)
+
     artifact_kind: Literal["stream-event-record"] = "stream-event-record"
     event_id: StreamRequiredLabel
     run_id: StreamRequiredLabel
@@ -113,6 +218,11 @@ class StreamEventRecord(PersistedArtifact):
             owner="stream privacy_filtered_attributes",
         )
         if self.usage_segment is not None:
+            if self.schema_version == _CURRENT_STREAM_SCHEMA_VERSION:
+                _validate_usage_machine_identifiers(
+                    self.usage_segment,
+                    field_prefix="usage_segment",
+                )
             validate_privacy_filtered_usage_segment(self.usage_segment)
         if self.observation is None:
             return self
@@ -163,6 +273,8 @@ class StreamIngestionDiagnostics(PersistedArtifact):
 
 
 class StreamRunRecord(PersistedArtifact):
+    model_config = ConfigDict(json_schema_extra=_STREAM_RUN_JSON_SCHEMA_EXTRA)
+
     artifact_kind: Literal["stream-run"] = "stream-run"
     stream_id: StreamRequiredLabel
     sequence_contract: StreamSequenceContract
@@ -188,6 +300,19 @@ class StreamRunRecord(PersistedArtifact):
 
     @model_validator(mode="after")
     def _validate_stream_run(self) -> StreamRunRecord:
+        if self.schema_version == _CURRENT_STREAM_SCHEMA_VERSION:
+            for event_index, event in enumerate(self.events):
+                if event.usage_segment is not None:
+                    _validate_usage_machine_identifiers(
+                        event.usage_segment,
+                        field_prefix=f"events[{event_index}].usage_segment",
+                    )
+            if self.usage_ledger is not None:
+                for segment_index, segment in enumerate(self.usage_ledger.segments):
+                    _validate_usage_machine_identifiers(
+                        segment,
+                        field_prefix=f"usage_ledger.segments[{segment_index}]",
+                    )
         event_run_ids = tuple(sorted({event.run_id for event in self.events}))
         if self.run_ids != event_run_ids:
             raise ValueError("stream run run_ids must match event run_ids")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from datetime import date
 from pathlib import Path
 from typing import Annotated
 
@@ -9,9 +8,10 @@ from rich.console import Console
 
 from agent_assure.cli.dates import parse_cli_date
 from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
-from agent_assure.cli.waivers import load_waivers
+from agent_assure.cli.waivers import load_waivers, waiver_evaluation_date
 from agent_assure.evaluation.evaluator import evaluate_runset, load_runset
 from agent_assure.fixtures.loader import load_compiled_suite
+from agent_assure.onboarding.diagnostics import bounded_error
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
 from agent_assure.reporting.console import render_evaluation_console
 from agent_assure.reporting.environment import (
@@ -29,7 +29,7 @@ from agent_assure.schema.common import GateState
 from agent_assure.schema.environment import EnvironmentInfo
 
 app = typer.Typer(help="Evaluate run sets.")
-console = Console()
+console = Console(markup=False)
 
 
 def evaluate(
@@ -71,12 +71,13 @@ def evaluate(
         )
         compiled = load_compiled_suite(suite)
         runset = load_runset(runset_path)
+        loaded_waivers = load_waivers(tuple(waiver or ()))
         report = evaluate_runset(
             compiled,
             runset,
             gate_profile=_gate_profile(fail_on_warn, fail_on_not_evaluated),
-            waivers=load_waivers(tuple(waiver or ())),
-            today=parse_cli_date(today) or date.today(),
+            waivers=loaded_waivers,
+            today=waiver_evaluation_date(parse_cli_date(today), waivers=loaded_waivers),
         )
         source_root = source_project_root(
             (suite, runset_path),
@@ -93,7 +94,7 @@ def evaluate(
         )
         report = attach_evaluation_environment(report, environment)
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
 
     report_json, summary_json = write_evaluation_json(report, out_dir)
     write_evaluation_markdown(report, out_dir)

@@ -15,6 +15,7 @@ SRC = ROOT / "src"
 if str(SRC) not in sys.path:
     sys.path.insert(0, str(SRC))
 
+from agent_assure.onboarding.diagnostics import bounded_error, display_path  # noqa: E402
 from agent_assure.release_evidence import (  # noqa: E402
     build_digest_replay,
     core_release_roles_for_schema_version,
@@ -71,7 +72,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             artifact_prefix=args.artifact_prefix,
         )
     except ValueError as exc:
-        print(f"release input error: {exc}", file=sys.stderr)
+        print(f"release input error: {bounded_error(exc)}", file=sys.stderr)
         return 2
     command_exit = run_release_commands(
         commands,
@@ -121,10 +122,10 @@ def main(argv: Sequence[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return 1
-        print(f"release digest replay matched: {args.expected_digests}")
+        print(f"release digest replay matched: {display_path(args.expected_digests)}")
 
-    print(f"release reproduction artifacts: {out}")
-    print(f"release digest replay: {replay_path}")
+    print(f"release reproduction artifacts: {display_path(out)}")
+    print(f"release digest replay: {display_path(replay_path)}")
     return 0
 
 

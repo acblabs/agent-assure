@@ -24,7 +24,7 @@ Current commands:
 - `agent-assure rag sensitivity --suite SUITE_YAML --baseline-corpus DIR --counterfactual-corpus DIR --knowledge-contract CONTRACT_YAML --expected-relation decision_flip --out DIR [--synthetic-data-attestation ATTESTATION_JSON]`
 - `agent-assure rag sensitivity plan --protocol REPEATED_PROTOCOL_JSON_OR_YAML`
 - `agent-assure rag sensitivity finalize --template REPEATED_PROTOCOL_TEMPLATE_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config BASELINE_UNCOMMITTED_LIVE_CONFIG --counterfactual-config COUNTERFACTUAL_UNCOMMITTED_LIVE_CONFIG --out REPEATED_PROTOCOL_JSON --baseline-config-out BASELINE_FINAL_LIVE_CONFIG_JSON --counterfactual-config-out COUNTERFACTUAL_FINAL_LIVE_CONFIG_JSON`
-- `agent-assure rag sensitivity run --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config LIVE_CONFIG --counterfactual-config LIVE_CONFIG --live-protocol LIVE_PROTOCOL_JSON --out RUNSET_DIR --network-opt-in [--study-manifest STUDY_MANIFEST_JSON --benchmark BENCHMARK_JSON --study-condition-id CONDITION_ID --study-registration-record REGISTRATION_RECORD_JSON --study-registration-review REGISTRATION_REVIEW_JSON --study-independence-audit INDEPENDENCE_AUDIT --study-statistical-method-review METHOD_REVIEW_JSON [--study-protocol OTHER_CONDITION_ID=PROTOCOL_JSON ...]] [--trust-config] [--ci] [--allow-external-script] [--allow-script-env]`
+- `agent-assure rag sensitivity run --protocol REPEATED_PROTOCOL_JSON_OR_YAML --compiled-suite COMPILED_SUITE_JSON --baseline-config LIVE_CONFIG --counterfactual-config LIVE_CONFIG --live-protocol LIVE_PROTOCOL_JSON --out RUNSET_DIR --network-opt-in [--study-manifest STUDY_MANIFEST_JSON --benchmark BENCHMARK_JSON --study-condition-id CONDITION_ID --study-registration-record REGISTRATION_RECORD_JSON --study-registration-review REGISTRATION_REVIEW_JSON --study-independence-audit INDEPENDENCE_AUDIT --study-statistical-method-review METHOD_REVIEW_JSON [--study-protocol OTHER_CONDITION_ID=PROTOCOL_JSON ...]] [--trust-config] [--ci] [--allow-external-script] [--allow-script-env] [--authorized-endpoint-host HOST ...] [--authorized-api-key-env NAME ...]`
 - `agent-assure rag sensitivity analyze --protocol REPEATED_PROTOCOL_JSON_OR_YAML --runset RUNSET_DIR --out ANALYSIS_DIR`
 - `agent-assure rag study input-commitment --compiled-suite COMPILED_SUITE_JSON --config UNBOUND_LIVE_CONFIG_JSON_OR_YAML`
 - `agent-assure rag study finalize --template STUDY_MANIFEST_TEMPLATE_JSON_OR_YAML --benchmark PROCESS_EQUIVALENCE_BENCHMARK_JSON --protocol CONDITION_ID=REPEATED_PROTOCOL_JSON_OR_YAML [--protocol CONDITION_ID=PATH ...] --out STUDY_MANIFEST_JSON`
@@ -36,7 +36,7 @@ Current commands:
 - `agent-assure study ...` exposes the same study command group at top level;
   `agent-assure rag study ...` remains a compatibility alias.
 - `agent-assure live adapters`
-- `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
+- `agent-assure live run COMPILED_SUITE_JSON --config LIVE_CONFIG_YAML_OR_JSON --protocol LIVE_PROTOCOL_JSON --out LIVE_RUNSET_JSON [--trust-config] [--ci] [--allow-network] [--authorized-endpoint-host HOST ...] [--authorized-api-key-env NAME ...] [--allow-external-script] [--allow-script-env] [--strict-endpoint-resolution]`
 - `agent-assure live evaluate LIVE_RUNSET_JSON --suite COMPILED_SUITE_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR [--confidence-level DECIMAL]`
 - `agent-assure live compare BASELINE_LIVE_REPORT_JSON CANDIDATE_LIVE_REPORT_JSON --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
 - `agent-assure live drift LIVE_EVALUATION_REPORT_JSON... --protocol LIVE_PROTOCOL_JSON --out-dir REPORT_DIR`
@@ -48,6 +48,33 @@ Current commands:
 - `agent-assure release pilot review --bundle-root EXTERNAL_PILOT_BUNDLE_DIR [--evidence EXTERNAL_PILOT_EVIDENCE_CHILD] --template PILOT_REVIEW_TEMPLATE_JSON_OR_YAML [--out PILOT_REVIEW_RECEIPT_CHILD]`
 - `agent-assure otel preview PATH [--out PATH]`
 - `agent-assure otel export RECORD_OR_RUNSET_OR_SPAN_PLAN_JSON [--protocol otlp-http|console] [--endpoint URL] [--allowed-endpoint-host HOST] [--service-name NAME] [--timeout-seconds SECONDS] [--header-env NAME=ENV_VAR] [--header-file NAME=PATH]`
+
+`agent-assure validate` is an assurance validator, not a bare JSON Schema
+checker. A successful result requires every supported semantic and relational
+check available from the persisted artifact itself for that trust class. Its
+success text says `artifact-internal validation passed` and explicitly does not
+claim external source linkage or producer authenticity; callers must additionally
+use the artifact-specific trusted-source replay API and authenticated release
+evidence where those properties matter. Structural-only historical decision
+roots fail closed with exit `2` and an `archival-only` diagnostic; the command
+never prints a validation-passed result for them. This includes pre-v0.6.6 evaluation summaries,
+evaluation reports, comparison summaries, comparison reports, and evidence
+packets. It also covers all pre-v0.6 live protocols, evaluations, comparisons,
+drift reports, and trajectory reports, plus v0.6.0-v0.6.5 drift and trajectory
+reports whose persisted forms do not bind complete plans and exact sources.
+Every exported frozen `(artifact kind, schema version)` pair is registered as
+either complete semantic replay or archival-only; an unregistered pair fails
+closed. The trusted `--kind` and parsed schema version select that policy, so an
+optional or omitted historical `artifact_kind` field cannot bypass it. Frozen
+schemas remain available for explicitly structural interoperability inspection,
+but that result is not eligible for an assurance or release decision.
+Successful historical assurance checks report
+`validator=frozen-jsonschema+semantic-replay`, making the relational replay
+explicit rather than presenting a shape-only validator label.
+Historical release manifests and digest replays are archival-only at this
+public boundary. `release replay` has a distinct, bounded integrity-only path
+that checks their frozen shape and retained role/path uniqueness solely to
+reproduce published digests; it does not emit or imply an assurance-valid result.
 
 `rag sensitivity` accepts only the v1 `decision_flip` relation. It compiles one
 deterministic fixture-mode suite case, validates two distinct exact-inventory
@@ -310,11 +337,23 @@ Execution remains the separately authorized `rag sensitivity run` command,
 invoked once for each condition with the study-bound configs and the existing
 network, risky-config, credential, and budget controls.
 
-For the OpenAI-compatible adapter, `timeout_seconds` is passed to Python's HTTPS
-socket operations. It is not a monotonic end-to-end request deadline, does not
-bound synchronous DNS resolution, and a peer that continually makes progress
-may keep a response open longer. Use an independently enforced outer
-process/job deadline when a whole-operation wall-clock bound is required.
+For the OpenAI-compatible adapter, `timeout_seconds` establishes one monotonic
+transport deadline covering isolated DNS safety screening, numeric-address
+connection establishment, TLS, response headers, and the complete bounded
+response body. The configured value is hard-capped at 300 seconds. DNS runs in
+a killable isolated subprocess; socket dialing uses only the screened numeric
+addresses and does not re-enter the host resolver. A watchdog closes registered
+transport sockets at the same deadline, so resolver or peer behavior cannot
+extend the request indefinitely. An independently enforced process/job deadline
+is still recommended as defense in depth against failures outside this transport
+boundary. Successful OpenAI endpoint screens are held in a per-adapter,
+one-authority, bounded single-flight cache. Cache entries are non-sliding and
+expire at the resolving request's monotonic deadline; hits never extend that
+expiry, and invalid, disallowed, failed, or late resolutions are not cached.
+Within that window each request still dials a pinned numeric address and verifies
+the original hostname through TLS. Expiry requires a fresh fail-closed screen,
+so sustained execution normally starts one isolated resolver per endpoint per
+timeout window rather than one per request.
 Before the paired-study workflow creates its exclusive durable attempt
 reservation, it requires the frozen execution window to retain more time than
 one complete observation's configured timeout-and-maximum-backoff reserve,
@@ -450,9 +489,10 @@ makes unsupported capabilities blocking.
 Evaluation metrics distinguish case-level results from global gate failures.
 `evaluated_cases` counts suite cases with exactly one included run record.
 `unevaluated_cases` counts missing, duplicate, or excluded case records.
-`failed_cases` counts evaluated suite cases with fail findings, whether or not
-the selected gate profile makes those findings blocking. `passed_cases` counts
-evaluated suite cases without fail findings. Passed, failed, and unevaluated
+`failed_cases` counts evaluated suite cases with at least one blocking
+finding. `warning_cases` counts evaluated cases with warning or
+profile-filtered nonblocking findings and no blocking finding. `passed_cases`
+counts only clean evaluated cases. Passed, warning, failed, and unevaluated
 cases partition total cases. Coverage failures for missing, duplicate, or
 excluded records still fail the gate and are counted in `blocking_findings`;
 global failures, such as expired waivers, incomplete ordinary run sets, or
@@ -461,16 +501,98 @@ blocked `not_evaluated` capabilities, are reported separately as
 non-blocking, but they roll up to `warn` and appear in warning controls rather
 than being treated as a clean pass.
 
+Current evaluation reports persist a `source_projection` containing the suite
+and RunSet identity/digest pair, every suite case's RunSet record count and
+coverage state, the complete set of unknown RunSet case IDs, and whether the
+suite configures a tool policy. `case_outcomes` must contain exactly one unique,
+non-global entry for every case asserted by that source projection. Each entry
+is one of `pass`, `warn`, `fail`, or `not_evaluated`; all six case counters are
+derived exactly from it. Finding scope is reconciled against the same case IDs.
+A finding outside the projection is global only when it uses `*`, or when it is
+the evaluator's narrowly defined unknown-suite-case finding for an ID present
+in `source_projection.unknown_run_case_ids`.
+`global_blocking_findings` is the exact number of fail-state findings in that
+global partition. The report requires its replay context, so the projection is
+carried with the canonical compiled-suite digest and the report and nested
+summary share the canonical RunSet digest.
+
+Standalone `validate` proves that the outcomes and capability claims are
+complete relative to the persisted source projection; it does not prove that
+the projection honestly describes the opaque digest-identified inputs. A
+trusted consumer must call `verify_evaluation_report_sources` with separately
+trusted exact artifacts **and** caller-authorized evaluation inputs, or verify
+the report inside an authenticated evidence envelope:
+
+```python
+verify_evaluation_report_sources(
+    report,
+    suite,
+    runset,
+    gate_profile=authorized_gate_profile,
+    waivers=authorized_full_waiver_set,
+    evaluation_date=authorized_evaluation_date,
+)
+```
+
+The three keyword arguments are mandatory and must come from the verifier's
+trust domain, never from the report's replay context. The API revalidates all
+of those inputs, rechecks ordinary suite/RunSet compatibility, rederives the
+canonical digests and minimal source projection, and requires an exact
+full-mode replay including complete waiver-disposition evidence. Environment
+enrichment is the only excluded non-decision metadata. Non-full report modes
+fail closed at this verifier.
+
+Current reports also persist an exhaustive `capability_coverage` inventory for
+the four built-in offline assurance boundaries and `tool_allowlist`.
+`not_evaluated_capabilities` is an exact projection of inventory entries whose
+state is `not_evaluated`; IDs are unique and the built-in disclosures cannot be
+deleted or relabelled. `tool_allowlist` is `pass` only as a configuration-
+coverage statement: suite defaults or a case expectation configure an
+allow/deny policy. It does not assert that every included run supplied
+control-eligible tool evidence; case-scoped `not_evaluated` findings report
+that separately. Without a configured policy the capability is explicitly
+`not_evaluated`, and a strict `--fail-on-not-evaluated` run emits the matching
+global blocker.
+
 Waivers bind to a run-set digest, reason code, and exact `finding_id`; expired
-waivers fail closed. An expired waiver whose artifact digest still matches is a
-global blocker even when its former finding is no longer emitted; remove or
+waivers fail closed. Runtime waiver loading and model revalidation require an
+ASCII machine `waiver_id` that starts with a letter or digit and then uses only
+letters, digits, `-`, `.`, `_`, `:`, or `/`. Waiver IDs and authority-binding
+tuples must each be unique. The owner and reviewer must be distinct after Unicode normalization and
+case folding, and identity fields reject Unicode control, formatting,
+private-use, surrogate, and unassigned characters. Expiry may be no more than
+90 days after the evaluation date. An expired waiver whose artifact digest still matches is
+a global blocker even when its former finding is no longer emitted; remove or
 renew that waiver explicitly so stale governance exceptions cannot linger.
-Evaluation reports record exactly one privacy-minimized disposition for every
-supplied waiver: `matched`, `unmatched_artifact`, `unmatched_finding`,
-`unmatched_reason`, or `expired`. Dispositions include the waiver ID, finding
-ID, reason code, and expiry date, but omit owner, reviewer, and rationale.
-Unmatched dispositions are audit metadata only and do not alter gate findings,
-metrics, or rollup state.
+Evaluation reports record exactly one disposition for every supplied waiver:
+`matched`, `unmatched_artifact`, `unmatched_finding`, `unmatched_reason`,
+`expired`. Only an actual `fail` finding is eligible for waiver downgrade;
+`not_evaluated`, `warn`, and other states are never converted into authorized
+warnings and produce `unmatched_finding`. Dispositions persist bounded,
+privacy-screened governance fields for every supplied waiver. The authenticated
+replay context retains only scoring-effective `matched` and `expired` waivers:
+matched entries reproduce the fail-to-warn result, while artifact-bound expired
+entries reproduce the synthetic fail-closed expiration finding. Unmatched
+dispositions are audit metadata only and do not enter replay authority or alter
+gate findings, metrics, or rollup state.
+
+Waivers are not cryptographically signed by `agent-assure`. Owner and reviewer
+are persisted governance assertions rather than authenticated identities.
+Organizations that use a waiver to authorize release must place the waiver and
+workflow under an external approval or signature policy; digest binding and
+distinct names do not prevent forgery by a principal who can rewrite repository
+content. When strict warning handling is active, a warning is nonblocking only
+when every warning finding has exact, active authority in the authenticated
+replay context. Unmatched or unrelated warnings remain blocking. Comparison
+classification is independently derived from unwaived findings, so a raw
+candidate regression is not erased by this evaluation-level authorization.
+
+When any waiver is supplied, an explicit `--today` must equal either the
+machine's current local date or current UTC date; omitting it uses the current
+local date. This prevents backdating from reviving an expired waiver. Historical
+`--today` values remain available for waiver-free deterministic reproduction,
+where the date cannot change a waiver decision. Release authorization performs
+a separate non-overridable check using the later of the live local and UTC dates.
 
 `compare` writes `comparison-report.json`, `comparison-summary.json`,
 `comparison-report.md`, `dependency-inventory.json`, and
@@ -576,22 +698,25 @@ ambiguous legacy `control-efficacy-config` role.
 
 Packet construction requires schema-version coherence for every nested
 persisted artifact constrained by the packet writer schema, except separately
-versioned usage artifacts. The post-redaction JSON is validated against the
-schema selected by the packet root version before any packet bytes are written;
-current output uses the pinned current writer schema and coherent supported
-legacy output uses its frozen schema.
+versioned usage artifacts. Current post-redaction JSON is validated against the
+pinned current writer schema before any packet bytes are written. Historical
+`evidence-packet` roots through v0.6.5 are archival-only: the public packet
+loader, writer, `validate` command, and `ci gate` reject them. Their frozen
+schemas remain available for direct shape inspection and their compatibility
+models for explicit non-assurance migration, not as supported packet output.
 
-CI acceptance is stricter than legacy model readability. A standalone legacy
-comparison, or a comparison-bearing packet whose comparison lacks authenticated
-baseline and candidate RunSet digests, is invalid with exit `2` by default.
-This includes a schema-valid v0.6.3 packet downgrade whose candidate ID still
-matches an evaluation carrying different bytes.
-`--allow-legacy-unbound-comparison` is an explicit compatibility opt-in for
-`ci gate` only; the human-readable decision records
-`legacy_unbound_comparison=allowed`. The option is invalid when the selected
-artifact has no comparison or already has both digests, preventing a latent
-always-on downgrade policy. It is also rejected for a full `ci` producer
-invocation and cannot make malformed legacy bytes loadable.
+CI acceptance is stricter than direct frozen-schema inspection or legacy model
+projection. A standalone legacy comparison or any historical packet is invalid
+with exit `2`. This includes a schema-valid v0.6.3 packet downgrade whose
+candidate ID still matches an evaluation carrying different bytes. Historical
+comparison summaries and reports, plus every historical packet root whether
+comparison-bearing or not, are archival-only at the public artifact-validation
+boundary, so `ci gate` rejects their persisted bytes with exit `2`.
+`--allow-legacy-unbound-comparison` cannot override that boundary. It remains a
+narrowly scoped programmatic compatibility control for callers that have
+already projected a historical payload into a validated model; the CLI rejects
+it for current digest-bound artifacts, for artifacts without a comparison, and
+for full `ci` producer invocations.
 
 `init controls-mutation` creates four deterministic managed files under
 `agent-assure-controls-mutation` by default: `controls-mutation.yaml`,
@@ -716,14 +841,40 @@ invalid/error or required non-verdict operators. Missing verifier inputs for
 present efficacy are invalid with exit `2`. A bare profile JSON is accepted
 only for `--allow-advisory-efficacy`; because it carries no separate selected
 scope, its expected selected operators equal its required operators and a
-report with any additional selected operator is rejected. Advisory mode
-retains `--fail-on-warn` and `--fail-on-not-evaluated` behavior.
+report with any additional selected operator is rejected. Advisory efficacy
+mode changes verifier-policy strength, not the CI process contract: review
+findings remain blocking. `--fail-on-warn` is retained as an accepted,
+idempotent compatibility restatement, while `--fail-on-not-evaluated` retains
+its documented behavior.
 
 Every `GateDecision` records `efficacy_evidence` as `not_applicable`, `absent`,
 or `present`; `efficacy_verification` as `not_requested`, `advisory`, or
-`strict`; and the Boolean `efficacy_required`. Strict and advisory decisions are
+`strict`; the Boolean `efficacy_required`; and `waiver_authorization` as
+`not_applicable` or `authorized_exact`. Exact authorization requires active
+authority for every warning bound to the authenticated RunSet digest, finding
+ID, and reason code. Current waiver-bearing summaries require that finding ID to
+match the canonical case/control/reason/target identity and reject duplicates.
+It remains a `review` outcome and never rewrites the raw warning as a pass.
+Authority must be unexpired at the non-overridable live gate date;
+future-dated evaluation context cannot authorize an earlier gate. Strict and
+advisory decisions are
 distinguishable in structured CI output even when their outcome and policy
-digests match. Verifier policy files and YAML-referenced threat manifests use
+digests match. Packet decisions also expose `component_decisions` in stable
+evaluation, comparison, deterministic-sensitivity, stochastic-sensitivity, and
+efficacy order, omitting roles that were not evaluated. Packet-level
+`authorized_exact` is emitted only when at least one component is non-pass and
+every non-pass component is itself an exactly authorized `review`; an unrelated
+review, failure, or `not_evaluated` component clears the aggregate marker. When
+required efficacy is absent, structured output preserves the first controlling
+packet result in the compatibility field `control_decision`, the synthetic
+missing-efficacy result in `efficacy_decision`, and all evaluated plus synthetic
+results in `component_decisions`; the overall outcome remains invalid. These
+component objects are authoritative and do not require message parsing.
+The top-level machine-readable decision object carries
+`envelope_version="1.0.0"`. Consumers must select parsing behavior from this
+field rather than inferring a contract version from optional keys or message
+text; incompatible future envelope changes require a new version.
+Verifier policy files and YAML-referenced threat manifests use
 the confined-input policy: their lexical ancestor chain may not contain a
 symbolic link, junction, or other reparse component, and the final file must be
 a regular file with exactly one hard link. This deliberately fails closed for
@@ -735,7 +886,22 @@ framework. The report maps packet-resident evidence to framework concepts for
 human review, includes a mapping digest and evidence-packet digest, preserves
 claim-boundary limitations, and does not infer passing local controls from an
 evaluation-summary rollup alone. Built-in mappings cover NIST AI RMF, OWASP LLM
-Top 10 2025, ISO/IEC 42001, and the pinned MITRE ATLAS 2026.06 catalog.
+Top 10 2025, ISO/IEC 42001, and MITRE ATLAS 2026.06. Non-MITRE reports reject
+mapping strength and ATLAS identifiers. MITRE reports validate controls,
+tactics, and techniques against the integrity-pinned offline production
+catalog, and current report identity binds the reviewer-visible mapping
+semantics: mapping version, evidence-packet ID, titles, states, mapping
+strengths, ATLAS IDs, exact evidence-reference fields, complete condition facts
+and rationale, and limitations. This prevents distinct reviewer-visible reports
+from sharing one current report ID; it does not authenticate a source. Trusted
+consumers must resolve and authenticate the mapping, evidence packet, and any
+referenced digests independently.
+Built-in mappings and reports require exact framework/version pairs: NIST AI
+RMF `1.0`, OWASP LLM Top 10 `2025`, ISO/IEC 42001 `2023`, and MITRE ATLAS
+`2026.06`. A MITRE row always self-identifies by including its `control_id` in
+the technique IDs, and its title must exactly match the pinned catalog name.
+For `not_applicable`, that self-ID is the sole technique subject and tactic IDs
+are empty; it is row identity, not a claimed crosswalk.
 
 `controls mutate` validates a compiled suite and RunSet, applies exactly one
 built-in deterministic operator to an immutable copy, validates the transformed
@@ -758,7 +924,9 @@ set, evaluation date, and resulting findings, state, diagnostics, and
 limitations.
 Callers that require an identical result digest must pass the same `--today`
 value. When it is omitted, the command uses the current date, which is
-intentionally part of the result digest.
+intentionally part of the result digest. A historical value is accepted only
+when no waiver is supplied; waiver-bearing runs enforce the real-date policy
+described above.
 
 With `--catalog core/v1`, `controls mutate` runs a deterministic campaign.
 `--operator`, `--invariant-family`, and `--threat-id` are repeatable filters;
@@ -863,8 +1031,12 @@ evaluation-only automation may explicitly pass
 or release claim. Assurance automation must independently build and attach a
 control-efficacy report, then use `ci gate` with a verifier-owned
 `--efficacy-policy`; publishing uses the stricter `--release-profile`.
-Both `ci` and `ci gate` fail closed on an actual `not_evaluated`
-summary/control outcome by default. `--allow-not-evaluated` is the explicit
+Both `ci` and `ci gate` fail closed on unwaived warning and actual
+`not_evaluated` summary/control outcomes by default. An exact active waiver
+can authorize only its digest-, finding-, reason-, and date-bound warning;
+unrelated warnings still block. `--fail-on-warn` remains accepted as an
+idempotent compatibility restatement of the warning policy.
+`--allow-not-evaluated` is the explicit
 advisory opt-out and returns the distinguishable `not_evaluated` outcome with
 exit `0`; it cannot be combined with `--fail-on-not-evaluated` or
 `--release-profile`. Generic unsupported-capability disclosures remain separate
@@ -879,16 +1051,28 @@ always blocking in comparison CI, including in that state; the comparison
 artifact still preserves its candidate evaluation and waiver audit, and the
 decision records `raw_regression=true` and
 `disposition=blocking-new-failure`. A `persistent_failure` with candidate state
-`warn` remains an explicit `review` outcome by default and records
-`disposition=nonblocking-candidate-evaluation`; `--fail-on-warn` blocks it.
+`warn` is blocking at both CLI CI entrypoints and records
+`disposition=blocking-candidate-warning`. The programmatic gate helper retains
+its advisory default and records `disposition=nonblocking-candidate-evaluation`
+unless its caller selects strict warning handling.
+
+**Baseline-waiver constraint:** an exact waiver does not authorize either a
+`new_failure` or `persistent_failure` comparison disposition. It can authorize
+its matched candidate evaluation warning when there is no baseline, but it
+cannot make an accepted pre-existing failure shippable through a baseline-bearing
+`ci` or composite-action run. Teams that require that policy must establish a
+different, explicitly reviewed release contract; omitting the baseline to evade
+the comparison is not an equivalent assurance result.
+
 `--report-mode full` writes all deterministic findings.
 `--report-mode fail-fast` emits only the first blocking candidate finding and
 stops before comparison; it consumes an already-created deterministic RunSet and
 does not short-circuit fixture execution. The report metrics continue to reflect
 the evaluated RunSet, while the findings list is intentionally truncated. On
 nonzero exit it writes `ci-diagnostics.json` with the structural outcome, exit
-code, reason code, artifact path, validator, and report paths, and prints the
-same decision as structured JSON. `--format json` emits one structural decision
+code, reason code, artifact path, validator, report paths, and any structured
+control/efficacy component decisions, and prints the same decision as structured
+JSON. `--format json` emits one structural decision
 object for every completed `ci` or `ci gate` evaluation, including successful
 and nonblocking outcomes; it also emits an `invalid` decision when a named
 input exists but cannot be loaded or validated. Default `text` output retains
@@ -985,30 +1169,55 @@ processes permitted by the OS, and load unpinned dependencies; their
 `endpoint_url` is not presented as an enforced destination. Non-interactive CI
 runs must pass `--trust-config` plus the matching risk-specific flags:
 `--allow-external-script`, `--allow-network`, and/or
-`--allow-script-env`. Every endpoint-bound network adapter requires endpoint
-DNS safety screening to succeed during adapter construction and request
-dispatch. `--strict-endpoint-resolution` is retained for CLI
+`--allow-script-env`. An OpenAI-compatible network run must additionally bind
+the exact configured destination and credential reference through independently
+supplied `--authorized-endpoint-host` and `--authorized-api-key-env` flags.
+Those values are normalized and compared exactly; the config's own endpoint
+allowlist cannot mint operator authority. High-privilege ambient CI and cloud
+credential names such as `GITHUB_TOKEN` and `AWS_SESSION_TOKEN` are rejected as
+provider API-key references. Interactive confirmation names both the destination
+host and credential environment-variable name without displaying its value.
+First-party network execution persists that exact non-secret pair as
+`network_authority_receipt` on the RunSet. The evaluator copies the receipt into
+its digest-bound evaluation summary, so an evidence packet exposes which host
+and environment-variable name were authorized without persisting the credential
+value.
+Every endpoint-bound network adapter requires endpoint
+DNS safety screening to succeed before dispatch and whenever its bounded cache
+expires. `--strict-endpoint-resolution` is retained for CLI
 compatibility only; endpoint DNS screening is mandatory for endpoint-bound
 network adapters and cannot be disabled.
 The OpenAI-compatible
 chat-completions adapter uses Python standard-library HTTP support, requires
 explicit `allow_network: true` in the live config, requires HTTPS and an API key
-environment variable, and validates non-default endpoint hosts against the
-declared allowlist. Literal localhost/private/link-local/reserved/multicast
+environment variable, requires port 443 so the independently authorized host
+identifies the complete network authority, and validates non-default endpoint
+hosts against the declared allowlist. Literal localhost/private/link-local/reserved/multicast
 hosts are rejected, resolved A/AAAA results are screened at adapter
-construction, and OpenAI-compatible requests repeat that screen immediately
-before dispatch. Each request dials only the numeric addresses accepted by that
-screen while preserving the original hostname for HTTP Host, TLS SNI, and
-certificate verification. This is per-request socket-level IP pinning, not
-certificate or SPKI pinning. OpenAI runs must configure both prompt and
-completion pricing rates before dispatch. Every network run also requires
+dispatch and after each non-sliding cache expiry. Cache population is
+single-flight and bounded to the adapter's one authorized HTTPS authority;
+cache hits never extend the original resolving request's deadline. Each request
+dials only the numeric addresses accepted by that screen while preserving the
+original hostname for HTTP Host, TLS SNI, and certificate verification. This is
+per-request socket-level IP pinning, not certificate or SPKI pinning. OpenAI
+runs must configure both prompt and
+completion pricing rates in canonical dollars per million tokens before
+dispatch. Pre-0.6.6 `cost_per_1k_*_tokens_usd` inputs are read as a migration
+format and converted exactly; they cannot be mixed with the canonical
+`cost_per_million_*_tokens_usd` fields, and serialized configs expose only the
+canonical unit. Every network run also requires
 `max_output_tokens` and a positive per-attempt cost ceiling. Before each network
-attempt, including a retry, the runner reserves the full per-observation ceiling
+run, the OpenAI adapter's prompt UTF-8 byte upper bound and maximum completion
+are priced locally at the declared dollars-per-million rates; a case whose
+declared worst-case request cost exceeds the per-observation ceiling is rejected
+before adapter construction or provider dispatch. Before each network attempt,
+including a retry, the runner reserves the full per-observation ceiling
 against the total
 budget. A failed or timed-out attempt retains that reservation because the
-provider may have processed and billed it; only a successful response with
-usable accounting replaces its own reservation with the observed or locally
-estimated amount. The committed amount is persisted as
+provider may have processed and billed it. A successful response commits the
+greater of its reservation and observed or locally estimated usage, so an
+endpoint cannot release budget by returning artificially small counters. The
+committed amount is persisted as
 `cost_budget_committed_usd`. Generated- and total-token ceilings use the same
 retain-on-ambiguity rule, reserving `max_output_tokens` plus the prompt UTF-8
 byte length per network attempt and persisting both token commitments. If a
@@ -1024,7 +1233,9 @@ required by the protocol, observation IDs, trace context, cluster/source-group
 IDs, repetition and schedule indexes, attempt/retry/rate-limit counters,
 inclusion or exclusion state, timestamps, token counts when available,
 estimated cost, estimated-cost source, conservative cost/token-budget
-commitments, latency, and provenance digests. They do
+commitments, latency, and provenance digests. Locally priced responses also
+retain exact pico-USD cost and expose a half-even six-decimal USD projection;
+group totals aggregate the exact values before rounding. They do
 not persist raw prompts or raw provider outputs.
 
 The default `max_rate_limit_events` value is `0`, so the first rate-limit
@@ -1044,14 +1255,25 @@ per-observation tool-schema and policy-bundle provenance digests, exploratory
 flags, suite and execution-configuration digests, provider/model group
 summaries, latency distributions, estimated-cost distributions,
 observation-level findings, optional protocol-declared statistical-invariant
-results, and limitations. Statistical-invariant results can include rare-event
-one-sided Poisson upper bounds at their persisted effective confidence level and
-observed cluster-correlation summaries with uncertainty. Confirmatory
-Bonferroni Poisson endpoints use the endpoint-adjusted alpha for that bound;
-zero observed critical events are reported as bounded evidence, not proof of
-absence. Degenerate per-arm
+results, and limitations. Statistical-invariant results can include
+bounded-work one-sided binomial upper bounds for binary event incidence over
+independence clusters at their persisted effective confidence level and
+observed cluster-correlation summaries with uncertainty. Exact
+Clopper--Pearson inversion is used through 1,000 clusters; larger zero-event
+samples use its exact closed-form boundary, while larger nonzero samples use a
+separately labeled conservative one-sided Bernoulli KL-Chernoff inversion.
+The scalable branches use rational logarithm enclosures and work bounded
+independently of the cluster count. The KL-Chernoff result is not an exact
+Clopper--Pearson/binomial-tail inversion; its fixed-grid endpoint and all
+persisted upper endpoints are rounded outward. Confirmatory Bonferroni
+rare-event endpoints use the endpoint-adjusted alpha; zero observed critical
+events are reported as bounded evidence, not proof of absence. Nondegenerate
+two-sided live rate, comparison, and ICC intervals serialize lower endpoints
+downward and upper endpoints upward so persisted intervals do not narrow.
+Degenerate per-arm
 cluster intervals are labeled as a
-boundary heuristic rather than an ordinary t interval. It exits `1` when any included
+descriptive empirical point mass rather than an ordinary t interval or a
+confidence-coverage claim. It exits `1` when any included
 observation has a blocking
 expectation/policy finding or protocol exclusion limits are exceeded.
 
@@ -1066,6 +1288,12 @@ reference rate and does not use paired language. The command writes
 baseline/candidate pass rates, pass-rate difference, a cluster-level interval,
 compared-cluster count, effective sample size, exploratory status, p50 latency
 delta, total-cost delta, and optional paired randomization test results.
+Standalone validation rechecks the arithmetic of each operational delta, but
+source-evaluation digests are external linkage. Resolve both digests against
+separately trusted evaluation reports before treating the latency or cost
+values as verified; that establishes source consistency, not provider-side
+truth. Latency and cost absolutes remain source-declarative, and operational
+deltas do not affect the comparison gate state.
 Comparisons with fewer than 30 compared clusters, percentile bootstrap
 comparisons with fewer than 50 compared clusters, or paired randomization tests
 whose exchangeability declaration, identical included cluster sets, identical
@@ -1110,6 +1338,20 @@ does not prove unsafe paths are impossible. Missing timestamps, low event
 counts, low exposure, weak transition support, or incompatible protocol binding
 mark the affected outputs exploratory or invalid. An invalid trajectory report
 writes the report when it can and exits `1`.
+
+Each current path records one of five claim-evidence statuses. Excluded paths
+are `not_evaluated`; included non-approval paths are `not_applicable`; and only
+included approval paths may be `complete`, `incomplete`, or `unobservable`.
+Observable evidence-pair and provenance failures follow the authoritative
+evaluation result as `incomplete`. If a required structured evidence field is
+not control-eligible, the included approval path is `unobservable`, carries an
+explicit limitation, and cannot satisfy the claim-evidence invariant or
+suppress its governance warning. The claim-evidence invariant's
+`evaluated_observations` population contains only observable included approvals;
+unobservable included approvals are reported separately in
+`unobservable_observations`, and excluded observations contribute to neither
+population. The legacy `claim_evidence_complete` field is true exactly for
+`complete` paths.
 
 Transition profiles are Markov-style summaries over observable adjacent states;
 history-dependent checks cover non-Markov conditions such as required review
@@ -1197,6 +1439,14 @@ bytes, including SBOM, wheel, source distribution, and dependency inventory
 entries.
 For environment-bearing manifest children, the raw manifest hash is checked
 against bytes and the manifest replay projection uses the child's stable digest.
+Current-schema replay envelopes require every role-mapped persisted JSON root,
+including manifest children, to use the exact current writer schema version;
+historical children cannot enter the integrity-only compatibility path under a
+current envelope. Historical envelopes remain explicitly archival,
+integrity-only replay. Each top-level artifact and manifest child is read once
+through a bounded descriptor walk rooted at `--artifact-root`; validation, raw
+digest comparison, and stable projection use that same byte snapshot. Links and
+reparse points in any path component fail closed.
 By default, `--require-core` selects the first-party core roles from the replay
 schema version. Supported schemas through v0.6.2 require compiled-suite,
 fixture-manifest, evidence-packet, and release-artifact-manifest; v0.6.3 also
@@ -1227,13 +1477,23 @@ OTLP HTTP export requires an explicit HTTPS `--endpoint` and the endpoint host
 must be supplied through `--allowed-endpoint-host`; SDK environment-default
 endpoints are not used by `agent-assure`. OTLP endpoint DNS screening fails
 closed and is mandatory; an unresolved host is always rejected.
-The upstream OTLP exporter performs its own DNS resolution when connecting, so
-the screened addresses are not pinned and a DNS validation-to-connect TOCTOU
-window remains.
+The hardened OTLP HTTPS connection pool dials only the exact screened IP
+addresses while retaining the configured hostname for SNI and certificate
+verification. Redirects, proxy routing, ambient netrc/CA/client-certificate
+state, and endpoint-host or port changes are rejected.
 The OTLP transport passes an explicit endpoint and non-empty validated header
 map to the SDK, uses a project-owned Requests session with `trust_env` disabled,
 does not follow redirects, pins no compression, and clears ambient SDK
-client-certificate state. Export constructs a resource containing only the
+client-certificate state. Each OTLP HTTP request has one monotonic deadline,
+capped by `--timeout-seconds`, across numeric connect, TLS, response headers,
+and the complete decoded response body. A watchdog closes the registered raw
+and TLS sockets at expiry; successful and failed connections are not reused.
+The decoded response body is streamed under a 65,536-byte ceiling and fails
+closed if the peer exceeds it. DNS screening is independently bounded by the
+same configured ceiling. The ceiling is per DNS screen and per HTTP request,
+not a whole-command deadline across multiple spans, SDK retries, flush, and
+shutdown; callers requiring that bound must also enforce an outer job deadline.
+Export constructs a resource containing only the
 validated `service.name`, uses the W3C trace-context propagator directly, starts
 unparented plans from an explicit empty context, and pins an always-on sampler
 and schema-aligned span limits. Ambient SDK resource, propagator, sampler, and
@@ -1297,5 +1557,7 @@ Default roll-up precedence for comparison exits is `invalid_comparison`, then
 `fail`, then `warn`, then `not_evaluated`, then `pass`.
 `not_evaluated` capabilities remain separate unless the selected gate profile
 makes them blocking. CI summary/control `not_evaluated` outcomes exit `1`
-unless `--allow-not-evaluated` is selected. Warnings exit `0` unless
-`--fail-on-warn` is selected.
+unless `--allow-not-evaluated` is selected. Both CLI CI entrypoints treat
+warnings as blocking; `--fail-on-warn` is an accepted, idempotent compatibility
+restatement. Local evaluation/comparison commands and programmatic gate helpers
+retain their documented advisory defaults.

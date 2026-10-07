@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
 from pydantic.functional_validators import field_validator
 
-from agent_assure.schema.base import PersistedArtifact
+from agent_assure.schema.base import SCHEMA_VERSION, PersistedArtifact
 from agent_assure.schema.common import (
     MACHINE_IDENTIFIER_SCHEMA_VERSIONS,
     DigestHex,
@@ -14,13 +14,64 @@ from agent_assure.schema.common import (
     validate_machine_identifier,
 )
 
+_EXPECTATION_SEQUENCE_CONSTRAINT_FIELDS = (
+    "allowed_outcomes",
+    "forbidden_outcomes",
+    "required_evidence_refs",
+    "material_claim_ids",
+    "allowed_providers",
+    "forbidden_providers",
+    "allowed_tools",
+    "forbidden_tools",
+)
+
+
+def _expectation_json_schema_extra(schema: dict[str, Any]) -> None:
+    current_machine_identifier_json_schema_extra(
+        sequence_fields=("required_evidence_refs", "material_claim_ids"),
+    )(schema)
+    schema.setdefault("allOf", []).append(
+        {
+            "if": {
+                "anyOf": [
+                    {"not": {"required": ["schema_version"]}},
+                    {
+                        "required": ["schema_version"],
+                        "properties": {"schema_version": {"const": SCHEMA_VERSION}},
+                    },
+                ]
+            },
+            "then": {
+                "anyOf": [
+                    {
+                        "required": ["expected_recommendation"],
+                        "properties": {
+                            "expected_recommendation": {"type": "string"},
+                        },
+                    },
+                    *(
+                        {
+                            "required": [field_name],
+                            "properties": {field_name: {"minItems": 1}},
+                        }
+                        for field_name in _EXPECTATION_SEQUENCE_CONSTRAINT_FIELDS
+                    ),
+                    {
+                        "required": ["allowed_tools_override"],
+                        "properties": {"allowed_tools_override": {"const": True}},
+                    },
+                    {
+                        "required": ["required_human_review"],
+                        "properties": {"required_human_review": {"const": True}},
+                    },
+                ]
+            },
+        }
+    )
+
 
 class Expectation(PersistedArtifact):
-    model_config = ConfigDict(
-        json_schema_extra=current_machine_identifier_json_schema_extra(
-            sequence_fields=("required_evidence_refs", "material_claim_ids"),
-        )
-    )
+    model_config = ConfigDict(json_schema_extra=_expectation_json_schema_extra)
 
     artifact_kind: Literal["expectation"] = "expectation"
     expectation_id: str = Field(min_length=1)
@@ -57,6 +108,20 @@ class Expectation(PersistedArtifact):
     def _exclusive_outcome_shortcuts(self) -> Expectation:
         if self.expected_recommendation is not None and self.allowed_outcomes:
             raise ValueError("expected_recommendation conflicts with allowed_outcomes")
+        if self.schema_version == SCHEMA_VERSION and not (
+            self.expected_recommendation is not None
+            or self.allowed_outcomes
+            or self.forbidden_outcomes
+            or self.required_evidence_refs
+            or self.material_claim_ids
+            or self.allowed_providers
+            or self.forbidden_providers
+            or self.allowed_tools
+            or self.allowed_tools_override
+            or self.forbidden_tools
+            or self.required_human_review
+        ):
+            raise ValueError("current expectations require at least one verdict-bearing constraint")
         if self.schema_version in MACHINE_IDENTIFIER_SCHEMA_VERSIONS:
             for field_name in ("required_evidence_refs", "material_claim_ids"):
                 for index, value in enumerate(getattr(self, field_name)):

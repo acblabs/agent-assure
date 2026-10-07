@@ -18,7 +18,7 @@
           "type": "array"
         },
         "digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Digest",
           "type": "string"
         },

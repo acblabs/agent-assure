@@ -5,7 +5,17 @@
     "model": "fixture-model-small",
     "outcome": "approve",
     "provider": "approved-process-provider",
-    "recommendation": "approve"
+    "recommendation": "approve",
+    "usage": {
+      "completion_tokens": 20,
+      "estimated_cost_microusd": 100,
+      "estimated_cost_picousd": 100000000,
+      "latency_ms": 80,
+      "prompt_tokens": 30,
+      "retry_count": 0,
+      "tool_call_count": 1,
+      "total_tokens": 50
+    }
   },
   "candidate": {
     "human_review_performed": false,
@@ -13,6 +23,16 @@
     "model": "fixture-model-small",
     "outcome": "escalate",
     "provider": "approved-process-provider",
-    "recommendation": "escalate"
+    "recommendation": "escalate",
+    "usage": {
+      "completion_tokens": 20,
+      "estimated_cost_microusd": 100,
+      "estimated_cost_picousd": 100000000,
+      "latency_ms": 80,
+      "prompt_tokens": 30,
+      "retry_count": 0,
+      "tool_call_count": 1,
+      "total_tokens": 50
+    }
   }
 }

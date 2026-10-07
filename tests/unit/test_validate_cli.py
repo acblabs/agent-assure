@@ -43,3 +43,31 @@ def test_validate_does_not_echo_jsonschema_instance_values(
     assert secret not in message
     assert "rule=required" in message
     assert len(message) <= MAX_VALIDATION_ERROR_CHARS
+
+
+@pytest.mark.parametrize(
+    "validation_method",
+    ("pydantic+jsonschema", "frozen-jsonschema+semantic-replay"),
+)
+def test_validate_success_discloses_artifact_internal_trust_scope(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    validation_method: str,
+) -> None:
+    path = tmp_path / "evaluation-report.json"
+    path.write_text("{}", encoding="utf-8")
+    output: list[str] = []
+
+    monkeypatch.setattr(
+        validate_cmd,
+        "validate_artifact",
+        lambda _path, _kind: validation_method,
+    )
+    monkeypatch.setattr(validate_cmd.console, "print", output.append)
+
+    validate(path, "evaluation-report")
+
+    assert len(output) == 1
+    assert output[0].startswith("artifact-internal validation passed for evaluation-report:")
+    assert "external source/authenticity not established" in output[0]
+    assert f"validator={validation_method}" in output[0]

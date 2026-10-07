@@ -19,7 +19,7 @@ from agent_assure.ci import (
     run_ci,
 )
 from agent_assure.cli.dates import parse_cli_date
-from agent_assure.cli.waivers import load_waivers
+from agent_assure.cli.waivers import load_waivers, waiver_evaluation_date
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE
 from agent_assure.reporting.environment import source_project_root
 from agent_assure.reporting.packet import packet_summary_files_binding_error
@@ -75,7 +75,12 @@ def ci(
     ] = None,
     fail_on_warn: Annotated[
         bool,
-        typer.Option("--fail-on-warn", help="Treat warning controls as blocking."),
+        typer.Option(
+            "--fail-on-warn",
+            help=(
+                "Compatibility restatement of the CI default: warning controls are always blocking."
+            ),
+        ),
     ] = False,
     fail_on_not_evaluated: Annotated[
         bool,
@@ -193,6 +198,12 @@ def ci(
         raise typer.BadParameter("--format must be text or json")
     argv = tuple(args or ())
     is_gate = bool(argv and argv[0] == "gate")
+    # Both CLI CI paths are required-check surfaces. Keep --fail-on-warn as an
+    # accepted, idempotent compatibility spelling, but never let an omitted flag
+    # turn a warning/review result into a successful process exit. Programmatic
+    # gate helpers retain their advisory defaults for local integrations.
+    if not fail_on_warn:
+        fail_on_warn = True
     if fail_on_not_evaluated and allow_not_evaluated:
         raise typer.BadParameter(
             "--fail-on-not-evaluated cannot be combined with --allow-not-evaluated"
@@ -286,6 +297,7 @@ def ci(
     )
     waiver_paths = tuple(waiver or ())
     try:
+        loaded_waivers = load_waivers(waiver_paths)
         result = run_ci(
             candidate_runset,
             suite_path=suite,
@@ -293,8 +305,8 @@ def ci(
             out_dir=out_dir,
             report_mode=report_mode,
             gate_profile=gate_profile,
-            waivers=load_waivers(waiver_paths),
-            today=parse_cli_date(today),
+            waivers=loaded_waivers,
+            today=waiver_evaluation_date(parse_cli_date(today), waivers=loaded_waivers),
             source_input_paths=waiver_paths,
             allow_missing_efficacy_for_migration=(allow_missing_efficacy_for_migration),
             allow_not_evaluated=allow_not_evaluated,
@@ -302,7 +314,7 @@ def ci(
     except (OSError, ValueError) as exc:
         if output_format == "json":
             _exit_with_invalid_json(
-                message=f"ci invalid: {exc}",
+                message=f"ci invalid: {sanitize_display_text(exc)}",
                 artifact_path=candidate_runset,
             )
         raise typer.BadParameter(sanitize_display_text(exc)) from exc
@@ -335,6 +347,10 @@ def _emit_decision(
     legacy_json_on_failure: bool = False,
 ) -> None:
     if output_format == "json" or (legacy_json_on_failure and decision.exit_code):
+        # JSON string escaping is the terminal boundary for machine output: it
+        # preserves authenticated identifiers exactly while rendering control
+        # characters as inert escape sequences. Invalid-input diagnostics are
+        # sanitized before their GateDecision is constructed below.
         typer.echo(json.dumps(decision.model_dump(), sort_keys=True))
         return
     typer.echo(sanitize_display_text(decision.message))
@@ -350,8 +366,8 @@ def _exit_with_invalid_json(
     decision = GateDecision(
         exit_code=2,
         outcome=GateOutcome.invalid,
-        message=message,
-        artifact_path=str(artifact_path),
+        message=sanitize_display_text(message),
+        artifact_path=sanitize_display_text(str(artifact_path)),
         efficacy_evidence=EfficacyEvidenceState.not_applicable,
         efficacy_verification=(
             EfficacyVerificationMode.not_requested
@@ -450,7 +466,7 @@ def _gate_existing_artifact(
     except (OSError, ValueError) as exc:
         if output_format == "json":
             _exit_with_invalid_json(
-                message=f"ci gate invalid: {exc}",
+                message=f"ci gate invalid: {sanitize_display_text(exc)}",
                 artifact_path=artifact,
                 strict_efficacy=strict_efficacy,
                 require_efficacy=require_efficacy or efficacy_policy is not None,

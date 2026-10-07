@@ -8,9 +8,13 @@ from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+SRC = ROOT / "src"
+if str(SRC) not in sys.path:
+    sys.path.insert(0, str(SRC))
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from agent_assure.onboarding.diagnostics import bounded_text  # noqa: E402
 from scripts.check_version_matches_tag import release_schema_version  # noqa: E402
 from scripts.schema_versions import active_schema_version, frozen_schema_versions  # noqa: E402
 
@@ -43,7 +47,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     if result.failures:
         for failure in result.failures:
-            print(f"schema-immutability: {failure}", file=sys.stderr)
+            print(f"schema-immutability: {bounded_text(failure)}", file=sys.stderr)
         print(
             "schema-immutability: released schema snapshots are immutable; "
             "restore the tagged contents",

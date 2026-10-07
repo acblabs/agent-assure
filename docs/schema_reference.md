@@ -4,8 +4,16 @@ Current development writer schema version: `0.6.6`.
 Current development writer schema snapshot: `schemas/v0.6.6/`.
 Latest published release schema snapshot: `schemas/v0.6.5/`.
 
-The `0.6.6` writer is an untagged development surface, not a published
-release. The `schemas/v0.6.5/` snapshot remains immutable.
+The unreleased `0.7.0` package emits the `0.6.6` writer schema. Neither the
+package candidate nor the `schemas/v0.6.6/` candidate snapshot is published;
+the `schemas/v0.6.5/` snapshot remains immutable.
+
+Exported JSON Schema is a structural interoperability contract, not a complete
+trust decision. Draft 2020-12 cannot express every cross-field arithmetic,
+filesystem, digest-replay, temporal, or external-evidence invariant enforced by
+the reference runtime. Consumers making assurance or release decisions must
+run `agent-assure validate` or the corresponding typed gate; schema-only
+acceptance is never sufficient.
 
 Persisted artifacts include `schema_version` and `artifact_kind`. Current
 models emit `schema_version: 0.6.6` and continue to accept legacy
@@ -22,12 +30,44 @@ evidence-carrying root's
 self-digest. The v0.6.6 schemas are current development writer contracts: every
 root and nested persisted model pins
 `schema_version` to that model's emitted default. Thus nested current mutation
-operators, expected-detection contracts, and results use `0.6.6`, while the
-independently versioned usage models continue to emit `0.4.3`. Compatibility
+operators, expected-detection contracts, and results use `0.6.6`. The
+independently versioned usage segment, ledger, summary, summary-delta, and
+pricing-snapshot models emit `0.6.6` while retaining their declared legacy
+read compatibility. Compatibility
 projection of a frozen artifact does not widen the current wire schema.
-Importable models and their direct `model_json_schema()` output retain declared
-legacy read compatibility; checked-in schemas and current artifact validation
-use the separately pinned writer-schema projection.
+Importable models and their direct `model_validate()` and `model_json_schema()`
+APIs retain declared legacy read compatibility for migration and inspection;
+their acceptance is not an assurance decision. Checked-in schemas and current
+artifact validation use the separately pinned writer-schema projection. Use
+`agent-assure validate`, the typed artifact loader or gate, or
+`writer_json_schema()` for assurance and persistence boundaries. A current live
+protocol or report requires current nested plans and plan items, while matching
+legacy parent/member projections remain available only through the documented
+compatibility path.
+
+One security-critical trust boundary is explicit. Historical
+`evaluation-summary`, `evaluation-report`, `comparison-summary`,
+`comparison-report`, and `evidence-packet` roots through v0.6.5 are
+archival-only at the public assurance validator. Their immutable schemas remain
+available for structural interoperability, and their models remain available
+to explicit migration tooling, but neither path is a complete version-specific
+semantic replay. Historical release manifests and digest replays are also
+archival-only at the public assurance boundary. Their distinct release-replay
+path checks frozen shape, retained role/path identity, and exact digests for
+integrity-only reproduction; it does not certify them as assurance-valid.
+
+Every pre-v0.6
+`live-protocol-record`, `live-evaluation-report`, and `live-comparison-report`
+is archival-only because its frozen schema cannot prove cross-field arithmetic
+or decision state. Pre-v0.6 `live-drift-report` and `live-trajectory-report`
+roots are archival-only for the same reason. The drift and trajectory boundary
+extends through v0.6.5: those wire forms do not bind the complete plan and exact
+source artifacts needed to prove that diagnostics, invariants, checks, or
+events were not removed. `agent-assure validate` rejects all of these roots
+instead of returning plain validity. Their frozen schemas remain immutable
+structural interoperability resources, but schema acceptance is not assurance
+acceptance. v0.6.0-v0.6.5 protocol, evaluation, and comparison roots remain
+eligible only after their version-aware semantic projection succeeds.
 
 Since v0.6.1 the run-set evidence-link identifiers use the same exact ASCII
 machine-identifier grammar in runtime and JSON Schema. This covers `EvidenceRef.ref_id`,
@@ -120,12 +160,27 @@ schema-validated, current `RunSet` model JSON projection. The projection
 retains the accepted `schema_version` and materializes schema-permitted omitted
 defaults before hashing; it is not a digest of raw input bytes. The report also
 requires an explicit `waiver_dispositions` array. The latter records one
-privacy-minimized matched, unmatched, or expired disposition per supplied
-waiver without changing the gate rollup. Mutation execution checks the RunSet
+matched, unmatched, or expired disposition per supplied waiver, including its
+bounded privacy-screened owner, reviewer, rationale, and expiry, without
+changing the gate rollup. Only fail-state findings are waiver eligible;
+`not_evaluated` remains distinct, cannot be downgraded, and yields an unmatched
+disposition. Mutation execution checks the RunSet
 binding for both source and candidate reports so equal `runset_id` labels
 cannot make stale report content admissible. Campaign source, nested mutation
 result, evidence subject, and source evaluator digests use this same
 projection; transformed-result and candidate evaluator digests do likewise.
+The report disposition list covers every supplied waiver, but a current
+summary's authenticated replay context retains only scoring-effective matched
+and artifact-bound expired waivers. This is sufficient for exact scoring
+replay: unmatched waivers have no scoring effect, while retaining expired
+entries reproduces the synthetic expiration blocker. Runtime model validation
+also rejects duplicate disposition IDs and requires the matched/expired
+disposition set to correspond exactly to replay-context waivers, including
+their report digest binding and governance fields. JSON Schema rejects
+byte-equivalent duplicate array items; the stronger identity and replay checks
+are runtime constraints. Runtime validation also restricts `waiver_id` to an
+ASCII machine-identifier grammar; these runtime checks do not retroactively
+modify older frozen schema contracts.
 
 Since v0.6.3, the `evaluation-summary` writer admits an optional `runset_digest`
 with the same canonical projection. The built-in evaluator always copies its
@@ -149,6 +204,12 @@ Comparison reports and evidence packets always require the comparison's
 candidate RunSet ID to match the corresponding evaluation; when both sides
 carry RunSet digests, those authenticated identities must also match. The same
 rule is rechecked by CI so an unvalidated in-memory copy cannot bypass it. A
+current comparison whose fixture-equivalence state is `fail` must classify as
+`invalid_comparison`; that invariant is enforced by both the runtime model and
+the published summary schema, and therefore propagates through enclosing
+comparison reports and evidence packets. A current comparison report also
+requires its detailed fixture-equivalence state to equal the state embedded in
+its comparison summary. A
 missing optional evaluation digest remains explicitly unbound rather than being
 inferred from the comparison. Comparison JSON publication validates the
 privacy-filtered report and summary against the active writer schemas before
@@ -625,8 +686,28 @@ attributes are derived from structured fields during span-plan projection.
 evidence packet to selected framework concepts. It carries the framework and
 mapping versions, mapping digest, evidence-packet digest, per-item coverage
 states, conditional rule evaluations, evidence references with optional
-`evidence_digest` values, optional MITRE ATLAS mapping strength and
-tactic/technique IDs, and explicit limitations. Coverage
+`evidence_digest` values, framework-scoped MITRE ATLAS mapping strength and
+tactic/technique IDs, and explicit limitations. Non-MITRE reports require the
+ATLAS fields to be empty. MITRE ATLAS 2026.06 reports require mapping strength
+and admit only control, tactic, and technique IDs from the integrity-pinned
+offline production catalog. Current report identity binds the reviewer-visible
+mapping version, evidence-packet ID, titles, states, mapping strengths, ATLAS
+IDs, exact item and condition evidence references (kind, ID, field path,
+optional digest, and description), complete condition evaluations (rule,
+signal, condition, observed flag, state, rationale, and references), and item
+and report limitations in addition to the mapping and evidence-packet digests.
+This is collision binding, not source authentication: a verifier must still
+resolve and authenticate the referenced packet, mapping, and optional evidence
+digests independently. Historical versions retain their published identity
+projection but still receive framework semantic replay.
+The built-in framework/version pairs are exact: NIST AI RMF `1.0`, OWASP LLM
+Top 10 `2025`, ISO/IEC 42001 `2023`, and MITRE ATLAS `2026.06`. Every MITRE row
+must use the pinned official title for its catalog-valid `control_id` and
+include that ID in `atlas_technique_ids`. A
+`not_applicable` MITRE row has no tactic IDs and retains exactly that self-ID as
+its sole technique subject; the ID identifies the row and does not assert a
+crosswalk.
+Coverage
 states are review labels such as `observed`, `partially_observed`,
 `conditionally_observed`, `contradictory_evidence_observed`, `not_observed`,
 `not_evaluated`, `not_applicable`, and `out_of_scope`; they are not grades.
@@ -655,6 +736,25 @@ execution with stop reasons, and may include emergency process records for
 external-script subprocess failures. They still do not persist raw prompts,
 raw provider outputs, tool arguments, retrieval records, risk tags, or
 capability inventories.
+
+`EvaluationReport` v0.6.6 persists a minimal `source_projection`: suite and
+RunSet identities/digests, every suite case's RunSet coverage state, unknown
+RunSet case IDs, and tool-policy configuration. `case_outcomes` must exactly
+cover those asserted suite cases and drives the total, evaluated, unevaluated,
+pass, warning, and failure counts; summary findings reconcile to those case IDs
+or to the narrowly defined global scope. A required replay context supplies the
+compiled-suite digest, while `runset_digest` binds the report and nested summary
+to the source RunSet identity. `capability_coverage` contains the complete
+canonical built-in inventory, including explicit configured/not-evaluated
+tool-allowlist coverage, and `not_evaluated_capabilities` is its exact filtered
+projection. `verify_evaluation_report_sources` rederives the source projection
+from a separately trusted exact suite and RunSet and exactly replays full-mode
+decision and waiver-audit evidence. Its gate profile, complete waiver set, and
+evaluation date are mandatory caller-authorized keyword arguments; copying
+them from the report's replay context would let an untrusted report select its
+own verification policy. Only environment enrichment is excluded from the
+replay comparison. Standalone schema validation establishes only
+self-consistency with the persisted projection.
 
 The v0.6.6 RunSet root and record provenance also admit an optional
 `study_manifest_digest`. Absence remains coherent for ordinary runs. When a
@@ -708,28 +808,66 @@ Live-specific root artifacts:
   per-observation tool-schema and policy-bundle provenance digests, completion
   status, stop reasons, budget-exhaustion status, provider/model group
   summaries, suite and execution-configuration digests, a top-level exploratory
-  flag, latency distributions, estimated-cost distributions, optional
+  flag, the source RunSet digest and completion status, the bound protocol,
+  bounded per-observation outcome/latency/cost sufficient statistics, latency
+  distributions, estimated-cost distributions, optional
   statistical-invariant results, and interpretation limitations. Statistical
-  invariant results can include rare-event Poisson upper bounds and observed
-  cluster-correlation summaries with bootstrap uncertainty; zero observed
-  critical events are represented as bounded evidence, not absence proofs.
+  invariant results can include exact Clopper--Pearson bounds through 1,000
+  clusters, exact zero-event closed-form bounds above that threshold, or
+  separately labeled conservative one-sided Bernoulli KL-Chernoff inversions
+  for larger nonzero samples, plus observed cluster-correlation summaries with
+  bootstrap uncertainty. The scalable rare-event branches use rational
+  logarithm enclosures and work bounded independently of cluster count;
+  KL-Chernoff results are outward-rounded and explicitly non-exact rather than
+  exact Clopper--Pearson tail inversions. Zero observed critical events are
+  represented as bounded evidence, not absence proofs.
   A rare-event bound's `confidence_level` is the effective level used to
   calculate that bound. For a confirmatory endpoint under Bonferroni control,
-  it equals `1 - adjusted_alpha`.
-  Degenerate per-arm cluster intervals are labeled as boundary heuristics rather
-  than ordinary cluster t intervals.
+  it equals `1 - adjusted_alpha`; adjusted alpha is conservatively floored to
+  six decimal places before both evaluation and persistence. Rare-event bounds
+  use `exposure_unit=independence_cluster`, count distinct clusters as
+  exposure, and count clusters containing at least one event, while the
+  enclosing endpoint preserves the raw observation-level rate. Degenerate
+  per-arm cluster results are labeled as exploratory empirical point masses,
+  not ordinary cluster t intervals or confidence-coverage claims.
+  On the current writer version, runtime loading recomputes group summaries,
+  distributions, statistical invariants, completion/budget flags, exploratory
+  status, and gate state from the embedded protocol and observations. Before
+  statistical kernels run, it also verifies the complete planned
+  case/repetition/schedule/block grid, derived clustering, prompt and source-group
+  stability, homogeneous execution-arm metadata, declared exclusions, retry and
+  rate-limit caps, provider-version capture, tool/policy digests, exact
+  USD-to-picodollar projection, and per-observation and total cost caps.
+  Token counts, committed cost/token budgets, per-run provenance configuration
+  digests and model identifiers, and the compiled-suite case/prompt manifest are
+  not embedded in this compact report and therefore cannot be reconstructed by
+  that verifier. The source RunSet digest must still be anchored against
+  separately trusted source bytes; it is not an authenticity claim by itself.
 - `live-comparison-report` records a baseline-to-candidate live report
-  comparison with protocol binding, baseline mode, cluster-level analysis
-  method, pass-rate difference, paired cluster t or percentile bootstrap
-  interval when declared, fixed-reference interval when declared, margin,
+  comparison with both source-evaluation digests and completion metadata,
+  protocol binding, paired-cluster sufficient statistics, baseline mode,
+  cluster-level analysis method, pass-rate difference, paired cluster t or
+  percentile bootstrap interval when declared, fixed-reference interval when declared, margin,
   compared-cluster count, effective sample size, exploratory status, latency
   delta, cost delta, optional paired randomization test results, and
-  limitations. Paired randomization tests are emitted only for protocol-declared
+  limitations. Each current paired-cluster item persists integer event and
+  exposure counts for both arms. Concurrent arms require positive equal
+  within-cluster denominators; a fixed reference is represented by baseline
+  counts `0/0` and a positive candidate denominator. Rates must be the exact
+  six-place projections of those counts. The persisted cluster `difference`
+  is rounded once from the exact candidate count ratio minus the exact baseline
+  count ratio; fixed-reference comparisons subtract the declared reference.
+  Interval and randomization inference use those unrounded ratios, not a
+  subtraction of the separately rounded display rates.
+  Paired randomization tests are emitted only for protocol-declared
   concurrent paired designs and report prerequisite status, p-value,
   adjusted p-value, exact or Monte Carlo resampling count, and exchangeability
   assumption. Monte Carlo seeds are deterministic integers derived from
-  protocol-bound seed material; the report cannot prove exchangeability beyond
-  the declared assumption and structural pairing checks. Paired sign-flip
+  protocol-bound seed material; resampling uses the fixed
+  `agent-assure/live-resampling/sha256-counter-rejection/v1` counter-mode
+  rejection sampler rather than Python's version-dependent PRNG. The report
+  cannot prove exchangeability beyond the declared assumption and structural
+  pairing checks. Paired sign-flip
   randomization requires a zero non-inferiority margin. Equality at that zero
   margin is inconclusive and produces `not_evaluated`; a negative observed
   difference remains a fail-closed boundary breach but is not proof of
@@ -738,6 +876,24 @@ Live-specific root artifacts:
   `adjusted_p_value` as alternative correction encodings: compare a raw
   p-value to `adjusted_alpha`, or compare `adjusted_p_value` to the protocol
   `familywise_alpha`; never compare an adjusted p-value to an adjusted alpha.
+  Persisted p-values round upward at six decimal places, so display precision
+  cannot turn a value above a six-place alpha threshold into a passing value.
+  Current runtime loading reconstructs both complete arm `LiveRate` objects
+  from the paired counts, including pooled and cluster-mean rates, confidence
+  intervals, design effects, effective sample sizes, method labels, and
+  exploratory flags, and requires exact equality with the persisted arm
+  summaries. It then reruns the declared difference interval or randomization
+  method and rederives the comparison difference, effective sample size,
+  exploratory status, limitations, and gate state. An incomplete source forces
+  `not_evaluated` and cannot carry paired or randomization evidence. The
+  source-evaluation digests are external linkage points and require
+  verifier-controlled source artifacts or attestation for provenance.
+  Standalone validation checks that each latency and cost delta equals its
+  candidate value minus its baseline value, but cannot rederive those absolute
+  values without the two source evaluation reports: source-evaluation digests
+  are external linkage; latency and cost absolutes remain source-declarative
+  until both digests are resolved against trusted evaluation reports. These
+  operational fields are not decision-bearing.
 - `live-drift-report` records ordered cross-window monitoring over live
   evaluation reports. It includes a comparability result for suite identity,
   baseline mode, analysis method, protocol digest, material field match,
@@ -748,7 +904,16 @@ Live-specific root artifacts:
   dependence signals from lag-1 autocorrelation and optional AR(1) summaries,
   and EWMA governance-health or control-reliability state estimates when their
   declared window thresholds are met. Dependence thresholds have an eight-window
-  floor and EWMA state thresholds have a six-window floor. Drift reports are
+  floor and EWMA state thresholds have a six-window floor. Every metric must
+  declare the descriptive-trend basis; optional lag-1, AR(1), and EWMA output
+  is emitted only when its method is declared. A confirmatory monitoring plan
+  must include at least one confirmatory metric, and only confirmatory metric
+  prerequisites determine whether that plan's monitoring status can be
+  `valid`. Metric windows are a complete declared sequence: a missing value is
+  not removed to make values on opposite sides of the gap adjacent. Sequential
+  step, lag-1, AR(1), and EWMA outputs are suppressed across any missing
+  window; a confirmatory metric with such a gap has invalid prerequisites and
+  cannot produce valid monitoring status. Drift reports are
   exploratory by default, use `not_evaluated` gate state, and keep drift signals separate from
   release-verdict evidence unless a reviewed protocol separately predeclares a
   stronger interpretation. Irregular timestamps are used for ordering and
@@ -765,7 +930,45 @@ Live-specific root artifacts:
   event-process summaries for retries, rate limits, exclusions, malformed
   outputs, runtime failures, emergency records, and budget stops. Event-process
   summaries report exposure-normalized rates, timestamp coverage, interarrival
-  summaries when available, and exploratory burst signals. The report uses
+  summaries when available, and burst signals. Current path summaries use exact
+  grammars. Excluded paths have the canonical
+  `start → request_assembly → [human_review] → [emergency] → excluded` order,
+  so reviewed exclusions preserve `human_review → [emergency] → excluded` and
+  `excluded` is always terminal. Bracketed states are optional and appear only
+  when observed. For excluded observations, runtime-failure and malformed-output
+  facts and event-process counts derive only from reason codes on failed policy
+  results when the source `policy_results` field has a trusted, control-eligible
+  origin. Without that provenance, the failure subtype is not asserted.
+  Observable transition profiling is the required base method. Sequence results
+  and history checks are omitted
+  unless `sequence_invariant_check` is declared; event summaries and burst
+  analysis are emitted only when their paired methods are declared. A
+  confirmatory plan requires the complete supported method set. With adequate
+  exposure, a zero-count process has a met observed zero-rate summary.
+  `evaluated_observations` on an invariant is the invariant-specific applicable
+  exposure rather than the total path count. Required-review exposure contains
+  only included approvals that required review. The claim-evidence invariant
+  applies only to included approvals: observable approvals in `complete` or
+  `incomplete` state form its evaluated population, while control-ineligible
+  approvals in `unobservable` state are counted separately in
+  `unobservable_observations`. Excluded observations contribute to neither
+  approval-invariant population. Retry-consistency exposure contains only
+  included paths with both counters. Current path summaries use the five-value
+  `claim_evidence_status` contract: excluded paths are `not_evaluated`, included
+  non-approval paths are `not_applicable`, and only included approval paths may
+  be `complete`, `incomplete`, or `unobservable`. Observable missing pairs or
+  provenance contradictions follow the evaluator's evidence result and are
+  `incomplete`; control-ineligible graph fields are `unobservable` and carry
+  explicit limitations. Unobservable approvals cannot satisfy the
+  claim-evidence invariant or be silently counted as complete. The legacy
+  `claim_evidence_complete` field is true exactly when the status is `complete`.
+  The current required-review plan supports only
+  `required_state: human_review`; both the runtime and writer JSON Schema reject
+  any other declared state. Zero applicable exposure is invalid for a
+  confirmatory invariant and cannot support `trajectory_status: valid`. A
+  positive process below its event-count threshold or with incomplete
+  timestamps has `burst_signal: invalid`, never a plain no-burst conclusion.
+  The report uses
   `not_evaluated` gate state, does not persist raw prompts, raw outputs, tool
   arguments, sensitive identifiers, or unredacted summaries, and treats path
   coverage as sampled review evidence rather than proof that unsafe paths are
@@ -841,12 +1044,21 @@ External `AgentRunRecord` producers must also follow
 only by explicit `claim_evidence_links` that point to present evidence
 references, and process-control eligibility depends on declared field origin.
 
-Usage schema roots started as an additive v0.3.1 release surface and are
-extended in v0.4.3 for declared pricing snapshots and basis-point deltas.
+Usage schema roots started as an additive v0.3.1 release surface, were
+extended in v0.4.3 for declared pricing snapshots and basis-point deltas, and
+add v0.6.6 contracts for precise pricing and complete-coverage ledgers.
 `UsageSegment` records measured token, tool-call, retry, latency, and declared
 estimated cost fields for a case, run, span, or future stream event range.
-Persisted money uses `estimated_cost_microusd` integers; the schema does not
-use floats for cost. Micro-USD cost evidence is USD-only by design in v0.4.3;
+Persisted money uses integers; the schema does not use floats for cost.
+v0.6.6 segments and summaries retain exact `estimated_cost_picousd` alongside
+the half-even `estimated_cost_microusd` projection. The projection is a model
+invariant, and aggregation sums pico-USD before projecting once, so changing
+segment or run boundaries cannot change the declared total through repeated
+rounding. A v0.6.6 aggregation never manufactures pico-USD precision from a
+rounded micro-USD value: if any cost-bearing segment lacks exact pico-USD, the
+aggregate cost is suppressed with an explicit limitation. Legacy v0.4.3
+`sum_known_fields_v1` aggregation may preserve declared micro-USD totals but
+does not emit pico-USD. Micro-USD cost evidence is USD-only by design in v0.4.3;
 the pattern-validated `currency` field remains for schema continuity and
 non-cost usage summaries, but cost-bearing artifacts must use `USD`. v0.4.3
 producers emit usage roots with `schema_version: "0.4.3"`; replay still
@@ -859,27 +1071,54 @@ is encoded in the exported JSON Schema. Segment metadata labels such as
 `provider`, `model`, `operation`, `cost_basis`, `pricing_snapshot_id`, and
 `pricing_snapshot_digest` are caller-controlled review metadata; producers
 should not put sensitive identifiers in them.
+For v0.6.6, the `provider` and `model` values used as pricing join keys are
+bounded to 256 characters and must use the shared ASCII machine-identifier
+grammar in both usage segments and pricing snapshots. Historical v0.3.1 and
+v0.4.3 artifacts retain their original permissive label contract for replay.
 Segment-level `pricing_snapshot_digest` is a v0.4.3-only provenance field and
 is rejected on `schema_version: "0.3.1"` usage segments.
 `usage-pricing-snapshot` records explicit versioned demo or caller-declared
-token prices with integer micro-USD input and output rates, optional cached
-input and reasoning-token rates, and explicit limitations. Pricing snapshots
-are USD-only while the persisted cost field remains `estimated_cost_microusd`.
+token prices. A v0.6.6 snapshot uses canonical fixed-point decimal strings in
+dollars per million tokens, with exactly six fractional digits, for input and
+output rates and optional cached-input and reasoning-token rates. This single
+unit can represent rates below one dollar per million tokens without binary
+floating point. Cost calculation uses integer arithmetic and rounds only the
+final micro-USD result with round-half-even. Legacy v0.4.3 snapshots with
+integer micro-USD-per-token rates remain readable but cannot be labeled
+v0.6.6, and the two rate families cannot be mixed. Required input and output
+rates must be non-null strings for the precise family or non-null integers for
+the legacy family. A snapshot also requires unique `(provider, model)` pairs;
+that composite-key uniqueness is enforced by semantic Pydantic validation,
+not JSON Schema alone. Pricing snapshots are USD-only.
 The bundled pricing helper refuses total-token-only segments; callers must
 provide `prompt_tokens` and `completion_tokens`, and must declare cached-input
 or reasoning-token rates when those token classes are present.
 The bundled `examples/usage/local-demo-pricing-v1.json` and
 `examples/usage/langgraph-expense-demo-pricing-v1.json` snapshots are marked as
 demo fixtures and are not live provider pricing.
-`UsageLedger` keeps the contributing segments, the deterministic
-`sum_known_fields_v1` aggregation method, and missingness counts. JSON Schema
-validates the shape of those counts; Pydantic validation verifies that the
-counts exactly match the contributing segments. `UsageSummary` contains summed
-known fields, cost-basis labels, pricing snapshot IDs and digests, optional
-`cost_observation_count`, and limitations, and must match the ledger-derived
-summary when both are present. `total_latency_ms` is the sum of known segment
-latency fields under `sum_known_fields_v1`, not necessarily wall-clock elapsed
-time for parallel runs. Cost aggregation and comparison require homogeneous
+`UsageLedger` keeps the contributing segments, an explicit deterministic
+aggregation method, and missingness counts. New ledgers use
+`schema_version: "0.6.6"` with `sum_complete_fields_v2`: each metric,
+including estimated cost, is aggregated only when every contributing segment
+reports it. An incomplete metric is emitted as `null`, with exact missingness
+retained in the ledger and a limitation in the summary, so a partial total
+cannot appear as an improvement. Historical v0.4.3 ledgers remain replayable
+only with `sum_known_fields_v1`. JSON Schema validates the version/method
+binding and the shape of missingness counts; Pydantic validation verifies that
+the counts exactly match the contributing segments. A v0.6.6 `UsageSummary`
+records its aggregation method, coverage basis, expected source count, covered
+source count for each metric, complete field totals, exact and projected cost,
+cost-basis labels, pricing snapshot IDs and digests, optional
+`cost_observation_count`, and limitations. It must match the ledger-derived
+summary when both are present. Run-set rollups normalize trustworthy segment
+or run summaries to a `run_record` denominator, preserving expected and
+covered run counts even when a value is suppressed. A summary-only run-level
+input must carry v0.6.6 complete-coverage metadata derived from
+`usage_segment` or `run_record` evidence; an unverified top-level summary
+cannot manufacture coverage. Under the historical v1 method,
+`total_latency_ms` is the sum of known segment latency fields and is not
+necessarily wall-clock elapsed time for parallel runs. Cost aggregation and
+comparison require homogeneous
 cost basis plus matching explicit pricing snapshot IDs and content digests; raw
 cost numbers without that provenance remain review facts but are not diffed as
 comparable declared estimated cost evidence. `cost_observation_count` is derived
@@ -888,7 +1127,18 @@ values with a limitation; multiple unlabeled cost-bearing segments omit the
 per-observation denominator rather than guessing. `UsageSummaryDelta` records
 baseline-to-candidate usage deltas when usage is observed, including integer
 basis-point fields such as `total_tokens_delta_bps` where a nonzero baseline
-exists. Missing usage is represented as `not_observed`, not as a failing gate.
-Partial missingness is retained in limitations so known-field totals are not
-presented as complete observations. These fields are measured usage and
+exists. For comparable v0.6.6 costs the delta requires the signed exact
+`estimated_cost_picousd_delta` alongside its micro-USD projection and computes
+`estimated_cost_picousd_delta_bps` from pico-USD values, so distinct sub-micro
+costs cannot collapse to a zero delta. For current deltas, the legacy-named
+`estimated_cost_microusd_delta_bps` mirrors that exact ratio so existing
+consumers do not observe a false zero, while the micro-USD delta value itself
+remains a rounded compatibility projection. Historical v0.4.3 deltas continue
+to calculate, use, and render their micro-USD fields. Missing usage is
+represented as `not_observed`, not as a failing gate.
+Partial missingness suppresses the affected v2 total and therefore its
+baseline-to-candidate delta. A delta additionally requires both sides to
+declare the same coverage basis and expected source count and to have complete
+coverage for that metric; cross-basis or unequal-denominator values are
+reported but not subtracted. These fields are measured usage and
 declared estimated cost evidence only, not business impact claims.

@@ -1030,13 +1030,22 @@ def _assemble_paired_observations(
     *,
     allow_verified_synthetic_study: bool,
 ) -> tuple[PairedSensitivityObservation, ...]:
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
-    baseline = RunSet.model_validate(baseline.model_dump(mode="json"))
-    counterfactual = RunSet.model_validate(counterfactual.model_dump(mode="json"))
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
+    counterfactual = RunSet.model_validate(counterfactual_payload)
+    validate_loaded_artifact_payload(counterfactual_payload, "run-set")
     if allow_verified_synthetic_study:
         _validate_unjournaled_synthetic_study_inputs(protocol, baseline, counterfactual)
     else:
-        validate_paired_attempt_journal(protocol, baseline, counterfactual)
+        _validate_admitted_paired_attempt_journal(protocol, baseline, counterfactual)
     baseline_index, baseline_duplicates, baseline_extra = _index_runs(protocol, baseline)
     counter_index, counter_duplicates, counter_extra = _index_runs(protocol, counterfactual)
     global_mismatch = bool(
@@ -1320,9 +1329,18 @@ def build_paired_runset_dependencies(
     counterfactual: RunSet,
 ) -> tuple[RunSetArtifactDependency, RunSetArtifactDependency]:
     """Bind analysis to the exact persisted arm RunSets and design commitment."""
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
-    baseline = RunSet.model_validate(baseline.model_dump(mode="json"))
-    counterfactual = RunSet.model_validate(counterfactual.model_dump(mode="json"))
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
+    counterfactual = RunSet.model_validate(counterfactual_payload)
+    validate_loaded_artifact_payload(counterfactual_payload, "run-set")
     planned_cells = {
         (case_id, repetition_index)
         for case_id in protocol.planned_case_ids
@@ -1529,6 +1547,26 @@ def _runset_matches_binding(
 
 
 def validate_paired_attempt_journal(
+    protocol: RepeatedEvidenceSensitivityProtocol,
+    baseline: RunSet,
+    counterfactual: RunSet,
+) -> None:
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline = RunSet.model_validate(baseline_payload)
+    validate_loaded_artifact_payload(baseline_payload, "run-set")
+    counterfactual_payload = counterfactual.model_dump(mode="json", warnings="error")
+    counterfactual = RunSet.model_validate(counterfactual_payload)
+    validate_loaded_artifact_payload(counterfactual_payload, "run-set")
+    _validate_admitted_paired_attempt_journal(protocol, baseline, counterfactual)
+
+
+def _validate_admitted_paired_attempt_journal(
     protocol: RepeatedEvidenceSensitivityProtocol,
     baseline: RunSet,
     counterfactual: RunSet,

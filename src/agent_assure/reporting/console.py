@@ -7,6 +7,10 @@ from rich.text import Text
 from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.reporting.text_safety import sanitize_display_text
+from agent_assure.reporting.validation import (
+    validated_comparison_report_for_reporting,
+    validated_evaluation_report_for_reporting,
+)
 from agent_assure.schema.common import GateState
 
 
@@ -16,7 +20,8 @@ def _console_text(value: object) -> Text:
 
 
 def render_evaluation_console(report: EvaluationReport, console: Console | None = None) -> None:
-    console = console or Console()
+    report = validated_evaluation_report_for_reporting(report)
+    console = console or Console(markup=False)
     summary = report.candidate_vs_expectations
     console.print(_candidate_table(report))
     if summary.state is not GateState.pass_:
@@ -97,7 +102,8 @@ def _waiver_table(report: EvaluationReport) -> Table:
 
 
 def render_comparison_console(report: ComparisonReport, console: Console | None = None) -> None:
-    console = console or Console()
+    report = validated_comparison_report_for_reporting(report)
+    console = console or Console(markup=False)
     console.print(_comparison_candidate_table(report))
     if report.candidate_vs_expectations.state is not GateState.pass_:
         console.print(_comparison_findings_table(report))

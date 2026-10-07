@@ -1,19 +1,20 @@
 from __future__ import annotations
 
-import hashlib
 import json
+import os
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
 
-from agent_assure.artifact_io import file_sha256, git_output, write_text_atomic
+from agent_assure.artifact_io import git_output, write_text_atomic
 from agent_assure.canonical.digests import sha256_hexdigest
 from agent_assure.io_limits import (
-    MAX_ARTIFACT_JSON_BYTES,
-    loads_json_bounded,
-    read_bytes_bounded,
+    BoundedFileContents,
+    load_json_bytes_bounded,
+    read_file_bounded_at,
 )
-from agent_assure.reporting.environment import release_artifact
+from agent_assure.reporting.sbom import MAX_RELEASE_ARTIFACT_BYTES
+from agent_assure.schema.base import SCHEMA_VERSION
 from agent_assure.schema.release import (
     ReleaseDigestReplay,
     ReleaseReplayArtifact,
@@ -21,8 +22,9 @@ from agent_assure.schema.release import (
 )
 from agent_assure.schema.validation import (
     load_json,
-    load_validated_artifact_payload,
+    maximum_artifact_json_bytes,
     project_validated_artifact_payload,
+    validate_historical_artifact_payload_for_release_replay,
     validate_loaded_artifact_payload,
 )
 
@@ -142,6 +144,14 @@ class DigestReplayVerification:
         return not self.findings
 
 
+@dataclass(frozen=True)
+class _ReplayDigestSnapshot:
+    """Raw and replay digests derived from one rooted, bounded file snapshot."""
+
+    raw_sha256: str
+    replay_sha256: str
+
+
 def core_release_roles_for_schema_version(schema_version: str) -> tuple[str, ...]:
     """Return the core release roles authored by a replay schema version."""
     try:
@@ -168,11 +178,22 @@ def build_digest_replay(
         artifact_kind="release-digest-replay",
         source_commit=resolved_commit,
         source_ref=source_ref,
-        artifacts=tuple(_replay_artifact(role, path, root) for role, path in artifacts),
+        artifacts=tuple(
+            _replay_artifact(
+                role,
+                path,
+                root,
+                replay_schema_version=SCHEMA_VERSION,
+            )
+            for role, path in artifacts
+        ),
     )
 
 
 def write_digest_replay(replay: ReleaseDigestReplay, path: Path) -> None:
+    payload = replay.model_dump(mode="json", warnings="error")
+    replay = ReleaseDigestReplay.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "release-digest-replay")
     write_text_atomic(
         path,
         json.dumps(replay.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",
@@ -180,7 +201,15 @@ def write_digest_replay(replay: ReleaseDigestReplay, path: Path) -> None:
 
 
 def load_digest_replay(path: Path) -> ReleaseDigestReplay:
-    payload = load_validated_artifact_payload(path, "release-digest-replay")
+    payload = load_json(path)
+    replay_schema_version = payload.get("schema_version")
+    _validate_release_replay_input_payload(
+        payload,
+        "release-digest-replay",
+        replay_schema_version=(
+            replay_schema_version if isinstance(replay_schema_version, str) else None
+        ),
+    )
     return project_validated_artifact_payload(
         _runtime_replay_projection(payload),
         ReleaseDigestReplay,
@@ -212,6 +241,13 @@ def verify_digest_replay(
     expect_ref: str | None = None,
     require_current_commit: bool = False,
 ) -> DigestReplayVerification:
+    replay_payload = replay.model_dump(mode="json", warnings="error")
+    replay = ReleaseDigestReplay.model_validate(replay_payload)
+    _validate_release_replay_input_payload(
+        replay_payload,
+        "release-digest-replay",
+        replay_schema_version=replay.schema_version,
+    )
     findings: list[DigestReplayFinding] = []
     root = artifact_root.resolve()
     findings.extend(
@@ -266,7 +302,7 @@ def verify_digest_replay(
             )
             continue
         try:
-            path = _resolve_replay_path(root, artifact.path)
+            _resolve_replay_path(root, artifact.path)
         except ValueError as exc:
             findings.append(
                 DigestReplayFinding(
@@ -278,23 +314,13 @@ def verify_digest_replay(
                 )
             )
             continue
-        if not path.exists() or not path.is_file():
-            findings.append(
-                DigestReplayFinding(
-                    role=artifact.role,
-                    path=artifact.path,
-                    expected=artifact.sha256,
-                    actual=None,
-                    message=f"release artifact is missing: {artifact.path}",
-                )
-            )
-            continue
         try:
             actual = _digest_for_artifact(
                 role=artifact.role,
-                path=path,
+                path=Path(artifact.path),
                 project_root=root,
                 digest_mode=artifact.digest_mode,
+                replay_schema_version=replay.schema_version,
             )
         except (OSError, ValueError) as exc:
             findings.append(
@@ -320,19 +346,26 @@ def verify_digest_replay(
     return DigestReplayVerification(replay=replay, findings=tuple(findings))
 
 
-def _replay_artifact(role: str, path: Path, project_root: Path) -> ReleaseReplayArtifact:
+def _replay_artifact(
+    role: str,
+    path: Path,
+    project_root: Path,
+    *,
+    replay_schema_version: str,
+) -> ReleaseReplayArtifact:
     digest_mode = digest_mode_for_role(role)
+    artifact_path = _relative_replay_input_path(path, project_root)
     replay_digest = _digest_for_artifact(
         role=role,
-        path=path,
+        path=Path(artifact_path),
         project_root=project_root,
         digest_mode=digest_mode,
+        replay_schema_version=replay_schema_version,
     )
-    raw_artifact = release_artifact(role, path, project_root=project_root)
     return ReleaseReplayArtifact(
         artifact_kind="release-replay-artifact",
-        role=raw_artifact.role,
-        path=raw_artifact.path,
+        role=role,
+        path=artifact_path,
         sha256=replay_digest,
         digest_mode=digest_mode,
     )
@@ -557,49 +590,198 @@ def _digest_for_artifact(
     path: Path,
     project_root: Path,
     digest_mode: ReplayDigestMode,
+    replay_schema_version: str,
 ) -> str:
+    return _digest_snapshot_for_artifact(
+        role=role,
+        path=path,
+        project_root=project_root,
+        digest_mode=digest_mode,
+        replay_schema_version=replay_schema_version,
+    ).replay_sha256
+
+
+def _digest_snapshot_for_artifact(
+    *,
+    role: str,
+    path: Path,
+    project_root: Path,
+    digest_mode: ReplayDigestMode,
+    replay_schema_version: str,
+) -> _ReplayDigestSnapshot:
     if digest_mode == "raw-sha256":
         if role in _RAW_FILE_ROLES:
-            return file_sha256(path)
-        return _validated_raw_json_digest(role, path)
+            contents = _read_release_artifact_snapshot(
+                role,
+                path,
+                project_root=project_root,
+            )
+        else:
+            contents, _ = _validated_raw_json_snapshot(
+                role,
+                path,
+                project_root=project_root,
+                replay_schema_version=replay_schema_version,
+            )
+        return _ReplayDigestSnapshot(
+            raw_sha256=contents.sha256,
+            replay_sha256=contents.sha256,
+        )
     if digest_mode == "replay-stable-json-sha256":
-        return sha256_hexdigest(_stable_json_projection(role, path, project_root))
+        contents, payload = _validated_stable_json_snapshot(
+            role,
+            path,
+            project_root=project_root,
+            replay_schema_version=replay_schema_version,
+        )
+        return _ReplayDigestSnapshot(
+            raw_sha256=contents.sha256,
+            replay_sha256=sha256_hexdigest(
+                _stable_json_projection_from_payload(
+                    role,
+                    payload,
+                    project_root,
+                    replay_schema_version=replay_schema_version,
+                )
+            ),
+        )
     raise ValueError(f"unsupported release replay digest mode: {digest_mode}")
 
 
-def _validated_raw_json_digest(role: str, path: Path) -> str:
+def _read_release_artifact_snapshot(
+    role: str,
+    path: Path,
+    *,
+    project_root: Path,
+) -> BoundedFileContents:
+    return read_file_bounded_at(
+        project_root,
+        _relative_replay_input_path(path, project_root),
+        max_bytes=MAX_RELEASE_ARTIFACT_BYTES,
+        label=f"release replay artifact {role!r}",
+    )
+
+
+def _validated_raw_json_digest(
+    role: str,
+    path: Path,
+    project_root: Path,
+    *,
+    replay_schema_version: str,
+) -> str:
+    contents, _ = _validated_raw_json_snapshot(
+        role,
+        path,
+        project_root=project_root,
+        replay_schema_version=replay_schema_version,
+    )
+    return contents.sha256
+
+
+def _validated_raw_json_snapshot(
+    role: str,
+    path: Path,
+    *,
+    project_root: Path,
+    replay_schema_version: str,
+) -> tuple[BoundedFileContents, dict[str, object]]:
     try:
         artifact_kind = _RAW_JSON_ROLE_ARTIFACT_KINDS[role]
     except KeyError as exc:
         raise ValueError(f"role has no raw JSON artifact contract: {role}") from exc
-    raw = read_bytes_bounded(
+    return _validated_replay_json_snapshot(
         path,
-        max_bytes=MAX_ARTIFACT_JSON_BYTES,
-        label=f"{artifact_kind} artifact JSON",
+        project_root=project_root,
+        artifact_kind=artifact_kind,
+        replay_schema_version=replay_schema_version,
     )
-    payload = loads_json_bounded(
-        raw.decode("utf-8"),
-        label=f"{artifact_kind} artifact JSON",
-    )
-    if not isinstance(payload, dict):
-        raise ValueError(f"{artifact_kind} artifact JSON root must be an object")
-    validate_loaded_artifact_payload(payload, artifact_kind)
-    return hashlib.sha256(raw).hexdigest()
 
 
-def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[str, object]:
-    payload = load_json(path)
+def _validated_stable_json_snapshot(
+    role: str,
+    path: Path,
+    *,
+    project_root: Path,
+    replay_schema_version: str,
+) -> tuple[BoundedFileContents, dict[str, object]]:
     try:
         artifact_kind = _STABLE_JSON_ROLE_ARTIFACT_KINDS[role]
     except KeyError as exc:
         raise ValueError(f"role has no stable JSON artifact contract: {role}") from exc
-    validate_loaded_artifact_payload(payload, artifact_kind)
+    return _validated_replay_json_snapshot(
+        path,
+        project_root=project_root,
+        artifact_kind=artifact_kind,
+        replay_schema_version=replay_schema_version,
+    )
+
+
+def _validated_replay_json_snapshot(
+    path: Path,
+    *,
+    project_root: Path,
+    artifact_kind: str,
+    replay_schema_version: str,
+) -> tuple[BoundedFileContents, dict[str, object]]:
+    max_bytes = maximum_artifact_json_bytes(artifact_kind)
+    label = f"{artifact_kind} artifact JSON"
+    contents = read_file_bounded_at(
+        project_root,
+        _relative_replay_input_path(path, project_root),
+        max_bytes=max_bytes,
+        label=label,
+    )
+    payload = load_json_bytes_bounded(
+        contents.data,
+        max_bytes=max_bytes,
+        label=label,
+    )
+    _validate_release_replay_input_payload(
+        payload,
+        artifact_kind,
+        replay_schema_version=replay_schema_version,
+    )
+    return contents, payload
+
+
+def _stable_json_projection(
+    role: str,
+    path: Path,
+    project_root: Path,
+    *,
+    replay_schema_version: str,
+) -> dict[str, object]:
+    _, payload = _validated_stable_json_snapshot(
+        role,
+        path,
+        project_root=project_root,
+        replay_schema_version=replay_schema_version,
+    )
+    return _stable_json_projection_from_payload(
+        role,
+        payload,
+        project_root,
+        replay_schema_version=replay_schema_version,
+    )
+
+
+def _stable_json_projection_from_payload(
+    role: str,
+    payload: dict[str, object],
+    project_root: Path,
+    *,
+    replay_schema_version: str,
+) -> dict[str, object]:
     if role == "assurance-evidence-graph":
         return _stable_graph_projection(payload)
     if role == "evidence-packet":
         return _stable_packet_projection(payload)
     if role == "release-artifact-manifest":
-        return _stable_manifest_projection(payload, project_root)
+        return _stable_manifest_projection(
+            payload,
+            project_root,
+            replay_schema_version=replay_schema_version,
+        )
     if role in {"baseline-evaluation-summary", "evaluation-summary", "comparison-summary"}:
         return _without_keys(payload, {"environment"})
     if role == "evaluation-report":
@@ -614,6 +796,33 @@ def _stable_json_projection(role: str, path: Path, project_root: Path) -> dict[s
     }:
         return _without_keys(payload, {"report_digest"})
     return payload
+
+
+def _validate_release_replay_input_payload(
+    payload: dict[str, object],
+    artifact_kind: str,
+    *,
+    replay_schema_version: str | None,
+) -> str:
+    """Select assurance validation or historical integrity-only reproduction.
+
+    Historical release replay checks immutable shape only so that an already
+    published bundle can reproduce its recorded digest. This result is never an
+    assurance-valid result. Current inputs remain on the public semantic
+    validator and therefore cannot use this compatibility path as a downgrade.
+    """
+
+    schema_version = payload.get("schema_version")
+    envelope_version = replay_schema_version
+    if envelope_version == SCHEMA_VERSION and schema_version != SCHEMA_VERSION:
+        raise ValueError(
+            "current release replay requires persisted JSON child "
+            f"{artifact_kind!r} to use schema_version {SCHEMA_VERSION!r}; "
+            f"received {schema_version!r}"
+        )
+    if isinstance(schema_version, str) and schema_version != SCHEMA_VERSION:
+        return validate_historical_artifact_payload_for_release_replay(payload, artifact_kind)
+    return validate_loaded_artifact_payload(payload, artifact_kind)
 
 
 def _stable_sensitivity_projection(payload: dict[str, object]) -> dict[str, object]:
@@ -693,6 +902,8 @@ def _stable_comparison_report_projection(payload: dict[str, object]) -> dict[str
 def _stable_manifest_projection(
     payload: dict[str, object],
     project_root: Path,
+    *,
+    replay_schema_version: str,
 ) -> dict[str, object]:
     projected = {
         key: value for key, value in payload.items() if key not in {"environment", "manifest_id"}
@@ -702,7 +913,12 @@ def _stable_manifest_projection(
         raise ValueError("release artifact manifest artifacts must be a list")
     _require_unique_manifest_artifacts(artifacts, project_root=project_root)
     projected["artifacts"] = [
-        _stable_manifest_artifact_projection(artifact, project_root) for artifact in artifacts
+        _stable_manifest_artifact_projection(
+            artifact,
+            project_root,
+            replay_schema_version=replay_schema_version,
+        )
+        for artifact in artifacts
     ]
     return projected
 
@@ -747,6 +963,8 @@ def _require_unique_manifest_artifacts(
 def _stable_manifest_artifact_projection(
     artifact: object,
     project_root: Path,
+    *,
+    replay_schema_version: str,
 ) -> dict[str, object]:
     if not isinstance(artifact, dict):
         raise ValueError("release artifact manifest entry must be an object")
@@ -756,19 +974,24 @@ def _stable_manifest_artifact_projection(
     if not isinstance(recorded_sha256, str):
         raise ValueError(f"release artifact manifest entry for {role!r} must record sha256")
     projection: dict[str, object] = {"role": role, "path": path}
-    resolved_path = _resolve_replay_path(project_root, path)
     digest_mode = manifest_digest_mode_for_role(role)
-    actual_digest = None
-    if digest_mode == "raw-sha256":
-        actual_digest = _digest_for_artifact(
+    artifact_path = Path(path)
+    digest_snapshot: _ReplayDigestSnapshot | None = None
+    if digest_mode == "not-replayed":
+        actual_raw_digest = _read_release_artifact_snapshot(
+            role,
+            artifact_path,
+            project_root=project_root,
+        ).sha256
+    else:
+        digest_snapshot = _digest_snapshot_for_artifact(
             role=role,
-            path=resolved_path,
+            path=artifact_path,
             project_root=project_root,
             digest_mode=digest_mode,
+            replay_schema_version=replay_schema_version,
         )
-        actual_raw_digest = actual_digest
-    else:
-        actual_raw_digest = file_sha256(resolved_path)
+        actual_raw_digest = digest_snapshot.raw_sha256
     if recorded_sha256 != actual_raw_digest:
         raise ValueError(
             "release artifact manifest recorded digest mismatch: "
@@ -778,14 +1001,9 @@ def _stable_manifest_artifact_projection(
     if digest_mode == "not-replayed":
         projection["sha256"] = recorded_sha256
         return projection
-    if actual_digest is None:
-        actual_digest = _digest_for_artifact(
-            role=role,
-            path=resolved_path,
-            project_root=project_root,
-            digest_mode=digest_mode,
-        )
-    projection["sha256"] = actual_digest
+    if digest_snapshot is None:  # pragma: no cover - narrowed by digest_mode above
+        raise AssertionError("replayed manifest artifact digest was not computed")
+    projection["sha256"] = digest_snapshot.replay_sha256
     return projection
 
 
@@ -797,6 +1015,22 @@ def _drop_nested_keys(payload: dict[str, object], field: str, keys: set[str]) ->
     value = payload.get(field)
     if isinstance(value, dict):
         payload[field] = _without_keys(value, keys)
+
+
+def _relative_replay_input_path(path: Path, project_root: Path) -> str:
+    """Return a lexical root-relative path without following mutable links."""
+
+    if not path.is_absolute():
+        return path.as_posix()
+    absolute_root = Path(os.path.abspath(project_root))
+    absolute_path = Path(os.path.abspath(path))
+    try:
+        return absolute_path.relative_to(absolute_root).as_posix()
+    except ValueError as exc:
+        raise ValueError(
+            "release artifact paths must stay under project_root: "
+            f"{absolute_path} is outside {absolute_root}"
+        ) from exc
 
 
 def _resolve_replay_path(root: Path, path: str) -> Path:

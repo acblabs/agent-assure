@@ -175,7 +175,7 @@
       "type": "string"
     },
     "contract_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Contract Digest",
       "type": "string"
     },
@@ -197,7 +197,7 @@
     "operator_id": {
       "maxLength": 512,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Operator Id",
       "type": "string"
     },

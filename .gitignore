@@ -3,11 +3,13 @@
 .venv/
 .mypy_cache/
 .pytest_cache/
+.pytest-*/
 .ruff_cache/
 dist/
 build/
 schemas/unreleased/*.schema.json
 *.egg-info/
+.agent-assure-*.lock
 Lib/
 __pycache__/
 *.py[cod]

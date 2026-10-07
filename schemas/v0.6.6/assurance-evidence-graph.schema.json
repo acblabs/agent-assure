@@ -56,7 +56,7 @@
         "stratum": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Stratum",
           "type": "string"
         }
@@ -179,7 +179,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -191,7 +191,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -225,7 +225,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -243,7 +243,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -282,7 +282,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -318,7 +318,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -330,7 +330,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -342,7 +342,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -360,7 +360,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -371,7 +371,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -399,7 +399,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -420,7 +420,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -438,7 +438,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 8192,
@@ -484,12 +484,12 @@
           "$ref": "#/$defs/EvidenceGraphEdgeKind"
         },
         "source_node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Source Node Id",
           "type": "string"
         },
         "target_node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Target Node Id",
           "type": "string"
         }
@@ -529,7 +529,7 @@
         "source_artifact_kind": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Artifact Kind",
           "type": "string"
         },
@@ -540,7 +540,7 @@
           "type": "string"
         },
         "subject_node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Subject Node Id",
           "type": "string"
         }
@@ -624,7 +624,7 @@
         "privacy_profile_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -660,12 +660,12 @@
         "source_artifact_kind": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Artifact Kind",
           "type": "string"
         },
         "source_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Source Digest",
           "type": "string"
         },
@@ -743,7 +743,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -756,7 +756,7 @@
         "source_path": {
           "maxLength": 8192,
           "minLength": 1,
-          "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+$",
+          "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+(?![\\s\\S])",
           "title": "Source Path",
           "type": "string"
         },
@@ -794,14 +794,14 @@
           "type": "string"
         },
         "parent_evidence_node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Parent Evidence Node Id",
           "type": "string"
         },
         "source_artifact_kind": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Artifact Kind",
           "type": "string"
         },
@@ -814,12 +814,12 @@
         "source_path": {
           "maxLength": 8192,
           "minLength": 1,
-          "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+$",
+          "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+(?![\\s\\S])",
           "title": "Source Path",
           "type": "string"
         },
         "subject_node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Subject Node Id",
           "type": "string"
         }
@@ -898,7 +898,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 64,
@@ -929,7 +929,7 @@
         "source_artifact_kind": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Artifact Kind",
           "type": "string"
         },
@@ -942,7 +942,7 @@
         "source_path": {
           "maxLength": 8192,
           "minLength": 1,
-          "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+$",
+          "pattern": "^(?:/(?:\\*(?:(?:[^~/]|~[01]))+|(?:[^~/*]|~[01])(?:(?:[^~/]|~[01]))*|))+(?![\\s\\S])",
           "title": "Source Path",
           "type": "string"
         },
@@ -1014,7 +1014,7 @@
           "$ref": "#/$defs/EvidenceGraphNodeKind"
         },
         "node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Node Id",
           "type": "string"
         },
@@ -1045,7 +1045,7 @@
           "title": "Payload"
         },
         "payload_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Payload Digest",
           "type": "string"
         }
@@ -1143,7 +1143,7 @@
           "$ref": "#/$defs/EvidenceGraphRequirementType"
         },
         "subject_node_id": {
-          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+          "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
           "title": "Subject Node Id",
           "type": "string"
         }
@@ -1222,7 +1222,7 @@
           "$ref": "#/$defs/RAGSensitivityDecision"
         },
         "baseline_runset_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Runset Digest",
           "type": "string"
         },
@@ -1251,7 +1251,7 @@
           "$ref": "#/$defs/RAGSensitivityDecision"
         },
         "counterfactual_runset_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Runset Digest",
           "type": "string"
         },
@@ -1298,7 +1298,7 @@
           "$ref": "#/$defs/EvidenceSensitivityGateEffect"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
@@ -1317,7 +1317,7 @@
           "type": "string"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
@@ -1353,7 +1353,7 @@
         "synthetic_data_attestation_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1412,7 +1412,7 @@
         "analysis_adjusted_alpha": {
           "anyOf": [
             {
-              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1455,7 +1455,7 @@
         "analysis_p_value_upper_bound": {
           "anyOf": [
             {
-              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1494,7 +1494,7 @@
         "candidate_configuration_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1507,7 +1507,7 @@
         "candidate_runset_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1572,7 +1572,7 @@
           "type": "boolean"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
@@ -1644,7 +1644,7 @@
         "candidate_configuration_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1657,7 +1657,7 @@
         "candidate_runset_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1696,7 +1696,7 @@
         "estimated_response_rate": {
           "anyOf": [
             {
-              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1762,7 +1762,7 @@
           "type": "string"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
@@ -1776,7 +1776,7 @@
           "$ref": "#/$defs/StochasticSensitivityState"
         },
         "sufficiency_report_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sufficiency Report Digest",
           "type": "string"
         },
@@ -1825,7 +1825,7 @@
         "subject_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1869,7 +1869,7 @@
         "subject_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -2227,7 +2227,7 @@
       "type": "array"
     },
     "graph_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Graph Digest",
       "type": "string"
     },
@@ -2253,7 +2253,7 @@
     },
     "primary_subject_node_id": {
       "description": "Primary subject identity anchor. A graph may contain separate digest-scoped components, so this is not a complete traversal root and does not imply that gate-decision evidence is reachable from it.",
-      "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}$",
+      "pattern": "^(?:subject|requirement|evidence|finding):[a-f0-9]{64}(?![\\s\\S])",
       "title": "Primary Subject Node Id",
       "type": "string"
     },

@@ -13,7 +13,8 @@ from agent_assure.cli.main import app
 from agent_assure.live.config import LiveAdapterConfig, LivePromptCase, LiveRunConfig
 from agent_assure.schema.common import GateState
 from agent_assure.schema.live import (
-    LiveDriftReport,
+    LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
+    LiveComparisonReport,
     LiveEvaluationReport,
     LiveProtocolRecord,
     LiveTrajectoryReport,
@@ -99,6 +100,7 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
     compiled_path = tmp_path / "expense.compiled.json"
     runset_path = tmp_path / "expense.live.json"
     report_dir = tmp_path / "live-report"
+    comparison_dir = tmp_path / "live-comparison"
     drift_dir = tmp_path / "live-drift"
     trajectory_dir = tmp_path / "live-trajectory"
     prompt_path = tmp_path / "prompt-exp-001.txt"
@@ -221,13 +223,38 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
             str(drift_dir),
         ],
     )
-    assert drift_result.exit_code == 0, drift_result.output
-    drift_report = LiveDriftReport.model_validate_json(
-        (drift_dir / "live-drift-report.json").read_text(encoding="utf-8")
+    assert drift_result.exit_code == 2, drift_result.output
+    assert "source evaluation digests must be unique" in drift_result.output
+    assert not (drift_dir / "live-drift-report.json").exists()
+
+    compare_result = RUNNER.invoke(
+        app,
+        [
+            "live",
+            "compare",
+            str(report_dir / "live-evaluation-report.json"),
+            str(report_dir / "live-evaluation-report.json"),
+            "--protocol",
+            str(protocol_path),
+            "--out-dir",
+            str(comparison_dir),
+        ],
     )
-    assert drift_report.state is GateState.not_evaluated
-    assert drift_report.comparability.status == "pass"
-    assert (drift_dir / "live-drift-report.md").exists()
+    assert compare_result.exit_code == 1, compare_result.output
+    comparison_report = LiveComparisonReport.model_validate_json(
+        (comparison_dir / "live-comparison-report.json").read_text(encoding="utf-8")
+    )
+    assert comparison_report.state is GateState.fail
+    assert comparison_report.limitations.count(LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION) == 1
+    comparison_markdown = (comparison_dir / "live-comparison-report.md").read_text(encoding="utf-8")
+    assert (
+        f"Verification boundary: {LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION}."
+        in comparison_markdown
+    )
+    assert comparison_report.baseline_evaluation_digest is not None
+    assert comparison_report.candidate_evaluation_digest is not None
+    assert f"`{comparison_report.baseline_evaluation_digest}`" in comparison_markdown
+    assert f"`{comparison_report.candidate_evaluation_digest}`" in comparison_markdown
 
     trajectory_result = RUNNER.invoke(
         app,
@@ -243,16 +270,21 @@ def test_live_cli_static_adapter_runs_and_reports_repeated_observations(tmp_path
             str(trajectory_dir),
         ],
     )
-    assert trajectory_result.exit_code == 0, trajectory_result.output
+    assert trajectory_result.exit_code == 1, trajectory_result.output
     trajectory_report = LiveTrajectoryReport.model_validate_json(
         (trajectory_dir / "live-trajectory-report.json").read_text(encoding="utf-8")
     )
     assert trajectory_report.state is GateState.not_evaluated
-    assert trajectory_report.trajectory_status == "exploratory"
+    assert trajectory_report.trajectory_status == "invalid"
+    assert tuple(path.claim_evidence_status for path in trajectory_report.paths) == (
+        "complete",
+        "unobservable",
+    )
     assert any(
         invariant.invariant_id == "claim-evidence-before-approval"
-        and invariant.affected_observations == 1
-        and invariant.state is GateState.fail
+        and invariant.affected_observations == 0
+        and invariant.unobservable_observations == 1
+        and invariant.state is GateState.warn
         for invariant in trajectory_report.invariants
     )
     assert (trajectory_dir / "live-trajectory-report.md").exists()
@@ -329,7 +361,7 @@ def _response(*, repetition_index: int, linked: bool) -> dict[str, object]:
 def _protocol_payload(suite_digest: str) -> dict[str, object]:
     return {
         "artifact_kind": "live-protocol-record",
-        "schema_version": "0.2.0",
+        "schema_version": "0.6.6",
         "protocol_id": "protocol-cli-live",
         "suite_id": "expense-approval-minimal",
         "suite_version": "0.1.0",

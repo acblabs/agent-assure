@@ -49,6 +49,37 @@
     {
       "if": {
         "properties": {
+          "schema_version": {
+            "enum": [
+              "0.3.1",
+              "0.4.3"
+            ]
+          }
+        },
+        "required": [
+          "schema_version"
+        ]
+      },
+      "then": {
+        "not": {
+          "anyOf": [
+            {
+              "required": [
+                "estimated_cost_picousd_delta"
+              ]
+            },
+            {
+              "required": [
+                "estimated_cost_picousd_delta_bps"
+              ]
+            }
+          ]
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
           "estimated_cost_microusd_delta": {
             "type": "integer"
           }
@@ -63,6 +94,82 @@
             "const": "USD"
           }
         }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "estimated_cost_picousd_delta": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "estimated_cost_picousd_delta"
+        ]
+      },
+      "then": {
+        "properties": {
+          "currency": {
+            "const": "USD"
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "estimated_cost_microusd_delta": {
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        },
+        "required": [
+          "estimated_cost_microusd_delta"
+        ]
+      },
+      "then": {
+        "required": [
+          "estimated_cost_picousd_delta"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "estimated_cost_picousd_delta": {
+            "type": "integer"
+          },
+          "schema_version": {
+            "const": "0.6.6"
+          }
+        },
+        "required": [
+          "estimated_cost_picousd_delta"
+        ]
+      },
+      "then": {
+        "required": [
+          "estimated_cost_microusd_delta"
+        ]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "estimated_cost_picousd_delta_bps": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "estimated_cost_picousd_delta_bps"
+        ]
+      },
+      "then": {
+        "required": [
+          "estimated_cost_picousd_delta"
+        ]
       }
     }
   ],
@@ -93,7 +200,7 @@
     },
     "currency": {
       "default": "USD",
-      "pattern": "^[A-Z]{3}$",
+      "pattern": "^[A-Z]{3}(?![\\s\\S])",
       "title": "Currency",
       "type": "string"
     },
@@ -121,6 +228,30 @@
       "default": null,
       "title": "Estimated Cost Microusd Delta Bps"
     },
+    "estimated_cost_picousd_delta": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Cost Picousd Delta"
+    },
+    "estimated_cost_picousd_delta_bps": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Estimated Cost Picousd Delta Bps"
+    },
     "limitations": {
       "default": [],
       "items": {
@@ -130,8 +261,8 @@
       "type": "array"
     },
     "schema_version": {
-      "const": "0.4.3",
-      "default": "0.4.3",
+      "const": "0.6.6",
+      "default": "0.6.6",
       "title": "Schema Version",
       "type": "string"
     },

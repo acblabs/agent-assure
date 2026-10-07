@@ -11,11 +11,10 @@ import typer
 from pydantic import ValidationError
 
 from agent_assure import __version__
-from agent_assure.artifact_io import file_sha256
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.authoring.yaml_nodes import MAX_YAML_BYTES
 from agent_assure.cli.dates import parse_cli_date
-from agent_assure.cli.waivers import load_waivers
+from agent_assure.cli.waivers import load_waivers, waiver_evaluation_date
 from agent_assure.controls.coverage import build_control_coverage_report
 from agent_assure.controls.efficacy import (
     build_control_efficacy_report,
@@ -40,6 +39,7 @@ from agent_assure.onboarding.controls_mutation import (
     require_confined_input_directory,
 )
 from agent_assure.onboarding.diagnostics import bounded_error as _bounded_error
+from agent_assure.onboarding.diagnostics import display_path as _display_path
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile, Waiver
 from agent_assure.reporting.campaign import (
     ensure_inputs_do_not_alias_mutation_campaign_output,
@@ -56,7 +56,7 @@ from agent_assure.reporting.mutation import (
     ensure_inputs_do_not_alias_mutation_output,
     write_mutation_artifacts,
 )
-from agent_assure.reporting.packet import load_evidence_packet
+from agent_assure.reporting.packet import load_evidence_packet_with_digest
 from agent_assure.schema.campaign import (
     CORE_MUTATION_CATALOG_ID,
     AssuranceMutationCampaign,
@@ -106,19 +106,19 @@ def map_packet(
     ],
 ) -> None:
     try:
-        evidence_packet = load_evidence_packet(packet)
+        evidence_packet, evidence_packet_digest = load_evidence_packet_with_digest(packet)
         report = build_control_coverage_report(
             evidence_packet,
             framework=framework,
-            evidence_packet_digest=file_sha256(packet),
+            evidence_packet_digest=evidence_packet_digest,
         )
     except FileNotFoundError as exc:
-        raise typer.BadParameter(str(exc), param_hint="built-in mapping") from exc
+        raise typer.BadParameter(_bounded_error(exc), param_hint="built-in mapping") from exc
     except (ValueError, ValidationError) as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(_bounded_error(exc)) from exc
     report_json, report_markdown = write_control_coverage_report(report, out_dir)
-    typer.echo(f"control coverage report: {report_json}")
-    typer.echo(f"control coverage markdown: {report_markdown}")
+    typer.echo(f"control coverage report: {_display_path(report_json)}")
+    typer.echo(f"control coverage markdown: {_display_path(report_markdown)}")
 
 
 @app.command("efficacy")
@@ -281,8 +281,8 @@ def efficacy(
         f"{report.catalog_kill_rate.denominator} "
         f"({report.catalog_kill_rate.state.value})"
     )
-    typer.echo(f"control efficacy report: {written.report}")
-    typer.echo(f"control efficacy markdown: {written.markdown}")
+    typer.echo(f"control efficacy report: {_display_path(written.report)}")
+    typer.echo(f"control efficacy markdown: {_display_path(written.markdown)}")
     if decision.state is GateState.fail:
         raise typer.Exit(1)
 
@@ -428,7 +428,7 @@ def mutate(
         compiled = _load_mutation_suite(suite)
         source_payload = load_json_bounded(runset, label="RunSet JSON")
         waivers = load_waivers(tuple(waiver or ()))
-        evaluation_date = parse_cli_date(today) or date.today()
+        evaluation_date = waiver_evaluation_date(parse_cli_date(today), waivers=waivers)
     except (OSError, TypeError, ValueError) as exc:
         typer.echo(f"invalid mutation input: {_bounded_error(exc)}")
         raise typer.Exit(2) from exc
@@ -476,10 +476,10 @@ def mutate(
         raise typer.Exit(4) from exc
 
     typer.echo(f"mutation state: {execution.result.state.value}")
-    typer.echo(f"mutation result: {paths.result}")
-    typer.echo(f"evidence descriptor: {paths.evidence_descriptor}")
+    typer.echo(f"mutation result: {_display_path(paths.result)}")
+    typer.echo(f"evidence descriptor: {_display_path(paths.evidence_descriptor)}")
     if paths.mutated_runset is not None:
-        typer.echo(f"mutated run set: {paths.mutated_runset}")
+        typer.echo(f"mutated run set: {_display_path(paths.mutated_runset)}")
     if execution.result.state is MutationResultState.caught:
         typer.echo(
             "scope: the expected detector caught this exact fixture transformation; "
@@ -541,8 +541,8 @@ def _run_mutation_campaign(
         raise typer.Exit(4) from exc
 
     typer.echo(f"mutation campaign completion: {execution.campaign.completion.value}")
-    typer.echo(f"mutation catalog: {paths.catalog}")
-    typer.echo(f"mutation campaign: {paths.campaign}")
+    typer.echo(f"mutation catalog: {_display_path(paths.catalog)}")
+    typer.echo(f"mutation campaign: {_display_path(paths.campaign)}")
     typer.echo(f"mutation operator results: {len(execution.campaign.operator_results)}")
     state_counts: Counter[MutationResultState] = Counter()
     applicability_counts: Counter[MutationApplicability] = Counter()
@@ -566,7 +566,7 @@ def _run_mutation_campaign(
             for applicability in MutationApplicability
         )
     )
-    typer.echo(f"campaign generation manifest: {paths.generation_manifest}")
+    typer.echo(f"campaign generation manifest: {_display_path(paths.generation_manifest)}")
     independence_classes = ",".join(
         sorted(
             {entry.result.independence_class.value for entry in execution.campaign.operator_results}

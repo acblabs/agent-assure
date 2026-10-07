@@ -39,14 +39,14 @@
         "name": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Name",
           "type": "string"
         },
         "value": {
           "maxLength": 2048,
           "minLength": 1,
-          "pattern": "^[^\\x00\\r\\n]+$",
+          "pattern": "^[^\\x00\\r\\n]+(?![\\s\\S])",
           "title": "Value",
           "type": "string"
         }
@@ -63,7 +63,7 @@
       "description": "Human-reviewed binding between one Actions run and trusted workflow bytes.",
       "properties": {
         "execution_source_revision": {
-          "pattern": "^[a-f0-9]{40}$",
+          "pattern": "^[a-f0-9]{40}(?![\\s\\S])",
           "title": "Execution Source Revision",
           "type": "string"
         },
@@ -77,7 +77,7 @@
           "type": "array"
         },
         "public_inputs_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Public Inputs Sha256",
           "type": "string"
         },
@@ -87,12 +87,12 @@
           "type": "integer"
         },
         "run_head_sha": {
-          "pattern": "^[a-f0-9]{40}$",
+          "pattern": "^[a-f0-9]{40}(?![\\s\\S])",
           "title": "Run Head Sha",
           "type": "string"
         },
         "run_head_workflow_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Run Head Workflow Sha256",
           "type": "string"
         },
@@ -111,12 +111,12 @@
           "type": "string"
         },
         "trusted_workflow_revision": {
-          "pattern": "^[a-f0-9]{40}$",
+          "pattern": "^[a-f0-9]{40}(?![\\s\\S])",
           "title": "Trusted Workflow Revision",
           "type": "string"
         },
         "trusted_workflow_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Trusted Workflow Sha256",
           "type": "string"
         },
@@ -167,7 +167,7 @@
       "type": "string"
     },
     "artifact_manifest_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Artifact Manifest Digest",
       "type": "string"
     },
@@ -199,7 +199,7 @@
     "environment_control_evidence_artifact_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Environment Control Evidence Artifact Id",
       "type": "string"
     },
@@ -209,7 +209,7 @@
       "type": "boolean"
     },
     "environment_control_evidence_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Environment Control Evidence Sha256",
       "type": "string"
     },
@@ -224,7 +224,7 @@
       "type": "boolean"
     },
     "expected_release_line": {
-      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+      "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
       "title": "Expected Release Line",
       "type": "string"
     },
@@ -252,17 +252,17 @@
       "type": "boolean"
     },
     "pilot_evidence_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Pilot Evidence Digest",
       "type": "string"
     },
     "pilot_evidence_file_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Pilot Evidence File Sha256",
       "type": "string"
     },
     "pilot_execution_source_revision": {
-      "pattern": "^[a-f0-9]{40}$",
+      "pattern": "^[a-f0-9]{40}(?![\\s\\S])",
       "title": "Pilot Execution Source Revision",
       "type": "string"
     },
@@ -280,14 +280,14 @@
     "pilot_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Pilot Id",
       "type": "string"
     },
     "pilot_participant_pseudonym": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Pilot Participant Pseudonym",
       "type": "string"
     },
@@ -302,7 +302,7 @@
     "pilot_remediation_source_revision": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{40}$",
+          "pattern": "^[a-f0-9]{40}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -314,7 +314,7 @@
     "prior_planned_candidate_evidence_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {
@@ -336,19 +336,19 @@
     "publication_consent_artifact_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Publication Consent Artifact Id",
       "type": "string"
     },
     "publication_consent_sha256": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Publication Consent Sha256",
       "type": "string"
     },
     "receipt_id": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Receipt Id",
       "type": "string"
     },
@@ -364,12 +364,12 @@
       "type": "string"
     },
     "review_receipt_digest": {
-      "pattern": "^[a-f0-9]{64}$",
+      "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
       "title": "Review Receipt Digest",
       "type": "string"
     },
     "reviewed_at": {
-      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+      "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
       "title": "Reviewed At",
       "type": "string"
     },
@@ -393,7 +393,7 @@
     "reviewer_pseudonym": {
       "maxLength": 256,
       "minLength": 1,
-      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
       "title": "Reviewer Pseudonym",
       "type": "string"
     },

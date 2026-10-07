@@ -77,6 +77,129 @@
           "if": {
             "properties": {
               "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "model": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provenance": {
+                "properties": {
+                  "model_identifier": {
+                    "anyOf": [
+                      {
+                        "maxLength": 256,
+                        "minLength": 1,
+                        "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ]
+                  }
+                }
+              },
+              "provider": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_api_version": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_region": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_response_id": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "provider_sdk": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "resolved_model": {
+                "anyOf": [
+                  {
+                    "maxLength": 256,
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
                 "const": "0.6.1"
               }
             },
@@ -388,6 +511,34 @@
         {
           "if": {
             "properties": {
+              "estimated_cost_picousd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "estimated_cost_usd": {
+                "type": "string"
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_usd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "provider_response_payload_sha256": {
                 "type": "string"
               }
@@ -615,7 +766,7 @@
           "anyOf": [
             {
               "maxLength": 512,
-              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -641,7 +792,7 @@
         "cost_budget_committed_usd": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -650,6 +801,19 @@
           ],
           "default": null,
           "title": "Cost Budget Committed Usd"
+        },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
         },
         "estimated_cost_source": {
           "anyOf": [
@@ -672,7 +836,7 @@
         "estimated_cost_usd": {
           "anyOf": [
             {
-              "pattern": "^(0|[1-9][0-9]*)\\.[0-9]{6}$",
+              "pattern": "^(?:0|[1-9][0-9]*)\\.[0-9]{6}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -883,7 +1047,7 @@
             {
               "maxLength": 64,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9._:-]+$",
+              "pattern": "^[A-Za-z0-9._:-]+(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -938,7 +1102,7 @@
         "provider_response_payload_sha256": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -965,7 +1129,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9._:-]+$",
+              "pattern": "^[A-Za-z0-9._:-]+(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1083,7 +1247,7 @@
           "anyOf": [
             {
               "maxLength": 512,
-              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+              "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1141,7 +1305,7 @@
         "traceparent": {
           "anyOf": [
             {
-              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1212,7 +1376,7 @@
         "target_artifact_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Target Artifact Id",
           "type": "string"
         },
@@ -1223,7 +1387,7 @@
           "type": "string"
         },
         "target_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Target Digest",
           "type": "string"
         }
@@ -1239,22 +1403,22 @@
       "additionalProperties": false,
       "properties": {
         "achieved_power": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Achieved Power",
           "type": "string"
         },
         "achieved_type_i_error": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Achieved Type I Error",
           "type": "string"
         },
         "adjusted_alpha": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Adjusted Alpha",
           "type": "string"
         },
         "alternative_response_rate": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Alternative Response Rate",
           "type": "string"
         },
@@ -1282,7 +1446,7 @@
           "type": "integer"
         },
         "desired_power": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Desired Power",
           "type": "string"
         },
@@ -1293,18 +1457,18 @@
           "type": "string"
         },
         "familywise_alpha": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Familywise Alpha",
           "type": "string"
         },
         "maximum_exclusion_rate": {
           "default": "0.000000",
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Maximum Exclusion Rate",
           "type": "string"
         },
         "minimum_detectable_difference": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Minimum Detectable Difference",
           "type": "string"
         },
@@ -1329,7 +1493,7 @@
           "type": "string"
         },
         "null_response_rate": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Null Response Rate",
           "type": "string"
         },
@@ -1361,14 +1525,14 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
         "cluster_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Cluster Id",
           "type": "string"
         }
@@ -1510,7 +1674,7 @@
       "additionalProperties": false,
       "properties": {
         "adjusted_alpha": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Adjusted Alpha",
           "type": "string"
         },
@@ -1590,7 +1754,7 @@
         "monte_carlo_estimate": {
           "anyOf": [
             {
-              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1629,7 +1793,7 @@
         "monte_carlo_seed": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1651,17 +1815,17 @@
           "type": "integer"
         },
         "p_value_upper_bound": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "P Value Upper Bound",
           "type": "string"
         },
         "planned_cluster_difference_from_null": {
-          "pattern": "^-?(0|1)\\.[0-9]{6}$",
+          "pattern": "^-?(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Planned Cluster Difference From Null",
           "type": "string"
         },
         "planned_cluster_response_rate": {
-          "pattern": "^(0|1)\\.[0-9]{6}$",
+          "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
           "title": "Planned Cluster Response Rate",
           "type": "string"
         },
@@ -1796,6 +1960,29 @@
           }
         },
         {
+          "if": {
+            "properties": {
+              "fixture_equivalence_state": {
+                "const": "fail"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "fixture_equivalence_state"
+            ]
+          },
+          "then": {
+            "properties": {
+              "classification": {
+                "const": "invalid_comparison"
+              }
+            }
+          }
+        },
+        {
           "else": {
             "not": {
               "anyOf": [
@@ -1860,7 +2047,7 @@
         "baseline_runset_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1893,7 +2080,7 @@
         "candidate_runset_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -1942,7 +2129,7 @@
           "default": "not_evaluated"
         },
         "privacy_profile_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Privacy Profile Digest",
           "type": "string"
         },
@@ -2191,7 +2378,7 @@
           "type": "string"
         },
         "source_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Source Digest",
           "type": "string"
         },
@@ -2233,12 +2420,12 @@
         "profile_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Profile Id",
           "type": "string"
         },
         "report_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Report Digest",
           "type": "string"
         },
@@ -2265,7 +2452,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2280,7 +2467,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 8192,
@@ -2316,14 +2503,14 @@
           "default": "control-efficacy/default",
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Profile Id",
           "type": "string"
         },
         "required_catalog": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Required Catalog",
           "type": "string"
         },
@@ -2331,7 +2518,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2415,7 +2602,7 @@
           "type": "string"
         },
         "campaign_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Campaign Digest",
           "type": "string"
         },
@@ -2423,7 +2610,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2435,7 +2622,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2444,14 +2631,14 @@
           "type": "array"
         },
         "catalog_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Catalog Digest",
           "type": "string"
         },
         "catalog_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Catalog Id",
           "type": "string"
         },
@@ -2493,7 +2680,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2511,7 +2698,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -2550,7 +2737,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2606,7 +2793,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2614,7 +2801,7 @@
           "type": "array"
         },
         "report_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Report Digest",
           "type": "string"
         },
@@ -2623,7 +2810,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2635,7 +2822,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2653,7 +2840,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2676,7 +2863,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -2688,7 +2875,7 @@
           "$ref": "#/$defs/ControlEfficacySemanticState"
         },
         "source_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Source Digest",
           "type": "string"
         },
@@ -2696,7 +2883,7 @@
           "$ref": "#/$defs/MutationStateCounts"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         },
@@ -2719,7 +2906,7 @@
           "type": "array"
         },
         "threat_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Threat Manifest Digest",
           "type": "string"
         },
@@ -2737,7 +2924,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 4096,
@@ -2755,7 +2942,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 8192,
@@ -3435,7 +3622,7 @@
         "provider_seed_sharing_evidence_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -3524,7 +3711,7 @@
         "stratum": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Stratum",
           "type": "string"
         }
@@ -3571,7 +3758,7 @@
           "title": "Case Id"
         },
         "command_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Command Digest",
           "type": "string"
         },
@@ -3747,7 +3934,7 @@
         "traceparent": {
           "anyOf": [
             {
-              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}$",
+              "pattern": "^00-[a-f0-9]{32}-[a-f0-9]{16}-[a-f0-9]{2}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -3772,7 +3959,7 @@
         "working_directory_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -3809,7 +3996,7 @@
         "dependency_inventory_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -3866,7 +4053,7 @@
         "lockfile_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -3979,7 +4166,7 @@
           "type": "string"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         },
@@ -4074,6 +4261,44 @@
           }
         },
         {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            }
+          },
+          "then": {
+            "$comment": "Current EvaluationSummary parents enforce at runtime that each waiver expires no more than 90 days after evaluation_date; Draft 2020-12 cannot compare date-valued sibling fields.",
+            "properties": {
+              "replay_context": {
+                "anyOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "properties": {
+                      "waivers": {
+                        "items": {
+                          "$comment": "Current parent artifacts require bounded owner, reviewer, and rationale fields. Unicode-normalized reviewer independence and sensitive-value screening, unique waiver IDs, and replay/disposition coherence are runtime model constraints; uniqueItems rejects only byte-equivalent JSON members.",
+                          "required": [
+                            "owner",
+                            "reviewer",
+                            "rationale"
+                          ]
+                        },
+                        "type": "array",
+                        "uniqueItems": true
+                      }
+                    },
+                    "type": "object"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        {
           "else": {
             "not": {
               "anyOf": [
@@ -4154,8 +4379,20 @@
           "title": "Findings",
           "type": "array"
         },
+        "network_authority_receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveNetworkAuthorityReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Non-secret verified endpoint host and credential environment-variable name copied from the digest-bound source RunSet."
+        },
         "privacy_profile_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Privacy Profile Digest",
           "type": "string"
         },
@@ -4179,7 +4416,7 @@
         "runset_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -4226,10 +4463,10 @@
     },
     "EvaluationWaiverContext": {
       "additionalProperties": false,
-      "description": "Privacy-minimized waiver fields that can affect evaluation semantics.",
+      "description": "Bounded waiver governance and scoring fields required for exact replay.",
       "properties": {
         "artifact_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Artifact Digest",
           "type": "string"
         },
@@ -4244,8 +4481,26 @@
           "title": "Finding Id",
           "type": "string"
         },
+        "owner": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Owner",
+          "type": "string"
+        },
+        "rationale": {
+          "maxLength": 8192,
+          "minLength": 1,
+          "title": "Rationale",
+          "type": "string"
+        },
         "reason_code": {
           "$ref": "#/$defs/ReasonCode"
+        },
+        "reviewer": {
+          "maxLength": 512,
+          "minLength": 1,
+          "title": "Reviewer",
+          "type": "string"
         },
         "waiver_id": {
           "maxLength": 512,
@@ -4309,7 +4564,7 @@
           "type": "string"
         },
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
@@ -4493,7 +4748,7 @@
         "dimension": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Dimension",
           "type": "string"
         },
@@ -4532,7 +4787,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Confounding Dimensions",
@@ -4603,7 +4858,7 @@
         "check_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Check Id",
           "type": "string"
         },
@@ -4827,6 +5082,143 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "anyOf": [
+              {
+                "not": {
+                  "required": [
+                    "schema_version"
+                  ]
+                }
+              },
+              {
+                "properties": {
+                  "schema_version": {
+                    "const": "0.6.6"
+                  }
+                },
+                "required": [
+                  "schema_version"
+                ]
+              }
+            ]
+          },
+          "then": {
+            "anyOf": [
+              {
+                "properties": {
+                  "expected_recommendation": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "expected_recommendation"
+                ]
+              },
+              {
+                "properties": {
+                  "allowed_outcomes": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "allowed_outcomes"
+                ]
+              },
+              {
+                "properties": {
+                  "forbidden_outcomes": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "forbidden_outcomes"
+                ]
+              },
+              {
+                "properties": {
+                  "required_evidence_refs": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "required_evidence_refs"
+                ]
+              },
+              {
+                "properties": {
+                  "material_claim_ids": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "material_claim_ids"
+                ]
+              },
+              {
+                "properties": {
+                  "allowed_providers": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "allowed_providers"
+                ]
+              },
+              {
+                "properties": {
+                  "forbidden_providers": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "forbidden_providers"
+                ]
+              },
+              {
+                "properties": {
+                  "allowed_tools": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "allowed_tools"
+                ]
+              },
+              {
+                "properties": {
+                  "forbidden_tools": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "forbidden_tools"
+                ]
+              },
+              {
+                "properties": {
+                  "allowed_tools_override": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "allowed_tools_override"
+                ]
+              },
+              {
+                "properties": {
+                  "required_human_review": {
+                    "const": true
+                  }
+                },
+                "required": [
+                  "required_human_review"
+                ]
+              }
+            ]
+          }
         }
       ],
       "properties": {
@@ -4873,7 +5265,7 @@
         "expectation_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5169,7 +5561,7 @@
           "type": "string"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         },
@@ -5397,14 +5789,14 @@
         },
         "occurred_at_utc": {
           "maxLength": 512,
-          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])$",
+          "pattern": "^[0-9]{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12][0-9]|3[01])T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9](?:\\.[0-9]{1,6})?(?:Z|[+-](?:[01][0-9]|2[0-3]):[0-5][0-9])(?![\\s\\S])",
           "title": "Occurred At Utc",
           "type": "string"
         },
         "provider_response_id_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5435,7 +5827,7 @@
         "provider_response_payload_sha256": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5509,12 +5901,12 @@
       "description": "Digest-bound exhaustive journal embedded identically in both paired RunSets.",
       "properties": {
         "baseline_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Configuration Digest",
           "type": "string"
         },
         "counterfactual_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Configuration Digest",
           "type": "string"
         },
@@ -5534,7 +5926,7 @@
           "type": "string"
         },
         "journal_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Journal Digest",
           "type": "string"
         },
@@ -5545,12 +5937,12 @@
           "type": "string"
         },
         "operational_protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Operational Protocol Digest",
           "type": "string"
         },
         "repeated_protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Repeated Protocol Digest",
           "type": "string"
         },
@@ -5565,7 +5957,7 @@
         "study_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5587,6 +5979,32 @@
         "journal_digest"
       ],
       "title": "LiveExecutionAttemptJournal",
+      "type": "object"
+    },
+    "LiveNetworkAuthorityReceipt": {
+      "additionalProperties": false,
+      "description": "Non-secret record of the exact egress and credential-name authority used.",
+      "properties": {
+        "api_key_env": {
+          "maxLength": 128,
+          "minLength": 1,
+          "pattern": "^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*_(?:API_KEY|PROVIDER_KEY|TEST_KEY)(?![\\s\\S])",
+          "title": "Api Key Env",
+          "type": "string"
+        },
+        "endpoint_host": {
+          "maxLength": 253,
+          "minLength": 1,
+          "pattern": "^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|[0-9a-f:]{2,45})(?![\\s\\S])",
+          "title": "Endpoint Host",
+          "type": "string"
+        }
+      },
+      "required": [
+        "endpoint_host",
+        "api_key_env"
+      ],
+      "title": "LiveNetworkAuthorityReceipt",
       "type": "object"
     },
     "MutationApplicability": {
@@ -5671,7 +6089,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -5684,7 +6102,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -5697,14 +6115,14 @@
         "invariant_family": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Invariant Family",
           "type": "string"
         },
         "operator_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Operator Id",
           "type": "string"
         },
@@ -5713,7 +6131,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -5731,7 +6149,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -5744,7 +6162,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -5756,7 +6174,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 32,
@@ -5810,7 +6228,7 @@
           "type": "string"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         }
@@ -5856,7 +6274,7 @@
         "reason_code": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Reason Code",
           "type": "string"
         }
@@ -5877,7 +6295,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5938,7 +6356,7 @@
         "baseline_run_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5953,7 +6371,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -5966,14 +6384,14 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
         "cluster_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Cluster Id",
           "type": "string"
         },
@@ -5982,7 +6400,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6043,7 +6461,7 @@
         "counterfactual_run_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6058,7 +6476,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6076,7 +6494,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6205,7 +6623,7 @@
         "code_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6218,7 +6636,7 @@
         "configuration_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6231,7 +6649,7 @@
         "evidence_sensitivity_design_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6244,7 +6662,7 @@
         "fixture_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6269,7 +6687,7 @@
         "policy_bundle_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6282,7 +6700,7 @@
         "prompt_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6295,7 +6713,7 @@
         "retrieval_corpus_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6314,7 +6732,7 @@
         "study_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6327,7 +6745,7 @@
         "tool_schema_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -6351,7 +6769,7 @@
         "arm_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Arm Id",
           "type": "string"
         },
@@ -6359,7 +6777,7 @@
           "$ref": "#/$defs/GateState"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
@@ -6375,17 +6793,17 @@
         "corpus_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Corpus Id",
           "type": "string"
         },
         "corpus_manifest_file_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Manifest File Sha256",
           "type": "string"
         },
         "corpus_snapshot_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Snapshot Digest",
           "type": "string"
         },
@@ -6396,7 +6814,7 @@
           "$ref": "#/$defs/GateState"
         },
         "evaluation_summary_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Evaluation Summary Digest",
           "type": "string"
         },
@@ -6405,7 +6823,7 @@
           "type": "boolean"
         },
         "evidence_set_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Evidence Set Digest",
           "type": "string"
         },
@@ -6444,7 +6862,7 @@
           "default": null
         },
         "fixture_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Fixture Manifest Digest",
           "type": "string"
         },
@@ -6464,7 +6882,7 @@
           "$ref": "#/$defs/RAGSensitivityOutcome"
         },
         "query_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Query Digest",
           "type": "string"
         },
@@ -6481,7 +6899,7 @@
           "type": "array"
         },
         "retrieved_evidence_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Retrieved Evidence Digest",
           "type": "string"
         },
@@ -6489,14 +6907,14 @@
           "$ref": "#/$defs/EvidenceSensitivityArmRole"
         },
         "runset_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Runset Digest",
           "type": "string"
         },
         "runset_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Runset Id",
           "type": "string"
         }
@@ -6535,12 +6953,12 @@
         "claim_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Claim Id",
           "type": "string"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
@@ -6551,21 +6969,21 @@
           "$ref": "#/$defs/RAGSensitivityOutcome"
         },
         "governing_content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Governing Content Digest",
           "type": "string"
         },
         "governing_ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Governing Ref Id",
           "type": "string"
         },
         "governing_source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Governing Source Id",
           "type": "string"
         }
@@ -6598,7 +7016,7 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
@@ -6616,7 +7034,7 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         }
@@ -6633,7 +7051,7 @@
       "additionalProperties": false,
       "properties": {
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
@@ -6646,7 +7064,7 @@
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         }
@@ -6663,7 +7081,7 @@
       "additionalProperties": false,
       "properties": {
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
@@ -6676,14 +7094,14 @@
         "ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Ref Id",
           "type": "string"
         },
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         }
@@ -6720,19 +7138,19 @@
           "type": "string"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
         "corpus_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Corpus Id",
           "type": "string"
         },
         "corpus_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Corpus Version",
           "type": "string"
         },
@@ -6748,19 +7166,19 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         },
         "retrieval_algorithm_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Retrieval Algorithm Id",
           "type": "string"
         },
         "retrieval_algorithm_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Retrieval Algorithm Version",
           "type": "string"
         },
@@ -6826,7 +7244,7 @@
           "$ref": "#/$defs/RAGSensitivityCorpusManifest"
         },
         "corpus_manifest_file_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Manifest File Sha256",
           "type": "string"
         },
@@ -6858,7 +7276,7 @@
           "type": "string"
         },
         "snapshot_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Snapshot Digest",
           "type": "string"
         }
@@ -6923,7 +7341,7 @@
         "ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Ref Id",
           "type": "string"
         },
@@ -6931,7 +7349,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -6948,7 +7366,7 @@
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         },
@@ -6977,26 +7395,26 @@
         "claim_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Claim Id",
           "type": "string"
         },
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
         "ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Ref Id",
           "type": "string"
         },
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         }
@@ -7029,7 +7447,7 @@
           "$ref": "#/$defs/RAGSensitivityFixtureRole"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         },
@@ -7103,7 +7521,7 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
@@ -7141,7 +7559,7 @@
           "type": "string"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
@@ -7159,7 +7577,7 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         },
@@ -7205,7 +7623,7 @@
       "additionalProperties": false,
       "properties": {
         "agent_implementation_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Agent Implementation Digest",
           "type": "string"
         },
@@ -7227,61 +7645,61 @@
           "type": "array"
         },
         "baseline_corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Corpus Digest",
           "type": "string"
         },
         "baseline_corpus_document_catalog_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Corpus Document Catalog Digest",
           "type": "string"
         },
         "baseline_corpus_manifest_file_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Corpus Manifest File Sha256",
           "type": "string"
         },
         "baseline_corpus_query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Baseline Corpus Query Family Id",
           "type": "string"
         },
         "baseline_corpus_snapshot_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Corpus Snapshot Digest",
           "type": "string"
         },
         "baseline_evidence_set_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Evidence Set Digest",
           "type": "string"
         },
         "baseline_governing_evidence_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Governing Evidence Digest",
           "type": "string"
         },
         "baseline_governing_retrieval_identity_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Governing Retrieval Identity Digest",
           "type": "string"
         },
         "baseline_non_governing_evidence_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Baseline Non Governing Evidence Digest",
           "type": "string"
         },
         "baseline_retrieval_algorithm_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Baseline Retrieval Algorithm Id",
           "type": "string"
         },
         "baseline_retrieval_algorithm_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Baseline Retrieval Algorithm Version",
           "type": "string"
         },
@@ -7294,7 +7712,7 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
@@ -7314,61 +7732,61 @@
           "$ref": "#/$defs/EvidenceSensitivityDifferenceManifest"
         },
         "counterfactual_corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Corpus Digest",
           "type": "string"
         },
         "counterfactual_corpus_document_catalog_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Corpus Document Catalog Digest",
           "type": "string"
         },
         "counterfactual_corpus_manifest_file_sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Corpus Manifest File Sha256",
           "type": "string"
         },
         "counterfactual_corpus_query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Counterfactual Corpus Query Family Id",
           "type": "string"
         },
         "counterfactual_corpus_snapshot_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Corpus Snapshot Digest",
           "type": "string"
         },
         "counterfactual_evidence_set_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Evidence Set Digest",
           "type": "string"
         },
         "counterfactual_governing_evidence_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Governing Evidence Digest",
           "type": "string"
         },
         "counterfactual_governing_retrieval_identity_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Governing Retrieval Identity Digest",
           "type": "string"
         },
         "counterfactual_non_governing_evidence_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Counterfactual Non Governing Evidence Digest",
           "type": "string"
         },
         "counterfactual_retrieval_algorithm_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Counterfactual Retrieval Algorithm Id",
           "type": "string"
         },
         "counterfactual_retrieval_algorithm_version": {
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?![\\s\\S])",
           "title": "Counterfactual Retrieval Algorithm Version",
           "type": "string"
         },
@@ -7400,7 +7818,7 @@
         "fixture_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Fixture Id",
           "type": "string"
         },
@@ -7408,7 +7826,7 @@
           "$ref": "#/$defs/FixtureManifest"
         },
         "fixture_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Fixture Manifest Digest",
           "type": "string"
         },
@@ -7422,7 +7840,7 @@
           "type": "array"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
@@ -7438,37 +7856,37 @@
           "type": "array"
         },
         "model_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Model Digest",
           "type": "string"
         },
         "model_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Model Id",
           "type": "string"
         },
         "producer_version": {
           "default": "0.6.6",
-          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?$",
+          "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)(?:rc[1-9][0-9]*)?(?![\\s\\S])",
           "title": "Producer Version",
           "type": "string"
         },
         "prompt_template_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Prompt Template Digest",
           "type": "string"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
         "protocol_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Protocol Id",
           "type": "string"
         },
@@ -7485,14 +7903,14 @@
           "type": "string"
         },
         "query_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Query Digest",
           "type": "string"
         },
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         },
@@ -7500,7 +7918,7 @@
           "$ref": "#/$defs/RAGSensitivityRequest"
         },
         "request_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Request Digest",
           "type": "string"
         },
@@ -7538,7 +7956,7 @@
           "$ref": "#/$defs/RAGSensitivitySubjectConfig"
         },
         "subject_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Subject Configuration Digest",
           "type": "string"
         },
@@ -7551,19 +7969,19 @@
         "subject_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Subject Id",
           "type": "string"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         },
         "suite_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Suite Id",
           "type": "string"
         },
@@ -7581,7 +7999,7 @@
         "synthetic_data_attestation_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -7598,19 +8016,19 @@
           "$ref": "#/$defs/RAGSensitivityToolConfig"
         },
         "tool_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Tool Configuration Digest",
           "type": "string"
         },
         "tool_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Tool Id",
           "type": "string"
         },
         "tool_schema_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Tool Schema Digest",
           "type": "string"
         }
@@ -7847,14 +8265,14 @@
           "type": "array"
         },
         "report_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Report Digest",
           "type": "string"
         },
         "report_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Report Id",
           "type": "string"
         },
@@ -7882,7 +8300,7 @@
         "synthetic_data_attestation_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -7944,7 +8362,7 @@
         "claim_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Claim Id",
           "type": "string"
         },
@@ -7957,14 +8375,14 @@
         "query_family_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Query Family Id",
           "type": "string"
         },
         "request_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Request Id",
           "type": "string"
         }
@@ -7982,7 +8400,7 @@
       "additionalProperties": false,
       "properties": {
         "content_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Content Digest",
           "type": "string"
         },
@@ -8006,14 +8424,14 @@
         "ref_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Ref Id",
           "type": "string"
         },
         "source_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Source Id",
           "type": "string"
         }
@@ -8034,14 +8452,14 @@
       "additionalProperties": false,
       "properties": {
         "agent_implementation_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Agent Implementation Digest",
           "type": "string"
         },
         "agent_implementation_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Agent Implementation Id",
           "type": "string"
         },
@@ -8082,33 +8500,33 @@
           "$ref": "#/$defs/RAGSensitivitySubjectMode"
         },
         "model_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Model Digest",
           "type": "string"
         },
         "model_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Model Id",
           "type": "string"
         },
         "prompt_template_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Prompt Template Digest",
           "type": "string"
         },
         "prompt_template_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Prompt Template Id",
           "type": "string"
         },
         "subject_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Subject Id",
           "type": "string"
         }
@@ -8145,14 +8563,14 @@
           "type": "string"
         },
         "attestation_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Attestation Digest",
           "type": "string"
         },
         "attestation_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Attestation Id",
           "type": "string"
         },
@@ -8182,7 +8600,7 @@
         },
         "corpus_digests": {
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 2,
@@ -8192,7 +8610,7 @@
         },
         "corpus_snapshot_digests": {
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 2,
@@ -8207,12 +8625,12 @@
           "type": "string"
         },
         "fixture_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Fixture Manifest Digest",
           "type": "string"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
@@ -8241,7 +8659,7 @@
           "type": "string"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         }
@@ -8281,12 +8699,12 @@
         "tool_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Tool Id",
           "type": "string"
         },
         "tool_schema_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Tool Schema Digest",
           "type": "string"
         },
@@ -8357,7 +8775,7 @@
           "type": "string"
         },
         "sha256": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Sha256",
           "type": "string"
         }
@@ -8827,7 +9245,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Allowed Exclusion Reasons",
@@ -8928,7 +9346,7 @@
           "title": "Design"
         },
         "design_commitment_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Design Commitment Digest",
           "type": "string"
         },
@@ -8943,7 +9361,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -8993,7 +9411,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9042,7 +9460,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 10000,
@@ -9054,7 +9472,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 10000,
@@ -9069,14 +9487,14 @@
           "type": "integer"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
         "protocol_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Protocol Id",
           "type": "string"
         },
@@ -9126,7 +9544,7 @@
         "case_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Case Id",
           "type": "string"
         },
@@ -9136,14 +9554,14 @@
           "type": "integer"
         },
         "run_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Run Digest",
           "type": "string"
         },
         "run_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Run Id",
           "type": "string"
         }
@@ -9245,6 +9663,353 @@
           }
         },
         {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "const": "live"
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "execution_mode"
+            ]
+          },
+          "then": {
+            "oneOf": [
+              {
+                "properties": {
+                  "completion_status": {
+                    "const": "complete"
+                  },
+                  "stop_reasons": {
+                    "maxItems": 0
+                  }
+                }
+              },
+              {
+                "properties": {
+                  "completion_status": {
+                    "const": "incomplete"
+                  },
+                  "stop_reasons": {
+                    "minItems": 1
+                  }
+                },
+                "required": [
+                  "completion_status",
+                  "stop_reasons"
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "const": "live"
+              },
+              "runs": {
+                "contains": {
+                  "properties": {
+                    "adapter_id": {
+                      "const": "openai-chat-completions"
+                    }
+                  },
+                  "required": [
+                    "adapter_id"
+                  ]
+                }
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "schema_version",
+              "execution_mode",
+              "runs"
+            ]
+          },
+          "then": {
+            "required": [
+              "network_authority_receipt"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "runs": {
+                "items": {
+                  "properties": {
+                    "model": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "provenance": {
+                      "properties": {
+                        "model_identifier": {
+                          "anyOf": [
+                            {
+                              "maxLength": 256,
+                              "minLength": 1,
+                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                              "type": "string"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ]
+                        }
+                      }
+                    },
+                    "provider": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "provider_api_version": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "provider_region": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "provider_response_id": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "provider_sdk": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    },
+                    "resolved_model": {
+                      "anyOf": [
+                        {
+                          "maxLength": 256,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "execution_mode": {
+                "const": "live"
+              },
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            },
+            "required": [
+              "execution_mode"
+            ]
+          },
+          "then": {
+            "properties": {
+              "runs": {
+                "items": {
+                  "properties": {
+                    "cost_budget_committed_usd": {
+                      "type": "string"
+                    },
+                    "generated_token_budget_committed": {
+                      "type": "integer"
+                    },
+                    "total_token_budget_committed": {
+                      "type": "integer"
+                    }
+                  },
+                  "required": [
+                    "cost_budget_committed_usd",
+                    "generated_token_budget_committed",
+                    "total_token_budget_committed"
+                  ]
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.6.6"
+                ]
+              }
+            }
+          },
+          "then": {
+            "$comment": "Runtime validation also enforces one content_digest for each (ref_id, source_id) evidence-item identity; Draft 2020-12 cannot express compound-key functional dependencies.",
+            "properties": {
+              "runs": {
+                "items": {
+                  "properties": {
+                    "claim_evidence_links": {
+                      "items": {
+                        "properties": {
+                          "claim_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          },
+                          "evidence_ref_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "claims": {
+                      "items": {
+                        "properties": {
+                          "claim_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "evidence_items": {
+                      "items": {
+                        "properties": {
+                          "ref_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          },
+                          "source_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "evidence_refs": {
+                      "items": {
+                        "properties": {
+                          "claim_ids": {
+                            "items": {
+                              "maxLength": 256,
+                              "minLength": 1,
+                              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                              "type": "string"
+                            }
+                          },
+                          "ref_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          },
+                          "source_id": {
+                            "maxLength": 256,
+                            "minLength": 1,
+                            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
           "else": {
             "not": {
               "anyOf": [
@@ -9326,7 +10091,7 @@
         "evidence_sensitivity_design_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9364,7 +10129,7 @@
         "execution_attempt_journal_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9379,12 +10144,24 @@
           "default": "fixture"
         },
         "fixture_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Fixture Manifest Digest",
           "type": "string"
         },
+        "network_authority_receipt": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/LiveNetworkAuthorityReceipt"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "description": "Non-secret endpoint host and credential environment-variable name independently authorized for first-party network execution."
+        },
         "privacy_profile_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Privacy Profile Digest",
           "type": "string"
         },
@@ -9396,7 +10173,7 @@
         "protocol_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9447,7 +10224,7 @@
         "study_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9458,7 +10235,7 @@
           "title": "Study Manifest Digest"
         },
         "suite_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Suite Digest",
           "type": "string"
         },
@@ -9527,24 +10304,24 @@
           "type": "string"
         },
         "evidence_sensitivity_design_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Evidence Sensitivity Design Digest",
           "type": "string"
         },
         "execution_configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Execution Configuration Digest",
           "type": "string"
         },
         "operational_protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Operational Protocol Digest",
           "type": "string"
         },
         "operational_protocol_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Operational Protocol Id",
           "type": "string"
         },
@@ -9558,14 +10335,14 @@
           "type": "array"
         },
         "runset_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Runset Digest",
           "type": "string"
         },
         "runset_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Runset Id",
           "type": "string"
         },
@@ -9574,7 +10351,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Stop Reasons",
@@ -9583,7 +10360,7 @@
         "study_manifest_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9613,7 +10390,7 @@
         "adapter_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Adapter Id",
           "type": "string"
         },
@@ -9626,17 +10403,17 @@
           "type": "string"
         },
         "case_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Case Manifest Digest",
           "type": "string"
         },
         "configuration_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Configuration Digest",
           "type": "string"
         },
         "corpus_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Corpus Digest",
           "type": "string"
         },
@@ -9647,31 +10424,31 @@
           "$ref": "#/$defs/RAGSensitivityDecision"
         },
         "knowledge_contract_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Knowledge Contract Digest",
           "type": "string"
         },
         "pipeline_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Pipeline Id",
           "type": "string"
         },
         "policy_bundle_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Policy Bundle Digest",
           "type": "string"
         },
         "prompt_manifest_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Prompt Manifest Digest",
           "type": "string"
         },
         "provider": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Provider",
           "type": "string"
         },
@@ -9680,7 +10457,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9695,7 +10472,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9710,7 +10487,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9723,7 +10500,7 @@
         "requested_model": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
           "title": "Requested Model",
           "type": "string"
         },
@@ -9732,7 +10509,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -9743,7 +10520,7 @@
           "title": "Resolved Model"
         },
         "tool_schema_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Tool Schema Digest",
           "type": "string"
         }
@@ -9909,14 +10686,14 @@
           "$ref": "#/$defs/RepeatedEvidenceSensitivityProtocol"
         },
         "report_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Report Digest",
           "type": "string"
         },
         "report_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Report Id",
           "type": "string"
         },
@@ -10061,7 +10838,7 @@
         "estimated_response_rate": {
           "anyOf": [
             {
-              "pattern": "^(0|1)\\.[0-9]{6}$",
+              "pattern": "^(?:0\\.[0-9]{6}|1\\.000000)(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -10132,26 +10909,26 @@
           "type": "string"
         },
         "protocol_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Protocol Digest",
           "type": "string"
         },
         "protocol_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Protocol Id",
           "type": "string"
         },
         "report_digest": {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "title": "Report Digest",
           "type": "string"
         },
         "report_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Report Id",
           "type": "string"
         },
@@ -10290,7 +11067,7 @@
         "check_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Check Id",
           "type": "string"
         },
@@ -10299,7 +11076,7 @@
             {
               "maxLength": 256,
               "minLength": 1,
-              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -10479,7 +11256,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -10495,7 +11272,7 @@
           "items": {
             "maxLength": 256,
             "minLength": 1,
-            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
             "type": "string"
           },
           "maxItems": 256,
@@ -10505,7 +11282,7 @@
         "threat_id": {
           "maxLength": 256,
           "minLength": 1,
-          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}$",
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])",
           "title": "Threat Id",
           "type": "string"
         }
@@ -10531,12 +11308,121 @@
       "type": "string"
     },
     "UsageLedger": {
-      "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. JSON Schema validates shape and non-negative counts.",
+      "$comment": "Pydantic validation verifies that missingness equals the counts derived from segments. A current parent ledger also revalidates provider and model identifiers on every nested segment, including legacy-version segments. JSON Schema mirrors that parent-owned identifier boundary while validating shape and non-negative counts.",
       "additionalProperties": false,
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_known_fields_v1"
+              }
+            },
+            "required": [
+              "aggregation_method"
+            ]
+          },
+          "then": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "segments": {
+                "items": {
+                  "properties": {
+                    "model": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+                    },
+                    "provider": {
+                      "maxLength": 256,
+                      "minLength": 1,
+                      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          }
+        }
+      ],
       "properties": {
         "aggregation_method": {
-          "const": "sum_known_fields_v1",
-          "default": "sum_known_fields_v1",
+          "default": "sum_complete_fields_v2",
+          "enum": [
+            "sum_known_fields_v1",
+            "sum_complete_fields_v2"
+          ],
           "title": "Aggregation Method",
           "type": "string"
         },
@@ -10556,8 +11442,8 @@
           "type": "object"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -10575,6 +11461,43 @@
         "schema_version"
       ],
       "title": "UsageLedger",
+      "type": "object"
+    },
+    "UsageMetricCoverage": {
+      "additionalProperties": false,
+      "properties": {
+        "estimated_cost_microusd": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Estimated Cost Microusd",
+          "type": "integer"
+        },
+        "total_latency_ms": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Latency Ms",
+          "type": "integer"
+        },
+        "total_retries": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Retries",
+          "type": "integer"
+        },
+        "total_tokens": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tokens",
+          "type": "integer"
+        },
+        "total_tool_calls": {
+          "default": 0,
+          "minimum": 0,
+          "title": "Total Tool Calls",
+          "type": "integer"
+        }
+      },
+      "title": "UsageMetricCoverage",
       "type": "object"
     },
     "UsageSegment": {
@@ -10606,6 +11529,32 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -10625,6 +11574,35 @@
             },
             "required": [
               "limitations"
+            ]
+          }
+        },
+        {
+          "else": {
+            "properties": {
+              "model": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?:@[A-Za-z0-9][A-Za-z0-9._:/-]{0,254})?(?![\\s\\S])"
+              },
+              "provider": {
+                "maxLength": 256,
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}(?![\\s\\S])"
+              }
+            }
+          },
+          "if": {
+            "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
             ]
           }
         }
@@ -10688,7 +11666,7 @@
         },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -10704,6 +11682,19 @@
           ],
           "default": null,
           "title": "Estimated Cost Microusd"
+        },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
         },
         "event_range_end": {
           "anyOf": [
@@ -10791,7 +11782,7 @@
         "pricing_snapshot_digest": {
           "anyOf": [
             {
-              "pattern": "^[a-f0-9]{64}$",
+              "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
               "type": "string"
             },
             {
@@ -10877,8 +11868,8 @@
           "title": "Run Id"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -10978,6 +11969,98 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "aggregation_method"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_basis"
+                  ]
+                },
+                {
+                  "required": [
+                    "source_count"
+                  ]
+                },
+                {
+                  "required": [
+                    "coverage_counts"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "properties": {
+              "aggregation_method": {
+                "const": "sum_complete_fields_v2"
+              }
+            },
+            "required": [
+              "aggregation_method",
+              "coverage_basis",
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "schema_version",
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd": {
                 "type": "integer"
               }
@@ -10993,9 +12076,175 @@
               }
             }
           }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tokens": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tokens"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tokens": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_tool_calls": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_tool_calls"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_tool_calls": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_retries": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_retries"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_retries": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "total_latency_ms": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "total_latency_ms"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "total_latency_ms": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd"
+            ]
+          },
+          "then": {
+            "properties": {
+              "coverage_counts": {
+                "properties": {
+                  "estimated_cost_microusd": {
+                    "minimum": 1
+                  }
+                }
+              },
+              "source_count": {
+                "minimum": 1
+              }
+            },
+            "required": [
+              "source_count",
+              "coverage_counts"
+            ]
+          }
         }
       ],
       "properties": {
+        "aggregation_method": {
+          "anyOf": [
+            {
+              "enum": [
+                "sum_known_fields_v1",
+                "sum_complete_fields_v2"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Aggregation Method"
+        },
         "artifact_kind": {
           "const": "usage-summary",
           "default": "usage-summary",
@@ -11023,9 +12272,37 @@
           "default": null,
           "title": "Cost Observation Count"
         },
+        "coverage_basis": {
+          "anyOf": [
+            {
+              "enum": [
+                "usage_segment",
+                "usage_summary",
+                "run_record"
+              ],
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Coverage Basis"
+        },
+        "coverage_counts": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/UsageMetricCoverage"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -11042,6 +12319,19 @@
           "default": null,
           "title": "Estimated Cost Microusd"
         },
+        "estimated_cost_picousd": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -11053,7 +12343,7 @@
         "pricing_snapshot_digests": {
           "default": [],
           "items": {
-            "pattern": "^[a-f0-9]{64}$",
+            "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
             "type": "string"
           },
           "title": "Pricing Snapshot Digests",
@@ -11068,10 +12358,23 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
+        },
+        "source_count": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Count"
         },
         "total_latency_ms": {
           "anyOf": [
@@ -11182,6 +12485,37 @@
         {
           "if": {
             "properties": {
+              "schema_version": {
+                "enum": [
+                  "0.3.1",
+                  "0.4.3"
+                ]
+              }
+            },
+            "required": [
+              "schema_version"
+            ]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "estimated_cost_picousd_delta"
+                  ]
+                },
+                {
+                  "required": [
+                    "estimated_cost_picousd_delta_bps"
+                  ]
+                }
+              ]
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
               "estimated_cost_microusd_delta": {
                 "type": "integer"
               }
@@ -11196,6 +12530,82 @@
                 "const": "USD"
               }
             }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_picousd_delta": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
+          },
+          "then": {
+            "properties": {
+              "currency": {
+                "const": "USD"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_microusd_delta": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "estimated_cost_microusd_delta"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_picousd_delta": {
+                "type": "integer"
+              },
+              "schema_version": {
+                "const": "0.6.6"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_microusd_delta"
+            ]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "estimated_cost_picousd_delta_bps": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "estimated_cost_picousd_delta_bps"
+            ]
+          },
+          "then": {
+            "required": [
+              "estimated_cost_picousd_delta"
+            ]
           }
         }
       ],
@@ -11226,7 +12636,7 @@
         },
         "currency": {
           "default": "USD",
-          "pattern": "^[A-Z]{3}$",
+          "pattern": "^[A-Z]{3}(?![\\s\\S])",
           "title": "Currency",
           "type": "string"
         },
@@ -11254,6 +12664,30 @@
           "default": null,
           "title": "Estimated Cost Microusd Delta Bps"
         },
+        "estimated_cost_picousd_delta": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd Delta"
+        },
+        "estimated_cost_picousd_delta_bps": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Estimated Cost Picousd Delta Bps"
+        },
         "limitations": {
           "default": [],
           "items": {
@@ -11263,8 +12697,8 @@
           "type": "array"
         },
         "schema_version": {
-          "const": "0.4.3",
-          "default": "0.4.3",
+          "const": "0.6.6",
+          "default": "0.6.6",
           "title": "Schema Version",
           "type": "string"
         },
@@ -12140,7 +13574,7 @@
     "evidence_graph_digest": {
       "anyOf": [
         {
-          "pattern": "^[a-f0-9]{64}$",
+          "pattern": "^[a-f0-9]{64}(?![\\s\\S])",
           "type": "string"
         },
         {

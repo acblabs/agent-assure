@@ -10,7 +10,8 @@ from pydantic import BaseModel
 def published_model_json_bytes(model: BaseModel) -> bytes:
     """Return the one canonical human-readable JSON encoding used in bundles."""
 
-    payload = model.model_dump(mode="json", warnings="error")
+    validated_model = type(model).model_validate(model.model_dump(mode="json", warnings="error"))
+    payload = validated_model.model_dump(mode="json", warnings="error")
     return (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
 
 
@@ -22,7 +23,9 @@ def require_published_model_json_bytes(
 ) -> bytes:
     """Accept omitted bytes or require exact correspondence to the supplied model."""
 
-    expected = published_model_json_bytes(model)
+    validated_model = type(model).model_validate(model.model_dump(mode="json", warnings="error"))
+    payload = validated_model.model_dump(mode="json", warnings="error")
+    expected = (json.dumps(payload, indent=2, sort_keys=True) + "\n").encode("utf-8")
     if supplied is None:
         return expected
     if not isinstance(supplied, bytes) or supplied != expected:

@@ -44,6 +44,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     StatisticalSufficiencyReport,
     StochasticEvidenceSensitivityReport,
 )
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 REPEATED_ANALYSIS_OUTPUT_FILENAMES = (
     "repeated-evidence-sensitivity-protocol.json",
@@ -101,9 +102,24 @@ def write_repeated_analysis_artifacts(
     out_dir: Path,
 ) -> dict[str, Path]:
     """Publish one coherent, inspectable analysis generation."""
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
-    sufficiency = StatisticalSufficiencyReport.model_validate(sufficiency.model_dump(mode="json"))
-    report = StochasticEvidenceSensitivityReport.model_validate(report.model_dump(mode="json"))
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
+    sufficiency_payload = sufficiency.model_dump(mode="json", warnings="error")
+    sufficiency = StatisticalSufficiencyReport.model_validate(sufficiency_payload)
+    validate_loaded_artifact_payload(
+        sufficiency_payload,
+        "statistical-sufficiency-report",
+    )
+    report_payload = report.model_dump(mode="json", warnings="error")
+    report = StochasticEvidenceSensitivityReport.model_validate(report_payload)
+    validate_loaded_artifact_payload(
+        report_payload,
+        "stochastic-evidence-sensitivity-report",
+    )
     if sufficiency.protocol != protocol:
         raise ValueError("sufficiency artifact does not embed the exact supplied protocol")
     if report.sufficiency_report != sufficiency:
@@ -166,7 +182,12 @@ def write_repeated_run_artifacts(
     out_dir: Path,
 ) -> dict[str, Path]:
     """Publish paired RunSets only after applying the established privacy filter."""
-    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol.model_dump(mode="json"))
+    protocol_payload = protocol.model_dump(mode="json", warnings="error")
+    protocol = RepeatedEvidenceSensitivityProtocol.model_validate(protocol_payload)
+    validate_loaded_artifact_payload(
+        protocol_payload,
+        "repeated-evidence-sensitivity-protocol",
+    )
     baseline = _safe_runset_for_persistence(baseline)
     counterfactual = _safe_runset_for_persistence(counterfactual)
     texts = {
@@ -188,7 +209,12 @@ def write_repeated_run_artifacts(
 def render_stochastic_sensitivity_markdown(
     report: StochasticEvidenceSensitivityReport,
 ) -> str:
-    report = StochasticEvidenceSensitivityReport.model_validate(report.model_dump(mode="json"))
+    report_payload = report.model_dump(mode="json", warnings="error")
+    report = StochasticEvidenceSensitivityReport.model_validate(report_payload)
+    validate_loaded_artifact_payload(
+        report_payload,
+        "stochastic-evidence-sensitivity-report",
+    )
     sufficiency = report.sufficiency_report
     protocol = sufficiency.protocol
     analysis = sufficiency.analysis
@@ -315,14 +341,18 @@ def _model_json_text(model: BaseModel) -> str:
 
 
 def _safe_runset_for_persistence(runset: RunSet) -> RunSet:
-    runset = RunSet.model_validate(runset.model_dump(mode="json"))
-    payload = redact_runset_payload(runset.model_dump(mode="json"))
+    runset = RunSet.model_validate(runset.model_dump(mode="json", warnings="error"))
+    payload = redact_runset_payload(runset.model_dump(mode="json", warnings="error"))
     assert_runset_payload_safe_for_persistence(payload)
-    return RunSet.model_validate(payload)
+    runset = RunSet.model_validate(payload)
+    persisted_payload = runset.model_dump(mode="json", warnings="error")
+    assert_runset_payload_safe_for_persistence(persisted_payload)
+    validate_loaded_artifact_payload(persisted_payload, "run-set")
+    return runset
 
 
 def _unchanged_safe_runset_for_analysis(runset: RunSet) -> RunSet:
-    runset = RunSet.model_validate(runset.model_dump(mode="json"))
+    runset = RunSet.model_validate(runset.model_dump(mode="json", warnings="error"))
     original = runset.model_dump(mode="json", warnings="error")
     filtered = redact_runset_payload(original)
     assert_runset_payload_safe_for_persistence(filtered)
@@ -331,6 +361,7 @@ def _unchanged_safe_runset_for_analysis(runset: RunSet) -> RunSet:
             "analysis source RunSets must already be privacy-filtered because "
             "redaction would invalidate their cryptographic dependencies"
         )
+    validate_loaded_artifact_payload(original, "run-set")
     return runset
 
 

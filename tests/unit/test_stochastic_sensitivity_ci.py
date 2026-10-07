@@ -18,7 +18,10 @@ from agent_assure.ci import (
 )
 from agent_assure.cli.main import app
 from agent_assure.privacy.detectors import PRIVACY_PROFILE_DIGEST, PRIVACY_PROFILE_ID
-from agent_assure.rag.repeated_sensitivity import build_paired_runset_dependencies
+from agent_assure.rag.repeated_sensitivity import (
+    assemble_paired_observations,
+    build_paired_runset_dependencies,
+)
 from agent_assure.rag.sensitivity_statistics import (
     build_stochastic_sensitivity_report,
     evaluate_statistical_sufficiency,
@@ -29,7 +32,7 @@ from agent_assure.reporting.packet import (
     DEFAULT_PACKET_LIMITATIONS,
     build_evidence_packet,
 )
-from agent_assure.schema.base import SchemaVersion
+from agent_assure.schema.base import SCHEMA_VERSION, SchemaVersion
 from agent_assure.schema.common import GateState, ReasonCode
 from agent_assure.schema.environment import EnvironmentInfo
 from agent_assure.schema.evaluation import EvaluationSummary
@@ -54,6 +57,7 @@ from agent_assure.schema.stochastic_sensitivity import (
     StochasticGateEffect,
 )
 from tests.stochastic_source_support import (
+    bind_complete_attempt_journal,
     build_case_authority_bindings,
     materialize_stochastic_sources,
 )
@@ -69,7 +73,6 @@ _ReportMode = Literal[
 ]
 RUNNER = CliRunner()
 REQUIRE_FLAG = "--require-stochastic-evidence-sensitivity"
-_LEGACY_STOCHASTIC_SCHEMA_VERSION: Literal["0.6.5"] = "0.6.5"
 
 
 @pytest.mark.parametrize(
@@ -550,24 +553,24 @@ def _packet_fixture(mode: _ReportMode) -> tuple[EvidencePacket, tuple[RunSet, Ru
         statistical_sufficiency=sufficiency,
         stochastic_evidence_sensitivity=stochastic,
         artifact_digests=(
-            _evaluation_digest(schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION),
+            _evaluation_digest(schema_version=SCHEMA_VERSION),
             PacketArtifactDigest(
-                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+                schema_version=SCHEMA_VERSION,
                 role="statistical-sufficiency-report",
                 sha256="b" * 64,
             ),
             PacketArtifactDigest(
-                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+                schema_version=SCHEMA_VERSION,
                 role="stochastic-evidence-sensitivity-report",
                 sha256="c" * 64,
             ),
             PacketArtifactDigest(
-                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+                schema_version=SCHEMA_VERSION,
                 role="stochastic-baseline-source-runset",
                 sha256="d" * 64,
             ),
             PacketArtifactDigest(
-                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+                schema_version=SCHEMA_VERSION,
                 role="stochastic-counterfactual-source-runset",
                 sha256="e" * 64,
             ),
@@ -687,7 +690,7 @@ def _write_packet_fixture_bundle(
         _write_json(path, artifact.model_dump(mode="json"))
     release_artifacts = tuple(
         ReleaseArtifact(
-            schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+            schema_version=SCHEMA_VERSION,
             role=role,
             path=path.name,
             sha256=sha256(path.read_bytes()).hexdigest(),
@@ -695,11 +698,11 @@ def _write_packet_fixture_bundle(
         for role, path, _ in sources
     )
     manifest = ReleaseArtifactManifest(
-        schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+        schema_version=SCHEMA_VERSION,
         manifest_id=f"stochastic-ci-{packet.packet_id}",
         artifacts=release_artifacts,
         environment=EnvironmentInfo(
-            schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+            schema_version=SCHEMA_VERSION,
             platform="test",
             python_version="3.12",
         ),
@@ -711,7 +714,7 @@ def _write_packet_fixture_bundle(
         release_manifest=manifest,
         artifact_digests=tuple(
             PacketArtifactDigest(
-                schema_version=_LEGACY_STOCHASTIC_SCHEMA_VERSION,
+                schema_version=SCHEMA_VERSION,
                 role=cast(PacketArtifactRole, artifact.role),
                 sha256=artifact.sha256,
             )
@@ -754,8 +757,9 @@ def _reports(
         corpus_digest="3" * 64,
     )
     protocol = RepeatedEvidenceSensitivityProtocol.build(
-        schema_version=("0.6.6" if fixed_frame_descriptive else _LEGACY_STOCHASTIC_SCHEMA_VERSION),
+        schema_version=SCHEMA_VERSION,
         protocol_id=f"stochastic-ci-{mode}",
+        execution_attempt_id=f"stochastic-ci-{mode}-attempt-01",
         interpretation=("fixed_frame_descriptive" if fixed_frame_descriptive else "confirmatory"),
         execution_mode="stochastic_live",
         **({"descriptive_unit": "case_id"} if fixed_frame_descriptive else {}),
@@ -773,6 +777,7 @@ def _reports(
         ),
         repetitions_per_arm=1,
         planned_pairs=2,
+        allowed_exclusion_reasons=(("provider-request-failed",) if mode == "inconclusive" else ()),
         **({} if fixed_frame_descriptive else {"multiplicity_family": "evidence-sensitivity"}),
         coupling=CouplingDescriptor(
             pairing_identity_verified=True,
@@ -795,12 +800,12 @@ def _reports(
     for index, case_id in enumerate(case_ids):
         if index == 1 and mode in {"inconclusive", "prerequisites_unmet"}:
             disposition = (
-                PairDisposition.missing_counterfactual
+                PairDisposition.excluded_counterfactual
                 if mode == "inconclusive"
                 else PairDisposition.identity_mismatch
             )
             reason = (
-                "counterfactual-pair-missing"
+                "provider-request-failed"
                 if mode == "inconclusive"
                 else "paired-record-identity-mismatch"
             )
@@ -813,13 +818,10 @@ def _reports(
                     disposition_reason=reason,
                     baseline_run_id=f"baseline-{case_id}",
                     baseline_run_digest=_run_digest("baseline_evidence", case_id),
-                    counterfactual_run_id=(
-                        None if mode == "inconclusive" else f"counterfactual-{case_id}"
-                    ),
-                    counterfactual_run_digest=(
-                        None
-                        if mode == "inconclusive"
-                        else _run_digest("counterfactual_evidence", case_id)
+                    counterfactual_run_id=f"counterfactual-{case_id}",
+                    counterfactual_run_digest=_run_digest(
+                        "counterfactual_evidence",
+                        case_id,
                     ),
                 )
             )
@@ -858,26 +860,15 @@ def _reports(
         protocol,
         observation_tuple,
     )
+    source_runsets = bind_complete_attempt_journal(protocol, source_runsets)
+    observation_tuple = assemble_paired_observations(protocol, *source_runsets)
+    dependencies = build_paired_runset_dependencies(protocol, *source_runsets)
     sufficiency = evaluate_statistical_sufficiency(
         protocol,
         observation_tuple,
         source_runsets=dependencies,
     )
-    if not fixed_frame_descriptive:
-        sufficiency_payload = sufficiency.model_dump(
-            mode="python",
-            exclude={"report_digest"},
-        )
-        sufficiency_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
-        sufficiency = StatisticalSufficiencyReport.build(**sufficiency_payload)
     stochastic = build_stochastic_sensitivity_report(sufficiency)
-    if not fixed_frame_descriptive:
-        stochastic_payload = stochastic.model_dump(
-            mode="python",
-            exclude={"report_digest"},
-        )
-        stochastic_payload["schema_version"] = _LEGACY_STOCHASTIC_SCHEMA_VERSION
-        stochastic = StochasticEvidenceSensitivityReport.build(**stochastic_payload)
     return sufficiency, stochastic, source_runsets
 
 

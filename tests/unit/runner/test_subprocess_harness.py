@@ -140,7 +140,7 @@ print(json.dumps({
     },
     "provider": "local-script",
     "model": "script-model",
-    "resolved_model": "script-model@local",
+    "resolved_model": "script-model/local",
     "prompt_tokens": 3,
     "completion_tokens": 4,
     "total_tokens": 7,
@@ -179,8 +179,67 @@ print(json.dumps({
     content = json.loads(response.content)
     assert content["recommendation"] == "approve"
     assert response.total_tokens == 7
-    assert response.resolved_model == "script-model@local"
+    assert response.resolved_model == "script-model/local"
     assert response.provider_response_payload_scope == "complete_external_script_stdout"
+
+
+def test_external_script_adapter_translates_invalid_decimal_output(
+    tmp_path: Path,
+) -> None:
+    script = tmp_path / "invalid_decimal_adapter.py"
+    output = {
+        "record": {
+            "recommendation": "approve",
+            "outcome": "approve",
+            "output_summary": "subprocess approved",
+            "tools": [],
+            "evidence_refs": [],
+            "evidence_items": [],
+            "claims": [],
+            "claim_evidence_links": [],
+            "policy_results": [],
+        },
+        "provider": "local-script",
+        "model": "script-model",
+        "estimated_cost_usd": "not-a-decimal",
+    }
+    script.write_text(
+        f"import json\nprint(json.dumps({output!r}))\n",
+        encoding="utf-8",
+    )
+    adapter = ExternalScriptAdapter(
+        LiveAdapterConfig(
+            adapter_id="external-script",
+            provider="local-script",
+            model="script-model",
+            script_path=script.name,
+            script_executable=sys.executable,
+        ),
+        base_dir=tmp_path,
+        trust=TrustedLiveExecution(allow_external_script=True),
+    )
+
+    with pytest.raises(
+        ExternalScriptError,
+        match="stdout did not match the live provider response contract",
+    ) as raised:
+        adapter.complete(
+            LiveProviderRequest(
+                run_id="run-invalid-decimal",
+                observation_id="obs-invalid-decimal",
+                case_id="case-invalid-decimal",
+                repetition_index=0,
+                prompt="summarize the request",
+                provider="local-script",
+                model="script-model",
+            )
+        )
+
+    assert raised.value.emergency_record.failure_kind == "invalid_output"
+    assert isinstance(raised.value.__cause__, ValueError)
+    assert str(raised.value.__cause__) == (
+        "estimated_cost_usd must be a finite decimal within the supported precision bound"
+    )
 
 
 def test_external_script_adapter_rechecks_guard_immediately_before_launch(

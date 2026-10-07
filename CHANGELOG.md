@@ -2,10 +2,235 @@
 
 ## Unreleased
 
+- **Breaking evaluation-report integrity contract:** current evaluation
+  reports now require a source projection that binds suite and RunSet digests,
+  suite-case record coverage, unknown RunSet cases, and tool-policy
+  configuration. A unique `case_outcomes` projection must exactly cover those
+  asserted source cases. Case totals and pass/warn/fail/not-evaluated
+  partitions, finding scopes, and global blockers are derived exactly from
+  persisted evidence. Reports also carry an exhaustive canonical
+  built-in `capability_coverage` inventory; `not_evaluated_capabilities` is its
+  exact state-filtered projection, and conditional tool-policy configuration
+  coverage is explicit. `verify_evaluation_report_sources` rederives the source
+  projection against separately trusted exact inputs and replays every
+  decision and waiver-audit field for full-mode reports. Its gate profile,
+  complete waiver set, and evaluation date are mandatory caller-authorized
+  inputs and are never accepted from the report. Standalone validation proves
+  only self-consistency. Evaluation and comparison JSON, Markdown, and console
+  reporters re-enter the public validation boundary before rendering or
+  creating output paths, so unchecked model copies cannot publish forged
+  decisions. Regenerate v0.6.6 reports and schemas.
+- **Breaking live-CI authority input:** OpenAI-compatible network runs in CI
+  now require independently supplied `--authorized-endpoint-host` and
+  `--authorized-api-key-env` arguments in addition to the existing trust and
+  network opt-ins. Configuration under test cannot authorize its own endpoint
+  or credential reference. Provider-input accounting and every concrete live
+  adapter now round-trip revalidate the complete request before reading adapter
+  state or dispatching I/O, so bypass-constructed cached policy text cannot be
+  injected into the system role or serialized to an external script.
+- **Breaking pricing precision migration:** live adapter authoring now writes
+  `cost_per_million_prompt_tokens_usd` and
+  `cost_per_million_completion_tokens_usd`. The two legacy `cost_per_1k_*`
+  names are still accepted together and converted on read, but must not be
+  mixed with current names. Pricing snapshots written as schema v0.6.6 require
+  `input_million_tokens_usd` and `output_million_tokens_usd` string rates;
+  legacy per-token micro-USD rates remain valid only in v0.4.3 snapshots.
+- **Breaking authored-YAML scalar semantics:** unquoted dates, floating-point
+  forms, and octal-looking integers now remain strings in suites, variants,
+  live configs, and waivers. Canonical decimal integers, booleans, and nulls
+  retain their typed meanings. Recompile and review digests for YAML that
+  depended on PyYAML's implicit timestamp, float, or non-decimal conversion.
+- **Breaking waiver governance:** waiver expiry can be at most 90 days after
+  the evaluation date, and waiver-bearing CLI runs accept `--today` only when
+  it equals the actual current local or UTC date. Historical dates remain
+  available only for waiver-free deterministic replay. In baseline-bearing CI,
+  exact waivers do not authorize either `new_failure` or
+  `persistent_failure` comparison dispositions.
+- **Breaking live-comparison evidence schema:** v0.7.0 current comparison
+  reports require both source-evaluation digests and completion statuses, the
+  complete bound protocol, and integer numerator/denominator evidence for both
+  arms in every paired cluster. Concurrent paired denominators must be positive
+  and equal within a cluster; fixed-reference baseline counts are `0/0`.
+  Source-evaluation digests are external linkage: resolving both against
+  separately trusted evaluation reports establishes source consistency, not
+  provider-side truth. Latency and cost absolutes remain source-declarative
+  and do not affect the comparison gate state.
+  Regenerate unreleased current comparison artifacts and goldens. Historical
+  released artifacts remain structurally inspectable under their frozen schema
+  versions but are not thereby accepted by the public assurance validator.
+- **Breaking live monitoring-plan authority:** drift metric plans now require
+  `descriptive_trend` as their declared base analysis, and a confirmatory drift
+  plan requires at least one confirmatory metric. Trajectory plans require
+  `observable_transition_profile`; event-process and burst-window methods must
+  be declared together; invariant and history-check output requires
+  `sequence_invariant_check`; and confirmatory trajectory plans require the
+  complete supported method set. Builders and validators emit and accept only
+  those declared analysis families. A zero-count event process with adequate
+  exposure is a met, analyzable zero-rate result, while a positive process below
+  its event-count threshold or with incomplete timestamps has an invalid burst
+  signal and cannot claim that no burst was observed.
+- **Breaking live monitoring source qualification and canonicality:** current
+  drift windows and trajectory reports now persist the effective source
+  RunSet/evaluation completion and exploratory state. Incomplete or exploratory
+  sources cannot produce confirmatory-valid monitoring, while exploratory
+  plans remain explicitly exploratory. Builders and trusted-source verifiers
+  defensively revalidate typed protocol, RunSet, and evaluation inputs so
+  unchecked model copies cannot cross the derivation boundary. Current live
+  RunSets enforce exact completion/stop-reason coherence; evaluation replay
+  preserves budget exclusions visible in embedded observations; and trusted
+  trajectory construction reconciles the complete RunSet-derived observation
+  projection before using identity, timing, provider, retry, outcome, or cost
+  evidence. Trajectory reports persist the canonical source-evaluation
+  stop-reason projection, bind it into report identity, and reconcile
+  budget-stop events exactly, including nested budget exclusions. Drift accepts
+  only the implemented `window_index` and authenticated, strictly increasing
+  `window_start_utc` orderings; tied timestamps fail closed instead of falling
+  back to caller order. The previously declared but unimplemented
+  release/provider orderings fail closed in both current and historical
+  semantic validation. Live evaluation, comparison, drift, and trajectory
+  Markdown/JSON reporting round-trip revalidates even bypass-constructed
+  current or historical typed inputs before creating output paths, preventing
+  forged decision, validity, or ordering metadata from reaching persisted or
+  human-review output. Set-like endpoint,
+  drift, trajectory, and protocol fields now require unique canonical order at
+  the current writer boundary so equivalent plans cannot acquire different
+  protocol digests.
+- Current trajectory paths now carry an authoritative five-value
+  `claim_evidence_status`. Excluded paths are `not_evaluated` and included
+  non-approval paths are `not_applicable`; only included approvals may be
+  `complete`, `incomplete`, or `unobservable`. Observable evaluator
+  evidence/provenance failures are reported as `incomplete`; a control-ineligible
+  evidence graph is `unobservable`, adds explicit path/report limitations, and
+  is counted separately from the invariant's observable evaluated population.
+  Excluded observations contribute to neither approval-invariant population.
+  An unobservable approval cannot satisfy the claim-evidence invariant or
+  suppress its governance warning. The legacy `claim_evidence_complete`
+  projection is true exactly when the status is `complete`.
+- Reviewed exclusions preserve `human_review → [emergency] → excluded`; the
+  emergency state is present only when a linked emergency record exists. For
+  excluded observations, runtime-failure and malformed-output facts and
+  event-process counts derive only from reason codes on failed policy results
+  when the source `policy_results` field has a trusted, control-eligible
+  origin. Without that provenance, the failure subtype is not asserted.
+- **Breaking historical decision-artifact validation:** `evaluation-summary`,
+  `evaluation-report`, `comparison-summary`, `comparison-report`, and
+  `evidence-packet` roots through v0.6.5 are archival-only. Public validation,
+  typed loading and packet writing, and CI gating reject them. Pre-v0.6 live
+  protocols, evaluations, comparisons,
+  drift reports, and trajectory reports remain available as immutable JSON
+  Schema resources for archival shape inspection, but the reference assurance
+  validator rejects them. Frozen shape alone cannot authenticate their
+  arithmetic or decision state. Historical v0.6.0-v0.6.5 drift and trajectory
+  roots are also archival-only because they do not bind the complete plan and
+  exact source artifacts needed to prove that review evidence was not removed.
+  Public validation fails closed with an `archival-only` diagnostic;
+  compatibility models remain only for explicit non-assurance migration.
+  Regenerate current evidence before making an assurance or release decision.
+- Hardened control-coverage evidence against contradictory review artifacts:
+  state-count keys are closed, counts are nonnegative and exactly reconciled
+  from unique control items, item states replay their condition evaluations,
+  item evidence is the exact ordered, deduplicated projection of observed
+  conditions, and condition truth is coherent with its state and evidence.
+  Observed conditions require evidence; false paths cannot claim observed or
+  contradictory evidence; true paths cannot claim not-observed or
+  not-evaluated; condition evidence identities and rule identities are unique;
+  and mapping requirements, rules, controls, ATLAS identifiers, and rendered
+  item limitations reject ambiguous duplicates or noncanonical order. Explicit
+  nested schema versions must agree while historically optional omissions
+  inherit the report version. Mandatory claim boundaries, MITRE mapping
+  strengths, and deterministic report identity are replayed. Markdown
+  rendering derives boundaries, totals, item states, and evidence from the
+  validated source facts and independently rejects unsafe collection metadata
+  even if an internal caller bypasses model validation. Direct control,
+  evidence-diff, study, compiled-suite, fixture-manifest, dependency-inventory,
+  RunSet, streaming, telemetry, usage, stochastic-evidence, and mutation-gate
+  boundaries likewise round-trip and exact-schema revalidate before deriving
+  trusted outputs, rendering, creating output directories, emitting telemetry,
+  or writing canonical bytes. Derived artifacts preserve the admitted source
+  schema version where historical semantic replay is supported, preventing an
+  archival-shaped typed object from being laundered into current evidence.
+  Frozen-root policy coverage now follows root-admitted wire versions discovered
+  from schema directories, with every non-dispatchable version/kind pair and
+  unregistered version directory explicitly tested to fail closed.
+- Bound control-framework metadata to its declared framework. Non-MITRE reports
+  reject mapping strength and ATLAS identifiers; MITRE ATLAS 2026.06 reports
+  require mapping strength and validate control, tactic, and technique IDs
+  against an integrity-pinned offline production catalog. Current report IDs
+  now bind the reviewer-visible mapping semantics, while valid historical IDs
+  retain their published projection and contradictory historical metadata is
+  rejected by semantic replay without rewriting frozen schemas.
+- Restored the missing semantic projection for v0.6.0-v0.6.5 live protocol
+  records in the supported compatibility path, so impossible design arithmetic
+  is rejected instead of receiving a shape-only result.
+- Added a real Ubuntu GitHub-runner smoke job for the repository's composite
+  action. It uses the explicitly labeled non-assurance migration profile,
+  disables uploads, and validates the generated packet and expected outputs.
+- Added a positive strict composite-action path that accepts a precomputed
+  `control-efficacy-report` plus separately trusted `efficacy-policy`, rebuilds
+  the current packet, and strictly re-verifies it. The explicitly named
+  missing-efficacy path remains non-assurance migration only. Release and
+  TestPyPI publication now depend on exact-candidate lock audits and the
+  repository's bounded wheel/sdist credential scan. Release recovery audits
+  all four pinned historical lockfiles on Ubuntu and Windows under Python 3.11
+  and 3.14 before verification, then independently reconstructs the frozen
+  v0.6.0 SBOM from the historical manifest environment and exact wheel/sdist
+  bytes. Restored evidence therefore cannot rely on a stale, platform-partial
+  dependency result or a self-consistent but truncated historical SBOM.
+  Composite-action output
+  paths must be strict descendants of the workspace or runner temporary root,
+  reject traversal and linked/reparse-point ancestors before and after
+  creation, and use the workspace only for the strict efficacy-bearing path.
+- Refreshed every audited dependency lock from `urllib3==2.7.0` to
+  `urllib3==2.8.0`, resolving `PYSEC-2026-4175`, `PYSEC-2026-4176`, and
+  `PYSEC-2026-4177` before release.
+- Added an independently authorized, time-bounded security-correction
+  containment and operational risk-acceptance process for cases where a fix
+  cannot yet pass the unchanged publication gates. The checked template records
+  accountable ownership, a distinct security approver, verified compensating
+  controls, monitoring, customer/advisory coordination, expiry, reevaluation,
+  escalation, and append-only audit evidence while explicitly denying merge,
+  tag, signing, release, package-publication, and gate-exception authority.
+  Record-snapshot SHA-256 values live only in a separate audit event so the
+  record does not make an impossible recursive self-digest claim.
+- Added a hash-locked direct-runtime lower-bound profile and full-suite CI jobs
+  on Python 3.11 and 3.14. Qualification raised the supported floors to
+  `typer>=0.19` for `typing.Literal` command parameters and `PyYAML>=6.0.3`
+  for Python 3.14 installation support.
+- Added a full-history Gitleaks v8.30.1 scan pinned by container digest, with
+  redacted CI output and exact suppressions only for known synthetic fixtures.
+- Release-bundle construction now reopens the exact persisted SBOM bytes and
+  reconstructs the entire document from the trusted `EnvironmentInfo`, exact
+  distribution path set, verified lock graph and hashes, and project metadata.
+  Canonical package/file identities, purls, serial, components, dependency
+  graph, composition, and exact local distribution bytes must all match before
+  the SBOM can enter the release manifest.
+- Immutable Git-file reads now rehash the complete bounded
+  commit-to-tree-to-blob chain, enforce canonical object types, lengths, modes,
+  and path traversal, and cap every subprocess read. External-pilot committed
+  input verification no longer trusts `git show` output without independently
+  checking the object identities it claims to resolve.
+- Persisted evaluation reports now reject duplicate waiver dispositions and
+  incoherence with authenticated replay waivers. Live reporting renders nested
+  invariant, rare-bound, and correlation limitations beside their estimates.
+  Machine-readable CI decisions now carry `envelope_version: "1.0.0"`.
+- Added `py.typed`, included the security and governance documents in the
+  source distribution, and ignored only the intentional
+  `.agent-assure-*.lock` coordination files.
 - Made configured `not_evaluated` controls fail closed in CI by default, with an
   explicit non-release advisory opt-out. Raw `new_failure` comparisons now
   remain blocking even when a valid waiver or nonblocking profile reduces the
   candidate rollup to `warn`, while preserving the evaluation and waiver audit.
+  Both CLI CI entrypoints now make warning/review conditions blocking by
+  default; `--fail-on-warn` remains an accepted idempotent compatibility
+  spelling, while local evaluation/comparison and programmatic gate defaults
+  remain advisory. Exact waiver authorization is now machine-readable, checks
+  expiry against a non-overridable live gate date, rejects rebound or duplicate
+  finding identities, and cannot convert `not_evaluated` or an already-advisory
+  warning into waiver authority. Replay context now contains only
+  scoring-effective matched or expired waivers, waiver IDs use a safe runtime
+  ASCII machine grammar, and packet output exposes every component decision;
+  packet-wide exact authorization is impossible when any unrelated non-pass
+  component remains.
   Material-evidence-link mutation applicability now uses the detector's exact
   complete, control-eligible evidence predicate.
 - Replaced whole-test-file privacy exceptions in source-distribution review
@@ -15,6 +240,11 @@
   fail-closed, including Python values assembled through compile-time adjacent
   literals. A reviewed token cannot participate in an adjacent literal group,
   while unrelated test maintenance no longer requires digest renewal.
+- Raised the external-pilot wheel's aggregate structural-scan ceiling from its
+  500,000-line baseline to a derived 550,000-line bound: exactly two 25,000-line
+  Python-member units of maintenance headroom. Historical JSON Schema resources
+  continue to consume the aggregate budget, and the archive byte/member plus
+  per-Python byte, line, and token ceilings remain fail-closed.
 - Added source-qualified structured fields to current `AgentRunRecord` writers.
   Fixture and instrumented-adapter values retain their explicit producer trust
   boundaries; legacy live and model-self-reported process values cannot satisfy
@@ -32,7 +262,7 @@
   `fixed_frame_descriptive_conformance` scopes. Both manifest scope fields are
   now mandatory, must agree, and have no implicit confirmatory default.
   Fixed-frame output is always `not_measured`, renders no inferential interval
-  or population claim, and can never unlock the v0.6.6 empirical checkpoint.
+  or population claim, and can never unlock the v0.7.0 empirical checkpoint.
   Qualified method review now replays the exact registration record and review,
   binds that registration-review receipt digest, requires a strictly later
   timestamp, and records explicit review of the combined directional-decision
@@ -45,7 +275,7 @@
   distinct actionable blocker.
 - Registered the exact v0.2 shared-template score grid as structurally
   ineligible for confirmatory independent-cluster inference, made its shipped
-  authoring template descriptive by construction, and moved the v0.6.6 release
+  authoring template descriptive by construction, and moved the v0.7.0 release
   trust anchor to separately frozen source/package pairs for the non-grid
   benchmark and its positive statistical-method approval. Publication now
   requires the exact `approved_confirmatory_independent_clusters` receipt to
@@ -68,8 +298,8 @@
   commands; made evidence-packet CI fail closed when efficacy is absent, with a
   named non-assurance migration opt-out; added an efficacy-required
   release-facing `ci gate` profile that is explicitly separate from publication
-  authorization; expanded CODEOWNERS over v0.6.6 trust surfaces; and made all
-  four dependency locks carry an offline canonical dependency-input freshness
+  authorization; expanded CODEOWNERS over v0.7.0 trust surfaces; and made all
+  five dependency locks carry an offline canonical dependency-input freshness
   marker.
 - Added a fail-closed five-shard Ubuntu 24.04 branch-coverage gate. Before
   combination it requires the exact named databases, all current package source
@@ -82,6 +312,106 @@
 - Made decimal canonicalization independent of ambient decimal precision,
   rounding, and traps. Adopted repository-wide Ruff formatting and a full-tree
   format gate in place of the previous single-file check.
+- Advanced the unreleased privacy producer contract to profile v9. Redaction
+  now fails closed after expansion crosses the scalar limit, scans URL secrets
+  with bounded UTF-8 percent-obfuscation handling and cheap preflights, redacts
+  every secret query component, recognizes Luhn-valid 13--19 digit payment
+  cards next to non-digit text without matching inside longer digit runs, and
+  records the exact detector semantics in the profile digest.
+- Removed nondeterministic external-pilot failures when canonical Git object
+  IDs, SHA-256 digests, or workflow run IDs happen to contain a Luhn-valid
+  digit run. The pilot substitutes known-safe values only in a non-serialized
+  privacy probe, after typed and cross-field validation, and only at exact
+  contract-owned paths. Standalone environment, control, and execution
+  metadata must satisfy a complete extra-forbidding role-specific contract and
+  bind its implementation revision to the evidence or capture subject before
+  projection; remediation metadata is projected only after its complete typed
+  contract and is subsequently bound to the review receipt. Receipt digests
+  and run IDs are projected only after equality and workflow-URL bindings are
+  proven. Serialized evidence retains every original identifier. The generic
+  redactor and durable-payload scanner deliberately retain no field-name-based
+  exemption, so the same bytes in arbitrary payloads, rationales, pseudonyms,
+  or command arguments still fail closed.
+- Made the external-pilot byte verifier relational rather than descriptor-only.
+  Environment, control, execution, friction, remediation, and consent records
+  now require complete extra-forbidding contracts, exact referenced-role
+  inventories, one cross-record opaque binding whose prefixes derive the pilot
+  and environment IDs, and equality with the authoritative subject,
+  environment, command, input-manifest, friction, remediation, publication,
+  timestamp, and complete consent-inventory fields. The control record requires
+  exactly one non-bundled participant waiver-set entry consumed by the recorded
+  command. Applied remediation must name a later source. Review receipts now
+  require canonical GitHub owner/repository/run URLs, distinct capture and
+  finalization runs, distinct workflow/execution revisions and run heads, and a
+  Stage-1 head containing the participant commit. Capture output is assembled
+  in a private staging directory and renamed into place only after complete
+  validation, so late privacy or provenance failures leave no partial target.
+- Bound provider DNS/NSS resolution in a disposable, synchronously reaped
+  process and charge it to the same monotonic total transport deadline as
+  connect, TLS, and response reads. Screened numeric addresses are dialed with
+  family-specific sockets without resolver re-entry. Endpoint authority now
+  rejects special-use IPv4/IPv6 and metadata ranges explicitly and accepts only
+  dedicated bounded provider-secret environment-variable names. Provider host
+  authorization is exact because the first-party adapter now requires HTTPS
+  port 443. Successful OpenAI endpoint screens now enter a per-adapter,
+  one-authority, bounded single-flight cache. Cache entries are non-sliding:
+  they expire at the resolving request's monotonic deadline, hits never extend
+  that expiry, and invalid, disallowed, failed, or late resolutions are never
+  cached. Until expiry, requests dial only the cached numeric IPs while TLS
+  still verifies the original hostname; after expiry, a fresh screen fails
+  closed. Sustained runs therefore normally launch one isolated resolver per
+  endpoint per timeout window rather than one process per request.
+- Bounded each explicit OTLP HTTP request with a monotonic socket watchdog,
+  disabled connection reuse outside that deadline, and capped decoded response
+  bodies at 65,536 bytes. DNS screening remains separately bounded; a complete
+  multi-request export still requires an outer job deadline for one wall-clock
+  ceiling.
+- Made strict warning handling consistent across all `ci` gates while allowing
+  only exact, active, current-schema waivers to authorize their matched
+  evaluation warnings. Waiver identities and bindings are unique, invisible
+  identity characters are rejected, and warning-bearing cases no longer count
+  as clean passes.
+- Replaced binary cluster-incidence Poisson bounds with exact one-sided
+  Clopper--Pearson bounds through 1,000 clusters, exact zero-event closed-form
+  evaluation above that threshold, and a separately labeled conservative
+  one-sided Bernoulli KL-Chernoff inversion for larger nonzero samples. The
+  scalable branches use rational logarithm enclosures and bounded work
+  independent of cluster count; the KL-Chernoff result is outward-rounded and
+  explicitly non-exact rather than an exact Clopper--Pearson tail inversion.
+  Serialized upper endpoints and p-values conservatively, rounded both
+  endpoints of nondegenerate two-sided live rate, comparison, and ICC intervals
+  outward at the persisted precision, and
+  made current artifact loading rederive count/rate, distribution, bound,
+  difference, test, and gate relationships. Current live evaluations bind the
+  source RunSet digest and completion status, embed the protocol plus bounded
+  observation sufficient statistics, and recompute every decision-bearing
+  aggregate. Current comparisons carry both source-evaluation digests as
+  external linkage and their declared statuses, embed the protocol and per-arm
+  paired-cluster counts, reconstruct both complete arm-rate summaries, and
+  recompute their inference from exact count ratios rather than subtracting
+  already-rounded display rates. Resolving both digests against separately trusted evaluation
+  reports establishes source consistency, not provider-side truth; latency and
+  cost absolutes remain source-declarative and non-decision-bearing. Advanced
+  endpoints, outcome categories, and
+  aggregate resampling work are explicitly capped before statistical kernels
+  run. Evaluation preflight uses one combined plan across every nondegenerate
+  overall/group rate and every ICC bootstrap, and batches all exact
+  Clopper--Pearson items before the first inversion. Bounded live-report loading
+  now reuses a single validated Pydantic/statistical projection instead of
+  recomputing it after validation. Randomization p-values must be attainable outward-rounded resample
+  projections; compared-cluster counts and analysis methods must agree with
+  their arms and nested tests. Fixed-decimal fields now require exact
+  end-of-string syntax in both runtime and JSON Schema validation, including
+  strict closed-unit and signed-unit domains; trailing newlines and values such
+  as `1.999999` are rejected. Frozen schemas receive the same narrowly scoped
+  security correction in memory without changing released bytes. The schema
+  writer also replaces every unescaped terminal-dollar assertion in pattern
+  declarations and patternProperties keys with an ECMA-compatible absolute-end
+  assertion; parity tests cover LF, CR, CRLF, U+2028, and U+2029. Live adapter
+  temperature schemas now enforce the runtime's canonical six-decimal [0, 2]
+  range. It rejected
+  non-string canonical object keys, and bound `controls map` validation and
+  SHA-256 identity to one bounded byte snapshot.
 - Replaced validate-then-resolve output-directory publication with
   filesystem-anchor traversal, retained directory handles/descriptors, and
   boundary revalidation. Finalize and sensitivity publishers now fail closed on

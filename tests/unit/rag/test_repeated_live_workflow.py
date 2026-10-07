@@ -58,6 +58,7 @@ from agent_assure.schema.run import (
     AgentRunRecord,
     LiveExecutionAttemptEvent,
     LiveExecutionAttemptJournal,
+    LiveNetworkAuthorityReceipt,
     PolicyResult,
     RunSet,
 )
@@ -72,6 +73,8 @@ from agent_assure.schema.stochastic_sensitivity import (
     PairDisposition,
     RepeatedEvidenceSensitivityProtocol,
     SensitivityArmBinding,
+    StatisticalSufficiencyReport,
+    StochasticEvidenceSensitivityReport,
 )
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import validate_artifact
@@ -467,6 +470,14 @@ def _runset(
         evidence_sensitivity_design_digest=protocol.design_commitment_digest,
         completion_status=completion_status,
         stop_reasons=("provider-budget-stop",) if completion_status == "incomplete" else (),
+        network_authority_receipt=(
+            LiveNetworkAuthorityReceipt(
+                endpoint_host="api.openai.com",
+                api_key_env="OPENAI_API_KEY",
+            )
+            if run_execution_mode == ExecutionMode.live
+            else None
+        ),
         runs=runs,
     )
 
@@ -1946,6 +1957,124 @@ def _analysis_generation(
     return sufficiency, build_stochastic_sensitivity_report(sufficiency)
 
 
+def test_stochastic_builders_reject_unadmitted_decision_inputs() -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    observations = assemble_paired_observations(protocol, baseline, counterfactual)
+    sources = build_paired_runset_dependencies(protocol, baseline, counterfactual)
+
+    forged_protocol = protocol.model_copy(
+        update={"artifact_kind": "forged-repeated-evidence-sensitivity-protocol"}
+    )
+    with pytest.raises(ValueError, match="artifact_kind"):
+        evaluate_statistical_sufficiency(
+            forged_protocol,
+            observations,
+            source_runsets=sources,
+        )
+
+    sufficiency = evaluate_statistical_sufficiency(
+        protocol,
+        observations,
+        source_runsets=sources,
+    )
+    assert sufficiency.state.value == "satisfied"
+    expanded_payload = sufficiency.model_dump(
+        mode="json",
+        exclude={"report_digest"},
+        warnings="error",
+    )
+    expanded_payload["schema_version"] = "0.6.5"
+    expanded_historical = StatisticalSufficiencyReport.build(**expanded_payload)
+    assert (
+        StatisticalSufficiencyReport.model_validate(
+            expanded_historical.model_dump(mode="json", warnings="error")
+        )
+        == expanded_historical
+    )
+
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        build_stochastic_sensitivity_report(expanded_historical)
+
+
+def test_paired_evidence_builders_reject_unadmitted_protocol_and_runsets() -> None:
+    protocol = _protocol()
+    baseline = _runset(protocol, arm_id="baseline_evidence")
+    counterfactual = _runset(protocol, arm_id="counterfactual_evidence")
+    forged_protocol = protocol.model_copy(
+        update={"artifact_kind": "forged-repeated-evidence-sensitivity-protocol"}
+    )
+
+    for builder in (assemble_paired_observations, build_paired_runset_dependencies):
+        with pytest.raises(ValueError, match="artifact_kind"):
+            builder(forged_protocol, baseline, counterfactual)
+
+    for index, source in enumerate((baseline, counterfactual)):
+        expanded_payload = source.model_dump(mode="json", warnings="error")
+        expanded_payload["schema_version"] = "0.6.5"
+        expanded_source = RunSet.model_validate(expanded_payload)
+        supplied = [baseline, counterfactual]
+        supplied[index] = expanded_source
+
+        for builder in (assemble_paired_observations, build_paired_runset_dependencies):
+            with pytest.raises(ValueError, match="failed JSON Schema validation"):
+                builder(protocol, supplied[0], supplied[1])
+
+
+def test_attempt_journal_validator_admits_inputs_before_deterministic_return() -> None:
+    protocol = _protocol(execution_mode="deterministic_fixture")
+    baseline = _runset(protocol, arm_id="baseline_evidence")
+    counterfactual = _runset(protocol, arm_id="counterfactual_evidence")
+    assert (
+        repeated_workflow.validate_paired_attempt_journal(
+            protocol,
+            baseline,
+            counterfactual,
+        )
+        is None
+    )
+
+    forged_protocol = protocol.model_copy(
+        update={"artifact_kind": "forged-repeated-evidence-sensitivity-protocol"}
+    )
+    with pytest.raises(ValueError, match="artifact_kind"):
+        repeated_workflow.validate_paired_attempt_journal(
+            forged_protocol,
+            baseline,
+            counterfactual,
+        )
+
+    for index, source in enumerate((baseline, counterfactual)):
+        expanded_payload = source.model_dump(mode="json", warnings="error")
+        expanded_payload["schema_version"] = "0.6.5"
+        expanded_source = RunSet.model_validate(expanded_payload)
+        supplied = [baseline, counterfactual]
+        supplied[index] = expanded_source
+
+        with pytest.raises(ValueError, match="failed JSON Schema validation"):
+            repeated_workflow.validate_paired_attempt_journal(
+                protocol,
+                supplied[0],
+                supplied[1],
+            )
+
+
+def test_frozen_valid_v065_stochastic_generation_remains_renderable() -> None:
+    protocol = _protocol()
+    baseline = _runset(protocol, arm_id="baseline_evidence")
+    counterfactual = _runset(protocol, arm_id="counterfactual_evidence")
+
+    sufficiency, report = _analysis_generation(protocol, baseline, counterfactual)
+
+    assert (protocol.schema_version, sufficiency.schema_version, report.schema_version) == (
+        "0.6.5",
+        "0.6.5",
+        "0.6.5",
+    )
+    assert "# Repeated evidence-sensitivity result" in (
+        writer.render_stochastic_sensitivity_markdown(report)
+    )
+
+
 def test_assemble_legacy_live_runsets_and_missing_dispositions() -> None:
     protocol = _protocol()
     baseline_only = protocol.planned_case_ids[-3]
@@ -3077,6 +3206,90 @@ def test_run_writer_redacts_credentials_and_raw_output(tmp_path: Path) -> None:
     assert PRIVACY_REDACTION_TEXT in persisted["runs"][0]["output_summary"]
     assert credential not in json.dumps(persisted)
     assert "jane@example.com" not in json.dumps(persisted)
+
+
+def test_stochastic_publication_rejects_expanded_v065_wires_before_side_effects(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    protocol, baseline, counterfactual = _journaled_pair()
+    sufficiency, report = _analysis_generation(protocol, baseline, counterfactual)
+    assert report.state.value == "pass"
+
+    sufficiency_payload = sufficiency.model_dump(
+        mode="json",
+        exclude={"report_digest"},
+        warnings="error",
+    )
+    sufficiency_payload["schema_version"] = "0.6.5"
+    expanded_sufficiency = StatisticalSufficiencyReport.build(**sufficiency_payload)
+
+    report_payload = report.model_dump(
+        mode="json",
+        exclude={"report_digest"},
+        warnings="error",
+    )
+    report_payload["schema_version"] = "0.6.5"
+    expanded_report = StochasticEvidenceSensitivityReport.build(**report_payload)
+
+    baseline_payload = baseline.model_dump(mode="json", warnings="error")
+    baseline_payload["schema_version"] = "0.6.5"
+    expanded_baseline = RunSet.model_validate(baseline_payload)
+    forged_protocol = protocol.model_copy(
+        update={"artifact_kind": "forged-repeated-evidence-sensitivity-protocol"}
+    )
+
+    for model in (expanded_sufficiency, expanded_report, expanded_baseline):
+        assert type(model).model_validate(model.model_dump(mode="json", warnings="error")) == model
+
+    def reject_publication(*_args: object, **_kwargs: object) -> dict[str, Path]:
+        pytest.fail("invalid evidence reached publish_generation")
+
+    monkeypatch.setattr(writer, "publish_generation", reject_publication)
+
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        writer.render_stochastic_sensitivity_markdown(expanded_report)
+
+    invalid_outputs = (
+        tmp_path / "expanded-sufficiency-analysis",
+        tmp_path / "expanded-report-analysis",
+        tmp_path / "expanded-runset-generation",
+        tmp_path / "forged-protocol-generation",
+    )
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        write_repeated_analysis_artifacts(
+            protocol=protocol,
+            baseline_source=baseline,
+            counterfactual_source=counterfactual,
+            sufficiency=expanded_sufficiency,
+            report=report,
+            out_dir=invalid_outputs[0],
+        )
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        write_repeated_analysis_artifacts(
+            protocol=protocol,
+            baseline_source=baseline,
+            counterfactual_source=counterfactual,
+            sufficiency=sufficiency,
+            report=expanded_report,
+            out_dir=invalid_outputs[1],
+        )
+    with pytest.raises(ValueError, match="failed JSON Schema validation"):
+        write_repeated_run_artifacts(
+            protocol=protocol,
+            baseline=expanded_baseline,
+            counterfactual=counterfactual,
+            out_dir=invalid_outputs[2],
+        )
+    with pytest.raises(ValueError, match="artifact_kind"):
+        write_repeated_run_artifacts(
+            protocol=forged_protocol,
+            baseline=baseline,
+            counterfactual=counterfactual,
+            out_dir=invalid_outputs[3],
+        )
+
+    assert all(not path.exists() for path in invalid_outputs)
 
 
 def test_analysis_writer_publishes_exact_dependency_bound_snapshots_idempotently(

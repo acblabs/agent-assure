@@ -26,6 +26,7 @@ from agent_assure.schema.stream import (
 )
 from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.usage import UsageLedger, UsageSegment, UsageSummary
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 from agent_assure.streaming.ingestion import validate_stream_run_integrity
 from agent_assure.usage.aggregation import aggregate_usage_segments
 
@@ -64,7 +65,10 @@ def stream_run_to_runset(
     *,
     source_path: Path | None = None,
 ) -> RunSet:
-    validate_stream_run_integrity(stream_run)
+    suite_payload = suite.model_dump(mode="json", warnings="error")
+    suite = CompiledSuite.model_validate(suite_payload)
+    validate_loaded_artifact_payload(suite_payload, "compiled-suite")
+    stream_run = validate_stream_run_integrity(stream_run)
     suite_digest = compiled_suite_digest(suite)
     fixture_digest = sha256_hexdigest(stream_run.model_dump(mode="json"))
     by_run = _events_by_run(stream_run)

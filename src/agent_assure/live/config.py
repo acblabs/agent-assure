@@ -1,16 +1,21 @@
 from __future__ import annotations
 
 import ipaddress
+import math
+import os
 import re
 import socket
-from collections.abc import Callable, Iterable
+import subprocess
+import sys
+import time
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import dataclass
 from decimal import Decimal
 from pathlib import Path
-from typing import Any, Literal, Self
+from typing import Any, Literal, Self, cast
 from urllib.parse import urlsplit
 
-from pydantic import Field
+from pydantic import Field, ValidationInfo
 from pydantic.functional_validators import field_validator, model_validator
 
 from agent_assure.authoring.yaml_nodes import safe_load_yaml_text
@@ -20,10 +25,19 @@ from agent_assure.io_limits import (
     loads_json_bounded,
     read_text_bounded_from_filesystem_root,
 )
+from agent_assure.live._dns_worker import MAX_RESOLVED_ENDPOINT_ADDRESSES
 from agent_assure.live.identity import (
     AGENT_ASSURE_EXECUTION_VERSION,
     LIVE_ADAPTER_IMPLEMENTATION_ID,
     LIVE_PROVIDER_REQUEST_ENVELOPE_ID,
+)
+from agent_assure.network_authority import (
+    ENV_VAR_NAME_PATTERN,
+    MAX_HOST_ENV_NAME_CHARS,
+    PROVIDER_SECRET_ENV_NAME_PATTERN,
+    is_disallowed_endpoint_host,
+    normalize_endpoint_host,
+    validate_api_key_environment_name,
 )
 from agent_assure.privacy.credential_uri import (
     PERSISTED_CREDENTIAL_NAMES,
@@ -42,25 +56,25 @@ from agent_assure.schema.common import (
     MAX_SUMMARY_CHARS,
     DigestHex,
     MachineIdentifier,
+    NonnegativeDecimal6String,
+    ProviderModelIdentifier,
+    TemperatureDecimal6String,
     coerce_tuple,
+    validate_machine_identifier,
+    validate_provider_model_identifier,
 )
 
 USD_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
 DECIMAL_PATTERN = r"^(0|[1-9][0-9]*)\.[0-9]{6}$"
-ENV_VAR_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
 ENV_VAR_ALLOWLIST_NAME_PATTERN = r"^[A-Za-z_][A-Za-z0-9_.()\-]*$"
 EndpointResolver = Callable[..., Iterable[Any]]
-DISALLOWED_ENDPOINT_HOSTNAMES = frozenset(
-    {
-        "metadata",
-        "metadata.google.internal",
-    }
-)
-DISALLOWED_ENDPOINT_NETWORKS = (ipaddress.ip_network("100.64.0.0/10"),)
+_MAX_DNS_WORKER_OUTPUT_BYTES = 4_096
+_DNS_WORKER_REAP_SECONDS = 0.5
 MAX_LIVE_CASES = MAX_PERSISTED_OBSERVATIONS
 MAX_LIVE_REPETITIONS = MAX_PERSISTED_OBSERVATIONS
 MAX_LIVE_REQUESTS = MAX_PERSISTED_OBSERVATIONS
 MAX_LIVE_RETRIES = 10
+MAX_LIVE_ADAPTER_TIMEOUT_SECONDS = 300
 MAX_LIVE_RETRY_BACKOFF_SECONDS = Decimal("300.000000")
 _HEADER_OPTION_NAMES = frozenset({"header", "proxy-header"})
 
@@ -80,6 +94,17 @@ class EndpointResolutionStatus:
 LiveExecutionProfile = Literal["ordinary_live", "preregistered_paired_study"]
 ORDINARY_LIVE_EXECUTION_PROFILE: LiveExecutionProfile = "ordinary_live"
 PREREGISTERED_PAIRED_STUDY_EXECUTION_PROFILE: LiveExecutionProfile = "preregistered_paired_study"
+
+
+def _per_thousand_rate_to_per_million(value: object, *, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str) or re.fullmatch(USD_PATTERN, value) is None:
+        raise ValueError(f"{field_name} must be a non-negative six-decimal USD string")
+    whole, fractional = value.split(".", maxsplit=1)
+    micro_usd_per_thousand = int(whole) * 1_000_000 + int(fractional)
+    micro_usd_per_million = micro_usd_per_thousand * 1_000
+    return f"{micro_usd_per_million // 1_000_000}.{micro_usd_per_million % 1_000_000:06d}"
 
 
 class LiveScriptEnvVar(StrictModel):
@@ -105,11 +130,16 @@ class LiveScriptEnvVar(StrictModel):
 
 
 class LiveAdapterConfig(StrictModel):
-    adapter_id: str = Field(min_length=1)
-    provider: str = Field(min_length=1)
-    model: str = Field(min_length=1)
+    adapter_id: str = Field(min_length=1, max_length=256)
+    provider: str = Field(min_length=1, max_length=256)
+    model: ProviderModelIdentifier
     endpoint_url: str | None = None
-    api_key_env: str | None = None
+    api_key_env: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=MAX_HOST_ENV_NAME_CHARS,
+        pattern=PROVIDER_SECRET_ENV_NAME_PATTERN,
+    )
     allowed_endpoint_hosts: tuple[str, ...] = ()
     response_jsonl_path: str | None = None
     response_jsonl_sha256: DigestHex | None = Field(
@@ -126,16 +156,54 @@ class LiveAdapterConfig(StrictModel):
     script_cwd: str | None = None
     script_env: tuple[LiveScriptEnvVar, ...] = ()
     script_env_allowlist: tuple[str, ...] = Field(default=(), max_length=64)
-    timeout_seconds: int = Field(default=60, ge=1)
-    temperature: str = Field(default="0.700000", pattern=r"^(0|1|2)\.[0-9]{6}$")
+    timeout_seconds: int = Field(
+        default=60,
+        ge=1,
+        le=MAX_LIVE_ADAPTER_TIMEOUT_SECONDS,
+    )
+    temperature: TemperatureDecimal6String = "0.700000"
     max_output_tokens: int | None = Field(default=None, ge=1)
     allow_network: bool = False
-    cost_per_1k_prompt_tokens_usd: str | None = Field(default=None, pattern=USD_PATTERN)
-    cost_per_1k_completion_tokens_usd: str | None = Field(default=None, pattern=USD_PATTERN)
-    api_version: str | None = None
+    cost_per_million_prompt_tokens_usd: NonnegativeDecimal6String | None = None
+    cost_per_million_completion_tokens_usd: NonnegativeDecimal6String | None = None
+    api_version: str | None = Field(default=None, min_length=1, max_length=256)
     sdk_name: MachineIdentifier | None = None
     sdk_version: MachineIdentifier | None = None
-    region: str | None = None
+    region: str | None = Field(default=None, min_length=1, max_length=256)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _migrate_per_thousand_pricing_fields(cls, value: object) -> object:
+        """Read the pre-0.6.6 live pricing names without persisting mixed units."""
+
+        if not isinstance(value, Mapping):
+            return value
+        migrated = dict(value)
+        field_pairs = (
+            (
+                "cost_per_1k_prompt_tokens_usd",
+                "cost_per_million_prompt_tokens_usd",
+            ),
+            (
+                "cost_per_1k_completion_tokens_usd",
+                "cost_per_million_completion_tokens_usd",
+            ),
+        )
+        legacy_names = {legacy_name for legacy_name, _ in field_pairs}
+        current_names = {current_name for _, current_name in field_pairs}
+        if legacy_names.intersection(migrated) and current_names.intersection(migrated):
+            raise ValueError(
+                "live pricing must use either legacy per-1k fields or canonical "
+                "per-million fields, not both"
+            )
+        for legacy_name, current_name in field_pairs:
+            if legacy_name not in migrated:
+                continue
+            migrated[current_name] = _per_thousand_rate_to_per_million(
+                migrated.pop(legacy_name),
+                field_name=legacy_name,
+            )
+        return migrated
 
     @field_validator("temperature")
     @classmethod
@@ -145,11 +213,37 @@ class LiveAdapterConfig(StrictModel):
             raise ValueError("temperature must be between 0.000000 and 2.000000")
         return value
 
-    @field_validator("api_key_env")
+    @field_validator("api_key_env", mode="before")
     @classmethod
-    def _validate_api_key_environment_name(cls, value: str | None) -> str | None:
-        if value is not None and re.fullmatch(ENV_VAR_NAME_PATTERN, value) is None:
-            raise ValueError("api_key_env must name a host environment variable")
+    def _validate_api_key_environment_name(cls, value: object) -> object:
+        return (
+            value
+            if value is None or not isinstance(value, str)
+            else (validate_api_key_environment_name(value))
+        )
+
+    @field_validator(
+        "adapter_id",
+        "provider",
+        "model",
+        "response_jsonl_path",
+        "script_path",
+        "script_executable",
+        "script_cwd",
+        "api_version",
+        "sdk_name",
+        "sdk_version",
+        "region",
+        mode="before",
+    )
+    @classmethod
+    def _reject_persisted_credentials_before_constraints(
+        cls,
+        value: object,
+        info: ValidationInfo,
+    ) -> object:
+        if isinstance(value, str) and _contains_persisted_credential(value):
+            raise ValueError(f"{info.field_name} must not persist credentials or sensitive values")
         return value
 
     @field_validator("endpoint_url")
@@ -159,8 +253,11 @@ class LiveAdapterConfig(StrictModel):
             return None
         try:
             parsed = urlsplit(value)
+            _endpoint_port = parsed.port
         except ValueError as exc:
             raise ValueError("endpoint_url is not a safely parseable URL") from exc
+        if parsed.netloc.endswith(":"):
+            raise ValueError("endpoint_url is not a safely parseable URL")
         if parsed.username is not None or parsed.password is not None:
             raise ValueError("endpoint_url must not persist URL userinfo")
         if _contains_persisted_credential(value):
@@ -237,6 +334,10 @@ class LiveAdapterConfig(StrictModel):
                     "static-jsonl adapter does not support capability fields: "
                     + ", ".join(unsupported)
                 )
+        if self.adapter_id == "openai-chat-completions" and self.endpoint_url is not None:
+            endpoint_port = urlsplit(self.endpoint_url).port
+            if endpoint_port not in {None, 443}:
+                raise ValueError("openai-chat-completions endpoint_url must use HTTPS port 443")
         return self
 
     @model_validator(mode="after")
@@ -261,13 +362,30 @@ class LiveAdapterConfig(StrictModel):
         return self
 
     @model_validator(mode="after")
+    def _validate_machine_metadata(self) -> Self:
+        for field_name in (
+            "adapter_id",
+            "provider",
+            "api_version",
+            "region",
+        ):
+            value = getattr(self, field_name)
+            if value is not None:
+                validate_machine_identifier(value, field_name=field_name)
+        validate_provider_model_identifier(self.model, field_name="model")
+        return self
+
+    @model_validator(mode="after")
     def _validate_pricing_rates(self) -> Self:
         rates = (
-            self.cost_per_1k_prompt_tokens_usd,
-            self.cost_per_1k_completion_tokens_usd,
+            self.cost_per_million_prompt_tokens_usd,
+            self.cost_per_million_completion_tokens_usd,
         )
         if sum(rate is not None for rate in rates) == 1:
             raise ValueError("prompt and completion pricing rates must be configured together")
+        sdk_identifier = live_sdk_identifier(self)
+        if sdk_identifier is not None and len(sdk_identifier) > 256:
+            raise ValueError("combined sdk_name/sdk_version identity exceeds 256 characters")
         return self
 
 
@@ -336,14 +454,14 @@ class LiveRunConfig(StrictModel):
     repetitions: int = Field(default=1, ge=1, le=MAX_LIVE_REPETITIONS)
     randomization_seed: int = Field(default=0, ge=0)
     max_requests: int | None = Field(default=None, ge=1, le=MAX_LIVE_REQUESTS)
-    max_total_cost_usd: str | None = Field(default=None, pattern=USD_PATTERN)
-    max_cost_per_observation_usd: str = Field(default="0.000000", pattern=USD_PATTERN)
+    max_total_cost_usd: NonnegativeDecimal6String | None = None
+    max_cost_per_observation_usd: NonnegativeDecimal6String = "0.000000"
     max_generated_tokens: int | None = Field(default=None, ge=1)
     max_total_tokens: int | None = Field(default=None, ge=1)
     fail_fast_on_excluded_response: bool = False
     max_retries: int = Field(default=2, ge=0, le=MAX_LIVE_RETRIES)
-    retry_initial_backoff_seconds: str = Field(default="1.000000", pattern=DECIMAL_PATTERN)
-    retry_max_backoff_seconds: str = Field(default="8.000000", pattern=DECIMAL_PATTERN)
+    retry_initial_backoff_seconds: NonnegativeDecimal6String = "1.000000"
+    retry_max_backoff_seconds: NonnegativeDecimal6String = "8.000000"
     requests_per_minute: int | None = Field(default=None, ge=1)
     tokens_per_minute: int | None = Field(default=None, ge=1)
     max_rate_limit_events: int = Field(default=0, ge=0)
@@ -506,44 +624,22 @@ def load_live_run_config(path: Path) -> LiveRunConfig:
     return LiveRunConfig.model_validate(loaded)
 
 
-def normalize_endpoint_host(host: str) -> str:
-    return host.strip().lower().rstrip(".")
-
-
-def is_disallowed_endpoint_host(host: str) -> bool:
-    normalized = normalize_endpoint_host(host)
-    if normalized in DISALLOWED_ENDPOINT_HOSTNAMES:
-        return True
-    if normalized in {"localhost"} or normalized.endswith(".localhost"):
-        return True
-    try:
-        address = ipaddress.ip_address(normalized)
-    except ValueError:
-        return False
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
-        address = address.ipv4_mapped
-    return any(
-        (
-            address.is_loopback,
-            address.is_link_local,
-            address.is_private,
-            address.is_reserved,
-            address.is_multicast,
-            address.is_unspecified,
-            any(address in network for network in DISALLOWED_ENDPOINT_NETWORKS),
-        )
-    )
-
-
 def resolve_endpoint_host(
     host: str,
     *,
     resolver: EndpointResolver | None = None,
+    timeout_seconds: float | None = None,
 ) -> EndpointResolutionStatus:
     normalized = normalize_endpoint_host(host)
-    resolver_func = socket.getaddrinfo if resolver is None else resolver
+    results: Iterable[Any]
     try:
-        results = resolver_func(normalized, None, type=socket.SOCK_STREAM)
+        if resolver is None and timeout_seconds is not None:
+            results = _bounded_getaddrinfo(normalized, timeout_seconds=timeout_seconds)
+        else:
+            resolver_func = socket.getaddrinfo if resolver is None else resolver
+            results = resolver_func(normalized, None, type=socket.SOCK_STREAM)
+    except TimeoutError:
+        raise
     except (OSError, RuntimeError) as exc:
         return EndpointResolutionStatus(
             host=normalized,
@@ -554,7 +650,8 @@ def resolve_endpoint_host(
     addresses: list[str] = []
     for result in results:
         try:
-            address = ipaddress.ip_address(str(result[4][0]))
+            socket_address = cast(Any, result)[4]
+            address = ipaddress.ip_address(str(socket_address[0]))
         except (IndexError, TypeError, ValueError):
             continue
         addresses.append(str(address))
@@ -569,13 +666,115 @@ def resolve_endpoint_host(
     return EndpointResolutionStatus(host=normalized, addresses=unique_addresses)
 
 
+def _dns_worker_environment() -> dict[str, str]:
+    """Return only the OS state required to launch the isolated resolver."""
+
+    if os.name != "nt":
+        return {}
+    system_root = os.environ.get("SystemRoot") or os.environ.get("SYSTEMROOT")
+    return {"SystemRoot": system_root} if system_root else {}
+
+
+def _bounded_getaddrinfo(
+    host: str,
+    *,
+    timeout_seconds: float,
+) -> list[tuple[object, ...]]:
+    """Resolve in a disposable process so an NSS stall can be terminated and reaped."""
+
+    if not math.isfinite(timeout_seconds) or timeout_seconds <= 0:
+        raise TimeoutError("endpoint DNS resolution exceeded its total transport deadline")
+    started = time.monotonic()
+    worker_path = Path(__file__).with_name("_dns_worker.py").resolve()
+    command = (sys.executable, "-I", str(worker_path), host)
+    try:
+        process = subprocess.Popen(  # noqa: S603 - fixed interpreter/module, no shell
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            close_fds=True,
+            creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            env=_dns_worker_environment(),
+        )
+    except OSError as exc:
+        raise RuntimeError("could not start isolated endpoint DNS resolver") from exc
+
+    try:
+        remaining = timeout_seconds - (time.monotonic() - started)
+        if remaining <= 0:
+            _terminate_and_reap_dns_worker(process)
+            raise TimeoutError("endpoint DNS resolution exceeded its total transport deadline")
+        try:
+            stdout, _ = process.communicate(timeout=remaining)
+        except subprocess.TimeoutExpired as exc:
+            _terminate_and_reap_dns_worker(process)
+            raise TimeoutError(
+                "endpoint DNS resolution exceeded its total transport deadline"
+            ) from exc
+        if process.returncode != 0:
+            raise OSError("isolated endpoint DNS resolver failed closed")
+        if len(stdout) > _MAX_DNS_WORKER_OUTPUT_BYTES:
+            raise RuntimeError("isolated endpoint DNS resolver exceeded its output limit")
+        try:
+            address_strings = stdout.decode("ascii").splitlines()
+        except UnicodeDecodeError as exc:
+            raise RuntimeError("isolated endpoint DNS resolver returned invalid output") from exc
+        if len(address_strings) > MAX_RESOLVED_ENDPOINT_ADDRESSES:
+            raise RuntimeError("isolated endpoint DNS resolver exceeded its address limit")
+        results: list[tuple[object, ...]] = []
+        for address_text in address_strings:
+            try:
+                address = ipaddress.ip_address(address_text)
+            except ValueError as exc:
+                raise RuntimeError(
+                    "isolated endpoint DNS resolver returned an invalid address"
+                ) from exc
+            family = (
+                socket.AF_INET if isinstance(address, ipaddress.IPv4Address) else socket.AF_INET6
+            )
+            results.append((family, socket.SOCK_STREAM, 0, "", (str(address), 0)))
+        return results
+    finally:
+        if process.poll() is None:
+            _terminate_and_reap_dns_worker(process)
+        if process.stdout is not None:
+            process.stdout.close()
+
+
+def _terminate_and_reap_dns_worker(process: subprocess.Popen[bytes]) -> None:
+    """Terminate a stuck resolver and synchronously reap its OS process handle."""
+
+    if process.poll() is not None:
+        return
+    try:
+        process.terminate()
+    except OSError:
+        if process.poll() is None:
+            raise
+    try:
+        process.wait(timeout=_DNS_WORKER_REAP_SECONDS)
+        return
+    except subprocess.TimeoutExpired:
+        process.kill()
+    try:
+        process.wait(timeout=_DNS_WORKER_REAP_SECONDS)
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError("could not reap isolated endpoint DNS resolver") from exc
+
+
 def assert_endpoint_resolution_allowed(
     host: str,
     *,
     label: str,
     resolver: EndpointResolver | None = None,
-) -> None:
-    status = resolve_endpoint_host(host, resolver=resolver)
+    timeout_seconds: float | None = None,
+) -> tuple[str, ...]:
+    status = resolve_endpoint_host(
+        host,
+        resolver=resolver,
+        timeout_seconds=timeout_seconds,
+    )
     if status.resolution_failed:
         raise ValueError(f"{label} endpoint host could not be resolved for safety screening")
     if status.has_disallowed_address:
@@ -583,3 +782,4 @@ def assert_endpoint_resolution_allowed(
             f"{label} endpoint host resolves to localhost, private, link-local, "
             "reserved, or multicast addresses"
         )
+    return status.addresses

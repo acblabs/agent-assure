@@ -14,6 +14,7 @@ from agent_assure.compare.runsets import ComparisonReport
 from agent_assure.evaluation.evaluator import EvaluationReport
 from agent_assure.schema.environment import EnvironmentInfo, InstalledPackage
 from agent_assure.schema.release import ReleaseArtifact, ReleaseArtifactManifest
+from agent_assure.schema.validation import validate_loaded_artifact_payload
 
 LOCKFILE_CANDIDATES = (
     "uv.lock",
@@ -52,6 +53,9 @@ def collect_environment(
 
 
 def write_dependency_inventory(environment: EnvironmentInfo, path: Path) -> str:
+    environment_payload = environment.model_dump(mode="json", warnings="error")
+    environment = EnvironmentInfo.model_validate(environment_payload)
+    validate_loaded_artifact_payload(environment_payload, "environment-info")
     payload = {
         "artifact_kind": "dependency-inventory",
         "format": "agent-assure-dependency-inventory-v0.1",
@@ -177,17 +181,28 @@ def build_release_manifest(
     environment: EnvironmentInfo,
     manifest_id: str | None = None,
 ) -> ReleaseArtifactManifest:
+    artifacts = tuple(
+        ReleaseArtifact.model_validate(artifact.model_dump(mode="json", warnings="error"))
+        for artifact in artifacts
+    )
+    environment_payload = environment.model_dump(mode="json", warnings="error")
+    environment = EnvironmentInfo.model_validate(environment_payload)
+    validate_loaded_artifact_payload(environment_payload, "environment-info")
     _require_unique_release_artifacts(artifacts)
     payload = {
         "artifacts": [artifact.model_dump(mode="json") for artifact in artifacts],
         "environment": environment.model_dump(mode="json"),
     }
-    return ReleaseArtifactManifest(
+    manifest = ReleaseArtifactManifest(
         artifact_kind="release-artifact-manifest",
         manifest_id=manifest_id or f"manifest-h{sha256_hexdigest(payload)[:16]}",
         artifacts=artifacts,
         environment=environment,
     )
+    manifest_payload = manifest.model_dump(mode="json", warnings="error")
+    manifest = ReleaseArtifactManifest.model_validate(manifest_payload)
+    validate_loaded_artifact_payload(manifest_payload, "release-artifact-manifest")
+    return manifest
 
 
 def _require_unique_release_artifacts(artifacts: tuple[ReleaseArtifact, ...]) -> None:
@@ -203,6 +218,9 @@ def _require_unique_release_artifacts(artifacts: tuple[ReleaseArtifact, ...]) ->
 
 
 def write_release_manifest(manifest: ReleaseArtifactManifest, path: Path) -> None:
+    payload = manifest.model_dump(mode="json", warnings="error")
+    manifest = ReleaseArtifactManifest.model_validate(payload)
+    validate_loaded_artifact_payload(payload, "release-artifact-manifest")
     write_text_atomic(
         path,
         json.dumps(manifest.model_dump(mode="json"), indent=2, sort_keys=True) + "\n",

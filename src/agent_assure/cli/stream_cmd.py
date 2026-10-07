@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import json
-from datetime import date
 from enum import StrEnum
 from pathlib import Path
+from tempfile import TemporaryDirectory
 from typing import Annotated
 
 import typer
@@ -12,9 +12,16 @@ from rich.console import Console
 from agent_assure.artifact_io import write_text_atomic
 from agent_assure.authoring.compiler import compile_suite
 from agent_assure.cli.dates import parse_cli_date
-from agent_assure.cli.waivers import load_waivers
+from agent_assure.cli.path_safety import ensure_inputs_do_not_alias_outputs
+from agent_assure.cli.report_transaction import (
+    mirrored_staging_directory,
+    publish_staged_outputs,
+)
+from agent_assure.cli.waivers import load_waivers, waiver_evaluation_date
 from agent_assure.evaluation.evaluator import evaluate_runset
 from agent_assure.fixtures.loader import load_compiled_suite
+from agent_assure.io_limits import MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES
+from agent_assure.onboarding.diagnostics import bounded_error, display_path
 from agent_assure.policies.base import DEFAULT_GATE_PROFILE, GateProfile
 from agent_assure.privacy.redaction import assert_stream_payload_safe_for_persistence
 from agent_assure.reporting.console import render_evaluation_console
@@ -37,13 +44,23 @@ from agent_assure.schema.suite import CompiledSuite
 from agent_assure.schema.validation import (
     load_validated_artifact_payload,
     project_validated_artifact_payload,
+    validate_loaded_artifact_payload,
 )
 from agent_assure.streaming.ingestion import ingest_jsonl_events
 from agent_assure.streaming.projection import stream_run_to_runset
 from agent_assure.streaming.telemetry import stream_run_to_span_plans
 
 app = typer.Typer(help="Streaming event ingestion and assurance.")
-console = Console()
+console = Console(markup=False)
+_STREAM_OUTPUT_NAMES = (
+    "dependency-inventory.json",
+    "stream-runset.json",
+    "stream-span-plans.json",
+    "evaluation-report.json",
+    "evaluation-summary.json",
+    "evaluation-report.md",
+    "release-artifact-manifest.json",
+)
 
 
 class SequenceScopeOption(StrEnum):
@@ -83,7 +100,7 @@ def ingest(
             producer_field=producer_field,
         )
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     diagnostics_path = diagnostics_out or out.parent / "stream-ingestion-diagnostics.json"
     stream_payload = result.stream_run.model_dump(mode="json")
     diagnostics_payload = result.diagnostics.model_dump(mode="json")
@@ -91,14 +108,14 @@ def ingest(
         assert_stream_payload_safe_for_persistence(stream_payload)
         assert_stream_payload_safe_for_persistence(diagnostics_payload)
     except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        raise typer.BadParameter(bounded_error(exc)) from exc
     _write_json(out, stream_payload)
     _write_json(diagnostics_path, diagnostics_payload)
     console.print(
         "stream ingest: "
         f"events={result.stream_run.accepted_event_count} "
         f"duplicates={result.stream_run.duplicate_event_count} "
-        f"out={out}"
+        f"out={display_path(out)}"
     )
 
 
@@ -128,6 +145,11 @@ def evaluate(
     ] = None,
 ) -> None:
     try:
+        ensure_inputs_do_not_alias_outputs(
+            (suite, stream_run_path, *(waiver or ())),
+            (out_dir, *(out_dir / name for name in _STREAM_OUTPUT_NAMES)),
+            owner="stream evaluate",
+        )
         compiled = _load_suite(suite)
         stream_run = project_validated_artifact_payload(
             load_validated_artifact_payload(stream_run_path, "stream-run"),
@@ -140,43 +162,62 @@ def evaluate(
             (suite, stream_run_path, out_dir),
             default_root=source_root,
         )
-        environment = environment_with_dependency_inventory(
-            source_root,
-            out_dir,
-            artifact_root=artifact_root,
-        )
+        loaded_waivers = load_waivers(tuple(waiver or ()))
         report = evaluate_runset(
             compiled,
             runset,
             gate_profile=_gate_profile(fail_on_warn, fail_on_not_evaluated),
-            waivers=load_waivers(tuple(waiver or ())),
-            today=parse_cli_date(today) or date.today(),
+            waivers=loaded_waivers,
+            today=waiver_evaluation_date(parse_cli_date(today), waivers=loaded_waivers),
         )
-        report = attach_evaluation_environment(report, environment)
-    except ValueError as exc:
-        raise typer.BadParameter(str(exc)) from exc
+        span_plan_payloads = []
+        for plan in stream_run_to_span_plans(stream_run):
+            payload = plan.model_dump(mode="json", warnings="error")
+            validate_loaded_artifact_payload(payload, "span-plan")
+            span_plan_payloads.append(payload)
 
-    out_dir.mkdir(parents=True, exist_ok=True)
-    runset_path = out_dir / "stream-runset.json"
-    span_plans_path = out_dir / "stream-span-plans.json"
-    write_runset(runset, runset_path)
-    _write_json(
-        span_plans_path,
-        [plan.model_dump(mode="json") for plan in stream_run_to_span_plans(stream_run)],
-    )
-    report_json, summary_json = write_evaluation_json(report, out_dir)
-    write_evaluation_markdown(report, out_dir)
-    _write_release_manifest(
-        suite_path=suite,
-        stream_run_path=stream_run_path,
-        runset_path=runset_path,
-        span_plans_path=span_plans_path,
-        report_path=report_json,
-        summary_path=summary_json,
-        out_dir=out_dir,
-        environment=environment,
-        project_root=artifact_root,
-    )
+        with TemporaryDirectory(prefix="agent-assure-stream-evaluate-") as staging_parent:
+            staging_root = Path(staging_parent)
+            staged_out_dir = mirrored_staging_directory(
+                staging_root,
+                out_dir=out_dir,
+                artifact_root=artifact_root,
+                owner="stream evaluate",
+            )
+            environment = environment_with_dependency_inventory(
+                source_root,
+                staged_out_dir,
+                artifact_root=staging_root,
+            )
+            report = attach_evaluation_environment(report, environment)
+            runset_path = staged_out_dir / "stream-runset.json"
+            span_plans_path = staged_out_dir / "stream-span-plans.json"
+            write_runset(runset, runset_path)
+            _write_json(span_plans_path, span_plan_payloads)
+            report_json, summary_json = write_evaluation_json(report, staged_out_dir)
+            write_evaluation_markdown(report, staged_out_dir)
+            _write_release_manifest(
+                suite_path=suite,
+                stream_run_path=stream_run_path,
+                runset_path=runset_path,
+                span_plans_path=span_plans_path,
+                report_path=report_json,
+                summary_path=summary_json,
+                out_dir=staged_out_dir,
+                environment=environment,
+                source_project_root=artifact_root,
+                output_project_root=staging_root,
+            )
+            publish_staged_outputs(
+                staging_dir=staged_out_dir,
+                out_dir=out_dir,
+                output_names=_STREAM_OUTPUT_NAMES,
+                max_bytes=MAX_JOURNAL_BEARING_RUNSET_JSON_BYTES,
+                owner="stream evaluate",
+            )
+    except (OSError, ValueError) as exc:
+        raise typer.BadParameter(bounded_error(exc)) from exc
+
     render_evaluation_console(report, console)
     if report.candidate_vs_expectations.state is GateState.fail:
         raise typer.Exit(1)
@@ -209,20 +250,37 @@ def _write_release_manifest(
     summary_path: Path,
     out_dir: Path,
     environment: EnvironmentInfo,
-    project_root: Path,
+    source_project_root: Path,
+    output_project_root: Path,
 ) -> None:
     manifest = build_release_manifest(
         (
-            release_artifact("suite", suite_path, project_root=project_root),
-            release_artifact("stream-run", stream_run_path, project_root=project_root),
-            release_artifact("stream-projected-runset", runset_path, project_root=project_root),
-            release_artifact("stream-span-plans", span_plans_path, project_root=project_root),
-            release_artifact("evaluation-report", report_path, project_root=project_root),
-            release_artifact("evaluation-summary", summary_path, project_root=project_root),
+            release_artifact("suite", suite_path, project_root=source_project_root),
+            release_artifact("stream-run", stream_run_path, project_root=source_project_root),
+            release_artifact(
+                "stream-projected-runset",
+                runset_path,
+                project_root=output_project_root,
+            ),
+            release_artifact(
+                "stream-span-plans",
+                span_plans_path,
+                project_root=output_project_root,
+            ),
+            release_artifact(
+                "evaluation-report",
+                report_path,
+                project_root=output_project_root,
+            ),
+            release_artifact(
+                "evaluation-summary",
+                summary_path,
+                project_root=output_project_root,
+            ),
             release_artifact(
                 "dependency-inventory",
                 out_dir / "dependency-inventory.json",
-                project_root=project_root,
+                project_root=output_project_root,
             ),
         ),
         environment=environment,
