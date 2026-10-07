@@ -66,6 +66,7 @@ REPORT_GOLDEN_ROOT = ROOT / "tests" / "golden" / "reports"
 SENSITIVITY_EXAMPLE_ROOT = ROOT / "examples" / "evidence_sensitivity"
 _DIGEST = "a" * 64
 MAX_GOLDEN_BYTES = 32 * 1024 * 1024
+LEGACY_REPLAY_VALIDATION_PATH = "frozen-jsonschema+semantic-replay"
 
 
 @cache
@@ -240,7 +241,7 @@ def _check_legacy_replay_golden(
     expected_sha256: str,
     failures: list[str],
 ) -> None:
-    """Keep released replay evidence immutable and exercise its frozen schema."""
+    """Keep released replay evidence immutable and exercise schema plus semantic replay."""
     try:
         loaded = read_file_bounded(
             path,
@@ -264,7 +265,7 @@ def _check_legacy_replay_golden(
             label="legacy replay golden",
         )
         validation_path = validate_artifact_payload(payload, artifact_kind)
-        if validation_path != "frozen-jsonschema":
+        if validation_path != LEGACY_REPLAY_VALIDATION_PATH:
             raise ValueError(f"unexpected validation path: {validation_path}")
     except Exception as exc:
         failures.append(f"legacy replay golden is invalid: {path.relative_to(ROOT)} ({exc})")
