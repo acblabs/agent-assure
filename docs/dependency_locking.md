@@ -116,10 +116,9 @@ After controlled regeneration, refresh both lock header digests. The normal
 
 Optional framework smoke jobs use dedicated lockfiles so the real framework
 dependency is installed instead of allowing an import-gated test to skip. The
-ADK and OpenTelemetry locks target CPython 3.11 on x86-64 Linux. The LangGraph
-lock uses a universal Python 3.11 resolution so the same checked-in file also
-supports cross-platform integration development; its CI job installs the Linux
-branch:
+The ADK, LangGraph, and OpenTelemetry locks use universal Python 3.11
+resolutions so the same checked-in files cover the Linux and Windows branches
+exercised by CI and security audits:
 
 - `requirements-langgraph.lock` covers the development and LangGraph extras;
 - `requirements-adk.lock` covers the development and Google ADK extras; and
@@ -145,7 +144,7 @@ uv --cache-dir .tmp/uv-cache pip compile pyproject.toml \
   --extra adk \
   --generate-hashes \
   --python-version 3.11 \
-  --python-platform x86_64-unknown-linux-gnu \
+  --universal \
   --output-file requirements-adk.lock
 ```
 
@@ -155,8 +154,8 @@ job instead of producing a green skip.
 
 The OpenTelemetry extra is intentionally pinned to the exact tested 1.44.0
 API, SDK, and OTLP HTTP exporter tuple because transport isolation verifies
-private OTLP HTTP exporter state before export. Refresh its Python 3.11/Linux
-lock with:
+private OTLP HTTP exporter state before export. Refresh its universal Python
+3.11 lock with:
 
 ```bash
 uv --cache-dir .tmp/uv-cache pip compile pyproject.toml \
@@ -164,7 +163,7 @@ uv --cache-dir .tmp/uv-cache pip compile pyproject.toml \
   --extra otel \
   --generate-hashes \
   --python-version 3.11 \
-  --python-platform x86_64-unknown-linux-gnu \
+  --universal \
   --output-file requirements-otel.lock
 ```
 
