@@ -21,7 +21,7 @@ _DATED_RELEASE_HEADING_PATTERN = re.compile(
 )
 _H2_PATTERN = re.compile(r" {0,3}##(?:[ \t]|$)")
 _FENCE_OPEN_PATTERN = re.compile(r" {0,3}(?P<marker>`{3,}|~{3,})(?P<info>.*)")
-_RAW_HTML_PATTERN = re.compile(r"<(?:/?[A-Za-z][A-Za-z0-9-]*(?=[ \t\r\n/>]|$)|[!?])|-->")
+_RAW_HTML_PATTERN = re.compile(r"<(?:/?[A-Za-z][A-Za-z0-9-]*(?=[ \t\r\n/>]|$)|[!?])|--!?>")
 _CITATION_VERSION_LINE_PATTERN = re.compile(r"^version:.*$", re.MULTILINE)
 _CITATION_VERSION_PATTERN = re.compile(
     rf"^version:\s*(?P<quote>['\"]?)(?P<value>{STABLE_VERSION_PATTERN.pattern})"
