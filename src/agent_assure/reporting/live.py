@@ -8,7 +8,11 @@ from agent_assure.privacy.redaction import (
     PRESERVE_PACKET_KEYS,
     redact_artifact_payload,
 )
-from agent_assure.reporting.markdown_safety import markdown_code_span, markdown_text
+from agent_assure.reporting.markdown_safety import (
+    markdown_code_span,
+    markdown_sha256_code_span,
+    markdown_text,
+)
 from agent_assure.schema.live import (
     LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION,
     LiveComparisonReport,
@@ -290,9 +294,9 @@ def render_live_comparison_markdown(report: LiveComparisonReport) -> str:
         "",
         f"- Verification boundary: {LIVE_COMPARISON_SOURCE_LINKAGE_LIMITATION}.",
         "- Baseline evaluation digest: "
-        f"{markdown_code_span(report.baseline_evaluation_digest or 'not_recorded')}",
+        f"{markdown_sha256_code_span(report.baseline_evaluation_digest)}",
         "- Candidate evaluation digest: "
-        f"{markdown_code_span(report.candidate_evaluation_digest or 'not_recorded')}",
+        f"{markdown_sha256_code_span(report.candidate_evaluation_digest)}",
         f"- p50 latency difference ms: `{report.latency_p50_difference_ms or 'not_evaluated'}`",
         f"- total cost difference USD: `{report.cost_total_difference_usd or 'not_evaluated'}`",
         "",

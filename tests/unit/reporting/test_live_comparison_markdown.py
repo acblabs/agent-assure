@@ -80,3 +80,15 @@ def test_live_comparison_markdown_labels_operational_deltas_source_declarative()
     assert "not_recorded" not in operational
     assert "p50 latency difference ms: `1400.000000`" in operational
     assert "total cost difference USD: `2.500000`" in operational
+
+    card_shaped_digest = "cd18620ee20204105499754aa35d7ff45d9c37483cfb06df8ab3b461571d7993"
+    collision_report = report.model_copy(
+        update={
+            "baseline_evaluation_digest": card_shaped_digest,
+            "candidate_evaluation_digest": card_shaped_digest,
+        }
+    )
+    collision_markdown = render_live_comparison_markdown(collision_report)
+
+    assert f"Baseline evaluation digest: `{card_shaped_digest}`" in collision_markdown
+    assert f"Candidate evaluation digest: `{card_shaped_digest}`" in collision_markdown
