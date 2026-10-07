@@ -107,6 +107,7 @@ def test_raw_html_block_cannot_supply_a_release_heading(tag: str) -> None:
         "Body <?hide",
         "Body <!BOGUS",
         "Body -->",
+        "Body --!>",
     ),
 )
 def test_inline_or_prefixed_raw_html_cannot_hide_release_heading(raw_html: str) -> None:
@@ -122,7 +123,7 @@ def test_inline_or_prefixed_raw_html_cannot_hide_release_heading(raw_html: str) 
 def test_raw_html_example_inside_valid_changelog_fence_is_ignored() -> None:
     text = _canonical_changelog().replace(
         "## Unreleased\n",
-        "## Unreleased\n\n```html\n<div hidden>example</div>\n```\n",
+        "## Unreleased\n\n```html\n<div hidden>example</div>\nBody --!>\n```\n",
     )
 
     assert parse_changelog(text).latest_release.version == "1.2.3"

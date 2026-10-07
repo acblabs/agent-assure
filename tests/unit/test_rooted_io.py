@@ -955,11 +955,14 @@ def test_rooted_read_fails_closed_when_parent_is_swapped_after_open(
     def swapping_open(
         path: Any,
         flags: int,
-        mode: int = 0o777,
+        mode: int = 0o600,
         *,
         dir_fd: int | None = None,
     ) -> int:
         nonlocal swapped
+        assert flags & os.O_CREAT == 0
+        tmpfile_flags = getattr(os, "O_TMPFILE", 0)
+        assert tmpfile_flags == 0 or flags & tmpfile_flags != tmpfile_flags
         descriptor = real_open(path, flags, mode, dir_fd=dir_fd)
         if path == "parent" and dir_fd is not None and not swapped:
             swapped = True
@@ -1475,10 +1478,13 @@ def test_rooted_directory_claim_closes_parent_pin_and_removes_claim_on_baseexcep
     def recording_open(
         path: Any,
         flags: int,
-        mode: int = 0o777,
+        mode: int = 0o600,
         *,
         dir_fd: int | None = None,
     ) -> int:
+        assert flags & os.O_CREAT == 0
+        tmpfile_flags = getattr(os, "O_TMPFILE", 0)
+        assert tmpfile_flags == 0 or flags & tmpfile_flags != tmpfile_flags
         result = real_open(path, flags, mode, dir_fd=dir_fd)
         if path == "generation" and dir_fd is not None:
             opened_claim_descriptors.append(result)
