@@ -107,10 +107,15 @@ Complete this setup before the first TestPyPI publish attempt:
    immediately before GitHub Release creation and requires the resulting commit
    to equal the signed workflow SHA; tag rules remain defense in depth against
    the unavoidable interval between that check and GitHub's release-create API.
-6. Protect the default branch with required CODEOWNER review and the aggregate
-   `coverage-gate` status. Do not require individual coverage shards in place of
-   the aggregate: the aggregate is the fail-closed check for complete shard
-   success and exact artifact inventory.
+6. The default branch may remain unprotected. Before updating it, obtain explicit
+   authorization from an authorized human maintainer for the candidate's full
+   40-hex commit SHA after required CI, including the aggregate `coverage-gate`,
+   has passed. Retain the SHA-bound authorization and check-run URLs or IDs in an
+   auditable repository or change-management record. This procedural control is
+   bypassable without branch protection and must not be represented as
+   independently enforced. Do not substitute individual coverage shards for the
+   aggregate: the aggregate is the fail-closed check for complete shard success
+   and exact artifact inventory.
 7. Restrict environment deployment branches/tags to the intended release refs.
 8. Do not create or retain TestPyPI or PyPI upload tokens. Revoke any legacy
    upload tokens, keep owner and maintainer roles to the reviewed minimum, and
@@ -269,10 +274,10 @@ available for descriptive conformance, which cannot unlock this checkpoint.
 
 The review timestamps are self-declared artifact fields. Before the execution
 window opens, merge the exact benchmark and positive-review mirror pairs through
-the protected public repository and retain that commit identity in the study's
-registration evidence. The independently hosted commit time provides external
-ordering evidence; this checker does not query or authenticate repository-host
-timestamps.
+the public repository under the documented human-maintainer authorization
+process and retain that commit identity in the study's registration evidence.
+The independently hosted commit time provides external ordering evidence; this
+checker does not query or authenticate repository-host timestamps.
 
 The checker pins one closed, link-free pilot bundle, enforces per-file and
 aggregate bounds, verifies every byte digest, validates the wheel

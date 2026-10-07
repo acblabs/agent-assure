@@ -1092,10 +1092,11 @@ derives a separate verifier decision. It combines that result with evaluation
 and optional comparison decisions by structural outcome, never by parsing
 display messages. Precedence is `invalid`, `fail`, `review`,
 `not_evaluated`, then `pass`. Strict gating validates transported facts but
-does not rerun operators. A protected CI workflow making an efficacy assurance
-claim must regenerate the campaign and efficacy report from pinned inputs
-before gating and protect policy, manifest, scope, and workflow changes with
-required review.
+does not rerun operators. A CI workflow making an efficacy assurance claim must
+regenerate the campaign and efficacy report from pinned inputs before gating.
+Policy, manifest, scope, and workflow changes require the documented explicit
+human-maintainer authorization; branch protection may enforce that review but
+is not required.
 
 When `ci gate` receives an evidence packet with a release manifest, it reopens
 the referenced evaluation and optional comparison summary beneath a trusted

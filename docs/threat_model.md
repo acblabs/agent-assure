@@ -302,8 +302,9 @@ a network-isolation boundary against hostile Python or native code.
   re-derives decisions and verifies schema/digest relationships but does not
   rerun mutation operators. A protected CI workflow making an efficacy
   assurance claim must regenerate campaigns and efficacy reports from pinned
-  inputs, and repository protections should require review for the verifier
-  policy, threat manifest, operator selection, and workflow.
+  inputs. Repository governance requires explicit human-maintainer review for
+  the verifier policy, threat manifest, operator selection, and workflow;
+  branch protection may enforce that review but is not required.
 - Operator execution does not load caller-supplied executable plugins, invoke
   caller-supplied shell text, or require network access.
 - Reports minimize content to paths, digests, reason codes, bounded summaries,

@@ -298,9 +298,10 @@ Regenerate the campaign and efficacy report in CI from pinned suite, RunSet,
 catalog, configuration, and manifest inputs before using the result for an
 efficacy assurance claim. Gating a schema-valid committed report verifies its
 internal bindings and policy projection; it does not rerun operators or attest
-that the recorded campaign facts were actually executed. Protect the verifier
-YAML, threat manifest, catalog selection, and CI workflow with required review
-or `CODEOWNERS`.
+that the recorded campaign facts were actually executed. Subject the verifier
+YAML, threat manifest, catalog selection, and CI workflow to the documented
+explicit human-maintainer authorization process. `CODEOWNERS` routes ownership;
+branch protection may enforce that routing but is not required.
 
 ## One-Command Demonstration
 

@@ -103,10 +103,18 @@ tag, signature, GitHub Release, TestPyPI or PyPI publication, or any release-gat
 exception. An expired, incomplete, or unapproved record authorizes nothing.
 
 `CODEOWNERS` routes changes across the complete package, test, workflow, script,
-schema, and documentation surfaces to `@acblabs`. Because that is one ownership
-authority, the file alone does not prove independent approval. Repository and
-environment protection for release-sensitive changes must require a distinct
-authorized reviewer and preserve that approval in GitHub's audit record.
+schema, and documentation surfaces to `@acblabs`. It is an ownership and routing
+inventory, not proof that review occurred. The default branch may remain
+unprotected. Before a release-sensitive update reaches it, an authorized human
+maintainer must explicitly approve the candidate's full 40-hex commit SHA after
+required CI passes and retain that SHA-bound authorization plus the check-run
+URLs or IDs in an auditable repository or change-management record. For
+agent-authored work, the human owner may provide that authorization through the
+same `@acblabs` identity; describe it as human owner authorization, not
+independent review or an enforced branch control. Privileged release
+environments remain protected with required reviewers. Default-branch
+authorization does not waive a publication gate or an independent
+evidence-review requirement.
 
 ## Supported Surfaces
 

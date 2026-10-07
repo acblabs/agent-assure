@@ -886,6 +886,26 @@ def test_security_support_language_does_not_promise_an_unavailable_patch_path() 
     assert "emergency path is rooted outside" in security
 
 
+def test_default_branch_governance_uses_sha_bound_human_owner_authorization() -> None:
+    security = " ".join((ROOT / "SECURITY.md").read_text(encoding="utf-8").split())
+    runbook = " ".join(
+        (ROOT / "docs" / "release_pypi.md").read_text(encoding="utf-8").split()
+    )
+    owners = " ".join(
+        (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8").split()
+    )
+
+    assert "The default branch may remain unprotected" in security
+    assert "candidate's full 40-hex commit SHA" in security
+    assert "check-run URLs or IDs" in security
+    assert "human owner authorization, not independent review" in security
+    assert "Privileged release environments remain protected" in security
+    assert "The default branch may remain unprotected" in runbook
+    assert "procedural control is bypassable without branch protection" in runbook
+    assert "aggregate `coverage-gate`" in runbook
+    assert "when it does not, SECURITY.md's explicit human-maintainer" in owners
+
+
 def test_codeowners_has_broad_source_test_and_governance_coverage() -> None:
     owners = (ROOT / ".github" / "CODEOWNERS").read_text(encoding="utf-8")
 

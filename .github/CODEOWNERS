@@ -1,5 +1,6 @@
-# Assurance-sensitive surfaces should require maintainer review when branch
-# protection enables CODEOWNER enforcement.
+# Assurance-sensitive surfaces route to @acblabs. Branch protection may enforce
+# that routing; when it does not, SECURITY.md's explicit human-maintainer
+# authorization rule still applies.
 
 /.github/** @acblabs
 /pyproject.toml @acblabs

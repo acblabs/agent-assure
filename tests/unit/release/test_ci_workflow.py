@@ -67,7 +67,7 @@ def test_ci_qualifies_declared_dependency_lower_bounds_on_supported_python_edges
     checkout = next(
         step for step in steps if str(step.get("uses", "")).startswith("actions/checkout@")
     )
-    assert checkout["with"]["persist-credentials"] is False
+    assert checkout["with"] == {"fetch-depth": 0, "persist-credentials": False}
     setup = next(
         step for step in steps if str(step.get("uses", "")).startswith("actions/setup-python@")
     )

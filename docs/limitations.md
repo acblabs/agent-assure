@@ -84,11 +84,12 @@ unknown threat applicability, postcontrol provenance, or zero independent
 challenge coverage.
 
 Strict `ci gate` verifies a report against a separate policy; it does not
-re-execute the campaign. A protected CI workflow making an efficacy assurance
-claim must regenerate campaign and efficacy artifacts from pinned inputs.
-Protect the policy, threat manifest, operator scope, and workflow with
-mandatory review; otherwise an authorized repository change can alter the
-facts and the rules together.
+re-execute the campaign. A CI workflow making an efficacy assurance claim must
+regenerate campaign and efficacy artifacts from pinned inputs. The policy,
+threat manifest, operator scope, and workflow require the documented explicit
+human-maintainer authorization; branch protection may enforce that review but
+is not required. Without the procedural review, an authorized repository
+change can alter the facts and the rules together.
 
 Waiver records are digest-bound, expiry-bounded, and require distinct owner and
 reviewer identities, but they are not cryptographically signed. Those identity

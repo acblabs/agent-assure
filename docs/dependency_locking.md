@@ -89,11 +89,14 @@ profile detects an understated runtime floor—and the resulting overstated
 compatibility claim—without weakening the reproducible release environment
 represented by `requirements.lock`.
 
-The Typer floor is `0.19.0`: the CLI uses both PEP 604 unions and
-`typing.Literal`, and `0.19.0` is the first Typer release that can construct
-that command tree. The PyYAML floor is `6.0.3`, the first supported release in
-this profile that installs on Python 3.14 without relying on an unavailable
-source-build path.
+The Pydantic floor is `2.13.0`: published study artifacts serialize with
+warnings treated as errors, and `2.13.0` is the first verified release in this
+profile that handles the project's discriminated decision-rule unions and
+`exclude_if` fields without a false serializer warning. The Typer floor is
+`0.19.0`: the CLI uses both PEP 604 unions and `typing.Literal`, and `0.19.0` is
+the first Typer release that can construct that command tree. The PyYAML floor
+is `6.0.3`, the first supported release in this profile that installs on Python
+3.14 without relying on an unavailable source-build path.
 
 Refresh the lower-bound profile with:
 
@@ -255,5 +258,5 @@ and retain only resolver- or downloader-produced hashes. Validate every changed
 lock with a hash-required install and dependency audit before committing it.
 
 These controls report published advisories; they do not prove that dependencies
-are vulnerability-free. A lock update remains subject to normal tests,
-CODEOWNER review, hash review, and release reproducibility checks.
+are vulnerability-free. A lock update remains subject to normal tests, explicit
+human-maintainer review, hash review, and release reproducibility checks.

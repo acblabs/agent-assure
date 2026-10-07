@@ -34,7 +34,7 @@ classifiers = [
   "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
-  "pydantic>=2.12,<3",
+  "pydantic>=2.13,<3",
   "typer>=0.19,<1",
   "rich>=13,<15",
   "PyYAML>=6.0.3,<7",

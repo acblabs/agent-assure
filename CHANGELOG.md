@@ -194,8 +194,17 @@
   record does not make an impossible recursive self-digest claim.
 - Added a hash-locked direct-runtime lower-bound profile and full-suite CI jobs
   on Python 3.11 and 3.14. Qualification raised the supported floors to
-  `typer>=0.19` for `typing.Literal` command parameters and `PyYAML>=6.0.3`
-  for Python 3.14 installation support.
+  `pydantic>=2.13` for strict warning-free serialization of the study
+  decision-rule unions and `exclude_if` fields, `typer>=0.19` for
+  `typing.Literal` command parameters, and `PyYAML>=6.0.3` for Python 3.14
+  installation support. The lower-bound CI checkout now retains complete Git
+  history for immutable action-pin and mutation-provenance verification.
+- Default-branch protection is now an optional owner policy. An unprotected
+  update requires explicit human-maintainer authorization bound to the
+  candidate's full 40-hex commit SHA and passing check-run URLs or IDs. This is
+  a procedural, bypassable owner control, not independent review; protected
+  release environments, publication gates, and independent evidence review are
+  unchanged.
 - Added a full-history Gitleaks v8.30.1 scan pinned by container digest, with
   redacted CI output and exact suppressions only for known synthetic fixtures.
 - Release-bundle construction now reopens the exact persisted SBOM bytes and
