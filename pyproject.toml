@@ -54,9 +54,9 @@ langgraph = [
 otel = [
   # The hardened exporter validates private transport state. Keep this optional
   # surface at the exact version exercised by requirements-otel.lock.
-  "opentelemetry-api==1.44.0",
-  "opentelemetry-sdk==1.44.0",
-  "opentelemetry-exporter-otlp-proto-http==1.44.0",
+  "opentelemetry-api==1.45.0",
+  "opentelemetry-sdk==1.45.0",
+  "opentelemetry-exporter-otlp-proto-http==1.45.0",
 ]
 dev = [
   "pytest>=8",
